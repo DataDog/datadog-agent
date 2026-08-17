@@ -518,9 +518,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 
 	// Try to resolve tags for this workload
 	workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-	// Temporary fix to use image_name instead of image_tag
-	// TODO: Remove this once we have a proper tag resolution mechanism
-	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_name", workloadTags) != ""
+	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_tag", workloadTags) != ""
 
 	if tagsResolved {
 		// Set resolved tags on the event for downstream processing
