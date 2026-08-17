@@ -9,9 +9,25 @@ import "github.com/DataDog/datadog-agent/pkg/metrics"
 
 // FinalDogStatsDSerieObserver observes final DogStatsD series from the normal
 // aggregation pipeline only. The pipeline calls observers synchronously after
-// its aggregation filter and before serialization. Implementations must not
-// mutate or retain the series, must tolerate concurrent calls, and must return
-// promptly because they run on the aggregation hot path.
+// its aggregation filter and before serialization. Worker flushes are serialized
+// by the demultiplexer. Implementations must not mutate or retain the series and
+// must return promptly because they run on the aggregation hot path.
 type FinalDogStatsDSerieObserver interface {
 	ObserveFinalDogStatsDSerie(serie *metrics.Serie)
+}
+
+// FinalDogStatsDSerieObserverFlusher is implemented by observers that evaluate
+// a completed serializer-flush window. The demultiplexer invokes it once after
+// all normal-aggregation DogStatsD workers have finished flushing. It is called
+// synchronously and must return promptly.
+type FinalDogStatsDSerieObserverFlusher interface {
+	CompleteFinalDogStatsDSerieFlush()
+}
+
+func completeFinalDogStatsDSerieObserverFlushes(observers []FinalDogStatsDSerieObserver) {
+	for _, observer := range observers {
+		if flusher, ok := observer.(FinalDogStatsDSerieObserverFlusher); ok {
+			flusher.CompleteFinalDogStatsDSerieFlush()
+		}
+	}
 }

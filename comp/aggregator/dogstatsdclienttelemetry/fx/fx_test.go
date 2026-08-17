@@ -13,7 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -25,7 +32,17 @@ type dependencies struct {
 }
 
 func TestModuleProvidesFinalDogStatsDSerieObserver(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, Module(), telemetrymock.Module())
+	deps := fxutil.Test[dependencies](t,
+		Module(),
+		telemetrymock.Module(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() hostnameinterface.Component {
+			hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname("test-node"))
+			return hostname
+		}),
+		fx.Provide(func() healthplatformstore.Component { return healthplatformmock.New(t) }),
+	)
 
 	require.Len(t, deps.Observers, 1)
 }
