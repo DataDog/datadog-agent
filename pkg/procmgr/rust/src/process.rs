@@ -320,6 +320,10 @@ impl ManagedProcess {
         &self.user
     }
 
+    pub(crate) fn set_intended_user(&mut self, user: String) {
+        self.user = user;
+    }
+
     pub fn restart_count(&self) -> u32 {
         self.restarts.count
     }
@@ -336,11 +340,6 @@ impl ManagedProcess {
     #[cfg(test)]
     pub(crate) fn config_mut(&mut self) -> &mut ProcessConfig {
         &mut self.config
-    }
-
-    /// Re-resolve the intended spawn account from current installer/platform state.
-    fn refresh_intended_user(&mut self) {
-        self.user = spawn_user_for(&self.name, self.profile);
     }
 
     fn transition_to(&mut self, next: ProcessState) {
@@ -458,9 +457,8 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        // Resolve intended spawn user before creating the child so a slow lookup
-        // cannot block the manager lock while an unwatched process is starting.
-        self.refresh_intended_user();
+        // Platform spawn resolves the account and records intended user from the
+        // identity actually selected for launch (before creating the child).
         let handle = platform::spawn_child_handle(self)?;
 
         self.pid = handle.id();
