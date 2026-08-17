@@ -15,9 +15,11 @@
 //
 // fill_span_context is the single entry point every hook calls to attach a span
 // context to an event. It leaves span_context_t empty (reserved for another
-// APM-correlation reader, e.g. OTEP 4947) and snapshots the current goroutine's
-// Go pprof labels into the go_labels_ctx ring via collect_go_labels(). Only the
-// resulting id is stored (in go_labels); user space resolves it.
+// APM-correlation reader, e.g. OTEP 4947) and, when span tracking is enabled
+// (is_span_tracking_enabled(), backed by span_tracking.enabled), snapshots the
+// current goroutine's Go pprof labels into the go_labels_ctx ring via
+// collect_go_labels(). Only the resulting id is stored (in go_labels); user
+// space resolves it.
 void __attribute__((always_inline)) fill_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
     // No span context available yet from this path.
     span->span_id = 0;
@@ -25,7 +27,7 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
     span->extra_attrs_id = 0;
 
     if (go_labels) {
-        go_labels->id = collect_go_labels();
+        go_labels->id = is_span_tracking_enabled() ? collect_go_labels() : 0;
     }
 }
 
