@@ -88,5 +88,9 @@ jobs:
             
             ### Describe how you validated your changes
             CI is considered enough to validate changes.
+
+            ### Ownership
+            - Embedded Python upgrade and generated changes: @DataDog/agent-integrations
+            - GitHub workflow infrastructure: @DataDog/agent-devx
           team-reviewers: agent-integrations
           labels: team/agent-integrations,changelog/no-changelog
