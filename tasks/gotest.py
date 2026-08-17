@@ -464,10 +464,10 @@ def test_flavor(
                 ignore_errors=True,
             )
             # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-            if res is not None and res.exited == 130:
+            if res is not None and res.returncode == 130:
                 raise KeyboardInterrupt()
 
-        if res is not None and (res.exited is None or res.exited > 0):
+        if res is not None and res.returncode > 0:
             result.failed = True
         elif not skip_tests_covered_by_bazel:
             lines = res.stdout.splitlines()
