@@ -63,6 +63,11 @@ type engine struct {
 	// latestDataTime is the latest data timestamp seen across all ingested observations.
 	latestDataTime int64
 
+	// inactiveSeriesEvictionChecked tracks the advance timestamp of the last
+	// inactivity scan. It is engine-goroutine owned, like storage mutation.
+	inactiveSeriesEvictionChecked   bool
+	lastInactiveSeriesEvictionCheck int64
+
 	// Raw anomaly tracking (for telemetry and testbench display).
 	rawAnomalies         []observerdef.Anomaly
 	rawAnomalyIndex      map[anomalyDedupKey]int // O(1) dedup lookup
@@ -503,6 +508,10 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	if e.logCounts != nil {
 		e.logCounts.flush(e.storage, upToSec)
 	}
+	// Inactivity eviction happens after materialized log-count buckets have
+	// restored their real last-observation activity time, and before detectors
+	// can recreate state for series that are no longer relevant.
+	e.evictInactiveSeries(upToSec)
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
@@ -533,6 +542,30 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	})
 
 	return result
+}
+
+func (e *engine) evictInactiveSeries(upToSec int64) {
+	cfg := e.storage.cfg
+	if cfg.InactiveSeriesTTLSeconds <= 0 || cfg.InactiveSeriesCheckIntervalSeconds <= 0 {
+		return
+	}
+	if e.inactiveSeriesEvictionChecked && upToSec-e.lastInactiveSeriesEvictionCheck < cfg.InactiveSeriesCheckIntervalSeconds {
+		return
+	}
+	e.inactiveSeriesEvictionChecked = true
+	e.lastInactiveSeriesEvictionCheck = upToSec
+
+	freed := e.storage.EvictInactiveBefore(upToSec - cfg.InactiveSeriesTTLSeconds)
+	if len(freed) == 0 {
+		return
+	}
+	if e.logCounts != nil {
+		e.logCounts.removeSeriesByRefs(freed)
+	}
+	if e.onStorageSeriesEvicted != nil {
+		e.onStorageSeriesEvicted("inactive", len(freed))
+	}
+	e.fanOutSeriesRemoval(freed)
 }
 
 // runDetectorsAndCorrelatorsSnapshot runs the given detectors and correlators.
@@ -939,6 +972,8 @@ func (e *engine) Reset() {
 
 	e.lastAnalyzedDataTime = 0
 	e.latestDataTime = 0
+	e.inactiveSeriesEvictionChecked = false
+	e.lastInactiveSeriesEvictionCheck = 0
 
 	for _, detector := range e.detectors {
 		if resetter, ok := detector.(interface{ Reset() }); ok {
@@ -1000,6 +1035,8 @@ func (e *engine) resetAnalysisState() {
 	e.mu.Lock()
 	e.lastAnalyzedDataTime = 0
 	e.latestDataTime = 0
+	e.inactiveSeriesEvictionChecked = false
+	e.lastInactiveSeriesEvictionCheck = 0
 	e.mu.Unlock()
 
 	for _, detector := range e.detectors {

@@ -5439,6 +5439,20 @@ properties:
             default: 0.5
             tags:
             - golang_type:float64
+          inactive_series_check_interval:
+            node_type: setting
+            type: string
+            default: 5m0s
+            format: duration
+            tags:
+            - golang_type:duration
+          inactive_series_ttl:
+            node_type: setting
+            type: string
+            default: 20m0s
+            format: duration
+            tags:
+            - golang_type:duration
           max_series:
             node_type: setting
             type: integer
