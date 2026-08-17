@@ -25,7 +25,7 @@ build do
     block do
         # Push all the pieces built with Bazel.
 
-        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install",
+        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install --destdir=#{install_dir}",
             :live_stream => Omnibus.logger.live_stream(:info)
 
         if linux_target?
@@ -269,7 +269,6 @@ build do
             # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
             allow_list = [
               "libddwaf\\.dylib",
-              "secret-generic-connector",
             ]
             command_on_repo_root "./omnibus/scripts/check_macos_version.sh",
                                  live_stream: Omnibus.logger.live_stream(:info),

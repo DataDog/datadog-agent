@@ -28,6 +28,12 @@ import (
 const (
 	// ADMinMaxDumSize represents the minimum value for runtime_security_config.activity_dump.max_dump_size
 	ADMinMaxDumSize = 100
+
+	// samplingPressureCritical mirrors SAMPLING_PRESSURE_CRITICAL in
+	// pkg/security/ebpf/c/include/constants/custom.h and must be kept in sync with it.
+	// It is the exclusive upper bound for the per-event sampling thresholds: at or above
+	// it the critical check fires first, so the rate limiter band would never be reached.
+	samplingPressureCritical = 90
 )
 
 var (
@@ -284,16 +290,21 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpMaxDumpSize func() int
 
 	// Per-type event sampling config
-	EventSamplingOpenEnabled     bool
-	EventSamplingOpenRate        int
-	EventSamplingConnectEnabled  bool
-	EventSamplingConnectRate     int
-	EventSamplingBindEnabled     bool
-	EventSamplingBindRate        int
-	EventSamplingDNSEnabled      bool
-	EventSamplingDNSRate         int
-	EventSamplingSyscallsEnabled bool
-	EventSamplingSyscallsRate    int
+	EventSamplingOpenEnabled      bool
+	EventSamplingOpenRate         int
+	EventSamplingOpenThreshold    int
+	EventSamplingConnectEnabled   bool
+	EventSamplingConnectRate      int
+	EventSamplingConnectThreshold int
+	EventSamplingBindEnabled      bool
+	EventSamplingBindRate         int
+	EventSamplingBindThreshold    int
+	EventSamplingDNSEnabled       bool
+	EventSamplingDNSRate          int
+	EventSamplingDNSThreshold     int
+	EventSamplingSyscallsEnabled  bool
+	EventSamplingSyscallsRate     int
+	EventSamplingDynamicEnabled   bool
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
@@ -388,6 +399,9 @@ type RuntimeSecurityConfig struct {
 	HashResolverCacheSize int
 	// HashResolverReplace is used to apply specific hash to specific file path
 	HashResolverReplace map[string]string
+
+	// TagsResolverQueueSize defines the size of the queue of workloads waiting for their tags to be resolved
+	TagsResolverQueueSize int
 
 	// SysCtlEnabled defines if the sysctl event should be enabled
 	SysCtlEnabled bool
@@ -624,6 +638,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverCacheSize:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.cache_size"),
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
 
+		// Tags resolver
+		TagsResolverQueueSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.tags_resolver.queue_size"),
+
 		// SysCtl config parameter
 		SysCtlEnabled:                        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
 		SysCtlEBPFEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.ebpf.enabled"),
@@ -633,17 +650,21 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// event sampling (per-type)
-		EventSamplingOpenEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
-		EventSamplingOpenRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
-		EventSamplingConnectEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
-		EventSamplingConnectRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
-		EventSamplingBindEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
-		EventSamplingBindRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
-		EventSamplingDNSEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
-		EventSamplingDNSRate:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
-
-		EventSamplingSyscallsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
-		EventSamplingSyscallsRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
+		EventSamplingOpenEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
+		EventSamplingOpenRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
+		EventSamplingOpenThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.threshold"),
+		EventSamplingConnectEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
+		EventSamplingConnectRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
+		EventSamplingConnectThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
+		EventSamplingBindEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingBindThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
+		EventSamplingDNSEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
+		EventSamplingDNSRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
+		EventSamplingDNSThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.threshold"),
+		EventSamplingSyscallsEnabled:  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
+		EventSamplingSyscallsRate:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
+		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -823,6 +844,20 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 	if c.EnforcementDisarmerExecutableEnabled && c.EnforcementDisarmerExecutableMaxAllowed <= 0 {
 		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
+	}
+
+	for _, threshold := range []struct {
+		eventType string
+		value     int
+	}{
+		{"open", c.EventSamplingOpenThreshold},
+		{"connect", c.EventSamplingConnectThreshold},
+		{"bind", c.EventSamplingBindThreshold},
+		{"dns", c.EventSamplingDNSThreshold},
+	} {
+		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
+			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)
+		}
 	}
 
 	c.sanitizePlatform()

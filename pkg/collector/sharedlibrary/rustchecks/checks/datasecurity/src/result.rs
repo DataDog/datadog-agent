@@ -1,7 +1,21 @@
+use crate::backend::ScannedColumn;
 use crate::config::{CheckConfig, SubTask};
 use crate::proto::{
-    self, ScanMetadata, ScanResult, ScanTaskMetadata, SdsResultPayload, Status, TableMatch,
+    self, PostgresScannedColumn, ScanMetadata, ScanResult, ScanTaskMetadata, SdsResultPayload,
+    Status, TableMatch,
 };
+
+/// The result of scanning one sub task: the matches plus the statistics
+/// reported in the result's `PostgresTable` location.
+#[derive(Debug, Default)]
+pub(crate) struct ScanOutcome {
+    /// One entry per `(column, rule)` that matched.
+    pub matches: Vec<TableMatch>,
+    /// The columns that were scanned (name + source data type).
+    pub scanned_columns: Vec<ScannedColumn>,
+    /// Number of rows returned by the query and scanned.
+    pub scanned_row_count: i64,
+}
 
 /// Builds the `SdsResultPayload` protobuf for one sub task.
 pub(crate) fn build_sds_result(
@@ -9,7 +23,7 @@ pub(crate) fn build_sds_result(
     sub_task: &SubTask,
     status: Status,
     failure_reason: &str,
-    matches: Vec<TableMatch>,
+    outcome: ScanOutcome,
 ) -> SdsResultPayload {
     let entity = &sub_task.entity;
 
@@ -22,7 +36,16 @@ pub(crate) fn build_sds_result(
                 database_name: entity.database.clone(),
                 schema_name: entity.schema.clone(),
                 table_name: entity.table.clone(),
-                // TODO(DSEC-179): populate row counts and scanned_columns.
+                scanned_row_count: outcome.scanned_row_count,
+                scanned_columns: outcome
+                    .scanned_columns
+                    .into_iter()
+                    .map(|column| PostgresScannedColumn {
+                        name: column.name,
+                        data_type: column.data_type,
+                    })
+                    .collect(),
+                // TODO(DSEC-227): populate table_row_count if possible.
                 ..Default::default()
             },
         )),
@@ -31,7 +54,7 @@ pub(crate) fn build_sds_result(
 
     // TODO(DSEC-180): populate duration, started_at and ended_at.
     let scan_result = ScanResult {
-        table_matches: matches,
+        table_matches: outcome.matches,
         location: Some(location),
         scan_metadata: Some(ScanMetadata {
             scan_task_metadata: Some(ScanTaskMetadata {
@@ -56,7 +79,7 @@ pub(crate) fn build_sds_result(
             .iter()
             .map(|rule| rule.id.clone())
             .collect(),
-        // The scanning source is the Agent. TODO(DSEC-179): populate hostname and
+        // The scanning source is the Agent. TODO(DSEC-228): populate hostname and
         // agent version once the check receives them (not provided via config yet).
         scanning_source: Some(proto::ScanningSource {
             source: Some(proto::scanning_source::Source::Agent(

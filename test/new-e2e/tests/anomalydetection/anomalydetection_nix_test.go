@@ -50,9 +50,16 @@ func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  anomaly_scorer:
-    dry_run:
+  reporting:
+    events:
       enabled: true
+  anomaly_scorer:
+    # CUSUM produces a single anomalous series in this test. Keep the scorer
+    # thresholds below its first EWMA update so the report path sees High.
+    low_threshold: 0.000001
+    high_threshold: 0.00001
+    output:
+      correlation_events: true
   metrics:
     enabled: true
   logs:
@@ -74,19 +81,8 @@ anomaly_detection:
 	))
 }
 
-// sendGauge sends one DogStatsD gauge over UDP to the local agent.
-// Uses Execute rather than MustExecute: a transient SSH error in the background
-// goroutine would otherwise propagate as an unrecovered panic, terminating the
-// test process and tearing down the DEV_MODE stack before assertions complete.
-func (s *metricsTriggeredSuite) sendGauge(name string, value float64) {
-	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
-	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
-		s.T().Logf("sendGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
-	}
-}
-
 // TestMetricsTriggeredEmitsOnDSDSpike sends a stable gauge baseline then a large
-// spike, expecting CUSUM to fire and the stdout reporter to emit its marker.
+// spike, expecting CUSUM to fire and the scorer to open an episode.
 //
 // Point counts: 15 baseline (well above the 5-point CUSUM minimum) followed by
 // 10 spike points — total ~25 seconds of data. The spike is 5000× the baseline
@@ -124,7 +120,7 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 				return
 			default:
 			}
-			s.sendGauge(metricName, baseline)
+			sendGauge(s, metricName, baseline)
 			if (i+1)%10 == 0 {
 				s.T().Logf("baseline: sent %d/%d", i+1, baselinePoints)
 			}
@@ -141,7 +137,7 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 				return
 			default:
 			}
-			s.sendGauge(metricName, spike)
+			sendGauge(s, metricName, spike)
 			if (i+1)%10 == 0 {
 				s.T().Logf("spike: sent %d/%d", i+1, spikePoints)
 			}
@@ -154,8 +150,8 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 		s.T().Log("done sending metrics")
 	}()
 
-	waitForReportsTelemetry(s)
-	s.T().Log("reports telemetry detected")
+	waitForScorerEpisode(s, metricName)
+	s.T().Log("scorer episode detected")
 }
 
 // logTriggeredSuite exercises the external log collection path of the observer.
@@ -198,9 +194,16 @@ log_level: debug
 logs_config:
   file_scan_period: 1
 anomaly_detection:
-  anomaly_scorer:
-    dry_run:
+  reporting:
+    events:
       enabled: true
+  anomaly_scorer:
+    # BOCPD produces one anomalous series. Cross High on its first EWMA update
+    # so the reporter reliably observes a scorer correlation event.
+    low_threshold: 0.000001
+    high_threshold: 0.00001
+    output:
+      correlation_events: true
   metrics:
     enabled: false
   logs:
@@ -323,6 +326,6 @@ func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnFileSpike() {
 		s.T().Log("done writing log lines")
 	}()
 
-	waitForReportsTelemetry(s)
-	s.T().Log("reports telemetry detected via log trigger")
+	waitForScorerEpisode(s, "filename:e2e-anomaly-test.log")
+	s.T().Log("scorer episode detected via log trigger")
 }

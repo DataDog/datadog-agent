@@ -41,6 +41,14 @@ func testTimeSampler(store *tags.Store) *TimeSampler {
 	return sampler
 }
 
+type recordingFinalDogStatsDSerieObserver struct {
+	series []*metrics.Serie
+}
+
+func (r *recordingFinalDogStatsDSerieObserver) ObserveFinalDogStatsDSerie(serie *metrics.Serie) {
+	r.series = append(r.series, serie)
+}
+
 type recordingDogStatsDLookback struct {
 	wanted       map[string]struct{}
 	observations []recordedDogStatsDLookbackObservation
@@ -210,6 +218,37 @@ func TestTimeSamplerDogStatsDLookbackUsesFilteredCounterContext(t *testing.T) {
 	for _, observation := range lookback.observations {
 		require.Equal(t, []string{"instance:a"}, observation.ctx.Tags)
 	}
+}
+
+func TestTimeSamplerFinalDogStatsDSerieObserversReceiveOnlyUnfilteredFinalSeries(t *testing.T) {
+	sampler := testTimeSampler(tags.NewStore(true, "test"))
+	observer := &recordingFinalDogStatsDSerieObserver{}
+	sampler.finalDogStatsDSerieObservers = []FinalDogStatsDSerieObserver{observer}
+
+	tagMatcher := filterlist.NewNoopTagMatcher()
+	sampler.sample(&metrics.MetricSample{
+		Name:       "filtered.metric",
+		Value:      7,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"client:go"},
+		SampleRate: 1,
+	}, 1001, tagMatcher)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "accepted.metric",
+		Value:      5,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"client:java"},
+		SampleRate: 1,
+	}, 1001, tagMatcher)
+
+	filter := strings.NewMatcher([]string{"filtered.metric"}, false)
+	series, _ := flushSerieWithFilterList(sampler, 1020, &filter, true)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, "accepted.metric", series[0].Name)
+	require.Len(t, observer.series, 1)
+	assert.Same(t, series[0], observer.series[0])
+	assert.Equal(t, "accepted.metric", observer.series[0].Name)
 }
 
 func TestTimeSamplerDogStatsDLookbackIgnoresRejectedSamples(t *testing.T) {

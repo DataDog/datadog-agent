@@ -61,10 +61,6 @@ pub(crate) fn log_startup_warning(message: impl AsRef<str>) {
 /// Run the desktop monitor polling loop and submit detected AI usage events.
 pub fn run(dd_client: &DatadogClient, mut config: DesktopMonitoringConfig) -> Result<()> {
     let mut logger = DesktopLogger::new(config.debug);
-    if !config.enabled {
-        logger.info("desktop monitoring disabled by config");
-        return Ok(());
-    }
 
     #[cfg(any(windows, target_os = "macos"))]
     {

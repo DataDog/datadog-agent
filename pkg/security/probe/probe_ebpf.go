@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
-	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -924,10 +923,19 @@ func (p *EBPFProbe) ReplayEvents() {
 	}
 }
 
+// replayEntry is a process event to replay, along with the memory-mapped files
+// to replay right after it. The open events are built during the dispatch loop
+// rather than upfront: materializing them all would hold one pooled event per
+// (process, mmaped file) pair, which the pool never gets to recycle.
+type replayEntry struct {
+	event       *model.Event
+	mmapedFiles []procfs.MmapedFile
+}
+
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
 
-	var events []*model.Event
+	var entries []replayEntry
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
 		event := p.newEBPFPooledEventFromPCE(entry)
@@ -939,38 +947,30 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		event.AddToFlags(model.EventFlagsFromReplay)
 
-		events = append(events, event)
+		var mmapedFiles []procfs.MmapedFile
 
 		// Replay mmaped files (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
-			proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
-			if err != nil {
-				return
-			}
-
-			mmapedFiles, err := procfs.GetMmapedFiles(proc)
-			if err != nil {
+			var err error
+			if mmapedFiles, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
-				return
-			}
-
-			for _, f := range mmapedFiles {
-				openEvent := p.newOpenEventFromReplay(entry, f)
-				openEvent.Source = model.EventSourceReplay
-				events = append(events, openEvent)
 			}
 		}
+
+		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles})
 	}
 
 	p.Walk(entryToEvent)
 
 	// replay synthetic load_module events for every entry in /proc/modules.
-	events = append(events, p.snapshotLoadedModules()...)
+	for _, event := range p.snapshotLoadedModules() {
+		entries = append(entries, replayEntry{event: event})
+	}
 
 	// order events so that they're dispatched in creation time order
-	sort.Slice(events, func(i, j int) bool {
-		eventA := events[i]
-		eventB := events[j]
+	sort.Slice(entries, func(i, j int) bool {
+		eventA := entries[i].event
+		eventB := entries[j].event
 
 		tsA := eventA.ProcessContext.ExecTime
 		tsB := eventB.ProcessContext.ExecTime
@@ -981,9 +981,17 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		return tsA.Before(tsB)
 	})
 
-	for _, event := range events {
-		p.DispatchEvent(event, notifyConsumers)
-		p.putBackPoolEvent(event)
+	for _, re := range entries {
+		p.DispatchEvent(re.event, notifyConsumers)
+
+		for _, file := range re.mmapedFiles {
+			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, file)
+			openEvent.Source = model.EventSourceReplay
+			p.DispatchEvent(openEvent, notifyConsumers)
+			p.putBackPoolEvent(openEvent)
+		}
+
+		p.putBackPoolEvent(re.event)
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
@@ -1289,7 +1297,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
-				entry.SID = event.PIDContext.SID
+				p.Resolvers.ProcessResolver.UpdateSID(entry, event.PIDContext.SID)
 			}
 
 			if _, err := entry.HasValidLineage(); err != nil {
@@ -2346,7 +2354,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	// network filter actions as these are used to track resources that are needed if we later
 	// dynamically load network rules or network filter actions.
 	if p.config.Probe.NetworkEnabled {
-		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket())...)
+		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(), p.kernelVersion.HaveIOURing())...)
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
@@ -3037,6 +3045,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_open_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_connect_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
 		},
@@ -3045,12 +3057,20 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_connect_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_bind_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingBindEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
 		},
 		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
@@ -3065,12 +3085,29 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_dns_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_syscalls_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingSyscallsEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_syscalls_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsRate),
+		},
+		manager.ConstantEditor{
+			Name:  "dynamic_sampling_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
+		},
+		manager.ConstantEditor{
+			Name: "ring_buffer_size",
+			Value: func() uint64 {
+				if p.config.Probe.EventStreamBufferSize != 0 {
+					return uint64(p.config.Probe.EventStreamBufferSize)
+				}
+				return uint64(probes.ComputeDefaultEventsRingBufferSize())
+			}(),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
@@ -3991,7 +4028,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 	event.LoadModule.File.SetPathnameStr(modulePath)
 	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
 
-	// Best-effort file metadata (mirrors newOpenEventFromReplay).
+	// Best-effort file metadata.
 	var fileStats unix.Statx_t
 	if err := unix.Statx(unix.AT_FDCWD, modulePath, 0, unix.STATX_ALL, &fileStats); err == nil {
 		event.LoadModule.File.FileFields.Mode = uint16(fileStats.Mode)
@@ -4011,7 +4048,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 }
 
 // newOpenEventFromReplay returns a new open event for a memory-mapped file with a process context
-func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile model.SnapshottedMmapedFile) *model.Event {
+func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile procfs.MmapedFile) *model.Event {
 	event := p.getPoolEvent()
 	event.Timestamp = time.Now()
 	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
@@ -4025,24 +4062,7 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 	event.Open.File.IsPathnameStrResolved = true
 	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
 	event.Open.File.IsBasenameStrResolved = true
-
-	// Try to stat the file to get basic metadata (best effort)
-	// This helps with file resolution and enrichment
-	var fileStats unix.Statx_t
-	fullPath := utils.ProcRootFilePath(entry.Pid, snapshottedFile.Path)
-	if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err == nil {
-		event.Open.File.FileFields.Mode = uint16(fileStats.Mode)
-		event.Open.File.FileFields.Inode = fileStats.Ino
-		event.Open.File.FileFields.UID = fileStats.Uid
-		event.Open.File.FileFields.GID = fileStats.Gid
-		event.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		event.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
-		event.Open.File.Mode = fileStats.Mode
-		event.Open.File.Inode = fileStats.Ino
-		event.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
-		event.Open.File.NLink = fileStats.Nlink
-		event.Open.File.MountID = uint32(fileStats.Mnt_id)
-	}
+	event.Open.File.FileFields = snapshottedFile.FileFields
 
 	return event
 }

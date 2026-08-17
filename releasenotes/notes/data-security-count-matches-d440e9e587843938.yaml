@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Data Security scan results now report the total number of sensitive-data
+    matches found in each column (``count_matches``), in addition to the number
+    of distinct rows that contain a match. This gives more accurate visibility
+    when a single row contains several matches.

@@ -43,12 +43,17 @@ const (
 	telemetryLogsIngested   = "observer.logs.ingested"
 	telemetryReportsEmitted = "observer.reports.emitted"
 	telemetryReportsOngoing = "observer.reports.ongoing"
-
 	// scorerHelperEscalationMarker is emitted by anomalyScorer.OnSeverityTransition
 	// when output.logs=true and the EWMA rises above low_threshold (an escalation event).
 	// Logged at info level, captured by journald, and serves as the assertion target.
 	// Full example: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
 	scorerHelperEscalationMarker = "[observer] anomaly scorer anomaly_scorer severity escalation"
+
+	// scorerEpisodeStartedMarker is emitted by the stdout reporter when the
+	// scorer opens an episode after reaching High severity. The reporter appends
+	// either the scorer metadata or a multiline contributor summary, so retain
+	// only the prefix common to both renderings.
+	scorerEpisodeStartedMarker = "[observer] scorer episode started:"
 
 	// scorerHelperRegisteredMarker is logged once at agent startup when the
 	// anomaly scorer is successfully wired with telemetry. Waiting for it
@@ -163,14 +168,28 @@ func waitForScorerHelperReady(s observerTestSuite) {
 	s.T().Log("anomaly scorer helper registered")
 }
 
-func waitForReportsTelemetry(s observerTestSuite) {
+// sendGauge sends one DogStatsD gauge over UDP to the local agent.
+// Uses Execute rather than MustExecute: a transient SSH error in a background
+// goroutine would otherwise propagate as an unrecovered panic, terminating the
+// test process and tearing down the DEV_MODE stack before assertions complete.
+func sendGauge(s observerTestSuite, name string, value float64) {
+	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
+	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
+		s.T().Logf("sendGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
+	}
+}
+
+func waitForScorerEpisode(s observerTestSuite, expectedAnomalySource string) {
 	s.T().Helper()
-	s.T().Log("waiting for observer reports telemetry...")
+	s.T().Log("waiting for anomaly scorer episode...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
-		tel := observerTelemetryOutput(s)
-		assert.True(c, containsMetric(tel, telemetryReportsEmitted),
-			"observer telemetry should expose reports emitted counter after anomalies")
+		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
+		assert.NoError(c, err, "journalctl execution failed")
+		assert.Contains(c, out, scorerEpisodeStartedMarker,
+			"journal should contain the scorer episode-started marker after anomalies")
+		assert.Contains(c, out, expectedAnomalySource,
+			"journal should contain an anomaly from the test input source")
 	}, 3*time.Minute, 5*time.Second)
-	s.T().Log("observer reports telemetry detected")
+	s.T().Log("anomaly scorer episode detected")
 }

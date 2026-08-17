@@ -18,24 +18,50 @@ import (
 func TestMetricNameToDatadogMetricID(t *testing.T) {
 	tests := []struct {
 		metricName   string
+		namespace    string
 		expID        string
 		expParsed    bool
 		expHasPrefix bool
 	}{
 		{
 			metricName:   "datadogmetric@myns:name",
+			namespace:    "myns",
+			expID:        "myns/name",
+			expParsed:    true,
+			expHasPrefix: true,
+		},
+		{
+			// The namespace part of the reference is ignored, the referencing object namespace is used.
+			metricName:   "datadogmetric@otherns:name",
+			namespace:    "myns",
 			expID:        "myns/name",
 			expParsed:    true,
 			expHasPrefix: true,
 		},
 		{
 			metricName:   "datadogmetric@name",
+			namespace:    "myns",
+			expID:        "myns/name",
+			expParsed:    true,
+			expHasPrefix: true,
+		},
+		{
+			metricName:   "datadogmetric@:name",
+			namespace:    "myns",
+			expID:        "",
+			expParsed:    false,
+			expHasPrefix: true,
+		},
+		{
+			metricName:   "datadogmetric@bad_name",
+			namespace:    "myns",
 			expID:        "",
 			expParsed:    false,
 			expHasPrefix: true,
 		},
 		{
 			metricName:   "nginx.responsetime",
+			namespace:    "myns",
 			expID:        "",
 			expParsed:    false,
 			expHasPrefix: false,
@@ -44,7 +70,7 @@ func TestMetricNameToDatadogMetricID(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.metricName, func(t *testing.T) {
-			id, parsed, hasPrefix := metricNameToDatadogMetricID(test.metricName)
+			id, parsed, hasPrefix := metricNameToDatadogMetricID(test.metricName, test.namespace)
 			assert.Equal(t, test.expID, id)
 			assert.Equal(t, test.expParsed, parsed)
 			assert.Equal(t, test.expHasPrefix, hasPrefix)
