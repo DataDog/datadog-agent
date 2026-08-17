@@ -54,9 +54,14 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             let proc = resolve_process(&procs, &name_or_uuid)?;
             (process_detail_fields(proc), proc.pid())
         };
-        detail.runtime_user = pid
-            .and_then(platform::runtime_user_for_pid)
-            .unwrap_or_default();
+        detail.runtime_user = if let Some(pid) = pid {
+            tokio::task::spawn_blocking(move || platform::runtime_user_for_pid(pid))
+                .await
+                .map_err(|e| Status::internal(format!("runtime user lookup task failed: {e}")))?
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
 
         Ok(Response::new(proto::DescribeResponse {
             detail: Some(detail),
