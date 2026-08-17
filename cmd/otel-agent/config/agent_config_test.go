@@ -183,8 +183,8 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
-	// The otel-agent forces zlib, which is incompatible with the v3 metrics intake.
-	assert.Equal(t, "false", c.GetString("use_v3_api.series.enabled"))
+	// DDOT uses zstd (v3-compatible), so it inherits the global datadog_only v3 default.
+	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
 
 	// log_level from datadog.yaml takes precedence -> more verbose
 	assert.Equal(t, "debug", c.Get("log_level"))

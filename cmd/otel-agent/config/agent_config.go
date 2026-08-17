@@ -231,12 +231,13 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Compression: the otel-agent (DDOT) uses zstd for every signal (metrics, traces,
 	// logs) so the compression algorithm stays consistent across signals. The level
 	// defaults to 3 but stays overridable via DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL
-	// (SourceDefault < SourceEnvVar). DDOT deliberately stays on the v2 metrics intake:
-	// zstd is v3-compatible, but moving to v3 is a separate effort, so v3 is disabled
-	// here regardless of the compressor.
+	// (SourceDefault < SourceEnvVar). zstd is v3-compatible (unlike zlib), so DDOT no
+	// longer opts out of the v3 metrics intake: use_v3_api.series.enabled follows the
+	// global default (datadog_only) — series to Datadog domains use the v3 series intake,
+	// other destinations stay on v2. It is intentionally not set here so it remains
+	// overridable via DD_USE_V3_API_SERIES_ENABLED.
 	pkgconfig.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("serializer_zstd_compressor_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
-	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
 
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
