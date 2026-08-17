@@ -609,9 +609,27 @@ func TestTimeSeriesStorage_ListSeriesRefsInto_MatchesListSeriesFilters(t *testin
 			}
 
 			got := s.ListSeriesRefsInto(filter, []observer.SeriesRef{999})
-			require.ElementsMatch(t, want, got)
+			require.Equal(t, want, got)
 		})
 	}
+}
+
+func TestTimeSeriesStorage_ListSeriesOrdersByRef(t *testing.T) {
+	s := newTimeSeriesStorage()
+	first := s.Add("work", "first", 1, 1, nil).Ref
+	second := s.Add("work", "second", 1, 1, nil).Ref
+	third := s.Add("work", "third", 1, 1, nil).Ref
+	want := []observer.SeriesRef{first, second, third}
+
+	metas := s.ListSeries(observer.WorkloadSeriesFilter())
+	gotMetas := make([]observer.SeriesRef, 0, len(metas))
+	for _, meta := range metas {
+		gotMetas = append(gotMetas, meta.Ref)
+	}
+	require.Equal(t, want, gotMetas)
+
+	gotRefs := s.ListSeriesRefsInto(observer.WorkloadSeriesFilter(), nil)
+	require.Equal(t, want, gotRefs)
 }
 
 func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {

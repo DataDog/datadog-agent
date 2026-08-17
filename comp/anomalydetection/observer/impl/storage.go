@@ -1294,7 +1294,7 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 
 // StorageReader interface implementation
 
-// ListSeries returns metadata for all series matching the filter.
+// ListSeries returns metadata for all series matching the filter, ordered by ref.
 func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.SeriesMeta {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1319,11 +1319,12 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 			Tags:      stats.Tags,
 		})
 	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Ref < result[j].Ref })
 	return result
 }
 
 // ListSeriesRefsInto uses dst as scratch and returns refs for all series
-// matching the filter. Previous dst contents are discarded. It is the
+// matching the filter, ordered by ref. Previous dst contents are discarded. It is the
 // allocation-light detector hot path for callers that only need the stable
 // numeric SeriesRef handles.
 func (s *timeSeriesStorage) ListSeriesRefsInto(filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef {
@@ -1344,6 +1345,7 @@ func (s *timeSeriesStorage) ListSeriesRefsInto(filter observer.SeriesFilter, dst
 		}
 		dst = append(dst, stats.ref)
 	}
+	sort.Slice(dst, func(i, j int) bool { return dst[i] < dst[j] })
 	return dst
 }
 

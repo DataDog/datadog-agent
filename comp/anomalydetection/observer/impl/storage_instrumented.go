@@ -122,7 +122,8 @@ func (s *instrumentedStorage) ListSeries(filter observerdef.SeriesFilter) []obse
 	result := s.inner.ListSeries(filter)
 
 	// Hash each series identity independently, then sort and combine.
-	// ListSeries iterates a Go map internally, so slice order is non-deterministic.
+	// Hash independently so this remains valid for StorageReader implementations
+	// whose listing order is not deterministic.
 	perSeries := make([]uint64, len(result))
 	for i, m := range result {
 		ih := newCallHasher()
