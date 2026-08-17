@@ -22,7 +22,9 @@ import (
 // workload with more distinct tags than the cap re-allocated the same strings
 // over and over, and the agent held several copies of a tag at once.
 //
-// One interner per dogstatsd worker; not safe for concurrent use.
+// There is one stringInterner per dogstatsd worker, but they all share a single
+// table, so a tag is stored and hashed once per agent instead of once per worker.
+// The per-worker wrapper exists to keep hit/miss telemetry attributed per worker.
 type stringInterner struct {
 	table *tagset.Table
 	id    string
@@ -30,20 +32,17 @@ type stringInterner struct {
 	telemetry *stringInternerInstanceTelemetry
 }
 
-func newStringInterner(sizeHint int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
+func newStringInterner(table *tagset.Table, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
 	id := fmt.Sprintf("interner_%d", internerID)
-	i := &stringInterner{
-		table:     tagset.NewTable(sizeHint),
+	return &stringInterner{
+		table:     table,
 		id:        id,
 		telemetry: siTelemetry.PrepareForID(id),
 	}
-	i.table.SetEvictionCallback(i.telemetry.Evict)
-
-	return i
 }
 
-// LoadOrStore returns the interned tag for key, interning it if this is the first
-// time this worker has seen it.
+// LoadOrStore returns the interned tag for key, interning it if no worker has
+// seen it yet.
 func (i *stringInterner) LoadOrStore(key []byte) tagset.InternedTag {
 	tag, found := i.table.LoadOrStore(key)
 	i.record(found, len(key))

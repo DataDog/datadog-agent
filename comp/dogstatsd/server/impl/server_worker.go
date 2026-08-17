@@ -51,7 +51,7 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 	return &worker{
 		server:           s,
 		batcher:          batcher,
-		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry, s.sharedTagTable),
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
 		FilterListUpdate: make(chan utilstrings.Matcher),

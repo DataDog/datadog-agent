@@ -72,7 +72,7 @@ func TestInternedTagsFeedAccumulator(t *testing.T) {
 func parseAndEnrichMultipleMetricMessageNoResolve(t *testing.T, message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry, nil)
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return nil, err

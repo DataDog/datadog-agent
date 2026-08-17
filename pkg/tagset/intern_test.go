@@ -7,6 +7,7 @@ package tagset
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"unsafe"
 
@@ -140,6 +141,79 @@ func TestValues(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, Values(InternAll([]string{"a", "b"})))
 }
 
+// TestTableConcurrentLoadOrStore is the reason the table is locked: every
+// dogstatsd worker shares one, so lookups, interning and sweeps all race.
+// Run with -race.
+func TestTableConcurrentLoadOrStore(t *testing.T) {
+	const (
+		workers    = 8
+		iterations = 2000
+		distinct   = 64
+	)
+	table := NewTable(8)
+
+	var wg sync.WaitGroup
+	seen := make([][]InternedTag, workers)
+	for w := 0; w < workers; w++ {
+		seen[w] = make([]InternedTag, distinct)
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				key := []byte(fmt.Sprintf("tag:%d", i%distinct))
+				tag, _ := table.LoadOrStore(key)
+				seen[w][i%distinct] = tag
+			}
+		}(w)
+	}
+	// sweep concurrently with the lookups
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 50; i++ {
+			table.advanceEpoch()
+		}
+	}()
+	wg.Wait()
+
+	// Every worker must have resolved each tag to the *same* interned copy: that
+	// is what sharing the table buys over one table per worker.
+	for i := 0; i < distinct; i++ {
+		want := seen[0][i]
+		require.NotNil(t, want)
+		assert.Equal(t, fmt.Sprintf("tag:%d", i), want.Value())
+		for w := 1; w < workers; w++ {
+			assert.Same(t, want, seen[w][i], "workers must share one copy of each tag")
+		}
+	}
+}
+
+func TestTableConcurrentInternOfTheSameNewTag(t *testing.T) {
+	// All workers race to intern the same previously-unseen tag; the double-checked
+	// insert must hand every one of them the same tag, and count one entry.
+	const workers = 16
+	table := NewTable(1)
+
+	var wg sync.WaitGroup
+	got := make([]InternedTag, workers)
+	start := make(chan struct{})
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			<-start
+			got[w], _ = table.LoadOrStore([]byte("contended:tag"))
+		}(w)
+	}
+	close(start)
+	wg.Wait()
+
+	assert.Equal(t, 1, table.Len())
+	for w := 1; w < workers; w++ {
+		assert.Same(t, got[0], got[w])
+	}
+}
+
 func BenchmarkTableLoadOrStoreHit(b *testing.B) {
 	table := NewTable(64)
 	keys := make([][]byte, 32)
@@ -152,4 +226,25 @@ func BenchmarkTableLoadOrStoreHit(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		table.LoadOrStore(keys[i%len(keys)])
 	}
+}
+
+// BenchmarkTableLoadOrStoreHitParallel measures the cost that sharing the table
+// introduces: all workers now take the same read lock on the hottest path in the
+// agent, so RLock/RUnlock contend on one cache line.
+func BenchmarkTableLoadOrStoreHitParallel(b *testing.B) {
+	table := NewTable(64)
+	keys := make([][]byte, 32)
+	for i := range keys {
+		keys[i] = []byte(fmt.Sprintf("tag%d:value%d", i, i))
+		table.LoadOrStore(keys[i])
+	}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			table.LoadOrStore(keys[i%len(keys)])
+			i++
+		}
+	})
 }

@@ -136,14 +136,17 @@ type dsdServer struct {
 	sharedPacketPool        *packets.Pool
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	sharedFloat64List       *float64ListPool
-	Statistics              *statutil.Stats
-	Started                 bool
-	startedMtx              sync.RWMutex
-	stopChan                chan bool
-	health                  *health.Handle
-	histToDist              bool
-	histToDistPrefix        string
-	extraTags               []string
+	// sharedTagTable is the interner shared by every worker, so a tag is stored
+	// once per agent rather than once per worker.
+	sharedTagTable   *tagset.Table
+	Statistics       *statutil.Stats
+	Started          bool
+	startedMtx       sync.RWMutex
+	stopChan         chan bool
+	health           *health.Handle
+	histToDist       bool
+	histToDistPrefix string
+	extraTags        []string
 	// extraITags is extraTags interned once at startup, so that appending them to
 	// every sample does not re-intern them.
 	extraITags []tagset.InternedTag
@@ -303,6 +306,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		sharedPacketPool:        nil,
 		sharedPacketPoolManager: nil,
 		sharedFloat64List:       newFloat64ListPool(cfg, telemetrycomp),
+		sharedTagTable:          tagset.NewTable(cfg.GetInt("dogstatsd_string_interner_size")),
 		demultiplexer:           demux,
 		listeners:               nil,
 		stopChan:                make(chan bool),
@@ -338,6 +342,10 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
 		stringInternerTelemetry: newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
 	}
+
+	// The table is shared, so its size and evictions are agent-wide rather than
+	// per worker: report them under their own interner id.
+	s.sharedTagTable.SetEvictionCallback(s.stringInternerTelemetry.PrepareForID("interner_shared").Evict)
 
 	buckets := getBuckets(cfg, log, "telemetry.dogstatsd.aggregator_channel_latency_buckets")
 	if buckets == nil {

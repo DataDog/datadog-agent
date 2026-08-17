@@ -73,15 +73,21 @@ type parser struct {
 	provider provider.Provider
 }
 
-func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta option.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
-	// The interner is no longer capped at this size: it evicts tags that stop
-	// arriving instead. The setting is kept as a pre-allocation hint so existing
-	// configs still mean something.
-	stringInternerSizeHint := cfg.GetInt("dogstatsd_string_interner_size")
+// newParser builds a parser for one dogstatsd worker.
+//
+// sharedTagTable is the interner shared by all workers; passing nil gives this
+// parser a private one, which is what tests want.
+func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta option.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry, sharedTagTable *tagset.Table) *parser {
+	if sharedTagTable == nil {
+		// The setting is no longer a cap — the table evicts tags that stop
+		// arriving — but it is kept as a pre-allocation hint so existing configs
+		// still mean something.
+		sharedTagTable = tagset.NewTable(cfg.GetInt("dogstatsd_string_interner_size"))
+	}
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(stringInternerSizeHint, workerNum, stringInternerTelemetry),
+		interner:         newStringInterner(sharedTagTable, workerNum, stringInternerTelemetry),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),

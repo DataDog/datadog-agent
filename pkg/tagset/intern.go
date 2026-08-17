@@ -6,6 +6,8 @@
 package tagset
 
 import (
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/twmb/murmur3"
@@ -24,10 +26,14 @@ type Tag struct {
 	value string
 	hash  uint64
 
-	// lastSeen is the Table epoch in which this tag last arrived. It is written
-	// only by the goroutine that owns the Table, and is what makes the table
-	// self-sizing: see Table.
-	lastSeen uint32
+	// lastSeen is the Table epoch in which this tag last arrived, and is what
+	// makes the table self-sizing: see Table.
+	//
+	// It is atomic because it is written on the lookup path, which runs under the
+	// table's read lock and therefore concurrently across dogstatsd workers.
+	// value and hash need no such protection: they are set before the tag is
+	// published into the table and never change.
+	lastSeen atomic.Uint32
 }
 
 // InternedTag is a reference to an interned tag. The nil value is a valid empty
@@ -45,6 +51,13 @@ type InternedTag = *Tag
 // table-owned ones.
 func Intern(s string) InternedTag {
 	return &Tag{value: s, hash: murmur3.StringSum64(s)}
+}
+
+// newTag builds a tag that arrived in the given epoch.
+func newTag(s string, epoch uint32) *Tag {
+	tag := &Tag{value: s, hash: murmur3.StringSum64(s)}
+	tag.lastSeen.Store(epoch)
+	return tag
 }
 
 // InternAll returns standalone interned tags for a slice of strings.
@@ -80,11 +93,12 @@ func (t *Tag) Hash() uint64 {
 // touch records that the tag arrived in the given epoch.
 //
 // The store is guarded by a comparison because a hot tag arrives many times per
-// epoch and writing every time dirties one cache line per tag per sample. The
-// tag has just been read, so the compare is free; skipping the write is not.
+// epoch and writing every time dirties one cache line per tag per sample — and
+// with the table shared between workers, that line would bounce between cores.
+// The tag has just been read, so the compare is free; skipping the write is not.
 func (t *Tag) touch(epoch uint32) {
-	if t.lastSeen != epoch {
-		t.lastSeen = epoch
+	if t.lastSeen.Load() != epoch {
+		t.lastSeen.Store(epoch)
 	}
 }
 
@@ -145,31 +159,43 @@ const (
 // interner did on reset — except that here it can only happen to a tag that went
 // quiet, never to a hot one.
 //
-// A Table is not safe for concurrent use. Each dogstatsd worker owns one.
+// A Table is safe for concurrent use and is meant to be shared by all dogstatsd
+// workers, so that a tag is stored once per agent rather than once per worker.
+//
+// Lookups take the read lock, so workers do not serialize against each other on
+// the common case of a tag that has been seen before. Only interning a new tag,
+// and the periodic sweep, take the write lock.
 type Table struct {
+	mu   sync.RWMutex
 	tags map[string]*Tag
 
-	epoch          uint32
+	// epoch and opsUntilCheck are read and updated on the lookup path, under the
+	// read lock, so they are atomic. lastEpochStart is only touched under the
+	// write lock.
+	epoch          atomic.Uint32
+	opsUntilCheck  atomic.Int64
 	lastEpochStart time.Time
-	opsUntilCheck  int
 
-	// onEvict, if set, is called with the number of tags dropped by a sweep.
+	// onEvict, if set, is called with the number of tags dropped by a sweep. It
+	// must be set before the table is shared with any worker.
 	onEvict func(evicted int)
 }
 
 // NewTable returns an empty Table. sizeHint pre-allocates room for that many
 // tags; it is only a hint, the table grows and shrinks with the workload.
 func NewTable(sizeHint int) *Table {
-	return &Table{
+	t := &Table{
 		tags:           make(map[string]*Tag, sizeHint),
-		epoch:          1,
 		lastEpochStart: time.Now(),
-		opsUntilCheck:  tableCheckInterval,
 	}
+	t.epoch.Store(1)
+	t.opsUntilCheck.Store(tableCheckInterval)
+	return t
 }
 
 // SetEvictionCallback registers a callback invoked after each sweep that evicted
-// at least one tag.
+// at least one tag. It must be called before the table is shared with any
+// worker, and the callback runs without the table lock held.
 func (t *Table) SetEvictionCallback(onEvict func(evicted int)) {
 	t.onEvict = onEvict
 }
@@ -180,81 +206,133 @@ func (t *Table) LoadOrStore(key []byte) (InternedTag, bool) {
 	// The map lookup with string(key) does not allocate a string: the compiler
 	// recognizes the pattern and looks up the bytes directly.
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
-	if tag, ok := t.tags[string(key)]; ok {
-		tag.touch(t.epoch)
-		t.tick()
-		return tag, true
-	}
+	t.mu.RLock()
+	tag, found := t.tags[string(key)]
+	t.mu.RUnlock()
 
-	return t.store(string(key)), false
+	if found {
+		return t.seen(tag), true
+	}
+	return t.storeBytes(key)
 }
 
 // LoadOrStoreString is LoadOrStore for a key the caller already holds as a string.
 func (t *Table) LoadOrStoreString(key string) (InternedTag, bool) {
-	if tag, ok := t.tags[key]; ok {
-		tag.touch(t.epoch)
-		t.tick()
-		return tag, true
-	}
+	t.mu.RLock()
+	tag, found := t.tags[key]
+	t.mu.RUnlock()
 
-	return t.store(key), false
+	if found {
+		return t.seen(tag), true
+	}
+	return t.storeString(key)
 }
 
-func (t *Table) store(key string) InternedTag {
-	tag := &Tag{
-		value:    key,
-		hash:     murmur3.StringSum64(key),
-		lastSeen: t.epoch,
+// seen records an arrival of an already-interned tag. It holds no lock: lastSeen
+// is atomic and the epoch check is too.
+func (t *Table) seen(tag *Tag) InternedTag {
+	tag.touch(t.epoch.Load())
+	t.maybeAdvanceEpoch()
+	return tag
+}
+
+func (t *Table) storeBytes(key []byte) (InternedTag, bool) {
+	t.mu.Lock()
+	// Another worker may have interned this tag between the read and write locks.
+	if tag, found := t.tags[string(key)]; found {
+		t.mu.Unlock()
+		return t.seen(tag), true
 	}
+	tag := t.insertLocked(string(key))
+	t.mu.Unlock()
+
+	t.maybeAdvanceEpoch()
+	return tag, false
+}
+
+func (t *Table) storeString(key string) (InternedTag, bool) {
+	t.mu.Lock()
+	if tag, found := t.tags[key]; found {
+		t.mu.Unlock()
+		return t.seen(tag), true
+	}
+	tag := t.insertLocked(key)
+	t.mu.Unlock()
+
+	t.maybeAdvanceEpoch()
+	return tag, false
+}
+
+// insertLocked interns key. The write lock must be held.
+func (t *Table) insertLocked(key string) *Tag {
+	tag := newTag(key, t.epoch.Load())
 	t.tags[key] = tag
-	t.tick()
 	return tag
 }
 
 // Len returns the number of tags currently interned.
 func (t *Table) Len() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return len(t.tags)
 }
 
-// tick advances the epoch and sweeps once the epoch interval has elapsed. The
-// clock is only read every tableCheckInterval operations.
-func (t *Table) tick() {
-	t.opsUntilCheck--
-	if t.opsUntilCheck > 0 {
+// maybeAdvanceEpoch advances the epoch and sweeps once the epoch interval has
+// elapsed. The clock is only read every tableCheckInterval lookups, so this is a
+// single atomic decrement in the common case.
+func (t *Table) maybeAdvanceEpoch() {
+	if t.opsUntilCheck.Add(-1) > 0 {
 		return
 	}
-	t.opsUntilCheck = tableCheckInterval
 
-	now := time.Now()
-	if now.Sub(t.lastEpochStart) < tableEpochInterval {
-		return
+	t.mu.Lock()
+	// Concurrent lookups can drive the counter past zero together; whichever one
+	// gets the lock first does the work and resets the counter for the rest.
+	var evicted int
+	if t.opsUntilCheck.Load() <= 0 {
+		t.opsUntilCheck.Store(tableCheckInterval)
+		if now := time.Now(); now.Sub(t.lastEpochStart) >= tableEpochInterval {
+			t.lastEpochStart = now
+			evicted = t.advanceEpochLocked()
+		}
 	}
-	t.lastEpochStart = now
-	t.advanceEpoch()
+	t.mu.Unlock()
+
+	t.reportEvicted(evicted)
 }
 
 // advanceEpoch starts a new epoch and sweeps the tags that have now gone unseen
-// for long enough.
-func (t *Table) advanceEpoch() {
-	t.epoch++
-	t.sweep()
+// for long enough, returning how many were dropped.
+func (t *Table) advanceEpoch() int {
+	t.mu.Lock()
+	evicted := t.advanceEpochLocked()
+	t.mu.Unlock()
+
+	t.reportEvicted(evicted)
+	return evicted
 }
 
-// sweep drops tags that have not been seen for tableEpochsRetained epochs.
-func (t *Table) sweep() {
-	if t.epoch <= tableEpochsRetained {
-		return
+// advanceEpochLocked starts a new epoch and sweeps. The write lock must be held.
+func (t *Table) advanceEpochLocked() int {
+	epoch := t.epoch.Add(1)
+	if epoch <= tableEpochsRetained {
+		return 0
 	}
-	cutoff := t.epoch - tableEpochsRetained
+	cutoff := epoch - tableEpochsRetained
 
 	evicted := 0
 	for key, tag := range t.tags {
-		if tag.lastSeen < cutoff {
+		if tag.lastSeen.Load() < cutoff {
 			delete(t.tags, key)
 			evicted++
 		}
 	}
+	return evicted
+}
 
+// reportEvicted runs the eviction callback, without the table lock held so that
+// telemetry cannot stall lookups.
+func (t *Table) reportEvicted(evicted int) {
 	if evicted > 0 && t.onEvict != nil {
 		t.onEvict(evicted)
 	}

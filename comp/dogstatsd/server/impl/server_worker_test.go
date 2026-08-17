@@ -125,7 +125,7 @@ func runTestMetrics(t *testing.T, deps serverDeps, input []byte, expTests []*tMe
 	s := deps.Server.(*dsdServer)
 
 	var b batcherMock
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry, nil)
 	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 
 	samples := b.samples
@@ -148,7 +148,7 @@ func TestEvents(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*dsdServer)
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry, nil)
 	var b batcherMock
 
 	input1 := defaultEventInput
@@ -191,7 +191,7 @@ func TestServiceChecks(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*dsdServer)
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry, nil)
 	var b batcherMock
 
 	s.parsePackets(&b, parser, genTestPackets(defaultServiceInput), metrics.MetricSampleBatch{}, nil)
@@ -253,7 +253,7 @@ func TestParseMetricMessageTelemetry(t *testing.T) {
 
 	var samples []metrics.MetricSample
 
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry, nil)
 
 	assert.Equal(t, float64(0), s.tlmProcessedOk.Get())
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", 0, "", false, nil)
@@ -364,7 +364,7 @@ dogstatsd_mapper_profiles:
 
 			assert.Equal(t, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
-			parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+			parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry, nil)
 			var b batcherMock
 			s.parsePackets(&b, parser, genTestPackets(scenario.packets...), metrics.MetricSampleBatch{}, nil)
 
@@ -382,7 +382,7 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 
 	deps, s := fulfillDepsWithInactiveServer(t, cfg)
 
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry, nil)
 
 	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
 	assert.True(t, ok)
@@ -418,7 +418,7 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 
 	deps, s := fulfillDepsWithInactiveServer(t, cfg)
 
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry, nil)
 
 	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
 	assert.True(t, ok)
@@ -464,7 +464,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry, nil)
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", 0, "1", false, nil)
 		assert.NoError(err)

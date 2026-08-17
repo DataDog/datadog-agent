@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func BenchmarkLoadOrStoreReset(b *testing.B) {
@@ -21,7 +23,7 @@ func BenchmarkLoadOrStoreReset(b *testing.B) {
 	// benchmark with the internal telemetry enabled
 	stringInternerTelemetry := newSiTelemetry(true, telemetryComp)
 
-	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
+	sInterner := newStringInterner(tagset.NewTable(4), 1, stringInternerTelemetry)
 
 	list := []string{}
 	for i := 0; i < 512; i++ {
@@ -38,7 +40,7 @@ func TestInternLoadOrStoreValue(t *testing.T) {
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	assert := assert.New(t)
 	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
-	sInterner := newStringInterner(3, 1, stringInternerTelemetry)
+	sInterner := newStringInterner(tagset.NewTable(3), 1, stringInternerTelemetry)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -61,7 +63,7 @@ func TestInternLoadOrStoreHandleIdentity(t *testing.T) {
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	assert := assert.New(t)
 	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
-	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
+	sInterner := newStringInterner(tagset.NewTable(4), 1, stringInternerTelemetry)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -89,7 +91,7 @@ func TestInternHandlesSurviveReset(t *testing.T) {
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	assert := assert.New(t)
 	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
-	sInterner := newStringInterner(2, 1, stringInternerTelemetry)
+	sInterner := newStringInterner(tagset.NewTable(2), 1, stringInternerTelemetry)
 
 	before := sInterner.LoadOrStore([]byte("tag:value"))
 
@@ -108,7 +110,7 @@ func TestInternLoadOrStoreGrowsPastSizeHint(t *testing.T) {
 	assert := assert.New(t)
 	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
 	// the size argument is only a pre-allocation hint now, not a cap
-	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
+	sInterner := newStringInterner(tagset.NewTable(4), 1, stringInternerTelemetry)
 
 	for i := 0; i < 64; i++ {
 		sInterner.LoadOrStore([]byte(fmt.Sprintf("tag:%d", i)))
