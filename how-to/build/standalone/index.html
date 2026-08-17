@@ -3937,9 +3937,9 @@
   
 
 
-<h1 id="how-to-build-standalone-agent-binaries">How to build standalone agent binaries</h1>
+<h1 id="how-to-build-standalone-agent-binaries">How to build standalone agent binaries<a class="headerlink" href="#how-to-build-standalone-agent-binaries" title="Permanent link">&para;</a></h1>
 <hr />
-<h2 id="building-agent-binaries">Building agent binaries</h2>
+<h2 id="building-agent-binaries">Building agent binaries<a class="headerlink" href="#building-agent-binaries" title="Permanent link">&para;</a></h2>
 <p>The Core Agent is built using the <code>dda inv agent.build</code> command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda inv agent.build --build-exclude=systemd
 </span></code></pre></div>
@@ -3963,7 +3963,7 @@
 </span></code></pre></div>
 <p>You can find the full list of buildable agent-related binaries <a href="../../../reference/builds/components/#agent-binaries">here</a>.</p>
 </div>
-<h3 id="including-or-excluding-agent-features">Including or excluding Agent features</h3>
+<h3 id="including-or-excluding-agent-features">Including or excluding Agent features<a class="headerlink" href="#including-or-excluding-agent-features" title="Permanent link">&para;</a></h3>
 <p>Different features of the Agent can be included / excluded at build time, by leveraging <a href="https://pkg.go.dev/cmd/go#hdr-Build_constraints">Go build constraints</a>. This can be done by passing the <code>--build-include</code> or <code>--build-exclude</code> flags to the build commands. A (non-exhaustive) list of available features can be found <a href="../../../reference/builds/components/#agent-features">here</a>.</p>
 <p>The set of features enabled by default (i.e. with no flag) depends on the build context: which binary you are trying to build, which flavor of the agent, which platform you are building on etc.</p>
 <div class="admonition info">
@@ -3993,7 +3993,7 @@ Run <code>dda inv print-default-build-tags --help</code> for more details.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>&lt;target&gt;.build<span class="w"> </span>--build-exclude<span class="o">=</span>systemd,python
 </span></code></pre></div></p>
 </div>
-<h2 id="running-agents">Running agents</h2>
+<h2 id="running-agents">Running agents<a class="headerlink" href="#running-agents" title="Permanent link">&para;</a></h2>
 <p>You can run the Core Agent directly in the foreground with the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./bin/agent/agent run -c bin/agent/dist/datadog.yaml
 </span></code></pre></div>
