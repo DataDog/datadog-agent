@@ -105,6 +105,11 @@ single_version_override(
 # Temporary until rules_pkg > 1.2.0 is in BCR
 archive_override(
     module_name = "rules_pkg",
+    patch_strip = 1,
+    patches = [
+        # Windows runfiles junctions cannot point at files; follow them on copy.
+        "//bazel/patches:rules_pkg-windows-junction-copy.patch",
+    ],
     sha256 = "9923c6c8855b153f837a953760159908507f571b4b77cb24ed862dda1de20f90",
     strip_prefix = "rules_pkg-401969d4367c42dcbb45d33a637eae87788d025e",
     urls = ["https://github.com/bazelbuild/rules_pkg/archive/401969d4367c42dcbb45d33a637eae87788d025e.tar.gz"],  # main as of April 22, 2026

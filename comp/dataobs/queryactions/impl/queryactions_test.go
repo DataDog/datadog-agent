@@ -86,9 +86,10 @@ func TestHasSupportedIntegration(t *testing.T) {
 		want            bool
 	}{
 		{name: "PostgreSQL", integrationName: "postgres", want: true},
+		{name: "MySQL", integrationName: "mysql", want: true},
 		{name: "SAP HANA", integrationName: "sap_hana", want: true},
 		{name: "SQL Server", integrationName: "sqlserver", want: true},
-		{name: "unsupported integration", integrationName: "mysql", want: false},
+		{name: "unsupported integration", integrationName: "redisdb", want: false},
 	}
 
 	for _, test := range tests {
