@@ -1,7 +1,7 @@
 # How to add and select SMP regression experiments
 
 This guide is for **teams adding their own SMP regression experiments** and choosing when they run.
-It is the practical how-to; for the design rationale see `adr-experiment-selection.md`.
+It is the practical how-to.
 
 ## The three ways an experiment runs
 

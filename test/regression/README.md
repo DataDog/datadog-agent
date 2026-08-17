@@ -28,8 +28,7 @@ see it for the available labels.
 
 For step-by-step recipes (adding a label suite, an ownership-driven suite, and
 the CODEOWNERS delegation that ownership-driven suites require), see
-[`experiment-selection-guide.md`](experiment-selection-guide.md). For the design
-rationale, see [`adr-experiment-selection.md`](adr-experiment-selection.md).
+[`experiment-selection-guide.md`](experiment-selection-guide.md).
 
 ## Adding an Experiment
 
