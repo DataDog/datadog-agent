@@ -66,6 +66,7 @@ type RestartTestSuite struct {
 	configOverrides     map[string]interface{}
 	tagger              tagger.Component
 	kubeHealthRegistrar kubehealthdef.Component
+	stopAgent           func()
 }
 
 func (suite *RestartTestSuite) SetupTest() {
@@ -94,7 +95,7 @@ func (suite *RestartTestSuite) SetupTest() {
 	// Grace period must be generous enough for ARM64 CI to stop all
 	// components (launchers → pipelineProvider → destinationsCtx) before
 	// the timeout fires and the force-close path kicks in.
-	suite.configOverrides["logs_config.stop_grace_period"] = 5
+	suite.configOverrides["logs_config.stop_grace_period"] = 0
 	// Set a short scan period to allow it to run in the time period of the tcp and http tests
 	suite.configOverrides["logs_config.file_scan_period"] = 1
 
@@ -155,7 +156,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 	}
 
 	agent.setupAgent()
-	suite.T().Cleanup(func() {
+	suite.stopAgent = sync.OnceFunc(func() {
 		_ = agent.stop(context.TODO())
 
 		// Guarantee the auditor's background flush goroutine is stopped before
@@ -173,6 +174,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 		// that races with TempDir removal.
 		agent.auditor.Stop()
 	})
+	suite.T().Cleanup(suite.stopAgent)
 
 	return agent, sources, services
 }
