@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -91,6 +92,12 @@ func TestUnshareEvent(t *testing.T) {
 	// the shape the LPE exploits this event exists to catch use: an unprivileged user
 	// namespace paired with a new network namespace, to obtain CAP_NET_ADMIN
 	t.Run("unshare-newuser-newnet", func(t *testing.T) {
+		// RHEL 7 kernels ship with user namespaces disabled (user_namespace.enable=0),
+		// so unshare(CLONE_NEWUSER) fails outright and never reaches the hook
+		checkKernelCompatibility(t, "user namespaces disabled on RHEL7 kernels", func(kv *kernel.Version) bool {
+			return kv.IsRH7Kernel()
+		})
+
 		flags := unix.CLONE_NEWUSER | unix.CLONE_NEWNET
 		if err := test.GetEventSent(t, runUnshare(flags), assertUnshare(t, flags), time.Second*3, "test_unshare_newnet"); err != nil {
 			t.Error(err)
