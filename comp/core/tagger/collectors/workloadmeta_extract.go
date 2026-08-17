@@ -132,7 +132,13 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		entityID := entity.GetID()
 
 		if entityID.Kind == workloadmeta.KindKubeletMetrics ||
-			entityID.Kind == workloadmeta.KindKubelet {
+			entityID.Kind == workloadmeta.KindKubelet ||
+			// A ResourceClaim describes a pod<->device allocation edge. It
+			// carries no tags of its own; consumers read the entity directly.
+			entityID.Kind == workloadmeta.KindKubernetesResourceClaim ||
+			// A ResourceSlice is a per-node device inventory, not a tagged
+			// workload; consumers read the entity directly.
+			entityID.Kind == workloadmeta.KindKubernetesResourceSlice {
 			// No tags. Ignore
 			continue
 		}

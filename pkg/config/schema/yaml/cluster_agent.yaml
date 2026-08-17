@@ -291,6 +291,14 @@ properties:
         node_type: setting
         type: boolean
         default: false
+  dra:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
   language_detection:
     node_type: section
     type: object

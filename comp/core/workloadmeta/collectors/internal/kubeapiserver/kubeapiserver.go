@@ -330,6 +330,36 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		}
 	}
 
+	if draCollectionEnabled(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), resourceClaimGVRStrings())
+		if err != nil {
+			log.Warnf("failed to discover DRA ResourceClaim resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, _ := newResourceClaimStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				// The store is intentionally not added to objectStores: it would
+				// block the startup readiness check if the DRA API group is
+				// served but RBAC is missing (the reflector never syncs). DRA
+				// collection is optional; readiness must not depend on it.
+				go reflector.Run(ctx.Done())
+			}
+		}
+	}
+
+	if draCollectionEnabled(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), resourceSliceGVRStrings())
+		if err != nil {
+			log.Warnf("failed to discover DRA ResourceSlice resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, _ := newResourceSliceStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				// Not added to objectStores, same reasoning as ResourceClaim: it
+				// must not block the startup readiness check.
+				go reflector.Run(ctx.Done())
+			}
+		}
+	}
+
 	if c.config.GetBool("cluster_checks.crd_collection") {
 		log.Info("Enabling CRD informer for workloadmeta collector")
 		handlerRegistration, err := setupCRDInformer(wlmetaStore, apiserverClient.APIExentionsInformerFactory)

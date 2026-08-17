@@ -218,6 +218,15 @@ rules:
       - get
       - watch
   - apiGroups:
+      - resource.k8s.io
+    resources:
+      - resourceclaims
+      - resourceslices
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
       - apiextensions.k8s.io
     resources:
       - customresourcedefinitions

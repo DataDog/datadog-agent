@@ -67,6 +67,8 @@ func TestFilterBuilderOps(t *testing.T) {
 					Kubelet:                {},
 					Crd:                    {},
 					KubernetesCapabilities: {},
+					KubernetesResourceClaim: {},
+					KubernetesResourceSlice: {},
 				},
 				cardinality: HighCardinality,
 			},

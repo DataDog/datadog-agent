@@ -53,6 +53,8 @@ const (
 	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
 	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
 	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
+	KindKubernetesResourceClaim       Kind = "kubernetes_resource_claim"
+	KindKubernetesResourceSlice       Kind = "kubernetes_resource_slice"
 	KindECSTask                       Kind = "ecs_task"
 	KindContainerImageMetadata        Kind = "container_image_metadata"
 	KindProcess                       Kind = "process"
@@ -1657,6 +1659,224 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesKueueWorkload{}
+
+// GenerateResourceClaimEntityID returns the workloadmeta entity ID for a DRA ResourceClaim.
+func GenerateResourceClaimEntityID(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+// ResourceClaimState describes the placement/allocation state of a DRA
+// ResourceClaim. It drives the AI Job Timeline (waiting -> training -> lost).
+type ResourceClaimState string
+
+const (
+	// ResourceClaimPending means the claim has no device allocation yet
+	// (the workload is waiting for accelerators to be scheduled).
+	ResourceClaimPending ResourceClaimState = "pending"
+	// ResourceClaimAllocated means devices are allocated but the claim is not
+	// yet reserved for any consumer.
+	ResourceClaimAllocated ResourceClaimState = "allocated"
+	// ResourceClaimReserved means devices are allocated and reserved for at
+	// least one consumer pod (the workload is running on its accelerators).
+	ResourceClaimReserved ResourceClaimState = "reserved"
+)
+
+// ResourceClaimDevice is a single device allocated to a DRA ResourceClaim.
+type ResourceClaimDevice struct {
+	// Name is the driver-scoped device name, e.g. "gpu-2".
+	Name string
+	// Driver is the DRA driver that owns the device, e.g. "gpu.nvidia.com".
+	Driver string
+	// Pool is the pool the device was drawn from, typically the node name.
+	Pool string
+	// Request is the name of the claim request this device satisfies.
+	Request string
+	// AdminAccess marks a device allocated for administrative access --
+	// monitoring or management of the device rather than ordinary consumption.
+	// Kubernetes says such claims "ignore all ordinary claims to the device
+	// with respect to access modes and any resource allocations", so counting
+	// them as allocated capacity overstates what workloads actually hold.
+	AdminAccess bool
+}
+
+// KubernetesResourceClaim is an Entity representing a Kubernetes Dynamic
+// Resource Allocation (DRA) ResourceClaim. It materializes the pod<->device
+// edge that the scheduler produces: which accelerators (Devices) were promised
+// to which consumer pods (ReservedForPods) on which node (NodeName).
+type KubernetesResourceClaim struct {
+	EntityID
+	EntityMeta
+	// State is the derived placement/allocation state of the claim.
+	State ResourceClaimState
+	// NodeName is the node the devices were allocated on, if allocated.
+	NodeName string
+	// Devices are the accelerators allocated to this claim.
+	Devices []ResourceClaimDevice
+	// ReservedForPods are the names of the pods this claim is reserved for.
+	// The DRA API's status.reservedFor only carries pod names (no namespace and
+	// no UID), so these cannot be joined directly to workloadmeta pod entities,
+	// which are keyed by UID. The pod->claim edge for pending pre-created
+	// claims (Pod.spec.resourceClaims) is not collected here; consumers that
+	// need it must resolve names against the pod store.
+	ReservedForPods []string
+	// OwnerPod is the pod that owns this claim via an ownerReference, if any.
+	OwnerPod string
+	// CreationTimestamp is when the claim was created.
+	CreationTimestamp time.Time
+	// RequestedDeviceClasses are the device classes the claim asks for, e.g.
+	// "gpu.nvidia.com". Available before allocation, unlike Devices.
+	RequestedDeviceClasses []string
+	// DeviceClassByRequest maps a request name to the device class it asks for,
+	// so an allocated device can be classified by the request that produced it.
+	// Keys for "firstAvailable" subrequests are "<request>/<subrequest>".
+	DeviceClassByRequest map[string]string
+	// AdminAccess is true when any request is marked administrative.
+	AdminAccess bool
+}
+
+// GetID implements Entity#GetID.
+func (rc *KubernetesResourceClaim) GetID() EntityID {
+	return rc.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (rc *KubernetesResourceClaim) Merge(e Entity) error {
+	rcc, ok := e.(*KubernetesResourceClaim)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesResourceClaim with different kind %T", e)
+	}
+
+	return merge(rc, rcc)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (rc KubernetesResourceClaim) DeepCopy() Entity {
+	crc := deepcopy.Copy(rc).(KubernetesResourceClaim)
+	return &crc
+}
+
+// String implements Entity#String.
+func (rc KubernetesResourceClaim) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, rc.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, rc.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Resource Claim -----------")
+	_, _ = fmt.Fprintln(&sb, "State:", rc.State)
+	_, _ = fmt.Fprintln(&sb, "Node:", rc.NodeName)
+	_, _ = fmt.Fprintln(&sb, "Owner Pod:", rc.OwnerPod)
+	_, _ = fmt.Fprintln(&sb, "Reserved For Pods:", rc.ReservedForPods)
+	// The allocated devices are the reason this entity exists (they carry the
+	// pod<->device edge), so print them at any verbosity.
+	_, _ = fmt.Fprintln(&sb, "Device Count:", len(rc.Devices))
+	for _, d := range rc.Devices {
+		_, _ = fmt.Fprintf(&sb, "Device: %s (driver=%s pool=%s request=%s)\n", d.Name, d.Driver, d.Pool, d.Request)
+	}
+	return sb.String()
+}
+
+var _ Entity = &KubernetesResourceClaim{}
+
+// GenerateResourceSliceEntityID returns the workloadmeta entity ID for a DRA
+// ResourceSlice. ResourceSlices are cluster-scoped, so the name alone is unique.
+func GenerateResourceSliceEntityID(name string) string {
+	return name
+}
+
+// ResourceSliceDevice is a single device advertised by a DRA driver in a
+// ResourceSlice. It is the supply side of accelerator allocation: what exists
+// on a node, as opposed to what a ResourceClaim was given.
+type ResourceSliceDevice struct {
+	// Name is the driver-scoped device name, e.g. "gpu-0". This is the only
+	// identifier a ResourceClaim allocation refers to, which is why the
+	// mapping to UUID below matters.
+	Name string
+	// UUID is the vendor device UUID, e.g. "GPU-0c09cfd9-...". For NVIDIA it is
+	// the same value NVML reports for the physical card, which makes it the
+	// join key between a claim's device name and observed GPU metrics. Empty for
+	// MIG devices, which carry ParentUUID instead.
+	UUID string
+	// ProductName is the marketing name, e.g. "Tesla T4".
+	ProductName string
+	// PCIeRoot groups devices that share a PCIe root complex. Devices spread
+	// across roots pay a communication penalty, so this is a placement-quality
+	// signal.
+	PCIeRoot string
+	// ParentUUID is set on MIG devices and points at the physical GPU the
+	// instance was carved out of.
+	ParentUUID string
+	// Profile is the MIG profile, e.g. "1g.10gb". Empty for physical devices.
+	Profile string
+	// MemoryBytes is the device memory capacity. It differs per MIG profile, so
+	// device counts alone misrepresent capacity on MIG nodes.
+	MemoryBytes int64
+}
+
+// KubernetesResourceSlice is an Entity representing a Kubernetes Dynamic
+// Resource Allocation (DRA) ResourceSlice: the inventory of devices a driver
+// publishes for one node. Together with KubernetesResourceClaim (the demand
+// side) it gives both what exists and what was handed out.
+type KubernetesResourceSlice struct {
+	EntityID
+	EntityMeta
+	// NodeName is the node whose devices this slice describes.
+	NodeName string
+	// Driver is the DRA driver publishing the slice, e.g. "gpu.nvidia.com".
+	Driver string
+	// Pool is the resource pool name, typically the node name.
+	Pool string
+	// PoolGeneration tracks the pool's revision; only the highest is current.
+	PoolGeneration int64
+	// Devices are the devices advertised by this slice.
+	Devices []ResourceSliceDevice
+}
+
+// GetID implements Entity#GetID.
+func (rs *KubernetesResourceSlice) GetID() EntityID {
+	return rs.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (rs *KubernetesResourceSlice) Merge(e Entity) error {
+	rss, ok := e.(*KubernetesResourceSlice)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesResourceSlice with different kind %T", e)
+	}
+
+	return merge(rs, rss)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (rs KubernetesResourceSlice) DeepCopy() Entity {
+	crs := deepcopy.Copy(rs).(KubernetesResourceSlice)
+	return &crs
+}
+
+// String implements Entity#String.
+func (rs KubernetesResourceSlice) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, rs.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, rs.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Resource Slice -----------")
+	_, _ = fmt.Fprintln(&sb, "Node:", rs.NodeName)
+	_, _ = fmt.Fprintln(&sb, "Driver:", rs.Driver)
+	_, _ = fmt.Fprintln(&sb, "Pool:", rs.Pool)
+	_, _ = fmt.Fprintln(&sb, "Device Count:", len(rs.Devices))
+	if verbose {
+		// A MIG-capable node advertises every possible instance placement, so
+		// the device list is long enough to be noise at normal verbosity.
+		for _, d := range rs.Devices {
+			_, _ = fmt.Fprintf(&sb, "Device: %s uuid=%s product=%q pcieRoot=%s parentUUID=%s profile=%s memoryBytes=%d\n",
+				d.Name, d.UUID, d.ProductName, d.PCIeRoot, d.ParentUUID, d.Profile, d.MemoryBytes)
+		}
+	}
+	return sb.String()
+}
+
+var _ Entity = &KubernetesResourceSlice{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"

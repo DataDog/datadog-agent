@@ -294,6 +294,30 @@ func (w *workloadmeta) ListKubernetesPods() []*wmdef.KubernetesPod {
 	return pods
 }
 
+// ListKubernetesResourceClaims implements Store#ListKubernetesResourceClaims
+func (w *workloadmeta) ListKubernetesResourceClaims() []*wmdef.KubernetesResourceClaim {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesResourceClaim)
+
+	claims := make([]*wmdef.KubernetesResourceClaim, 0, len(entities))
+	for i := range entities {
+		claims = append(claims, entities[i].(*wmdef.KubernetesResourceClaim))
+	}
+
+	return claims
+}
+
+// ListKubernetesResourceSlices implements Store#ListKubernetesResourceSlices
+func (w *workloadmeta) ListKubernetesResourceSlices() []*wmdef.KubernetesResourceSlice {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesResourceSlice)
+
+	slices := make([]*wmdef.KubernetesResourceSlice, 0, len(entities))
+	for i := range entities {
+		slices = append(slices, entities[i].(*wmdef.KubernetesResourceSlice))
+	}
+
+	return slices
+}
+
 func (w *workloadmeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error) {
 	// There should only be one entity of this kind with the ID used in the
 	// Kubelet collector
