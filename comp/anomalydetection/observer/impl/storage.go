@@ -1226,7 +1226,10 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	}
 
 	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].lastTs < candidates[j].lastTs
+		if candidates[i].lastTs != candidates[j].lastTs {
+			return candidates[i].lastTs < candidates[j].lastTs
+		}
+		return candidates[i].ref < candidates[j].ref
 	})
 
 	var freed []observer.SeriesRef

@@ -684,6 +684,19 @@ func TestTimeSeriesStorage_TotalSeriesCountTracksCapacityEviction(t *testing.T) 
 	require.Equal(t, 1, s.TotalSeriesCount())
 }
 
+func TestTimeSeriesStorage_EvictToCapacityBreaksActivityTiesByRef(t *testing.T) {
+	s := newTimeSeriesStorage()
+	first := s.Add("workload", "first", 1, 100, nil).Ref
+	second := s.Add("workload", "second", 1, 100, nil).Ref
+	third := s.Add("workload", "third", 1, 100, nil).Ref
+
+	freed := s.EvictToCapacity(2, 2)
+	require.Equal(t, []observer.SeriesRef{first}, freed)
+	require.Nil(t, s.GetSeriesMeta(first))
+	require.NotNil(t, s.GetSeriesMeta(second))
+	require.NotNil(t, s.GetSeriesMeta(third))
+}
+
 func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	s := newTimeSeriesStorage()
 
