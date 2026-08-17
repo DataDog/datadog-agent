@@ -206,14 +206,14 @@ func Test_onWorkloadBalancingUpdate_localFlagDisabled_stillClaimedAndReported(t 
 		applyStatus = status
 	})
 
-	// Still claimed and reported...
+	// Still claimed and reported.
 	assert.Equal(t, testRCConfigPath, applyID)
 	assert.Equal(t, state.ApplyStatus{State: state.ApplyStateAcknowledged}, applyStatus)
 	w.mu.RLock()
 	assert.Equal(t, groupStateStandby, w.groups["group-01"])
 	w.mu.RUnlock()
 
-	// ...but execution is unaffected: the local flag overrides the standby assignment.
+	// But execution is unaffected: the local flag overrides the standby assignment.
 	assert.True(t, w.IsGroupActive("group-01"))
 }
 
