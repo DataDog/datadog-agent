@@ -123,6 +123,10 @@ A few invoke tasks are available that help with automatically updating module ve
 
     /// info
     For Agent version `7.X.Y` the module will have version `v0.X.Y`.
+
+    Agent 6 release candidates do not receive nested module tags. Use the commit
+    referenced by the global release candidate tag to derive a Go pseudo-version
+    instead. Final Agent 6 releases continue to receive nested module tags.
     ///
 
 * `dda inv release.update-modules`

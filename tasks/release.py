@@ -159,6 +159,8 @@ def tag_modules(
 ):
     """Create tags for Go nested modules for a given Datadog Agent version.
 
+    Agent 6 release candidates are skipped; their modules should use pseudo-versions.
+
     Args:
         commit: Will tag `commit` with the tags (default HEAD).
         verify: Checks for correctness on the Agent version (on by default).
@@ -176,6 +178,12 @@ def tag_modules(
     assert release_branch or version
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
+
+    # Agent 6 consumers can use the global RC tag to find the commit for a pseudo-version.
+    # Final release module tags remain unaffected.
+    if RC_VERSION_RE.match(agent_version) and get_version_major(agent_version) == 6:
+        print(f"Skipping module tags for Agent 6 release candidate {agent_version}")
+        return
 
     def _tag_modules():
         tags = []

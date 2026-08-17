@@ -948,6 +948,16 @@ class TestUpdateModules(unittest.TestCase):
 
 
 class TestTagModules(unittest.TestCase):
+    @patch('tasks.release.__tag_single_module')
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_skips_agent6_rc_tags(self, tag_single_module_mock):
+        c = MockContext(run=Result("yolo"))
+
+        release.tag_modules(c, version="6.53.5-rc.2")
+
+        tag_single_module_mock.assert_not_called()
+        self.assertEqual(c.run.call_count, 0)
+
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(2)]))
     @patch('tasks.release.agent_context', new=MagicMock())
     @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
