@@ -1,0 +1,30 @@
+## All options defined here are available to all instances.
+#
+init_config:
+
+## Every instance is scheduled independently of the others.
+#
+instances:
+  -
+    ## @param provider - string - required
+    ## VDI provider running on this host. The initial release supports only `aws_workspaces`.
+    #
+    provider: aws_workspaces
+
+    ## @param aws_workspaces - object - optional
+    ## Amazon WorkSpaces-specific configuration.
+    #
+    aws_workspaces:
+
+      ## @param product - string - optional - default: auto
+      ## WorkSpaces product running on the host. `auto` detects WorkSpaces Applications
+      ## from its environment and otherwise assumes WorkSpaces Personal.
+      #
+      product: auto
+
+    ## @param tags - list of strings - optional
+    ## Tags to attach to every metric and service check emitted by this instance.
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
