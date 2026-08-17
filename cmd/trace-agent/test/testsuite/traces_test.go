@@ -322,6 +322,28 @@ func tracesEqual(from pb.Trace, toStrings []string, to *idx.TraceChunk) bool {
 	return found == len(from)
 }
 
+// obfuscatedTags holds the tags whose value the agent's obfuscator may rewrite,
+// so their values can't be compared against what the tracer sent. Update this
+// list for new values we emit in the test generator (the metas table in
+// pkg/trace/testutil/span.go): today only sql.query is generated, the rest are
+// listed defensively.
+//
+// Note that credit card obfuscation can't be enumerated by tag name at all:
+// obfuscate.ShouldObfuscateCCKey is a denylist, so with credit_cards enabled
+// (the default) any generated value that looks like a card number is replaced
+// by "?" regardless of its key.
+var obfuscatedTags = map[string]bool{
+	"sql.query":          true,
+	"redis.raw_command":  true,
+	"valkey.raw_command": true,
+	"memcached.command":  true,
+	"mongodb.query":      true,
+	"elasticsearch.body": true,
+	"opensearch.body":    true,
+	"http.url":           true,
+	"credit_card_number": true,
+}
+
 // spansEqual reports whether the legacy-format span s1 and the indexed span s2
 // are equal spans. s2 is permitted to have tags not present in s1, but not the
 // other way around.
@@ -357,8 +379,11 @@ func spansEqual(s1 *pb.Span, toStrings []string, s2 *idx.Span) bool {
 				return false
 			}
 			continue
-		case "credit_card_number":
-			// credit card obfuscation may rewrite this value; tests that care
+		}
+		if obfuscatedTags[k] {
+			// The obfuscator rewrites the value of these tags (e.g. a "sql" or
+			// "cassandra" span has its sql.query tag replaced by the obfuscated
+			// query), so only require the tag to be present. Tests that care
 			// about the obfuscated value assert on it explicitly.
 			if !idxHasAttr(toStrings, s2.Attributes, k) {
 				return false
