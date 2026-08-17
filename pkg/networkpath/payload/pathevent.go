@@ -250,9 +250,10 @@ type TracerouteDestination struct {
 type NetworkPath struct {
 	Timestamp        int64                  `json:"timestamp"`
 	AgentVersion     string                 `json:"agent_version"`
-	Namespace        string                 `json:"namespace"`      // namespace used to resolve NDM resources
-	TestConfigID     string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
-	TestResultID     string                 `json:"test_result_id"` // ID of specific test result (test run)
+	Namespace        string                 `json:"namespace"`        // namespace used to resolve NDM resources
+	TestConfigID     string                 `json:"test_config_id"`   // ID represent the test configuration created in UI/backend/Agent
+	TestConfigName   string                 `json:"test_config_name"` // Name of the test configuration created in UI/backend/Agent
+	TestResultID     string                 `json:"test_result_id"`   // ID of specific test result (test run)
 	TestRunID        string                 `json:"test_run_id"`
 	Origin           PathOrigin             `json:"origin"`
 	TestRunType      TestRunType            `json:"test_run_type"`
