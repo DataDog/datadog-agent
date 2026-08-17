@@ -28,8 +28,11 @@ func TestIsEligible(t *testing.T) {
 		wantReason string
 	}{
 		{
-			name: "defaults are eligible",
-			want: true,
+			// data_plane.enabled defaults to true in this branch (ADP-enabled CI sweep), so the
+			// agent is not eligible for preflight mode by default.
+			name:       "defaults are eligible",
+			want:       false,
+			wantReason: DataPlaneEnabled,
 		},
 		{
 			name: "preflight_mode explicitly disabled",
@@ -125,6 +128,9 @@ func TestIsEligible(t *testing.T) {
 		{
 			name: "an empty secret backend does not gate anything",
 			setup: func(cfg pkgconfigmodel.Config) {
+				// Reset data_plane.enabled to false via SourceDefault so the secrets checks can
+				// be exercised (data_plane.enabled defaults to true in this branch).
+				cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 				cfg.Set(secretBackendCommand, "", pkgconfigmodel.SourceFile)
 				cfg.Set(secretBackendType, "", pkgconfigmodel.SourceFile)
 				cfg.Set(multiSecretBackends, map[string]interface{}{}, pkgconfigmodel.SourceFile)
@@ -182,6 +188,9 @@ func TestIsEligible(t *testing.T) {
 			name: "values in other layers are not secrets",
 			env:  map[string]string{"DD_PROXY_HTTPS": "https://proxy:3128"},
 			setup: func(cfg pkgconfigmodel.Config) {
+				// Reset data_plane.enabled to false via SourceDefault so the layer-walk check
+				// can be exercised (data_plane.enabled defaults to true in this branch).
+				cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 				cfg.Set("api_key", "plain-api-key", pkgconfigmodel.SourceFile)
 				cfg.Set("hostname", "from-fleet-policies", pkgconfigmodel.SourceFleetPolicies)
 				cfg.Set("tags", []string{"from:rc"}, pkgconfigmodel.SourceRC)
