@@ -271,8 +271,11 @@ func TestStorageHistoryDefaults(t *testing.T) {
 	}{
 		{name: "no fixed window"},
 		{name: "holt", detectors: []observerdef.Detector{NewHoltResidualDetector()}, points: 60, duration: 915},
+		{name: "holt custom warmup", detectors: []observerdef.Detector{NewHoltResidualDetectorWithConfig(HoltResidualConfig{WarmupPoints: 100, ResidualWindow: 60})}, points: 100, duration: 1515},
 		{name: "tukey", detectors: []observerdef.Detector{NewTukeyBiweightDetector()}, points: 80, duration: 1215},
+		{name: "bocpd", detectors: []observerdef.Detector{NewBOCPDDetector(DefaultBOCPDConfig())}, points: 120, duration: 1815},
 		{name: "both", detectors: []observerdef.Detector{NewHoltResidualDetector(), NewTukeyBiweightDetector()}, points: 80, duration: 1215},
+		{name: "bocpd and fixed window", detectors: []observerdef.Detector{NewBOCPDDetector(DefaultBOCPDConfig()), NewTukeyBiweightDetector()}, points: 120, duration: 1815},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

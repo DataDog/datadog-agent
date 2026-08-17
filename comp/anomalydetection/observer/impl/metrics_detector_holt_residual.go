@@ -202,7 +202,7 @@ func (d *HoltResidualDetector) Name() string { return "holt_residual" }
 
 func (d *HoltResidualDetector) RequiredHistoryPoints() int {
 	d.ensureDefaults()
-	return d.ResidualWindow
+	return max(d.WarmupPoints, d.ResidualWindow)
 }
 
 func (d *HoltResidualDetector) Ready() bool { return d.ready }

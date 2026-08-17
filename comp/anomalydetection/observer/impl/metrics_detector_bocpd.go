@@ -184,6 +184,10 @@ func (b *BOCPDDetector) Name() string {
 
 func (b *BOCPDDetector) Ready() bool { return b.ready }
 
+// RequiredHistoryPoints ensures storage retains enough input to construct the
+// posterior when a cold series first reaches the BOCPD warmup threshold.
+func (b *BOCPDDetector) RequiredHistoryPoints() int { return b.config.WarmupPoints }
+
 // Detect implements Detector. It discovers series, reads only newly visible
 // points, and updates per-series BOCPD posterior state incrementally.
 //

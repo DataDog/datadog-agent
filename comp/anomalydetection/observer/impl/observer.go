@@ -686,11 +686,11 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 
 	for _, ref := range a.cachedRefs {
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
-		// CUSUM cannot produce a result before its own configured warmup.
-		// Keep cold sparse series out of the adapter cursor map and avoid the
-		// range allocation. The threshold-crossing call still reads the full
-		// retained range from the beginning.
-		if cusum, ok := a.detector.(*CUSUMDetector); ok && visibleCount < cusum.config.MinPoints {
+		// Stateful detectors gate their own warmup in their respective Detect
+		// implementations. CUSUM is the only production SeriesDetector, so its
+		// configured minimum belongs at this adapter boundary. Future wrapped
+		// SeriesDetector thresholds must be added to seriesDetectorMinPoints.
+		if minPoints := seriesDetectorMinPoints(a.detector); minPoints > 0 && visibleCount < minPoints {
 			continue
 		}
 		if prev, ok := a.lastVisibleCount[ref]; ok && prev == visibleCount {
@@ -734,6 +734,18 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 	}
 
 	return observerdef.DetectionResult{Anomalies: allAnomalies}
+}
+
+// seriesDetectorMinPoints returns the cold-start threshold for wrapped
+// stateless detectors. Other observer detectors are StorageReader consumers
+// and apply their own configured warmup gates before allocating state.
+func seriesDetectorMinPoints(detector observerdef.SeriesDetector) int {
+	switch d := detector.(type) {
+	case *CUSUMDetector:
+		return d.config.MinPoints
+	default:
+		return 0
+	}
 }
 
 // aggSuffix returns a short suffix for the given aggregation type.
