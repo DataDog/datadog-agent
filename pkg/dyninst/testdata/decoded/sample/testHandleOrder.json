@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.genericDo[...]",
+      "method": "main.(*Server).handleOrder",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.genericDo[go.shape.struct { main.s string }]",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 105
+            "function": "main.(*Server).handleOrder",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
+            "lineNumber": 26
           },
           {
-            "function": "main.executeGenericFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 234
+            "function": "main.executeServerFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
+            "lineNumber": 31
           },
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 81
+            "lineNumber": 60
           },
           {
             "function": "main.main",
@@ -47,20 +47,39 @@
           }
         ],
         "probe": {
-          "id": "testGenericDo",
+          "id": "testHandleOrder",
           "location": {
-            "method": "main.genericDo[...]"
+            "method": "main.(*Server).handleOrder"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "val": {
-                "type": "main.firstBehavior",
+              "s": {
+                "type": "*main.Server",
+                "address": "[addr]",
                 "fields": {
-                  "s": {
+                  "name": {
                     "type": "string",
-                    "value": "first"
+                    "value": "orders"
+                  }
+                }
+              },
+              "req": {
+                "type": "*main.Request",
+                "address": "[addr]",
+                "fields": {
+                  "ID": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "Customer": {
+                    "type": "string",
+                    "value": "Alice"
+                  },
+                  "Total": {
+                    "type": "float64",
+                    "value": "42.5"
                   }
                 }
               }
@@ -69,8 +88,8 @@
           "return": {
             "locals": {
               "@return": {
-                "type": "string",
-                "value": "{first}\n"
+                "type": "error",
+                "isNull": true
               }
             }
           }
@@ -80,7 +99,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "val={s: first}",
+    "message": "{ID: 1, Customer: Alice, Total: 42.5}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -88,7 +107,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.genericDo[...]",
+      "method": "main.(*Server).handleOrder",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -100,19 +119,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.genericDo[go.shape.struct { main.i int }]",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 105
+            "function": "main.(*Server).handleOrder",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
+            "lineNumber": 23
           },
           {
-            "function": "main.executeGenericFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 235
+            "function": "main.executeServerFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
+            "lineNumber": 32
           },
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 81
+            "lineNumber": 60
           },
           {
             "function": "main.main",
@@ -131,20 +150,39 @@
           }
         ],
         "probe": {
-          "id": "testGenericDo",
+          "id": "testHandleOrder",
           "location": {
-            "method": "main.genericDo[...]"
+            "method": "main.(*Server).handleOrder"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "val": {
-                "type": "main.secondBehavior",
+              "s": {
+                "type": "*main.Server",
+                "address": "[addr]",
                 "fields": {
-                  "i": {
+                  "name": {
+                    "type": "string",
+                    "value": "orders"
+                  }
+                }
+              },
+              "req": {
+                "type": "*main.Request",
+                "address": "[addr]",
+                "fields": {
+                  "ID": {
                     "type": "int",
-                    "value": "42"
+                    "value": "2"
+                  },
+                  "Customer": {
+                    "type": "string",
+                    "value": "Bob"
+                  },
+                  "Total": {
+                    "type": "float64",
+                    "value": "-1"
                   }
                 }
               }
@@ -153,8 +191,19 @@
           "return": {
             "locals": {
               "@return": {
-                "type": "string",
-                "value": "        42\n"
+                "type": "error",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "server orders: order 2 for Bob has negative total -1"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -164,7 +213,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "val={i: 42}",
+    "message": "{ID: 2, Customer: Bob, Total: -1}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
