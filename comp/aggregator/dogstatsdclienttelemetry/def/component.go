@@ -10,7 +10,8 @@ import "github.com/DataDog/datadog-agent/pkg/aggregator"
 
 // team: agent-metric-pipelines
 
-// Component observes final DogStatsD series to record client byte telemetry.
+// Component observes final DogStatsD series to record client byte telemetry
+// and detect client-reported payload drops.
 type Component interface {
 	aggregator.FinalDogStatsDSerieObserver
 }

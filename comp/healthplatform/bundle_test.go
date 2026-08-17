@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	dogstatsdclienttelemetryfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -33,9 +34,13 @@ import (
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	dogstatsdclientdrops "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dogstatsdclientdrops"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -297,6 +302,115 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 	}
 	require.Equal(t, 1, resolvedCountA, "issueA RESOLVED forwarded more than once")
 	require.Equal(t, 1, resolvedCountB, "issueB RESOLVED forwarded more than once")
+}
+
+func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
+	ready := make(chan bool, 1)
+	fi := fakeintakeserver.NewServer(
+		fakeintakeserver.WithAddress("127.0.0.1:0"),
+		fakeintakeserver.WithReadyChannel(ready),
+	)
+	fi.Start()
+	require.True(t, <-ready, "fakeintake server did not become ready")
+	t.Cleanup(func() { _ = fi.Stop() })
+	fiClient := fakeintakeclient.NewClient(fi.URL())
+
+	type appDeps struct {
+		fx.In
+		Observers []aggregator.FinalDogStatsDSerieObserver `group:"dogstatsd_final_serie_observers"`
+	}
+
+	const tickInterval = 50 * time.Millisecond
+	deps := fxutil.Test[appDeps](t,
+		Bundle(),
+		dogstatsdclienttelemetryfx.Module(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("api_key", "test-api-key")
+			cfg.SetInTest("dd_url", fi.URL())
+			cfg.SetInTest("health_platform.enabled", true)
+			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
+			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
+			cfg.SetInTest("run_path", t.TempDir())
+			cfg.SetInTest("dogstatsd_client_drop_detection.unhealthy_confirmation_window", "0s")
+			cfg.SetInTest("dogstatsd_client_drop_detection.recovery_confirmation_window", "0s")
+			return cfg
+		}),
+		telemetrymock.Module(),
+		hostnameinterface.MockModule(),
+	)
+
+	require.Len(t, deps.Observers, 1)
+	observer := deps.Observers[0]
+	flusher, ok := observer.(aggregator.FinalDogStatsDSerieObserverFlusher)
+	require.True(t, ok)
+	tags := tagset.CompositeTagsFromSlice([]string{"client_transport:uds"})
+	completeWindow := func(sent, dropped, queue, writer float64) {
+		for _, metric := range []struct {
+			name  string
+			value float64
+		}{
+			{name: "datadog.dogstatsd.client.bytes_sent", value: sent},
+			{name: "datadog.dogstatsd.client.bytes_dropped", value: dropped},
+			{name: "datadog.dogstatsd.client.bytes_dropped_queue", value: queue},
+			{name: "datadog.dogstatsd.client.bytes_dropped_writer", value: writer},
+		} {
+			if metric.value == 0 {
+				continue
+			}
+			observer.ObserveFinalDogStatsDSerie(&metrics.Serie{
+				Name: metric.name, Tags: tags, MType: metrics.APIRateType, Interval: 1,
+				Points: []metrics.Point{{Value: metric.value}},
+			})
+		}
+		flusher.CompleteFinalDogStatsDSerieFlush()
+	}
+
+	findIssue := func(state healthplatformpayload.IssueState) *healthplatformpayload.Issue {
+		payloads, err := fiClient.GetAgentHealth()
+		if err != nil {
+			return nil
+		}
+		issueID := dogstatsdclientdrops.UDSIssueIDForHostname("my-hostname")
+		for _, payload := range payloads {
+			issue := payload.Issues[issueID]
+			if issue != nil && issue.PersistedIssue != nil && issue.PersistedIssue.State == state {
+				return issue
+			}
+		}
+		return nil
+	}
+
+	completeWindow(980, 20, 12, 8)
+	completeWindow(980, 20, 12, 8)
+	var active *healthplatformpayload.Issue
+	require.Eventually(t, func() bool {
+		active = findIssue(healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
+		return active != nil
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueIDForHostname("my-hostname"), active.Id)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueName, active.IssueName)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueType, active.IssueType)
+	require.Contains(t, active.Title, "UDS")
+	require.Contains(t, active.Title, "my-hostname")
+	require.Equal(t, "uds", active.Extra.GetFields()["transport_family"].GetStringValue())
+	require.True(t, active.Extra.GetFields()["detection_evidence_available"].GetBoolValue())
+	require.Equal(t, 0.02, active.Extra.GetFields()["dropped_ratio"].GetNumberValue())
+	require.Equal(t, 1960.0, active.Extra.GetFields()["bytes_sent"].GetNumberValue())
+	require.Equal(t, 40.0, active.Extra.GetFields()["bytes_dropped"].GetNumberValue())
+	require.Equal(t, 24.0, active.Extra.GetFields()["bytes_dropped_queue"].GetNumberValue())
+	require.Equal(t, 16.0, active.Extra.GetFields()["bytes_dropped_writer"].GetNumberValue())
+	require.NotEmpty(t, active.Remediation.GetSteps())
+
+	completeWindow(1000, 0, 0, 0)
+	completeWindow(1000, 0, 0, 0)
+	require.Eventually(t, func() bool {
+		return findIssue(healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) != nil
+	}, 2*time.Second, 10*time.Millisecond)
+	resolved := findIssue(healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueName, resolved.IssueName)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueType, resolved.IssueType)
 }
 
 // TestAllModulesIssueNameMatchesBuiltIssueName guards the invariant that
