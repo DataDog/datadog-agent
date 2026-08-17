@@ -640,6 +640,12 @@ func (a *seriesDetectorAdapter) Ready() bool {
 	return a.detector.Ready()
 }
 
+// RequiredHistoryPoints forwards a wrapped detector's cold-start requirement
+// so storage defaults and low-retention warnings see CUSUM through its adapter.
+func (a *seriesDetectorAdapter) RequiredHistoryPoints() int {
+	return seriesDetectorMinPoints(a.detector)
+}
+
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
 	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)

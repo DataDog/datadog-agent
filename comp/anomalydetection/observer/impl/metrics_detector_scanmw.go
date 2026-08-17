@@ -102,6 +102,13 @@ func (d *ScanMWDetector) Name() string {
 
 func (d *ScanMWDetector) Ready() bool { return d.ready }
 
+// RequiredHistoryPoints ensures the first scan can replay a full retained
+// segment once a cold series reaches MinPoints.
+func (d *ScanMWDetector) RequiredHistoryPoints() int {
+	d.ensureDefaults()
+	return d.MinPoints
+}
+
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanMWDetector) Reset() {
 	d.series = make(map[scanmwStateKey]*scanmwSeriesState)

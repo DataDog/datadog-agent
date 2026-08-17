@@ -96,6 +96,13 @@ func (d *ScanWelchDetector) Name() string {
 
 func (d *ScanWelchDetector) Ready() bool { return d.ready }
 
+// RequiredHistoryPoints ensures the first scan can replay a full retained
+// segment once a cold series reaches MinPoints.
+func (d *ScanWelchDetector) RequiredHistoryPoints() int {
+	d.ensureDefaults()
+	return d.MinPoints
+}
+
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanWelchDetector) Reset() {
 	d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)

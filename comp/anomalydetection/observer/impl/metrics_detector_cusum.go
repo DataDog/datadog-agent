@@ -85,6 +85,10 @@ func (c *CUSUMDetector) Name() string {
 
 func (c *CUSUMDetector) Ready() bool { return c.ready }
 
+// RequiredHistoryPoints ensures storage retains enough input for CUSUM's
+// first full-series analysis after a cold series reaches MinPoints.
+func (c *CUSUMDetector) RequiredHistoryPoints() int { return c.config.MinPoints }
+
 // Reset clears the readiness signal for replay/reanalysis.
 func (c *CUSUMDetector) Reset() { c.ready = false }
 

@@ -274,6 +274,9 @@ func TestStorageHistoryDefaults(t *testing.T) {
 		{name: "holt custom warmup", detectors: []observerdef.Detector{NewHoltResidualDetectorWithConfig(HoltResidualConfig{WarmupPoints: 100, ResidualWindow: 60})}, points: 100, duration: 1515},
 		{name: "tukey", detectors: []observerdef.Detector{NewTukeyBiweightDetector()}, points: 80, duration: 1215},
 		{name: "bocpd", detectors: []observerdef.Detector{NewBOCPDDetector(DefaultBOCPDConfig())}, points: 120, duration: 1815},
+		{name: "cusum", detectors: []observerdef.Detector{newSeriesDetectorAdapter(NewCUSUMDetector(DefaultCUSUMConfig()), nil)}, points: 5, duration: 90},
+		{name: "scan mw", detectors: []observerdef.Detector{NewScanMWDetector()}, points: 30, duration: 465},
+		{name: "scan welch", detectors: []observerdef.Detector{NewScanWelchDetector()}, points: 30, duration: 465},
 		{name: "both", detectors: []observerdef.Detector{NewHoltResidualDetector(), NewTukeyBiweightDetector()}, points: 80, duration: 1215},
 		{name: "bocpd and fixed window", detectors: []observerdef.Detector{NewBOCPDDetector(DefaultBOCPDConfig()), NewTukeyBiweightDetector()}, points: 120, duration: 1815},
 	}
