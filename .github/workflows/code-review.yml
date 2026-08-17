@@ -6,6 +6,7 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     branches:
       - main
+      - "[0-9]+.[0-9]+.x"
   issue_comment:
     types: [created]
 
@@ -20,9 +21,9 @@ jobs:
     uses: DataDog/code-review-action/.github/workflows/code-review.yml@56d6862711348b11ec2603edfb29c52c09f4b84c # v1.1.0
     with:
       provider: codex
-      # 'always'    → runs automatically on pull_request events above
-      # 'on_demand' → runs when a write-access collaborator comments /dd-review
-      trigger_mode: on_demand
+      # Automatically replace the Codex review with a dd-review when a draft PR
+      # becomes ready. Keep every other event on demand via /dd-review.
+      trigger_mode: ${{ github.event_name == 'pull_request' && github.event.action == 'ready_for_review' && 'always' || 'on_demand' }}
       # Root-level files apply to every PR.
       # Sub-directory files apply only when the PR touches files under that prefix.
       prompt_file_pattern: "**/codereview_guideline.md"
