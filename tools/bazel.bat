@@ -15,10 +15,6 @@ if not exist "%XDG_CACHE_HOME%" (
     >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote a directory in CI!
     exit /b 2
   )
-  if defined DOTNET_RUNNING_IN_CONTAINER (
-    >&2 echo 💡 To persist caches across restarts, please set XDG_CACHE_HOME pointing to a mounted directory, e.g.:
-    >&2 echo     docker.exe run --env=XDG_CACHE_HOME=C:\cache --volume="$HOME\.cache:C:\cache" ...
-  )
 )
 
 :: Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME`
