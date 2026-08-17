@@ -11,6 +11,7 @@ package ringbuffer
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -20,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -73,8 +73,11 @@ func dispatcherQueueSize(cfg *config.Config) int {
 	}
 
 	if cfg.EventStreamDispatcherQueueSizePerCore {
-		numCPU, err := utils.NumCPU()
-		if err != nil || numCPU <= 0 {
+		// runtime.NumCPU reports the number of logical CPUs usable by the process
+		// (honoring the CPU affinity mask). Unlike utils.NumCPU it does not
+		// over-count, which matters here since we multiply the queue size by it.
+		numCPU := runtime.NumCPU()
+		if numCPU <= 0 {
 			numCPU = 1
 		}
 		size *= numCPU
@@ -85,19 +88,41 @@ func dispatcherQueueSize(cfg *config.Config) int {
 
 // dispatch drains the queue and forwards events to the handler on a dedicated
 // goroutine, decoupling event processing from the kernel ring buffer read loop.
-// It exits when the probe context is cancelled.
+// It exits when the probe context is cancelled, after draining any events that
+// were already read from the kernel but not yet processed.
 func (rb *RingBuffer) dispatch(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
 		select {
 		case <-rb.ctx.Done():
+			// The probe stops the readers before cancelling the context, so no
+			// new records can be enqueued at this point. Drain what remains to
+			// avoid silently dropping already-read events on shutdown.
+			rb.drain()
 			return
 		case record := <-rb.queue:
-			rb.handler(0, record.RawSample)
-			rb.recordPool.Put(record)
+			rb.handleRecord(record)
 		}
 	}
+}
+
+// drain processes every record left in the queue without blocking. It must only
+// be called once producers have stopped enqueuing.
+func (rb *RingBuffer) drain() {
+	for {
+		select {
+		case record := <-rb.queue:
+			rb.handleRecord(record)
+		default:
+			return
+		}
+	}
+}
+
+func (rb *RingBuffer) handleRecord(record *ringbuf.Record) {
+	rb.handler(0, record.RawSample)
+	rb.recordPool.Put(record)
 }
 
 // Start the event stream.
