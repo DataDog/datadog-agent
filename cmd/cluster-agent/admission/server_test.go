@@ -171,7 +171,7 @@ func TestHandleBodyLimits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newTestServer(t)
 			hit := false
-			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(req *Request) *admiv1.AdmissionResponse {
+			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(_ *Request) *admiv1.AdmissionResponse {
 				hit = true
 				return &admiv1.AdmissionResponse{Allowed: true}
 			}, nil, nil)
