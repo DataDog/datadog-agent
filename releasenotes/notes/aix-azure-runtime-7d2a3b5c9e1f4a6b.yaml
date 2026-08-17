@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ``getRuntime`` in ``pkg/trace/traceutil`` now resolves the runtime on AIX
+    using the Linux code path instead of returning ``unknown``.
