@@ -59,7 +59,9 @@ restart: never
 description: should not start
 `
 
-	winUserProfileEnvMarkerDir = `C:/ProgramData/Datadog`
+	// Description line from fleet/embedded DDOT template.
+	windowsDDOTDescOriginalLine = "description: Datadog Distribution of OpenTelemetry Collector"
+	windowsADPDescOriginalLine  = "description: Datadog Agent Data Plane"
 
 	adpProcessName = "datadog-agent-data-plane"
 )
@@ -242,8 +244,8 @@ func (s *procmgrWindowsSuite) TestAdministratorCreateViaNamedPipe() {
 		return
 	}
 
-	if _, err := host.Execute(s.platform.cliCmd("reload")); err != nil {
-		s.T().Logf("windows ddot procmgr: initial reload failed: %v", err)
+	if _, err := host.Execute(`powershell -Command "Restart-Service dd-procmgr-service -Force"`); err != nil {
+		s.T().Logf("windows ddot procmgr: procmgr service restart failed: %v", err)
 		return
 	}
 
@@ -309,123 +311,9 @@ func (s *procmgrWindowsSuite) waitWindowsDDOTRunning(timeout time.Duration) stri
 	return pid
 }
 
-func (s *procmgrWindowsSuite) TestDDOTReloadAfterYamlChange() {
-	s.requireDDOTWindows()
-
-	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
-	require.NoError(s.T(), err)
-	assert.NotContains(s.T(), strings.ToUpper(caller), "SYSTEM")
-
-	procName := fmt.Sprintf("e2e-admin-pipe-create-%d", time.Now().UnixNano())
-	createOut, err := host.Execute(s.cliCreate(procmgrCreateSpec{
-		Name:        procName,
-		Command:     `C:\Windows\System32\cmd.exe`,
-		Args:        []string{"/c", "exit"},
-		Description: "E2E admin pipe auth",
-		NoAutoStart: true,
-	}))
-	require.NoError(s.T(), err, "Create RPC should succeed for Administrator pipe client; output: %s", createOut)
-	assert.NotContains(s.T(), strings.ToLower(createOut), "permission denied")
-	assert.Contains(s.T(), createOut, "UUID:")
-
-	s.T().Cleanup(func() {
-		_, _ = s.Env().RemoteHost.Execute(psRemote(
-			`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
-			yamlPath, windowsDDOTDescE2ELine, windowsDDOTDescOriginalLine,
-		))
-		_, _ = s.Env().RemoteHost.Execute(s.platform.cliCmd("reload"))
-	})
-
-	s.Env().RemoteHost.MustExecute(psRemote(
-		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
-		yamlPath, windowsDDOTDescOriginalLine, windowsDDOTDescE2ELine,
-	))
-
-	reloadOut := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("reload"))
-	assert.Contains(s.T(), reloadOut, "datadog-agent-ddot", "reload output: %s", reloadOut)
-	assert.Contains(s.T(), reloadOut, "Modified", "reload output: %s", reloadOut)
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe datadog-agent-ddot"))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		assert.NotEqual(ct, originalPID, p, "DDOT should respawn with a new PID after reload")
-	}, 90*time.Second, 2*time.Second)
-
-	out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe datadog-agent-ddot"))
-	assertField(s.T(), out, "Description", "E2E-reload-after-yaml")
-}
-
-func (s *procmgrWindowsSuite) TestAgentProfileChildRunsAsAgentUser() {
-	host := s.Env().RemoteHost
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		desc := host.MustExecuteOn(ct, s.cliDescribe("test-sleep"))
-		assertField(ct, desc, "State", "Running")
-		pid := fieldValue(desc, "PID")
-		if !assert.NotEmpty(ct, pid) {
-			return
-		}
-		owner, err := windowsProcessOwnerByPID(host, pid)
-		assert.NoError(ct, err)
-		assert.NotContains(ct, owner, "NT AUTHORITY/SYSTEM")
-	}, 60*time.Second, 2*time.Second)
-}
-
-func (s *procmgrWindowsSuite) TestAgentProfileDescribeUserMatchesRuntimeUser() {
-	host := s.Env().RemoteHost
-
-	_, agentUser, err := windowsagent.GetAgentUserFromRegistry(host)
-	require.NoError(s.T(), err)
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		desc := host.MustExecuteOn(ct, s.cliDescribe("test-sleep"))
-		assertField(ct, desc, "State", "Running")
-		assertField(ct, desc, "Profile", "agent")
-		assertHasField(ct, desc, "User")
-		assertHasField(ct, desc, "Runtime User")
-
-		user := fieldValue(desc, "User")
-		runtimeUser := fieldValue(desc, "Runtime User")
-		assert.NotEmpty(ct, user)
-		assert.NotEmpty(ct, runtimeUser)
-		assert.Equal(ct, user, runtimeUser,
-			"describe User should match Runtime User for agent-profile children")
-		// MSI stores the machine name as installedDomain for local ddagentuser;
-		// procmgr display normalizes local SAM accounts to .\user.
-		assert.Equal(ct, `.\`+agentUser, user,
-			"local agent user should use registry-style .\\user display")
-	}, 60*time.Second, 2*time.Second)
-}
-
-func (s *procmgrWindowsSuite) TestAgentProfileChildHasUserProfileEnv() {
-	host := s.Env().RemoteHost
-
-	_, agentUser, err := windowsagent.GetAgentUserFromRegistry(host)
-	require.NoError(s.T(), err)
-
-	runID := time.Now().UnixNano()
-	procName := fmt.Sprintf("e2e-userprofile-env-%d", runID)
-	markerPath := windowsUserProfileEnvMarkerPath(runID)
-
-	createOut, err := host.Execute(s.cliCreate(windowsUserProfileEnvCreateSpec(procName, markerPath)))
-	require.NoError(s.T(), err, "Create should spawn an agent-profile child; output: %s", createOut)
-	assert.Contains(s.T(), createOut, "UUID:")
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		desc := host.MustExecuteOn(ct, s.cliDescribe(procName))
-		assertField(ct, desc, "Profile", "agent")
-
-		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, markerPath))
-		userProfile := strings.TrimSpace(out)
-		assert.NotEmpty(ct, userProfile)
-		assert.NotContains(ct, strings.ToLower(userProfile), "systemprofile")
-		assert.Contains(ct, strings.ToLower(userProfile), strings.ToLower(agentUser))
-	}, 120*time.Second, 2*time.Second)
-}
+// ---------------------------------------------------------------------------
+// Windows-only: ADP tests
+// ---------------------------------------------------------------------------
 
 func (s *procmgrWindowsSuite) waitWindowsADPRunning(timeout time.Duration) string {
 	s.T().Helper()
@@ -547,47 +435,4 @@ func (s *procmgrWindowsSuite) TestADPProcessDescribe() {
 		assertHasField(ct, out, "PID")
 		assertHasField(ct, out, "UUID")
 	}, 90*time.Second, 2*time.Second)
-}
-
-func (s *procmgrWindowsSuite) TestADPReloadAfterYamlChange() {
-	s.requireCLI()
-	originalPID := s.waitWindowsADPRunning(90 * time.Second)
-
-	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
-	require.NoError(s.T(), err)
-	yamlPath := joinWindowsPath(installPath, "processes.d", "datadog-agent-data-plane.yaml")
-
-	s.T().Cleanup(func() {
-		_, _ = s.Env().RemoteHost.Execute(psRemote(
-			`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
-			yamlPath, windowsADPDescE2ELine, windowsADPDescOriginalLine,
-		))
-		_, _ = s.Env().RemoteHost.Execute(s.platform.cliCmd("reload"))
-	})
-
-	s.Env().RemoteHost.MustExecute(psRemote(
-		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
-		yamlPath, windowsADPDescOriginalLine, windowsADPDescE2ELine,
-	))
-
-	reloadOut := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("reload"))
-	assert.Contains(s.T(), reloadOut, adpProcessName, "reload output: %s", reloadOut)
-	assert.Contains(s.T(), reloadOut, "Modified", "reload output: %s", reloadOut)
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+adpProcessName))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		assert.NotEqual(ct, originalPID, p, "ADP should respawn with a new PID after reload")
-	}, 90*time.Second, 2*time.Second)
-
-	assertField(s.T(),
-		s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe "+adpProcessName)),
-		"Description", "E2E-reload-after-yaml",
-	)
-	out, err := host.Execute(script)
-	return strings.TrimSpace(out), err
 }

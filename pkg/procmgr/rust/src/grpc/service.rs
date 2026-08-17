@@ -181,17 +181,6 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             })
     }
 
-    async fn reload_config(
-        &self,
-        request: Request<proto::ReloadConfigRequest>,
-    ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
-        require_mutating_pipe_client(&request)?;
-        let _ = request.into_inner();
-        Err(Status::unimplemented(
-            "config reload is not implemented; restart dd-procmgr-service instead",
-        ))
-    }
-
     async fn get_config(
         &self,
         _request: Request<proto::GetConfigRequest>,

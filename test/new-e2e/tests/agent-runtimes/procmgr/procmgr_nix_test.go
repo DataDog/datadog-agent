@@ -180,6 +180,10 @@ func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 	}, 60*time.Second, 2*time.Second)
 }
 
+// ---------------------------------------------------------------------------
+// Linux-only helpers
+// ---------------------------------------------------------------------------
+
 func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
 	s.T().Helper()
 	var pid string

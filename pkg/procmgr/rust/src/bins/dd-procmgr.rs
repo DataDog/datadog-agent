@@ -95,8 +95,6 @@ enum Commands {
         #[arg(long)]
         before: Vec<String>,
     },
-    /// Reload daemon configuration from disk
-    Reload,
 }
 
 #[tokio::main]
@@ -170,7 +168,6 @@ async fn run(cli: Cli) -> Result<(), String> {
             )
             .await
         }
-        Commands::Reload => cmd_reload(&mut client, json).await,
     }
 }
 
@@ -640,14 +637,6 @@ async fn cmd_create(
     for w in &resp.warnings {
         eprintln!("Warning: {w}");
     }
-    Ok(())
-}
-
-async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, _json: bool) -> Result<(), String> {
-    client
-        .reload_config(proto::ReloadConfigRequest {})
-        .await
-        .map_err(grpc_err)?;
     Ok(())
 }
 

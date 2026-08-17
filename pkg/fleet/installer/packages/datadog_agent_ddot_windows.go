@@ -459,7 +459,9 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	return nil
 }
 
-// Stop supervised DDOT before deleting extension files.
+// preRemoveDDOTExtension removes DDOT process manager config, restarts dd-procmgr-service so
+// supervised DDOT stops before extension files are removed, then stops/removes the legacy SCM
+// entry and disables otelcollector in datadog.yaml.
 func preRemoveDDOTExtension(ctx HookContext) error {
 	packagePath := ctx.PackagePath
 	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
@@ -469,7 +471,7 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 		log.Warnf("failed to remove DDOT process manager config: %v", err)
 	}
 	if env.FromEnv().ProcessManagerEnabled {
-		processmanager.ReloadOrRestartProcmgr()
+		processmanager.RestartProcmgrService()
 	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("failed to stop DDOT service: %s", err)
