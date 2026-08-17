@@ -162,6 +162,7 @@ go_library(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/option",
+        "//pkg/util/prometheus",
         "//pkg/util/retry",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",

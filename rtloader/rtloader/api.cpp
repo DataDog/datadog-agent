@@ -607,6 +607,16 @@ void set_resolve_issue_cb(rtloader_t *rtloader, cb_resolve_issue_t cb)
     AS_TYPE(RtLoader, rtloader)->setResolveIssueCb(cb);
 }
 
+void set_parse_prometheus_metrics_cb(rtloader_t *rtloader, cb_parse_prometheus_metrics_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setParsePrometheusMetricsCb(cb);
+}
+
+void set_process_prometheus_metrics_cb(rtloader_t *rtloader, cb_process_prometheus_metrics_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setProcessPrometheusMetricsCb(cb);
+}
+
 /*
  * _util API
  */
