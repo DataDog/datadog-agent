@@ -323,6 +323,22 @@ func TestValidatePMUBootFaultInfoBoundsTheDistinctUnion(t *testing.T) {
 	}))
 }
 
+// TestValidatePMUBootFaultInfoAcceptsLongTokens covers the window the native
+// reader used to drop and the classifier used to reject. Nothing truncates a
+// token now, so a long name from unfamiliar hardware still classifies on its
+// family instead of voiding the whole payload.
+func TestValidatePMUBootFaultInfoAcceptsLongTokens(t *testing.T) {
+	token := "ot," + strings.Repeat("a", maxShutdownTokenBytes-3)
+	require.Len(t, token, maxShutdownTokenBytes)
+
+	info := pmuBootFaultInfo{Groups: [][]string{{token}}}
+	require.NoError(t, validatePMUBootFaultInfo(info))
+
+	result, emit := classifyShutdownTokens(info)
+	require.True(t, emit)
+	assert.Equal(t, shutdownClassThermal, result.Class)
+}
+
 func TestValidatePMUBootFaultInfoAcceptsTheFullDictionary(t *testing.T) {
 	for _, token := range allPMUFaultTokens() {
 		require.NoError(t, validatePMUBootFaultInfo(pmuBootFaultInfo{Groups: [][]string{{token}}}), token)

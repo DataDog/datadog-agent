@@ -95,6 +95,8 @@ func readPMUBootFaultInfoWithBufferSize(size int) (pmuBootFaultInfo, bool, error
 	case 0:
 	case -2:
 		return pmuBootFaultInfo{}, true, nil
+	case -3:
+		return pmuBootFaultInfo{}, false, fmt.Errorf("%s could not be read in full", pmuBootFaultProperty)
 	default:
 		return pmuBootFaultInfo{}, false, fmt.Errorf("failed to read %s from the IORegistry", pmuBootFaultProperty)
 	}

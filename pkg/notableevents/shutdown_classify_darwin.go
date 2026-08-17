@@ -30,8 +30,11 @@ const (
 	// the measured hardware holds 80 entries, but the property is
 	// machine-controlled and crosses into an event payload.
 	maxShutdownTokens = 128
-	// maxShutdownTokenBytes bounds one token.
-	maxShutdownTokenBytes = 64
+	// maxShutdownTokenBytes bounds one token. The native reader sizes its buffer
+	// from the string and never shortens a token, so this is the only cap on
+	// token length, and exceeding it rejects the payload rather than trimming
+	// it. The longest token on the measured hardware is 35 bytes.
+	maxShutdownTokenBytes = 128
 )
 
 // shutdownClassPrecedence orders classifications from most to least
