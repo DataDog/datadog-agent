@@ -3462,7 +3462,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	})
 
 	if p.useRingBuffers {
-		p.eventStream = ringbuffer.New(p.handleEvent)
+		p.eventStream = ringbuffer.New(p.ctx, p.handleEvent)
 	} else {
 		p.eventStream, err = reorderer.NewOrderedPerfMap(p.ctx, p.handleEvent, probe.StatsdClient)
 		if err != nil {

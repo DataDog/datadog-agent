@@ -1121,6 +1121,29 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_BUFFER_SIZE
+          dispatcher_queue_size:
+            node_type: setting
+            type: integer
+            default: 16384
+            comment: |-
+              Size of the user space dispatcher queue that decouples reading the
+              kernel ring buffer from event processing. Acts as a cushion to absorb
+              bursts of events. When dispatcher_queue_size_per_core is true, this
+              value is multiplied by the number of CPUs on the system.
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
+          dispatcher_queue_size_per_core:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              When true, dispatcher_queue_size is interpreted as a per-CPU value and
+              multiplied by the number of CPUs on the system to compute the final
+              user space dispatcher queue size.
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
           kretprobe_max_active:
             node_type: setting
             type: integer
