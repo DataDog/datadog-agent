@@ -88,7 +88,7 @@ Invoke-BuildScript `
             New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
         }
         # Generate the datadog.yaml config file to be used in integration tests
-        & dda inv -- -e schema.template --schema=./pkg/config/schema/yaml/core_schema.yaml --build-type=agent-py3 --os-target=windows --output=./datadog.yaml
+        & dda inv -- -e schema.template --schema=./pkg/config/schema/yaml/core_schema.yaml --build-type=datadog-agent --os-target=windows --output=./datadog.yaml
         # Build inputs needed for go builds
         & .\tasks\winbuildscripts\pre-go-build.ps1
     }
@@ -154,7 +154,7 @@ Invoke-BuildScript `
     }
     $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
     & dda inv -- -e test --junit-tar="$Env:JUNIT_TAR" `
-        --race --profile --rerun-fails=2 --coverage --cpus 8 `
+        --race --rerun-fails=2 --coverage --cpus 8 `
         --python-home-3=$Env:Python3_ROOT_DIR `
         --result-json $internal_result_json `
         --build-stdlib `

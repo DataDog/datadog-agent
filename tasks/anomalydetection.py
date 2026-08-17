@@ -37,6 +37,7 @@ from tasks.libs.anomalydetection.eval import (
     random_component_combinations,
 )
 from tasks.libs.common.color import Color, color_message
+from tasks.schema.generate import schema_codegen
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,9 @@ def build_scorer(ctx):
     """
     Builds the anomalydetection-scorer binary to bin/anomalydetection-scorer.
     """
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run("go build -C internal/qbranch/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
 
 
@@ -73,8 +77,11 @@ def build_testbench(ctx):
     """
     Builds the anomalydetection-testbench binary to bin/anomalydetection-testbench.
     """
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(
-        "go build -C internal/qbranch/anomalydetection-testbench -tags python -o ../../../bin/anomalydetection-testbench ."
+        "go build -C internal/qbranch/anomalydetection-testbench -tags python,anomalydetectiontestbench -o ../../../bin/anomalydetection-testbench ."
     )
 
 
@@ -198,7 +205,8 @@ def eval_scenarios(
     source of truth for anomaly detection accuracy.
 
     Uses testbench --only to control which components are active.
-    Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
+    Default (no --only): uses testbench defaults (bocpd, rrcf, and
+      anomaly_scorer; time_cluster is disabled).
     With --only: enables ONLY listed components + extractors, disables everything else.
       time_cluster is auto-added if not specified.
     With --config: JSON params file for testbench; overrides --only when both are set.

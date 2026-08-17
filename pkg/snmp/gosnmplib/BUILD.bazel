@@ -5,6 +5,7 @@ go_library(
     name = "gosnmplib",
     srcs = [
         "cmp.go",
+        "column.go",
         "errors.go",
         "gosnmp_auth.go",
         "gosnmp_log.go",
@@ -25,6 +26,7 @@ dd_agent_go_test(
     name = "gosnmplib_test",
     srcs = [
         "cmp_test.go",
+        "column_test.go",
         "gosnmp_auth_test.go",
         "gosnmp_log_test.go",
         "gosnmp_utils_test.go",

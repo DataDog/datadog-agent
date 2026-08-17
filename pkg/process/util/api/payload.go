@@ -36,14 +36,10 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	if msgType == model.TypeCollectorProcEvent {
 		encoded, err = proto.Marshal(m)
 	} else {
-		encoding := model.MessageEncodingZstdPB
-		if msgType == model.TypeCollectorConnections {
-			encoding = model.MessageEncodingZstd1xPB
-		}
 		encoded, err = model.EncodeMessage(model.Message{
 			Header: model.MessageHeader{
 				Version:  model.MessageV3,
-				Encoding: encoding,
+				Encoding: model.MessageEncodingZstd1xPB,
 				Type:     msgType,
 			}, Body: m})
 	}

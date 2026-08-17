@@ -61,7 +61,7 @@ func newMatchMutator(t *testing.T, yamlCfg string, wmeta workloadmeta.Component)
 	mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 	config, err := NewConfig(mockConfig)
 	require.NoError(t, err)
-	m, err := NewTargetMutator(config, wmeta, imageResolver, nil)
+	m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
 	require.NoError(t, err)
 	return m
 }
@@ -353,5 +353,56 @@ apm_config:
 	runMatchCases(t, cfg, []matchCase{
 		{name: "disabled namespace never matches", ns: "infra", want: ""},
 		{name: "other namespace matches", ns: "app", want: "all"},
+	})
+}
+
+// TestMatching_UnresolvableNamespaceRuleIsSkipped verifies that an unavailable
+// namespace-label source only skips rules that need it. Other rules continue to
+// be evaluated in order, independently of where the unresolvable rule appears.
+func TestMatching_UnresolvableNamespaceRuleIsSkipped(t *testing.T) {
+	const podRuleFirst = `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "pod-only"
+        podSelector:
+          matchLabels:
+            app: "web"
+        ddTraceVersions:
+          java: "default"
+      - name: "ns-label"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+        ddTraceVersions:
+          python: "default"
+`
+	const nsRuleFirst = `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "ns-label"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+        ddTraceVersions:
+          python: "default"
+      - name: "pod-only"
+        podSelector:
+          matchLabels:
+            app: "web"
+        ddTraceVersions:
+          java: "default"
+`
+
+	// No namespace is registered in the store, so the namespace-label rule
+	// cannot be evaluated for the "ghost" namespace and is skipped.
+	runMatchCases(t, podRuleFirst, []matchCase{
+		{name: "pod-only rule before the unresolvable rule still matches", ns: "ghost", podLabels: map[string]string{"app": "web"}, want: "pod-only"},
+	})
+	runMatchCases(t, nsRuleFirst, []matchCase{
+		{name: "unresolvable rule first does not block the pod-only rule", ns: "ghost", podLabels: map[string]string{"app": "web"}, want: "pod-only"},
 	})
 }

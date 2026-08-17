@@ -61,6 +61,18 @@ class TestComponents(unittest.TestCase):
         root = components.locate_component_def(Path('comp/newstyle'))
         self.assertEqual(2, root.version)
 
+    def test_locate_root_misnamed_def_file(self):
+        # A def/component.go file that isn't named 'component.go' should still be located as the
+        # component's definition file (by its 'type Component' definition), rather than silently
+        # not being recognized as a component at all.
+        oldfilename = os.path.join('comp/newstyle', 'def/component.go')
+        newfilename = os.path.join('comp/newstyle', 'def/newstyle.go')
+        shutil.move(oldfilename, newfilename)
+
+        root = components.locate_component_def(Path('comp/newstyle'))
+        self.assertEqual(2, root.version)
+        self.assertEqual(components.to_posix_path(newfilename), root.def_file)
+
     def test_validate_bundles(self):
         _, bundles = components.get_components_and_bundles()
         errs = components.validate_bundles(bundles)
@@ -136,6 +148,18 @@ class TestComponents(unittest.TestCase):
         errs = components.validate_components(comps)
         self.assertEqual(1, len(errs))
         self.assertIn('separate implementation', errs[0])
+
+        # Lint error because def/component.go should be named 'component.go'
+        self.reset_component_src_in_tmpdir()
+
+        oldfilename = os.path.join(comps[3].path, 'def/component.go')
+        newfilename = os.path.join(comps[3].path, 'def/newstyle.go')
+        shutil.move(oldfilename, newfilename)
+
+        comps, _ = components.get_components_and_bundles()
+        errs = components.validate_components(comps)
+        self.assertEqual(1, len(errs))
+        self.assertIn("should be renamed to 'component.go'", errs[0])
 
     def test_validate_component_fx(self):
         comps, _ = components.get_components_and_bundles()

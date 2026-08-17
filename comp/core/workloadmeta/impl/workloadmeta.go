@@ -53,7 +53,9 @@ type workloadmeta struct {
 	// startWg tracks background goroutines spawned by start() so OnStop can wait for them to exit.
 	startWg sync.WaitGroup
 
-	// firstCollectorReady is closed when at least one collector has been started.
+	// firstCollectorReady is closed when collector startup is resolved: at least
+	// one collector has started, or all candidates have been processed without any
+	// starting (e.g. no collector is applicable to the environment).
 	firstCollectorReady     chan struct{}
 	firstCollectorReadyOnce sync.Once
 
