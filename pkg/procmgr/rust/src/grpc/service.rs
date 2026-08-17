@@ -432,7 +432,7 @@ mod tests {
         assert_eq!(detail.after, vec!["dep-a"]);
         assert_eq!(detail.before, vec!["dep-b"]);
         assert_eq!(detail.profile, "agent");
-        assert!(!detail.user.is_empty());
+        assert_eq!(detail.user, "unknown");
     }
 
     #[tokio::test]

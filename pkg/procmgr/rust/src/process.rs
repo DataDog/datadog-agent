@@ -140,6 +140,9 @@ enum ForceKillWaitTarget<'a> {
     Child,
 }
 
+/// Placeholder until platform spawn resolves the intended account.
+const DEFERRED_SPAWN_USER: &str = "unknown";
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -174,14 +177,13 @@ impl ManagedProcess {
 
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let profile = profile_for(&name);
-        let user = spawn_user_for(&name, profile);
         let restarts = RestartTracker::new(config.restart_delay());
         Self {
             name,
             uuid,
             config,
             profile,
-            user,
+            user: DEFERRED_SPAWN_USER.to_string(),
             state: ProcessState::Created,
             pid: None,
             handle: None,
