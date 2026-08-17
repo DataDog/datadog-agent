@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add an Agent Health issue when DogStatsD clients using Unix domain sockets
+    report a sustained payload-byte drop rate above 1%. The issue includes a
+    queue/writer drop breakdown when available and recommends steps to reduce
+    client-side pressure. It resolves after the Agent observes sustained
+    recovery.

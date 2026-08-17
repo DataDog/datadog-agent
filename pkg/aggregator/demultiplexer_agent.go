@@ -576,6 +576,10 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				<-t.trigger.blockChan
 			}
 
+			// Signal the end of the DogStatsD flush once all workers have emitted their series,
+			// allowing observers to evaluate the complete flush output.
+			completeFinalDogStatsDSerieObserverFlushes(d.options.FinalDogStatsDSerieObservers)
+
 			// flush the aggregator (check samplers)
 			// -------------------------------------
 
