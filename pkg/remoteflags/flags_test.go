@@ -499,6 +499,10 @@ func TestOnChange_ErrorUnsetsConfigurationField(t *testing.T) {
 func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer func() {
+			client.Stop()
+			synctest.Wait()
+		}()
 
 		h := newStubHandler(testFlag1)
 		h.healthy.Store(false) // Unhealthy throughout
@@ -514,8 +518,10 @@ func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 		// Wait for SafeRecover
 		waitChan(t, h.recoverCh, 3*time.Second)
 
-		// Wait for the recovery probe window to expire
+		// Advance virtual time past the recovery probe window (1s) so
+		// the context deadline fires and the recovery goroutine exits.
 		time.Sleep(1500 * time.Millisecond)
+		synctest.Wait()
 
 		// SafeRecover should only have been called once
 		select {
@@ -524,7 +530,5 @@ func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 		default:
 			// expected: recovery monitor gave up gracefully
 		}
-		client.Stop()
-		synctest.Wait()
 	})
 }
