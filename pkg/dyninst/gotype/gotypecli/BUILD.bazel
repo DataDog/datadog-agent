@@ -6,11 +6,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gotype/gotypecli",
     tags = ["manual"],
     visibility = ["//visibility:private"],
-    deps = [
-        "//pkg/dyninst/gotype",
-        "//pkg/dyninst/gotype/gotypeprinter",
-        "//pkg/dyninst/object",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/gotype",
+            "//pkg/dyninst/gotype/gotypeprinter",
+            "//pkg/dyninst/object",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/gotype",
+            "//pkg/dyninst/gotype/gotypeprinter",
+            "//pkg/dyninst/object",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_binary(

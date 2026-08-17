@@ -7,7 +7,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbprinter",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = ["//pkg/dyninst/symdb/uploader"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/symdb/uploader",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/symdb/uploader",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

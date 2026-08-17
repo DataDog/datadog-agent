@@ -5,10 +5,16 @@ go_library(
     srcs = ["names.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/names",
     # keep
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
 )

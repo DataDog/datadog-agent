@@ -9,9 +9,17 @@ go_library(
     embedsrcs = ["stdarg.h"],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/compiler",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/util/defaultpaths",
-        "//pkg/util/kernel",
-        "//pkg/util/log",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/defaultpaths",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/defaultpaths",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
 )

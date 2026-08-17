@@ -10,11 +10,19 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/maps",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/network/usm",
-        "//pkg/util/kernel",
-        "@com_github_cilium_ebpf//:ebpf",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/usm",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//:ebpf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/usm",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//:ebpf",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

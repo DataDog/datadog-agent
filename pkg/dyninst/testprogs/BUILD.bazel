@@ -10,12 +10,21 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/ir",
-        "//pkg/dyninst/rcjson",
-        "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v3//:yaml",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/ir",
+            "//pkg/dyninst/rcjson",
+            "@com_github_stretchr_testify//require",
+            "@in_yaml_go_yaml_v3//:yaml",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/ir",
+            "//pkg/dyninst/rcjson",
+            "@com_github_stretchr_testify//require",
+            "@in_yaml_go_yaml_v3//:yaml",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

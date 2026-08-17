@@ -6,14 +6,22 @@ go_library(
     srcs = ["generic_map.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/maps",
     tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/util/funcs",
-        "//pkg/util/log",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/funcs",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/funcs",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

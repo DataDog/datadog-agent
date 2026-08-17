@@ -16,11 +16,14 @@ import (
 	"bufio"
 	"go/build"
 	"go/build/constraint"
+	"go/parser"
+	"go/token"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -133,6 +136,7 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 		}
 		result = l.revertDdAgentGoTests(result, args.File)
 	}
+	rewriteLinuxOnlyDeps(result, args.Dir)
 	return result
 }
 
@@ -161,6 +165,221 @@ func configuredTagSets(c *config.Config) [][]string {
 		return nil
 	}
 	return cfg.tagSets
+}
+
+// rewriteLinuxOnlyDeps moves go_library imports that only Linux-only sources
+// reference out of the unconditional dep list and into the Linux select()
+// branches.
+//
+// It runs on the PlatformStrings the upstream Go extension produced, before the
+// resolver turns import paths into labels, so the deps attribute ends up as the
+// ordinary `[generic] + select({...})` shape without this extension having to
+// build any Starlark itself: Resolve() maps our PlatformStrings through
+// ResolveGo and PlatformStrings.BzlExpr() renders the select.
+//
+// An import moves only when *every* source file referencing it is Linux-only.
+// A dep shared with a generic or stub file stays unconditional, which is both
+// conservative and correct — a !linux_bpf fallback still compiles on Linux
+// without the tag, so its deps must be available on every platform.
+//
+// srcs need no equivalent treatment: upstream emits them as a flat list and the
+// Go compiler drops the ones whose constraints don't hold. Only deps have to be
+// resolved during Bazel's analysis phase, which is why only they need select().
+func rewriteLinuxOnlyDeps(result language.GenerateResult, pkgDir string) {
+	for i, r := range result.Gen {
+		if r.Kind() != "go_library" || i >= len(result.Imports) {
+			continue
+		}
+		ps, ok := result.Imports[i].(rule.PlatformStrings)
+		if !ok || len(ps.Generic) == 0 {
+			continue
+		}
+		srcs := r.AttrStrings("srcs")
+		if len(srcs) == 0 {
+			continue
+		}
+
+		// linuxOnly[imp] stays true only while every file seen importing imp is
+		// itself Linux-only.
+		linuxOnly := make(map[string]bool)
+		for _, s := range srcs {
+			path := s
+			if !filepath.IsAbs(path) {
+				path = filepath.Join(pkgDir, s)
+			}
+			expr, hasConstraint, err := readBuildConstraint(path)
+			if err != nil {
+				continue
+			}
+			gated := hasConstraint && isLinuxOnlyConstraint(expr)
+			for _, imp := range fileImports(path) {
+				if prev, seen := linuxOnly[imp]; seen {
+					linuxOnly[imp] = prev && gated
+					continue
+				}
+				linuxOnly[imp] = gated
+			}
+		}
+
+		var move, keep []string
+		for _, imp := range ps.Generic {
+			if linuxOnly[imp] {
+				move = append(move, imp)
+				continue
+			}
+			keep = append(keep, imp)
+		}
+		if len(move) == 0 {
+			continue
+		}
+
+		prefix := osConstraintPrefix(ps)
+		next := rule.PlatformStrings{
+			Generic:  keep,
+			OS:       make(map[string][]string, len(ps.OS)+len(linuxFamilyOSs)),
+			Arch:     ps.Arch,
+			Platform: ps.Platform,
+		}
+		for key, value := range ps.OS {
+			next.OS[key] = value
+		}
+		for _, goos := range linuxFamilyOSs {
+			key := prefix + goos
+			next.OS[key] = mergeSortedUnique(next.OS[key], move)
+		}
+
+		result.Imports[i] = next
+		// Keep the rule's own copy in step: the resolver reads whichever of the
+		// two the framework hands it depending on whether the rule was freshly
+		// generated or merged into an existing one.
+		r.SetPrivateAttr(config.GazelleImportsKey, next)
+	}
+}
+
+// isLinuxOnlyConstraint reports whether expr can only be satisfied on Linux.
+//
+// The test is whether expr is satisfiable in a "non-Linux world": linux and
+// android pinned false, every linuxOnlyBuildTags entry pinned false (they
+// cannot be set off Linux), go1.N release tags true, and every remaining tag
+// free. If no assignment satisfies expr, nothing but Linux can build the file.
+//
+// Framing it as unsatisfiability rather than "mentions a Linux-only tag" is
+// what makes negation and mixed expressions fall out correctly:
+//
+//	linux_bpf                            -> unsat  -> Linux-only
+//	linux_bpf && nvml                    -> unsat  -> Linux-only
+//	linux_bpf && test                    -> unsat  -> Linux-only
+//	linux && nvml                        -> unsat  -> Linux-only
+//	!linux_bpf                           -> sat    -> generic (stub)
+//	!linux || !nvml                      -> sat    -> generic (stub)
+//	(linux && (!linux_bpf||!nvml))||windows -> sat  -> generic (stub)
+func isLinuxOnlyConstraint(expr constraint.Expr) bool {
+	pinnedFalse := func(tag string) bool {
+		return tag == "linux" || tag == "android" || linuxOnlyBuildTags[tag]
+	}
+
+	var free []string
+	seen := make(map[string]bool)
+	var walk func(constraint.Expr)
+	walk = func(e constraint.Expr) {
+		switch x := e.(type) {
+		case *constraint.TagExpr:
+			if seen[x.Tag] || pinnedFalse(x.Tag) {
+				return
+			}
+			seen[x.Tag] = true
+			free = append(free, x.Tag)
+		case *constraint.NotExpr:
+			walk(x.X)
+		case *constraint.AndExpr:
+			walk(x.X)
+			walk(x.Y)
+		case *constraint.OrExpr:
+			walk(x.X)
+			walk(x.Y)
+		}
+	}
+	walk(expr)
+
+	// Too many free tags to enumerate: decline rather than guess, leaving the
+	// deps unconditional exactly as they are today.
+	if len(free) > maxEnumeratedAutoTestTags {
+		return false
+	}
+	sort.Strings(free)
+
+	for mask := 0; mask < (1 << len(free)); mask++ {
+		assign := make(map[string]bool, len(free))
+		for i, tag := range free {
+			assign[tag] = mask&(1<<i) != 0
+		}
+		satisfied := expr.Eval(func(tag string) bool {
+			if pinnedFalse(tag) {
+				return false
+			}
+			if v, ok := assign[tag]; ok {
+				return v
+			}
+			return goReleaseTags[tag]
+		})
+		if satisfied {
+			return false
+		}
+	}
+	return true
+}
+
+// fileImports returns the import paths referenced by the Go file at path.
+// Parsing stops after the import block, so this stays cheap enough to run over
+// every source file Gazelle visits. An unreadable or unparsable file yields no
+// imports, which leaves the caller treating its deps as unconditional.
+func fileImports(path string) []string {
+	parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(parsed.Imports))
+	for _, spec := range parsed.Imports {
+		imp, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		out = append(out, imp)
+	}
+	return out
+}
+
+// osConstraintPrefix recovers the //go/platform: label prefix upstream used for
+// this target, so generated keys match the repo's rules_go module name instead
+// of hardcoding it. Falls back to the canonical prefix when the target has no
+// OS-specific strings to learn from.
+func osConstraintPrefix(ps rule.PlatformStrings) string {
+	const marker = "//go/platform:"
+	for key := range ps.OS {
+		if i := strings.Index(key, marker); i >= 0 {
+			return key[:i+len(marker)]
+		}
+	}
+	return "@rules_go" + marker
+}
+
+// mergeSortedUnique returns the union of base and extra, sorted and
+// de-duplicated. PlatformStrings requires a string appear at most once per
+// list, and never across sets.
+func mergeSortedUnique(base, extra []string) []string {
+	seen := make(map[string]bool, len(base)+len(extra))
+	out := make([]string, 0, len(base)+len(extra))
+	for _, values := range [][]string{base, extra} {
+		for _, v := range values {
+			if seen[v] {
+				continue
+			}
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // replaceGoTests converts all go_test rules in result to dd_agent_go_test rules.
@@ -407,6 +626,32 @@ var platformTokens = map[string]bool{
 	// toolchain / meta
 	"cgo": true, "gc": true, "gccgo": true, "unix": true,
 }
+
+// linuxOnlyBuildTags are custom (non-GOOS) build tags that can only ever be set
+// on Linux: LINUX_ONLY_TAGS in //tasks:build_tags.bzl lists them, and
+// filter_incompatible_tags() strips them from the tag set on every other
+// platform, so a file gated on one of them is unbuildable off Linux.
+//
+// Gazelle's upstream Go extension has no way to know this — isOSArchSpecific()
+// only recognizes GOOS/GOARCH tokens — so it classifies such files as
+// platform-generic and emits their imports as unconditional deps. That drags
+// Linux-only libraries into the dependency graph of every platform, which is
+// what forces target_compatible_with onto //pkg/ebpf and friends.
+//
+// Kept deliberately narrow for now. The remaining LINUX_ONLY_TAGS entries
+// (netcgo, systemd, jetson, pcap, podman, trivy, crio) are equally Linux-only
+// and can be added once this lands, but each widens the set of BUILD files that
+// change in one go.
+var linuxOnlyBuildTags = map[string]bool{
+	"linux_bpf": true,
+	"nvml":      true,
+}
+
+// linuxFamilyOSs are the GOOS values that satisfy Go's "linux" build tag, and
+// therefore the select() branches a Linux-only dep belongs in. Upstream expands
+// linux-constrained strings the same way, which is why existing generated
+// selects in this repo always pair android with linux.
+var linuxFamilyOSs = []string{"android", "linux"}
 
 // goReleaseTags is the set of go1.N tokens satisfied by the toolchain running
 // the Gazelle binary, taken from go/build's authoritative list. The toolchain

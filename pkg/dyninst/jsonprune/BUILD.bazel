@@ -10,7 +10,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/jsonprune",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = ["@com_github_go_json_experiment_json//jsontext"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_go_json_experiment_json//jsontext",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_go_json_experiment_json//jsontext",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

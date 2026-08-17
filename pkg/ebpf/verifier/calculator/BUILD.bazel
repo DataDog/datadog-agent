@@ -6,10 +6,17 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/verifier/calculator",
     tags = ["manual"],
     visibility = ["//visibility:private"],
-    deps = [
-        "//pkg/ebpf/verifier",
-        "@com_github_cilium_ebpf//rlimit",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/verifier",
+            "@com_github_cilium_ebpf//rlimit",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/verifier",
+            "@com_github_cilium_ebpf//rlimit",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_binary(

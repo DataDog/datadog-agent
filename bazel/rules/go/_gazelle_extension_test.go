@@ -6,6 +6,7 @@
 package dd_agent_go_test
 
 import (
+	"go/build/constraint"
 	"os"
 	"path/filepath"
 	"sort"
@@ -986,4 +987,169 @@ func stringSlicesEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func parseConstraintForTest(t *testing.T, expr string) constraint.Expr {
+	t.Helper()
+	parsed, err := constraint.Parse("//go:build " + expr)
+	if err != nil {
+		t.Fatalf("Parse(%q): %v", expr, err)
+	}
+	return parsed
+}
+
+func TestIsLinuxOnlyConstraint(t *testing.T) {
+	for _, tc := range []struct {
+		expr string
+		want bool
+	}{
+		// Linux-only build tags, alone and combined: nothing off Linux can
+		// satisfy these, so the imports they pull belong in the Linux select.
+		{"linux_bpf", true},
+		{"nvml", true},
+		{"linux_bpf && nvml", true},
+		{"linux_bpf && test", true},
+		{"linux_bpf && !test", true},
+		{"linux && linux_bpf && nvml", true},
+		{"linux && nvml", true},
+		{"linux && nvml && kubelet", true},
+		{"linux && nvml && !kubelet", true},
+		{"test && linux && nvml", true},
+		{"linux", true},
+
+		// Negations are the fallback stubs. They still build on Linux with the
+		// tag unset, and on every other platform, so their imports must stay
+		// unconditional.
+		{"!linux_bpf", false},
+		{"!nvml", false},
+		{"!linux || !nvml", false},
+		{"!linux_bpf || !nvml", false},
+		{"(linux && (!linux_bpf || !nvml)) || windows", false},
+
+		// Unrelated tags carry no Linux implication.
+		{"windows", false},
+		{"darwin", false},
+		{"!windows", false},
+		{"unix", false},
+		{"zlib", false},
+		{"ignore", false},
+	} {
+		t.Run(tc.expr, func(t *testing.T) {
+			if got := isLinuxOnlyConstraint(parseConstraintForTest(t, tc.expr)); got != tc.want {
+				t.Errorf("isLinuxOnlyConstraint(%q) = %v, want %v", tc.expr, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRewriteLinuxOnlyDeps_MovesLinuxOnlyImports(t *testing.T) {
+	dir := t.TempDir()
+	// Gated file: its sole import is Linux-only and must move.
+	mustWrite(t, dir, "gated.go", "//go:build linux_bpf\n\npackage x\n\nimport _ \"example.com/bpfonly\"\n")
+	// Generic file: no constraint, so its import stays unconditional.
+	mustWrite(t, dir, "generic.go", "package x\n\nimport _ \"example.com/portable\"\n")
+
+	lib := rule.NewRule("go_library", "x")
+	lib.SetAttr("srcs", []string{"gated.go", "generic.go"})
+	result := language.GenerateResult{
+		Gen:     []*rule.Rule{lib},
+		Imports: []interface{}{rule.PlatformStrings{Generic: []string{"example.com/bpfonly", "example.com/portable"}}},
+	}
+
+	rewriteLinuxOnlyDeps(result, dir)
+
+	ps, ok := result.Imports[0].(rule.PlatformStrings)
+	if !ok {
+		t.Fatalf("Imports[0] is %T, want rule.PlatformStrings", result.Imports[0])
+	}
+	if !stringSlicesEqual(ps.Generic, []string{"example.com/portable"}) {
+		t.Errorf("Generic = %v, want [example.com/portable]", ps.Generic)
+	}
+	for _, goos := range linuxFamilyOSs {
+		key := "@rules_go//go/platform:" + goos
+		if !stringSlicesEqual(ps.OS[key], []string{"example.com/bpfonly"}) {
+			t.Errorf("OS[%s] = %v, want [example.com/bpfonly]", key, ps.OS[key])
+		}
+	}
+}
+
+func TestRewriteLinuxOnlyDeps_SharedWithStubStaysGeneric(t *testing.T) {
+	dir := t.TempDir()
+	// The same import is referenced from a gated file and from its !linux_bpf
+	// fallback, so it has to remain available on every platform.
+	mustWrite(t, dir, "gated.go", "//go:build linux_bpf\n\npackage x\n\nimport _ \"example.com/shared\"\n")
+	mustWrite(t, dir, "stub.go", "//go:build !linux_bpf\n\npackage x\n\nimport _ \"example.com/shared\"\n")
+
+	lib := rule.NewRule("go_library", "x")
+	lib.SetAttr("srcs", []string{"gated.go", "stub.go"})
+	result := language.GenerateResult{
+		Gen:     []*rule.Rule{lib},
+		Imports: []interface{}{rule.PlatformStrings{Generic: []string{"example.com/shared"}}},
+	}
+
+	rewriteLinuxOnlyDeps(result, dir)
+
+	ps := result.Imports[0].(rule.PlatformStrings)
+	if !stringSlicesEqual(ps.Generic, []string{"example.com/shared"}) {
+		t.Errorf("Generic = %v, want [example.com/shared]", ps.Generic)
+	}
+	if len(ps.OS) != 0 {
+		t.Errorf("OS = %v, want empty", ps.OS)
+	}
+}
+
+func TestRewriteLinuxOnlyDeps_PreservesExistingOSKeysAndPrefix(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, dir, "gated.go", "//go:build linux_bpf\n\npackage x\n\nimport _ \"example.com/bpfonly\"\n")
+
+	lib := rule.NewRule("go_library", "x")
+	lib.SetAttr("srcs", []string{"gated.go"})
+	// Upstream already emitted a darwin branch and used a non-default rules_go
+	// repo name; both must survive.
+	result := language.GenerateResult{
+		Gen: []*rule.Rule{lib},
+		Imports: []interface{}{rule.PlatformStrings{
+			Generic: []string{"example.com/bpfonly"},
+			OS: map[string][]string{
+				"@my_rules_go//go/platform:darwin": {"example.com/mac"},
+			},
+		}},
+	}
+
+	rewriteLinuxOnlyDeps(result, dir)
+
+	ps := result.Imports[0].(rule.PlatformStrings)
+	if len(ps.Generic) != 0 {
+		t.Errorf("Generic = %v, want empty", ps.Generic)
+	}
+	if got := ps.OS["@my_rules_go//go/platform:darwin"]; !stringSlicesEqual(got, []string{"example.com/mac"}) {
+		t.Errorf("darwin branch = %v, want [example.com/mac]", got)
+	}
+	if got := ps.OS["@my_rules_go//go/platform:linux"]; !stringSlicesEqual(got, []string{"example.com/bpfonly"}) {
+		t.Errorf("linux branch = %v, want [example.com/bpfonly]", got)
+	}
+}
+
+func TestRewriteLinuxOnlyDeps_IgnoresNonLibraryRules(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, dir, "gated_test.go", "//go:build linux_bpf\n\npackage x\n\nimport _ \"example.com/bpfonly\"\n")
+
+	test := rule.NewRule("go_test", "x_test")
+	test.SetAttr("srcs", []string{"gated_test.go"})
+	before := rule.PlatformStrings{Generic: []string{"example.com/bpfonly"}}
+	result := language.GenerateResult{Gen: []*rule.Rule{test}, Imports: []interface{}{before}}
+
+	rewriteLinuxOnlyDeps(result, dir)
+
+	ps := result.Imports[0].(rule.PlatformStrings)
+	if !stringSlicesEqual(ps.Generic, []string{"example.com/bpfonly"}) {
+		t.Errorf("Generic = %v, want untouched [example.com/bpfonly]", ps.Generic)
+	}
+}
+
+func mustWrite(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }

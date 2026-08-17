@@ -6,7 +6,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/uprobes/testutil/standalone_attacher",
     tags = ["manual"],  # keep
     visibility = ["//visibility:private"],
-    deps = ["//pkg/ebpf/uprobes"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/uprobes",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/uprobes",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_binary(

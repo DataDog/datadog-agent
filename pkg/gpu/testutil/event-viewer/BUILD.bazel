@@ -5,7 +5,15 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/testutil/event-viewer",
     visibility = ["//visibility:private"],
-    deps = ["//pkg/gpu/testutil"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/gpu/testutil",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/gpu/testutil",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_binary(

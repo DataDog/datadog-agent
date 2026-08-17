@@ -31,18 +31,21 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/ebpf",
-        "//pkg/network/config",
-        "//pkg/network/usm/buildmode",
         "//pkg/util/sync",
         "@com_github_cilium_ebpf//:ebpf",
         "@com_github_datadog_ebpf_manager//:ebpf-manager",
         "@com_github_datadog_sketches_go//ddsketch",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/network/config",
+            "//pkg/network/usm/buildmode",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/network/config",
+            "//pkg/network/usm/buildmode",
             "//pkg/util/log",
         ],
         "//conditions:default": [],
