@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.ico">
-      <meta name="generator" content="zensical-0.0.54">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -3795,31 +3795,31 @@
   
 
 
-<h1 id="creating-a-bundle">Creating a bundle</h1>
+<h1 id="creating-a-bundle">Creating a bundle<a class="headerlink" href="#creating-a-bundle" title="Permanent link">&para;</a></h1>
 <p>A bundle is a grouping of related components. The goal of a bundle is to ease the usage of multiple components working together to constitute a product.</p>
 <p>One example is <code>DogStatsD</code>, a server to receive metrics locally from customer apps. <code>DogStatsD</code> is composed of 9+
 components, but at the binary level we want to include <code>DogStatsD</code> as a whole.</p>
 <p>For use cases like that of DogStatsD, create a bundle.</p>
-<h2 id="creating-a-bundle_1">Creating a bundle</h2>
+<h2 id="creating-a-bundle_1">Creating a bundle<a class="headerlink" href="#creating-a-bundle_1" title="Permanent link">&para;</a></h2>
 <p>A bundle eases the aggregation of multiple components and lives in <code>comp/&lt;bundlesName&gt;/</code>.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:1"><input checked="checked" id="compbundlego" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="compbundlego"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/&lt;bundleName&gt;/bundle.go</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// Package &lt;bundleName&gt; ...</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">package</span><span class="w"> </span><span class="p">&lt;</span><span class="nx">bundleName</span><span class="p">&gt;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">package</span><span class="w"> </span><span class="o">&lt;</span><span class="nx">bundleName</span><span class="o">&gt;</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="s">&quot;github.com/DataDog/datadog-agent/pkg/util/fxutil&quot;</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="s">"github.com/DataDog/datadog-agent/pkg/util/fxutil"</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="c1">// We import all the components that we want to aggregate. A bundle must only aggregate components within its</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="c1">// sub-folders.</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nx">comp1fx</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/&lt;bundleName&gt;/comp1/fx&quot;</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="nx">comp2fx</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/&lt;bundleName&gt;/comp2/fx&quot;</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nx">comp3fx</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/&lt;bundleName&gt;/comp3/fx&quot;</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="nx">comp4fx</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/&lt;bundleName&gt;/comp4/fx&quot;</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nx">comp1fx</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/&lt;bundleName&gt;/comp1/fx"</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="nx">comp2fx</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/&lt;bundleName&gt;/comp2/fx"</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nx">comp3fx</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/&lt;bundleName&gt;/comp3/fx"</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="nx">comp4fx</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/&lt;bundleName&gt;/comp4/fx"</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1">// A single team must own the bundle, even if they don&#39;t own all the sub-components</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1">// A single team must own the bundle, even if they don't own all the sub-components</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1">// team: &lt;the team owning the bundle&gt;</span>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1">// Bundle defines the fx options for this bundle.</span>

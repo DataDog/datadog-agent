@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.ico">
-      <meta name="generator" content="zensical-0.0.54">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -3936,11 +3936,11 @@
   
 
 
-<h1 id="using-components">Using components</h1>
+<h1 id="using-components">Using components<a class="headerlink" href="#using-components" title="Permanent link">&para;</a></h1>
 <p>Using components within other components is covered on the <a href="../creating-components/">create components page</a>.</p>
 <p>Now let's explore how to use components in your binaries. One of the core idea behind component design is to be able to
 create new binaries for customers by aggregating components.</p>
-<h2 id="the-cmd-folder">the <code>cmd</code> folder</h2>
+<h2 id="the-cmd-folder">the <code>cmd</code> folder<a class="headerlink" href="#the-cmd-folder" title="Permanent link">&para;</a></h2>
 <p>All <code>main</code> functions and binary entry points should be in the <code>cmd</code> folder.</p>
 <p>The <code>cmd</code> folder uses the following hierarchy:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cmd /
@@ -3962,19 +3962,19 @@ create new binaries for customers by aggregating components.</p>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="c1">// [...]</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">)</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1">// Commands returns a slice of subcommands for the &#39;agent&#39; command.</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1">// Commands returns a slice of subcommands for the 'agent' command.</span>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1">//</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">// The Agent uses &quot;cobra&quot; to create its CLI. The command method is your entrypoint. Here, you&#39;re going to create a single</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">// The Agent uses "cobra" to create its CLI. The command method is your entrypoint. Here, you're going to create a single</span>
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1">// command.</span>
 </span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="kd">func</span><span class="w"> </span><span class="nx">Commands</span><span class="p">(</span><span class="nx">globalParams</span><span class="w"> </span><span class="o">*</span><span class="nx">command</span><span class="p">.</span><span class="nx">GlobalParams</span><span class="p">)</span><span class="w"> </span><span class="p">[]</span><span class="o">*</span><span class="nx">cobra</span><span class="p">.</span><span class="nx">Command</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="nx">cmd</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">cobra</span><span class="p">.</span><span class="nx">Command</span><span class="p">{</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">        </span><span class="nx">Use</span><span class="p">:</span><span class="w">   </span><span class="s">&quot;test&quot;</span><span class="p">,</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">        </span><span class="nx">Short</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;a test command for the Agent&quot;</span><span class="p">,</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">        </span><span class="nx">Use</span><span class="p">:</span><span class="w">   </span><span class="s">"test"</span><span class="p">,</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">        </span><span class="nx">Short</span><span class="p">:</span><span class="w"> </span><span class="s">"a test command for the Agent"</span><span class="p">,</span>
 </span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">        </span><span class="nx">Long</span><span class="p">:</span><span class="w">  </span><span class="s">``</span><span class="p">,</span>
 </span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">        </span><span class="nx">RunE</span><span class="p">:</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">_</span><span class="w"> </span><span class="o">*</span><span class="nx">cobra</span><span class="p">.</span><span class="nx">Command</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">OneShot</span><span class="p">(</span>
-</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">                </span><span class="p">&lt;</span><span class="nx">callback</span><span class="p">&gt;,</span>
-</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">                </span><span class="p">&lt;</span><span class="nx">list</span><span class="w"> </span><span class="nx">of</span><span class="w"> </span><span class="nx">dependencies</span><span class="p">&gt;.</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">                </span><span class="o">&lt;</span><span class="nx">callback</span><span class="o">&gt;</span><span class="p">,</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">                </span><span class="o">&lt;</span><span class="nx">list</span><span class="w"> </span><span class="nx">of</span><span class="w"> </span><span class="nx">dependencies</span><span class="o">&gt;</span><span class="p">.</span>
 </span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">            </span><span class="p">)</span>
 </span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">        </span><span class="p">},</span>
 </span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">    </span><span class="p">}</span>
@@ -3989,7 +3989,7 @@ create new binaries for customers by aggregating components.</p>
 helpers initialize an Fx app with all the wanted dependencies.</p>
 <p>The next section explains how to request a
 dependency.</p>
-<h2 id="importing-components">Importing components</h2>
+<h2 id="importing-components">Importing components<a class="headerlink" href="#importing-components" title="Permanent link">&para;</a></h2>
 <p>The <code>fxutil.OneShot</code> takes a list of components and gives them to Fx. Note that this only tells Fx how to create types when they're needed. This does not do anything else.</p>
 <p>For a component to be instantiated, it must be one of the following:</p>
 <ul>
@@ -3999,10 +3999,10 @@ dependency.</p>
 </ul>
 <p>Let's require the <code>log</code> components:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="c1">// First let&#39;s import the FX wrapper to require it</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nx">logfx</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core/log/fx&quot;</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="c1">// First let's import the FX wrapper to require it</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nx">logfx</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core/log/fx"</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="c1">// Then the logger interface to use it</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nx">log</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core/log/def&quot;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nx">log</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core/log/def"</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
 </span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1">// [...]</span>
@@ -4013,18 +4013,18 @@ dependency.</p>
 </span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="c1">// [...]</span>
 </span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>
 </span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="kd">func</span><span class="w"> </span><span class="nx">myTestCallback</span><span class="p">(</span><span class="nx">logger</span><span class="w"> </span><span class="nx">log</span><span class="p">.</span><span class="nx">Component</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">    </span><span class="nx">logger</span><span class="p">.</span><span class="nx">Info</span><span class="p">(</span><span class="s">&quot;some message&quot;</span><span class="p">)</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">    </span><span class="nx">logger</span><span class="p">.</span><span class="nx">Info</span><span class="p">(</span><span class="s">"some message"</span><span class="p">)</span>
 </span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="importing-bundles">Importing bundles</h2>
+<h2 id="importing-bundles">Importing bundles<a class="headerlink" href="#importing-bundles" title="Permanent link">&para;</a></h2>
 <p>Now let's say you want to include the core bundle instead. The core bundle offers many basic features (logger, config,
 telemetry, flare, ...).</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="c1">// We import the core bundle</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nx">core</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core&quot;</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nx">core</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core"</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="c1">// Then the interfaces we want to use</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nx">config</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core/config/def&quot;</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nx">config</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core/config/def"</span>
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">)</span>
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1">// [...]</span>
@@ -4035,7 +4035,7 @@ telemetry, flare, ...).</p>
 </span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="c1">// [...]</span>
 </span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>
 </span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="kd">func</span><span class="w"> </span><span class="nx">myTestCallback</span><span class="p">(</span><span class="nx">conf</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">Component</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">    </span><span class="nx">api_key</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">conf</span><span class="p">.</span><span class="nx">GetString</span><span class="p">(</span><span class="s">&quot;api_key&quot;</span><span class="p">)</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">    </span><span class="nx">api_key</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">conf</span><span class="p">.</span><span class="nx">GetString</span><span class="p">(</span><span class="s">"api_key"</span><span class="p">)</span>
 </span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>
 </span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">    </span><span class="c1">// [...]</span>
 </span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="p">}</span>
@@ -4045,13 +4045,13 @@ the <code>core</code> bundle are instantiated! The <code>core.Bundle</code> inst
 are created.</p>
 <p>In our example, the <code>config.Component</code> might have dozens of dependencies instantiated from the core bundle. Fx handles
 all of this.</p>
-<h2 id="using-plain-data-types-with-fx">Using plain data types with Fx</h2>
+<h2 id="using-plain-data-types-with-fx">Using plain data types with Fx<a class="headerlink" href="#using-plain-data-types-with-fx" title="Permanent link">&para;</a></h2>
 <p>As your migration to components is not finished, you might need to manually instruct Fx on how to use plain types.</p>
 <p>You will need to use <code>fx.Supply</code> for this. More details can be found <a href="../fx/">here</a>.</p>
 <p>But here is a quick example:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="nx">logfx</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core/log/fx&quot;</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nx">log</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core/log/def&quot;</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="nx">logfx</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core/log/fx"</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nx">log</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core/log/def"</span>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="p">)</span>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="c1">// plain custom type</span>
@@ -4070,7 +4070,7 @@ all of this.</p>
 </span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>
 </span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="c1">// Here our function uses component and non-component type, both provided by Fx.</span>
 </span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="kd">func</span><span class="w"> </span><span class="nx">myTestCallback</span><span class="p">(</span><span class="nx">logger</span><span class="w"> </span><span class="nx">log</span><span class="p">.</span><span class="nx">Component</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="w"> </span><span class="nx">custom</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">    </span><span class="nx">logger</span><span class="p">.</span><span class="nx">Info</span><span class="p">(</span><span class="s">&quot;Custom type: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">)</span>
+</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">    </span><span class="nx">logger</span><span class="p">.</span><span class="nx">Info</span><span class="p">(</span><span class="s">"Custom type: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="p">)</span>
 </span><span id="__span-4-23"><a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="p">}</span>
 </span></code></pre></div>
 <div class="admonition info">

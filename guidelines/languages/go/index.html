@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.ico">
-      <meta name="generator" content="zensical-0.0.54">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -4017,9 +4017,9 @@
   
 
 
-<h1 id="go-guidelines">Go guidelines</h1>
+<h1 id="go-guidelines">Go guidelines<a class="headerlink" href="#go-guidelines" title="Permanent link">&para;</a></h1>
 <hr />
-<h2 id="imports">Imports</h2>
+<h2 id="imports">Imports<a class="headerlink" href="#imports" title="Permanent link">&para;</a></h2>
 <p>The imports defined in the <code>imports ( ... )</code> block of each Go file should be separated into the following sections, in order.</p>
 <ol>
 <li>Standard library packages (e.g. <code>fmt</code>, <code>net/http</code>)</li>
@@ -4035,8 +4035,8 @@
 <div class="tabbed-block">
 <p>See the <a href="https://github.com/golang/vscode-go/wiki/features#format-and-organize-imports">wiki</a> for more details.</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;gopls&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">&quot;formatting.local&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;github.com/DataDog/datadog-agent&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"gopls"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"formatting.local"</span><span class="p">:</span><span class="w"> </span><span class="s2">"github.com/DataDog/datadog-agent"</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="p">}</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">}</span>
 </span></code></pre></div>
@@ -4044,14 +4044,14 @@
 <div class="tabbed-block">
 <p>Configure <a href="https://github.com/fatih/vim-go">vim-go</a> as follows.</p>
 <div class="language-vim highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">let</span> <span class="k">g</span>:go_fmt_options <span class="p">=</span> {
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>\ <span class="s1">&#39;goimports&#39;</span>: <span class="s1">&#39;-local github.com/DataDog/datadog-agent&#39;</span><span class="p">,</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>\ <span class="s1">'goimports'</span>: <span class="s1">'-local github.com/DataDog/datadog-agent'</span><span class="p">,</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>\ }
 </span></code></pre></div>
 </div>
 </div>
 </div>
 </details>
-<h2 id="public-apis">Public APIs</h2>
+<h2 id="public-apis">Public APIs<a class="headerlink" href="#public-apis" title="Permanent link">&para;</a></h2>
 <p>Go <a href="https://go.dev/doc/modules/layout#package-or-command-with-supporting-packages">supports</a> the use of private <code>internal</code> packages to control the public API of a Go module. This prevents packages from being used outside of the parent module, which is useful for decoupling different parts of our codebase.</p>
 <p>When adding new code, carefully consider what API is exported by both taking care of what symbols are uppercase and by making judicious use of <code>internal</code> directories.</p>
 <ol>
@@ -4107,7 +4107,7 @@
 <div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">package</span><span class="w"> </span><span class="nx">a</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="s">&quot;example/a/internal/b&quot;</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="s">"example/a/internal/b"</span>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">)</span>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="kd">func</span><span class="w"> </span><span class="nx">doSomethingWithExampleStruct</span><span class="p">(</span><span class="nx">e</span><span class="w"> </span><span class="nx">b</span><span class="p">.</span><span class="nx">ExampleStruct</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -4119,7 +4119,7 @@
 </div>
 <p>In this way, no new public API is exposed on the <code>a</code> folder: <code>ExampleStruct</code> remains private to <code>a</code>, while we have improved encapsulation as we wanted.</p>
 </details>
-<h2 id="atomics">Atomics</h2>
+<h2 id="atomics">Atomics<a class="headerlink" href="#atomics" title="Permanent link">&para;</a></h2>
 <details class="warning">
 <summary>Avoid atomics!</summary>
 <p>Atomics are a <em>very</em> low-level concept and full of subtle gotchas and dramatic performance differences across platforms. If you can use something higher-level, such as something from the standard library's <code>sync</code> <a href="https://pkg.go.dev/sync">package</a>, prefer to do so. Otherwise, if you are in search of performance, be sure to benchmark your work carefully and on multiple platforms.</p>
@@ -4144,7 +4144,7 @@
 </li>
 </ol>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">// global variable</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kd">var</span><span class="w"> </span><span class="nx">maxFooCount</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">atomic</span><span class="p">.</span><span class="nx">NewUint64</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kd">var</span><span class="w"> </span><span class="nx">maxFooCount</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">atomic</span><span class="p">.</span><span class="nx">NewUint64</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1">// in a struct</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="kd">type</span><span class="w"> </span><span class="nx">FooTracker</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
@@ -4185,12 +4185,12 @@
 </li>
 </ul>
 </div>
-<h2 id="testing">Testing</h2>
-<h3 id="failing-fast">Failing fast</h3>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<h3 id="failing-fast">Failing fast<a class="headerlink" href="#failing-fast" title="Permanent link">&para;</a></h3>
 <p>The functions in <a href="https://pkg.go.dev/github.com/stretchr/testify/require"><code>github.com/stretchr/testify/require</code></a> automatically abort the test when an assertion fails, whereas <a href="https://pkg.go.dev/github.com/stretchr/testify/assert"><code>github.com/stretchr/testify/assert</code></a> does not.</p>
 <p>For example, given an error, <code>assert.NoError(t, err)</code> causes the test to be marked as a failure, but continues to the next statement, possibly leading to a <code>nil</code> dereference or other such failure. In contrast, <code>require.NoError(t, err)</code> aborts the test when an error is encountered.</p>
 <p>Where a test makes a sequence of independent assertions, <code>assert</code> is a good choice. When each assertion depends on the previous having been successful, use <code>require</code>.</p>
-<h3 id="time">Time</h3>
+<h3 id="time">Time<a class="headerlink" href="#time" title="Permanent link">&para;</a></h3>
 <p>Tests based on time are a major source of flakes. If you find yourself thinking something like "the ticker should run three times in 500ms", you will be disappointed at how often that is not true in CI. Even if that test is not flaky, it will take at least 500ms to run. Summing such delays over thousands of tests means <em>very</em> long test runs and slower work for everyone.</p>
 <p>When the code you are testing requires time, the first strategy is to remove that requirement. For example, if you are testing the functionality of a poller, factor the code such that the tests can call the <code>poll()</code> method directly, instead of waiting for a Ticker to do so.</p>
 <p>Where this is not possible, refactor the code to use a Clock from <a href="https://pkg.go.dev/github.com/benbjohnson/clock"><code>github.com/benbjohnson/clock</code></a>. In production, create a <code>clock.Clock</code>, and in tests, inject a <code>clock.Mock</code>. When time should pass in your test execution, call <code>clock.Add(..)</code> to deterministically advance the clock.</p>
@@ -4201,14 +4201,14 @@
 </span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
 </span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="kd">func</span><span class="w"> </span><span class="nx">newThingWithClock</span><span class="p">(</span><span class="nx">arg1</span><span class="p">,</span><span class="w"> </span><span class="nx">arg2</span><span class="p">,</span><span class="w"> </span><span class="nx">clock</span><span class="w"> </span><span class="nx">clock</span><span class="p">.</span><span class="nx">Clock</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="nx">Thing</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">Thing</span><span class="p">{</span>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">        </span><span class="o">...</span><span class="p">,</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">        </span><span class="p">...,</span>
 </span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">        </span><span class="nx">clock</span><span class="p">:</span><span class="w"> </span><span class="nx">clock</span><span class="p">,</span>
 </span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="p">}</span>
 </span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="p">}</span>
 </span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>
 </span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestThingFunctionality</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">    </span><span class="nx">clk</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">clock</span><span class="p">.</span><span class="nx">NewMock</span><span class="p">()</span>
-</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">    </span><span class="nx">thing</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">newThingWithClock</span><span class="p">(</span><span class="o">...</span><span class="p">,</span><span class="w"> </span><span class="nx">clk</span><span class="p">)</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">    </span><span class="nx">thing</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">newThingWithClock</span><span class="p">(...,</span><span class="w"> </span><span class="nx">clk</span><span class="p">)</span>
 </span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
 </span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">    </span><span class="c1">// ...</span>
 </span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
@@ -4217,7 +4217,7 @@
 </span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">    </span><span class="c1">// ...</span>
 </span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="logging">Logging</h2>
+<h2 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h2>
 <p>Logging utilizes the <a href="https://pkg.go.dev/log/slog"><code>log/slog</code></a> package as its underlying framework.
 You can access logging through <code>pkg/util/log</code> and the <code>comp/core/log</code> component wrappers.
 Using the component wrapper is recommended, as it adheres to <a href="https://datadoghq.dev/datadog-agent/components/overview/">component best practices</a>.</p>

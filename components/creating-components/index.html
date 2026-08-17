@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.ico">
-      <meta name="generator" content="zensical-0.0.54">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -4160,7 +4160,7 @@
   
 
 
-<h1 id="creating-a-component">Creating a Component</h1>
+<h1 id="creating-a-component">Creating a Component<a class="headerlink" href="#creating-a-component" title="Permanent link">&para;</a></h1>
 <p>This page explains how to create components in detail.</p>
 <p>This page uses the example of creating a compression component. This component compresses a payload before sending it to the Datadog backend.</p>
 <p>Since there are multiple ways to compress data, this component provides two implementations of the same interface:</p>
@@ -4169,7 +4169,7 @@
 <li>The <a href="https://en.wikipedia.org/wiki/ZIP_(file_format)">ZIP</a> data compression algorithm</li>
 </ul>
 <p>A component contains multiple folders and Go packages. Developers split a component into packages to isolate the interface from the implementations and improve code sharing. Declaring the interface in a separate package from the implementation allows you to import the interface without importing all of the implementations.</p>
-<h2 id="file-hierarchy">File hierarchy</h2>
+<h2 id="file-hierarchy">File hierarchy<a class="headerlink" href="#file-hierarchy" title="Permanent link">&para;</a></h2>
 <p>All components are located in the <code>comp</code> folder at the top of the Agent repo.</p>
 <p>The file hierarchy is as follows:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>comp /
@@ -4192,7 +4192,7 @@
 For example, your compression component has <code>impl-zstd</code> and <code>impl-zip</code> folders, but not an <code>impl</code> folder.</li>
 <li>If your component needs to offer a dummy/empty version, it should live in the <code>impl-none</code> folder.</li>
 </ul>
-<h3 id="why-all-those-files">Why all those files ?</h3>
+<h3 id="why-all-those-files">Why all those files ?<a class="headerlink" href="#why-all-those-files" title="Permanent link">&para;</a></h3>
 <p>This file hierarchy aims to solve a few problems:</p>
 <ul>
 <li>Component users should only interact with the <code>def</code> folders and never care about which implementation was loaded in the
@@ -4202,10 +4202,10 @@ For example, your compression component has <code>impl-zstd</code> and <code>imp
 <li>A main function that imports a component should be able to select a specific implementation without compiling with the others.
   For example: the ZSTD library should not be included at compile time when the ZIP version is used.</li>
 </ul>
-<h2 id="bootstrapping-components">Bootstrapping components</h2>
+<h2 id="bootstrapping-components">Bootstrapping components<a class="headerlink" href="#bootstrapping-components" title="Permanent link">&para;</a></h2>
 <p>You can use the <a href="../../setup/required/#tooling">command</a> <code>dda inv components.new-component comp/&lt;COMPONENT_NAME&gt;</code> to generate a scaffold for your new component.</p>
 <p>Every public variable, function, struct, and interface of your component <strong>must</strong> be documented. Refer to the <a href="#documentation">Documentation</a> section below for details.</p>
-<h3 id="the-def-folder">The def folder</h3>
+<h3 id="the-def-folder">The def folder<a class="headerlink" href="#the-def-folder" title="Permanent link">&para;</a></h3>
 <p>The <code>def</code> folder contains your interface and ALL public types needed by the users of your component.</p>
 <p>In the example of a compression component, the def folder looks like this:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:1"><input checked="checked" id="compcompressiondefcomponentgo" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="compcompressiondefcomponentgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/def/component.go</label></div>
@@ -4236,7 +4236,7 @@ for your component.</p>
 <p class="admonition-title">Interface using a third-party dependency</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">package</span><span class="w"> </span><span class="nx">telemetry</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">import</span><span class="w"> </span><span class="s">&quot;github.com/prometheus/client_golang/prometheus&quot;</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">import</span><span class="w"> </span><span class="s">"github.com/prometheus/client_golang/prometheus"</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1">// team: agent-runtimes</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
@@ -4254,7 +4254,7 @@ internally by each component (more on this [here TODO]()). -->
 
 <!-- TODO: write the lifecycle part and update the link above -->
 
-<h3 id="the-impl-folders">The impl folders</h3>
+<h3 id="the-impl-folders">The impl folders<a class="headerlink" href="#the-impl-folders" title="Permanent link">&para;</a></h3>
 <p>The <code>impl</code> folder is where the component implementation is written. The details of component implementation are up to the developer.
 The only requirements are that the package name follows the pattern <code>&lt;COMPONENT_NAME&gt;impl</code> for the regular implementation or <code>&lt;IMPL_NAME&gt;impl</code> for the alternative implementation, and that there is a public instantiation function called <code>NewComponent</code>.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:1"><input checked="checked" id="compcompressionimpl-zstdcompressorgo" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="compcompressionimpl-zstdcompressorgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/impl-zstd/compressor.go</label></div>
@@ -4264,7 +4264,7 @@ The only requirements are that the package name follows the pattern <code>&lt;CO
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1">// NewComponent returns a new ZSTD implementation for the compression component</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewComponent</span><span class="p">(</span><span class="nx">reqs</span><span class="w"> </span><span class="nx">Requires</span><span class="p">)</span><span class="w"> </span><span class="nx">Provides</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="o">...</span><span class="p">.</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="p">....</span>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">}</span>
 </span></code></pre></div>
 </div>
@@ -4280,10 +4280,10 @@ to handle the different component dependencies using Fx groups.</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">package</span><span class="w"> </span><span class="nx">zstdimpl</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="s">&quot;fmt&quot;</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="s">"fmt"</span>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nx">config</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core/config/def&quot;</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nx">log</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core/log/def&quot;</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nx">config</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core/config/def"</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nx">log</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core/log/def"</span>
 </span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
 </span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
 </span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1">// Here, list all components and other types known by Fx that you need.</span>
@@ -4309,8 +4309,8 @@ to handle the different component dependencies using Fx groups.</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">package</span><span class="w"> </span><span class="nx">zstdimpl</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="c1">// Always import the component def folder, so that you can return a &#39;compression.Component&#39; type.</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/compression/def&quot;</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="c1">// Always import the component def folder, so that you can return a 'compression.Component' type.</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/compression/def"</span>
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">)</span>
 </span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
 </span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1">// Here, list all the types your component is going to return. You can return as many types as you want; all of them are available through Fx in other components.</span>
@@ -4331,11 +4331,11 @@ to handle the different component dependencies using Fx groups.</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">package</span><span class="w"> </span><span class="nx">zstdimpl</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="s">&quot;fmt&quot;</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="s">"fmt"</span>
 </span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/compression/def&quot;</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nx">config</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core/config/def&quot;</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="nx">log</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/core/log/def&quot;</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/compression/def"</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nx">config</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core/config/def"</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="nx">log</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/core/log/def"</span>
 </span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">)</span>
 </span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
 </span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Requires</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
@@ -4347,10 +4347,10 @@ to handle the different component dependencies using Fx groups.</p>
 </span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">    </span><span class="nx">Comp</span><span class="w"> </span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span>
 </span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="p">}</span>
 </span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>
-</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="c1">// The actual type implementing the &#39;Component&#39; interface. This type MUST be private, you need the guarantee that</span>
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="c1">// The actual type implementing the 'Component' interface. This type MUST be private, you need the guarantee that</span>
 </span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="c1">// components can only be used through their respective interfaces.</span>
 </span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="kd">type</span><span class="w"> </span><span class="nx">compressor</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="w">    </span><span class="c1">// Keep a ref on the config and log components, so that you can use them in the &#39;compressor&#39; methods</span>
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="w">    </span><span class="c1">// Keep a ref on the config and log components, so that you can use them in the 'compressor' methods</span>
 </span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="w">    </span><span class="nx">conf</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">Component</span>
 </span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="w">    </span><span class="nx">log</span><span class="w">  </span><span class="nx">log</span><span class="p">.</span><span class="nx">Component</span>
 </span><span id="__span-6-26"><a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>
@@ -4373,12 +4373,12 @@ to handle the different component dependencies using Fx groups.</p>
 </span><span id="__span-6-43"><a id="__codelineno-6-43" name="__codelineno-6-43" href="#__codelineno-6-43"></a><span class="p">}</span>
 </span><span id="__span-6-44"><a id="__codelineno-6-44" name="__codelineno-6-44" href="#__codelineno-6-44"></a>
 </span><span id="__span-6-45"><a id="__codelineno-6-45" name="__codelineno-6-45" href="#__codelineno-6-45"></a><span class="c1">//</span>
-</span><span id="__span-6-46"><a id="__codelineno-6-46" name="__codelineno-6-46" href="#__codelineno-6-46"></a><span class="c1">// You then need to implement all methods from your &#39;compression.Component&#39; interface</span>
+</span><span id="__span-6-46"><a id="__codelineno-6-46" name="__codelineno-6-46" href="#__codelineno-6-46"></a><span class="c1">// You then need to implement all methods from your 'compression.Component' interface</span>
 </span><span id="__span-6-47"><a id="__codelineno-6-47" name="__codelineno-6-47" href="#__codelineno-6-47"></a><span class="c1">//</span>
 </span><span id="__span-6-48"><a id="__codelineno-6-48" name="__codelineno-6-48" href="#__codelineno-6-48"></a>
 </span><span id="__span-6-49"><a id="__codelineno-6-49" name="__codelineno-6-49" href="#__codelineno-6-49"></a><span class="c1">// Compress compresses the input data using ZSTD</span>
 </span><span id="__span-6-50"><a id="__codelineno-6-50" name="__codelineno-6-50" href="#__codelineno-6-50"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">compressor</span><span class="p">)</span><span class="w"> </span><span class="nx">Compress</span><span class="p">(</span><span class="nx">data</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-6-51"><a id="__codelineno-6-51" name="__codelineno-6-51" href="#__codelineno-6-51"></a><span class="w">    </span><span class="nx">c</span><span class="p">.</span><span class="nx">log</span><span class="p">.</span><span class="nx">Debug</span><span class="p">(</span><span class="s">&quot;compressing a buffer with ZSTD&quot;</span><span class="p">)</span>
+</span><span id="__span-6-51"><a id="__codelineno-6-51" name="__codelineno-6-51" href="#__codelineno-6-51"></a><span class="w">    </span><span class="nx">c</span><span class="p">.</span><span class="nx">log</span><span class="p">.</span><span class="nx">Debug</span><span class="p">(</span><span class="s">"compressing a buffer with ZSTD"</span><span class="p">)</span>
 </span><span id="__span-6-52"><a id="__codelineno-6-52" name="__codelineno-6-52" href="#__codelineno-6-52"></a>
 </span><span id="__span-6-53"><a id="__codelineno-6-53" name="__codelineno-6-53" href="#__codelineno-6-53"></a><span class="w">    </span><span class="c1">// [...]</span>
 </span><span id="__span-6-54"><a id="__codelineno-6-54" name="__codelineno-6-54" href="#__codelineno-6-54"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">compressData</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
@@ -4386,7 +4386,7 @@ to handle the different component dependencies using Fx groups.</p>
 </span><span id="__span-6-56"><a id="__codelineno-6-56" name="__codelineno-6-56" href="#__codelineno-6-56"></a>
 </span><span id="__span-6-57"><a id="__codelineno-6-57" name="__codelineno-6-57" href="#__codelineno-6-57"></a><span class="c1">// Decompress decompresses the input data using ZSTD.</span>
 </span><span id="__span-6-58"><a id="__codelineno-6-58" name="__codelineno-6-58" href="#__codelineno-6-58"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">compressor</span><span class="p">)</span><span class="w"> </span><span class="nx">Decompress</span><span class="p">(</span><span class="nx">data</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-6-59"><a id="__codelineno-6-59" name="__codelineno-6-59" href="#__codelineno-6-59"></a><span class="w">    </span><span class="nx">c</span><span class="p">.</span><span class="nx">log</span><span class="p">.</span><span class="nx">Debug</span><span class="p">(</span><span class="s">&quot;decompressing a buffer with ZSTD&quot;</span><span class="p">)</span>
+</span><span id="__span-6-59"><a id="__codelineno-6-59" name="__codelineno-6-59" href="#__codelineno-6-59"></a><span class="w">    </span><span class="nx">c</span><span class="p">.</span><span class="nx">log</span><span class="p">.</span><span class="nx">Debug</span><span class="p">(</span><span class="s">"decompressing a buffer with ZSTD"</span><span class="p">)</span>
 </span><span id="__span-6-60"><a id="__codelineno-6-60" name="__codelineno-6-60" href="#__codelineno-6-60"></a>
 </span><span id="__span-6-61"><a id="__codelineno-6-61" name="__codelineno-6-61" href="#__codelineno-6-61"></a><span class="w">    </span><span class="c1">// [...]</span>
 </span><span id="__span-6-62"><a id="__codelineno-6-62" name="__codelineno-6-62" href="#__codelineno-6-62"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">compressData</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
@@ -4398,7 +4398,7 @@ to handle the different component dependencies using Fx groups.</p>
 <p>The constructor can return either a <code>Provides</code>, if it is infallible, or <code>(Provides, error)</code>, if it could fail. In the
 latter case, a non-nil error results in the Agent crashing at startup with a message containing the error.</p>
 <p>Each implementation follows the same pattern.</p>
-<h3 id="the-fx-folders">The fx folders</h3>
+<h3 id="the-fx-folders">The fx folders<a class="headerlink" href="#the-fx-folders" title="Permanent link">&para;</a></h3>
 <p>The <code>fx</code> folder must be the only folder importing and referencing Fx. It's meant to be a simple wrapper. Its only goal is to allow
 dependency injection with Fx for your component.</p>
 <p>All <code>fx.go</code> files must define a <code>func Module() fxutil.Module</code> function. The helpers contained in <code>fxutil</code> handle all
@@ -4409,16 +4409,16 @@ the logic. Most <code>fx/fx.go</code> file should look the same as this:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">package</span><span class="w"> </span><span class="nx">fx</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="s">&quot;github.com/DataDog/datadog-agent/pkg/util/fxutil&quot;</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="s">"github.com/DataDog/datadog-agent/pkg/util/fxutil"</span>
 </span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
 </span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="c1">// You must import the implementation you are exposing through FX</span>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nx">compressionimpl</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/compression/impl-zstd&quot;</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nx">compressionimpl</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/compression/impl-zstd"</span>
 </span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="p">)</span>
 </span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
 </span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1">// Module specifies the compression module.</span>
 </span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="kd">func</span><span class="w"> </span><span class="nx">Module</span><span class="p">()</span><span class="w"> </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">Module</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">Component</span><span class="p">(</span>
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">        </span><span class="c1">// ProvideComponentConstructor will automatically detect the &#39;Requires&#39; and &#39;Provides&#39; structs</span>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">        </span><span class="c1">// ProvideComponentConstructor will automatically detect the 'Requires' and 'Provides' structs</span>
 </span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">        </span><span class="c1">// of your constructor function and map them to FX.</span>
 </span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">        </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">ProvideComponentConstructor</span><span class="p">(</span>
 </span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">            </span><span class="nx">compressionimpl</span><span class="p">.</span><span class="nx">NewComponent</span><span class="p">,</span>
@@ -4436,14 +4436,14 @@ the logic. Most <code>fx/fx.go</code> file should look the same as this:</p>
 </div>
 <p>For the ZIP implementation, create the same file in <code>fx-zip</code> folder. In most cases, your component has a
 single implementation. If so, you have only one <code>impl</code> and <code>fx</code> folder.</p>
-<h4 id="fx-none"><code>fx-none</code></h4>
+<h4 id="fx-none"><code>fx-none</code><a class="headerlink" href="#fx-none" title="Permanent link">&para;</a></h4>
 <p>Some parts of the codebase might have optional dependencies on your components (see <a href="../faq/#optional-component">FAQ</a>).</p>
 <p>If it's the case, you need to provide a fx wrapper called <code>fx-none</code> to avoid duplicating the use of <code>optional.NewNoneOption[def.Component]()</code> in all our binaries</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="7:1"><input checked="checked" id="compcompressionfx-nonefxgo" name="__tabbed_7" type="radio" /><div class="tabbed-labels"><label for="compcompressionfx-nonefxgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/fx-none/fx.go</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <div class="language-go highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/compression/def&quot;</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/compression/def"</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="p">)</span>
 </span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
 </span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="kd">func</span><span class="w"> </span><span class="nx">Module</span><span class="p">()</span><span class="w"> </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">Module</span><span class="w"> </span><span class="p">{</span>
@@ -4456,7 +4456,7 @@ single implementation. If so, you have only one <code>impl</code> and <code>fx</
 </div>
 </div>
 </div>
-<h3 id="the-mock-folder">The mock folder</h3>
+<h3 id="the-mock-folder">The mock folder<a class="headerlink" href="#the-mock-folder" title="Permanent link">&para;</a></h3>
 <p>To support testing, components MUST provide a mock implementation (unless your component has no public method in its
 interface).</p>
 <p>Your mock must implement the <code>Component</code> interface of the <code>def</code> folder but can expose more methods if needed. All mock
@@ -4470,9 +4470,9 @@ constructors must take a <code>*testing.T</code> as parameter.</p>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="kn">package</span><span class="w"> </span><span class="nx">mock</span>
 </span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
 </span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="s">&quot;testing&quot;</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="s">"testing"</span>
 </span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/comp/compression/def&quot;</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/compression/def"</span>
 </span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="p">)</span>
 </span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>
 </span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Provides</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
@@ -4490,18 +4490,18 @@ constructors must take a <code>*testing.T</code> as parameter.</p>
 </span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a>
 </span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="c1">// Compress compresses the input data using ZSTD</span>
 </span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">mock</span><span class="p">)</span><span class="w"> </span><span class="nx">Compress</span><span class="p">(</span><span class="nx">data</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&quot;compressed&quot;</span><span class="p">),</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"compressed"</span><span class="p">),</span><span class="w"> </span><span class="kc">nil</span>
 </span><span id="__span-9-27"><a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="p">}</span>
 </span><span id="__span-9-28"><a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a>
 </span><span id="__span-9-29"><a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a><span class="c1">// Decompress decompresses the input data using ZSTD.</span>
 </span><span id="__span-9-30"><a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">compressor</span><span class="p">)</span><span class="w"> </span><span class="nx">Decompress</span><span class="p">(</span><span class="nx">data</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-9-31"><a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&quot;decompressed&quot;</span><span class="p">),</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-9-31"><a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"decompressed"</span><span class="p">),</span><span class="w"> </span><span class="kc">nil</span>
 </span><span id="__span-9-32"><a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="p">}</span>
 </span></code></pre></div>
 </div>
 </div>
 </div>
-<h3 id="go-module">Go module</h3>
+<h3 id="go-module">Go module<a class="headerlink" href="#go-module" title="Permanent link">&para;</a></h3>
 <p>Go modules are not mandatory, but if you want to allow your component to be used outside the <code>datadog-agent</code> repository, create Go modules in the following places:</p>
 <ul>
 <li>In the <code>impl</code>/<code>impl-*</code> folder that you want to expose (you can only expose some implementations).</li>
@@ -4509,7 +4509,7 @@ constructors must take a <code>*testing.T</code> as parameter.</p>
 <li>In the <code>mock</code> folder to expose the mock</li>
 </ul>
 <p>Never add a Go module to the component folder (for example,<code>comp/compression</code>) or any <code>fx</code> folders.</p>
-<h2 id="final-state">Final state</h2>
+<h2 id="final-state">Final state<a class="headerlink" href="#final-state" title="Permanent link">&para;</a></h2>
 <p>In the end, a classic component folder should look like:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>comp/&lt;COMPONENT_NAME&gt;/
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>├── def
@@ -4548,7 +4548,7 @@ components, outside repositories that want to pull only specific features, and e
 <p>No components know how or where they will be used and MUST, therefore, respect all the rules above. It's a very common pattern for teams to work only on their use cases, thinking their code will not be used anywhere else. Although, customers want common behavior between all Datadog products (Agent, serverless, Agentless, Helm, Operator, etc.).</p>
 <p>A key idea behind the component is to produce shareable and reusable code.</p>
 </div>
-<h2 id="general-consideration-about-designing-components">General consideration about designing components</h2>
+<h2 id="general-consideration-about-designing-components">General consideration about designing components<a class="headerlink" href="#general-consideration-about-designing-components" title="Permanent link">&para;</a></h2>
 <p>Your component must:</p>
 <ul>
 <li>Be thread safe.</li>
@@ -4557,7 +4557,7 @@ components, outside repositories that want to pull only specific features, and e
 <li>Be clearly documented (see section below).</li>
 <li>Be tested.</li>
 </ul>
-<h3 id="documentation">Documentation</h3>
+<h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
 <p>The documentation (both package-level and method-level) should include everything a user of the component needs to know.
 In particular, the documentation must address any assumptions that might lead to panic if violated by the user.</p>
 <p>Detailed documentation of how to avoid bugs in using a component is an indicator of excessive complexity and should be

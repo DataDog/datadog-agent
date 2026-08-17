@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.ico">
-      <meta name="generator" content="zensical-0.0.54">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -4425,24 +4425,24 @@
   
 
 
-<h1 id="running-e2e-tests">Running E2E tests</h1>
+<h1 id="running-e2e-tests">Running E2E tests<a class="headerlink" href="#running-e2e-tests" title="Permanent link">&para;</a></h1>
 <p>End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the Pulumi-based <a href="https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework">E2E framework</a> to provision and manage test environments. Tests are stored in the <a href="https://github.com/DataDog/datadog-agent/tree/main/test/new-e2e">test/new-e2e</a> folder.</p>
-<h2 id="prerequisites">Prerequisites</h2>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Datadog Employees Only</p>
 <p>E2E testing requires access to Datadog's internal cloud infrastructure and is currently limited to Datadog employees. This limitation is temporary and may be expanded in the future.</p>
 </div>
-<h3 id="software-requirements">Software Requirements</h3>
+<h3 id="software-requirements">Software Requirements<a class="headerlink" href="#software-requirements" title="Permanent link">&para;</a></h3>
 <p>Before running E2E tests, ensure you have the following installed:</p>
 <ul>
 <li><strong>Go 1.22 or later</strong></li>
 <li><strong>Python 3.9+</strong></li>
 <li><strong>dda tooling</strong> - Install by following the <a href="../../../setup/required/">development requirements</a></li>
 </ul>
-<h3 id="cloud-provider-setup">Cloud Provider Setup</h3>
+<h3 id="cloud-provider-setup">Cloud Provider Setup<a class="headerlink" href="#cloud-provider-setup" title="Permanent link">&para;</a></h3>
 <p>You need access to the <code>account-admin-8h</code> role on the <code>agent-sandbox</code> AWS account, with the SSO profile (<code>sso-agent-sandbox-account-admin-8h</code>) already in your <code>~/.aws/config</code> and an active aws-vault session. AWS authentication is handled outside of <code>e2e.setup</code> — typically by your org's onboarding tooling, or manually with <code>aws-vault login</code>.</p>
 <p>For Azure / GCP tests, pass <code>--with-azure</code> / <code>--with-gcp</code> when running the setup task (see below).</p>
-<h3 id="one-time-setup">One-time setup</h3>
+<h3 id="one-time-setup">One-time setup<a class="headerlink" href="#one-time-setup" title="Permanent link">&para;</a></h3>
 <p>Run the setup task once on a fresh machine. The default path is AWS-only and asks at most one question (your GitHub team, used to tag resources). It auto-creates the EC2 keypair (using your existing aws-vault session) and generates a Pulumi passphrase.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>e2e.setup
 </span></code></pre></div>
@@ -4450,8 +4450,8 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>e2e.setup<span class="w"> </span>--with-azure<span class="w"> </span>--with-gcp
 </span></code></pre></div>
 <p>The configuration is persisted to <code>~/.test_infra_config.yaml</code> (chmod <code>0600</code>, since it contains the auto-generated Pulumi passphrase). Re-running <code>dda inv e2e.setup</code> is idempotent — it prints <code>✓ already configured</code> checks and exits.</p>
-<h2 id="running-e2e-tests_1">Running E2E Tests</h2>
-<h3 id="basic-test-execution">Basic Test Execution</h3>
+<h2 id="running-e2e-tests_1">Running E2E Tests<a class="headerlink" href="#running-e2e-tests_1" title="Permanent link">&para;</a></h2>
+<h3 id="basic-test-execution">Basic Test Execution<a class="headerlink" href="#basic-test-execution" title="Permanent link">&para;</a></h3>
 <p>E2E tests are located in the <code>test/new-e2e/</code> directory. After running <code>dda inv e2e.setup</code> once, you can run them like unit tests — no <code>aws-vault exec</code> wrapping, no exported <code>PULUMI_CONFIG_PASSPHRASE</code>. The runner reads the passphrase from your local config and auto-wraps the test command with <code>aws-vault exec</code> against the configured profile.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Run a simple VM test</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>new-e2e-tests.run<span class="w"> </span>--targets<span class="o">=</span>./examples<span class="w"> </span>--run<span class="o">=</span>^TestVMSuite$
@@ -4467,11 +4467,11 @@ This also supports the golang testing flag --run and --skip to target specific t
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">E2E_DEV_MODE</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>dda<span class="w"> </span>inv<span class="w"> </span>-e<span class="w"> </span>new-e2e-tests.run<span class="w"> </span>--targets<span class="w"> </span>./examples<span class="w"> </span>--run<span class="o">=</span>^TestVMSuite$
 </span></code></pre></div>
 or for instance add it in the <code>go.testEnvVars</code> if you are using a VSCode-based IDE
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>&quot;go.testEnvVars&quot;: {
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  &quot;E2E_DEV_MODE&quot;: &quot;true&quot;,
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>"go.testEnvVars": {
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  "E2E_DEV_MODE": "true",
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>}, 
 </span></code></pre></div></p>
-<h3 id="test-with-local-agent-packages">Test with Local Agent Packages</h3>
+<h3 id="test-with-local-agent-packages">Test with Local Agent Packages<a class="headerlink" href="#test-with-local-agent-packages" title="Permanent link">&para;</a></h3>
 <div class="admonition">
 <p class="admonition-title">Limitations</p>
 <p>type: warning</p>
@@ -4486,7 +4486,7 @@ This method relies on updating an existing agent package with the local Go binar
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>new-e2e-tests.run<span class="w"> </span>--targets<span class="w"> </span>./examples<span class="w"> </span>--run<span class="w"> </span>TestVMSuiteEx5<span class="w"> </span>--local-package<span class="w"> </span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>/omnibus
 </span></code></pre></div></p>
 <p>Make sure to replace <code>examples</code> with the package you want to test and to target the test you want to run with <code>--run</code>.</p>
-<h3 id="test-with-local-agent-image">Test with Local Agent Image</h3>
+<h3 id="test-with-local-agent-image">Test with Local Agent Image<a class="headerlink" href="#test-with-local-agent-image" title="Permanent link">&para;</a></h3>
 <div class="admonition">
 <p class="admonition-title">Limitations</p>
 <p>type: warning</p>
@@ -4511,17 +4511,17 @@ By default, the image is names <code>agent</code> unless you override it with th
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span>--run<span class="w"> </span>TestDockerSuite/TestDSDWithUDP<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span>--agent-image<span class="w"> </span><span class="m">376334461865</span>.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:<span class="nv">$USER</span>
 </span></code></pre></div></p>
-<h2 id="test-framework-usage">Test Framework Usage</h2>
-<h3 id="environment-provisioning">Environment Provisioning</h3>
+<h2 id="test-framework-usage">Test Framework Usage<a class="headerlink" href="#test-framework-usage" title="Permanent link">&para;</a></h2>
+<h3 id="environment-provisioning">Environment Provisioning<a class="headerlink" href="#environment-provisioning" title="Permanent link">&para;</a></h3>
 <p>E2E tests use Pulumi-based provisioning to create real infrastructure:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">package</span><span class="w"> </span><span class="nx">examples</span>
 </span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
 </span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="s">&quot;testing&quot;</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="s">"testing"</span>
 </span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">    </span><span class="s">&quot;github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e&quot;</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">    </span><span class="s">&quot;github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments&quot;</span>
-</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">    </span><span class="nx">awshost</span><span class="w"> </span><span class="s">&quot;github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host&quot;</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">    </span><span class="s">"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">    </span><span class="s">"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">    </span><span class="nx">awshost</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"</span>
 </span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="p">)</span>
 </span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>
 </span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="kd">type</span><span class="w"> </span><span class="nx">vmSuite</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
@@ -4537,10 +4537,10 @@ By default, the image is names <code>agent</code> unless you override it with th
 </span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a><span class="w">        </span><span class="nx">e2e</span><span class="p">.</span><span class="nx">WithProvisioner</span><span class="p">(</span><span class="nx">awshost</span><span class="p">.</span><span class="nx">Provisioner</span><span class="p">()),</span>
 </span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a><span class="w">    </span><span class="p">}</span>
 </span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a>
-</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a><span class="w">    </span><span class="nx">e2e</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">vmSuite</span><span class="p">{},</span><span class="w"> </span><span class="nx">suiteParams</span><span class="o">...</span><span class="p">)</span>
+</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a><span class="w">    </span><span class="nx">e2e</span><span class="p">.</span><span class="nx">Run</span><span class="p">(</span><span class="nx">t</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">vmSuite</span><span class="p">{},</span><span class="w"> </span><span class="nx">suiteParams</span><span class="p">...)</span>
 </span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a><span class="p">}</span>
 </span></code></pre></div>
-<h3 id="available-provisioners">Available Provisioners</h3>
+<h3 id="available-provisioners">Available Provisioners<a class="headerlink" href="#available-provisioners" title="Permanent link">&para;</a></h3>
 <p>The framework provides several provisioners for different scenarios:</p>
 <ul>
 <li><strong>AWS Host</strong>: <code>awshost.Provisioner*()</code> - Provision EC2 instances</li>
@@ -4548,85 +4548,85 @@ By default, the image is names <code>agent</code> unless you override it with th
 <li><strong>Docker</strong>: <code>awsdocker.Provisioner()</code> - Agent in a container on an EC2 host</li>
 <li><strong>Multi-platform</strong>: Azure, GCP and local provisioners under <code>testing/provisioners/</code></li>
 </ul>
-<h3 id="test-validation">Test Validation</h3>
+<h3 id="test-validation">Test Validation<a class="headerlink" href="#test-validation" title="Permanent link">&para;</a></h3>
 <p>E2E tests should validate complete workflows:</p>
 <p>Adding a test method to the suite above. This block needs three more imports:
 <code>time</code>, <code>github.com/stretchr/testify/assert</code> and <code>github.com/stretchr/testify/require</code>.</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">v</span><span class="w"> </span><span class="o">*</span><span class="nx">vmSuite</span><span class="p">)</span><span class="w"> </span><span class="nx">TestAgentRunning</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">    </span><span class="c1">// The provisioner installs the agent; running a package manager inside a</span>
 </span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="c1">// test hits upstream mirrors and is not allowed.</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">v</span><span class="p">.</span><span class="nx">Env</span><span class="p">().</span><span class="nx">RemoteHost</span><span class="p">.</span><span class="nx">Execute</span><span class="p">(</span><span class="s">&quot;sudo systemctl status datadog-agent&quot;</span><span class="p">)</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">v</span><span class="p">.</span><span class="nx">Env</span><span class="p">().</span><span class="nx">RemoteHost</span><span class="p">.</span><span class="nx">Execute</span><span class="p">(</span><span class="s">"sudo systemctl status datadog-agent"</span><span class="p">)</span>
 </span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="nx">v</span><span class="p">.</span><span class="nx">Require</span><span class="p">().</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="nx">v</span><span class="p">.</span><span class="nx">Require</span><span class="p">().</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;active (running)&quot;</span><span class="p">)</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="nx">v</span><span class="p">.</span><span class="nx">Require</span><span class="p">().</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">out</span><span class="p">,</span><span class="w"> </span><span class="s">"active (running)"</span><span class="p">)</span>
 </span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>
 </span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">    </span><span class="c1">// Payloads arrive after a real flush, so poll rather than asserting once.</span>
 </span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">    </span><span class="c1">// Use require inside the callback so a failure short-circuits the iteration.</span>
 </span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">    </span><span class="nx">v</span><span class="p">.</span><span class="nx">EventuallyWithT</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">assert</span><span class="p">.</span><span class="nx">CollectT</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">        </span><span class="nx">names</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">v</span><span class="p">.</span><span class="nx">Env</span><span class="p">().</span><span class="nx">FakeIntake</span><span class="p">.</span><span class="nx">Client</span><span class="p">().</span><span class="nx">GetMetricNames</span><span class="p">()</span>
 </span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">        </span><span class="nx">require</span><span class="p">.</span><span class="nx">NoError</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
-</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NotEmpty</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span><span class="w"> </span><span class="nx">names</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;no metrics received yet&quot;</span><span class="p">)</span>
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="w">        </span><span class="nx">assert</span><span class="p">.</span><span class="nx">NotEmpty</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span><span class="w"> </span><span class="nx">names</span><span class="p">,</span><span class="w"> </span><span class="s">"no metrics received yet"</span><span class="p">)</span>
 </span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="w">    </span><span class="p">},</span><span class="w"> </span><span class="mi">5</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Minute</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
 </span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="test-categories-and-scenarios">Test Categories and Scenarios</h2>
-<h3 id="installation-and-deployment-tests">Installation and Deployment Tests</h3>
+<h2 id="test-categories-and-scenarios">Test Categories and Scenarios<a class="headerlink" href="#test-categories-and-scenarios" title="Permanent link">&para;</a></h2>
+<h3 id="installation-and-deployment-tests">Installation and Deployment Tests<a class="headerlink" href="#installation-and-deployment-tests" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fresh installation on clean systems</li>
 <li>Package manager installations (APT, YUM, MSI)</li>
 <li>Container deployment validation</li>
 <li>Kubernetes operator deployment</li>
 </ul>
-<h3 id="upgrade-and-migration-tests">Upgrade and Migration Tests</h3>
+<h3 id="upgrade-and-migration-tests">Upgrade and Migration Tests<a class="headerlink" href="#upgrade-and-migration-tests" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Agent version upgrades</li>
 <li>Configuration migration</li>
 <li>Rollback scenarios</li>
 <li>Zero-downtime upgrades</li>
 </ul>
-<h3 id="platform-integration-tests">Platform Integration Tests</h3>
+<h3 id="platform-integration-tests">Platform Integration Tests<a class="headerlink" href="#platform-integration-tests" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Cloud provider integrations (AWS, Azure, GCP)</li>
 <li>Container runtime compatibility (Docker, containerd, CRI-O)</li>
 <li>Kubernetes version compatibility</li>
 <li>Operating system support validation</li>
 </ul>
-<h3 id="performance-and-scale-tests">Performance and Scale Tests</h3>
+<h3 id="performance-and-scale-tests">Performance and Scale Tests<a class="headerlink" href="#performance-and-scale-tests" title="Permanent link">&para;</a></h3>
 <ul>
 <li>High-throughput metric collection</li>
 <li>Resource consumption validation</li>
 <li>Memory leak detection</li>
 <li>Long-running stability tests</li>
 </ul>
-<h3 id="security-and-compliance-tests">Security and Compliance Tests</h3>
+<h3 id="security-and-compliance-tests">Security and Compliance Tests<a class="headerlink" href="#security-and-compliance-tests" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Security configuration validation</li>
 <li>Compliance framework testing</li>
 <li>Permission and access control verification</li>
 <li>Secure communication validation</li>
 </ul>
-<h2 id="best-practices">Best Practices</h2>
+<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <p>The authoritative rules live in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/codereview_guideline.md"><code>test/new-e2e/codereview_guideline.md</code></a>; read it before writing a test. The highlights:</p>
-<h3 id="test-design">Test Design</h3>
+<h3 id="test-design">Test Design<a class="headerlink" href="#test-design" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Single Responsibility</strong>: Each test should validate one specific workflow</li>
 <li><strong>Clear Assertions</strong>: Use descriptive assertion messages</li>
 <li><strong>Proper Timeouts</strong>: Poll with <code>EventuallyWithT</code> instead of asserting once or sleeping</li>
 <li><strong>Resource Management</strong>: Leave the environment as you found it, so a retry can reuse the same infrastructure</li>
 </ul>
-<h3 id="performance-considerations">Performance Considerations</h3>
+<h3 id="performance-considerations">Performance Considerations<a class="headerlink" href="#performance-considerations" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Parallel Execution</strong>: Design tests to run in parallel when possible</li>
 <li><strong>Resource Efficiency</strong>: Reuse infrastructure when appropriate</li>
 <li><strong>Test Duration</strong>: Keep a job under 15 minutes when it is gated on pull-request changes, and under 30-40 minutes on <code>main</code> or nightly</li>
 </ul>
-<h3 id="maintenance">Maintenance</h3>
+<h3 id="maintenance">Maintenance<a class="headerlink" href="#maintenance" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Regular Updates</strong>: Keep test environments updated with latest agent versions</li>
 <li><strong>Documentation</strong>: Document test scenarios and expected outcomes</li>
 <li><strong>Monitoring</strong>: Monitor test execution times and failure rates</li>
 <li><strong>Version Compatibility</strong>: Test against supported platform versions</li>
 </ul>
-<h2 id="see-also">See Also</h2>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../../guidelines/testing/test-categories/">Test Categories</a> - Understanding different test types</li>
 <li><a href="../unit/">Unit Testing</a> - Running unit tests</li>
