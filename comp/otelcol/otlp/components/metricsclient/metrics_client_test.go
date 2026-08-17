@@ -247,3 +247,34 @@ func TestNoNilMeter(t *testing.T) {
 	_, err := InitializeMetricClient(&nilMeterProvider{}, ExporterSourceTag)
 	assert.ErrorIs(t, err, errNilMeter)
 }
+
+func TestStatsdClientWrapperConcurrentSetDelegateAndCount(t *testing.T) {
+	t.Parallel()
+
+	wrapper := NewStatsdClientWrapper(&statsd.NoOpClient{})
+
+	const iterations = 5000
+	var wg sync.WaitGroup
+	var start sync.WaitGroup
+
+	// Start barrier so both goroutines begin looping at the same time,
+	// maximising overlap for the race detector without a wall-clock delay.
+	start.Add(1)
+
+	wg.Go(func() {
+		start.Wait()
+		for range iterations {
+			_ = wrapper.Count("test_count", 1, []string{"otlp:true"}, 1)
+		}
+	})
+
+	wg.Go(func() {
+		start.Wait()
+		for range iterations {
+			wrapper.SetDelegate(&statsd.NoOpClient{})
+		}
+	})
+
+	start.Done() // release both goroutines
+	wg.Wait()
+}

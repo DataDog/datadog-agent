@@ -23,6 +23,7 @@ struct approver_stats_t {
 struct event_sample_stats_t {
     u64 events_total;
     u64 events_sampled;
+    u64 max_pressure;
 };
 
 struct basename_t {

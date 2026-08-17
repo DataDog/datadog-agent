@@ -3039,6 +3039,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_open_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_connect_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
 		},
@@ -3047,12 +3051,20 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_connect_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_bind_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingBindEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
 		},
 		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
@@ -3065,6 +3077,23 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "event_sampling_dns_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
+		},
+		manager.ConstantEditor{
+			Name:  "dynamic_sampling_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
+		},
+		manager.ConstantEditor{
+			Name: "ring_buffer_size",
+			Value: func() uint64 {
+				if p.config.Probe.EventStreamBufferSize != 0 {
+					return uint64(p.config.Probe.EventStreamBufferSize)
+				}
+				return uint64(probes.ComputeDefaultEventsRingBufferSize())
+			}(),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",

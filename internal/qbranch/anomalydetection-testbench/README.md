@@ -91,7 +91,8 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 
 | Name | Default | Description |
 |------|---------|-------------|
-| `time_cluster` | enabled | Groups anomalies that occur close together in time |
+| `anomaly_scorer` | enabled | Produces anomaly periods from the EWMA anomaly-severity score |
+| `time_cluster` | disabled | Groups anomalies that occur close together in time |
 | `cross_signal` | disabled | Cross-signal pattern correlator (fixed known patterns) |
 | `passthrough` | disabled | Passes every anomaly through as its own correlation (for TP metric scoring) |
 
@@ -108,7 +109,7 @@ Extractors are always enabled and convert raw observations into timeseries:
 ## Examples
 
 ```bash
-# Run with all defaults (bocpd + rrcf + time_cluster)
+# Run with all defaults (bocpd + rrcf + anomaly_scorer)
 dda inv -- anomalydetection.launch-testbench
 
 # Only BOCPD + TimeCluster

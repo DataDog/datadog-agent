@@ -7,7 +7,7 @@ test --test_tag_filters=-tagset_linux_bpf
 test --test_env=GO_TEST_WRAP_TESTV=1
 
 # Go race detector for test invocations. Usage: bazel test --config=gorace //...
-test:gorace --@rules_go//go/config:race
+common:gorace --@rules_go//go/config:race # to use same analysis cache across test & run commands
 test:gorace --test_env=GORACE=atexit_sleep_ms=50
 
 # Complementary filters that partition a `bazel test //...` invocation in two, so
