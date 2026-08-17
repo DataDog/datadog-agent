@@ -1,0 +1,71 @@
+name: "SMP label sync check"
+
+# Advisory PR check for the SMP selection manifest (test/regression/selection.yaml). It compares the
+# PR's manifest labels against its BASE branch and reports only what THIS PR changes:
+#   - a label the PR adds that has no repo `smp/*` label yet   -> "create it"
+#   - a label the PR removes whose repo `smp/*` label still exists -> "delete it"
+# It never blocks, never mutates labels, and never mentions labels the PR did not touch — so a
+# developer only ever sees signal about their own change (no cross-PR / unrelated-state noise, which
+# is how checks train people to ignore them). Label create/delete stays manual.
+
+on:
+  pull_request:
+    paths:
+      - test/regression/selection.yaml
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+permissions: {}
+
+jobs:
+  smp-label-sync:
+    if: github.event.pull_request.head.repo.full_name == github.repository # non-fork PRs only
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout selection manifest
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          sparse-checkout: test/regression/selection.yaml
+          persist-credentials: false
+      - name: Report label changes introduced by this PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          MANIFEST=test/regression/selection.yaml
+          # Labels this PR's manifest declares. yq is preinstalled on ubuntu-latest.
+          yq -r '.labels // {} | keys | .[]' "$MANIFEST" | sort > head_labels.txt
+          # Labels the PR's BASE branch declares (empty if the manifest doesn't exist there yet).
+          ( gh api "repos/${GITHUB_REPOSITORY}/contents/${MANIFEST}?ref=${BASE_REF}" --jq '.content' 2>/dev/null \
+              | tr -d '\n' | base64 -d 2>/dev/null | yq -r '.labels // {} | keys | .[]' 2>/dev/null | sort ) > base_labels.txt || true
+          # Only what THIS PR changes, relative to its base:
+          added=$(comm -23 head_labels.txt base_labels.txt || true)    # labels this PR adds
+          removed=$(comm -13 head_labels.txt base_labels.txt || true)  # labels this PR removes
+          # Existing smp/* repo labels.
+          gh label list --repo "$GITHUB_REPOSITORY" --limit 500 --json name -q '.[].name' \
+            | grep '^smp/' | sort > repo_labels.txt || true
+
+          # Advisory + scoped to this PR's own label changes: never blocks, never mutates labels, and
+          # never mentions a label this PR did not touch. Global repo-label drift is intentionally out
+          # of scope here — we don't alert developers about state unrelated to their PR.
+          changed=0
+          for label in $added; do
+            grep -qx "$label" repo_labels.txt && continue   # already exists -> nothing to do
+            changed=1
+            desc=$(yq -r ".labels[\"$label\"].description // \"\"" "$MANIFEST")
+            echo "::warning::This PR adds manifest label '$label', but no repo label exists yet so it can't be applied. Create it (then re-run this check):"
+            echo "  gh label create \"$label\" --repo \"$GITHUB_REPOSITORY\" --description \"$desc\""
+          done
+          for label in $removed; do
+            grep -qx "$label" repo_labels.txt || continue   # repo label already gone -> nothing to do
+            changed=1
+            echo "::warning::This PR removes manifest label '$label', but its repo label still exists (now unused). Delete it if intended:"
+            echo "  gh label delete \"$label\" --repo \"$GITHUB_REPOSITORY\" --yes"
+          done
+          [ "$changed" -eq 0 ] && echo "No label changes in this PR need action."
+          exit 0
