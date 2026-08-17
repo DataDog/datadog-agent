@@ -33,6 +33,10 @@ type StorageConfig struct {
 	// on each Add. 0 disables trimming.
 	PointRetentionSecs int64
 
+	// MaxPointsPerSeries caps the number of newest one-second buckets retained
+	// per series. Zero disables count-based trimming.
+	MaxPointsPerSeries int
+
 	// MaxCorrelations caps how many unique correlation patterns are retained in
 	// the engine's accumulated-correlations map. 0 uses the built-in default
 	// (500). -1 disables the cap entirely (suitable for testbench replay where
@@ -55,6 +59,7 @@ func DefaultStorageConfig() StorageConfig {
 		MaxSeries:          storageMaxSeries,
 		EvictionFloorRatio: storageEvictionBandRatio,
 		PointRetentionSecs: storagePointRetentionSecs,
+		MaxPointsPerSeries: storageMaxPointsPerSeries,
 		// TrackCorrelationHistory defaults to false: live agent incurs no overhead.
 	}
 }
@@ -70,6 +75,10 @@ const (
 	// storagePointRetentionSecs is the default point retention window.
 	// Points older than (latest_ts - 120s) are trimmed on each Add.
 	storagePointRetentionSecs = 120
+
+	// storageMaxPointsPerSeries is disabled until detector requirements are
+	// derived from the configured detector set.
+	storageMaxPointsPerSeries = 0
 )
 
 // timeSeriesStorage is an internal storage for time series data.
@@ -388,18 +397,23 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	if stats.retentionOverrideSecs > 0 {
 		retentionSecs = stats.retentionOverrideSecs
 	}
+	trim := 0
 	if retentionSecs > 0 {
 		// Trim points outside the retention window. Use the series' latest
 		// timestamp (not the incoming bucket) so that backfilled/out-of-order
 		// points don't shift the cutoff backwards and over-retain stale data.
 		latestTS := stats.timestamps[len(stats.timestamps)-1]
-		if trim := searchAfter(stats.timestamps, latestTS-retentionSecs-1); trim > 0 {
-			stats.timestamps = trimFront(stats.timestamps, trim)
-			stats.sums = trimFront(stats.sums, trim)
-			stats.counts = trimFront(stats.counts, trim)
-			stats.mins = trimFront(stats.mins, trim)
-			stats.maxes = trimFront(stats.maxes, trim)
-		}
+		trim = searchAfter(stats.timestamps, latestTS-retentionSecs-1)
+	}
+	if s.cfg.MaxPointsPerSeries > 0 && len(stats.timestamps)-trim > s.cfg.MaxPointsPerSeries {
+		trim = len(stats.timestamps) - s.cfg.MaxPointsPerSeries
+	}
+	if trim > 0 {
+		stats.timestamps = trimFront(stats.timestamps, trim)
+		stats.sums = trimFront(stats.sums, trim)
+		stats.counts = trimFront(stats.counts, trim)
+		stats.mins = trimFront(stats.mins, trim)
+		stats.maxes = trimFront(stats.maxes, trim)
 	}
 	return res
 }
@@ -1577,6 +1591,37 @@ func (s *timeSeriesStorage) ForEachPoint(
 	*bufp = buf
 	pointBufPool.Put(bufp)
 	return true
+}
+
+// RecentPoints returns the bounded tail of a series at or before end.
+// It reads directly from the columnar representation and reuses dst.
+func (s *timeSeriesStorage) RecentPoints(ref observer.SeriesRef, end int64, agg Aggregate, limit int, dst []observer.Point) []observer.Point {
+	if limit <= 0 {
+		return dst[:0]
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return dst[:0]
+	}
+	hi := searchAfter(stats.timestamps, end)
+	lo := hi - limit
+	if lo < 0 {
+		lo = 0
+	}
+	n := hi - lo
+	if cap(dst) < n {
+		dst = make([]observer.Point, n)
+	} else {
+		dst = dst[:n]
+	}
+	for i := range dst {
+		idx := lo + i
+		dst[i] = observer.Point{Timestamp: stats.timestamps[idx], Value: stats.aggregateAt(idx, agg)}
+	}
+	return dst
 }
 
 // SumRange returns the aggregate total over the time range (start, end] without

@@ -261,6 +261,33 @@ func makeRangeStorage() *timeSeriesStorage {
 	return s
 }
 
+func TestRecentPoints(t *testing.T) {
+	storage := newTimeSeriesStorageWith(StorageConfig{})
+	ref := storage.Add("work", "metric", 1, 10, nil).Ref
+	storage.Add("work", "metric", 2, 20, nil)
+	storage.Add("work", "metric", 3, 30, nil)
+
+	dst := make([]observer.Point, 0, 4)
+	points := storage.RecentPoints(ref, 25, AggregateAverage, 2, dst)
+	require.Equal(t, []observer.Point{{Timestamp: 10, Value: 1}, {Timestamp: 20, Value: 2}}, points)
+	require.Same(t, &dst[:cap(dst)][0], &points[0])
+
+	storage.Add("work", "metric", 4, 20, nil)
+	points = storage.RecentPoints(ref, 30, AggregateAverage, 1, points)
+	require.Equal(t, []observer.Point{{Timestamp: 30, Value: 3}}, points)
+	assert.Empty(t, storage.RecentPoints(observer.SeriesRef(999), 30, AggregateAverage, 2, points))
+}
+
+func TestStorageMaxPointsPerSeries(t *testing.T) {
+	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 3})
+	ref := observer.SeriesRef(-1)
+	for ts := int64(1); ts <= 5; ts++ {
+		ref = storage.Add("work", "metric", float64(ts), ts, nil).Ref
+	}
+	require.Equal(t, 3, storage.PointCount(ref))
+	require.Equal(t, []observer.Point{{Timestamp: 3, Value: 3}, {Timestamp: 4, Value: 4}, {Timestamp: 5, Value: 5}}, storage.RecentPoints(ref, 5, AggregateAverage, 10, nil))
+}
+
 // rangeID is the numeric ID for the first (and only) series added by makeRangeStorage.
 const rangeID = observer.SeriesRef(0)
 

@@ -61,6 +61,10 @@ func (s *seriesListOnlyStorage) ForEachPoint(observer.SeriesRef, int64, int64, o
 	return false
 }
 
+func (*seriesListOnlyStorage) RecentPoints(observer.SeriesRef, int64, observer.Aggregate, int, []observer.Point) []observer.Point {
+	return nil
+}
+
 func (s *seriesListOnlyStorage) PointCount(observer.SeriesRef) int {
 	return 0
 }

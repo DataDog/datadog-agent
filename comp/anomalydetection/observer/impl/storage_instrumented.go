@@ -232,6 +232,25 @@ func (s *instrumentedStorage) ForEachPoint(ref observerdef.SeriesRef, start, end
 	return found
 }
 
+func (s *instrumentedStorage) RecentPoints(ref observerdef.SeriesRef, end int64, agg observerdef.Aggregate, limit int, dst []observerdef.Point) []observerdef.Point {
+	s.readCount++
+	result := s.inner.RecentPoints(ref, end, agg, limit, dst)
+
+	ch := newCallHasher()
+	ch.mixString("RecentPoints")
+	ch.mixInt64(end)
+	ch.mixInt64(int64(agg))
+	ch.mixInt64(int64(limit))
+	ch.mixInt64(int64(len(result)))
+	for _, p := range result {
+		ch.mixInt64(p.Timestamp)
+		ch.mixFloat64(p.Value)
+	}
+	s.pointCount += len(result)
+	s.callHashes = append(s.callHashes, ch.sum())
+	return result
+}
+
 func (s *instrumentedStorage) PointCount(ref observerdef.SeriesRef) int {
 	s.readCount++
 	result := s.inner.PointCount(ref)

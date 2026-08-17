@@ -566,6 +566,11 @@ type StorageReader interface {
 	// do not allocate. Returns false if the series was not found.
 	ForEachPoint(handle SeriesRef, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
 
+	// RecentPoints returns at most limit points at or before end in chronological
+	// order. dst is reused when it has sufficient capacity. Unlike a full range
+	// scan, this operation is bounded by limit.
+	RecentPoints(handle SeriesRef, end int64, agg Aggregate, limit int, dst []Point) []Point
+
 	// PointCount returns the number of raw data points for a series without
 	// loading or converting them. Returns 0 if the series is not found.
 	PointCount(handle SeriesRef) int
@@ -606,6 +611,13 @@ type Detector interface {
 	// The detector queries storage for whatever data it needs.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
 	Detect(storage StorageReader, dataTime int64) DetectionResult
+}
+
+// StorageHistoryRequirement is an optional detector capability. Detectors
+// which retain a fixed raw-input history expose its required point count so
+// storage can retain sufficient history at sparse cadences.
+type StorageHistoryRequirement interface {
+	RequiredHistoryPoints() int
 }
 
 // SeriesRemover is an optional interface that Detector implementations can
