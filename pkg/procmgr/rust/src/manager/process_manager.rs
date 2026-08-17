@@ -1,6 +1,6 @@
 use super::{
     ExitEvent, PendingRestart, RuntimeHandles, Supervisor, find_index_by_name, queue_restart,
-    resolve_index, try_spawn_and_watch,
+    resolve_index,
 };
 use crate::command::{CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
@@ -50,7 +50,7 @@ impl ProcessManager {
             let proc = &mut procs[idx];
             let name = proc.name().to_owned();
             if proc.may_auto_start()
-                && let Err(e) = try_spawn_and_watch(proc, handles)
+                && let Err(e) = proc.spawn_and_watch(handles.exit_sender())
             {
                 warn!("[{name}] auto-start failed: {e:#}");
                 queue_restart(proc, handles);
@@ -116,7 +116,7 @@ impl ProcessManager {
             info!("[{name}] not restarting: policy or start conditions not met");
             return;
         }
-        if let Err(e) = try_spawn_and_watch(proc, handles) {
+        if let Err(e) = proc.spawn_and_watch(handles.exit_sender()) {
             warn!("[{name}] restart failed: {e:#}");
             queue_restart(proc, handles);
         }
@@ -156,7 +156,7 @@ impl ProcessManager {
             procs.push(proc);
             let proc = procs.last_mut().unwrap();
             if proc.may_auto_start()
-                && let Err(e) = try_spawn_and_watch(proc, handles)
+                && let Err(e) = proc.spawn_and_watch(handles.exit_sender())
             {
                 warn!("[{name}] auto-start failed: {e:#}");
             }
@@ -180,7 +180,7 @@ impl ProcessManager {
                 "process '{name}' is already running",
             )));
         }
-        try_spawn_and_watch(proc, handles)
+        proc.spawn_and_watch(handles.exit_sender())
             .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
         Ok(StartResult {
             uuid: proc.uuid().to_owned(),

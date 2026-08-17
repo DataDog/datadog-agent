@@ -12,8 +12,6 @@ use supervisor::RuntimeHandles;
 
 use crate::process::ManagedProcess;
 use anyhow::Result;
-use log::warn;
-use tokio::sync::mpsc;
 use tonic::Status;
 
 pub use process_manager::ProcessManager;
@@ -22,11 +20,7 @@ pub use supervisor::Supervisor;
 #[cfg(all(test, unix))]
 pub(crate) use supervisor::spawn_command_loop_for_tests;
 
-pub(crate) struct ExitEvent {
-    pub name: String,
-    pub pid: u32,
-    pub status: std::process::ExitStatus,
-}
+pub(crate) type ExitEvent = crate::process::ProcessExit;
 
 pub(crate) type PendingRestart = String;
 
@@ -76,42 +70,6 @@ fn queue_restart(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
     }
 }
 
-fn try_spawn_and_watch(proc: &mut ManagedProcess, handles: &RuntimeHandles) -> Result<()> {
-    proc.spawn()?;
-    spawn_watcher(proc, handles.exit_sender());
-    Ok(())
-}
-
-fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
-    if let Some(mut proc_handle) = proc.take_handle() {
-        let name = proc.name().to_owned();
-        let pid = proc.pid().unwrap_or(0);
-        let watcher_handle = tokio::spawn(async move {
-            let status = match proc_handle.wait().await {
-                Ok(status) => status,
-                Err(e) => {
-                    warn!("[{name}] wait error: {e}, killing process");
-                    let _ = proc_handle.kill().await;
-                    match proc_handle.wait().await {
-                        Ok(s) => s,
-                        Err(e2) => {
-                            warn!("[{name}] failed to reap after kill: {e2}");
-                            return None;
-                        }
-                    }
-                }
-            };
-            let _ = tx.try_send(ExitEvent {
-                name: name.clone(),
-                pid,
-                status,
-            });
-            Some(status)
-        });
-        proc.set_watcher_handle(watcher_handle);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,6 +79,7 @@ mod tests {
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, UuidGenerator, V4UuidGenerator};
     use std::sync::Arc;
+    use tokio::sync::mpsc;
 
     fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
         Arc::new(StaticConfigLoader::new(defs))
