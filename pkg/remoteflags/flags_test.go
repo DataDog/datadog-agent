@@ -499,7 +499,6 @@ func TestOnChange_ErrorUnsetsConfigurationField(t *testing.T) {
 func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
-		defer client.Stop()
 
 		h := newStubHandler(testFlag1)
 		h.healthy.Store(false) // Unhealthy throughout
