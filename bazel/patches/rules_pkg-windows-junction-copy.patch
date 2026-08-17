@@ -1,0 +1,15 @@
+diff --git a/pkg/private/install.py.tpl b/pkg/private/install.py.tpl
+index 5242b18a..00000000 100644
+--- a/pkg/private/install.py.tpl
++++ b/pkg/private/install.py.tpl
+@@ -82,6 +82,10 @@ class NativeInstaller(object):
+     def _do_file_copy(self, src, dest):
+         logging.debug("COPY %s <- %s", dest, src)
++        # Windows --enable_runfiles uses directory junctions for every runfile.
++        # Junctions cannot point at files, so open() fails with Permission denied.
++        # Follow the reparse point to the real bazel-out file.
++        src = os.path.realpath(src)
+         # Copy to a temporary directory and then move it to the destination.
+         # This ensures code-signed executables on certain platforms
+         # behave correctly.
+         # See: https://developer.apple.com/documentation/security/updating-mac-software
