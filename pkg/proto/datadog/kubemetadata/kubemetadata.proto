@@ -69,6 +69,34 @@ message KueueWorkload {
   KubeMetadataEventType type = 9;
 }
 
+// ResourceSliceDevice is one device advertised by a DRA driver.
+message ResourceSliceDevice {
+  string name = 1;
+  // uuid is the vendor device UUID, which for NVIDIA matches what NVML
+  // reports for the same physical card. Empty on MIG devices.
+  string uuid = 2;
+  string product_name = 3;
+  string pcie_root = 4;
+  // parent_uuid and profile are only set on MIG devices.
+  string parent_uuid = 5;
+  string profile = 6;
+  int64 memory_bytes = 7;
+}
+
+// ResourceSlice is a DRA ResourceSlice: the device inventory for one node.
+// Only slices belonging to the requesting node are sent on a given stream.
+message ResourceSlice {
+  string name = 1;
+  string node_name = 2;
+  string driver = 3;
+  string pool = 4;
+  repeated ResourceSliceDevice devices = 5;
+  KubeMetadataEventType type = 6;
+  // generation lets a consumer tell stale inventory apart from current:
+  // Kubernetes requires considering only the highest generation of a pool.
+  int64 generation = 7;
+}
+
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
@@ -76,4 +104,5 @@ message KubeMetadataStreamResponse {
   repeated KueueQueue kueue_queues = 4;
   repeated KueueResourceFlavor kueue_resource_flavors = 5;
   repeated KueueWorkload kueue_workloads = 6;
+  repeated ResourceSlice resource_slices = 7;
 }

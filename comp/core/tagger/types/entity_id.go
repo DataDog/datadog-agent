@@ -81,6 +81,10 @@ const (
 	KueueResourceFlavor EntityIDPrefix = "kueue_resource_flavor"
 	// KueueWorkload is the prefix `kueue_workload`
 	KueueWorkload EntityIDPrefix = "kueue_workload"
+	// KubernetesResourceClaim is the prefix `kubernetes_resource_claim`
+	KubernetesResourceClaim EntityIDPrefix = "kubernetes_resource_claim"
+	// KubernetesResourceSlice is the prefix `kubernetes_resource_slice`
+	KubernetesResourceSlice EntityIDPrefix = "kubernetes_resource_slice"
 	// KubernetesCapabilities is the prefix `kubernetes_capabilities`
 	KubernetesCapabilities EntityIDPrefix = "kubernetes_capabilities"
 	// KubernetesPodUID is the prefix `kubernetes_pod_uid`
@@ -100,23 +104,25 @@ const (
 // AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
 func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 	return map[EntityIDPrefix]struct{}{
-		ContainerID:            {},
-		ContainerImageMetadata: {},
-		ECSTask:                {},
-		Host:                   {},
-		KubernetesDeployment:   {},
-		KubernetesMetadata:     {},
-		KubernetesNode:         {},
-		KubernetesKueueQueue:   {},
-		KueueResourceFlavor:    {},
-		KueueWorkload:          {},
-		KubernetesPodUID:       {},
-		Process:                {},
-		InternalID:             {},
-		GPU:                    {},
-		Kubelet:                {},
-		Crd:                    {},
-		KubernetesCapabilities: {},
+		ContainerID:             {},
+		ContainerImageMetadata:  {},
+		ECSTask:                 {},
+		Host:                    {},
+		KubernetesDeployment:    {},
+		KubernetesMetadata:      {},
+		KubernetesNode:          {},
+		KubernetesKueueQueue:    {},
+		KueueResourceFlavor:     {},
+		KueueWorkload:           {},
+		KubernetesResourceClaim: {},
+		KubernetesResourceSlice: {},
+		KubernetesPodUID:        {},
+		Process:                 {},
+		InternalID:              {},
+		GPU:                     {},
+		Kubelet:                 {},
+		Crd:                     {},
+		KubernetesCapabilities:  {},
 	}
 }
 

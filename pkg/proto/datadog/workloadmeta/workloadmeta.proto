@@ -190,6 +190,7 @@ message KubernetesPod {
   repeated OrchestratorContainer InitContainers = 13;
   string runtimeClass = 14;
   repeated OrchestratorContainer ephemeralContainers = 15;
+  repeated string resourceClaimNames = 16;
 }
 
 enum ECSLaunchType {

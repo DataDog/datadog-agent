@@ -37,6 +37,10 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			info = e.String(verbose)
 		case *wmdef.KubernetesNode:
 			info = e.String(verbose)
+		case *wmdef.KubernetesResourceClaim:
+			info = e.String(verbose)
+		case *wmdef.KubernetesResourceSlice:
+			info = e.String(verbose)
 		case *wmdef.GPU:
 			info = e.String(verbose)
 		case *wmdef.Kubelet:

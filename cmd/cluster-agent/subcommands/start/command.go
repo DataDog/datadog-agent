@@ -149,6 +149,7 @@ import (
 	// Core checks
 
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/gpuallocation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
@@ -916,4 +917,5 @@ func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg con
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, nil)) // wmeta is not used in KSM when running from cluster-agent, so we can pass nil here
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
+	corecheckLoader.RegisterCheck(gpuallocation.CheckName, gpuallocation.Factory(wlm))
 }

@@ -93,6 +93,17 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		}
 	}
 
+	// Only claims referenced by name are collected. A claim created from a
+	// template is owned by the pod, so it already carries an owner reference and
+	// needs no join; a pre-existing shared claim has no owner and is only
+	// reachable from this side.
+	var resourceClaimNames []string
+	for _, claim := range pod.Spec.ResourceClaims {
+		if claim.ResourceClaimName != nil && *claim.ResourceClaimName != "" {
+			resourceClaimNames = append(resourceClaimNames, *claim.ResourceClaimName)
+		}
+	}
+
 	var rtcName string
 	if pod.Spec.RuntimeClassName != nil {
 		rtcName = *pod.Spec.RuntimeClassName
@@ -147,6 +158,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		Phase:                      string(pod.Status.Phase),
 		Owners:                     owners,
 		PersistentVolumeClaimNames: pvcNames,
+		ResourceClaimNames:         resourceClaimNames,
 		Ready:                      ready,
 		IP:                         pod.Status.PodIP,
 		PriorityClass:              pod.Spec.PriorityClassName,

@@ -1,0 +1,14 @@
+init_config:
+instances:
+  # Reports how long workloads wait for DRA-allocated accelerators and how many
+  # devices are allocated. Inert unless cluster_agent.gpu_allocation.enabled is true.
+  #
+  # Enabling that setting is sufficient: it also turns on collection of the DRA
+  # ResourceClaim and ResourceSlice objects the check reads, so there is no
+  # second flag to discover. cluster_agent.dra.enabled enables that collection
+  # on its own, for consumers other than this check.
+  #
+  # Requires get/list/watch on resource.k8s.io resourceclaims and resourceslices;
+  # the reference manifests in Dockerfiles/manifests grant this, but Helm chart
+  # and Operator deployments carry their own RBAC that must be updated to match.
+  -

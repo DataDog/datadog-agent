@@ -1609,6 +1609,7 @@ type KubernetesPod struct {
 	InitContainers             []*OrchestratorContainer `protobuf:"bytes,13,rep,name=InitContainers,proto3" json:"InitContainers,omitempty"`
 	RuntimeClass               string                   `protobuf:"bytes,14,opt,name=runtimeClass,proto3" json:"runtimeClass,omitempty"`
 	EphemeralContainers        []*OrchestratorContainer `protobuf:"bytes,15,rep,name=ephemeralContainers,proto3" json:"ephemeralContainers,omitempty"`
+	ResourceClaimNames         []string                 `protobuf:"bytes,16,rep,name=resourceClaimNames,proto3" json:"resourceClaimNames,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -1744,6 +1745,13 @@ func (x *KubernetesPod) GetRuntimeClass() string {
 func (x *KubernetesPod) GetEphemeralContainers() []*OrchestratorContainer {
 	if x != nil {
 		return x.EphemeralContainers
+	}
+	return nil
+}
+
+func (x *KubernetesPod) GetResourceClaimNames() []string {
+	if x != nil {
+		return x.ResourceClaimNames
 	}
 	return nil
 }
@@ -2667,7 +2675,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x15OrchestratorContainer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12:\n" +
-	"\x05image\x18\x03 \x01(\v2$.datadog.workloadmeta.ContainerImageR\x05image\"\x8a\a\n" +
+	"\x05image\x18\x03 \x01(\v2$.datadog.workloadmeta.ContainerImageR\x05image\"\xba\a\n" +
 	"\rKubernetesPod\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -2688,7 +2696,8 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x0fnamespaceLabels\x18\f \x03(\v28.datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntryR\x0fnamespaceLabels\x12S\n" +
 	"\x0eInitContainers\x18\r \x03(\v2+.datadog.workloadmeta.OrchestratorContainerR\x0eInitContainers\x12\"\n" +
 	"\fruntimeClass\x18\x0e \x01(\tR\fruntimeClass\x12]\n" +
-	"\x13ephemeralContainers\x18\x0f \x03(\v2+.datadog.workloadmeta.OrchestratorContainerR\x13ephemeralContainers\x1aB\n" +
+	"\x13ephemeralContainers\x18\x0f \x03(\v2+.datadog.workloadmeta.OrchestratorContainerR\x13ephemeralContainers\x12.\n" +
+	"\x12resourceClaimNames\x18\x10 \x03(\tR\x12resourceClaimNames\x1aB\n" +
 	"\x14NamespaceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x06\n" +

@@ -330,6 +330,32 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		}
 	}
 
+	if shouldHaveResourceClaimMetadata(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), resourceClaimGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover DRA ResourceClaim resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store := newResourceClaimStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+	}
+
+	if shouldHaveResourceSliceMetadata(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), resourceSliceGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover DRA ResourceSlice resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store := newResourceSliceStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+	}
+
 	if c.config.GetBool("cluster_checks.crd_collection") {
 		log.Info("Enabling CRD informer for workloadmeta collector")
 		handlerRegistration, err := setupCRDInformer(wlmetaStore, apiserverClient.APIExentionsInformerFactory)

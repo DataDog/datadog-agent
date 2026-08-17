@@ -884,3 +884,169 @@ func assertNotNotified(t *testing.T, name string, ch <-chan struct{}) {
 	case <-time.After(50 * time.Millisecond):
 	}
 }
+
+func TestProcessResourceSliceEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesResourceSlice{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesResourceSlice,
+					ID:   "node-a-gpu.nvidia.com-abc",
+				},
+				EntityMeta:     workloadmeta.EntityMeta{Name: "node-a-gpu.nvidia.com-abc"},
+				NodeName:       "node-a",
+				Driver:         "gpu.nvidia.com",
+				Pool:           "node-a",
+				PoolGeneration: 2,
+				Devices: []workloadmeta.ResourceSliceDevice{
+					{Name: "gpu-0", UUID: "GPU-aaa", ProductName: "Tesla T4", PCIeRoot: "pci0000:00", MemoryBytes: 1024},
+				},
+			},
+		},
+	})
+
+	entry := srv.buildMetadataSnapshot().resourceSlices["node-a-gpu.nvidia.com-abc"]
+	assert.Equal(t, "node-a", entry.nodeName)
+	assert.Equal(t, "gpu.nvidia.com", entry.driver)
+	// Generation must survive the DCA-side snapshot, or a node-side consumer
+	// downstream can never tell stale inventory apart from current.
+	assert.Equal(t, int64(2), entry.generation)
+	assert.Equal(t, []resourceSliceDeviceEntry{
+		{name: "gpu-0", uuid: "GPU-aaa", productName: "Tesla T4", pcieRoot: "pci0000:00", memoryBytes: 1024},
+	}, entry.devices)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesResourceSlice{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesResourceSlice,
+					ID:   "node-a-gpu.nvidia.com-abc",
+				},
+			},
+		},
+	})
+
+	assert.Empty(t, srv.buildMetadataSnapshot().resourceSlices)
+}
+
+// A node agent must only be told about its own node's devices; an H100 node
+// publishes hundreds of device entries, so leaking every node's inventory to
+// every agent would be both wrong and expensive.
+func TestBuildMetadataSnapshotForNodeFiltersResourceSlices(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesResourceSlice{
+				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesResourceSlice, ID: "slice-a"},
+				EntityMeta: workloadmeta.EntityMeta{Name: "slice-a"},
+				NodeName:   "node-a",
+			},
+		},
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesResourceSlice{
+				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesResourceSlice, ID: "slice-b"},
+				EntityMeta: workloadmeta.EntityMeta{Name: "slice-b"},
+				NodeName:   "node-b",
+			},
+		},
+	})
+
+	// The cluster-wide snapshot keeps both.
+	assert.Len(t, srv.buildMetadataSnapshot().resourceSlices, 2)
+
+	forNodeA := srv.buildMetadataSnapshotForNode("node-a")
+	assert.Len(t, forNodeA.resourceSlices, 1)
+	assert.Contains(t, forNodeA.resourceSlices, "slice-a")
+
+	// Filtering must not mutate the shared state behind the snapshot.
+	assert.Len(t, srv.buildMetadataSnapshot().resourceSlices, 2)
+
+	assert.Empty(t, srv.buildMetadataSnapshotForNode("node-unknown").resourceSlices)
+}
+
+func TestComputeResourceSliceDiff(t *testing.T) {
+	old := map[string]resourceSliceEntry{
+		"slice-a": {
+			name:       "slice-a",
+			nodeName:   "node-a",
+			driver:     "gpu.nvidia.com",
+			generation: 1,
+			devices:    []resourceSliceDeviceEntry{{name: "gpu-0", uuid: "GPU-old"}},
+		},
+		"slice-gone": {name: "slice-gone", nodeName: "node-a"},
+	}
+	current := map[string]resourceSliceEntry{
+		"slice-a": {
+			name:       "slice-a",
+			nodeName:   "node-a",
+			driver:     "gpu.nvidia.com",
+			generation: 2,
+			devices:    []resourceSliceDeviceEntry{{name: "gpu-0", uuid: "GPU-new"}},
+		},
+	}
+
+	diff := computeResourceSliceDiff(old, current)
+
+	assert.ElementsMatch(t, []*pb.ResourceSlice{
+		{
+			Name:       "slice-a",
+			NodeName:   "node-a",
+			Driver:     "gpu.nvidia.com",
+			Generation: 2,
+			Devices:    []*pb.ResourceSliceDevice{{Name: "gpu-0", Uuid: "GPU-new"}},
+			Type:       pb.KubeMetadataEventType_SET,
+		},
+		{
+			Name:     "slice-gone",
+			NodeName: "node-a",
+			Devices:  []*pb.ResourceSliceDevice{},
+			Type:     pb.KubeMetadataEventType_UNSET,
+		},
+	}, diff)
+
+	// An unchanged slice must not produce a diff entry, otherwise every
+	// unrelated wmeta event would re-send the whole inventory.
+	assert.Empty(t, computeResourceSliceDiff(current, current))
+}
+
+func TestComputeResourceSliceDiffIgnoresDeviceOrder(t *testing.T) {
+	// resourceSliceDeviceEntries sorts devices by name, so two snapshots with
+	// the same devices in a different upstream order must not produce a spurious
+	// diff -- otherwise every order-only change resends the whole (potentially
+	// MIG-heavy) inventory.
+	old := map[string]resourceSliceEntry{
+		"slice-a": {
+			name:       "slice-a",
+			nodeName:   "node-a",
+			driver:     "gpu.nvidia.com",
+			generation: 1,
+			devices: resourceSliceDeviceEntries([]workloadmeta.ResourceSliceDevice{
+				{Name: "gpu-0-mig-2", ParentUUID: "GPU-1"},
+				{Name: "gpu-0-mig-1", ParentUUID: "GPU-1"},
+				{Name: "gpu-0", UUID: "GPU-1"},
+			}),
+		},
+	}
+	current := map[string]resourceSliceEntry{
+		"slice-a": {
+			name:       "slice-a",
+			nodeName:   "node-a",
+			driver:     "gpu.nvidia.com",
+			generation: 1,
+			devices: resourceSliceDeviceEntries([]workloadmeta.ResourceSliceDevice{
+				{Name: "gpu-0", UUID: "GPU-1"},
+				{Name: "gpu-0-mig-1", ParentUUID: "GPU-1"},
+				{Name: "gpu-0-mig-2", ParentUUID: "GPU-1"},
+			}),
+		},
+	}
+
+	assert.Empty(t, computeResourceSliceDiff(old, current))
+}

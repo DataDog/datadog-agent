@@ -64,6 +64,16 @@ type Component interface {
 	// to all entities with kind KindKubernetesPod.
 	ListKubernetesPods() []*KubernetesPod
 
+	// ListKubernetesResourceClaims returns all known DRA ResourceClaims,
+	// equivalent to all entities with kind KindKubernetesResourceClaim.
+	ListKubernetesResourceClaims() []*KubernetesResourceClaim
+
+	// ListKubernetesResourceSlices returns all known DRA ResourceSlices,
+	// equivalent to all entities with kind KindKubernetesResourceSlice. A claim
+	// records only driver-scoped device names, so the slices are what give
+	// those names a physical identity (uuid, or parentUUID for MIG).
+	ListKubernetesResourceSlices() []*KubernetesResourceSlice
+
 	// GetKubeletMetrics returns metadata about kubelet metrics.
 	GetKubeletMetrics() (*KubeletMetrics, error)
 

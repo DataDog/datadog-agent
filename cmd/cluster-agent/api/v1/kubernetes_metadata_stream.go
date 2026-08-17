@@ -8,6 +8,7 @@
 package v1
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"slices"
@@ -78,11 +79,35 @@ type kueueWorkloadEntry struct {
 	podSetAssignments []kueuePodSetAssignmentEntry
 }
 
+type resourceSliceDeviceEntry struct {
+	name        string
+	uuid        string
+	productName string
+	pcieRoot    string
+	parentUUID  string
+	profile     string
+	memoryBytes int64
+}
+
+type resourceSliceEntry struct {
+	name     string
+	nodeName string
+	driver   string
+	pool     string
+	// generation lets a downstream consumer tell stale inventory apart from
+	// current, mirroring the same rule the DCA check applies.
+	generation int64
+	devices    []resourceSliceDeviceEntry
+}
+
 type metadataSnapshot struct {
 	namespaces           map[string]namespaceEntry
 	kueueQueues          map[string]kueueQueueEntry
 	kueueResourceFlavors map[string]kueueResourceFlavorEntry
 	kueueWorkloads       map[string]kueueWorkloadEntry
+	// resourceSlices is held cluster-wide here but filtered to a single node
+	// before being sent, since a slice only describes one node's devices.
+	resourceSlices map[string]resourceSliceEntry
 }
 
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
@@ -116,6 +141,7 @@ func newMetadataSnapshot() metadataSnapshot {
 		kueueQueues:          make(map[string]kueueQueueEntry),
 		kueueResourceFlavors: make(map[string]kueueResourceFlavorEntry),
 		kueueWorkloads:       make(map[string]kueueWorkloadEntry),
+		resourceSlices:       make(map[string]resourceSliceEntry),
 	}
 }
 
@@ -158,7 +184,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 
 	// Send initial full state
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
-	lastSentMetadataState := srv.buildMetadataSnapshot()
+	lastSentMetadataState := srv.buildMetadataSnapshotForNode(nodeName)
 	initialResp := fullStateResponse(lastSentPodServicesState, lastSentMetadataState)
 	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
@@ -209,7 +235,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			ticker.Reset(keepAliveInterval)
 
 		case <-namespacesNotifyCh:
-			currentMetadataState := srv.buildMetadataSnapshot()
+			currentMetadataState := srv.buildMetadataSnapshotForNode(nodeName)
 			metadataDiff := computeMetadataDiff(lastSentMetadataState, currentMetadataState)
 			if metadataDiff.isEmpty() {
 				continue
@@ -270,6 +296,10 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 			}
 		case *workloadmeta.KubernetesKueueWorkload:
 			if srv.metadata.processKueueWorkloadEvent(event.Type, entity) {
+				changed = true
+			}
+		case *workloadmeta.KubernetesResourceSlice:
+			if srv.metadata.processResourceSliceEvent(event.Type, entity) {
 				changed = true
 			}
 		default:
@@ -379,6 +409,54 @@ func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.Even
 	return false
 }
 
+func (s *metadataSnapshot) processResourceSliceEvent(eventType workloadmeta.EventType, slice *workloadmeta.KubernetesResourceSlice) bool {
+	key := slice.EntityID.ID
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		s.resourceSlices[key] = resourceSliceEntry{
+			name:       slice.Name,
+			nodeName:   slice.NodeName,
+			driver:     slice.Driver,
+			pool:       slice.Pool,
+			generation: slice.PoolGeneration,
+			devices:    resourceSliceDeviceEntries(slice.Devices),
+		}
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := s.resourceSlices[key]; exists {
+			delete(s.resourceSlices, key)
+			return true
+		}
+	case workloadmeta.EventTypeAll:
+		log.Errorf("Unexpected event type %d for ResourceSlice %s", eventType, key)
+	default:
+		log.Errorf("Unknown event type %d for ResourceSlice %s", eventType, key)
+	}
+	return false
+}
+
+func resourceSliceDeviceEntries(devices []workloadmeta.ResourceSliceDevice) []resourceSliceDeviceEntry {
+	entries := make([]resourceSliceDeviceEntry, 0, len(devices))
+	for _, device := range devices {
+		entries = append(entries, resourceSliceDeviceEntry{
+			name:        device.Name,
+			uuid:        device.UUID,
+			productName: device.ProductName,
+			pcieRoot:    device.PCIeRoot,
+			parentUUID:  device.ParentUUID,
+			profile:     device.Profile,
+			memoryBytes: device.MemoryBytes,
+		})
+	}
+	// Sort by name so the diff is stable regardless of upstream device order: an
+	// order-only change between updates must not generate a spurious diff that
+	// resends the whole (potentially large, MIG-heavy) inventory.
+	slices.SortFunc(entries, func(a, b resourceSliceDeviceEntry) int {
+		return cmp.Compare(a.name, b.name)
+	})
+	return entries
+}
+
 func kueuePodSetAssignmentEntries(assignments []workloadmeta.KueuePodSetAssignment) []kueuePodSetAssignmentEntry {
 	entries := make([]kueuePodSetAssignmentEntry, 0, len(assignments))
 	for _, assignment := range assignments {
@@ -463,6 +541,22 @@ func (srv *KubeMetadataStreamServer) buildMetadataSnapshot() metadataSnapshot {
 	maps.Copy(snapshot.kueueQueues, srv.metadata.kueueQueues)
 	maps.Copy(snapshot.kueueResourceFlavors, srv.metadata.kueueResourceFlavors)
 	maps.Copy(snapshot.kueueWorkloads, srv.metadata.kueueWorkloads)
+	maps.Copy(snapshot.resourceSlices, srv.metadata.resourceSlices)
+	return snapshot
+}
+
+// buildMetadataSnapshotForNode returns the snapshot a single node agent should
+// see: everything cluster-wide, except ResourceSlices, which are restricted to
+// the slices describing that node's own devices.
+func (srv *KubeMetadataStreamServer) buildMetadataSnapshotForNode(nodeName string) metadataSnapshot {
+	snapshot := srv.buildMetadataSnapshot()
+
+	for key, entry := range snapshot.resourceSlices {
+		if entry.nodeName != nodeName {
+			delete(snapshot.resourceSlices, key)
+		}
+	}
+
 	return snapshot
 }
 
@@ -483,7 +577,7 @@ func kubeMetadataStreamFilter() *workloadmeta.Filter {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
 			return workloadmeta.IsNamespaceMetadata(metadata)
 		},
-	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).Build()
+	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).AddKind(workloadmeta.KindKubernetesResourceSlice).Build()
 }
 
 func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) map[string]podServiceEntry {
@@ -524,6 +618,7 @@ type metadataDiff struct {
 	kueueQueues          []*pb.KueueQueue
 	kueueResourceFlavors []*pb.KueueResourceFlavor
 	kueueWorkloads       []*pb.KueueWorkload
+	resourceSlices       []*pb.ResourceSlice
 }
 
 func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
@@ -532,11 +627,12 @@ func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
 		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
 		kueueWorkloads:       computeKueueWorkloadDiff(old.kueueWorkloads, current.kueueWorkloads),
+		resourceSlices:       computeResourceSliceDiff(old.resourceSlices, current.resourceSlices),
 	}
 }
 
 func (d metadataDiff) isEmpty() bool {
-	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads) == 0
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.resourceSlices) == 0
 }
 
 func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
@@ -546,6 +642,7 @@ func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse 
 		KueueQueues:          d.kueueQueues,
 		KueueResourceFlavors: d.kueueResourceFlavors,
 		KueueWorkloads:       d.kueueWorkloads,
+		ResourceSlices:       d.resourceSlices,
 	}
 }
 
@@ -734,6 +831,59 @@ func kueueResourceFlavorEqual(left, right kueueResourceFlavorEntry) bool {
 		maps.Equal(left.labels, right.labels) &&
 		maps.Equal(left.annotations, right.annotations) &&
 		maps.Equal(left.nodeAffinityLabels, right.nodeAffinityLabels)
+}
+
+func computeResourceSliceDiff(old, current map[string]resourceSliceEntry) []*pb.ResourceSlice {
+	var diff []*pb.ResourceSlice
+
+	for key, cur := range current {
+		prev, existed := old[key]
+		if !existed || !resourceSliceEqual(prev, cur) {
+			diff = append(diff, protoResourceSlice(cur, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for key, prev := range old {
+		if _, exists := current[key]; !exists {
+			diff = append(diff, protoResourceSlice(prev, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
+func protoResourceSlice(entry resourceSliceEntry, eventType pb.KubeMetadataEventType) *pb.ResourceSlice {
+	devices := make([]*pb.ResourceSliceDevice, 0, len(entry.devices))
+	for _, device := range entry.devices {
+		devices = append(devices, &pb.ResourceSliceDevice{
+			Name:        device.name,
+			Uuid:        device.uuid,
+			ProductName: device.productName,
+			PcieRoot:    device.pcieRoot,
+			ParentUuid:  device.parentUUID,
+			Profile:     device.profile,
+			MemoryBytes: device.memoryBytes,
+		})
+	}
+
+	return &pb.ResourceSlice{
+		Name:       entry.name,
+		NodeName:   entry.nodeName,
+		Driver:     entry.driver,
+		Pool:       entry.pool,
+		Generation: entry.generation,
+		Devices:    devices,
+		Type:       eventType,
+	}
+}
+
+func resourceSliceEqual(left, right resourceSliceEntry) bool {
+	return left.name == right.name &&
+		left.nodeName == right.nodeName &&
+		left.driver == right.driver &&
+		left.pool == right.pool &&
+		left.generation == right.generation &&
+		slices.Equal(left.devices, right.devices)
 }
 
 func kueueWorkloadEqual(left, right kueueWorkloadEntry) bool {

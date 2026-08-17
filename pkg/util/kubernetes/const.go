@@ -54,6 +54,12 @@ const (
 	KueuePodGroupNameLabelKey = "kueue.x-k8s.io/pod-group-name"
 	// KueuePodSetLabelKey is the pod label key set by Kueue with the Workload pod set name
 	KueuePodSetLabelKey = "kueue.x-k8s.io/podset"
+	// DRAGroupName is the API group used by Dynamic Resource Allocation (DRA) resources
+	DRAGroupName = "resource.k8s.io"
+	// DRAResourceClaimResourceName is the plural resource name for DRA ResourceClaim objects
+	DRAResourceClaimResourceName = "resourceclaims"
+	// DRAResourceSliceResourceName is the plural resource name for DRA ResourceSlice objects
+	DRAResourceSliceResourceName = "resourceslices"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
@@ -118,6 +124,8 @@ const (
 	KueueResourceFlavorKind = "ResourceFlavor"
 	// KueueWorkloadKind represents the Kueue Workload object kind
 	KueueWorkloadKind = "Workload"
+	// DRAResourceClaimKind represents the DRA ResourceClaim object kind
+	DRAResourceClaimKind = "ResourceClaim"
 	// HorizontalPodAutoscalerKind represents the HorizontalPodAutoscaler object kind
 	HorizontalPodAutoscalerKind = "HorizontalPodAutoscaler"
 	// IngressKind represents the Ingress object kind

@@ -291,6 +291,38 @@ properties:
         node_type: setting
         type: boolean
         default: false
+  dra:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  gpu_allocation:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      device_classes:
+        node_type: setting
+        type: array
+        default:
+        - gpu.nvidia.com
+        - mig.nvidia.com
+        - vfio.gpu.nvidia.com
+        items:
+          type: string
+        comment: |-
+          DRA device classes counted as accelerators. ResourceClaims are generic and
+          may request network devices or FPGAs, so claims outside these classes are
+          ignored rather than reported as GPU claims.
+
+          The defaults are the classes published by the NVIDIA DRA driver. Add the
+          classes of any other accelerator vendor in use.
   language_detection:
     node_type: section
     type: object

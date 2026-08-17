@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add GPU allocation observability for clusters using Kubernetes Dynamic
+    Resource Allocation (DRA). The Cluster Agent now reports how long
+    workloads wait for DRA-allocated accelerators and how many devices are
+    allocated, via the ``gpu.allocation.*`` metrics.
