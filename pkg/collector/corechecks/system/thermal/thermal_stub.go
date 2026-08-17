@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
+//go:build !windows && !darwin
 
-// Package thermal implements the thermal zone check for Windows.
+// Package thermal implements the thermal zone check. This file is the no-op
+// fallback for platforms with no thermal implementation.
 package thermal
 
 import (

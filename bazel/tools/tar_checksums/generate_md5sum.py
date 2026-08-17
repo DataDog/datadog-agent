@@ -39,7 +39,8 @@ def _open_tar(path):
 
 
 def generate_md5sums(tar_path, output_path):
-    with open(output_path, 'w') as out:
+    # newline = '\n' prevents automatic translation to '\r\n' on Windows
+    with open(output_path, 'w', newline='\n') as out:
         with _open_tar(tar_path) as tf:
             for member in tf:
                 if not member.isfile():

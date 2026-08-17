@@ -98,7 +98,7 @@ def build_standard_lib(
     ctx.run(cmd.format(**args), env=env)  # with `warn=True`, errors went unnoticed
 
 
-def _target_to_bazel_pattern(target: str) -> str:
+def _target_to_bazel_pattern(target: str, recursive=True) -> str:
     """Convert a Go test target path to a Bazel target pattern.
 
     Examples:
@@ -108,13 +108,17 @@ def _target_to_bazel_pattern(target: str) -> str:
         './pkg/util/' -> '//pkg/util/...'
         './pkg/...'   -> '//pkg/...'
     """
+    # .as_posix() both normalizes the path as well as ensures posix-like paths like those used
+    # to refer to Bazel targets
+    target = Path(target).as_posix()
+
     if target in ('.', './'):
-        return '//...'
+        return '//...' if recursive else "//:all"
     # Strip leading './' then any trailing '/' to avoid double-slash before '/...'
     rel = target.removeprefix('./').rstrip('/')
     if rel.endswith('/...'):
         return f'//{rel}'
-    return f'//{rel}/...'
+    return f'//{rel}{"/..." if recursive else ":all"}'
 
 
 def _minimize_bazel_patterns(patterns: list[str]) -> list[str]:
@@ -839,6 +843,66 @@ def test(
         print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
 
 
+@task(
+    help={
+        "module": "Path to the Go module to test (for example '.', 'comp/core', or 'pkg/util/log'). When set, --targets are relative to this module.",
+        "targets": "Comma-separated package targets to test.",
+        "only_modified_packages": "Test only packages containing modified Go files, instead of the targets selected by --module/--targets.",
+        "race": "Run tests with the Go race detector enabled (passes --config=gorace to Bazel).",
+        "test_args": "Additional arguments passed to each Go test binary via Bazel --test_arg. Use test-binary flags such as '-test.run=TestFoo' and '-test.v'. Quote the value when passing multiple arguments.",
+        "bazel_args": "Additional flags passed directly to bazel test. Quote the value when passing multiple flags.",
+    },
+)
+def test_new(
+    ctx,
+    module=None,
+    targets=None,
+    only_modified_packages=False,
+    race=False,
+    test_args="",
+    bazel_args="",
+):
+    """
+    Run go tests.
+
+    This task uses Bazel to run the tests and will soon replace the existing `test` task, which
+    will be renamed to `legacy` and eventually be dropped.
+    """
+
+    if only_modified_packages:
+        modules = get_modified_packages(ctx)
+    else:
+        modules, _ = process_input_args(ctx, module, targets, input_flavor=None)
+
+    if not modules:
+        raise Exit("No targets selected for testing!")
+
+    bazel_flags = [
+        "--config=dd-agent-go-tests-only",
+        "--build_tests_only",
+    ]
+    bazel_flags.extend(shlex.split(bazel_args))
+    if race:
+        bazel_flags.append("--config=gorace")
+
+    for test_arg in shlex.split(test_args):
+        bazel_flags.append(f"--test_arg={test_arg}")
+
+    bazel_targets = [
+        _target_to_bazel_pattern(os.path.join(module.path, target), recursive=not only_modified_packages)
+        for module in modules
+        if module.should_test()
+        for target in module.test_targets
+    ]
+
+    bazel(
+        ctx,
+        "test",
+        *bazel_flags,
+        *_minimize_bazel_patterns(bazel_targets),
+    )
+
+
 @task
 def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow="default"):
     """
@@ -909,12 +973,13 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         if not os.path.exists(os.path.dirname(modified_file)):
             continue
 
-        # If there are go file matching the build tags in the folder we do not try to run tests
-        res = ctx.run(
-            f'go list -tags "{",".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
-        )
-        if res.stderr is not None and "matched no packages" in res.stderr:
-            continue
+        # If there are no files matching the build tags in the folder we do not try to run tests
+        if build_tags:
+            res = ctx.run(
+                f'go list -tags "{",".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
+            )
+            if res.stderr is not None and "matched no packages" in res.stderr:
+                continue
 
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
 

@@ -13,7 +13,6 @@ go_library(
         "//cmd/agent/subcommands/configcheck",
         "//cmd/agent/subcommands/controlsvc",
         "//cmd/agent/subcommands/coverage",
-        "//cmd/agent/subcommands/createschema",
         "//cmd/agent/subcommands/diagnose",
         "//cmd/agent/subcommands/dogstatsd",
         "//cmd/agent/subcommands/dogstatsdcapture",

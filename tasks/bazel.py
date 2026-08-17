@@ -63,7 +63,7 @@ def _go_test_packages(ctx, tags: list[str], import_paths: set[str]) -> dict[str,
         text = bazel(
             ctx,
             "run",
-            "--@rules_go//go/config:race",  # avoid thrashing the analysis cache right after `bazel test`
+            "--config=gorace",  # to use same analysis cache across test & run commands
             "//:go",
             "--",
             "list",
@@ -496,6 +496,7 @@ def _collect_test2json(ctx, test_artifacts, output_path):
         bazel(
             ctx,
             "run",
+            "--config=gorace",  # to use same analysis cache across test & run commands
             "//bazel/tools/testlogs_to_json",
             "--",
             "-manifest",

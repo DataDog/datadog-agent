@@ -24,7 +24,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.82.1 // indirect
@@ -124,8 +123,6 @@ replace github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../.
 replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 
 replace github.com/DataDog/datadog-agent/pkg/config/basic => ../../pkg/config/basic
-
-replace github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../pkg/config/buildschema
 
 replace github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 

@@ -26,10 +26,5 @@
         "IPC_LOCK",
         "CHOWN",
         "KILL"
-    ],
-    "containerEnv": {
-        "HOST_ROOT": "/host/root",
-        "HOST_PROC": "/host/root/proc",
-        "HOST_SYS": "/host/root/sys"
-    }
+    ]
 }
