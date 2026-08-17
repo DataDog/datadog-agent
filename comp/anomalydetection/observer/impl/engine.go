@@ -410,10 +410,17 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 // taking their own locks. Adding a new caller of this function from a
 // different goroutine would break that invariant for every detector.
 func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
-	if len(refs) == 0 || len(e.detectors) == 0 {
+	e.mu.RLock()
+	detectors := e.detectors
+	e.mu.RUnlock()
+	fanOutSeriesRemoval(detectors, refs)
+}
+
+func fanOutSeriesRemoval(detectors []observerdef.Detector, refs []observerdef.SeriesRef) {
+	if len(refs) == 0 || len(detectors) == 0 {
 		return
 	}
-	for _, d := range e.detectors {
+	for _, d := range detectors {
 		if remover, ok := d.(observerdef.SeriesRemover); ok {
 			remover.RemoveSeries(refs)
 		}
@@ -511,7 +518,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	// Inactivity eviction happens after materialized log-count buckets have
 	// restored their real last-observation activity time, and before detectors
 	// can recreate state for series that are no longer relevant.
-	e.evictInactiveSeries(upToSec)
+	e.evictInactiveSeries(upToSec, detectors)
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
@@ -544,16 +551,20 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	return result
 }
 
-func (e *engine) evictInactiveSeries(upToSec int64) {
+func (e *engine) evictInactiveSeries(upToSec int64, detectors []observerdef.Detector) {
+	e.mu.Lock()
 	cfg := e.storage.cfg
 	if cfg.InactiveSeriesTTLSeconds <= 0 || cfg.InactiveSeriesCheckIntervalSeconds <= 0 {
+		e.mu.Unlock()
 		return
 	}
 	if e.inactiveSeriesEvictionChecked && upToSec-e.lastInactiveSeriesEvictionCheck < cfg.InactiveSeriesCheckIntervalSeconds {
+		e.mu.Unlock()
 		return
 	}
 	e.inactiveSeriesEvictionChecked = true
 	e.lastInactiveSeriesEvictionCheck = upToSec
+	e.mu.Unlock()
 
 	freed := e.storage.EvictInactiveBefore(upToSec - cfg.InactiveSeriesTTLSeconds)
 	if len(freed) == 0 {
@@ -565,7 +576,7 @@ func (e *engine) evictInactiveSeries(upToSec int64) {
 	if e.onStorageSeriesEvicted != nil {
 		e.onStorageSeriesEvicted("inactive", len(freed))
 	}
-	e.fanOutSeriesRemoval(freed)
+	fanOutSeriesRemoval(detectors, freed)
 }
 
 // runDetectorsAndCorrelatorsSnapshot runs the given detectors and correlators.
