@@ -210,6 +210,7 @@ new-e2e-windows-systemprobe:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
       - EXTRA_PARAMS: --run TestVMSuite
+      - EXTRA_PARAMS: --run TestVDISuite
 
 new-e2e-windows-usm:
   extends: .new_e2e_template
