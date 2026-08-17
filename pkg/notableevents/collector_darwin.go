@@ -154,6 +154,9 @@ type Collector struct {
 	generation        uint64
 	commitReservation *darwinCommitReservation
 	nextCommitID      uint64
+	// shutdownCauseDeferred records that the shutdown-cause check found the
+	// bookmark owned by another commit. Guarded by stateMu.
+	shutdownCauseDeferred bool
 
 	now               func() time.Time
 	identityRetention time.Duration
@@ -421,6 +424,7 @@ func (c *Collector) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-reconcileTicker.C:
+			c.retryShutdownCauseIfDeferred()
 			c.scanOnce(ctx)
 		case <-retryTicker.C:
 			c.retryMaintenance(ctx)
@@ -512,6 +516,24 @@ func (c *Collector) checkShutdownCauseOnce() {
 	c.publishShutdownCause(bootUUID, &event)
 }
 
+// retryShutdownCauseIfDeferred re-runs the shutdown-cause check when a bookmark
+// commit owned the state on the earlier attempt. The re-read is idempotent:
+// checkShutdownCauseOnce returns immediately once the boot is recorded, so this
+// settles after the first uncontended tick.
+//
+// Like checkShutdownCauseOnce it takes only stateMu, and it releases the lock
+// before that call rather than holding it across.
+func (c *Collector) retryShutdownCauseIfDeferred() {
+	c.stateMu.Lock()
+	deferred := c.shutdownCauseDeferred && !c.closed
+	c.shutdownCauseDeferred = false
+	c.stateMu.Unlock()
+	if !deferred {
+		return
+	}
+	c.checkShutdownCauseOnce()
+}
+
 // shutdownCauseAlreadyChecked reports whether this boot's payload was already
 // examined, emitted or not.
 func shutdownCauseAlreadyChecked(state *darwinBookmarkState, bootUUID string) bool {
@@ -528,10 +550,13 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 		return
 	}
 	if c.stagedScan != nil || c.commitReservation != nil {
-		// Another commit owns the bookmark. The check runs once per process, so
-		// there is nothing to retry against; the next Agent start re-reads.
+		// Another commit owns the bookmark. run() calls the check before its
+		// first tick, so this collides with the core Agent's opening Ack poll;
+		// waiting for the next Agent start would strand the fault for this
+		// whole process lifetime, which on a workstation is weeks.
+		c.shutdownCauseDeferred = true
 		c.stateMu.Unlock()
-		log.Debug("Skipping macOS shutdown-cause bookmark: another bookmark commit is in flight")
+		log.Debug("Deferring macOS shutdown-cause bookmark: another bookmark commit is in flight")
 		return
 	}
 	if event != nil && eventIsAccountedFor(c.state, event.ID) {

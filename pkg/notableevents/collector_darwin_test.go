@@ -1693,6 +1693,69 @@ func TestDarwinCollectorChecksShutdownCauseBeforeScanning(t *testing.T) {
 	require.Len(t, collector.Pending(), 1)
 }
 
+// TestDarwinCollectorRetriesShutdownCauseDeferredByCommit covers the collision
+// between the opening check and the core Agent's first Ack poll. The check runs
+// before run()'s first tick, so a reservation held at that moment used to
+// strand the fault for the whole process lifetime.
+func TestDarwinCollectorRetriesShutdownCauseDeferredByCommit(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+
+	collector.stateMu.Lock()
+	reservation := collector.reserveCommitLocked(darwinCommitAck, collector.generation)
+	collector.stateMu.Unlock()
+
+	collector.checkShutdownCauseOnce()
+
+	collector.stateMu.Lock()
+	deferred := collector.shutdownCauseDeferred
+	recorded := collector.state.ShutdownCause
+	collector.stateMu.Unlock()
+	require.True(t, deferred, "a contended commit must defer rather than drop the check")
+	require.Nil(t, recorded)
+	assert.Empty(t, collector.Pending())
+
+	// A tick while the commit still owns the bookmark defers again.
+	collector.retryShutdownCauseIfDeferred()
+	collector.stateMu.Lock()
+	stillDeferred := collector.shutdownCauseDeferred
+	collector.stateMu.Unlock()
+	assert.True(t, stillDeferred)
+
+	collector.stateMu.Lock()
+	collector.releaseCommitLocked(reservation)
+	collector.stateMu.Unlock()
+
+	collector.retryShutdownCauseIfDeferred()
+
+	require.Len(t, collector.Pending(), 1)
+	collector.stateMu.Lock()
+	defer collector.stateMu.Unlock()
+	require.NotNil(t, collector.state.ShutdownCause)
+	assert.Equal(t, testBootUUID, collector.state.ShutdownCause.BootUUID)
+	assert.False(t, collector.shutdownCauseDeferred)
+}
+
+// TestDarwinCollectorRetryIsInertWithoutADeferredCheck keeps the reconcile tick
+// from re-reading the property on every tick for the collector's whole life.
+func TestDarwinCollectorRetryIsInertWithoutADeferredCheck(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+	reads := 0
+	collector.readShutdownCause = func() (pmuBootFaultInfo, error) {
+		reads++
+		return thermalPMUPayload, nil
+	}
+
+	collector.checkShutdownCauseOnce()
+	require.Equal(t, 1, reads)
+
+	collector.retryShutdownCauseIfDeferred()
+	collector.retryShutdownCauseIfDeferred()
+	assert.Equal(t, 1, reads, "the property must not be re-read once the boot is recorded")
+	assert.Len(t, collector.Pending(), 1)
+}
+
 func TestDarwinCollectorEmitsShutdownCauseEvent(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
