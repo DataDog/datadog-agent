@@ -82,9 +82,7 @@ QUALIFICATION_TAG = "qualification"
 
 def _get_module_pseudo_version(ctx, module, commit):
     """Resolve the canonical pseudo-version for a module at a commit."""
-    command = join_command(
-        ["go", "list", "-m", "-mod=mod", "-f={{.Version}}", f"{module.import_path}@{commit}"]
-    )
+    command = join_command(["go", "list", "-m", "-mod=mod", "-f={{.Version}}", f"{module.import_path}@{commit}"])
     version = ctx.run(command, hide=True).stdout.strip()
     if not version:
         raise Exit(f"Could not resolve a pseudo-version for {module.import_path} at {commit}")
