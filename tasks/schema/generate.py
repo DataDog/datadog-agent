@@ -51,6 +51,7 @@ CORE_SPLIT_SECTIONS = [
     "gpu",
     "otelcollector",
     "runtime_security_config",
+    "network_devices.yaml",
 ]
 
 
