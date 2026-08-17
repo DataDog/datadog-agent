@@ -185,6 +185,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 		}
 
 		// Filling Kubernetes component from EKS cluster
+		comp.Cluster = cluster
 		comp.ClusterName = cluster.EksCluster.Name()
 		comp.KubeConfig = clusterKubeConfig
 		comp.KubeProvider = eksKubeProvider

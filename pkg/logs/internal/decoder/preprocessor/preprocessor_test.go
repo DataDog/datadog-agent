@@ -91,8 +91,17 @@ func newTestPreprocessor(enableJSON bool) (*Preprocessor, *captureAggregator, *c
 
 // --- tests ---
 
-// TestPreprocessor_AggregatorReceivesMessage verifies that the aggregator receives the message
-// after tokenization and labeling have run (tokens are local to the preprocessor, not on the message).
+// TestPreprocessor_AggregatorReceivesMessage anchors:
+//
+//	contract Preprocessor (preprocessor.allium)
+//	    @guidance step 2 — the per-call flow runs Tokenization,
+//	                       Labeler, then Aggregator.process in
+//	                       order on each emission from
+//	                       JSONAggregator.process.
+//
+// Verifies the order-of-stage wiring at the Aggregator boundary:
+// after JSON aggregation emits a message, the aggregator receives
+// it (post-tokenize, post-label).
 func TestPreprocessor_AggregatorReceivesMessage(t *testing.T) {
 	preprocessor, aggregator, _ := newTestPreprocessor(false)
 
@@ -102,8 +111,18 @@ func TestPreprocessor_AggregatorReceivesMessage(t *testing.T) {
 	assert.Equal(t, `2024-01-01 12:00:00 INFO Starting`, string(aggregator.received[0].GetContent()))
 }
 
-// TestPreprocessor_TokenizesAfterJSONAggregation verifies that the aggregator sees the combined
-// JSON content (not individual fragments), confirming JSON aggregation runs before aggregation.
+// TestPreprocessor_TokenizesAfterJSONAggregation anchors:
+//
+//	contract Preprocessor (preprocessor.allium)
+//	    @guidance step 1 + step 2 — JSONAggregator.process runs
+//	                                BEFORE Tokenization. Multi-line
+//	                                JSON fragments are joined into
+//	                                one message before the downstream
+//	                                stages see them.
+//
+// Two JSON fragments arrive in separate process calls. JSON
+// aggregation combines them before the aggregator sees a single
+// combined message.
 func TestPreprocessor_TokenizesAfterJSONAggregation(t *testing.T) {
 	preprocessor, aggregator, _ := newTestPreprocessor(true)
 
@@ -116,8 +135,16 @@ func TestPreprocessor_TokenizesAfterJSONAggregation(t *testing.T) {
 	assert.Equal(t, `{"key":"value"}`, string(aggregator.received[0].GetContent()))
 }
 
-// TestPreprocessor_JSONDisabledPassesThroughDirectly verifies that with JSON aggregation disabled,
-// messages go directly to processOne without JSON buffering.
+// TestPreprocessor_JSONDisabledPassesThroughDirectly anchors:
+//
+//	contract Preprocessor (preprocessor.allium)
+//	    @guidance step 1 — JSONAggregator.process(input) may
+//	                       emit zero, one, or many messages per
+//	                       input depending on the fulfiller.
+//
+// With NoopJSONAggregator wired in, each input emits exactly one
+// downstream message. This is the no-buffering JSON path
+// (verifies the contract's per-fulfiller flexibility on step 1).
 func TestPreprocessor_JSONDisabledPassesThroughDirectly(t *testing.T) {
 	preprocessor, aggregator, _ := newTestPreprocessor(false)
 
@@ -127,8 +154,21 @@ func TestPreprocessor_JSONDisabledPassesThroughDirectly(t *testing.T) {
 	assert.Len(t, aggregator.received, 2, "Both messages should pass directly when JSON aggregation is disabled")
 }
 
-// TestPreprocessor_FlushCascadesInOrder verifies that Flush processes pending JSON fragments
-// through processOne, then flushes the aggregator, then calls sampler.Flush.
+// TestPreprocessor_FlushCascadesInOrder anchors:
+//
+//	contract Preprocessor (preprocessor.allium)
+//	    @invariant FlushDrainsBuffer
+//	    @guidance flush flow — JSONAggregator.flush runs first;
+//	                           each emission goes through
+//	                           Tokenization/Labeler/Aggregator;
+//	                           THEN Aggregator.flush runs; THEN
+//	                           Sampler.flush. After all of this,
+//	                           every stateful component reports
+//	                           is_empty.
+//
+// A buffered JSON fragment held by the JSONAggregator at flush
+// time goes through the full downstream chain. The aggregator's
+// flush is then called separately, producing a final emission.
 func TestPreprocessor_FlushCascadesInOrder(t *testing.T) {
 	tailerInfo := status.NewInfoRegistry()
 	_ = tailerInfo
@@ -151,14 +191,34 @@ func TestPreprocessor_FlushCascadesInOrder(t *testing.T) {
 	assert.Equal(t, `{"key":`, string(sampler.emitted[0].GetContent()))
 }
 
-// TestPreprocessor_FlushChanNilWhenEmpty verifies that FlushChan returns nil when nothing is buffered.
+// TestPreprocessor_FlushChanNilWhenEmpty anchors:
+//
+//	contract Preprocessor (preprocessor.allium)
+//	    auxiliary observable — the Preprocessor exposes a
+//	    FlushChan whose value is nil when there is no buffered
+//	    state requiring a future flush.
+//
+// FlushChan is nil at construction. (Not a tie-spec @invariant
+// per se — the FlushChan is the Preprocessor's interaction with
+// the upstream decoder's flush-timing logic. Anchored here to
+// the implementation's documented contract.)
 func TestPreprocessor_FlushChanNilWhenEmpty(t *testing.T) {
 	preprocessor, _, _ := newTestPreprocessor(true)
 	assert.Nil(t, preprocessor.FlushChan(), "FlushChan should be nil when preprocessor is empty")
 }
 
-// TestPreprocessor_SamplerReceivesAggregatedMessageWithTokens verifies that messages returned by the
-// aggregator flow to the sampler.
+// TestPreprocessor_SamplerReceivesAggregatedMessageWithTokens anchors:
+//
+//	contract Preprocessor (preprocessor.allium)
+//	    @guidance step 2d — for each AggregatedMessageWithTokens
+//	                        yielded by Aggregator.process, the
+//	                        Sampler receives the message AND the
+//	                        first-line tokens.
+//	    @invariant EndToEndTokenForwarding
+//
+// The aggregator's emitted AggregatedMessageWithTokens flows
+// through to the sampler; both the message and the tokens are
+// forwarded.
 func TestPreprocessor_SamplerReceivesAggregatedMessageWithTokens(t *testing.T) {
 	preprocessor, _, sampler := newTestPreprocessor(false)
 
