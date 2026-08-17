@@ -25,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
-
-	"github.com/mdlayher/vsock"
 )
 
 type ipcClient struct {
@@ -54,9 +52,13 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 	}
 
 	if vsockAddr := config.GetString("vsock_addr"); vsockAddr != "" {
-		tr.DialContext = func(_ context.Context, _ string, address string) (net.Conn, error) {
-			// vsock.Dial has no context-aware or deadline-aware variant. TLSHandshakeTimeout
-			// still bounds a peer which accepts the connection but stalls during the handshake.
+		tr.DialContext = func(ctx context.Context, _ string, address string) (net.Conn, error) {
+			if serverTimeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, serverTimeout)
+				defer cancel()
+			}
+
 			_, sPort, err := net.SplitHostPort(address)
 			if err != nil {
 				return nil, err
@@ -72,12 +74,7 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 				return nil, err
 			}
 
-			conn, err := vsock.Dial(cid, uint32(port), &vsock.Config{})
-			if err != nil {
-				return nil, err
-			}
-
-			return conn, err
+			return dialVSockContext(ctx, cid, uint32(port))
 		}
 	} else {
 		clone := tr.Clone()
