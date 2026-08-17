@@ -97,6 +97,20 @@ func Test_onWorkloadBalancingUpdate(t *testing.T) {
 			expectApplyCalled: true,
 		},
 		{
+			// An empty active_agent must not be treated as a valid assignment: stateForActiveAgent
+			// would put every Agent on standby, turning an incomplete document into a silent
+			// outage for that group instead of the safe direction (duplicate over gap).
+			name:               "well-formed document with no active_agent keeps the previous assignment and reports an error",
+			initialGroups:      map[string]groupState{"group-01": groupStateActive},
+			updates:            map[string]state.RawConfig{testRCConfigPath: {Config: []byte(`{"type":"workload_balancing","workload_balancing_group_id":"group-01"}`)}},
+			expectApplyID:      testRCConfigPath,
+			expectApplyStatus:  state.ApplyStatus{State: state.ApplyStateError, Error: "missing active_agent"},
+			expectApplyCalled:  true,
+			expectGroupID:      "group-01",
+			expectGroupState:   groupStateActive,
+			expectGroupPresent: true,
+		},
+		{
 			name:              "genuinely malformed document, HA Agent enabled, left for HA Agent",
 			haAgentEnabled:    true,
 			updates:           map[string]state.RawConfig{testRCConfigPath: {Config: []byte(`invalid-json`)}},
