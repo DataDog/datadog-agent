@@ -164,6 +164,10 @@ type Collector struct {
 	// reconcile tick for the collector's life. It is never cleared: a save that
 	// succeeds publishes, and the check never runs again. Guarded by stateMu.
 	shutdownCauseSaveWarned bool
+	// shutdownCauseSaturationWarned latches the saturation warning for the same
+	// reason, and is separate so that neither condition can silence the other.
+	// Guarded by stateMu.
+	shutdownCauseSaturationWarned bool
 
 	now               func() time.Time
 	identityRetention time.Duration
@@ -570,10 +574,28 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 		event = nil
 	}
 	if event != nil && len(c.state.Pending) >= maxDarwinPendingEvents {
-		// A saturated pending queue means delivery is already broken; dropping
-		// keeps the bookmark inside its durable size budget.
-		log.Warnf("Dropping macOS shutdown fault event %s: pending delivery is saturated", event.ID)
-		event = nil
+		// Deferred rather than dropped. Recording the boot here would be final:
+		// the bookmark keys on the boot UUID alone, so a fault dropped while
+		// delivery was stalled could never be reconsidered once the queue
+		// drained, and the property describes a shutdown that no later boot can
+		// reproduce. Writing nothing is also stricter about the durable size
+		// budget than the drop it replaces.
+		//
+		// A queue that never drains leaves the reconcile tick re-reading the
+		// property for the collector's life. That is the same cost the contended
+		// commit above already carries, and one cheap IORegistry read per tick
+		// buys the difference between a delayed fault and a lost one.
+		firstWarning := !c.shutdownCauseSaturationWarned
+		c.shutdownCauseSaturationWarned = true
+		c.shutdownCauseDeferred = true
+		c.stateMu.Unlock()
+		if firstWarning {
+			// Warned once: the retry re-enters here on every tick until
+			// delivery recovers, and the condition is a property of the queue
+			// rather than of this attempt.
+			log.Warnf("Deferring macOS shutdown fault event %s: pending delivery is saturated", event.ID)
+		}
+		return
 	}
 
 	candidate := cloneDarwinBookmarkState(c.state)

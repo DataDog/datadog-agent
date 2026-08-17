@@ -1864,21 +1864,38 @@ func TestDarwinCollectorRecordsCleanShutdownWithoutEvent(t *testing.T) {
 	require.NoError(t, validateDarwinBookmarkState(collector.state))
 }
 
-func TestDarwinCollectorDropsShutdownEventWhenPendingIsSaturated(t *testing.T) {
+func TestDarwinCollectorDefersShutdownEventWhenPendingIsSaturated(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
+	saturating := make([]string, 0, maxDarwinPendingEvents)
 	saturated := newDarwinBookmarkState()
 	for index := 0; index < maxDarwinPendingEvents; index++ {
 		event := validPersistedDarwinEvent(fmt.Sprintf("saturating-%03d", index))
 		saturated.Pending[event.ID] = event
+		saturating = append(saturating, event.ID)
 	}
 	store.state = saturated
 
 	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
 	runShutdownCheck(t, collector)
 
+	// The boot must stay unrecorded. Bookmarking it keys the check as done on
+	// the boot UUID alone, which would make the drop permanent.
 	assert.Len(t, collector.state.Pending, maxDarwinPendingEvents)
+	assert.Nil(t, collector.state.ShutdownCause)
+	require.NoError(t, validateDarwinBookmarkState(collector.state))
+	collector.stateMu.Lock()
+	deferred := collector.shutdownCauseDeferred
+	collector.stateMu.Unlock()
+	require.True(t, deferred)
+
+	require.NoError(t, collector.Ack(saturating))
+	collector.retryShutdownCauseIfDeferred()
+
+	require.Len(t, collector.Pending(), 1)
+	collector.stateMu.Lock()
+	defer collector.stateMu.Unlock()
 	require.NotNil(t, collector.state.ShutdownCause)
-	assert.Empty(t, collector.state.ShutdownCause.EventID)
+	assert.NotEmpty(t, collector.state.ShutdownCause.EventID)
 	require.NoError(t, validateDarwinBookmarkState(collector.state))
 }
 
