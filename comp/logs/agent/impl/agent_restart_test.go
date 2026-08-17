@@ -92,10 +92,11 @@ func (suite *RestartTestSuite) SetupTest() {
 	suite.source = sources.NewLogSource("", &logConfig)
 
 	suite.configOverrides["logs_config.run_path"] = suite.testDir
-	// Grace period must be generous enough for ARM64 CI to stop all
-	// components (launchers → pipelineProvider → destinationsCtx) before
-	// the timeout fires and the force-close path kicks in.
-	suite.configOverrides["logs_config.stop_grace_period"] = 0
+	// Short grace period for tests: long enough to exercise the graceful
+	// shutdown path, short enough to keep tests fast. Individual tests
+	// that don't start the pipeline (and thus can't stop gracefully)
+	// override this to 0.
+	suite.configOverrides["logs_config.stop_grace_period"] = 1
 	// Set a short scan period to allow it to run in the time period of the tcp and http tests
 	suite.configOverrides["logs_config.file_scan_period"] = 1
 
@@ -332,6 +333,10 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 }
 
 func (suite *RestartTestSuite) TestPartialStop_StopsTransientComponentsOnly() {
+	// This test doesn't call startPipeline, so the components can't stop
+	// gracefully; use a zero grace period to avoid waiting.
+	suite.configOverrides["logs_config.stop_grace_period"] = 0
+
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 	endpoint := tcp.AddrToEndPoint(l.Addr())
