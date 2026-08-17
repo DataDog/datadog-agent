@@ -167,26 +167,6 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             })
     }
 
-    async fn reload_config(
-        &self,
-        _request: Request<proto::ReloadConfigRequest>,
-    ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.cmd_tx
-            .send(Command::ReloadConfig { reply: reply_tx })
-            .await
-            .map_err(|_| Status::internal("event loop not available"))?;
-        let result = reply_rx
-            .await
-            .map_err(|_| Status::internal("event loop dropped reply"))??;
-        Ok(Response::new(proto::ReloadConfigResponse {
-            added: result.added,
-            removed: result.removed,
-            modified: result.modified,
-            unchanged: result.unchanged,
-        }))
-    }
-
     async fn get_config(
         &self,
         _request: Request<proto::GetConfigRequest>,

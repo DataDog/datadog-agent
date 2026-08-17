@@ -100,3 +100,22 @@ func removeInstallRootProcmgrConfigAtRoot(root *os.Root, absPathForLog string, s
 	}
 	return nil
 }
+
+// removeEmptyProcessesDir drops installRoot\processes.d after fleet prerm removed the last YAML.
+// MSI uninstall cleanup removes the empty directory before deleting the install root.
+func removeEmptyProcessesDir(installRoot string) {
+	if installRoot == "" {
+		return
+	}
+	processesDir := filepath.Join(installRoot, "processes.d")
+	entries, err := os.ReadDir(processesDir)
+	if err != nil {
+		return
+	}
+	if len(entries) > 0 {
+		return
+	}
+	if err := os.Remove(processesDir); err != nil && !os.IsNotExist(err) {
+		log.Debugf("processes.d: remove empty dir %q: %v", processesDir, err)
+	}
+}
