@@ -1238,6 +1238,7 @@ type PackageState struct {
 	RunningConfigVersion    string                 `protobuf:"bytes,14,opt,name=running_config_version,json=runningConfigVersion,proto3" json:"running_config_version,omitempty"`
 	HeartbeatTimestamp      uint64                 `protobuf:"varint,15,opt,name=heartbeat_timestamp,json=heartbeatTimestamp,proto3" json:"heartbeat_timestamp,omitempty"`
 	Completion              float32                `protobuf:"fixed32,16,opt,name=completion,proto3" json:"completion,omitempty"`
+	DdotProcessState        string                 `protobuf:"bytes,17,opt,name=ddot_process_state,json=ddotProcessState,proto3" json:"ddot_process_state,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1340,6 +1341,13 @@ func (x *PackageState) GetCompletion() float32 {
 		return x.Completion
 	}
 	return 0
+}
+
+func (x *PackageState) GetDdotProcessState() string {
+	if x != nil {
+		return x.DdotProcessState
+	}
+	return ""
 }
 
 type PackageStateTask struct {
@@ -2502,7 +2510,7 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\x04tags\x18\x01 \x03(\tR\x04tags\x128\n" +
 	"\bpackages\x18\x02 \x03(\v2\x1c.datadog.config.PackageStateR\bpackages\x120\n" +
 	"\x14available_disk_space\x18\x03 \x01(\x04R\x12availableDiskSpace\x12&\n" +
-	"\x0fsecrets_pub_key\x18\x04 \x01(\tR\rsecretsPubKey\"\xf8\x03\n" +
+	"\x0fsecrets_pub_key\x18\x04 \x01(\tR\rsecretsPubKey\"\xa6\x04\n" +
 	"\fPackageState\x12\x18\n" +
 	"\apackage\x18\x01 \x01(\tR\apackage\x12%\n" +
 	"\x0estable_version\x18\x02 \x01(\tR\rstableVersion\x12-\n" +
@@ -2515,7 +2523,8 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\x13heartbeat_timestamp\x18\x0f \x01(\x04R\x12heartbeatTimestamp\x12\x1e\n" +
 	"\n" +
 	"completion\x18\x10 \x01(\x02R\n" +
-	"completionJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"completion\x12,\n" +
+	"\x12ddot_process_state\x18\x11 \x01(\tR\x10ddotProcessStateJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\v\"\x84\x01\n" +
 	"\x10PackageStateTask\x12\x0e\n" +

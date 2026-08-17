@@ -14,6 +14,7 @@ go_library(
         "collector_windows.go",
         "paths_notwindows.go",
         "paths_windows.go",
+        "process_state.go",
         "reporter.go",
         "services.go",
         "snapshot.go",
@@ -115,7 +116,10 @@ go_library(
 
 dd_agent_go_test(
     name = "coat_test",
-    srcs = ["collector_test.go"],
+    srcs = [
+        "collector_test.go",
+        "process_state_test.go",
+    ],
     embed = [":coat"],
     deps = [
         "//pkg/proto/pbgo/procmgr",
