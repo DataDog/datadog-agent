@@ -31,9 +31,11 @@ const (
 	// machine-controlled and crosses into an event payload.
 	maxShutdownTokens = 128
 	// maxShutdownTokenBytes bounds one token. The native reader sizes its buffer
-	// from the string and never shortens a token, so this is the only cap on
-	// token length, and exceeding it rejects the payload rather than trimming
-	// it. The longest token on the measured hardware is 35 bytes.
+	// from the string and never shortens a token, so this is the cap on token
+	// length, and exceeding it rejects the payload rather than trimming it. The
+	// reader mirrors this value as DD_PMU_MAX_TOKEN_CHARS to keep the length it
+	// sizes that buffer from bounded; changing one means changing both. The
+	// longest token on the measured hardware is 35 bytes.
 	maxShutdownTokenBytes = 128
 )
 

@@ -17,6 +17,14 @@
 #define DD_PMU_MAX_SERVICES 64
 #define DD_PMU_MAX_TOKENS_PER_SERVICE 128
 
+// DD_PMU_MAX_TOKEN_CHARS bounds one token's length, and with it the render
+// buffer sized from that length. It mirrors maxShutdownTokenBytes in the Go
+// classifier: a UTF-8 encoding is never shorter than the string's UTF-16
+// length, so a longer string cannot pass that limit either. Rejecting it here
+// declines the same payload the classifier would, before its length can decide
+// an allocation size.
+#define DD_PMU_MAX_TOKEN_CHARS 128
+
 // DD_PMU_TOKEN_INLINE_BYTES is the stack fast path for the common short token,
 // not a maximum: a token longer than this is rendered through the heap rather
 // than shortened. The longest token on the measured hardware is 35 bytes.
@@ -68,10 +76,16 @@ static int dd_pkg_notableevents_append_tokens(
         }
         CFStringRef text = (CFStringRef)element;
 
+        CFIndex length = CFStringGetLength(text);
+        if (length > DD_PMU_MAX_TOKEN_CHARS) {
+            return -3;
+        }
+
         // Sized from the string rather than from a fixed maximum, so the buffer
-        // cannot be the reason a token fails to render.
+        // cannot be the reason a token fails to render. The length is bounded
+        // above, which is what keeps the sizing from reaching malloc unchecked.
         CFIndex capacity = CFStringGetMaximumSizeForEncoding(
-            CFStringGetLength(text),
+            length,
             kCFStringEncodingUTF8);
         if (capacity <= 0) {
             continue;
