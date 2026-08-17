@@ -908,15 +908,32 @@ class TestCheckForChanges(unittest.TestCase):
 
 
 class TestUpdateModules(unittest.TestCase):
-    @patch('tasks.release.get_default_modules')
+    @patch('tasks.release._get_module_pseudo_version', return_value="v0.53.5-0.20260817123456-abcdef123456")
     @patch('tasks.release.agent_context', new=MagicMock())
-    def test_skips_agent6_rc_dependency_updates(self, get_default_modules_mock):
-        c = MockContext(run=Result("yolo"))
+    def test_uses_pseudo_versions_for_agent6_rc_dependencies(self, get_module_pseudo_version_mock):
+        c = MockContext(run=Result("rccommit\n"))
+        consumer = GoModule('pkg/consumer')
+        consumer._dependencies = ['pkg/dependency']
+        dependency = GoModule('pkg/dependency')
+        dependency._dependencies = []
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = [consumer]
+            mock_dict.__getitem__.return_value = dependency
+            mock_modules.return_value = mock_dict
 
-        release.update_modules(c, version="6.53.5-rc.2")
+            release.update_modules(c, version="6.53.5-rc.2")
 
-        get_default_modules_mock.assert_not_called()
-        self.assertEqual(c.run.call_count, 0)
+        get_module_pseudo_version_mock.assert_called_once_with(c, dependency, "rccommit")
+        c.run.assert_has_calls(
+            [
+                call("git rev-parse HEAD", hide=True),
+                call(
+                    "go mod edit -require=github.com/DataDog/datadog-agent/pkg/dependency@v0.53.5-0.20260817123456-abcdef123456 "
+                    + consumer.go_mod_path()
+                ),
+            ]
+        )
 
     @patch('tasks.release.agent_context', new=MagicMock())
     def test_update_module_no_run_for_optional_in_agent_6(self):
