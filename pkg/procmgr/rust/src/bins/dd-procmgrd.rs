@@ -27,7 +27,6 @@ fn run() -> anyhow::Result<()> {
     use dd_procmgrd::config::YamlConfigLoader;
     use dd_procmgrd::manager::ProcessManager;
     use dd_procmgrd::uuid_gen::V4UuidGenerator;
-    use log::info;
     use std::sync::Arc;
 
     dd_agent_log::init(dd_agent_log::LogConfig {
@@ -35,7 +34,6 @@ fn run() -> anyhow::Result<()> {
         level: log::Level::Info,
         log_file: None,
     })?;
-    info!("dd-procmgrd starting");
 
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
