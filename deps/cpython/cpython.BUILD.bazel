@@ -418,6 +418,7 @@ pkg_filegroup(
 pkg_files(
     name = "install_files_win",
     srcs = [":python_win"],
+    strip_prefix = "build",
 )
 
 # On Windows, python_win is built via MSBuild (not cc_shared_library), so there are no
