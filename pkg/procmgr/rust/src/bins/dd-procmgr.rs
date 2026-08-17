@@ -358,7 +358,7 @@ async fn cmd_describe(
     let detail = resp.detail.ok_or("no detail returned")?;
 
     if json {
-        let val = serde_json::json!({
+        let mut val = serde_json::json!({
             "uuid": detail.uuid,
             "name": detail.name,
             "description": detail.description,
@@ -366,7 +366,6 @@ async fn cmd_describe(
             "pid": detail.pid,
             "profile": detail.profile,
             "user": detail.user,
-            "runtime_user": detail.runtime_user,
             "command": detail.command,
             "args": detail.args,
             "working_dir": detail.working_dir,
@@ -382,6 +381,9 @@ async fn cmd_describe(
             "after": detail.after,
             "before": detail.before,
         });
+        if !detail.runtime_user.is_empty() {
+            val["runtime_user"] = serde_json::json!(detail.runtime_user);
+        }
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
         return Ok(());
     }
