@@ -11,8 +11,15 @@ use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
 use std::collections::VecDeque;
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
+
+pub(crate) struct ProcessExit {
+    pub name: String,
+    pub pid: u32,
+    pub status: std::process::ExitStatus,
+}
 
 struct RestartTracker {
     count: u32,
@@ -362,6 +369,38 @@ impl ManagedProcess {
             self.transition_to(ProcessState::Failed);
         }
         result
+    }
+
+    pub(crate) fn spawn_and_watch(&mut self, exit_tx: mpsc::Sender<ProcessExit>) -> Result<()> {
+        self.spawn()?;
+        if let Some(mut proc_handle) = self.take_handle() {
+            let name = self.name().to_owned();
+            let pid = self.pid().unwrap_or(0);
+            let watcher_handle = tokio::spawn(async move {
+                let status = match proc_handle.wait().await {
+                    Ok(status) => status,
+                    Err(e) => {
+                        warn!("[{name}] wait error: {e}, killing process");
+                        let _ = proc_handle.kill().await;
+                        match proc_handle.wait().await {
+                            Ok(s) => s,
+                            Err(e2) => {
+                                warn!("[{name}] failed to reap after kill: {e2}");
+                                return None;
+                            }
+                        }
+                    }
+                };
+                let _ = exit_tx.try_send(ProcessExit {
+                    name: name.clone(),
+                    pid,
+                    status,
+                });
+                Some(status)
+            });
+            self.set_watcher_handle(watcher_handle);
+        }
+        Ok(())
     }
 
     fn try_spawn(&mut self) -> Result<()> {
