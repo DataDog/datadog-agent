@@ -1,0 +1,43 @@
+"""Toolchains providing strip/objcopy/dsymutil for debug-symbol splitting."""
+
+load(":configure.bzl", "dd_strip_macos_toolchain")
+load(":toolchain.bzl", "dd_strip_cc_toolchain")
+
+# Provides paths to strip/objcopy/dsymutil, sourced either from the resolved
+# cc_toolchain (Linux, Windows) or hardcoded to macOS system paths.
+toolchain_type(
+    name = "toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+dd_strip_cc_toolchain(
+    name = "dd_strip_cc_impl",
+)
+
+dd_strip_macos_toolchain(
+    name = "dd_strip_macos_impl",
+)
+
+toolchain(
+    name = "dd_strip_linux_toolchain",
+    exec_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = ["@platforms//os:linux"],
+    toolchain = ":dd_strip_cc_impl",
+    toolchain_type = ":toolchain_type",
+)
+
+toolchain(
+    name = "dd_strip_windows_toolchain",
+    exec_compatible_with = ["@platforms//os:windows"],
+    target_compatible_with = ["@platforms//os:windows"],
+    toolchain = ":dd_strip_cc_impl",
+    toolchain_type = ":toolchain_type",
+)
+
+toolchain(
+    name = "dd_strip_macos_toolchain",
+    exec_compatible_with = ["@platforms//os:macos"],
+    target_compatible_with = ["@platforms//os:macos"],
+    toolchain = ":dd_strip_macos_impl",
+    toolchain_type = ":toolchain_type",
+)
