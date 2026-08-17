@@ -3806,8 +3806,8 @@
   
 
 
-<h1 id="using-components-and-bundles">Using Components and Bundles<a class="headerlink" href="#using-components-and-bundles" title="Permanent link">&para;</a></h1>
-<h2 id="component-dependencies">Component Dependencies<a class="headerlink" href="#component-dependencies" title="Permanent link">&para;</a></h2>
+<h1 id="using-components-and-bundles">Using Components and Bundles</h1>
+<h2 id="component-dependencies">Component Dependencies</h2>
 <p>Component dependencies are automatically determined from the arguments to a component constructor. Most components have a few dependencies, and use a struct named <code>dependencies</code> to represent them:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">dependencies</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">In</span>
@@ -3828,7 +3828,7 @@
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">t</span>
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<h2 id="testing">Testing</h2>
 <p>Testing for a component should use <code>fxtest</code> to create the component. This focuses testing on the API surface of the component against which other components will be built. Per-function unit tests are, of course, also great where appropriate!</p>
 <p>Here's an example testing a component with a mocked dependency on <code>other</code>:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestMyComponent</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
