@@ -26,8 +26,8 @@ const (
 )
 
 const (
-	// maxShutdownTokens bounds the token union. The PMU dictionary on the
-	// measured hardware holds 80 entries, but the property is
+	// maxShutdownTokens bounds the distinct token union. The PMU dictionary on
+	// the measured hardware holds 80 entries, but the property is
 	// machine-controlled and crosses into an event payload.
 	maxShutdownTokens = 128
 	// maxShutdownTokenBytes bounds one token.
@@ -178,19 +178,27 @@ func tokenFamily(token string) string {
 
 // validatePMUBootFaultInfo rejects a payload that cannot be trusted as event
 // content. A rejected read is never partially classified.
+//
+// The token bound counts the distinct union rather than the raw total, because
+// that is what classifyShutdownTokens carries into the payload. Every PMU
+// republishes the same token set, so a raw count charges the bound once per
+// publishing service: the measured pattern C payload is 11 raw tokens for 6
+// distinct across 3 groups, and with DD_PMU_MAX_SERVICES publishers a raw count
+// would leave roughly maxShutdownTokens/N usable against an 80-token
+// dictionary, rejecting whole payloads that are well inside the real limit.
 func validatePMUBootFaultInfo(info pmuBootFaultInfo) error {
-	total := 0
+	distinct := make(map[string]struct{})
 	for _, group := range info.Groups {
 		for _, token := range group {
-			total++
-			if total > maxShutdownTokens {
-				return fmt.Errorf("more than %d PMU fault tokens", maxShutdownTokens)
-			}
 			if len(token) > maxShutdownTokenBytes {
 				return fmt.Errorf("PMU fault token exceeds %d bytes", maxShutdownTokenBytes)
 			}
 			if !isShutdownToken(token) {
 				return fmt.Errorf("malformed PMU fault token %q", token)
+			}
+			distinct[token] = struct{}{}
+			if len(distinct) > maxShutdownTokens {
+				return fmt.Errorf("more than %d distinct PMU fault tokens", maxShutdownTokens)
 			}
 		}
 	}

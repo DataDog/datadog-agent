@@ -476,7 +476,11 @@ func (c *Collector) checkShutdownCauseOnce() {
 		return
 	}
 	if err := validatePMUBootFaultInfo(info); err != nil {
+		// Recorded as examined, not as an event. The property does not change
+		// until the next boot, so without a bookmark every Agent start re-reads
+		// it and repeats this warning for a payload that will never classify.
 		log.Warnf("Ignoring untrusted macOS shutdown-cause payload: %v", err)
+		c.publishShutdownCause(bootUUID, nil)
 		return
 	}
 

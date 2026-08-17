@@ -298,6 +298,31 @@ func TestValidatePMUBootFaultInfoRejectsUntrustedPayloads(t *testing.T) {
 	}
 }
 
+// TestValidatePMUBootFaultInfoBoundsTheDistinctUnion proves the token bound is
+// charged once for a token rather than once per publishing service. Several
+// PMUs republishing the same set is the normal case, so a raw count would
+// reject payloads whose distinct union is well inside the limit.
+func TestValidatePMUBootFaultInfoBoundsTheDistinctUnion(t *testing.T) {
+	dictionary := allPMUFaultTokens()
+	require.Less(t, len(dictionary), maxShutdownTokens)
+
+	republished := pmuBootFaultInfo{}
+	for range 3 {
+		republished.Groups = append(republished.Groups, dictionary)
+	}
+	// 240 raw tokens, 80 distinct.
+	require.NoError(t, validatePMUBootFaultInfo(republished))
+
+	// The bound still applies to the union itself.
+	oversized := make([]string, maxShutdownTokens+1)
+	for index := range oversized {
+		oversized[index] = fmt.Sprintf("ot,sensor_%d", index)
+	}
+	require.Error(t, validatePMUBootFaultInfo(pmuBootFaultInfo{
+		Groups: [][]string{oversized[:64], oversized[64:]},
+	}))
+}
+
 func TestValidatePMUBootFaultInfoAcceptsTheFullDictionary(t *testing.T) {
 	for _, token := range allPMUFaultTokens() {
 		require.NoError(t, validatePMUBootFaultInfo(pmuBootFaultInfo{Groups: [][]string{{token}}}), token)

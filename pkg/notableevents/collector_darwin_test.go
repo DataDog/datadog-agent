@@ -1855,12 +1855,16 @@ func TestDarwinCollectorSurvivesShutdownCauseReadFailures(t *testing.T) {
 			expectRecorded: true,
 		},
 		{
+			// Recorded without an event: the property cannot change before the
+			// next boot, so re-reading it on every Agent start only repeats the
+			// warning.
 			name: "untrusted payload",
 			install: func(c *Collector) {
 				c.readShutdownCause = func() (pmuBootFaultInfo, error) {
 					return pmuBootFaultInfo{Groups: [][]string{{"ot,<script>"}}}, nil
 				}
 			},
+			expectRecorded: true,
 		},
 		{
 			name: "boot session uuid unreadable",
