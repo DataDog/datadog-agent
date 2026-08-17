@@ -97,10 +97,18 @@ func (w *workloadBalancingImpl) onWorkloadBalancingUpdate(updates map[string]sta
 
 		var cfg workloadBalancingRCConfig
 		parseErr := json.Unmarshal(rawConfig.Config, &cfg)
-		if parseErr != nil || cfg.WorkloadBalancingGroupID == "" {
-			applyErr := "missing workload_balancing_group_id"
-			if parseErr != nil {
+		if parseErr != nil || cfg.WorkloadBalancingGroupID == "" || cfg.ActiveAgent == "" {
+			var applyErr string
+			switch {
+			case parseErr != nil:
 				applyErr = "error unmarshalling payload"
+			case cfg.WorkloadBalancingGroupID == "":
+				applyErr = "missing workload_balancing_group_id"
+			default:
+				// An empty active_agent isn't "nobody's active yet": stateForActiveAgent would
+				// put every Agent on standby, turning an incomplete document into a silent
+				// outage instead of the safe direction (duplicate over gap).
+				applyErr = "missing active_agent"
 			}
 			w.log.Warnf("Skipping invalid workload balancing update %s: %s", configPath, applyErr)
 			applyStateCallback(configPath, state.ApplyStatus{
