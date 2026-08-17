@@ -12,6 +12,7 @@ package workloadbalancing
 type Component interface {
 	// IsGroupActive returns whether this Agent should execute checks for the given workload
 	// balancing group. A group with no assignment yet, or assigned to this Agent, is active;
-	// only a group explicitly assigned to another Agent is not.
+	// only a group explicitly assigned to another Agent is not -- and only when
+	// agent_workload_balancing.enabled is true, which always returns true otherwise.
 	IsGroupActive(groupID string) bool
 }

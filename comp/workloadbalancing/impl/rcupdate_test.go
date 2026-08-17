@@ -6,15 +6,28 @@
 package workloadbalancingimpl
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 const testRCConfigPath = "datadog/2/HA_AGENT/config-workload-balancing/1"
+
+// erroringHostname always fails to resolve, to exercise onWorkloadBalancingUpdate's early return.
+type erroringHostname struct{}
+
+func (erroringHostname) Get(context.Context) (string, error) { return "", errors.New("boom") }
+func (erroringHostname) GetWithProvider(context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{}, errors.New("boom")
+}
+func (erroringHostname) GetSafe(context.Context) string { return "unknown host" }
 
 func newTestWorkloadBalancingImplWithHaAgent(t *testing.T, haAgentEnabled bool) *workloadBalancingImpl {
 	haAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
@@ -71,6 +84,17 @@ func Test_onWorkloadBalancingUpdate(t *testing.T) {
 			expectGroupID:      "group-01",
 			expectGroupState:   groupStateActive,
 			expectGroupPresent: true,
+		},
+		{
+			// The group ID itself is unrecoverable, so there is no group to attribute the
+			// previous assignment to; group-01's entry from a prior poll cannot be kept and
+			// is dropped (reverting to unmanaged, which still runs -- duplicate over gap).
+			name:              "malformed document with an unrecoverable group ID reports an error",
+			initialGroups:     map[string]groupState{"group-01": groupStateActive},
+			updates:           map[string]state.RawConfig{testRCConfigPath: {Config: []byte(`{"type":"workload_balancing","workload_balancing_group_id":123,"active_agent":"x"}`)}},
+			expectApplyID:     testRCConfigPath,
+			expectApplyStatus: state.ApplyStatus{State: state.ApplyStateError, Error: "error unmarshalling payload"},
+			expectApplyCalled: true,
 		},
 		{
 			name:              "genuinely malformed document, HA Agent enabled, left for HA Agent",
@@ -132,6 +156,34 @@ func Test_onWorkloadBalancingUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_onWorkloadBalancingUpdate_hostnameErrorSkipsTheUpdate(t *testing.T) {
+	haAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+	haAgent.SetEnabled(false)
+
+	w := newWorkloadBalancingImpl(logmock.New(t), erroringHostname{}, haAgent, &workloadBalancingConfigs{enabled: true})
+
+	applyCalled := false
+	w.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+		testRCConfigPath: {Config: []byte(`{"type":"workload_balancing","workload_balancing_group_id":"group-01","active_agent":"my-agent-hostname"}`)},
+	}, func(string, state.ApplyStatus) { applyCalled = true })
+
+	assert.False(t, applyCalled)
+	assert.True(t, w.IsGroupActive("group-01"))
+}
+
+func Test_onWorkloadBalancingUpdate_unrecoverableGroupIDClearsThatGroup(t *testing.T) {
+	w := newTestWorkloadBalancingImplWithHaAgent(t, true)
+	w.groups = map[string]groupState{"group-01": groupStateStandby}
+
+	w.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+		testRCConfigPath: {Config: []byte(`{"type":"workload_balancing","workload_balancing_group_id":123,"active_agent":"x"}`)},
+	}, func(string, state.ApplyStatus) {})
+
+	// Nothing in the batch identified group-01, so its prior assignment cannot be kept and
+	// it reverts to unmanaged -- which still runs, the safe direction.
+	assert.True(t, w.IsGroupActive("group-01"))
 }
 
 func Test_onWorkloadBalancingUpdate_localFlagDisabled_stillClaimedAndReported(t *testing.T) {

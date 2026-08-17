@@ -98,16 +98,23 @@ func (w *workloadBalancingImpl) onWorkloadBalancingUpdate(updates map[string]sta
 		var cfg workloadBalancingRCConfig
 		parseErr := json.Unmarshal(rawConfig.Config, &cfg)
 		if parseErr != nil || cfg.WorkloadBalancingGroupID == "" {
-			w.log.Warnf("Skipping invalid workload balancing update %s: %v", configPath, parseErr)
+			applyErr := "missing workload_balancing_group_id"
+			if parseErr != nil {
+				applyErr = "error unmarshalling payload"
+			}
+			w.log.Warnf("Skipping invalid workload balancing update %s: %s", configPath, applyErr)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: "error unmarshalling payload",
+				Error: applyErr,
 			})
 			// keepPreviousAssignment: a malformed document isn't the same as an absent one. Only
-			// possible when the group ID itself parsed despite another field failing.
+			// possible when the group ID itself parsed despite another field failing, and only
+			// if this pass hasn't already computed a real value for that group.
 			if cfg.WorkloadBalancingGroupID != "" {
-				if prev, ok := previousGroups[cfg.WorkloadBalancingGroupID]; ok {
-					seenGroups[cfg.WorkloadBalancingGroupID] = prev
+				if _, done := seenGroups[cfg.WorkloadBalancingGroupID]; !done {
+					if prev, ok := previousGroups[cfg.WorkloadBalancingGroupID]; ok {
+						seenGroups[cfg.WorkloadBalancingGroupID] = prev
+					}
 				}
 			}
 			continue
