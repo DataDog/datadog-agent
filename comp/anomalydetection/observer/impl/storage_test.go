@@ -35,7 +35,7 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 
 func TestDefaultStorageConfigIncludesInactiveSeriesEviction(t *testing.T) {
 	cfg := DefaultStorageConfig()
-	assert.Equal(t, int64(20*60), cfg.InactiveSeriesTTLSeconds)
+	assert.Equal(t, int64(5*60), cfg.InactiveSeriesTTLSeconds)
 	assert.Equal(t, int64(5*60), cfg.InactiveSeriesCheckIntervalSeconds)
 }
 

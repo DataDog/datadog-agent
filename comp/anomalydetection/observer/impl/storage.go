@@ -83,7 +83,7 @@ const (
 
 	// storageInactiveSeriesTTLSeconds is the default inactivity lifetime for
 	// non-telemetry series. Inactivity is evaluated against advance timestamps.
-	storageInactiveSeriesTTLSeconds = 20 * 60
+	storageInactiveSeriesTTLSeconds = 5 * 60
 
 	// storageInactiveSeriesCheckIntervalSeconds bounds the work done by
 	// inactivity scans while keeping eviction deterministic under replay.
