@@ -16,7 +16,6 @@ import (
 
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	agentclient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 
 	"github.com/stretchr/testify/assert"
@@ -126,19 +125,19 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 		windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
 		windowsAgent.WithValidAPIKey(),
 		windowsAgent.WithFakeIntake(suite.Env().FakeIntake),
+		windowsAgent.WithLogLevel("debug"),
 		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "TC-UPG-DC-001_install_last_stable.log")))
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
 
 	tc := suite.NewTestClientForHost(suite.Env().RemoteHost)
-	suite.setLogLevelDebug(tc)
 	platformCommon.CheckAgentBehaviour(suite.T(), tc)
 
 	_, err = suite.InstallAgent(host,
 		windowsAgent.WithPackage(suite.AgentPackage),
+		windowsAgent.WithLogLevel("debug"),
 		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "TC-UPG-DC-001_upgrade.log")))
 	suite.Require().NoError(err, "should succeed to upgrade an Agent on a Domain Controller")
-	suite.setLogLevelDebug(tc)
 
 	tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())
 	platformCommon.CheckAgentBehaviour(suite.T(), tc)
@@ -147,14 +146,6 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, stats)
 	}, 5*time.Minute, 10*time.Second)
-}
-
-// setLogLevelDebug sets the running Agent's log level to debug, to get more detail in the
-// collected agent logs if this test fails (see AfterTest below). This is a runtime setting,
-// so it must be re-applied after the Agent process restarts (e.g. after the upgrade step).
-func (suite *testUpgradeSuite) setLogLevelDebug(tc *platformCommon.TestClient) {
-	_, err := tc.AgentClient.ConfigWithError(agentclient.WithArgs([]string{"set", "log_level", "debug"}))
-	suite.Require().NoError(err, "should set log_level to debug")
 }
 
 // AfterTest collects the Agent logs when the test fails, to help debug issues like the
