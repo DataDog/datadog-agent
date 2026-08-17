@@ -26,6 +26,11 @@ import (
 var databaseIdentifierVariablePattern = regexp.MustCompile(`\$\$|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*`)
 
 const (
+	postgresConfigIDPrefix = "do-"
+	mysqlConfigIDPrefix    = "do-mysql-"
+	mssqlConfigIDPrefix    = "do-mssql-"
+	sapHANAConfigIDPrefix  = "do-hana-"
+
 	mysqlPortFallback    = "0"
 	postgresPortFallback = "5432"
 )
@@ -64,6 +69,24 @@ type managedBaseEntry struct {
 // isSupportedIntegration reports whether name is a supported DB integration.
 func isSupportedIntegration(name string) bool {
 	return name == "mysql" || name == "postgres" || name == "sap_hana" || name == "sqlserver"
+}
+
+// integrationForConfigID maps the platform-specific prefixes assigned by the DO RC reconciler to
+// Agent integration names. The specific prefixes must be checked before the legacy PostgreSQL
+// prefix because they all begin with "do-".
+func integrationForConfigID(configID string) (string, bool) {
+	switch {
+	case strings.HasPrefix(configID, mysqlConfigIDPrefix):
+		return "mysql", true
+	case strings.HasPrefix(configID, mssqlConfigIDPrefix):
+		return "sqlserver", true
+	case strings.HasPrefix(configID, sapHANAConfigIDPrefix):
+		return "sap_hana", true
+	case strings.HasPrefix(configID, postgresConfigIDPrefix):
+		return "postgres", true
+	default:
+		return "", false
+	}
 }
 
 // instanceHost returns the host/server field for an integration instance,
@@ -359,7 +382,8 @@ func (c *component) resolveBaseConfig(configID string, dbID *DBIdentifier, queri
 	existing, alreadyActive := c.activeConfigs[configID]
 	c.activeConfigsMu.Unlock()
 
-	if alreadyActive {
+	expectedIntegration, scopedByConfigID := integrationForConfigID(configID)
+	if alreadyActive && (!scopedByConfigID || existing.baseCfg.Name == expectedIntegration) {
 		instance, identity, err := c.findMatchingInstance(existing.baseCfg, dbID, queries)
 		if instance != nil {
 			return existing.baseCfg, instance, identity, nil
@@ -371,22 +395,27 @@ func (c *component) resolveBaseConfig(configID string, dbID *DBIdentifier, queri
 			c.log.Warnf("Stored base config for %s no longer parses cleanly, re-resolving: %v", configID, err)
 		}
 	}
-	return c.findMatchingConfig(dbID, queries)
+	return c.findMatchingConfig(configID, dbID, queries)
 }
 
 // findMatchingConfig finds an enabled supported integration instance matching the identifier and
-// queries.
-func (c *component) findMatchingConfig(dbID *DBIdentifier, queries []QuerySpec) (*integration.Config, map[string]any, instanceConfigIdentity, error) {
+// queries. Production DO config IDs scope the search to their database integration; unscoped IDs
+// retain the legacy search behavior for compatibility with manually constructed payloads.
+func (c *component) findMatchingConfig(configID string, dbID *DBIdentifier, queries []QuerySpec) (*integration.Config, map[string]any, instanceConfigIdentity, error) {
 	if dbID.Host == "" {
 		return nil, nil, instanceConfigIdentity{}, errEmptyIdentifierHost
 	}
 
 	cfgs := c.ac.GetUnresolvedConfigs()
 	var lastParseErr error
+	expectedIntegration, scopedByConfigID := integrationForConfigID(configID)
 
 	for cfgIdx := range cfgs {
 		cfg := &cfgs[cfgIdx]
 		if !isSupportedIntegration(cfg.Name) {
+			continue
+		}
+		if scopedByConfigID && cfg.Name != expectedIntegration {
 			continue
 		}
 		instance, identity, err := c.findMatchingInstance(cfg, dbID, queries)

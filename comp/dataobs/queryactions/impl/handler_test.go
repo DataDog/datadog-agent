@@ -67,6 +67,28 @@ func TestIsSupportedIntegration(t *testing.T) {
 	}
 }
 
+func TestIntegrationForConfigID(t *testing.T) {
+	testCases := []struct {
+		configID    string
+		integration string
+		matched     bool
+	}{
+		{configID: "do-0123456789abcdef", integration: "postgres", matched: true},
+		{configID: "do-mysql-0123456789abcdef", integration: "mysql", matched: true},
+		{configID: "do-mssql-0123456789abcdef", integration: "sqlserver", matched: true},
+		{configID: "do-hana-0123456789abcdef", integration: "sap_hana", matched: true},
+		{configID: "manual-config", matched: false},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.configID, func(t *testing.T) {
+			integrationName, ok := integrationForConfigID(testCase.configID)
+			assert.Equal(t, testCase.matched, ok)
+			assert.Equal(t, testCase.integration, integrationName)
+		})
+	}
+}
+
 func TestInstanceHasDOEnabled(t *testing.T) {
 	assert.False(t, instanceHasDOEnabled(map[string]any{}))
 	assert.False(t, instanceHasDOEnabled(map[string]any{"data_observability": "not-a-map"}))
@@ -918,13 +940,63 @@ func TestFindMatchingConfig_TemplatedIdentifiersDistinguishPorts(t *testing.T) {
 
 	for _, port := range []int{5432, 5433} {
 		t.Run(strconv.Itoa(port), func(t *testing.T) {
-			_, instance, _, err := c.findMatchingConfig(&DBIdentifier{
+			_, instance, _, err := c.findMatchingConfig("do-0123456789abcdef", &DBIdentifier{
 				Type:          "self-hosted",
 				Host:          fmt.Sprintf("do-test-postgres-staging:%d", port),
 				AgentHostname: "do-test-postgres-staging",
 			}, nil)
 			require.NoError(t, err)
 			assert.Equal(t, port, instance["port"])
+		})
+	}
+}
+
+func TestFindMatchingConfig_ConfigIDScopesIntegration(t *testing.T) {
+	const sharedHost = "shared-db.example.com"
+	configs := map[string]integration.Config{
+		"postgres": {
+			Name:      "postgres",
+			Instances: []integration.Data{integration.Data("host: " + sharedHost + "\ndata_observability:\n  enabled: true\n")},
+		},
+		"mysql": {
+			Name:      "mysql",
+			Instances: []integration.Data{integration.Data("host: " + sharedHost + "\ndata_observability:\n  enabled: true\n")},
+		},
+		"sqlserver": {
+			Name:      "sqlserver",
+			Instances: []integration.Data{integration.Data("host: " + sharedHost + "\ndata_observability:\n  enabled: true\n")},
+		},
+		"sap_hana": {
+			Name:      "sap_hana",
+			Instances: []integration.Data{integration.Data("server: " + sharedHost + "\ndata_observability:\n  enabled: true\n")},
+		},
+	}
+
+	for _, testCase := range []struct {
+		name                string
+		configID            string
+		expectedIntegration string
+		wrongIntegration    string
+	}{
+		{name: "postgres", configID: "do-0123456789abcdef", expectedIntegration: "postgres", wrongIntegration: "mysql"},
+		{name: "mysql", configID: "do-mysql-0123456789abcdef", expectedIntegration: "mysql", wrongIntegration: "postgres"},
+		{name: "mssql", configID: "do-mssql-0123456789abcdef", expectedIntegration: "sqlserver", wrongIntegration: "postgres"},
+		{name: "sap hana", configID: "do-hana-0123456789abcdef", expectedIntegration: "sap_hana", wrongIntegration: "postgres"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			c := newTestComponentWithAC(t, []integration.Config{
+				configs[testCase.wrongIntegration],
+				configs[testCase.expectedIntegration],
+			})
+
+			matchedConfig, _, _, err := c.findMatchingConfig(
+				testCase.configID,
+				&DBIdentifier{Type: "self-hosted", Host: sharedHost},
+				nil,
+			)
+
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedIntegration, matchedConfig.Name)
 		})
 	}
 }
