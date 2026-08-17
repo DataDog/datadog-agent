@@ -102,6 +102,12 @@ func dispatcherQueueSize(cfg *config.Config) int {
 		size *= numCPU
 	}
 
+	// Apply the global minimum floor, regardless of the number of CPUs, so the
+	// queue never ends up too small on low-core-count machines.
+	if cfg.EventStreamDispatcherQueueSizeMin > size {
+		size = cfg.EventStreamDispatcherQueueSizeMin
+	}
+
 	return size
 }
 
