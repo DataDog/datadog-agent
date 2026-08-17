@@ -29,7 +29,8 @@ import (
 // forecast residual on the ramp itself and a large one on the jump.
 //
 // Memory per (series, aggregation): a 24-point warmup buffer, a
-// 60-residual MAD window, a 60-value MAD window, plus scalars — ~1.5 KB.
+// 60-residual MAD window, plus scalars. The raw-value gate reads its bounded
+// history from storage into detector-global scratch.
 // Per-tick cost: O(1) smoother update + O(W log W) MAD recompute (W=60),
 // dominated by the two sort.Float64s calls inside detectorMAD.
 
@@ -44,9 +45,6 @@ const (
 	holtConfirmM        = 2
 	holtMinDeviationMAD = 3.0
 	holtRefractory      = 20
-	// holtTimestampRing keeps the last N point timestamps for sampling-interval
-	// estimation — sized to match the warmup buffer for cheap reuse.
-	holtTimestampRing = 16
 	// holtPostFireSampleN is the number of recent non-fire residuals whose
 	// median is injected into the residual window in place of the fire's
 	// own residual (Hampel rejection, applied only to the threshold).
@@ -81,11 +79,9 @@ type holtSeriesState struct {
 	level float64
 	trend float64
 
-	// FIFO rolling windows; cap = ResidualWindow. resWin holds the last
-	// W one-step forecast residuals; valWin holds the last W raw values
-	// — used for the σ_value gate (effect size).
+	// FIFO residual window; cap = ResidualWindow. Residuals are derived model
+	// state and cannot be reconstructed from storage without replaying Holt.
 	resWin []float64
-	valWin []float64
 
 	// detection counters
 	consecutivePos      int
@@ -98,11 +94,6 @@ type holtSeriesState struct {
 	seriesName         string
 	seriesTags         []string
 
-	// recentTimestamps is a small ring of the most recently ingested point
-	// timestamps; used by medianTimestampInterval to estimate the sampling
-	// cadence for downstream correlators. We don't need a full window —
-	// 16 entries gives a robust median.
-	recentTimestamps  []int64
 	lastSeenTimestamp int64
 }
 
@@ -145,6 +136,11 @@ type HoltResidualDetector struct {
 	// scanwelch / scanmw / bocpd pattern).
 	cachedSeries []observer.SeriesMeta
 	cachedGen    uint64
+
+	// rawScratch is reused while serially advancing one series. It is not
+	// per-series state, so raw input history scales with window size only.
+	rawScratch   []observer.Point
+	valueScratch []float64
 }
 
 // HoltResidualConfig holds catalog/testbench tunables for HoltResidualDetector.
@@ -203,6 +199,11 @@ func NewHoltResidualDetectorWithConfig(cfg HoltResidualConfig) *HoltResidualDete
 
 // Name implements observer.Detector.
 func (d *HoltResidualDetector) Name() string { return "holt_residual" }
+
+func (d *HoltResidualDetector) RequiredHistoryPoints() int {
+	d.ensureDefaults()
+	return d.ResidualWindow
+}
 
 func (d *HoltResidualDetector) Ready() bool { return d.ready }
 
@@ -283,6 +284,11 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 				startTime = 0
 			}
 
+			d.rawScratch = storage.RecentPoints(meta.Ref, state.lastProcessedTime, agg, d.ResidualWindow, d.rawScratch)
+			d.valueScratch = d.valueScratch[:0]
+			for _, point := range d.rawScratch {
+				d.valueScratch = append(d.valueScratch, point.Value)
+			}
 			anomalies, pointsSeen := d.ingestNewPoints(storage, meta.Ref, agg, state, startTime, dataTime)
 			for j := range anomalies {
 				anomalies[j].SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
@@ -307,10 +313,8 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 // buffers. Splitting allocation here keeps Detect's hot path branch-free.
 func (d *HoltResidualDetector) newState() *holtSeriesState {
 	return &holtSeriesState{
-		warmupBuf:        make([]float64, 0, d.WarmupPoints),
-		resWin:           make([]float64, 0, d.ResidualWindow),
-		valWin:           make([]float64, 0, d.ResidualWindow),
-		recentTimestamps: make([]int64, 0, holtTimestampRing),
+		warmupBuf: make([]float64, 0, d.WarmupPoints),
+		resWin:    make([]float64, 0, d.ResidualWindow),
 	}
 }
 
@@ -356,9 +360,9 @@ func (d *HoltResidualDetector) ingestNewPoints(
 		state.lastSeenTimestamp = p.Timestamp
 		state.lastProcessedTime = p.Timestamp
 		state.lastProcessedValue = p.Value
-		pushTimestamp(state, p.Timestamp)
-
 		if !state.warmedUp {
+			d.rawScratch = appendRecentPoint(d.rawScratch, p, d.ResidualWindow)
+			d.valueScratch = appendRecentValue(d.valueScratch, p.Value, d.ResidualWindow)
 			state.warmupBuf = append(state.warmupBuf, p.Value)
 			if len(state.warmupBuf) >= d.WarmupPoints {
 				seedLevelTrend(state, d.WarmupPoints)
@@ -369,12 +373,15 @@ func (d *HoltResidualDetector) ingestNewPoints(
 			return
 		}
 
-		anomaly, hasFire := d.processPoint(state, p, agg)
-		if len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow {
+		anomaly, hasFire := d.processPoint(state, p, agg, d.valueScratch)
+		d.rawScratch = appendRecentPoint(d.rawScratch, p, d.ResidualWindow)
+		d.valueScratch = appendRecentValue(d.valueScratch, p.Value, d.ResidualWindow)
+		if len(state.resWin) >= d.ResidualWindow && len(d.rawScratch) >= d.ResidualWindow {
 			d.ready = true
 		}
 
 		if hasFire {
+			anomaly.SamplingIntervalSec = medianPointInterval(d.rawScratch)
 			fired = append(fired, anomaly)
 		} else if state.refractoryRemaining > 0 {
 			// Refractory countdown — decrement on every non-firing post-warmup
@@ -408,6 +415,7 @@ func (d *HoltResidualDetector) processPoint(
 	state *holtSeriesState,
 	p observer.Point,
 	agg observer.Aggregate,
+	values []float64,
 ) (observer.Anomaly, bool) {
 	// 1. One-step forecast and residual.
 	forecast := state.level + state.trend
@@ -433,15 +441,15 @@ func (d *HoltResidualDetector) processPoint(
 	// σ_value gate denominator: rolling MAD over raw values. Same window
 	// size, same scaleToSigma=true → MAD ≈ σ. Uses the same range-based
 	// floor for the same bimodal-distribution reason.
-	medianValue := detectorMedian(state.valWin)
-	sigmaValue := detectorMAD(state.valWin, medianValue, true)
-	sigmaValue = floorSigma(sigmaValue, state.valWin)
+	medianValue := detectorMedian(values)
+	sigmaValue := detectorMAD(values, medianValue, true)
+	sigmaValue = floorSigma(sigmaValue, values)
 	devMAD := math.Abs(p.Value-state.level) / sigmaValue
 
 	// 3. Update consecutive counters only after both baseline windows are
 	// representative. Under-filled windows collapse sigma to the floor and can
 	// otherwise pre-arm confirmation before the gate is meaningful.
-	windowsReady := len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow
+	windowsReady := len(state.resWin) >= d.ResidualWindow && len(values) >= d.ResidualWindow
 	zMagPasses := windowsReady && math.Abs(z) >= d.ZThreshold
 	if zMagPasses {
 		if z > 0 {
@@ -480,7 +488,6 @@ func (d *HoltResidualDetector) processPoint(
 		residualForWindow = medianOfTail(state.resWin, holtPostFireSampleN)
 	}
 	pushFIFO(&state.resWin, d.ResidualWindow, residualForWindow)
-	pushFIFO(&state.valWin, d.ResidualWindow, p.Value)
 
 	if !fire {
 		return observer.Anomaly{}, false
@@ -503,9 +510,8 @@ func (d *HoltResidualDetector) processPoint(
 			"%s deviated from forecast (observed=%.4f, forecast=%.4f, residual=%.4f, |z|=%.2f, level=%.4f, trend=%.4f, %.1f valueMADs)",
 			seriesName, p.Value, forecast, residual, math.Abs(z), state.level, state.trend, devMAD,
 		),
-		Timestamp:           state.lastSeenTimestamp,
-		Score:               &score,
-		SamplingIntervalSec: medianTimestampInterval(state.recentTimestamps),
+		Timestamp: state.lastSeenTimestamp,
+		Score:     &score,
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: medianResidual,
 			BaselineMAD:    sigmaResidual,
@@ -521,6 +527,24 @@ func (d *HoltResidualDetector) processPoint(
 	state.refractoryRemaining = d.Refractory
 
 	return anomaly, true
+}
+
+func appendRecentPoint(points []observer.Point, point observer.Point, limit int) []observer.Point {
+	if len(points) < limit {
+		return append(points, point)
+	}
+	copy(points, points[1:])
+	points[len(points)-1] = point
+	return points
+}
+
+func appendRecentValue(values []float64, value float64, limit int) []float64 {
+	if len(values) < limit {
+		return append(values, value)
+	}
+	copy(values, values[1:])
+	values[len(values)-1] = value
+	return values
 }
 
 // seedLevelTrend bootstraps the smoother from the warmup buffer using the
@@ -610,21 +634,6 @@ func pushFIFO(buf *[]float64, maxLen int, v float64) {
 	// FIFO evict: shift left, place new value at tail.
 	copy(*buf, (*buf)[1:])
 	(*buf)[maxLen-1] = v
-}
-
-// pushTimestamp appends ts to the recent-timestamp ring, dropping the
-// oldest if full. The ring is small (cap holtTimestampRing) so the
-// shift-left cost is negligible.
-func pushTimestamp(state *holtSeriesState, ts int64) {
-	if cap(state.recentTimestamps) == 0 {
-		state.recentTimestamps = make([]int64, 0, holtTimestampRing)
-	}
-	if len(state.recentTimestamps) < cap(state.recentTimestamps) {
-		state.recentTimestamps = append(state.recentTimestamps, ts)
-		return
-	}
-	copy(state.recentTimestamps, state.recentTimestamps[1:])
-	state.recentTimestamps[len(state.recentTimestamps)-1] = ts
 }
 
 // medianOfTail returns the median of the last n entries of buf. If buf has

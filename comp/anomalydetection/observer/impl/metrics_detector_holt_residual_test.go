@@ -453,20 +453,22 @@ func TestHoltResidual_ConfirmationStartsAfterWindowsReady(t *testing.T) {
 	state := &holtSeriesState{
 		warmedUp: true,
 		resWin:   []float64{0, 0, 0},
-		valWin:   []float64{0, 0, 0},
 	}
 
-	_, fired := d.processPoint(state, observer.Point{Timestamp: 1, Value: 100}, observer.AggregateAverage)
+	values := []float64{0, 0, 0}
+	_, fired := d.processPoint(state, observer.Point{Timestamp: 1, Value: 100}, observer.AggregateAverage, values)
+	values = appendRecentValue(values, 100, d.ResidualWindow)
 	require.False(t, fired)
 	assert.Zero(t, state.consecutivePos, "under-filled windows must not pre-arm confirmation")
 	assert.Zero(t, state.consecutiveNeg)
 
-	_, fired = d.processPoint(state, observer.Point{Timestamp: 2, Value: 100}, observer.AggregateAverage)
+	_, fired = d.processPoint(state, observer.Point{Timestamp: 2, Value: 100}, observer.AggregateAverage, values)
+	values = appendRecentValue(values, 100, d.ResidualWindow)
 	require.False(t, fired, "first ready-window breach should only arm confirmation")
 	assert.Equal(t, 1, state.consecutivePos)
 	assert.Zero(t, state.consecutiveNeg)
 
-	_, fired = d.processPoint(state, observer.Point{Timestamp: 3, Value: 100}, observer.AggregateAverage)
+	_, fired = d.processPoint(state, observer.Point{Timestamp: 3, Value: 100}, observer.AggregateAverage, values)
 	require.True(t, fired, "second ready-window breach should satisfy ConfirmM")
 }
 
