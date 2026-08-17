@@ -111,8 +111,9 @@ func (h *Host) ConfigureYumMirrors() {
 	if h.pkgManager != "yum" {
 		return
 	}
-	// Only CentOS 7 needs the vault repos; other yum distros (RHEL, Amazon Linux) have working repos.
-	if h.os.Flavor != e2eos.CentOS {
+	// Only CentOS 7 needs this — its EOL content lives at vault.centos.org/7.9.2009. Other yum
+	// distros (RHEL, Amazon Linux) and CentOS 6 (different vault tree) are left untouched.
+	if h.os.Flavor != e2eos.CentOS || !strings.HasPrefix(h.os.Version, "7") {
 		return
 	}
 	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base\nbaseurl=http://vault.centos.org/7.9.2009/os/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/os/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/os/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[updates]\nname=CentOS-7 - Updates\nbaseurl=http://vault.centos.org/7.9.2009/updates/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/updates/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/updates/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[extras]\nname=CentOS-7 - Extras\nbaseurl=http://vault.centos.org/7.9.2009/extras/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/extras/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/extras/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
