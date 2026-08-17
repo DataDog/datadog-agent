@@ -7,7 +7,6 @@ package observerimpl
 
 import (
 	"sync/atomic"
-	"time"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
@@ -33,12 +32,9 @@ const (
 	telemetryLogsInputRateLimiterDropped     = "observer.logs.input_rate_limiter.dropped"     // Logs dropped by the observer ingress rate limiter.
 	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
 	telemetryDetectorEmissions               = "observer.detections.detector_emissions"       // Deduplicated detector emissions by score severity before correlation.
-	telemetryLogExtractionProcessingDuration = "observer.log_extraction.processing_duration"  // Duration of each log extractor's ProcessLog call in seconds.
 	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
 	telemetryScorerSeverity                  = "observer.scorer.severity"                     // Current anomaly scorer severity level (0=Low,1=Medium,2=High).
 )
-
-var logExtractionDurationBuckets = []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}
 
 type observerTelemetry struct {
 	observationsAccepted telemetry.Counter
@@ -57,7 +53,6 @@ type observerTelemetry struct {
 	inputRateLimiterDrop telemetry.Counter
 	processingTime       telemetry.Gauge
 	detectorEmissions    telemetry.Counter
-	logExtractionTime    telemetry.Histogram
 	scorerEwma           telemetry.Gauge
 	scorerSeverity       telemetry.Gauge
 
@@ -158,13 +153,6 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"detector", "severity"},
 			"Deduplicated detector emissions by score severity before correlation and reporting",
 		),
-		logExtractionTime: telemetryComp.NewHistogram(
-			"observer",
-			telemetryLogExtractionProcessingDuration,
-			[]string{"extractor"},
-			"Duration in seconds of each log extractor's ProcessLog call",
-			logExtractionDurationBuckets,
-		),
 		scorerEwma: telemetryComp.NewGauge(
 			"observer",
 			telemetryScorerEWMA,
@@ -259,10 +247,6 @@ func (t *observerTelemetry) recordInputRateLimiterDropped(source, priority strin
 
 func (t *observerTelemetry) recordDetectorEmission(detector, severity string) {
 	t.detectorEmissions.Add(1, detector, severity)
-}
-
-func (t *observerTelemetry) recordLogExtractionDuration(extractor string, duration time.Duration) {
-	t.logExtractionTime.Observe(duration.Seconds(), extractor)
 }
 
 func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {
