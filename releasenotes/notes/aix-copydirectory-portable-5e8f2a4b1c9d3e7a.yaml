@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ``copyDirectory`` in the fleet installer config package no longer shells out to
+    ``cp -a``, which is a GNU-specific flag not available on AIX. It now performs a
+    pure-Go recursive copy that preserves file permissions and symlinks.
