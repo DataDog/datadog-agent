@@ -45,6 +45,7 @@ go_library(
         "config_windows.go",
         "constants_compat.go",
         "fixup_init.go",
+        "known_only_setup.go",
         "otlp.go",
         "privateactionrunner.go",
         "process.go",

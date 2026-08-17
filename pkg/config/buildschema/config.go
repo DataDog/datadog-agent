@@ -74,6 +74,10 @@ func (b *builder) BindEnvAndSetDefault(key string, val interface{}, env ...strin
 	b.addToSchema(key, val, env, false)
 }
 
+func (b *builder) SetKnown(_ string) {
+	// no-op: the schema builder does not need to track known keys separately
+}
+
 func (b *builder) BuildSchema() {
 }
 

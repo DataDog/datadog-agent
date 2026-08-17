@@ -264,6 +264,11 @@ type Setup interface {
 	// config key
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
 
+	// SetKnown marks a key as known without setting a default value or env binding.
+	// Use this to suppress false-positive "unknown key" warnings for keys that are
+	// valid in a sibling process config (e.g. system-probe keys read by the core agent).
+	SetKnown(key string)
+
 	AddConfigPath(in string)
 	AddExtraConfigPaths(in []string) error
 	SetConfigName(in string)

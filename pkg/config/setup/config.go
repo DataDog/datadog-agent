@@ -142,6 +142,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	initCommonBase(config)
 	// Settings just for the full agent in general
 	initCoreAgentFull(config)
+	// Register system-probe keys as known so that checkKnownKey does not emit
+	// false-positive warnings when the core agent reads a datadog.yaml that
+	// contains system_probe_config.*, network_config.*, etc. sections.
+	InitSystemProbeConfig(&knownOnlySetup{inner: config})
 
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)

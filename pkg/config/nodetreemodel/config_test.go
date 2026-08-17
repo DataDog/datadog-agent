@@ -2057,6 +2057,29 @@ func TestSetDefaultAfterRevertToBuilder(t *testing.T) {
 	assert.Equal(t, "v2", cfg.GetString("ns.new"))
 }
 
+func TestSetKnown(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("has_default", 42)
+	cfg.SetKnown("known_only")
+	cfg.SetKnown("known_only.nested")
+	cfg.BuildSchema()
+
+	// SetKnown key is recognised
+	assert.True(t, cfg.IsKnown("known_only"))
+	assert.True(t, cfg.IsKnown("known_only.nested"))
+
+	// SetKnown does not set a default value
+	assert.Nil(t, cfg.Get("known_only"))
+	assert.Nil(t, cfg.Get("known_only.nested"))
+
+	// SetKnown key does not appear in AllSettings (no value in any layer)
+	_, found := cfg.AllSettings()["known_only"]
+	assert.False(t, found)
+
+	// Regular default key is unaffected
+	assert.Equal(t, 42, cfg.Get("has_default"))
+}
+
 func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetTestOnlyDynamicSchema(true)
