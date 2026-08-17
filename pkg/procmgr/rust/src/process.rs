@@ -569,9 +569,9 @@ impl ManagedProcess {
         false
     }
 
-    pub async fn stop(&mut self) {
-        let started = Instant::now();
-
+    /// Mark the process for stop and send a graceful-stop signal. Does not wait
+    /// for exit; pair with [`Self::wait_for_stop`] when shutting down many processes.
+    pub fn request_stop(&mut self) {
         match self.state {
             ProcessState::Running => {
                 self.transition_to(ProcessState::Stopping);
@@ -579,7 +579,43 @@ impl ManagedProcess {
                 self.graceful_stop();
             }
             ProcessState::Stopping => {
-                debug!("[{}] stop called while already stopping", self.name);
+                debug!("[{}] stop requested while already stopping", self.name);
+            }
+            _ => {}
+        }
+    }
+
+    /// Wait for a process that was signaled with [`Self::request_stop`] to exit,
+    /// force-killing on timeout and releasing Windows spawn resources.
+    pub async fn wait_for_stop(&mut self) {
+        match self.state {
+            ProcessState::Running | ProcessState::Stopping => {
+                if !self.wait_for_stop_exit().await {
+                    self.mark_stopped();
+                }
+                #[cfg(windows)]
+                self.ensure_windows_spawn_resources_released().await;
+            }
+            _ => {
+                #[cfg(windows)]
+                self.ensure_windows_spawn_resources_released().await;
+            }
+        }
+    }
+
+    pub async fn stop(&mut self) {
+        let started = Instant::now();
+
+        match self.state {
+            ProcessState::Running | ProcessState::Stopping => {
+                self.request_stop();
+                self.wait_for_stop().await;
+                debug!(
+                    "[{}] stop finished (state={}), took {:?}",
+                    self.name,
+                    self.state,
+                    started.elapsed()
+                );
             }
             _ => {
                 #[cfg(windows)]
@@ -590,22 +626,8 @@ impl ManagedProcess {
                     self.state,
                     started.elapsed()
                 );
-                return;
             }
         }
-
-        if !self.wait_for_stop_exit().await {
-            self.mark_stopped();
-        }
-
-        #[cfg(windows)]
-        self.ensure_windows_spawn_resources_released().await;
-        debug!(
-            "[{}] stop finished (state={}), took {:?}",
-            self.name,
-            self.state,
-            started.elapsed()
-        );
     }
 
     #[cfg(unix)]
