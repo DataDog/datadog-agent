@@ -455,13 +455,13 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		log.Warnf("DDOT: could not ensure %s is stopped after registration: %v", otelServiceName, err)
 	}
 	// No RestartService(dd-procmgr-service) here: InstallExtensions restarts Datadog agent services
-	// after all extension hooks return, which reloads dd-procmgr and picks up processes.d.
+	// after all extension hooks return, which restarts dd-procmgr and picks up processes.d.
 	return nil
 }
 
-// preRemoveDDOTExtension removes DDOT process manager config, reloads dd-procmgrd (or restarts the
-// Windows service as fallback) so supervised DDOT stops before extension files are removed, then
-// stops/removes the legacy SCM entry and disables otelcollector in datadog.yaml.
+// preRemoveDDOTExtension removes DDOT process manager config, restarts dd-procmgr-service so
+// supervised DDOT stops before extension files are removed, then stops/removes the legacy SCM
+// entry and disables otelcollector in datadog.yaml.
 func preRemoveDDOTExtension(ctx HookContext) error {
 	packagePath := ctx.PackagePath
 	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
@@ -471,7 +471,7 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 		log.Warnf("failed to remove DDOT process manager config: %v", err)
 	}
 	if env.FromEnv().ProcessManagerEnabled {
-		processmanager.ReloadOrRestartProcmgr()
+		processmanager.RestartProcmgrService()
 	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("failed to stop DDOT service: %s", err)

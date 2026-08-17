@@ -8,13 +8,6 @@ use crate::state::ProcessState;
 use tokio::sync::oneshot;
 use tonic::Status;
 
-pub struct ReloadResult {
-    pub added: Vec<String>,
-    pub removed: Vec<String>,
-    pub modified: Vec<String>,
-    pub unchanged: Vec<String>,
-}
-
 #[derive(Debug)]
 pub struct CreateResult {
     pub uuid: String,
@@ -47,8 +40,5 @@ pub enum Command {
     Stop {
         name_or_uuid: String,
         reply: oneshot::Sender<Result<StopResult, Status>>,
-    },
-    ReloadConfig {
-        reply: oneshot::Sender<Result<ReloadResult, Status>>,
     },
 }

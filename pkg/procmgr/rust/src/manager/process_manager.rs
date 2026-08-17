@@ -25,13 +25,10 @@ pub struct ProcessManager {
 impl ProcessManager {
     pub fn new(config_loader: Arc<dyn ConfigLoader>, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
         let configs = config_loader.load();
-        let mut processes: Vec<ManagedProcess> = configs
+        let processes: Vec<ManagedProcess> = configs
             .into_iter()
             .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
             .collect();
-        for proc in &mut processes {
-            proc.record_config_gate_met();
-        }
         let startup_result = recompute_startup_order(&processes);
         Self {
             processes: Arc::new(RwLock::new(processes)),
@@ -58,7 +55,6 @@ impl ProcessManager {
                 warn!("[{name}] auto-start failed: {e:#}");
                 queue_restart(proc, handles);
             }
-            proc.record_config_gate_met();
         }
     }
 
@@ -107,8 +103,8 @@ impl ProcessManager {
         handles: &RuntimeHandles,
     ) {
         let mut procs = self.processes.write().await;
-        let Some(proc) = procs.iter_mut().find(|p| p.uuid() == pending.uuid) else {
-            warn!("restart for unknown process '{}'", pending.uuid);
+        let Some(proc) = procs.iter_mut().find(|p| p.uuid() == pending) else {
+            warn!("restart for unknown process '{pending}'");
             return;
         };
         let name = proc.name().to_owned();
@@ -116,20 +112,14 @@ impl ProcessManager {
             info!("[{name}] already running, skipping queued restart");
             return;
         }
-        if pending.config_generation != proc.config_generation() {
-            info!("[{name}] discarding stale retry after config reload");
-            return;
-        }
         if !proc.should_complete_pending_restart() {
             info!("[{name}] not restarting: policy or start conditions not met");
-            proc.record_config_gate_met();
             return;
         }
         if let Err(e) = try_spawn_and_watch(proc, handles) {
             warn!("[{name}] restart failed: {e:#}");
             queue_restart(proc, handles);
         }
-        proc.record_config_gate_met();
     }
 
     pub(in crate::manager) async fn handle_create(
@@ -192,7 +182,6 @@ impl ProcessManager {
         }
         try_spawn_and_watch(proc, handles)
             .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
-        proc.record_config_gate_met();
         Ok(StartResult {
             uuid: proc.uuid().to_owned(),
             pid: proc.pid(),

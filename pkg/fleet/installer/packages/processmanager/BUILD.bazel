@@ -7,7 +7,7 @@ go_library(
         "ddot_procmgr_config_windows.go",
         "install_root_procmgr_config_windows.go",
         "par_procmgr_config_windows.go",
-        "reload_windows.go",
+        "procmgr_service_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager",
     target_compatible_with = ["@platforms//os:windows"],
