@@ -119,8 +119,6 @@ fn run_service_inner() -> Result<()> {
     })
     .context("failed to initialize logging")?;
 
-    info!("dd-procmgrd starting (SCM mode)");
-
     let runtime = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
 
     set_service_status(
@@ -188,8 +186,6 @@ fn run_console_fallback() -> Result<()> {
         log_file: None,
     })
     .context("failed to initialize logging")?;
-
-    info!("dd-procmgrd starting (console mode)");
 
     let runtime = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
     runtime.block_on(async {
