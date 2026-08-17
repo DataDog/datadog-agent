@@ -130,7 +130,12 @@ fn open_append_file(path: &str) -> Result<HANDLE> {
             std::io::Error::last_os_error()
         );
     }
-    set_handle_inheritable(h)?;
+    if let Err(e) = set_handle_inheritable(h) {
+        unsafe {
+            CloseHandle(h);
+        }
+        return Err(e);
+    }
     Ok(h)
 }
 
@@ -153,7 +158,12 @@ fn open_nul_handle(access: u32) -> Result<HANDLE> {
             std::io::Error::last_os_error()
         );
     }
-    set_handle_inheritable(h)?;
+    if let Err(e) = set_handle_inheritable(h) {
+        unsafe {
+            CloseHandle(h);
+        }
+        return Err(e);
+    }
     Ok(h)
 }
 
@@ -190,7 +200,12 @@ fn duplicate_inheritable_handle(source: HANDLE) -> Result<HANDLE> {
             std::io::Error::last_os_error()
         );
     }
-    set_handle_inheritable(dup)?;
+    if let Err(e) = set_handle_inheritable(dup) {
+        unsafe {
+            CloseHandle(dup);
+        }
+        return Err(e);
+    }
     Ok(dup)
 }
 
