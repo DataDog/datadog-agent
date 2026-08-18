@@ -179,6 +179,7 @@ dd_agent_go_test(
         ["linux_bpf"],
         ["npm"],
     ],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/config/mock",
         "//pkg/ebpf/bytecode/runtime",

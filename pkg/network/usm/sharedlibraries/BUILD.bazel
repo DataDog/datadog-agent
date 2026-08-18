@@ -72,6 +72,7 @@ dd_agent_go_test(
     srcs = ["ebpf_test.go"],
     embed = [":sharedlibraries"],
     gotags_sets = [["linux_bpf"]],
+    tags = ["requires_ebpf"],
     # keep: needs TestBuildMode from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/ebpf",
