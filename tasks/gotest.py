@@ -603,6 +603,7 @@ def test(
     rtloader_root=None,
     python_home_3=None,
     cpus=None,
+    build_cpus=None,
     timeout=180,
     cache=True,
     test_run_name="",
@@ -664,7 +665,8 @@ def test(
     race_opt = "-race" if race else ""
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
-    build_cpus_opt = f"-p {cpus}" if cpus else ""
+    build_cpus = build_cpus or cpus
+    build_cpus_opt = f"-p {build_cpus}" if build_cpus else ""
     test_cpus_opt = f"-parallel {cpus}" if cpus else ""
     trimpath_opt = "-trimpath" if 'DELVE' not in os.environ else ""
     if sys.platform == "win32" and "DELVE" not in os.environ:
