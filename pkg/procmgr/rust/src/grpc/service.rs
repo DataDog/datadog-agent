@@ -7,7 +7,7 @@
 
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
-use crate::grpc::caller_auth::require_privileged_pipe_client;
+use crate::grpc::caller_auth::require_mutating_pipe_client;
 use crate::grpc::proto;
 use crate::manager::ProcessManager;
 use crate::process::{ManagedProcess, ProcessOrigin};
@@ -96,7 +96,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::CreateRequest>,
     ) -> Result<Response<proto::CreateResponse>, Status> {
-        require_privileged_pipe_client(&request)?;
+        require_mutating_pipe_client(&request)?;
         let req = request.into_inner();
         let config = create_request_to_config(&req)?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -172,7 +172,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::ReloadConfigRequest>,
     ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
-        require_privileged_pipe_client(&request)?;
+        require_mutating_pipe_client(&request)?;
         let _ = request.into_inner();
         warn!(
             "ReloadConfig is not implemented; restart dd-procmgr-service to pick up processes.d changes"
