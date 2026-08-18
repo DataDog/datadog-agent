@@ -263,6 +263,13 @@ func (v *PodValidator) RequireMissingVolumeNames(t *testing.T, missing []string)
 	}
 }
 
+const instrumentationInstallTypeEnvVar = "DD_INSTRUMENTATION_INSTALL_TYPE"
+
+// RequireInstallType ensures DD_INSTRUMENTATION_INSTALL_TYPE is set on the given containers.
+func (v *PodValidator) RequireInstallType(t *testing.T, expected string, expectedContainers []string) {
+	v.RequireEnvs(t, map[string]string{instrumentationInstallTypeEnvVar: expected}, expectedContainers)
+}
+
 // RequireEnvs ensures the expected env vars exist in the expected containers with the expected values.
 func (v *PodValidator) RequireEnvs(t *testing.T, expected map[string]string, expectedContainers []string) {
 	for _, name := range expectedContainers {

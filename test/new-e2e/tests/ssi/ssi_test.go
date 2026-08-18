@@ -11,6 +11,7 @@ package ssi
 
 import (
 	_ "embed"
+	"fmt"
 	"testing"
 	"time"
 
@@ -48,6 +49,21 @@ var workloadSelectionHelmValues string
 
 //go:embed testdata/registry_allow_list.yaml
 var registryAllowListHelmValues string
+
+//go:embed testdata/rc_policies.yaml
+var rcPoliciesHelmValues string
+
+//go:embed testdata/rc_host_linux_only_policy.json
+var rcHostLinuxOnlyPolicyJSON []byte
+
+const (
+	apmPoliciesRCProduct       = "APM_POLICIES"
+	rcHostLinuxOnlyConfigID    = "1.host-linux-only"
+	rcHostLinuxOnlyConfigName  = "config"
+	rcFakeIntakeDefaultOrgID   = "42"
+	rcAnnotatedPodNamespace    = "other"
+	rcAnnotatedPodApp          = "rc-ann-only"
+)
 
 // ssiSuite runs all SSI test groups on a single cluster, calling UpdateEnv at the start of
 // each group to update the env (workloads, helm values).
@@ -544,6 +560,87 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		errAnnotation := pod.Annotations["internal.apm.datadoghq.com/injection-error"]
 		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
 		require.Contains(v.T(), errAnnotation, "not in the allow list")
+	})
+}
+
+func (v *ssiSuite) TestRemoteConfigNoFalsePositive() {
+	agentOptions := []kubernetesagentparams.Option{
+		kubernetesagentparams.WithHelmValues(rcPoliciesHelmValues),
+		kubernetesagentparams.WithTimeout(600),
+	}
+	provisionerOpts := ProvisionerOptions{
+		AgentOptions: agentOptions,
+		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
+			return singlestep.Scenario(e, kubeProvider, "rc-policies", []singlestep.Namespace{
+				{
+					Name: "targeted-namespace",
+					Labels: map[string]string{
+						"injection": "yes",
+					},
+					Apps: []singlestep.App{
+						{
+							Name:    "rc-target-python",
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
+							PodLabels: map[string]string{
+								"language": "python",
+							},
+						},
+					},
+				},
+				{
+					Name: "other",
+					Apps: []singlestep.App{
+						{
+							Name:    rcAnnotatedPodApp,
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
+							PodLabels: map[string]string{
+								"admission.datadoghq.com/enabled": "true",
+							},
+							PodAnnotations: map[string]string{
+								"admission.datadoghq.com/python-lib.version": "v3.18.1",
+							},
+						},
+					},
+				},
+			}, dependsOnAgent)
+		},
+	}
+
+	v.UpdateEnv(Provisioner(provisionerOpts))
+
+	v.Run("AnnotatedPodStaysLibInjectionWithRCHostOnlyPolicy", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+		fi := v.Env().FakeIntake.Client()
+
+		require.Eventually(v.T(), func() bool {
+			stats, err := fi.RCStats()
+			return err == nil && stats.Polls > 0
+		}, 2*time.Minute, 5*time.Second, "cluster agent did not poll fakeintake Remote Config")
+
+		baselineStats, err := fi.RCStats()
+		require.NoError(v.T(), err)
+
+		require.NoError(v.T(), fi.RCAddConfig("", apmPoliciesRCProduct, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName, rcHostLinuxOnlyPolicyJSON))
+		v.T().Cleanup(func() {
+			_ = fi.RCDeleteConfig(fmt.Sprintf("%s/%s/%s/%s", rcFakeIntakeDefaultOrgID, apmPoliciesRCProduct, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName))
+		})
+
+		require.Eventually(v.T(), func() bool {
+			stats, err := fi.RCStats()
+			return err == nil && stats.ConfigsCount >= 1 && stats.Version > baselineStats.Version
+		}, 2*time.Minute, 5*time.Second, "fakeintake did not store the APM_POLICIES RC payload")
+
+		RestartPod(v.T(), k8s, rcAnnotatedPodNamespace, rcAnnotatedPodApp)
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, rcAnnotatedPodNamespace, rcAnnotatedPodApp)
+
+		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
+		podValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
+		podValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
 	})
 }
 
