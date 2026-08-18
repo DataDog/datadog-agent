@@ -417,14 +417,12 @@ register_toolchains(
 # Keep in sync with .python-version
 PYTHON_VERSION = "3.12"
 
+python_config = use_extension("@rules_python//python/extensions:config.bzl", "config")
+python_config.explicit_init_py(default = True)
+
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
-python.defaults(python_version = PYTHON_VERSION)
-python.toolchain(
-    configure_coverage_tool = False,  # when enabling, please find a way to turn off warnings for unsupported platforms
-    is_default = True,
-    python_version = PYTHON_VERSION,
-)
-use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"), "pythons_hub")
+python.defaults(python_version_file = "//:.python-version")
+use_repo(python, "pythons_hub", "python_" + PYTHON_VERSION.replace(".", "_"))
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 
@@ -441,8 +439,6 @@ pip.parse(
     requirements_lock = "//deps:py_agent_integrations_tool_requirements_lock.txt",
 )
 use_repo(pip, "py_agent_integrations_tool_requirements", "py_dev_requirements")
-
-register_toolchains("@pythons_hub//:all")
 
 #######################
 ## Rust dependencies ##
