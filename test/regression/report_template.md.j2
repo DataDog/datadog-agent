@@ -1,0 +1,259 @@
+{#-
+  Condensed Regression Detector report for the Datadog Agent PR comment.
+
+  Rendered client-side by the SMP CLI from `outputs/report.json`:
+
+    smp report render \
+      --template-file test/regression/report_template.md.j2 \
+      --report-json outputs/report.json \
+      --target-config-dir test/regression \
+      --output-file outputs/report.md
+
+  Design rule: a clean run must be near-silent. Only sections that need action
+  are expanded; everything else is collapsed behind <details> but still carries
+  the full table, so no information from the built-in `report.md` is lost.
+
+  Because the Agent's enabled suite is entirely `quality_gate_*` experiments,
+  the gate verdict leads and optimization goals follow.
+
+  Notes on the render context (see SMP's docs/guides/reports.md):
+  - Bounds figures describe the COMPARISON variant only. `report.json` also
+    carries baseline replicates, but a bounds check asserts on the candidate
+    code, so this template needs no variant filtering of its own.
+  - `is_required` is SMP's own `experiment.startswith("quality_gate_")` test, so
+    the gate list here matches what Agent CI gates on.
+  - The pass/fail shown here is a DISPLAY verdict. The job's exit code comes
+    from `smp job result --signal bounds-check`, which additionally ignores
+    experiments configured `erratic: true`. Every Agent quality gate is
+    `erratic: false`, so the two agree; if a gate is ever marked erratic, this
+    report would show a failure that does not fail CI.
+-#}
+{#- Terse goal label, and which sign of Δ mean % is the improving direction.
+    Keys are SMP's own goal display strings (payloads OptimizationGoalV9). -#}
+{%- set GOALS = {
+      "% cpu utilization":  ["cpu", "down"],
+      "memory utilization": ["memory", "down"],
+      "ingress throughput": ["throughput", "up"],
+      "egress throughput":  ["egress throughput", "up"],
+    } -%}
+{%- set REPO = "https://github.com/DataDog/datadog-agent" -%}
+{#- Per-experiment links: the configured logs link first, then each
+    `report_links` entry from the experiment's own experiment.yaml. Without
+    --target-config-dir, `config`/`experiments` are absent and this degrades to
+    an empty cell rather than failing the render. -#}
+{%- macro exp_links(experiment, include_logs=true) -%}
+{%- set ns = namespace(out="", sep="") -%}
+{%- if include_logs and config and config.report and config.report.per_experiment_logs -%}
+{%- set ns.out = "[logs](" ~ (config.report.per_experiment_logs | interpolate(experiment=experiment)) ~ ")" -%}
+{%- set ns.sep = " " -%}
+{%- endif -%}
+{%- if experiments and experiment in experiments -%}
+{%- for l in experiments[experiment].report_links -%}
+{%- set ns.out = ns.out ~ ns.sep ~ "[" ~ l.text ~ "](" ~ (l.link | interpolate(experiment=experiment)) ~ ")" -%}
+{%- set ns.sep = " " -%}
+{%- endfor -%}
+{%- endif -%}
+{{- ns.out -}}
+{%- endmacro -%}
+{#- ---------------------------------------------------------------- checks -#}
+{%- set bounds = checks | selectattr("kind", "equalto", "bounds") | list -%}
+{%- set gates = bounds | selectattr("is_required") | list -%}
+{%- set gates_failed = gates | rejectattr("passed") | list -%}
+{%- set gates_passed = gates | selectattr("passed") | list -%}
+{#- Non-gate checks never fail CI: informational bounds on non-quality_gate_*
+    experiments, plus quantile checks, which are not severity-classified. -#}
+{%- set other_checks = (bounds | rejectattr("is_required") | list)
+                     + (checks | selectattr("kind", "equalto", "quantile") | list) -%}
+{%- macro check_table(rows) -%}
+| experiment | check | replicates | observed | links |
+|---|---|---|---|---|
+{% for c in rows -%}
+| {{ c.experiment }} | {{ c.check_name }} | {{ c.replicates_passed }} | {{ "✅" if c.passed else "❌" }} {{ c.observed_value }} | {{ exp_links(c.experiment, false) }} |
+{% endfor -%}
+{%- endmacro -%}
+{#- ---------------------------------------------------- optimization goals -#}
+{#- Decorate each goal row with its label, dot, tag and sort key. The verdict
+    itself comes from the report: `change_detected` already encodes the
+    effect-size, confidence-interval and configured-erratic criteria, so there
+    is no statistics to re-derive here. -#}
+{%- set ns = namespace(rows=[]) -%}
+{%- for g in optimization_goals -%}
+{%- set info = GOALS[g.goal] or [g.goal, "down"] -%}
+{%- set tag = " **(ignored)**" if g.ignores_regressions else (" **(erratic)**" if g.is_erratic else "") -%}
+{#- `rank` is the negated goal-relative change, so ascending order puts the
+    worst-for-this-goal first and a throughput drop sorts alongside a memory
+    rise rather than at the opposite end of the table.
+
+    `improved`: `is_regression` in report.json means "a significant change was
+    detected" and `is_improvement` gives its direction (Perf::from_result in
+    SMP's view.rs), so the view's `is_improvement` is already the conjunction
+    and a significant improvement is `change_detected and is_improvement`. -#}
+{%- set ns.rows = ns.rows + [dict(
+      experiment = g.experiment,
+      name = g.experiment ~ tag,
+      label = info[0],
+      delta = g.delta_mean_percent_display,
+      ci = g.ci_display,
+      regressed = g.is_ci_fail,
+      improved = (g.change_detected and g.is_improvement),
+      dot = ("🟢" if (g.change_detected and g.is_improvement) else ("🔴" if g.is_ci_fail else "⚪")),
+      rank = ((0 - g.delta_mean_percent) if info[1] == "down" else g.delta_mean_percent),
+    )] -%}
+{%- endfor -%}
+{%- set rows = ns.rows | sort(attribute="rank,experiment") -%}
+{%- set regressions = rows | selectattr("regressed") | list -%}
+{%- set others = rows | rejectattr("regressed") | list -%}
+{%- set improvements = rows | selectattr("improved") | list -%}
+{%- macro goal_table(rows) -%}
+| experiment | goal | Δ mean % | Δ mean % CI | links |
+|---|---|---|---|---|
+{% for r in rows -%}
+| {{ r.name }} | {{ r.label }} | {{ r.dot }} {{ r.delta }} | {{ r.ci }} | {{ exp_links(r.experiment) }} |
+{% endfor -%}
+{%- endmacro -%}
+{#- -------------------------------------------------------------- document
+
+  Whitespace discipline, because minijinja trimming is easy to get wrong and a
+  `</details>` glued to the next block makes GitHub swallow the following
+  markdown into the HTML block: every optional block below is written as
+
+      {%- if cond %}
+      <blank line>
+      content
+      {%- endif %}
+
+  so it contributes exactly "\n\n" + content and leaves no trailing newline.
+  That guarantees a blank line between every pair of rendered blocks.
+-#}
+## Regression Detector
+_this report is locally rendered from the `report.json` file_
+
+**Run ID:** `{{ job_id }}`
+**Baseline:** `{{ baseline_sha[:8] or "(unknown)" }}` &middot; **Comparison:** `{{ comparison_sha[:8] or "(unknown)" }}`{% if shas_are_shas %} &middot; [diff]({{ REPO }}/compare/{{ baseline_sha }}...{{ comparison_sha }}){% endif %}
+{%- set metrics = (config.report.metrics_dashboard | interpolate) if (config and config.report and config.report.metrics_dashboard) else "" %}
+{%- set profiles = (config.report.profiles | interpolate) if (config and config.report and config.report.profiles) else "" %}
+{%- if metrics or profiles %}
+{% if metrics %}[metrics dashboard]({{ metrics }}){% endif %}{% if metrics and profiles %} &middot; {% endif %}{% if profiles %}[target profiles]({{ profiles }}){% endif %}
+{%- endif %}
+{#- Data the tables cannot show. One line each, and nothing at all on a clean
+    run, so the common case stays terse. -#}
+{%- set no_analysis = failed_replicates.experiments_with_no_analysis %}
+{%- set retried = failed_replicates.experiments_with_retried_replicates %}
+{%- if no_analysis %}
+&#9888; **{{ no_analysis | length }} experiment{{ "s" if no_analysis | length != 1 }} lost every replicate to target crashes** (no analysis): {{ no_analysis | join(", ") }}
+{%- endif %}
+{%- if missing_data %}
+&#9888; **{{ missing_data | length }} experiment{{ "s" if missing_data | length != 1 }} produced no optimization-goal data**: {{ missing_data | map(attribute="experiment") | join(", ") }}
+{%- endif %}
+{%- if retried %}
+&#9888; **{{ retried | length }} experiment{{ "s" if retried | length != 1 }} had replicates retried after a crash**: {{ retried | join(", ") }}
+{%- endif %}
+{%- if errors %}
+&#9888; **{{ errors | length }} analysis error{{ "s" if errors | length != 1 }}**: {% for e in errors %}{{ e.experiment }} ({{ e.check_name }}): {{ e.message }}{{ "; " if not loop.last }}{% endfor %}
+{%- endif %}
+{#- ------------------------------------------------------- quality gates -#}
+{%- if gates_failed %}
+
+### Quality Gates: ❌ {{ gates_failed | length }} of {{ gates | length }} failed
+
+{{ check_table(gates_failed) | trim }}
+{%- endif %}
+{%- if gates_failed and gates_passed %}
+
+<details><summary>Passing gates ({{ gates_passed | length }})</summary>
+
+{{ check_table(gates_passed) | trim }}
+</details>
+{%- endif %}
+{%- if gates and not gates_failed %}
+
+<details><summary><b>Quality Gates:</b> ✅ all {{ gates | length }} passed</summary>
+
+{{ check_table(gates) | trim }}
+</details>
+{%- endif %}
+{%- if other_checks %}
+
+<details><summary><b>Other checks</b> ({{ other_checks | length }}, non-gating)</summary>
+
+Bounds checks on experiments outside `quality_gate_*`, and quantile checks. These are informational and never fail CI.
+
+{{ check_table(other_checks) | trim }}
+</details>
+{%- endif %}
+{#- -------------------------------------------------- optimization goals -#}
+{%- if regressions %}
+
+### Optimization Goals: ❌ {{ regressions | length }} regression{{ "s" if regressions | length != 1 }} detected
+
+{{ goal_table(regressions) | trim }}
+{%- endif %}
+{%- if rows and not regressions %}
+
+<details><summary><b>Optimization Goals:</b> ✅ {% if improvements %}{{ improvements | length }} improvement{{ "s" if improvements | length != 1 }} detected, no regressions{% else %}no significant changes detected{% endif %}</summary>
+
+{{ goal_table(rows) | trim }}
+</details>
+{%- endif %}
+{%- if regressions and others %}
+
+<details><summary>Fine details of change detection per experiment ({{ others | length }})</summary>
+
+Experiments configured `erratic: true` are tagged <code>(ignored)</code> and skipped when determining which experiments regressed or improved. Experiments _detected_ as erratic at runtime are tagged <code>(erratic)</code> to flag that the run's sample dispersion was high, but their regression / improvement signal still counts.
+
+{{ goal_table(others) | trim }}
+</details>
+{%- endif %}
+{%- if no_optimization_goal %}
+
+<details><summary>Experiments with no optimization goal ({{ no_optimization_goal | length }})</summary>
+
+Experiments configured `optimization_goal: none` do not run change-detection analysis.
+
+| experiment | links |
+|---|---|
+{% for r in no_optimization_goal -%}
+| {{ r.experiment }} | {{ exp_links(r.experiment) }} |
+{% endfor -%}
+</details>
+{%- endif %}
+{#- ------------------------------------------- replicate execution detail -#}
+{%- if failed_replicates.executions %}
+
+<details><summary>Replicate execution failures ({{ failed_replicates.executions | length }})</summary>
+
+Each experiment/variant runs multiple replicates, retried up to 8 times on a target crash or OOM kill; a replicate that exhausts its retries is marked dead and the whole experiment loses its analysis. Rows are bucketed by experiment, variant, replicate type and failure mode.
+
+| experiment | variant | type | replicates | failure | dead | debug |
+|---|---|---|---|---|---|---|
+{% for e in failed_replicates.executions -%}
+| {{ e.experiment }} | {{ e.variant }} | {{ e.replicate_type }} | {{ e.replicates_display }} | {{ e.failure_display }} | {{ "yes" if e.is_dead else "retried" }} | {% if config and config.report and config.report.debug_dashboard %}[dashboard]({{ config.report.debug_dashboard | interpolate(experiment=e.experiment, variant=e.variant, replicate_type=e.replicate_type) }}){% endif %} |
+{% endfor -%}
+</details>
+{%- endif %}
+{#- The decision and explanation blocks are always emitted, so their comments
+    must not trim the trailing newlines that separate them. #}
+
+### CI Pass/Fail Decision
+
+{% if gates_failed -%}
+❌ **Failed.** {{ gates_failed | length }} of {{ gates | length }} quality gate{{ "s were" if gates_failed | length != 1 else " was" }} violated:
+{% for c in gates_failed %}
+- **{{ c.experiment }}**, bounds check **{{ c.check_name }}**: {{ c.replicates_passed }} replicas passed, observed {{ c.observed_value }}. Gate **FAILED**.
+{%- endfor %}
+{%- elif gates -%}
+✅ **Passed.** All {{ gates | length }} quality gate{{ "s" if gates | length != 1 }} passed.
+{%- else -%}
+✅ **Passed.** This suite configures no quality gates.
+{%- endif %}
+{#- explanation #}
+
+<details><summary><b>Explanation</b></summary>
+
+**Quality gates** are bounds checks on `quality_gate_*` experiments. A gate fails if any replicate of the comparison variant falls outside its configured bound; a single failed replicate fails the gate. These are what the CI job's pass/fail is based on.
+
+**Optimization goals** are A/B comparisons of the comparison variant against the baseline. A change is flagged as a regression when |Δ mean %| ≥ **{{ effect_size | fmt2 }}%** in the regressing direction for the experiment's goal AND its **{{ confidence | fmt2 }}%** confidence interval excludes zero. Reduction in CPU or memory is an improvement; reduction in throughput is a regression. The Δ mean % cell is coloured accordingly: 🟢 improvement, 🔴 regression, ⚪ neutral. Optimization-goal changes are reported but do not fail this job.
+
+Ping [#single-machine-performance](https://dd.enterprise.slack.com/archives/C03LY8MQ73R) for help interpreting a report.
+
+</details>

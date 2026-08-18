@@ -46,6 +46,63 @@ The structure of each case is as follows:
 [Vector]: https://github.com/vectordotdev/vector/tree/master/regression
 [lading]: https://github.com/DataDog/lading
 
+## Reports
+
+The PR comment is rendered **client-side** by the `smp` CLI from the job's
+`report.json`, using the minijinja template `report_template.md.j2` in this
+directory. Nothing about the report is computed by CI or by the SMP backend, so
+the template can be changed in a PR and takes effect on that PR's own run.
+
+The CI job (`.gitlab/childs/smp-regression-child-pipeline.yml`) renders three
+views after `smp job sync`:
+
+| output | template | consumed by |
+|---|---|---|
+| `outputs/report.md` | `report_template.md.j2` (this directory) | the PR comment |
+| `outputs/severity_report.md` | SMP built-in | job artifact, debugging |
+| `outputs/junit.xml` | SMP built-in | `datadog-ci junit upload` |
+
+`report_template.md.j2` deliberately collapses everything that passed behind
+`<details>`, so a clean run is a handful of lines and a reviewer only sees what
+needs action. It also renders the **CI Pass/Fail Decision** section; the job's
+exit code itself comes from `smp job result --signal bounds-check`.
+
+### Iterating on the template locally
+
+Rendering is offline, so no AWS credentials or SMP job are needed -- only a
+`report.json`. Take one from a recent job's artifacts, then:
+
+```sh
+smp report render \
+  --template-file test/regression/report_template.md.j2 \
+  --report-json report.json \
+  --target-config-dir test/regression \
+  --output-file /tmp/report.md
+```
+
+Useful companions:
+
+- `smp report list` -- the built-in template names.
+- `smp report export report.md --output-file /tmp/builtin.md.j2` -- the built-in
+  source, handy as a diff base or to copy a table idiom.
+- Omitting `--target-config-dir` renders with no links, which is what the
+  config-only job does; worth checking a template still renders that way.
+
+The render context (`optimization_goals`, `checks`, `missing_data`, `errors`,
+`failed_replicates`, `config`, `experiments`, and the `interpolate`/`table`/`fmt2`
+filters) is documented in SMP's `docs/guides/reports.md`.
+
+### Two gotchas
+
+- **`--target-config-dir` parsing is strict.** `config.yaml` and every
+  `experiment.yaml` the report references are parsed with unknown fields
+  rejected. A field that the pinned `SMP_VERSION` does not know about fails the
+  render rather than being ignored. Good for catching typos, but it means adding
+  a new experiment field can require bumping `SMP_VERSION` in the child pipeline.
+- **Config-only suites have no `experiment.yaml`.** `ebpf/config-only/` uses
+  `config-only-experiment.yaml`, which `--target-config-dir` cannot read, so that
+  job renders without a config dir and its reports carry no links.
+
 ## Local Run
 In order to run a regression experiment locally, you need two CLI utilities
 available:
