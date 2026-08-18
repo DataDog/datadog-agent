@@ -24,13 +24,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProcessManager_List_FullMethodName      = "/datadog.procmgr.ProcessManager/List"
-	ProcessManager_Describe_FullMethodName  = "/datadog.procmgr.ProcessManager/Describe"
-	ProcessManager_GetStatus_FullMethodName = "/datadog.procmgr.ProcessManager/GetStatus"
-	ProcessManager_Create_FullMethodName    = "/datadog.procmgr.ProcessManager/Create"
-	ProcessManager_Start_FullMethodName     = "/datadog.procmgr.ProcessManager/Start"
-	ProcessManager_Stop_FullMethodName      = "/datadog.procmgr.ProcessManager/Stop"
-	ProcessManager_GetConfig_FullMethodName = "/datadog.procmgr.ProcessManager/GetConfig"
+	ProcessManager_List_FullMethodName         = "/datadog.procmgr.ProcessManager/List"
+	ProcessManager_Describe_FullMethodName     = "/datadog.procmgr.ProcessManager/Describe"
+	ProcessManager_GetStatus_FullMethodName    = "/datadog.procmgr.ProcessManager/GetStatus"
+	ProcessManager_Create_FullMethodName       = "/datadog.procmgr.ProcessManager/Create"
+	ProcessManager_Start_FullMethodName        = "/datadog.procmgr.ProcessManager/Start"
+	ProcessManager_Stop_FullMethodName         = "/datadog.procmgr.ProcessManager/Stop"
+	ProcessManager_ReloadConfig_FullMethodName = "/datadog.procmgr.ProcessManager/ReloadConfig"
+	ProcessManager_GetConfig_FullMethodName    = "/datadog.procmgr.ProcessManager/GetConfig"
 )
 
 // ProcessManagerClient is the client API for ProcessManager service.
@@ -43,6 +44,7 @@ type ProcessManagerClient interface {
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
+	ReloadConfig(ctx context.Context, in *ReloadConfigRequest, opts ...grpc.CallOption) (*ReloadConfigResponse, error)
 	GetConfig(ctx context.Context, in *GetConfigRequest, opts ...grpc.CallOption) (*GetConfigResponse, error)
 }
 
@@ -114,6 +116,16 @@ func (c *processManagerClient) Stop(ctx context.Context, in *StopRequest, opts .
 	return out, nil
 }
 
+func (c *processManagerClient) ReloadConfig(ctx context.Context, in *ReloadConfigRequest, opts ...grpc.CallOption) (*ReloadConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReloadConfigResponse)
+	err := c.cc.Invoke(ctx, ProcessManager_ReloadConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *processManagerClient) GetConfig(ctx context.Context, in *GetConfigRequest, opts ...grpc.CallOption) (*GetConfigResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetConfigResponse)
@@ -134,6 +146,7 @@ type ProcessManagerServer interface {
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	Start(context.Context, *StartRequest) (*StartResponse, error)
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
+	ReloadConfig(context.Context, *ReloadConfigRequest) (*ReloadConfigResponse, error)
 	GetConfig(context.Context, *GetConfigRequest) (*GetConfigResponse, error)
 	mustEmbedUnimplementedProcessManagerServer()
 }
@@ -162,6 +175,9 @@ func (UnimplementedProcessManagerServer) Start(context.Context, *StartRequest) (
 }
 func (UnimplementedProcessManagerServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
+}
+func (UnimplementedProcessManagerServer) ReloadConfig(context.Context, *ReloadConfigRequest) (*ReloadConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReloadConfig not implemented")
 }
 func (UnimplementedProcessManagerServer) GetConfig(context.Context, *GetConfigRequest) (*GetConfigResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetConfig not implemented")
@@ -295,6 +311,24 @@ func _ProcessManager_Stop_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProcessManager_ReloadConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReloadConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessManagerServer).ReloadConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProcessManager_ReloadConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessManagerServer).ReloadConfig(ctx, req.(*ReloadConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProcessManager_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetConfigRequest)
 	if err := dec(in); err != nil {
@@ -343,6 +377,10 @@ var ProcessManager_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Stop",
 			Handler:    _ProcessManager_Stop_Handler,
+		},
+		{
+			MethodName: "ReloadConfig",
+			Handler:    _ProcessManager_ReloadConfig_Handler,
 		},
 		{
 			MethodName: "GetConfig",

@@ -471,7 +471,7 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 		log.Warnf("failed to remove DDOT process manager config: %v", err)
 	}
 	if env.FromEnv().ProcessManagerEnabled {
-		processmanager.RestartProcmgrService()
+		processmanager.ReloadOrRestartProcmgr()
 	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("failed to stop DDOT service: %s", err)
