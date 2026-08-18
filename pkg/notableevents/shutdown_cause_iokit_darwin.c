@@ -10,7 +10,6 @@
 #include <mach/mach.h>
 #include <os/log.h>
 #include <stdbool.h>
-#include <stdlib.h>
 #include <string.h>
 
 // The IORegistry is machine-controlled, so every traversal bound is explicit
@@ -21,15 +20,13 @@
 // largest payload observed on real hardware (the 80-token dictionary in
 // allPMUFaultTokens(), longest token 35 bytes), with a margin rather than an
 // exact fit: 10% over the token count, 50% over the longest token's length.
-// A service that exceeds either bound is dropped rather than failing the
-// whole read; see the caller in dd_pkg_notableevents_read_pmu_boot_fault_info.
+// A service that exceeds DD_PMU_MAX_TOKENS_PER_SERVICE is dropped rather than
+// failing the whole read; see the caller in
+// dd_pkg_notableevents_read_pmu_boot_fault_info. DD_PMU_MAX_TOKEN_CHARS counts
+// a token's content plus the one separator byte that follows it, so a token
+// longer than that is truncated to fit rather than dropping its service.
 #define DD_PMU_MAX_TOKENS_PER_SERVICE 88
 #define DD_PMU_MAX_TOKEN_CHARS 53
-
-// DD_PMU_TOKEN_INLINE_BYTES is the stack fast path for the common short token,
-// not a maximum: a token longer than this is rendered through the heap rather
-// than shortened. The longest token on the measured hardware is 35 bytes.
-#define DD_PMU_TOKEN_INLINE_BYTES 128
 
 #define DD_PMU_TOKEN_SEPARATOR '\x1f'
 
@@ -81,10 +78,10 @@ static bool dd_pkg_notableevents_contains_token(
 // processed. Returns 0 on success, -2 when buffer was too small and -3 when
 // the array could not be rendered in full.
 //
-// A token is never shortened or truncated to fit a bound: a service whose
-// array trips DD_PMU_MAX_TOKENS_PER_SERVICE, DD_PMU_MAX_TOKEN_CHARS or the
-// buffer's remaining capacity is dropped by the caller in its entirety and
-// logged, rather than passing a partial token set into classification. A
+// A token longer than DD_PMU_MAX_TOKEN_CHARS - 1 is truncated to fit rather
+// than dropped. A service whose array trips DD_PMU_MAX_TOKENS_PER_SERVICE or
+// the buffer's remaining capacity is dropped by the caller in its entirety
+// and logged, rather than passing a partial token set into classification. A
 // token already present in the buffer, whether from an earlier element in
 // this same array or from a service processed earlier, is skipped rather
 // than written a second time.
@@ -108,61 +105,65 @@ static int dd_pkg_notableevents_append_tokens(
         }
         CFStringRef text = (CFStringRef)element;
 
+        // DD_PMU_MAX_TOKEN_CHARS counts the token's content plus the one
+        // separator byte written after it, so content itself is bounded to
+        // one char less. A longer token is truncated to that bound rather
+        // than dropping the whole service over it.
         CFIndex length = CFStringGetLength(text);
-        if (length > DD_PMU_MAX_TOKEN_CHARS) {
-            return -3;
+        CFStringRef bounded = text;
+        if (length > DD_PMU_MAX_TOKEN_CHARS - 1) {
+            bounded = CFStringCreateWithSubstring(
+                kCFAllocatorDefault,
+                text,
+                CFRangeMake(0, DD_PMU_MAX_TOKEN_CHARS - 1));
+            if (bounded == NULL) {
+                continue;
+            }
+            length = DD_PMU_MAX_TOKEN_CHARS - 1;
         }
 
-        // Sized from the string rather than from a fixed maximum, so the buffer
-        // cannot be the reason a token fails to render. The length is bounded
-        // above, which is what keeps the sizing from reaching malloc unchecked.
         CFIndex capacity = CFStringGetMaximumSizeForEncoding(
             length,
             kCFStringEncodingUTF8);
         if (capacity <= 0) {
+            if (bounded != text) {
+                CFRelease(bounded);
+            }
             continue;
         }
         capacity += 1;
 
-        char inline_token[DD_PMU_TOKEN_INLINE_BYTES];
-        char *heap_token = NULL;
-        char *token = inline_token;
-        if ((size_t)capacity > sizeof(inline_token)) {
-            heap_token = malloc((size_t)capacity);
-            if (heap_token == NULL) {
-                return -3;
+        // Sized for the worst-case UTF-8 expansion of DD_PMU_MAX_TOKEN_CHARS - 1
+        // UTF-16 code units, so no allocation is ever needed to render a token
+        // that has already been bounded above.
+        char token[(DD_PMU_MAX_TOKEN_CHARS - 1) * 4 + 1];
+        if ((size_t)capacity > sizeof(token) ||
+            !CFStringGetCString(bounded, token, sizeof(token), kCFStringEncodingUTF8)) {
+            if (bounded != text) {
+                CFRelease(bounded);
             }
-            token = heap_token;
-        }
-
-        // free(NULL) is a no-op, which is what keeps the inline path free of a
-        // second exit shape.
-        if (!CFStringGetCString(text, token, capacity, kCFStringEncodingUTF8)) {
-            free(heap_token);
             return -3;
         }
+        if (bounded != text) {
+            CFRelease(bounded);
+        }
         if (token[0] == '\0') {
-            free(heap_token);
             continue;
         }
 
         size_t token_length = strlen(token);
         if (dd_pkg_notableevents_contains_token(buffer, *written, token, token_length)) {
-            free(heap_token);
             continue;
         }
 
         if (!dd_pkg_notableevents_append(buffer, size, written, token, token_length)) {
-            free(heap_token);
             return -2;
         }
         const char separator = DD_PMU_TOKEN_SEPARATOR;
         if (!dd_pkg_notableevents_append(buffer, size, written, &separator, 1)) {
-            free(heap_token);
             return -2;
         }
         *token_count += 1;
-        free(heap_token);
     }
 
     return 0;
