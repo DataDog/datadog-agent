@@ -291,7 +291,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
-  dra:
+  dra_collection:
     node_type: section
     type: object
     properties:

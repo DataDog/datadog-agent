@@ -33,7 +33,7 @@ func resourceClaimGVRStrings() []string {
 
 // draCollectionEnabled reports whether DRA objects must be collected.
 func draCollectionEnabled(cfg config.Reader) bool {
-	return cfg.GetBool("cluster_agent.dra.enabled")
+	return cfg.GetBool("cluster_agent.dra_collection.enabled")
 }
 
 func newResourceClaimStore(ctx context.Context, wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {

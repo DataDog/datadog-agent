@@ -6,4 +6,4 @@ features:
     workload metadata store. This is the foundation for accelerator allocation
     observability: it makes DRA device claims, allocations, and the devices
     advertised by DRA drivers available for cluster-level checks. Enable with
-    ``cluster_agent.dra.enabled: true`` (disabled by default).
+    ``cluster_agent.dra_collection.enabled: true`` (disabled by default).
