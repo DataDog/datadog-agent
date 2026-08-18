@@ -108,7 +108,7 @@ func LogIfEnabled(modeConf mode.Conf, cs cloudservice.CloudService) {
 		if wrappedCmd == "" {
 			wrappedCmd = "(none)"
 		}
-		diag("deployment_model: init-container  # serverless-init wraps the app command")
+		diag("deployment_model: in-container   # serverless-init wraps the app command")
 		diag("wrapped_command:  %s", wrappedCmd)
 	}
 	diag("origin:       %s  # cloud platform detected at runtime (cloudrun, cloudrunfunctions, azure, etc.)", cs.GetOrigin())
