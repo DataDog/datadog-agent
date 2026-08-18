@@ -571,7 +571,10 @@ impl ManagedProcess {
                     warn!("[{}] wait failed during stop: {e:#}", self.name);
                     None
                 }
-                Err(_) => self.force_kill_and_wait(timeout, ForceKillWaitTarget::Child).await,
+                Err(_) => {
+                    self.force_kill_and_wait(timeout, ForceKillWaitTarget::Child)
+                        .await
+                }
             };
             return status.is_some_and(|status| {
                 self.set_last_status(status);
