@@ -27,10 +27,6 @@ type scanwelchSeriesState struct {
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	segmentStartTime int64
-
-	// Reusable point buffer — grows once per series, reused across scans
-	// to avoid per-call allocation from GetSeriesRange.
-	buf []observer.Point
 }
 
 // ScanWelchDetector detects changepoints by scanning all possible split points
@@ -69,6 +65,9 @@ type ScanWelchDetector struct {
 
 	// per-series state keyed by ref+agg
 	series map[scanwelchStateKey]*scanwelchSeriesState
+	// scanBuf is shared by this single-writer detector instead of being retained
+	// once per live series and aggregation.
+	scanBuf []observer.Point
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef
@@ -115,10 +114,7 @@ func (d *ScanWelchDetector) Reset() {
 }
 
 // RemoveSeries drops segment-tracking state for refs that storage has freed.
-// Each per-series entry holds a reusable point buffer that grows to the
-// segment size, so without this teardown the map keeps growing with the
-// cumulative series count even after storage shrinks. Called by the engine
-// right after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
+// RemoveSeries drops segment-tracking state for refs that storage has freed.
 func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
@@ -180,29 +176,30 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				continue
 			}
 
-			// Collect points into reusable buffer to avoid per-call allocation.
-			state.buf = state.buf[:0]
 			var seriesMeta *observer.Series
-			storage.ForEachPoint(ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
-				if seriesMeta == nil {
-					sCopy := *s
-					seriesMeta = &sCopy
+			seriesMeta, d.scanBuf = collectLastPoints(storage, ref, dataTime, d.MaxPoints, agg, d.scanBuf)
+			if state.segmentStartTime > 0 {
+				kept := d.scanBuf[:0]
+				for _, p := range d.scanBuf {
+					if p.Timestamp > state.segmentStartTime {
+						kept = append(kept, p)
+					}
 				}
-				state.buf = appendPointWindow(state.buf, d.MaxPoints, p)
-			})
+				d.scanBuf = kept
+			}
 
-			if seriesMeta == nil || len(state.buf) < d.MinPoints {
+			if seriesMeta == nil || len(d.scanBuf) < d.MinPoints {
 				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
 			d.ready = true
 
-			anomaly, changeIdx, found := d.scanWelch(state.buf, seriesMeta, agg)
+			anomaly, changeIdx, found := d.scanWelch(d.scanBuf, seriesMeta, agg)
 			if found {
 				anomaly.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 				allAnomalies = append(allAnomalies, anomaly)
-				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
+				state.segmentStartTime = d.scanBuf[changeIdx].Timestamp - 1
 			}
 
 			if activated {

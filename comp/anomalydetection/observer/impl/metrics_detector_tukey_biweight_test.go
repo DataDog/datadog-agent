@@ -103,8 +103,7 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, 1, state.count)
-	assert.Equal(t, 10.0, state.ring[0].Value)
+	assert.Equal(t, 10.0, state.lastProcessedValue)
 
 	storage.Add("ns", "metric", 30.0, 1, nil)
 	series := storage.GetSeriesRange(ref, 0, 1, observer.AggregateAverage)
@@ -116,8 +115,7 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 
 	state = d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, 1, state.count, "same-bucket merge should replace the stale aggregate")
-	assert.Equal(t, 20.0, state.ring[0].Value)
+	assert.Equal(t, 20.0, state.lastProcessedValue, "same-bucket merge should replace the stale aggregate")
 	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
 }
 
@@ -144,10 +142,6 @@ func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 
 	state = d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, 2, state.count)
-	require.Len(t, state.ring, 2)
-	assert.Equal(t, int64(5), state.ring[0].Timestamp)
-	assert.Equal(t, int64(10), state.ring[1].Timestamp)
 	assert.Equal(t, 2, state.lastProcessedCount)
 	assert.Equal(t, int64(10), state.lastProcessedTime)
 }
@@ -168,7 +162,6 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, 1, state.count)
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 30.0, 10, nil)
@@ -177,12 +170,7 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 
 	state = d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, 2, state.count)
-	require.Len(t, state.ring, 2)
-	assert.Equal(t, int64(10), state.ring[0].Timestamp)
-	assert.Equal(t, 20.0, state.ring[0].Value)
-	assert.Equal(t, int64(11), state.ring[1].Timestamp)
-	assert.Equal(t, 40.0, state.ring[1].Value)
+	assert.Equal(t, 40.0, state.lastProcessedValue)
 	assert.Equal(t, 2, state.lastProcessedCount)
 	assert.Equal(t, int64(11), state.lastProcessedTime)
 }
@@ -361,25 +349,28 @@ func TestTukeyBiweight_IRLSConverges(t *testing.T) {
 	d.ensureDefaults()
 
 	// Synthetic bimodal: 40 points at 0, 40 points at 10. No noise.
-	state := &tbSeriesState{}
+	points := make([]observer.Point, 0, 80)
 	ts := int64(1)
 	for i := 0; i < 40; i++ {
-		d.appendRing(state, observer.Point{Timestamp: ts, Value: 0})
+		points = append(points, observer.Point{Timestamp: ts, Value: 0})
 		ts++
 	}
 	for i := 0; i < 40; i++ {
-		d.appendRing(state, observer.Point{Timestamp: ts, Value: 10})
+		points = append(points, observer.Point{Timestamp: ts, Value: 10})
 		ts++
 	}
-	require.Equal(t, 80, state.count)
+	require.Len(t, points, 80)
 
 	series := &observer.Series{Namespace: "ns", Name: "metric"}
 	// scoreBiweight returns (anomaly, fired). We don't care whether it
 	// fires; we care that the underlying IRLS terminated cleanly. Drive
 	// the function and inspect the snapshot sigma we'd compute.
-	_, _ = d.scoreBiweight(state, series, observer.AggregateAverage, ts)
+	_, _ = d.scoreBiweight(points, series, observer.AggregateAverage, ts)
 
-	xs := d.windowSnapshot(state)
+	xs := make([]float64, len(points))
+	for i, point := range points {
+		xs[i] = point.Value
+	}
 	mu := detectorMedian(xs)
 	sigma := detectorMAD(xs, mu, true)
 	require.False(t, math.IsNaN(mu), "mu must be finite")
