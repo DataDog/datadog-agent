@@ -31,11 +31,12 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
     }
 }
 
-void __attribute__((always_inline)) reset_span_context(struct span_context_t *span) {
+void __attribute__((always_inline)) reset_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
     span->span_id = 0;
     span->trace_id[0] = 0;
     span->trace_id[1] = 0;
     span->extra_attrs_id = 0;
+    go_labels->id = 0;
 }
 
 void __attribute__((always_inline)) copy_span_context(
