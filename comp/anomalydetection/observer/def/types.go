@@ -604,6 +604,22 @@ type Detector interface {
 	Detect(storage StorageReader, dataTime int64) DetectionResult
 }
 
+// DetectorPointWindow bounds a detector's raw-observation history.
+type DetectorPointWindow struct {
+	// MinPoints activates a cold series. Once active, it remains active until
+	// explicitly reset or removed, even if visible history later drops below it.
+	MinPoints int
+	// MaxPoints limits raw history, not detector-state lifetime. It must be at
+	// least MinPoints; storage keeps an additional scheduler pending bucket.
+	MaxPoints int
+}
+
+// DetectorPointWindowRequirement is an optional Detector capability. The
+// observer derives retention from the maximum MaxPoints of enabled detectors.
+type DetectorPointWindowRequirement interface {
+	DetectorPointWindow() DetectorPointWindow
+}
+
 // SeriesRemover is an optional interface that Detector implementations can
 // satisfy to receive notifications when storage drops series.
 //
