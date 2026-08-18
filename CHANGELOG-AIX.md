@@ -9,6 +9,7 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
+- Bump the embedded Python from 3.13.12 to 3.13.15, matching the version used by the Linux omnibus/bazel build
 - Build scripts: remove all hardcoded `/opt/datadog-agent` source-tree references — `AGENT_SRC` is now auto-resolved by walking up from the script directory to the nearest `.git` ancestor, so the agent source can live at any path on the build host
 - Remove the obsolete packaged integration constraints artifact from the AIX BFF package
 - Remove `sharedlibrarycheck` from the AIX agent build (the shared-library check loader was included but not validated on AIX)
