@@ -100,13 +100,17 @@ namespace CustomActions.Tests.Native
         }
 
         [Fact]
-        public void IsTrustedOwner_Accepts_Only_System_And_Administrators()
+        public void IsTrustedOwner_Accepts_Only_System_Administrators_And_ContainerAdministrator()
         {
             SecureDirectory.IsTrustedOwner(TestDirectory.LocalSystem).Should().BeTrue();
             SecureDirectory.IsTrustedOwner(TestDirectory.Administrators).Should().BeTrue();
+            SecureDirectory.IsTrustedOwner(TestDirectory.ContainerAdministrator).Should().BeTrue();
             SecureDirectory.IsTrustedOwner(TestDirectory.Everyone).Should().BeFalse();
             SecureDirectory.IsTrustedOwner(TestDirectory.UntrustedOwner).Should().BeFalse();
-            SecureDirectory.IsTrustedOwner(WindowsIdentity.GetCurrent().User).Should().BeFalse();
+            // A fixed SID rather than the current identity: this suite can run as
+            // ContainerAdministrator (see TestDirectory), which is now trusted.
+            SecureDirectory.IsTrustedOwner(new SecurityIdentifier(WellKnownSidType.NetworkServiceSid, null))
+                .Should().BeFalse();
         }
 
         [ElevatedFact]

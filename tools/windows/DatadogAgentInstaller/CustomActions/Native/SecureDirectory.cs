@@ -173,13 +173,21 @@ namespace Datadog.CustomActions.Native
         }
 
         /// <summary>
+        /// SID of the ContainerAdministrator account used in Windows containers. It has no
+        /// WellKnownSidType entry, so it cannot be checked with IsWellKnown like the other allowed
+        /// owners.
+        /// </summary>
+        private static readonly SecurityIdentifier ContainerAdministratorSid = new SecurityIdentifier("S-1-5-93-2-1");
+
+        /// <summary>
         /// The owners we accept. An unprivileged user cannot set either of them as the owner of a
         /// directory they create.
         /// </summary>
         internal static bool IsTrustedOwner(SecurityIdentifier owner)
         {
             return owner.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-                   owner.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid);
+                   owner.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid) ||
+                   owner == ContainerAdministratorSid;
         }
 
         /// <summary>
