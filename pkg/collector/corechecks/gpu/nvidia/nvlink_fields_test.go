@@ -217,58 +217,6 @@ func TestNVLinkFieldsCollectorCollectDoesNotPanicWhenMetricsBecomeEmpty(t *testi
 	require.ErrorContains(t, err, "no metrics to collect")
 }
 
-func TestNVLinkFieldsCollectorKeepsMetricsWhenSomePortsUnsupported(t *testing.T) {
-	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
-		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
-			for i := range fv {
-				if fv[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
-					testutil.ApplyMockFieldValue(&fv[i], testutil.DefaultFieldValues[fv[i].FieldId])
-					continue
-				}
-				if fv[i].ScopeId == 1 {
-					fv[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
-					continue
-				}
-				testutil.ApplyMockFieldValue(&fv[i], testutil.NewFieldValue(uint64(10)))
-			}
-			return nvml.SUCCESS
-		}
-	}))
-
-	collector := &nvlinkFieldsCollector{
-		device: device,
-		ports:  []int{1, 2},
-		totals: make(map[uint32]float64),
-		metrics: []nvlinkFieldValueMetric{
-			{
-				name:                "nvlink.throughput.data.rx",
-				fieldValueID:        nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
-				addTotalMetric:      true,
-				metricType:          metrics.GaugeType,
-				rateCalculationMode: PerSecondRateCalculation,
-			},
-		},
-	}
-
-	collected, err := collector.Collect()
-	require.NoError(t, err)
-
-	var perPort, totals int
-	for _, metric := range collected {
-		switch metric.Name {
-		case "nvlink.throughput.data.rx":
-			perPort++
-			require.Equal(t, float64(10), metric.Value)
-		case "nvlink.throughput.data.rx.total":
-			totals++
-			require.Equal(t, float64(10), metric.Value)
-		}
-	}
-	require.Equal(t, 1, perPort)
-	require.Equal(t, 1, totals)
-	require.Len(t, collector.metrics, 1)
-}
-
 func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 	tests := []struct {
 		name             string

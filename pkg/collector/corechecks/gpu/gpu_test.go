@@ -410,8 +410,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// PLR is not supported by this mock, so it is filtered out during collector creation.
 	parentCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr
-	// MIG slices have no NVLink ports, so collectors that probe per-port NVML
-	// APIs (nvlink_fec, nvlink_gpm, nvlink_fields) are not created for them.
+	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
 	migCollectorTypes := parentCollectorTypes - 3
 
 	// Track the number of MIG children dynamically
