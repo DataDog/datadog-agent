@@ -11,8 +11,8 @@ use tokio::sync::{mpsc, oneshot};
 /// Cloneable senders passed to spawn/restart handlers during a supervisor run.
 #[derive(Clone)]
 pub(crate) struct RuntimeHandles {
-    exit_tx: mpsc::Sender<ExitEvent>,
-    restart_tx: mpsc::Sender<PendingRestart>,
+    pub(in crate::manager) exit_tx: mpsc::Sender<ExitEvent>,
+    pub(in crate::manager) restart_tx: mpsc::Sender<PendingRestart>,
 }
 
 impl RuntimeHandles {
@@ -31,14 +31,6 @@ impl RuntimeHandles {
             exit_rx,
             restart_rx,
         )
-    }
-
-    pub(super) fn exit_sender(&self) -> mpsc::Sender<ExitEvent> {
-        self.exit_tx.clone()
-    }
-
-    pub(super) fn restart_sender(&self) -> mpsc::Sender<PendingRestart> {
-        self.restart_tx.clone()
     }
 }
 
