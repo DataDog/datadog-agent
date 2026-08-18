@@ -143,7 +143,9 @@ func getFakeCheck() (string, error) {
 	var version *C.char
 
 	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	state := C.ensure_gil(rtloader)
+	defer C.release_gil(rtloader, state)
 
 	// class
 	classStr := helpers.TrackedCString("fake_check")
@@ -180,9 +182,6 @@ func getFakeCheck() (string, error) {
 	if ret != 1 || check == nil {
 		return "", errors.New(C.GoString(C.get_error(rtloader)))
 	}
-
-	C.release_gil(rtloader, state)
-	runtime.UnlockOSThread()
 
 	return C.GoString(version), fetchError()
 }
