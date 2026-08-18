@@ -881,8 +881,24 @@ local and remote execution to be configured.
 All Windows developers are expected to have **Developer Mode enabled**, which grants the necessary privileges for
 symlink creation without administrator elevation. The `.bazelrc` sets `--enable_runfiles` accordingly.
 
+**Runfiles file junctions.** `--enable_runfiles` builds the runfiles tree with directory junctions. Windows junctions
+cannot point at files, so a file runfile shows up as a directory (`d----l`) and `open()` fails with `Permission
+denied` / `The directory name is invalid`. `pkg_install` copies from that tree, not from the MANIFEST real path;
+`bazel/patches/rules_pkg-windows-junction-copy.patch` makes the copier follow the reparse point. For generated trees
+that must be reachable as a directory (not file-by-file), `copy_to_directory` so the runfiles entry is one directory
+junction to a real directory of real files (see `//rtloader/test:dir_with_python_home`). Prefer the runfiles library
+over constructing paths under `*.runfiles`.
+
 **No sandbox.** Windows uses `--strategy=standalone`. Builds are less hermetic by default — undeclared dependencies that
 happen to be present locally will succeed locally and fail in CI or RBE.
+
+**Hermetic MSVC / MSBuild.** MinGW is the default Windows `cc_toolchain`. Hermetic `cl.exe`,
+Windows SDK, and MSBuild come from `@msvc_toolchains` (staged by
+`bazel/patches/toolchains_msvc/`). Drive MSVC-only sources (C++/WinRT, etc.) with
+`run_binary` + hermetic MSBuild — see `tools/windows/DatadogInterop/BUILD.bazel` and
+`deps/cpython.BUILD.bazel` (`python_win`) — so the rest of the Windows tree stays on MinGW.
+Only do this for a library the Go side loads over a C ABI: MSVC and MinGW objects must not
+be linked into the same binary.
 
 **Path separators.** Bazel stores paths with `/` internally. When constructing command lines or environment variables
 for actions, replace `/` with `\` for Windows tools that don't accept forward slashes:

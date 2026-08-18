@@ -1,0 +1,173 @@
+-- allium: 3
+-- tokenizer.allium
+
+-- Scope: Tokenization behaviour for the Datadog Agent's logs
+--   preprocessor pipeline. The tokenizer is a pure function from a
+--   byte input to a structural TokenSequence describing the run-length
+--   shape of the input — used by downstream stages (adaptive sampling,
+--   labelling, multiline detection) that reason about log line
+--   structure rather than content.
+-- Includes: Byte-to-token classification, run-length encoding,
+--   special token promotion, input truncation, structural collapsing.
+-- Excludes:
+--   - Pattern matching across token sequences (lives in
+--     adaptive_sampler.allium as the PatternMatching contract).
+--   - Any concrete token-type enum or implementation detail; the
+--     contract describes the observable behaviour of tokenize() as a
+--     pure function from bytes to a sequence of opaque tokens.
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+-- A Token is a single byte classifying a run of input characters.
+-- Tokens fall into five categories:
+--
+--   Space: whitespace (space, tab, newline, carriage return).
+--     Each whitespace run produces one Space token regardless of length.
+--
+--   Punctuation: each ASCII punctuation character is a distinct token:
+--     : ; - _ / \ . , ' " ` ~ * + = ( ) { } [ ] & ! @ # $ % ^
+--     Consecutive identical punctuation characters collapse into one
+--     token (run length discarded). Different punctuation characters
+--     are distinct tokens and do not form runs with each other.
+--
+--   Digit runs: consecutive digits [0-9] produce a single token
+--     encoding the run length: D1 (1 digit) through D10 (10+ digits).
+--     Runs longer than 10 are capped at D10.
+--
+--   Character runs: consecutive letters [a-zA-Z] and any byte not
+--     classified above produce a single token encoding the run length:
+--     C1 (1 char) through C10 (10+ chars). Capped at C10.
+--     Before emitting, runs of length 1-9 are checked for special
+--     token promotion (see Tokenization contract).
+--
+--   Special: character runs of 1-9 chars that match known patterns
+--     are promoted to one of:
+--       Month, Day, Zone, Apm, T
+--       Warn, Fatal, Error, Panic, Alert, Severe, Critical,
+--       Emergency, Exception, Crash, Failure, Deadlock, Timeout
+--     The corresponding regular Cn token is replaced by the
+--     special token.
+
+value TokenSequence {
+    -- Ordered sequence of tokens produced by the tokenizer from
+    -- the first line of a log message.
+    length: Integer
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract Tokenization {
+    tokenize: (input: ByteArray, max_bytes: Integer) -> TokenSequence
+
+    @invariant ByteClassification
+        -- Each input byte maps to exactly one base category via a
+        -- 256-entry lookup table:
+        --   Digits [0-9] → digit
+        --   Letters [a-zA-Z] → character
+        --   Whitespace (0x20 space, 0x09 tab, 0x0A newline, 0x0D CR) → space
+        --   Specific ASCII punctuation → one distinct token each:
+        --     : ; - _ / \ . , ' " ` ~ * + = ( ) { } [ ] & ! @ # $ % ^
+        --   All other byte values (non-ASCII, control chars) → character
+
+    @invariant RunLengthEncoding
+        -- Consecutive bytes of the same base token form a run.
+        -- When a different base token is encountered, the accumulated
+        -- run is emitted as a single token:
+        --   Digit runs → D1 through D10 (run length preserved)
+        --   Character runs → C1 through C10 (run length preserved,
+        --     subject to special token promotion)
+        --   Space runs → one Space token (run length discarded)
+        --   Punctuation runs → one token (run length discarded;
+        --     "!!!" produces one Exclamation, same as "!")
+        -- Runs of digits or characters longer than 10 are capped:
+        -- 15 consecutive digits produce D10, identical to 10 digits.
+
+    @invariant SpecialTokenPromotion
+        -- Before emitting a character run of length 1-9, the run's
+        -- bytes are uppercased and checked against a fixed table.
+        -- If matched, the special token replaces the regular Cn:
+        --   Length 1: T → time_separator, Z → zone
+        --   Length 2: AM, PM → apm
+        --   Length 3:
+        --     JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC → month
+        --     MON TUE WED THU FRI SAT SUN → day
+        --     UTC GMT EST EDT CST CDT MST MDT PST PDT JST KST
+        --       IST MSK CET BST HST HDT NST NDT → zone
+        --   Length 4:
+        --     CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT
+        --       AKST AKDT CHST CHDT → zone
+        --     WARN → warn (severity)
+        --     CRIT → critical (severity)
+        --   Length 5:
+        --     FATAL → fatal, ERROR → error, PANIC → panic,
+        --     ALERT → alert, EMERG → emergency, CRASH → crash
+        --   Length 6:
+        --     SEVERE → severe, FAILED → failure
+        --   Length 7:
+        --     WARNING → warn, CRASHED → crash,
+        --     FAILURE → failure, TIMEOUT → timeout
+        --   Length 8:
+        --     CRITICAL → critical, DEADLOCK → deadlock
+        --   Length 9:
+        --     EMERGENCY → emergency, EXCEPTION → exception
+        -- Character runs of length 10+ are never promoted. Runs
+        -- of length 1-9 that match no pattern emit the regular
+        -- Cn token (C1-C9 for lengths 1-9 respectively).
+        -- Matching is case-insensitive: "jan", "JAN", "Jan" all
+        -- match month.
+        --
+        -- The severity-keyword promotions (length 4-9) are
+        -- load-bearing for is_important in the AdaptiveSampler's
+        -- ImportantLogBypass rule (adaptive_sampler.allium):
+        -- is_important is a scan over the promoted severity
+        -- tokens, not a regex over content bytes.
+
+    @invariant InputTruncation
+        -- Only the first max_bytes of the input are tokenized.
+        -- Bytes beyond this offset are ignored. Two messages that
+        -- differ only after max_bytes produce identical token
+        -- sequences.
+
+    @invariant EmptyInput
+        -- An empty input produces an empty token sequence (length 0).
+
+    @invariant Determinism
+        -- tokenize is a pure function: the same input and max_bytes
+        -- always produce the same token sequence.
+
+    @invariant StructuralCollapsing
+        -- Two log lines produce identical token sequences if, at
+        -- every run boundary, the replacement preserves the base
+        -- token category and the run length. Specifically:
+        --   Digits may be substituted with other digits.
+        --   Letters may be substituted with other letters of the
+        --     same case (or any case — case does not affect
+        --     classification or run boundaries).
+        --   A special-token-matching string (e.g. "Jan") may be
+        --     replaced with another that matches the same special
+        --     token (e.g. "Dec"), but NOT with an arbitrary 3-letter
+        --     string (e.g. "Foo"), which would produce C3 instead
+        --     of Month.
+        -- This is the mechanism by which downstream consumers (e.g.
+        -- the adaptive sampler) group structurally similar logs into
+        -- one pattern.
+        -- Example: "2024-01-15 10:30:45 Jan request" and
+        -- "2025-12-31 23:59:59 Dec startup" both produce:
+        --   D4 Dash D2 Dash D2 Space D2 Colon D2 Colon D2
+        --   Space Month Space C7
+
+    @guidance
+        -- The default classification maps all unrecognised bytes to
+        -- the character category. Non-ASCII bytes, UTF-8 multibyte
+        -- sequences, and control characters all produce character
+        -- run tokens. This means binary content in log lines is
+        -- treated as character runs.
+        --
+        -- The special token table is non-exhaustive and can be
+        -- expanded. Adding new recognised patterns changes which
+        -- log lines are considered structurally equivalent.
+}

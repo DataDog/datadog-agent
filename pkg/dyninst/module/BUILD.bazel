@@ -86,6 +86,7 @@ dd_agent_go_test(
     embed = [":module"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/dyninst/actuator",
         "//pkg/dyninst/compiler",

@@ -66,6 +66,7 @@
     - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
     - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
   variables:
+    GIT_DEPTH: 0  # Full history: --impacted tests use git merge-base
     GIT_STRATEGY: "clone" # Needed because we use git merge-base
     DYNAMIC_TESTS_FLAG: "--impacted"
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
@@ -1032,7 +1033,6 @@ new-e2e-ha-agent-failover:
     TEAM: network-device-monitoring-core
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
-  allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-anomalydetection:
