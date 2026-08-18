@@ -1,14 +1,15 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "containerlifecycle",
     srcs = [
         "check.go",
         "handler.go",
+        "handler_container_creation.go",
         "handler_container_termination.go",
+        "handler_pod_creation.go",
+        "handler_pod_state.go",
         "handler_pod_termination.go",
         "handler_task_termination.go",
         "processor.go",

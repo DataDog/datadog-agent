@@ -11,7 +11,7 @@ build do
   block do
     if linux_target? and install_dir == '/opt/datadog-agent'
       destdir = ENV["OMNIBUS_BASE_DIR"] || "/"
-      command "bazel run --//:install_dir=#{install_dir} -- //packages/agent/linux:install --destdir='#{destdir}'",
+      command "bazel run #{omnibazel_flags} -- //packages/agent/linux:install --destdir='#{destdir}'",
         :live_stream => Omnibus.logger.live_stream(:info)
       project.extra_package_file "/opt/datadog-packages/datadog-agent"
       project.extra_package_file "/opt/datadog-packages/run"

@@ -60,20 +60,20 @@ def forward(packet, upstream):
 def main():
     if len(sys.argv) != 5:
         print(
-            "usage: host_traffic_dns.py <bind-ip> <domain> <target-ip> <upstream-dns>",
+            "usage: host_traffic_dns.py <bind-ip> <domains> <target-ip> <upstream-dns>",
             file=sys.stderr,
         )
         return 2
 
-    bind_ip, domain, target_ip, upstream = sys.argv[1:]
-    domain = domain.rstrip(".").lower()
+    bind_ip, domains_arg, target_ip, upstream = sys.argv[1:]
+    domains = {domain.rstrip(".").lower() for domain in domains_arg.split(",")}
     target_ip_bytes = socket.inet_aton(target_ip)
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.bind((bind_ip, 53))
         print(
             f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} "
-            f"serving {domain}={target_ip} on {bind_ip}:53, forwarding to {upstream}:53",
+            f"serving {','.join(sorted(domains))}={target_ip} on {bind_ip}:53, forwarding to {upstream}:53",
             flush=True,
         )
 
@@ -81,7 +81,7 @@ def main():
             packet, addr = sock.recvfrom(4096)
             try:
                 name, qtype, qclass, question = parse_question(packet)
-                if name == domain and qclass == QUERY_CLASS_IN:
+                if name in domains and qclass == QUERY_CLASS_IN:
                     if qtype in (QUERY_TYPE_A, QUERY_TYPE_ANY):
                         response = build_response(packet, question, target_ip_bytes)
                         action = "answer"

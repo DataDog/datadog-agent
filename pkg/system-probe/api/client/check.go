@@ -7,6 +7,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,6 +53,7 @@ type startChecker struct {
 	startTime      time.Time
 	startupTimeout time.Duration
 	started        bool
+	inFlight       chan struct{}
 }
 
 // getStartChecker is a memoized function that returns the singleton startChecker.
@@ -66,22 +68,53 @@ var getStartChecker = funcs.MemoizeNoError[*startChecker](func() *startChecker {
 // request. Returns an error if the system-probe is not started yet. The error
 // should be checked with IgnoreStartupError(), to avoid propagating errors to
 // the check infrastructure.
-func (c *startChecker) ensureStarted(client *http.Client) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+func (c *startChecker) ensureStarted(ctx context.Context, client *http.Client) error {
+	for {
+		c.mutex.Lock()
+		if c.started {
+			c.mutex.Unlock()
+			return nil
+		}
+		if c.inFlight != nil {
+			done := c.inFlight
+			c.mutex.Unlock()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-done:
+				// The probe result belongs to its owner. Re-evaluate shared
+				// state so an active waiter can start a new probe when the
+				// previous owner was canceled or otherwise failed.
+				continue
+			}
+		}
 
-	if c.started {
-		return nil
-	}
+		done := make(chan struct{})
+		c.inFlight = done
+		startTime := c.startTime
+		startupTimeout := c.startupTimeout
+		c.mutex.Unlock()
 
-	req, err := http.NewRequest("GET", "http://sysprobe/debug/stats", nil)
-	if err != nil {
-		return err
-	}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://sysprobe/debug/stats", nil)
+		if err == nil {
+			_, err = doReq(client, req, "status")
+		}
 
-	_, err = doReq(client, req, "status")
-	if err != nil {
-		if time.Since(c.startTime) < c.startupTimeout {
+		c.mutex.Lock()
+		if err == nil {
+			c.started = true
+		}
+		c.inFlight = nil
+		close(done)
+		c.mutex.Unlock()
+
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if time.Since(startTime) < startupTimeout {
 			// For the first few minutes after startup, only emit warnings
 			// instead of reporting errors from the check, to allow a reasonable
 			// time for system-probe to become ready to serve requests
@@ -91,12 +124,8 @@ func (c *startChecker) ensureStarted(client *http.Client) error {
 			// error logs from the check infrastructure.
 			return ErrNotStartedYet
 		}
-
 		return err
 	}
-
-	c.started = true
-	return nil
 }
 
 // CheckClient is a client for communicating with the system-probe check API
@@ -220,7 +249,13 @@ func doReq(client *http.Client, req *http.Request, module types.ModuleName) (bod
 
 // GetCheck returns data unmarshalled from JSON to T, from the specified module at the /<module>/check endpoint.
 func GetCheck[T any](client *CheckClient, module types.ModuleName) (T, error) {
-	return request[T](client, http.MethodGet, "/check", nil, module)
+	return GetCheckWithContext[T](context.Background(), client, module)
+}
+
+// GetCheckWithContext returns check data and cancels all startup and module
+// HTTP work when ctx is canceled.
+func GetCheckWithContext[T any](ctx context.Context, client *CheckClient, module types.ModuleName) (T, error) {
+	return request[T](ctx, client, http.MethodGet, "/check", nil, module)
 }
 
 // Post makes a POST request to a module endpoint with an optional JSON
@@ -228,12 +263,18 @@ func GetCheck[T any](client *CheckClient, module types.ModuleName) (T, error) {
 // parameter should be the path relative to the module (e.g., "/check",
 // "/services").
 func Post[T any](client *CheckClient, endpoint string, requestBody any, module types.ModuleName) (T, error) {
-	return request[T](client, http.MethodPost, endpoint, requestBody, module)
+	return PostWithContext[T](context.Background(), client, endpoint, requestBody, module)
 }
 
-func request[T any](client *CheckClient, method string, endpoint string, requestBody any, module types.ModuleName) (T, error) {
+// PostWithContext posts to a module endpoint and cancels all startup and
+// module HTTP work when ctx is canceled.
+func PostWithContext[T any](ctx context.Context, client *CheckClient, endpoint string, requestBody any, module types.ModuleName) (T, error) {
+	return request[T](ctx, client, http.MethodPost, endpoint, requestBody, module)
+}
+
+func request[T any](ctx context.Context, client *CheckClient, method string, endpoint string, requestBody any, module types.ModuleName) (T, error) {
 	var data T
-	err := client.startupChecker.ensureStarted(client.startupClient)
+	err := client.startupChecker.ensureStarted(ctx, client.startupClient)
 	if err != nil {
 		return data, err
 	}
@@ -249,7 +290,7 @@ func request[T any](client *CheckClient, method string, endpoint string, request
 		bodyReader = bytes.NewReader(jsonBody)
 	}
 
-	req, err := http.NewRequest(method, ModuleURL(module, endpoint), bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, ModuleURL(module, endpoint), bodyReader)
 	if err != nil {
 		return data, err
 	}

@@ -28,11 +28,15 @@ dd_agent_go_test(
     name = "container_test",
     srcs = ["launcher_test.go"],
     embed = [":container"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",

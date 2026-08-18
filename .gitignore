@@ -7,6 +7,10 @@ vendor/
 bin/
 /dev/
 /site/
+# Remote content fetched while building the documentation.
+/.docs-cache/
+# Link check results remembered between runs.
+/.lycheecache
 __pycache__
 .pytest_cache
 venv*/
@@ -245,11 +249,13 @@ AUTO_JIRA.md
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
-# Codex
-.codex/
+# Codex (commit the shared MCP config; ignore everything else Codex writes)
+.codex/*
+!.codex/config.toml
 
-# Zed config
-.zed
+# Zed config (commit the shared MCP config; ignore everything else)
+.zed/*
+!.zed/settings.json
 
 # Devcontainer
 .devcontainer/
@@ -260,3 +266,10 @@ pkg/config/schema/compressed/*.zstd
 .python-nix-home
 .venv-nix
 flake.lock
+
+# Code generated from the config schema
+pkg/config/schema/*_settings.go
+pkg/config/schema/*_generated.go
+pkg/config/setup/generated.go
+pkg/config/setup/all_settings.go
+pkg/config/setup/system_probe_settings.go

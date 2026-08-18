@@ -1,6 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
-
-# gazelle:dd_agent_go_test off
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -17,6 +16,8 @@ go_library(
         "//comp/def",
         "//comp/dogstatsd/statsd/def",
         "//comp/forwarder/eventplatform/def",
+        "//comp/kubeactions/helmactions/def",
+        "//comp/kubeactions/kubeactions/def",
         "//comp/networkpath/traceroute/def",
         "//comp/privateactionrunner/def",
         "//comp/remote-config/rcclient/def",
@@ -28,6 +29,8 @@ go_library(
         "//pkg/privateactionrunner/adapters/rcclient",
         "//pkg/privateactionrunner/autoconnections",
         "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/executor",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",
         "//pkg/privateactionrunner/runners",
@@ -35,14 +38,15 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/util/http",
         "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = ["privateactionrunner_test.go"],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",

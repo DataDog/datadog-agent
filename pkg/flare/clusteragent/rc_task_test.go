@@ -23,6 +23,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // buildAgentTaskConfigJSON constructs an AgentTaskConfig from a raw JSON task payload.
@@ -262,6 +263,47 @@ func TestHandleRCFlareTask_MalformedTagsIgnored(t *testing.T) {
 	// tags should be nil (ignored), source empty
 	expSource := flarehelpers.NewRemoteConfigFlareSource("uuid-8").WithFlareSourceTags("", nil)
 	assert.Equal(t, expSource, capturedSource)
+}
+
+func TestHandleRCFlareTask_LogFile(t *testing.T) {
+	origCreate := createDCAArchiveFunc
+	origSend := sendFlareFunc
+	t.Cleanup(func() {
+		createDCAArchiveFunc = origCreate
+		sendFlareFunc = origSend
+	})
+
+	var capturedLogFile string
+	createDCAArchiveFunc = func(_ bool, _, logFile string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+		capturedLogFile = logFile
+		return "/tmp/fake-flare.zip", nil
+	}
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
+		return "ok", nil
+	}
+
+	task := buildAgentTaskConfig(t, "flare", "uuid-logfile", map[string]string{
+		"case_id":     "12345",
+		"user_handle": "test@example.com",
+	})
+
+	t.Run("unconfigured log_file falls back to the cluster-agent's default log file", func(t *testing.T) {
+		// Cluster-agent doesn't register its own default for "log_file", so an
+		// unconfigured value resolves to the generic agent default
+		// (defaultpaths.GetDefaultLogFile()), not "".
+		cfg := configmock.New(t)
+		err := HandleRCFlareTask(task, cfg, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, defaultpaths.GetDefaultDCALogFile(), capturedLogFile)
+	})
+
+	t.Run("explicitly configured log_file is preserved", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("log_file", "/custom/cluster-agent.log", pkgconfigmodel.SourceAgentRuntime)
+		err := HandleRCFlareTask(task, cfg, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "/custom/cluster-agent.log", capturedLogFile)
+	})
 }
 
 func TestHandleRCFlareTask_ProfilingArgs(t *testing.T) {

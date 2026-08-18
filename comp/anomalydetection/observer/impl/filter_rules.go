@@ -104,18 +104,22 @@ func newMetricsFilterRules(rules []metricsProcessingRule) (*metricsFilterRules, 
 	return &metricsFilterRules{rules: compiled}, nil
 }
 
-func defaultMetricsProcessingRules() []metricsProcessingRule {
+// implicitMetricsProcessingRules are evaluated before user-configured rules.
+// They protect the observer from ingesting its own Agent telemetry and must not
+// be overridable by an include_at_match rule.
+func implicitMetricsProcessingRules() []metricsProcessingRule {
 	return []metricsProcessingRule{
 		{
-			Type:   excludeAtMatch,
-			Name:   "drop_agent_metrics",
-			Source: observerdef.AgentNamespace,
+			Type:        excludeAtMatch,
+			Name:        "drop_observer_telemetry",
+			NamePattern: observerTelemetryMetricPrefix + "*",
+			Source:      observerdef.AgentNamespace,
 		},
 	}
 }
 
 func newDefaultMetricsFilterRules() (*metricsFilterRules, error) {
-	return newMetricsFilterRules(defaultMetricsProcessingRules())
+	return newMetricsFilterRules(implicitMetricsProcessingRules())
 }
 
 func loadMetricFilter(cfg config.Component) (*metricsFilterRules, error) {
@@ -126,7 +130,7 @@ func loadMetricFilter(cfg config.Component) (*metricsFilterRules, error) {
 		}
 	}
 
-	rules = append(rules, defaultMetricsProcessingRules()...)
+	rules = append(implicitMetricsProcessingRules(), rules...)
 
 	filter, err := newMetricsFilterRules(rules)
 	if err != nil {
@@ -192,9 +196,10 @@ func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool 
 	return true
 }
 
-// setMuted publishes the baseline mute set atomically. Called once at freeze
-// from the engine run goroutine; all handle goroutines observe it on next ingest.
-func (f *metricsFilterRules) setMuted(m map[uint64]struct{}) {
+// publishMutedSnapshot atomically publishes an immutable baseline mute union.
+// The engine owns constructing this copy-on-write snapshot; callers and
+// readers must never mutate m after publication.
+func (f *metricsFilterRules) publishMutedSnapshot(m map[uint64]struct{}) {
 	f.muted.Store(&m)
 }
 

@@ -246,7 +246,7 @@ type testModule struct {
 	grpcServer    *grpcutils.Server
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func getInode(tb testing.TB, path string) uint64 {
 	fileInfo, err := os.Lstat(path)
 	if err != nil {
@@ -263,7 +263,7 @@ func getInode(tb testing.TB, path string) uint64 {
 	return stats.Ino
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func which(tb testing.TB, name string) string {
 	executable, err := whichNonFatal(name)
 	if err != nil {
@@ -274,7 +274,7 @@ func which(tb testing.TB, name string) string {
 
 // whichNonFatal is "which" which returns an error instead of fatal
 //
-//nolint:deadcode,unused
+//nolint:unused
 func whichNonFatal(name string) (string, error) {
 	executable, err := exec.LookPath(name)
 	if err != nil {
@@ -288,7 +288,7 @@ func whichNonFatal(name string) (string, error) {
 	return executable, nil
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func copyFile(src string, dst string, mode fs.FileMode) error {
 	input, err := os.ReadFile(src)
 	if err != nil {
@@ -298,7 +298,7 @@ func copyFile(src string, dst string, mode fs.FileMode) error {
 	return os.WriteFile(dst, input, mode)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertMode(tb testing.TB, actualMode, expectedMode uint32, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	if len(msgAndArgs) == 0 {
@@ -307,7 +307,7 @@ func assertMode(tb testing.TB, actualMode, expectedMode uint32, msgAndArgs ...in
 	return assert.Equal(tb, strconv.FormatUint(uint64(expectedMode), 8), strconv.FormatUint(uint64(actualMode), 8), msgAndArgs...)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertInode(tb testing.TB, actualInode, expectedInode uint64, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 
@@ -321,13 +321,13 @@ func assertInode(tb testing.TB, actualInode, expectedInode uint64, msgAndArgs ..
 	return assert.Equal(tb, strconv.FormatUint(uint64(expectedInode), 8), strconv.FormatUint(uint64(actualInode), 8), msgAndArgs...)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertRights(tb testing.TB, actualMode, expectedMode uint16, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	return assertMode(tb, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertNearTimeObject(tb testing.TB, eventTime time.Time) bool {
 	tb.Helper()
 	now := time.Now()
@@ -338,25 +338,25 @@ func assertNearTimeObject(tb testing.TB, eventTime time.Time) bool {
 	return true
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertNearTime(tb testing.TB, ns uint64) bool {
 	tb.Helper()
 	return assertNearTimeObject(tb, time.Unix(0, int64(ns)))
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertNotTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
 	tb.Helper()
 	return assert.NotEqual(tb, id, r.ID, "wrong triggered rule")
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 	tb.Helper()
 	return assert.Equal(tb, expected, retval, "wrong return value")
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
 	scrubber, err := utils.NewScrubber(nil, nil)
 	if err != nil {
@@ -449,7 +449,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event) {
 	}
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	// Process file name values cannot be blank
 	nameFields := []string{
@@ -538,7 +538,7 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, 
 	return validField, hasPath
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) {
 	if ebpfLessEnabled {
 		return
@@ -570,7 +570,7 @@ func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) 
 	}
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func validateProcessContext(tb testing.TB, event *model.Event) {
 	if event.ProcessContext.IsKworker {
 		return
@@ -580,7 +580,7 @@ func validateProcessContext(tb testing.TB, event *model.Event) {
 	validateProcessContextSECL(tb, event)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
 	return func(event *model.Event, rule *rules.Rule) {
 		validate(event, rule)
@@ -588,7 +588,7 @@ func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.
 	}
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
 	return func(event *model.Event, rule *rules.Rule) {
 		validate(event, rule)
@@ -1107,7 +1107,7 @@ func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 // systemUmask caches the system umask between tests
 var systemUmask int //nolint:unused
 
-//nolint:deadcode,unused
+//nolint:unused
 func applyUmask(fileMode int) int {
 	if systemUmask == 0 {
 		// Get the system umask to compute the right access mode
@@ -1118,7 +1118,7 @@ func applyUmask(fileMode int) int {
 	return fileMode &^ systemUmask
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintptr)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
@@ -1142,7 +1142,7 @@ type eventKeyValueFilter struct {
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
 // contain a rule on "open.file.path"
 //
-//nolint:deadcode,unused
+//nolint:unused
 func waitForProbeEvent(test *testModule, action func() error, eventType model.EventType, filters ...eventKeyValueFilter) error {
 	return test.GetProbeEvent(action, func(event *model.Event) bool {
 		for _, filter := range filters {
@@ -1154,7 +1154,7 @@ func waitForProbeEvent(test *testModule, action func() error, eventType model.Ev
 	}, getEventTimeout, eventType)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func waitForOpenProbeEvent(test *testModule, action func() error, filename string) error {
 	return waitForProbeEvent(test, action, model.FileOpenEventType, eventKeyValueFilter{
 		key:   "open.file.path",
@@ -1162,7 +1162,7 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 	})
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func waitForIMDSResponseProbeEvent(test *testModule, action func() error, processFileName string) error {
 	return waitForProbeEvent(test, action, model.IMDSEventType, []eventKeyValueFilter{
 		{
@@ -1176,7 +1176,7 @@ func waitForIMDSResponseProbeEvent(test *testModule, action func() error, proces
 	}...)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kernel.Version) bool) {
 	tb.Helper()
 	kv, err := kernel.NewKernelVersion()
@@ -1489,7 +1489,7 @@ func isSystemdAvailable() bool {
 	return true
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func findLearningContainerID(dumps []*activityDumpIdentifier, containerID containerutils.ContainerID) *activityDumpIdentifier {
 	for _, dump := range dumps {
 		if dump.ContainerID == containerID {
@@ -1499,7 +1499,7 @@ func findLearningContainerID(dumps []*activityDumpIdentifier, containerID contai
 	return nil
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func findLearningContainerName(dumps []*activityDumpIdentifier, name string) *activityDumpIdentifier {
 	for _, dump := range dumps {
 		if dump.Name == name {
@@ -1509,7 +1509,7 @@ func findLearningContainerName(dumps []*activityDumpIdentifier, name string) *ac
 	return nil
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) isDumpRunning(id *activityDumpIdentifier) bool {
 	dumps, err := tm.ListActivityDumps()
 	if err != nil {
@@ -1519,7 +1519,7 @@ func (tm *testModule) isDumpRunning(id *activityDumpIdentifier) bool {
 	return dump != nil
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) findCgroupDump(id *activityDumpIdentifier) *activityDumpIdentifier {
 	dumps, err := tm.ListActivityDumps()
 	if err != nil {
@@ -1532,7 +1532,7 @@ func (tm *testModule) findCgroupDump(id *activityDumpIdentifier) *activityDumpId
 	return dump
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, syscallTester string, goSyscallTester string) {
 	// open
 	cmd := dockerInstance.Command("touch", []string{filepath.Join(tm.Root(), "open")}, []string{})
@@ -1553,7 +1553,7 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, s
 	_, _ = cmd.CombinedOutput()
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) dockerCreateFiles(dockerInstance *dockerCmdWrapper, syscallTester string, directory string, numberOfFiles int) error {
 	var files []string
 	for i := 0; i < numberOfFiles; i++ {
@@ -1569,7 +1569,7 @@ func (tm *testModule) dockerCreateFiles(dockerInstance *dockerCmdWrapper, syscal
 	return nil
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) findNextPartialDump(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) (*activityDumpIdentifier, error) {
 	for i := 0; i < 10; i++ { // retry during 5sec
 		dump := tm.findCgroupDump(id)
@@ -1586,7 +1586,7 @@ func (tm *testModule) findNextPartialDump(dockerInstance *dockerCmdWrapper, id *
 	return nil, errors.New("Unable to find the next partial dump")
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func searchForOpen(ad *dump.ActivityDump) bool {
 	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.Files) > 0 {
@@ -1596,7 +1596,7 @@ func searchForOpen(ad *dump.ActivityDump) bool {
 	return false
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func searchForDNS(ad *dump.ActivityDump) bool {
 	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.DNSNames) > 0 {
@@ -1606,7 +1606,7 @@ func searchForDNS(ad *dump.ActivityDump) bool {
 	return false
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func searchForIMDS(ad *dump.ActivityDump) bool {
 	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.IMDSEvents) > 0 {
@@ -1616,7 +1616,7 @@ func searchForIMDS(ad *dump.ActivityDump) bool {
 	return false
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func searchForBind(ad *dump.ActivityDump) bool {
 	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.Sockets) > 0 {
@@ -1626,7 +1626,7 @@ func searchForBind(ad *dump.ActivityDump) bool {
 	return false
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func searchForSyscalls(ad *dump.ActivityDump) bool {
 	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.Syscalls) > 0 {
@@ -1636,7 +1636,7 @@ func searchForSyscalls(ad *dump.ActivityDump) bool {
 	return false
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func searchForNetworkFlowMonitorEvents(ad *dump.ActivityDump) bool {
 	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.NetworkDevices) > 0 {
@@ -1646,7 +1646,7 @@ func searchForNetworkFlowMonitorEvents(ad *dump.ActivityDump) bool {
 	return false
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) getADFromDumpID(id *activityDumpIdentifier) (*dump.ActivityDump, error) {
 	var fileProtobuf string
 	// decode the dump
@@ -1666,7 +1666,7 @@ func (tm *testModule) getADFromDumpID(id *activityDumpIdentifier) (*dump.Activit
 	return ad, nil
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) findNumberOfExistingDirectoryFiles(id *activityDumpIdentifier, testDir string) (int, error) {
 	ad, err := tm.getADFromDumpID(id)
 	if err != nil {
@@ -1698,7 +1698,7 @@ firstLoop:
 	return total, nil
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) extractAllDumpEventTypes(id *activityDumpIdentifier) ([]string, error) {
 	var res []string
 

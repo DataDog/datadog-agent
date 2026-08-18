@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -234,8 +233,6 @@ func (suite *KubeletTestSuite) getCustomKubeUtil() KubeUtilInterface {
 func (suite *KubeletTestSuite) SetupTest() {
 	ResetGlobalKubeUtil()
 	ResetCache()
-
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {

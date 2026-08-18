@@ -702,6 +702,12 @@ func buildLinuxHelmValuesAutopilot(baseName, agentImagePath, agentImageTag, clus
 		"datadog": pulumi.Map{
 			"apiKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
 			"appKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
+			"processAgent": pulumi.Map{
+				"processCollection": pulumi.Bool(true),
+			},
+			"kubelet": pulumi.Map{
+				"useApiServer": pulumi.Bool(true),
+			},
 		},
 		"clusterAgent": pulumi.Map{
 			"enabled": pulumi.Bool(true),
@@ -1020,6 +1026,14 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 				"value": pulumi.String("true"),
 			},
 			pulumi.StringMap{
+				"name":  pulumi.String("DD_AGENT_TELEMETRY_ADDITIONAL_ENDPOINTS"),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_AGENT_TELEMETRY_USE_HTTP"),
+				"value": pulumi.String("true"),
+			},
+			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
 				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
 			},
@@ -1048,6 +1062,10 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"),
+				"value": pulumi.Sprintf("%s", fi.URL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_AGENT_TELEMETRY_LOGS_DD_URL"),
 				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{

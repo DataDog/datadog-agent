@@ -112,7 +112,8 @@ def setup_devcontainer(
         build_include=build_include,
         build_exclude=build_exclude,
         flavor=flavor,
-        image=image,
+        # Fall back to the default developer environment image when none is given.
+        image=image or devcontainer.DEVCONTAINER_IMAGE,
     )
 
 

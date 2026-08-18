@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fixed a bug in the trace-agent DogStatsD proxy endpoints
+    (``/dogstatsd/v1/proxy`` and ``/dogstatsd/v2/proxy``) where a request body
+    was split into all of its newline-separated payloads at once, so a body
+    containing many newlines used several times its own size in memory. The
+    body is now scanned one payload at a time, empty payloads are skipped, and
+    the number of payloads relayed per request is capped.

@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"runtime"
 	"sort"
+	"sync"
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -39,6 +40,7 @@ func TestConfigureDefault(t *testing.T) {
 func TestConfigure(t *testing.T) {
 	mockConfig := configmock.New(t)
 
+	defaultsOnce = sync.Once{}
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	aggregates := []string{"max", "min", "test"}
@@ -50,10 +52,33 @@ func TestConfigure(t *testing.T) {
 	assert.Equal(t, []int{30, 50, 98}, hist.percentiles)
 }
 
+// TestNewHistogramConcurrent reproduces the scenario that raced in production: many
+// aggregator shard goroutines calling NewHistogram concurrently on first use, all
+// racing to lazily initialize the shared defaultAggregates/defaultPercentiles. Run
+// with -race.
+func TestNewHistogramConcurrent(t *testing.T) {
+	cfg := setupConfig(t)
+
+	defaultsOnce = sync.Once{}
+	defaultAggregates = nil
+	defaultPercentiles = nil
+
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			NewHistogram(10, cfg)
+		}()
+	}
+	wg.Wait()
+}
+
 func TestDefaultHistogramSampling(t *testing.T) {
 	// Initialize default histogram
 	cfg := setupConfig(t)
 
+	defaultsOnce = sync.Once{}
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	mHistogram := NewHistogram(10, cfg)
@@ -274,6 +299,7 @@ func TestHistogramReset(t *testing.T) {
 // https://en.wikipedia.org/wiki/Kahan_summation_algorithm). The exact sum in ℝ
 // is 2.0; the flushed .sum is compared to that (addSample order matches the slice).
 func TestHistogramAverageExtremeScale(t *testing.T) {
+	defaultsOnce = sync.Once{}
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	cfg := setupConfig(t)
@@ -306,6 +332,7 @@ func TestHistogramAverageExtremeScale(t *testing.T) {
 // Regression check: an int-truncated weight (= 4 for @0.21) would give .sum = 200 and
 // .count = 2.0 — both off by ~16%, well outside the 1e-12 epsilon below.
 func TestHistogramNonReciprocalSampleRate(t *testing.T) {
+	defaultsOnce = sync.Once{}
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	cfg := setupConfig(t)

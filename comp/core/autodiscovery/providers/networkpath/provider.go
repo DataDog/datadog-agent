@@ -12,8 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"strings"
 	"sync"
+	"time"
 
 	"go.yaml.in/yaml/v2"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	networkpathcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -45,7 +48,8 @@ type Provider struct {
 }
 
 type remoteConfigEnvelope struct {
-	Type string `json:"type"`
+	Type string   `json:"type"`
+	Tags []string `json:"tags,omitempty"`
 	// TestConfigID identifies the scheduled test definition shared by all endpoints in Config.
 	TestConfigID string           `json:"test_config_id"`
 	Config       *scheduledConfig `json:"config"`
@@ -150,6 +154,19 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		// are treated as deleted after the snapshot has been processed.
 		seenPaths[path] = struct{}{}
 
+		configType, err := getConfigType(rawConfig.Config)
+		if err == nil && configType == dynamicType {
+			// Dynamic configs are owned by the Network Path Collector listener.
+			// Do not overwrite its apply status from the scheduled provider.
+			// A path is not expected to change types, but defensively remove any
+			// scheduled state so a malformed snapshot cannot leave a stale test
+			// running indefinitely.
+			changes.Unschedule = append(changes.Unschedule, p.activeByPath[path]...)
+			delete(p.activeByPath, path)
+			delete(p.configErrors, path)
+			continue
+		}
+
 		configs, err := parseConfig(rawConfig.Config)
 		if err != nil {
 			// Keep the last valid configs active when a replacement payload is invalid.
@@ -196,6 +213,16 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 
 	p.stateMutex.Unlock()
 	p.sendChanges(changes)
+}
+
+func getConfigType(raw []byte) (string, error) {
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return "", err
+	}
+	return envelope.Type, nil
 }
 
 func (p *Provider) sendChanges(changes integration.ConfigChanges) {
@@ -246,7 +273,7 @@ func parseConfig(raw []byte) ([]integration.Config, error) {
 
 	configs := make([]integration.Config, 0, len(envelope.Config.Tests))
 	for i, endpoint := range envelope.Config.Tests {
-		instance, err := translateEndpoint(testConfigID, endpoint)
+		instance, err := translateEndpoint(testConfigID, envelope.Tags, endpoint)
 		if err != nil {
 			return nil, fmt.Errorf("invalid Network Path config at tests[%d]: %w", i, err)
 		}
@@ -266,7 +293,7 @@ func parseConfig(raw []byte) ([]integration.Config, error) {
 	return configs, nil
 }
 
-func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPathInstanceConfig, error) {
+func translateEndpoint(testConfigID string, configTags []string, endpoint endpointConfig) (networkPathInstanceConfig, error) {
 	hostname := strings.TrimSpace(endpoint.Hostname)
 	if hostname == "" {
 		return networkPathInstanceConfig{}, errors.New("hostname is required")
@@ -279,8 +306,7 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 		DestinationService:    endpoint.DestinationService,
 		TracerouteQueries:     endpoint.TracerouteQueries,
 		E2eQueries:            endpoint.E2eQueries,
-		Tags:                  endpoint.Tags,
-		Timeout:               endpoint.TimeoutMS,
+		Tags:                  mergeTags(configTags, endpoint.Tags),
 		MinCollectionInterval: endpoint.IntervalSec,
 	}
 
@@ -313,6 +339,14 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 	if endpoint.TimeoutMS != nil && *endpoint.TimeoutMS <= 0 {
 		return networkPathInstanceConfig{}, errors.New("timeout_ms must be > 0")
 	}
+	if endpoint.TimeoutMS != nil {
+		maxTTL := tracerouteconfig.DefaultMaxTTL
+		if endpoint.MaxTTL != nil {
+			maxTTL = *endpoint.MaxTTL
+		}
+		perHopTimeoutMS := calculatePerHopTimeoutMS(*endpoint.TimeoutMS, maxTTL)
+		instance.Timeout = &perHopTimeoutMS
+	}
 	if endpoint.IntervalSec != nil && *endpoint.IntervalSec <= 0 {
 		return networkPathInstanceConfig{}, errors.New("interval_sec must be > 0")
 	}
@@ -335,6 +369,15 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 	}
 
 	return instance, nil
+}
+
+func calculatePerHopTimeoutMS(totalTimeoutMS int64, maxTTL int) int64 {
+	perHopTimeout := tracerouteconfig.PerHopTimeout(time.Duration(totalTimeoutMS)*time.Millisecond, uint8(maxTTL))
+	// Round up because the check's timeout is expressed in whole milliseconds
+	// and zero would make it fall back to the unrelated local default.
+	// This can exceed the total budget by less than 1ms per hop; strict
+	// end-to-end timeout enforcement will be implemented separately.
+	return int64(math.Ceil(float64(perHopTimeout) / float64(time.Millisecond)))
 }
 
 func sameConfigs(a, b []integration.Config) bool {

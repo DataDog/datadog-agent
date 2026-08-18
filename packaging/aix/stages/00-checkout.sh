@@ -84,12 +84,17 @@ fi
 
 log "INTEGRATIONS_CORE_VERSION = $INTEGRATIONS_CORE_VERSION"
 
+ADP_JSON="$AGENT_SRC/deps/adp.json"
 if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
+    if [ ! -f "$ADP_JSON" ]; then
+        log "ERROR: $ADP_JSON not found — is the source tree complete?"
+        exit 1
+    fi
     AGENT_DATA_PLANE_VERSION=$(python3.12 -c \
-        "import json; print(json.load(open('$RELEASE_JSON'))['dependencies']['AGENT_DATA_PLANE_VERSION'])")
+        "import json; print(json.load(open('$ADP_JSON'))['version'])")
 fi
 if [ -z "$AGENT_DATA_PLANE_VERSION" ]; then
-    log "ERROR: Could not read AGENT_DATA_PLANE_VERSION from $RELEASE_JSON"
+    log "ERROR: Could not read AGENT_DATA_PLANE_VERSION from $ADP_JSON"
     exit 1
 fi
 log "AGENT_DATA_PLANE_VERSION = $AGENT_DATA_PLANE_VERSION"

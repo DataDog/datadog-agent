@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import click
-
 from dda.cli.base import dynamic_command, pass_app
 
 if TYPE_CHECKING:
@@ -20,7 +19,6 @@ def cmd(app: Application, *, port: int, launch: bool) -> None:
     """
     from dda.utils.fs import Path
     from dda.utils.process import EnvVars
-
     from utils.docs.constants import SOURCE_DATE_EPOCH
     from utils.docs.deps import DEPENDENCIES
 

@@ -102,8 +102,7 @@ func (b *builder) addToSchema(name string, val interface{}, envVars []string, no
 	case []int:
 		node = map[string]interface{}{
 			"type":  "array",
-			"tags":  []string{"golang_type:[]int"},
-			"items": map[string]string{"type": "number"},
+			"items": map[string]string{"type": "integer"},
 		}
 		node["default"] = v
 	case []interface{}:

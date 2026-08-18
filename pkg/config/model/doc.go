@@ -8,5 +8,5 @@
 // For config-related documentation (like adding new config items) check out the
 // [config documentation].
 //
-// [config documentation]: https://github.com/DataDog/datadog-agent/blob/main/docs/dev/config.md
+// [config documentation]: https://github.com/DataDog/datadog-agent/blob/main/docs/public/agent-schema/index.md
 package model

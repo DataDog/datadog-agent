@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,11 +25,11 @@ const (
 	//nolint needed as these constants are defined in a file without a build tag,
 	// but only used in multiple files with different build tags, none of which
 	// are used in the IoT Agent.
-	//nolint:unused,deadcode
+	//nolint:unused
 	instancePath string = "instances"
-	//nolint:unused,deadcode
+	//nolint:unused
 	checkNamePath string = "check_names"
-	//nolint:unused,deadcode
+	//nolint:unused
 	initConfigPath string = "init_configs"
 )
 
@@ -39,7 +40,7 @@ func buildStoreKey(key ...string) string {
 }
 
 // GetPollInterval computes the poll interval from the config
-func GetPollInterval(cp pkgconfigsetup.ConfigurationProviders) time.Duration {
+func GetPollInterval(cp constants.ConfigurationProviders) time.Duration {
 	if cp.PollInterval != "" {
 		customInterval, err := time.ParseDuration(cp.PollInterval)
 		if err == nil {
@@ -72,7 +73,7 @@ type providerCache struct {
 // but only used in multiple files with different build tags, none of which
 // are used in the IoT Agent.
 //
-//nolint:deadcode,unused
+//nolint:unused
 func newProviderCache() *providerCache {
 	return &providerCache{
 		mostRecentMod: 0,
@@ -83,7 +84,7 @@ func newProviderCache() *providerCache {
 // ignoreADTagsFromAnnotations returns of the `ad.datadoghq.com/{endpoints,service}.ignore_autodiscovery_tags` annotation
 // TODO(CINT)(Agent 7.53+) Remove support for hybrid scenarios
 //
-//nolint:deadcode,unused
+//nolint:unused
 func ignoreADTagsFromAnnotations(annotations map[string]string, prefix string) bool {
 	ignoreAdForHybridScenariosTags, _ := strconv.ParseBool(annotations[prefix+"ignore_autodiscovery_tags"])
 	return ignoreAdForHybridScenariosTags

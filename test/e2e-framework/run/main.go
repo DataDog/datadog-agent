@@ -17,16 +17,16 @@ import (
 )
 
 const (
-	//nolint:unused,deadcode
+	//nolint:unused
 	scenarioEnvVarName = "PULUMI_SCENARIO"
-	//nolint:unused,deadcode
+	//nolint:unused
 	scenarioParamName = "scenario"
 
-	//nolint:unused,deadcode
+	//nolint:unused
 	dummyScenario = "dummy"
 )
 
-//nolint:unused,deadcode
+//nolint:unused
 func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
 		scenarioName := os.Getenv(scenarioEnvVarName)

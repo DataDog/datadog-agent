@@ -18,6 +18,7 @@ chuser groups=dd-agent,adm dd-agent 2>/dev/null || true
 # The BFF installs these directories as root:root (build-time default); fix
 # them here after the dd-agent user is guaranteed to exist.
 chown dd-agent:dd-agent /var/log/datadog       2>/dev/null || true
+chmod 750 /var/log/datadog                     2>/dev/null || true
 chown dd-agent:dd-agent /var/run/datadog       2>/dev/null || true
 chown dd-agent:dd-agent /opt/datadog-agent/run 2>/dev/null || true
 # Config dir: owned by dd-agent so the agent can create the auth_token file there.
@@ -69,6 +70,12 @@ if [ -f /etc/datadog-agent/datadog.yaml ]; then
     startsrc -s datadog-trace-agent      2>/dev/null || true
     startsrc -s datadog-agent-data-plane 2>/dev/null || true
 fi
+
+# Convenience symlink so operators can run `datadog-agent` without the full
+# path, matching the Linux packages' /usr/bin/datadog-agent symlink. Not part
+# of the package file manifest (see unconfig for removal) since /usr/bin is
+# owned by the base AIX filesets, not this package.
+ln -sf /opt/datadog-agent/bin/agent/agent /usr/bin/datadog-agent 2>/dev/null || true
 
 # Compile Python bytecode.
 # LIBPATH must include the embedded Python libs; the installp shell context does not
