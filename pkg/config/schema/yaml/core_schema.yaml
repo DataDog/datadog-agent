@@ -5105,6 +5105,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+              warmup_points:
+                node_type: setting
+                type: integer
+                default: 60
+              max_run_length:
+                node_type: setting
+                type: integer
+                default: 120
           connection_error_extractor:
             node_type: section
             type: object
@@ -5129,6 +5137,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              warmup_points:
+                node_type: setting
+                type: integer
+                default: 24
+              residual_window:
+                node_type: setting
+                type: integer
+                default: 60
           log_metrics_extractor:
             node_type: section
             type: object
@@ -5170,6 +5186,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              min_points:
+                node_type: setting
+                type: integer
+                default: 30
+              max_points:
+                node_type: setting
+                type: integer
+                default: 120
           scanwelch:
             node_type: section
             type: object
@@ -5178,6 +5202,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              min_points:
+                node_type: setting
+                type: integer
+                default: 30
+              max_points:
+                node_type: setting
+                type: integer
+                default: 120
           time_cluster:
             node_type: section
             type: object
@@ -5198,6 +5230,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              min_points:
+                node_type: setting
+                type: integer
+                default: 80
+              window_size:
+                node_type: setting
+                type: integer
+                default: 80
       logs:
         node_type: section
         type: object

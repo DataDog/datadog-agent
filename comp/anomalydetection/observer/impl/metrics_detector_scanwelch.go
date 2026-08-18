@@ -48,6 +48,8 @@ type ScanWelchDetector struct {
 
 	// MinPoints is the minimum total points before detection runs.
 	MinPoints int
+	// MaxPoints bounds the scan window. Default: 120.
+	MaxPoints int
 
 	// MinTStatistic is the minimum |t| for the candidate selection phase.
 	MinTStatistic float64
@@ -77,6 +79,7 @@ func NewScanWelchDetector() *ScanWelchDetector {
 	return &ScanWelchDetector{
 		MinSegment:            12,
 		MinPoints:             30,
+		MaxPoints:             scanMaxPoints,
 		MinTStatistic:         8.0,
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
@@ -99,7 +102,7 @@ func (d *ScanWelchDetector) Ready() bool { return d.ready }
 // DetectorPointWindow implements observer.DetectorPointWindowRequirement.
 func (d *ScanWelchDetector) DetectorPointWindow() observer.DetectorPointWindow {
 	d.ensureDefaults()
-	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: scanMaxPoints}
+	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: d.MaxPoints}
 }
 
 // Reset clears all per-series state for replay/reanalysis.
@@ -184,7 +187,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 					sCopy := *s
 					seriesMeta = &sCopy
 				}
-				state.buf = appendPointWindow(state.buf, scanMaxPoints, p)
+				state.buf = appendPointWindow(state.buf, d.MaxPoints, p)
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
@@ -364,6 +367,9 @@ func (d *ScanWelchDetector) ensureDefaults() {
 	}
 	if d.MinPoints <= 0 {
 		d.MinPoints = 30
+	}
+	if d.MaxPoints <= 0 {
+		d.MaxPoints = scanMaxPoints
 	}
 	if d.MinTStatistic <= 0 {
 		d.MinTStatistic = 8.0

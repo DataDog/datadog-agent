@@ -55,6 +55,8 @@ type ScanMWDetector struct {
 	// MinPoints is the minimum total points before detection runs.
 	// Default: 30
 	MinPoints int
+	// MaxPoints bounds the scan window. Default: 120.
+	MaxPoints int
 
 	// SignificanceThreshold is the maximum p-value for the best split to be
 	// considered a changepoint. Default: 1e-8
@@ -84,6 +86,7 @@ func NewScanMWDetector() *ScanMWDetector {
 	return &ScanMWDetector{
 		MinSegment:            12,
 		MinPoints:             30,
+		MaxPoints:             scanMaxPoints,
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
 		MinDeviationMAD:       3.0,
@@ -105,7 +108,7 @@ func (d *ScanMWDetector) Ready() bool { return d.ready }
 // DetectorPointWindow implements observer.DetectorPointWindowRequirement.
 func (d *ScanMWDetector) DetectorPointWindow() observer.DetectorPointWindow {
 	d.ensureDefaults()
-	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: scanMaxPoints}
+	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: d.MaxPoints}
 }
 
 // Reset clears all per-series state for replay/reanalysis.
@@ -194,7 +197,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 					sCopy := *s
 					seriesMeta = &sCopy
 				}
-				state.buf = appendPointWindow(state.buf, scanMaxPoints, p)
+				state.buf = appendPointWindow(state.buf, d.MaxPoints, p)
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
@@ -358,6 +361,9 @@ func (d *ScanMWDetector) ensureDefaults() {
 	}
 	if d.MinPoints <= 0 {
 		d.MinPoints = 30
+	}
+	if d.MaxPoints <= 0 {
+		d.MaxPoints = scanMaxPoints
 	}
 	if d.SignificanceThreshold <= 0 {
 		d.SignificanceThreshold = 1e-8
