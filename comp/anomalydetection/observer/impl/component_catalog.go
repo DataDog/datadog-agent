@@ -259,13 +259,6 @@ func defaultCatalog() *componentCatalog {
 					}
 					return d
 				},
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := *defaults.(*ScanWelchDetector)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, fmt.Errorf("scanwelch: failed to parse JSON config: %w", err)
-					}
-					return &cfg, nil
-				},
 			},
 			{
 				name:        "scanwelch",
@@ -289,6 +282,13 @@ func defaultCatalog() *componentCatalog {
 						d.MaxPoints = reader.GetInt(k)
 					}
 					return d
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := *defaults.(*ScanWelchDetector)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("scanwelch: failed to parse JSON config: %w", err)
+					}
+					return &cfg, nil
 				},
 			},
 			{
