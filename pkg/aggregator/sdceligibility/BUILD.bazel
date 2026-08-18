@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "sdceligibility",
+    srcs = ["eligibility.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/sdceligibility",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/internal/sdc",
+        "//pkg/config/setup",
+    ],
+)

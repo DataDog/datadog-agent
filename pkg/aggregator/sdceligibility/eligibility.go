@@ -1,0 +1,85 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package sdceligibility is the single source of truth for whether a check
+// should get SDC (Swinging Door Trending/Compression) applied, and for the
+// checks.sdc_compression_* tuning/behavior knobs. It's a standalone package
+// (not pkg/aggregator/internal/sdc, which is internal/-restricted to
+// pkg/aggregator) so that both pkg/aggregator's CheckSampler-level
+// compression hook and pkg/collector's checks.sdc_compression_interval_override
+// scheduling wiring can import it without risking the two independently
+// re-implementing the same eligibility decision and drifting out of sync.
+package sdceligibility
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/sdc"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+
+// sdcCompressedCheckNames returns the set of check names that should get
+// SDC-compressed metrics, from the checks.sdc_compression_checks config
+// setting. Read fresh on every call; callers that cache eligibility for a
+// check's lifetime (e.g. CheckSampler, once at creation) intentionally don't
+// pick up config changes afterward, since none of these keys have
+// hot-reload wiring.
+func sdcCompressedCheckNames() map[string]bool {
+	names := setup.Datadog().GetStringSlice("checks.sdc_compression_checks")
+	m := make(map[string]bool, len(names))
+	for _, name := range names {
+		m[name] = true
+	}
+	return m
+}
+
+// EnabledFor reports whether checkName should get SDC-compressed Gauge
+// metrics, per checks.sdc_compression_all/checks.sdc_compression_checks.
+func EnabledFor(checkName string) bool {
+	if setup.Datadog().GetBool("checks.sdc_compression_all") {
+		return true
+	}
+	return sdcCompressedCheckNames()[checkName]
+}
+
+// CompressorConfig returns the SDC compressor tuning parameters from the
+// checks.sdc_compression_* config settings (not per-metric — shared by every
+// compressed context). Setting checks.sdc_compression_floor to 0 disables
+// the floor entirely: Epsilon*scale (however small) always wins over a 0
+// Floor, since both factors are non-negative.
+func CompressorConfig() sdc.Config {
+	cfg := setup.Datadog()
+	return sdc.Config{
+		Epsilon: cfg.GetFloat64("checks.sdc_compression_epsilon"),
+		Alpha:   cfg.GetFloat64("checks.sdc_compression_alpha"),
+		Floor:   cfg.GetFloat64("checks.sdc_compression_floor"),
+		Warmup:  cfg.GetInt("checks.sdc_compression_warmup"),
+	}
+}
+
+// DryRun reports whether checks.sdc_compression_dry_run is set: every
+// sample still runs through the compressor for measurement, but nothing the
+// compressor decides gets applied — every point ships unmodified.
+func DryRun() bool {
+	return setup.Datadog().GetBool("checks.sdc_compression_dry_run")
+}
+
+// TelemetryEnabled reports whether SDC's own diagnostic telemetry
+// (checksampler_sdc_samples_total, breakpoints_total, contexts, etc.) should
+// ever materialize a child series for any check/metric. When false, callers
+// should use no-op telemetry stand-ins instead of real ones, since with SDC
+// compression enabled broadly that telemetry (tagged by check_name/metric_name)
+// can itself become a sizable, confounding share of the payload it's meant
+// to shrink.
+func TelemetryEnabled() bool {
+	return setup.Datadog().GetBool("checks.sdc_compression_telemetry_enabled")
+}
+
+// KeepAliveCommits returns checks.sdc_compression_keepalive_commits: how
+// many consecutive real commits with a sample, but no natural breakpoint,
+// must pass before a compressed context force-ships a point anyway (so a
+// flat signal doesn't go silent forever). 0 or negative disables the
+// keep-alive entirely (pure compression).
+func KeepAliveCommits() int {
+	return setup.Datadog().GetInt("checks.sdc_compression_keepalive_commits")
+}
