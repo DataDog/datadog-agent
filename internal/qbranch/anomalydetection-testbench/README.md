@@ -83,7 +83,6 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 |------|---------|-------------|
 | `bocpd` | enabled | Bayesian Online Change Point Detection — streaming, per-series changepoint detector |
 | `rrcf` | enabled | Robust Random Cut Forest — multivariate anomaly detection over system metrics |
-| `cusum` | disabled | CUSUM change-point detector |
 | `scanmw` | disabled | Mann-Whitney scan statistic detector |
 | `scanwelch` | disabled | Welch t-test scan statistic detector |
 
@@ -91,7 +90,8 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 
 | Name | Default | Description |
 |------|---------|-------------|
-| `time_cluster` | enabled | Groups anomalies that occur close together in time |
+| `anomaly_scorer` | enabled | Produces anomaly periods from the EWMA anomaly-severity score |
+| `time_cluster` | disabled | Groups anomalies that occur close together in time |
 | `cross_signal` | disabled | Cross-signal pattern correlator (fixed known patterns) |
 | `passthrough` | disabled | Passes every anomaly through as its own correlation (for TP metric scoring) |
 
@@ -108,14 +108,11 @@ Extractors are always enabled and convert raw observations into timeseries:
 ## Examples
 
 ```bash
-# Run with all defaults (bocpd + rrcf + time_cluster)
+# Run with all defaults (bocpd + rrcf + anomaly_scorer)
 dda inv -- anomalydetection.launch-testbench
 
 # Only BOCPD + TimeCluster
 dda inv -- anomalydetection.launch-testbench --only bocpd,time_cluster
-
-# Enable CUSUM on top of defaults
-dda inv -- anomalydetection.launch-testbench --enable cusum
 
 # Run on a different port
 dda inv -- anomalydetection.launch-testbench --http :9090
@@ -253,7 +250,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
       "threshold_sigma": 2.5,
       "tree_size": 128
     },
-    "cusum": { "enabled": false },
     "time_cluster": {
       "enabled": true,
       "proximity_seconds": 15,
@@ -279,15 +275,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `prior_variance_scale` | 10.0 | Diffuseness of prior over the mean |
 | `min_variance` | 1.0 | Variance floor (numerical stability) |
 | `recovery_points` | 10 | Consecutive quiet points needed to exit alert state |
-
-#### `cusum`
-
-| Param | Default | Description |
-|-------|---------|-------------|
-| `min_points` | 5 | Minimum data points required |
-| `baseline_fraction` | 0.25 | Fraction of data used for baseline estimation |
-| `slack_factor` | 0.5 | k = slack_factor × stddev (slack parameter) |
-| `threshold_factor` | 4.0 | h = threshold_factor × stddev (detection threshold) |
 
 #### `rrcf`
 

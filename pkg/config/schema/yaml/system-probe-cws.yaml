@@ -260,6 +260,14 @@ properties:
     node_type: section
     type: object
     properties:
+      cgroup_kill:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
       disarmer:
         node_type: section
         type: object
@@ -358,6 +366,10 @@ properties:
             node_type: setting
             type: integer
             default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
       connect:
         node_type: section
         type: object
@@ -370,6 +382,10 @@ properties:
             node_type: setting
             type: integer
             default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 40
       dns:
         node_type: section
         type: object
@@ -382,6 +398,18 @@ properties:
             node_type: setting
             type: integer
             default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
+      dynamic:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
       open:
         node_type: section
         type: object
@@ -394,6 +422,10 @@ properties:
             node_type: setting
             type: integer
             default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 80
   event_server:
     node_type: section
     type: object
