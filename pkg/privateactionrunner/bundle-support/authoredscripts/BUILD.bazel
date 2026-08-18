@@ -5,18 +5,24 @@ go_library(
     name = "authoredscripts",
     srcs = [
         "catalog.go",
+        "environment.go",
         "local_store.go",
         "manifest.go",
         "package.go",
+        "session.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts",
     visibility = ["//visibility:public"],
-    deps = ["@in_yaml_go_yaml_v3//:yaml"],
+    deps = [
+        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
 )
 
 dd_agent_go_test(
     name = "authoredscripts_test",
     srcs = [
+        "environment_test.go",
         "manifest_test.go",
         "package_test.go",
     ],
