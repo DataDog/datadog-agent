@@ -6996,6 +6996,27 @@ properties:
             node_type: setting
             type: integer
             default: 1
+      heartbeat_interval:
+        node_type: setting
+        type: string
+        default: 1h0m0s
+        format: duration
+        tags:
+        - golang_type:duration
+      heartbeat_jitter:
+        node_type: setting
+        type: string
+        default: 10m0s
+        format: duration
+        tags:
+        - golang_type:duration
+      startup_jitter:
+        node_type: setting
+        type: string
+        default: 1m0s
+        format: duration
+        tags:
+        - golang_type:duration
   container_exclude:
     node_type: setting
     type: array
