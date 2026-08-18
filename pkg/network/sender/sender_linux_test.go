@@ -32,7 +32,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
 	npcollectorimpl "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl"
-	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -156,12 +155,9 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	}
 }
 
-func TestNetworkPathConnectionsSignals(t *testing.T) {
+func TestNetworkPathConnectionsBytes(t *testing.T) {
 	d := mockDirectSender(t)
 	conn := makeConnection(1)
-	conn.TCPFailures = map[uint16]uint32{npmodel.TCPTimeoutErrno: 1}
-	conn.Last.TCPRTOCount = 2
-	conn.Last.Retransmits = 3
 	conn.Last.SentBytes = 5
 	conn.Last.RecvBytes = 6
 
@@ -170,13 +166,8 @@ func TestNetworkPathConnectionsSignals(t *testing.T) {
 	}))
 
 	require.Len(t, got, 1)
-	assert.Equal(t, npmodel.ConnectionSignals{
-		TimeoutCount: 1,
-		RTOCount:     2,
-		Retransmits:  3,
-		SentBytes:    5,
-		RecvBytes:    6,
-	}, got[0].Signals)
+	assert.Equal(t, uint64(5), got[0].SentBytes)
+	assert.Equal(t, uint64(6), got[0].RecvBytes)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {

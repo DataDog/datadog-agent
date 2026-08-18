@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -169,26 +168,18 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	}
 }
 
-func TestNetworkPathConnectionsSignals(t *testing.T) {
+func TestNetworkPathConnectionsBytes(t *testing.T) {
 	conn := makeConnection(1)
 	conn.Laddr.Ip = "10.0.0.1"
 	conn.Raddr.Ip = "10.0.0.2"
-	conn.TcpFailuresByErrCode = map[uint32]uint32{uint32(npmodel.TCPTimeoutErrno): 1}
-	conn.LastTcpRtoCount = 2
-	conn.LastRetransmits = 3
 	conn.LastBytesSent = 5
 	conn.LastBytesReceived = 6
 
 	got := slices.Collect(networkPathConnections(&model.Connections{Conns: []*model.Connection{conn}}))
 
 	require.Len(t, got, 1)
-	assert.Equal(t, npmodel.ConnectionSignals{
-		TimeoutCount: 1,
-		RTOCount:     2,
-		Retransmits:  3,
-		SentBytes:    5,
-		RecvBytes:    6,
-	}, got[0].Signals)
+	assert.Equal(t, uint64(5), got[0].SentBytes)
+	assert.Equal(t, uint64(6), got[0].RecvBytes)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {

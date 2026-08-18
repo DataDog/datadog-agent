@@ -1288,6 +1288,8 @@ workflow:
         - cmd/system-probe/modules/traceroute.go
         - pkg/collector/corechecks/networkpath/**/*
         - pkg/networkpath/**/*
+        - pkg/network/sender/sender_linux.go
+        - pkg/process/checks/net.go
         - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod

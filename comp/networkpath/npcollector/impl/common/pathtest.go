@@ -38,6 +38,8 @@ type Pathtest struct {
 	DynamicTestProfile payload.DynamicTestProfile
 	Tags               []string
 	Metadata           PathtestMetadata
+	// RunOnce removes this path from the store after its first flush attempt.
+	RunOnce bool
 }
 
 // GetHash returns the hash of the Pathtest

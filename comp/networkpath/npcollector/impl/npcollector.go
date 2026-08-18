@@ -65,6 +65,7 @@ type npCollectorImpl struct {
 	pathtestStore          *pathteststore.Store
 	pathtestInputChan      chan *common.Pathtest
 	pathtestProcessingChan chan *pathteststore.PathtestContext
+	baselineSelector       *baselineSelector
 
 	// Scheduling related
 	running               bool
@@ -102,6 +103,16 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		logger.Errorf("connection filter errors: %s", errors.Join(errs...))
 	}
 
+	storeConfig := collectorConfigs.storeConfig
+	var baselineSelector *baselineSelector
+	if collectorConfigs.baselineTestsEnabled && !collectorConfigs.connectionsMonitoringEnabled {
+		if storeConfig.Interval < baselineMinimumInterval {
+			logger.Warnf("network_path.collector.pathtest_interval=%s is below the baseline minimum; using %s", storeConfig.Interval, baselineMinimumInterval)
+			storeConfig.Interval = baselineMinimumInterval
+		}
+		baselineSelector = newBaselineSelector(storeConfig.Interval)
+	}
+
 	return &npCollectorImpl{
 		collectorConfigs: collectorConfigs,
 		sourceExcludes:   networkfilter.ParseConnectionFilters(collectorConfigs.sourceExcludedConns),
@@ -112,9 +123,10 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		statsdClient: statsd,
 		rdnsquerier:  rdnsquerier,
 
-		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.storeConfig, logger, statsd, time.Now),
+		pathtestStore:          pathteststore.NewPathtestStore(storeConfig, logger, statsd, time.Now),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
+		baselineSelector:       baselineSelector,
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
@@ -314,14 +326,10 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 
 	startTime := s.TimeNowFn()
-	connCount := 0
-	// Baseline mode must rank the complete snapshot before scheduling.
-	// addBaselinePath keeps this list unique, best-first, and capped at
-	// baselineSelectionsPerSnapshot; it remains nil in standard mode.
-	var selectedBaselineCandidates []baselineCandidate
 	if baselineMode {
-		selectedBaselineCandidates = make([]baselineCandidate, 0, baselineSelectionsPerSnapshot)
+		s.flushBaselinePaths(startTime)
 	}
+	connCount := 0
 	for conn := range conns {
 		connCount++
 		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
@@ -337,7 +345,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			pathtest.TestConfigSource = payload.TestConfigSourceRemote
 		}
 		if baselineMode {
-			selectedBaselineCandidates = addBaselinePath(selectedBaselineCandidates, pathtest, conn.Signals)
+			s.baselineSelector.add(pathtest, saturatingAdd(conn.SentBytes, conn.RecvBytes), startTime)
 			continue
 		}
 
@@ -345,15 +353,16 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
 	}
-	if baselineMode {
-		s.scheduleBaselinePaths(selectedBaselineCandidates)
-	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
 }
-func (s *npCollectorImpl) scheduleBaselinePaths(selected []baselineCandidate) {
-	for i := range selected {
-		if err := s.scheduleOne(&selected[i].path); err != nil {
+
+func (s *npCollectorImpl) flushBaselinePaths(now time.Time) {
+	if s.baselineSelector == nil {
+		return
+	}
+	for _, path := range s.baselineSelector.flush(now) {
+		if err := s.scheduleOne(&path); err != nil {
 			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
 		}
 	}
@@ -386,6 +395,9 @@ func (s *npCollectorImpl) start() error {
 		return errors.New("server already started")
 	}
 	s.running = true
+	if s.baselineSelector != nil {
+		s.baselineSelector.start(s.TimeNowFn())
+	}
 
 	s.logger.Info("Start NpCollector")
 
@@ -524,6 +536,7 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 		_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"flush.interval", flushInterval.Seconds(), []string{}, 1)
 	}
 
+	s.flushBaselinePaths(s.TimeNowFn())
 	s.flush()
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"flush.duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1)
 }

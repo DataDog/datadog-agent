@@ -1,6 +1,0 @@
-network_config:
-  enabled: true
-  direct_send: false
-
-traceroute:
-  enabled: true

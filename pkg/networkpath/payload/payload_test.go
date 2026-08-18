@@ -55,6 +55,9 @@ func TestNetworkPathDynamicTestProfileJSON(t *testing.T) {
 			raw, err := json.Marshal(NetworkPath{DynamicTestProfile: tt.profile})
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectField, bytes.Contains(raw, []byte(`"dynamic_test_profile"`)))
+			if tt.expectField {
+				assert.Contains(t, string(raw), `"dynamic_test_profile":"baseline"`)
+			}
 		})
 	}
 }

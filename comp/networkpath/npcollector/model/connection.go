@@ -12,19 +12,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 )
 
-// TCPTimeoutErrno is the normalized ETIMEDOUT value emitted in CNM connection
-// payloads by both Linux and Windows producers.
-const TCPTimeoutErrno uint16 = 110
-
-// ConnectionSignals contains normalized connection measurements used by network path decisions.
-type ConnectionSignals struct {
-	TimeoutCount uint64
-	RTOCount     uint64
-	Retransmits  uint64
-	SentBytes    uint64
-	RecvBytes    uint64
-}
-
 // NetworkPathConnection is the minimum information needed about a connection to schedule a network path test
 type NetworkPathConnection struct {
 	Source            netip.AddrPort
@@ -39,5 +26,6 @@ type NetworkPathConnection struct {
 	IntraHost         bool
 	SystemProbeConn   bool
 
-	Signals ConnectionSignals
+	SentBytes uint64
+	RecvBytes uint64
 }

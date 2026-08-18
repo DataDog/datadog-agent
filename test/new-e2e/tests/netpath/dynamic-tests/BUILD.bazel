@@ -4,14 +4,12 @@ dd_agent_go_test(
     name = "dynamic-tests_test",
     srcs = [
         "baseline_host_traffic_dynamic_path_test.go",
-        "host_traffic_dynamic_path_common_test.go",
         "host_traffic_dynamic_path_test.go",
         "netflow_dynamic_path_test.go",
     ],
     data = [
         "compose/netflow_dynamic_path.yaml",
         "config/baseline_host_traffic_dynamic_path.yaml",
-        "config/baseline_host_traffic_system_probe.yaml",
         "config/host_traffic_dynamic_path.yaml",
         "config/host_traffic_system_probe.yaml",
         "config/netflow_dynamic_path.yaml",
@@ -21,7 +19,6 @@ dd_agent_go_test(
     embedsrcs = [
         "compose/netflow_dynamic_path.yaml",
         "config/baseline_host_traffic_dynamic_path.yaml",
-        "config/baseline_host_traffic_system_probe.yaml",
         "config/host_traffic_dynamic_path.yaml",
         "config/host_traffic_system_probe.yaml",
         "config/netflow_dynamic_path.yaml",
@@ -30,9 +27,11 @@ dd_agent_go_test(
     ],
     deps = [
         "//pkg/networkpath/payload",
+        "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/command",
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/apps",
         "//test/e2e-framework/components/datadog/dockeragentparams",
         "//test/e2e-framework/components/docker",
         "//test/e2e-framework/components/os",

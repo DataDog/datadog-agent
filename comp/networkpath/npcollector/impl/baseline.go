@@ -6,68 +6,140 @@
 package npcollectorimpl
 
 import (
+	"math"
+	"slices"
 	"sort"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
-	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-const baselineSelectionsPerSnapshot = 3
+const (
+	baselineSelectionsPerWindow = 3
+	baselineCandidateLimit      = 32
+	baselineBootstrapWindow     = 5 * time.Minute
+	baselineMinimumInterval     = 10 * time.Minute
+)
 
 type baselineCandidate struct {
-	path       common.Pathtest
-	pathHash   uint64
-	diagnostic bool
-	bytes      uint64
+	path  common.Pathtest
+	hash  uint64
+	bytes uint64
 }
 
 func (candidate baselineCandidate) betterThan(other baselineCandidate) bool {
-	if candidate.diagnostic != other.diagnostic {
-		return candidate.diagnostic
-	}
 	if candidate.bytes != other.bytes {
 		return candidate.bytes > other.bytes
 	}
-	return candidate.pathHash < other.pathHash
+	return candidate.hash < other.hash
 }
 
-// addBaselineCandidate keeps selected unique, best-first, and capped at three.
-func addBaselineCandidate(selected []baselineCandidate, candidate baselineCandidate) []baselineCandidate {
-	// A discarded observation cannot become a winner unless the same path is
-	// observed later with a stronger score, at which point it is reconsidered.
-	for i := range selected {
-		if selected[i].pathHash != candidate.pathHash {
-			continue
-		}
-		if !candidate.betterThan(selected[i]) {
-			return selected
-		}
-		selected[i] = candidate
-		sort.Slice(selected, func(i, j int) bool { return selected[i].betterThan(selected[j]) })
-		return selected
-	}
-
-	if len(selected) < baselineSelectionsPerSnapshot {
-		selected = append(selected, candidate)
-	} else if candidate.betterThan(selected[len(selected)-1]) {
-		selected[len(selected)-1] = candidate
-	} else {
-		return selected
-	}
-	sort.Slice(selected, func(i, j int) bool { return selected[i].betterThan(selected[j]) })
-	return selected
+// baselineSelector approximates the highest-volume paths in each window using
+// weighted Space-Saving. Its memory is bounded independently of path count.
+type baselineSelector struct {
+	mu         sync.Mutex
+	interval   time.Duration
+	deadline   time.Time
+	candidates map[uint64]baselineCandidate
 }
 
-// addBaselinePath marks the path as baseline-selected without changing its
-// admission provenance. Paths admitted by Dynamic RC retain their config ID,
-// source, and tags.
-func addBaselinePath(selected []baselineCandidate, path common.Pathtest, signals npmodel.ConnectionSignals) []baselineCandidate {
-	path.DynamicTestProfile = payload.DynamicTestProfileBaseline
-	return addBaselineCandidate(selected, baselineCandidate{
-		path:       path,
-		pathHash:   path.GetHash(),
-		diagnostic: signals.TimeoutCount > 0 || signals.RTOCount > 0 || signals.Retransmits > 0,
-		bytes:      signals.SentBytes + signals.RecvBytes,
-	})
+func newBaselineSelector(interval time.Duration) *baselineSelector {
+	return &baselineSelector{
+		interval:   interval,
+		candidates: make(map[uint64]baselineCandidate, baselineCandidateLimit),
+	}
+}
+
+func (selector *baselineSelector) start(now time.Time) {
+	selector.mu.Lock()
+	defer selector.mu.Unlock()
+	selector.startLocked(now)
+}
+
+func (selector *baselineSelector) startLocked(now time.Time) {
+	if selector.deadline.IsZero() {
+		selector.deadline = now.Add(baselineBootstrapWindow)
+	}
+}
+
+func (selector *baselineSelector) add(path common.Pathtest, bytes uint64, now time.Time) {
+	selector.mu.Lock()
+	defer selector.mu.Unlock()
+
+	selector.startLocked(now)
+	hash := path.GetHash()
+	if candidate, found := selector.candidates[hash]; found {
+		candidate.bytes = saturatingAdd(candidate.bytes, bytes)
+		candidate.path = clonePathtest(path)
+		selector.candidates[hash] = candidate
+		return
+	}
+
+	candidate := baselineCandidate{path: clonePathtest(path), hash: hash, bytes: bytes}
+	if len(selector.candidates) < baselineCandidateLimit {
+		selector.candidates[hash] = candidate
+		return
+	}
+
+	worst := selector.worstCandidateLocked()
+	delete(selector.candidates, worst.hash)
+	candidate.bytes = saturatingAdd(worst.bytes, bytes)
+	selector.candidates[hash] = candidate
+}
+
+func (selector *baselineSelector) worstCandidateLocked() baselineCandidate {
+	var worst baselineCandidate
+	first := true
+	for _, candidate := range selector.candidates {
+		if first || worst.betterThan(candidate) {
+			worst = candidate
+			first = false
+		}
+	}
+	return worst
+}
+
+// flush returns the current winners only after the active window has closed.
+func (selector *baselineSelector) flush(now time.Time) []common.Pathtest {
+	selector.mu.Lock()
+	defer selector.mu.Unlock()
+
+	selector.startLocked(now)
+	if now.Before(selector.deadline) {
+		return nil
+	}
+
+	candidates := make([]baselineCandidate, 0, len(selector.candidates))
+	for _, candidate := range selector.candidates {
+		candidates = append(candidates, candidate)
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].betterThan(candidates[j]) })
+	if len(candidates) > baselineSelectionsPerWindow {
+		candidates = candidates[:baselineSelectionsPerWindow]
+	}
+
+	paths := make([]common.Pathtest, len(candidates))
+	for i, candidate := range candidates {
+		paths[i] = candidate.path
+		paths[i].DynamicTestProfile = payload.DynamicTestProfileBaseline
+		paths[i].RunOnce = true
+	}
+
+	clear(selector.candidates)
+	selector.deadline = now.Add(selector.interval)
+	return paths
+}
+
+func clonePathtest(path common.Pathtest) common.Pathtest {
+	path.Tags = slices.Clone(path.Tags)
+	return path
+}
+
+func saturatingAdd(left, right uint64) uint64 {
+	if math.MaxUint64-left < right {
+		return math.MaxUint64
+	}
+	return left + right
 }

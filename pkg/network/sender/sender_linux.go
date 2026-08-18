@@ -292,13 +292,8 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 				Domain:            getDNSNameForIP(conns, conn.Dest),
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.Pid == d.sysProbePID,
-				Signals: npmodel.ConnectionSignals{
-					TimeoutCount: uint64(conn.TCPFailures[npmodel.TCPTimeoutErrno]),
-					RTOCount:     uint64(conn.Last.TCPRTOCount),
-					Retransmits:  uint64(conn.Last.Retransmits),
-					SentBytes:    conn.Last.SentBytes,
-					RecvBytes:    conn.Last.RecvBytes,
-				},
+				SentBytes:         conn.Last.SentBytes,
+				RecvBytes:         conn.Last.RecvBytes,
 			}
 			if !yield(npc) {
 				return

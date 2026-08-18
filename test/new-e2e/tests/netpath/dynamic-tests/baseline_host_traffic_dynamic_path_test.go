@@ -20,39 +20,53 @@ import (
 //go:embed config/baseline_host_traffic_dynamic_path.yaml
 var baselineHostTrafficDynamicPathAgentConfig string
 
-//go:embed config/baseline_host_traffic_system_probe.yaml
-var baselineHostTrafficSystemProbeConfig string
-
 type baselineHostTrafficDynamicPathSuite struct {
-	hostTrafficDynamicPathBaseSuite
+	hostTrafficDynamicPathSuite
 }
 
 // TestBaselineHostTrafficDynamicPathSuite verifies baseline tests from packaged Agent configuration through fakeintake.
 func TestBaselineHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &baselineHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("baselineHostTrafficDynamicPath", baselineHostTrafficDynamicPathAgentConfig, baselineHostTrafficSystemProbeConfig)))
+	t.Parallel()
+	e2e.Run(t, &baselineHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("baselineHostTrafficDynamicPath", baselineHostTrafficDynamicPathAgentConfig)))
 }
 
 func (s *baselineHostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
-	s.setupHostTraffic()
+	s.ensureCurlInstalled()
+	s.startHostTrafficDNSServer()
+	s.configureAgentResolver()
+	s.assertHostTrafficDomainResolves()
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 }
 
 func (s *baselineHostTrafficDynamicPathSuite) TearDownSuite() {
-	s.tearDownHostTraffic()
+	s.stopHostTrafficGenerator()
+	s.restoreAgentResolver()
+	s.stopHostTrafficDNSServer()
 	s.BaseSuite.TearDownSuite()
 }
 
 func (s *baselineHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 	fakeintake := s.Env().FakeIntake.Client()
-	s.startHostTrafficGenerator(4 * time.Minute)
+	s.startHostTrafficGenerator(6 * time.Minute)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		netpaths, err := fakeintake.GetLatestNetpathEvents()
 		require.NoError(c, err)
 		require.NotEmpty(c, netpaths, "no network path events")
 
-		assertHostTrafficNetworkPath(c, netpaths, payload.DynamicTestProfileBaseline, "baseline")
-	}, 5*time.Minute, 10*time.Second)
+		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
+		require.NotNil(c, match, "no baseline host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
+
+		assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
+		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
+		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
+		assert.Equal(c, payload.DynamicTestProfileBaseline, match.DynamicTestProfile)
+		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
+		assert.Equal(c, payload.ProtocolTCP, match.Protocol)
+		assert.Equal(c, hostTrafficRemoteConfigDomain, match.Destination.Hostname)
+		assert.Equal(c, uint16(80), match.Destination.Port)
+		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
+		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
+	}, 7*time.Minute, 10*time.Second)
 }
