@@ -10,6 +10,7 @@ use log::warn;
 use super::profile::SpawnProfile;
 
 /// Resolve the account procmgr intends to use (or last used) for spawn.
+#[cfg(any(test, feature = "test-helpers"))]
 pub fn spawn_user_for(process_name: &str, profile: SpawnProfile) -> String {
     match resolve_spawn_user(process_name, profile) {
         Ok(user) => user,
@@ -20,6 +21,7 @@ pub fn spawn_user_for(process_name: &str, profile: SpawnProfile) -> String {
     }
 }
 
+#[cfg(any(test, feature = "test-helpers"))]
 fn resolve_spawn_user(process_name: &str, profile: SpawnProfile) -> anyhow::Result<String> {
     #[cfg(windows)]
     {

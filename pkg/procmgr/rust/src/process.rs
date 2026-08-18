@@ -9,7 +9,7 @@ use crate::handle::ProcessHandle;
 #[cfg(windows)]
 use crate::handle::ProcessWaitControl;
 use crate::platform;
-use crate::spawn::{SpawnProfile, profile_for, spawn_user_for};
+use crate::spawn::{SpawnProfile, profile_for};
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
@@ -1064,6 +1064,8 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_refreshes_intended_user_before_running() {
+        use crate::spawn::spawn_user_for;
+
         let (cmd, args) = test_helpers::true_cmd();
         let mut proc = ManagedProcess::new_config(
             "spawn-user-refresh".into(),

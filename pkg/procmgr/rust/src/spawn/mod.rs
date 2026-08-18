@@ -10,6 +10,7 @@ mod profile;
 mod request;
 mod stdio_setting;
 
+#[cfg(any(test, feature = "test-helpers"))]
 pub(crate) use identity::spawn_user_for;
 #[cfg(windows)]
 pub(crate) use profile::DATADOG_AGENT_PROCESS;

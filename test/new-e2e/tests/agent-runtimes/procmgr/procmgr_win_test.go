@@ -249,6 +249,11 @@ description: E2E userprofile env check
 	}, 60*time.Second, 2*time.Second)
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-userprofile-env"))
+		assertField(ct, desc, "State", "Running")
+	}, 60*time.Second, 2*time.Second)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, markerPath))
 		userProfile := strings.TrimSpace(out)
 		assert.NotEmpty(ct, userProfile)
