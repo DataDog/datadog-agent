@@ -175,10 +175,18 @@ func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
 
 // GetStats returns telemetry statistics
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
+	backendStatus := t.connectionTracerStatus()
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
 		"tracer": map[string]interface{}{
-			"type": "darwin_pcap",
+			"type":               t.connectionTracerType(),
+			"active_backend":     backendStatus.ActiveBackend,
+			"nstat_abi_revision": backendStatus.ABIRevision,
+			"source_healthy":     backendStatus.SourceHealthy,
+			"runtime_fallback":   backendStatus.RuntimeFallback,
+			"packet_enrichment":  backendStatus.PacketEnrichment,
+			"libproc_reconciler": backendStatus.LibprocReconciler,
+			"last_error":         backendStatus.LastError,
 		},
 	}
 
@@ -193,9 +201,26 @@ func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 // DebugNetworkState returns the current network state for debugging
 func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
 	return map[string]interface{}{
-		"state":       t.state.DumpState(clientID),
-		"tracer_type": "darwin_pcap",
+		"state":         t.state.DumpState(clientID),
+		"tracer_type":   t.connectionTracerType(),
+		"tracer_status": t.connectionTracerStatus(),
 	}, nil
+}
+
+func (t *Tracer) connectionTracerStatus() connection.DarwinTracerStatus {
+	return connection.GetDarwinTracerStatus(t.connTracer)
+}
+
+func (t *Tracer) connectionTracerType() string {
+	tracerType := t.connTracer.Type()
+	switch tracerType {
+	case connection.TracerTypeNStat:
+		return "darwin_nstat"
+	case connection.TracerTypeDarwin:
+		return "darwin_pcap"
+	default:
+		return fmt.Sprintf("darwin_unknown_%d", tracerType)
+	}
 }
 
 // DebugNetworkMaps returns connections for debugging (similar to GetActiveConnections but without delta)
