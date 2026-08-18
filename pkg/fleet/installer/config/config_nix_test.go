@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDirectories_GetState(t *testing.T) {
@@ -253,4 +254,25 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertConfigV3(t, stableDirPath) // Make sure it changed
 
 	assertDeploymentID(t, dirs, "experiment-789", "")
+}
+
+func TestCopyDirectorySkipsConfigBackups(t *testing.T) {
+	src := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "dst")
+	require.NoError(t, os.MkdirAll(filepath.Join(src, backupDirName), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(src, "conf.d"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "datadog.yaml"), []byte("log_level: debug\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(src, backupDirName, "abc123.tar.gz"), []byte("archive"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "conf.d", "foo.yaml"), []byte("init_config:\n"), 0644))
+
+	require.NoError(t, copyDirectory(context.Background(), src, dst))
+
+	// The backup dir must not be nested inside the copy.
+	_, err := os.Stat(filepath.Join(dst, backupDirName))
+	assert.True(t, os.IsNotExist(err))
+	// Everything else is copied.
+	_, err = os.Stat(filepath.Join(dst, "datadog.yaml"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(dst, "conf.d", "foo.yaml"))
+	assert.NoError(t, err)
 }

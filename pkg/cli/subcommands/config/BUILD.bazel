@@ -9,6 +9,7 @@ go_library(
     deps = [
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/configbackup/impl",
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
         "//comp/core/ipc/httphelpers",

@@ -46,6 +46,12 @@ const (
 	FileOperationMove FileOperationType = "move"
 )
 
+// backupDirName is the name of the directory where the core Agent stores its
+// configuration backups. It is excluded from experiment copies: nesting a copy
+// inside a copy is wrong, and promote must not replace the stable history
+// wholesale.
+const backupDirName = "config-backups"
+
 var (
 	// secRegex matches SEC[...] placeholders in config patches
 	secRegex = regexp.MustCompile(`SEC\[.*?\]`)
@@ -407,6 +413,13 @@ var (
 
 func getConfigFileSpec(file string) *configFileSpec {
 	normalizedFile := filepath.ToSlash(file)
+
+	// The config-backups directory is owned by the core Agent. A config
+	// experiment must never write into it, so refuse any path under it —
+	// including through the /managed fallback branch below.
+	if strings.Contains(normalizedFile, "/config-backups/") || strings.HasSuffix(normalizedFile, "/config-backups") {
+		return nil
+	}
 
 	// Fallback for legacy files under the /managed directory
 	if strings.HasPrefix(normalizedFile, "/managed") {

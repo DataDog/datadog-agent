@@ -10,11 +10,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"text/tabwriter"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configbackupimpl "github.com/DataDog/datadog-agent/comp/core/configbackup/impl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
@@ -133,6 +137,20 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 	cmd.AddCommand(systemProbeSchemaCmd)
 
+	backupCmd := &cobra.Command{
+		Use:   "backup",
+		Short: "Inspect the configuration backups written at every agent start",
+		Long:  ``,
+	}
+	backupListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List the configuration snapshots with timestamp, digest, deployment ID and size",
+		Long:  ``,
+		RunE:  oneShotRunE(listConfigBackups),
+	}
+	backupCmd.AddCommand(backupListCmd)
+	cmd.AddCommand(backupCmd)
+
 	return cmd
 }
 
@@ -154,6 +172,27 @@ func printSystemProbeSchema() error {
 		fmt.Print(string(s))
 	}
 	return nil
+}
+
+func listConfigBackups(cfg config.Component) error {
+	backupDir, err := configbackupimpl.BackupDir(cfg)
+	if err != nil {
+		return err
+	}
+	snapshots, err := configbackupimpl.ListSnapshots(backupDir)
+	if err != nil {
+		return err
+	}
+	if len(snapshots) == 0 {
+		fmt.Println("No configuration backups found.")
+		return nil
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "DIGEST\tTIMESTAMP\tDEPLOYMENT ID\tSIZE")
+	for _, s := range snapshots {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%d\n", s.Digest, s.Timestamp.Format(time.RFC3339), s.DeploymentID, s.Size)
+	}
+	return w.Flush()
 }
 
 func showRuntimeConfiguration(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {

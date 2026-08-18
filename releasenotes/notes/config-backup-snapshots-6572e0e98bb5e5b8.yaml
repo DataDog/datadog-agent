@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    The Agent now writes a byte-exact snapshot of the configuration files it
+    loaded at every start into a dedicated directory
+    (``<config_directory>/config-backups``). Each distinct configuration is
+    stored once, with an append-only log of every start, so the history
+    survives restart flapping without growing without bound. Use
+    ``agent config backup list`` to see the snapshots, and check the
+    ``config_backup.*`` settings to control the feature.

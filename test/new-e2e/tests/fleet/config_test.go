@@ -8,6 +8,7 @@ package fleet
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/ddot"
@@ -654,4 +656,89 @@ func (s *configSuite) assertCollectorConfigPath(experiment bool) {
 		assert.Equal(c, "--config "+want, strings.TrimSpace(out),
 			"the running collector should read %s", want)
 	}, 2*time.Minute, 5*time.Second)
+}
+
+// TestConfigBackupHistory verifies the config backup history across the config
+// experiment lifecycle:
+//   - the stable Agent writes a snapshot at startup;
+//   - the experiment Agent writes its own snapshot into the experiment
+//     directory (the copyDirectory exclusion means the stable history is not
+//     copied there, so this asserts the experiment Agent's own snapshot);
+//   - promote keeps the promoted config's history present;
+//   - rollback leaves the stable history untouched.
+func (s *configSuite) TestConfigBackupHistory() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping config backup history test on Windows (in-place experiment model)")
+	}
+
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	// The stable Agent writes its first snapshot at startup.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		exists, err := s.Host.DirExists("/etc/datadog-agent/config-backups")
+		require.NoError(c, err)
+		require.True(c, exists, "stable config-backups dir not created")
+	}, 3*time.Minute, 5*time.Second)
+	require.GreaterOrEqual(s.T(), countConfigBackups(s.T(), s.Env().RemoteHost, "/etc/datadog-agent/config-backups"), 1, "stable history should hold at least one snapshot")
+
+	startExperiment := func(t *testing.T, deploymentID string) {
+		t.Helper()
+		require.NoError(t, s.Backend.StartConfigExperiment(backend.ConfigOperations{
+			DeploymentID: deploymentID,
+			FileOperations: []backend.FileOperation{{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{"log_level": "debug"}`),
+			}},
+		}, nil))
+	}
+
+	// The experiment Agent resolves its own config directory and writes its own
+	// snapshot into the experiment directory.
+	s.T().Run("experiment-writes-snapshot", func(t *testing.T) {
+		startExperiment(t, "backup-exp-snapshot")
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			exists, err := s.Host.DirExists("/etc/datadog-agent-exp/config-backups")
+			require.NoError(c, err)
+			require.True(c, exists, "experiment config-backups dir not created")
+		}, 3*time.Minute, 5*time.Second)
+		require.GreaterOrEqual(t, countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent-exp/config-backups"), 1, "experiment Agent should write its own snapshot")
+		require.NoError(t, s.Backend.StopConfigExperiment())
+	})
+
+	// Promote keeps the promoted config's history present.
+	s.T().Run("promote-keeps-history", func(t *testing.T) {
+		startExperiment(t, "backup-promote")
+		require.NoError(t, s.Backend.PromoteConfigExperiment())
+		config, err := s.Agent.Configuration()
+		require.NoError(t, err)
+		require.Equal(t, "debug", config["log_level"])
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			exists, err := s.Host.DirExists("/etc/datadog-agent/config-backups")
+			require.NoError(c, err)
+			require.True(c, exists, "stable config-backups dir must survive promote")
+		}, 3*time.Minute, 5*time.Second)
+		require.GreaterOrEqual(t, countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent/config-backups"), 1, "promoted config's history must be present")
+	})
+
+	// Rollback leaves the stable history untouched.
+	s.T().Run("rollback-keeps-stable-history", func(t *testing.T) {
+		before := countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent/config-backups")
+		startExperiment(t, "backup-rollback")
+		require.NoError(t, s.Backend.StopConfigExperiment())
+		after := countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent/config-backups")
+		require.GreaterOrEqual(t, after, before, "stable history must survive rollback")
+	})
+}
+
+// countConfigBackups returns the number of snapshot archives in a config
+// backup directory on the remote host.
+func countConfigBackups(t *testing.T, host *components.RemoteHost, dir string) int {
+	t.Helper()
+	out, err := host.Execute("sudo ls " + dir + "/*.tar.gz 2>/dev/null | wc -l")
+	require.NoError(t, err)
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	require.NoError(t, err)
+	return n
 }

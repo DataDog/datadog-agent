@@ -9597,3 +9597,47 @@ properties:
               workloadmeta agent without a timeout
     tags:
     - full-agent-only:true
+  config_backup:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Configuration for the automatic backup of the agent configuration files.
+      At every agent start, the agent writes a byte-exact snapshot of the
+      configuration files it loaded into a dedicated directory. Use the
+      snapshots as a provenance and audit record of what configuration each
+      agent was running.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        visibility: public
+        description: |-
+          Enables the automatic backup of the agent configuration files at
+          every agent start.
+      max_snapshots:
+        node_type: setting
+        type: integer
+        default: 10
+        visibility: public
+        description: |-
+          The maximum number of distinct configuration snapshots to retain.
+          Older snapshots are removed when the limit is reached.
+      max_starts_logged:
+        node_type: setting
+        type: integer
+        default: 1000
+        visibility: public
+        description: |-
+          The maximum number of agent start records to keep in the occurrence
+          log. Older records are removed when the limit is reached.
+      directory:
+        node_type: setting
+        type: string
+        default: ''
+        visibility: public
+        description: |-
+          The directory where configuration backups are stored. When empty,
+          the directory is derived from the location of the configuration
+          file used by the agent.

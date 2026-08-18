@@ -82,6 +82,8 @@ import (
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configbackupfx "github.com/DataDog/datadog-agent/comp/core/configbackup/fx"
+	configbackupimpl "github.com/DataDog/datadog-agent/comp/core/configbackup/impl"
 	configfilesdiscoveryfx "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/fx"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -435,6 +437,15 @@ func getSharedFxOption() fx.Option {
 			}
 			return flaretypes.NewProvider(provider.ProvideFlare)
 		}),
+		// Add the config backup manifests and occurrence log to flares. The
+		// archives themselves are never added: they contain verbatim
+		// configuration copies including secrets.
+		fx.Provide(func(cfg config.Component) flaretypes.Provider {
+			provider := &configbackupimpl.FlareProvider{
+				Config: cfg,
+			}
+			return flaretypes.NewProvider(provider.ProvideFlare)
+		}),
 		lsof.Module(),
 		// Enable core agent specific features like persistence-to-disk
 		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
@@ -500,6 +511,10 @@ func getSharedFxOption() fx.Option {
 		adfx.Module(),
 		networkpathrcproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
+		// Write a configuration snapshot at every agent start. Registered only in
+		// the run command so that agent status, agent config and the other CLI
+		// commands never write a snapshot.
+		configbackupfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component

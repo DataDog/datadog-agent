@@ -120,6 +120,12 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/configbackup](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configbackup)
+
+*Datadog Team*: fleet-automation
+
+Package configbackup implements backing up the agent configuration files at every agent start.
+
 ### [comp/core/configfilesdiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery)
 
 *Datadog Team*: agent-discovery
