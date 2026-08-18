@@ -44,9 +44,10 @@ import (
 
 const jsonContentType = "application/json"
 
-// maxRequestBodyBytes bounds the AdmissionReview body the webhook will buffer.
-// Matches controller-runtime's own maxRequestSize.
-const maxRequestBodyBytes = int64(7 << 20)
+// maxRequestBodyBytes returns admission_controller.max_request_bytes.
+func maxRequestBodyBytes() int64 {
+	return pkgconfigsetup.Datadog().GetInt64("admission_controller.max_request_bytes")
+}
 
 // Request contains the information of an admission request
 type Request struct {
@@ -210,13 +211,19 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		return
 	}
 
+	// ContentLength is -1 when unknown; skip observing in that case.
+	if r.ContentLength >= 0 {
+		metrics.WebhooksRequestSize.Observe(float64(r.ContentLength), webhookName, webhookType.String())
+	}
+
+	maxBytes := maxRequestBodyBytes()
 	defer r.Body.Close()
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequestBodyBytes))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes))
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			log.Warnf("Request body exceeds %d bytes", maxRequestBodyBytes)
+			log.Warnf("Request body exceeds %d bytes", maxBytes)
 			return
 		}
 		w.WriteHeader(http.StatusBadRequest)

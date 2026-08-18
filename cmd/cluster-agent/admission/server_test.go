@@ -195,7 +195,7 @@ func TestHandleBodyLimits(t *testing.T) {
 			assert.Equal(t, tt.wantWebhookHit, hit)
 			if filler != nil {
 				// Handler must not buffer meaningfully more than the cap.
-				assert.LessOrEqual(t, filler.read, maxRequestBodyBytes+int64(64<<10),
+				assert.LessOrEqual(t, filler.read, maxRequestBodyBytes()+int64(64<<10),
 					"handler buffered more than the configured cap")
 			}
 		})
@@ -220,6 +220,6 @@ func TestHandleBodyLimitAppliesToEveryRoute(t *testing.T) {
 		s.mux.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code, "route %s", uri)
-		assert.LessOrEqual(t, filler.read, maxRequestBodyBytes+int64(64<<10), "route %s", uri)
+		assert.LessOrEqual(t, filler.read, maxRequestBodyBytes()+int64(64<<10), "route %s", uri)
 	}
 }
