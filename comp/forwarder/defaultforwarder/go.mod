@@ -17,8 +17,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.61.0
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.70.0
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.59.0
+	github.com/DataDog/datadog-agent/pkg/process/util/api v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/status/health v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0
