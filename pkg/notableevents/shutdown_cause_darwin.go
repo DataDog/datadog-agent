@@ -34,11 +34,10 @@ const (
 	// pmuTokenSeparator matches the flattening performed by the C reader.
 	pmuTokenSeparator = "\x1f"
 
-	// pmuBootFaultInitialBufferSize is
-	// DD_PMU_MAX_TOKENS_PER_SERVICE * DD_PMU_MAX_TOKEN_CHARS from
-	// shutdown_cause_iokit_darwin.c: the largest single service the C reader
-	// will ever hand back. A service beyond either bound is dropped and
-	// logged by the C reader itself, so there is nothing here to retry.
+	// pmuBootFaultInitialBufferSize is DD_PMU_MAX_TOKENS_PER_SERVICE *
+	// DD_PMU_MAX_TOKEN_CHARS from shutdown_cause_iokit_darwin.c: the largest
+	// single service the C reader hands back. Oversized services are dropped
+	// and logged there, so nothing to retry here.
 	pmuBootFaultInitialBufferSize = 88 * 53
 )
 
@@ -55,11 +54,11 @@ type pmuBootFaultInfo struct {
 	Tokens []string
 }
 
-// readPMUBootFaultInfo reads IOPMUBootFaultInfo from every service in the
-// IOService plane that publishes it. An absent property is not an error: it
-// yields an empty result, which classifies as no event. The C reader drops
-// and logs any service that would not fit rather than reporting the read as
-// incomplete, so a non-zero status here is always a fatal IOKit failure.
+// readPMUBootFaultInfo reads IOPMUBootFaultInfo from every publishing
+// IOService. An absent property is not an error: it yields an empty result,
+// which classifies as no event. The C reader drops oversized services itself
+// rather than reporting incompleteness, so a non-zero status here is always a
+// fatal IOKit failure.
 func readPMUBootFaultInfo() (pmuBootFaultInfo, error) {
 	if runtime.GOARCH != "arm64" {
 		return pmuBootFaultInfo{}, errShutdownCauseUnsupported

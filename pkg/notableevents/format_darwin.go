@@ -299,10 +299,9 @@ func (r shutdownCauseResult) event(identity, bootUUID string, bootTime, timestam
 	}
 }
 
-// customPayload builds the shutdown-cause payload. Every token observed is
-// reported, alongside the families present and the fault subset the classifier
-// acted on, so a reader can see both the whole payload and what it was judged
-// on.
+// customPayload reports every token observed, plus the families and fault
+// subset the classifier acted on, so a reader sees both the raw payload and
+// what it was judged on.
 func (r shutdownCauseResult) customPayload(bootUUID string, bootTime time.Time) map[string]interface{} {
 	payload := map[string]interface{}{
 		"source":         pmuBootFaultProperty,

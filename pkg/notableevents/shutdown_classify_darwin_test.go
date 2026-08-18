@@ -16,10 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The measured payloads from the PMU boot-fault test run, flattened to their
-// distinct token union (several PMUs on the measured hardware redundantly
-// republish the same tokens). Pattern C is the load-bearing fixture: it is
-// the only payload a real trigger produced that also emits an event.
+// Measured payloads from the PMU boot-fault test run, deduped to their
+// distinct token union. Pattern C is load-bearing: the only real-trigger
+// payload that also emits an event.
 var (
 	measuredPatternACleanShutdown = pmuBootFaultInfo{Tokens: []string{
 		"target_off_restart", "wdog,reset_in_1", "rst_in,reset_in_1_deassert",
@@ -282,12 +281,9 @@ func TestValidatePMUBootFaultInfoRejectsUntrustedPayloads(t *testing.T) {
 	}
 }
 
-// TestValidatePMUBootFaultInfoBoundsTheDistinctUnion proves the token bound is
-// charged once for a token rather than once per occurrence. Several PMUs
-// republishing the same set is the normal case (parsePMUBootFaultPayload
-// already dedups it, but a hand-built pmuBootFaultInfo could still contain
-// duplicates), so a raw count would reject payloads whose distinct union is
-// well inside the limit.
+// TestValidatePMUBootFaultInfoBoundsTheDistinctUnion proves the bound is
+// charged per distinct token, not per occurrence, since a hand-built
+// pmuBootFaultInfo could contain duplicates a raw count would wrongly reject.
 func TestValidatePMUBootFaultInfoBoundsTheDistinctUnion(t *testing.T) {
 	dictionary := allPMUFaultTokens()
 	require.Less(t, len(dictionary), maxShutdownTokens)
@@ -307,10 +303,9 @@ func TestValidatePMUBootFaultInfoBoundsTheDistinctUnion(t *testing.T) {
 	require.Error(t, validatePMUBootFaultInfo(pmuBootFaultInfo{Tokens: oversized}))
 }
 
-// TestValidatePMUBootFaultInfoAcceptsLongTokens covers the window the native
-// reader used to drop and the classifier used to reject. Nothing truncates a
-// token now, so a long name from unfamiliar hardware still classifies on its
-// family instead of voiding the whole payload.
+// TestValidatePMUBootFaultInfoAcceptsLongTokens covers the case the native
+// reader used to drop and the classifier used to reject: a long token from
+// unfamiliar hardware now classifies by family instead of voiding the payload.
 func TestValidatePMUBootFaultInfoAcceptsLongTokens(t *testing.T) {
 	token := "ot," + strings.Repeat("a", maxShutdownTokenBytes-3)
 	require.Len(t, token, maxShutdownTokenBytes)
@@ -330,12 +325,10 @@ func TestValidatePMUBootFaultInfoAcceptsTheFullDictionary(t *testing.T) {
 }
 
 // TestPMUFaultTokenDictionaryCoverage asserts the documented 59 fault / 21
-// benign split over all 80 tokens the measured PMU can name. It catches a typo
-// in shutdownFaultFamilies that would otherwise silently misclassify.
-//
-// The split follows classification, so it accounts for shutdownBenignTokens as
-// well as the family map: two tokens whose family is a fault family are named
-// benign by the hardware.
+// benign split over the measured PMU's 80 tokens, catching a typo in
+// shutdownFaultFamilies that would silently misclassify. The split follows
+// classification, so it also accounts for shutdownBenignTokens, not just the
+// family map.
 func TestPMUFaultTokenDictionaryCoverage(t *testing.T) {
 	tokens := allPMUFaultTokens()
 	require.Len(t, tokens, 80)
@@ -369,10 +362,9 @@ func TestPMUFaultTokenDictionaryCoverage(t *testing.T) {
 	}, byClass)
 }
 
-// TestShutdownBenignTokensAreOtherwiseFaults guards the list against dead
-// weight: an entry whose family is not a fault family changes nothing, and an
-// entry absent from the dictionary is either a typo or hardware this list was
-// never measured against.
+// TestShutdownBenignTokensAreOtherwiseFaults guards against dead weight: an
+// entry whose family isn't a fault family, or one absent from the dictionary,
+// signals a typo or untested hardware.
 func TestShutdownBenignTokensAreOtherwiseFaults(t *testing.T) {
 	dictionary := make(map[string]struct{})
 	for _, token := range allPMUFaultTokens() {

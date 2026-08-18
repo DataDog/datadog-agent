@@ -1929,15 +1929,11 @@ func TestDarwinCollectorLeavesNoShutdownStateWhenSaveFails(t *testing.T) {
 	assert.True(t, collector.shutdownCauseSaveWarned)
 }
 
-// TestDarwinCollectorRecoversShutdownCauseFromATransientSaveFailure covers the
-// reconcile tick outliving the failure. Without the deferral a full disk at the
-// moment of the opening check withheld the fault for the process lifetime, which
-// on a workstation is weeks.
-//
-// The recovery drives two reconcile iterations because the same failure also
-// staged the crash scan: the first retry defers again behind that staged commit
-// and the scan that follows it clears the way. Reaching the event on the second
-// tick is the behaviour, not a shortcoming of the test.
+// TestDarwinCollectorRecoversShutdownCauseFromATransientSaveFailure covers a
+// full disk at the opening check no longer withholding the fault for the
+// whole process lifetime. Two reconcile iterations are needed because the
+// same failure also staged the crash scan: retry 1 defers again behind that
+// staged commit, and the scan after it clears the way for retry 2.
 func TestDarwinCollectorRecoversShutdownCauseFromATransientSaveFailure(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{saveErr: errors.New("disk full")}
 	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)

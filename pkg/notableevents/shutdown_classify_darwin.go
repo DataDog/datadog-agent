@@ -30,20 +30,17 @@ const (
 	// the measured hardware holds 80 entries, but the property is
 	// machine-controlled and crosses into an event payload.
 	maxShutdownTokens = 128
-	// maxShutdownTokenBytes bounds one token. The native reader sizes its buffer
-	// from the string and never shortens a token, so this is the cap on token
-	// length, and exceeding it rejects the payload rather than trimming it. The
-	// reader mirrors this value as DD_PMU_MAX_TOKEN_CHARS to keep the length it
-	// sizes that buffer from bounded; changing one means changing both. The
-	// longest token on the measured hardware is 35 bytes.
+	// maxShutdownTokenBytes bounds one token; exceeding it rejects the payload
+	// rather than trimming it. The native reader mirrors this as
+	// DD_PMU_MAX_TOKEN_CHARS, so changing one means changing both. Longest
+	// token on the measured hardware is 35 bytes.
 	maxShutdownTokenBytes = 128
 )
 
-// shutdownClassPrecedence orders classifications from most to least
-// significant. A collapsing machine drags reset, crash and power tokens along
-// with the thermal one, so thermal has to win or the event that matters most
-// gets titled as something else. Adding a class here is what makes it
-// reachable, so a new class cannot be introduced without being ranked.
+// shutdownClassPrecedence orders classes from most to least significant. A
+// collapsing machine drags multiple fault types together, and thermal must
+// win or the event titles as something else. A new class must be added here
+// to become reachable.
 var shutdownClassPrecedence = []shutdownClass{
 	shutdownClassThermal,
 	shutdownClassPower,
@@ -52,13 +49,13 @@ var shutdownClassPrecedence = []shutdownClass{
 	shutdownClassHardware,
 }
 
-// shutdownTitles and shutdownMessages are fixed per classification rather than
-// built from token text, which keeps them inside MaxEventStringBytes
-// unconditionally and keeps token data in the custom payload.
+// shutdownTitles and shutdownMessages are fixed per class rather than built
+// from token text, keeping them inside MaxEventStringBytes unconditionally
+// and token data out of the title/message.
 //
-// The crash wording says "followed a CRASH signal" deliberately: the token
-// records a hardware line assertion, and a user holding Control-Command-Power
-// asserts it, so claiming a kernel panic would be wrong on the common path.
+// "followed a CRASH signal" is deliberate: a user holding
+// Control-Command-Power asserts this same hardware line, so "kernel panic"
+// would be wrong on the common path.
 var shutdownTitles = map[shutdownClass]string{
 	shutdownClassThermal:  "macOS overheated shutdown",
 	shutdownClassPower:    "macOS power fault shutdown",
@@ -75,13 +72,10 @@ var shutdownMessages = map[shutdownClass]string{
 	shutdownClassHardware: "The previous shutdown was caused by a hardware fault",
 }
 
-// shutdownFaultFamilies maps a PMU token family to its fault classification.
-// Families absent from this map are benign, so an uncatalogued token stays
-// silent rather than reporting a fault on every boot of unfamiliar hardware.
-//
-// The map is deliberately static. The PMU's info-fault_name dictionary
-// describes what the hardware can name, not what constitutes a fault, so it
-// cannot be used to derive this at runtime.
+// shutdownFaultFamilies maps a token family to its fault class. A family
+// absent from this map is benign, so unfamiliar hardware stays silent by
+// default. Deliberately static: the PMU's fault-name dictionary describes
+// what hardware can name, not what constitutes a fault.
 var shutdownFaultFamilies = map[string]shutdownClass{
 	// Thermal.
 	"ot":       shutdownClassThermal, // over-temperature, 12 tokens
@@ -114,19 +108,16 @@ var shutdownFaultFamilies = map[string]shutdownClass{
 	"otp_crc": shutdownClassHardware, // OTP trim-memory CRC failure
 }
 
-// shutdownBenignTokens lists tokens whose family classifies as a fault but
-// which the hardware names for a benign or user-driven condition. Family
-// granularity is coarser than the dictionary, so these are the cases where
-// inheriting the family's class would report a fault that did not happen.
+// shutdownBenignTokens lists fault-family tokens the hardware actually names
+// for a benign or user-driven condition — finer-grained than family
+// classification allows.
 //
-// Excluding a token only changes the outcome when it is the sole evidence for
-// its class: classification unions every token, so a machine that genuinely
-// browns out still classifies on its other power tokens. That is what keeps
-// this list from turning false positives into false negatives.
+// Excluding a token only matters when it's the sole evidence for its class,
+// so it can't turn a real fault into a false negative.
 //
-// Entries need a reason. A token that merely looks benign is not enough:
-// vddio,vddio_1v2_sgpio0_ok reads like a rail-OK status but appears in a
-// dictionary of fault names, where it means the rail-OK signal dropped.
+// Every entry needs a documented reason: looking benign isn't enough (e.g.
+// vddio,vddio_1v2_sgpio0_ok reads like a rail-OK status but actually means the
+// rail-OK signal dropped).
 var shutdownBenignTokens = map[string]struct{}{
 	// Booting after the battery was charged from depleted, not a regulator
 	// failure. The other buck_ tokens do name real faults.
@@ -136,13 +127,10 @@ var shutdownBenignTokens = map[string]struct{}{
 	"timeout,dblclick_timeout": {},
 }
 
-// shutdownUnderscoreFamilies lists families whose tokens separate the family
-// from the detail with an underscore instead of a comma. Without them
-// buck_en_err and pgood_error_idx0 would each resolve to their own family and
-// be treated as benign.
-//
-// Comma separation is still tried first, which is what keeps otp_crc out of the
-// thermal ot family.
+// shutdownUnderscoreFamilies lists families that separate family from detail
+// with "_" instead of ",", so buck_en_err and pgood_error_idx0 resolve to
+// their family instead of being treated as benign. Comma separation is still
+// tried first, keeping otp_crc out of the thermal "ot" family.
 var shutdownUnderscoreFamilies = []string{"buck", "pgood", "target_off"}
 
 // shutdownCauseResult is one classified boot fault payload.
@@ -180,12 +168,9 @@ func tokenFamily(token string) string {
 }
 
 // validatePMUBootFaultInfo rejects a payload that cannot be trusted as event
-// content. A rejected read is never partially classified.
-//
-// The token bound counts the distinct union rather than a raw total: dedup
-// already happened in parsePMUBootFaultPayload, but info.Tokens is a plain
-// slice a caller could hand-construct with duplicates, so the bound is still
-// charged per distinct token rather than per slice entry.
+// content; a rejected read is never partially classified. The token bound is
+// charged per distinct token, not per slice entry, since a caller could
+// hand-construct info.Tokens with duplicates.
 func validatePMUBootFaultInfo(info pmuBootFaultInfo) error {
 	distinct := make(map[string]struct{})
 	for _, token := range info.Tokens {

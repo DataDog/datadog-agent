@@ -36,9 +36,8 @@ const (
 	sha256HexLength       = 64
 )
 
-// knownEventIDPrefixes lists every stable identifier prefix. An identifier
-// written with a prefix missing from this list fails validation on the next
-// load, which is reported as bookmark corruption.
+// knownEventIDPrefixes lists every valid identifier prefix; an unknown prefix
+// fails validation and is reported as bookmark corruption.
 var knownEventIDPrefixes = []string{crashEventIDPrefix, shutdownEventIDPrefix}
 
 // Event is the sanitized wire representation of a notable event.

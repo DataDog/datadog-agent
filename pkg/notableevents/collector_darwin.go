@@ -81,15 +81,10 @@ type darwinBookmarkState struct {
 	ShutdownCause *shutdownCauseBookmark             `json:"shutdown_cause,omitempty"`
 }
 
-// shutdownCauseBookmark records the boot whose PMU fault payload was already
-// examined, so the check runs at most once per boot regardless of how often the
-// Agent restarts. It records clean boots too: without that, a machine that
-// reboots cleanly would re-read the property on every restart.
-//
-// The field is optional and a nil pointer is its correct zero value, so an
-// existing bookmark deserializes into it without a schema bump. Bumping
-// darwinBookmarkSchemaVersion would make every existing bookmark corrupt and
-// discard undelivered crash events on upgrade.
+// shutdownCauseBookmark records the boot (including clean boots) whose PMU
+// fault payload was already examined, so the check runs at most once per boot
+// across Agent restarts. The field is optional so existing bookmarks
+// deserialize into it without a schema bump.
 type shutdownCauseBookmark struct {
 	BootUUID string `json:"boot_uuid"`
 	EventID  string `json:"event_id,omitempty"`
@@ -154,19 +149,14 @@ type Collector struct {
 	generation        uint64
 	commitReservation *darwinCommitReservation
 	nextCommitID      uint64
-	// shutdownCauseDeferred records that the shutdown-cause check could not be
-	// committed yet: the bookmark was owned by another commit, or its Save
-	// failed. Guarded by stateMu.
+	// shutdownCauseDeferred records that the check has not committed yet: the
+	// bookmark was owned by another commit, or its Save failed. Guarded by stateMu.
 	shutdownCauseDeferred bool
-	// shutdownCauseSaveWarned latches the save-failure warning. Deferring makes
-	// the path re-entrant, so a failure that never clears — a read-only state
-	// directory rather than a full disk — would otherwise warn on every
-	// reconcile tick for the collector's life. It is never cleared: a save that
-	// succeeds publishes, and the check never runs again. Guarded by stateMu.
+	// shutdownCauseSaveWarned latches the save-failure warning so a persistent
+	// failure warns once, not on every reconcile tick. Guarded by stateMu.
 	shutdownCauseSaveWarned bool
-	// shutdownCauseSaturationWarned latches the saturation warning for the same
-	// reason, and is separate so that neither condition can silence the other.
-	// Guarded by stateMu.
+	// shutdownCauseSaturationWarned latches the saturation warning, kept
+	// separate so neither condition can silence the other. Guarded by stateMu.
 	shutdownCauseSaturationWarned bool
 
 	now               func() time.Time
@@ -416,9 +406,8 @@ func (c *Collector) releaseCommitLocked(reservation *darwinCommitReservation) {
 func (c *Collector) run(ctx context.Context) {
 	defer c.wg.Done()
 
-	// Ordered before scanOnce: the shutdown-cause read is cheap and cannot
-	// block, while scanOnce walks DiagnosticReports, and a machine that just
-	// came back from a fault shutdown is the one that should report promptly.
+	// Runs before scanOnce: cheap and non-blocking, so a machine recovering
+	// from a fault shutdown reports it promptly.
 	c.checkShutdownCauseOnce()
 	c.scanOnce(ctx)
 	reconcileTicker := time.NewTicker(c.reconcileInterval)
@@ -462,18 +451,15 @@ func (c *Collector) run(ctx context.Context) {
 }
 
 // checkShutdownCauseOnce reads and classifies the previous boot's PMU fault
-// payload exactly once per collector lifetime. It is strictly additive: every
-// failure path logs and returns, so it can neither block startup nor disturb
-// crash-report collection.
-//
-// It acquires stateMu and never scanMu, which keeps it trivially compliant with
-// the lock ordering documented on the Collector: a path that takes only the
-// inner lock cannot invert anything. Every read happens before that lock.
+// payload once per collector lifetime. Strictly additive: every failure path
+// logs and returns, so it can neither block startup nor disturb crash-report
+// collection. It only holds stateMu, never scanMu, so the lock order is
+// trivially safe.
 func (c *Collector) checkShutdownCauseOnce() {
 	bootUUID, err := c.readBootUUID()
 	if err != nil || bootUUID == "" {
-		// Without a boot identity there is no dedup key, and an event that can
-		// repeat on every Agent restart is worse than no event at all.
+		// No boot identity means no dedup key, so skip rather than risk
+		// repeating on every restart.
 		log.Debugf("Skipping macOS shutdown-cause check: no boot session UUID: %v", err)
 		return
 	}
@@ -491,9 +477,8 @@ func (c *Collector) checkShutdownCauseOnce() {
 		return
 	}
 	if err := validatePMUBootFaultInfo(info); err != nil {
-		// Recorded as examined, not as an event. The property does not change
-		// until the next boot, so without a bookmark every Agent start re-reads
-		// it and repeats this warning for a payload that will never classify.
+		// Recorded as examined, not as an event: the property won't change
+		// before the next boot, so skip re-reading and re-warning on it.
 		log.Warnf("Ignoring untrusted macOS shutdown-cause payload: %v", err)
 		c.publishShutdownCause(bootUUID, nil)
 		return
@@ -501,8 +486,7 @@ func (c *Collector) checkShutdownCauseOnce() {
 
 	result, emit := classifyShutdownTokens(info)
 	if !emit {
-		// Clean shutdown, or a payload holding only benign tokens. Record the
-		// boot so later restarts do not read the property again.
+		// No fault tokens; record the boot so later restarts skip the read.
 		log.Debugf("No macOS shutdown fault reported for boot %s", bootUUID)
 		c.publishShutdownCause(bootUUID, nil)
 		return
@@ -527,13 +511,10 @@ func (c *Collector) checkShutdownCauseOnce() {
 	c.publishShutdownCause(bootUUID, &event)
 }
 
-// retryShutdownCauseIfDeferred re-runs the shutdown-cause check when a bookmark
-// commit owned the state on the earlier attempt. The re-read is idempotent:
-// checkShutdownCauseOnce returns immediately once the boot is recorded, so this
-// settles after the first uncontended tick.
-//
-// Like checkShutdownCauseOnce it takes only stateMu, and it releases the lock
-// before that call rather than holding it across.
+// retryShutdownCauseIfDeferred re-runs the check after an earlier attempt
+// found the bookmark owned by another commit. Idempotent: it settles after
+// the first uncontended tick, since checkShutdownCauseOnce returns immediately
+// once the boot is recorded.
 func (c *Collector) retryShutdownCauseIfDeferred() {
 	c.stateMu.Lock()
 	deferred := c.shutdownCauseDeferred && !c.closed
@@ -561,10 +542,9 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 		return
 	}
 	if c.stagedScan != nil || c.commitReservation != nil {
-		// Another commit owns the bookmark. run() calls the check before its
-		// first tick, so this collides with the core Agent's opening Ack poll;
-		// waiting for the next Agent start would strand the fault for this
-		// whole process lifetime, which on a workstation is weeks.
+		// Another commit owns the bookmark, which run() collides with on the
+		// core Agent's opening Ack poll. Defer rather than strand the fault
+		// until the next Agent start.
 		c.shutdownCauseDeferred = true
 		c.stateMu.Unlock()
 		log.Debug("Deferring macOS shutdown-cause bookmark: another bookmark commit is in flight")
@@ -574,25 +554,18 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 		event = nil
 	}
 	if event != nil && len(c.state.Pending) >= maxDarwinPendingEvents {
-		// Deferred rather than dropped. Recording the boot here would be final:
-		// the bookmark keys on the boot UUID alone, so a fault dropped while
-		// delivery was stalled could never be reconsidered once the queue
-		// drained, and the property describes a shutdown that no later boot can
-		// reproduce. Writing nothing is also stricter about the durable size
-		// budget than the drop it replaces.
-		//
-		// A queue that never drains leaves the reconcile tick re-reading the
-		// property for the collector's life. That is the same cost the contended
-		// commit above already carries, and one cheap IORegistry read per tick
-		// buys the difference between a delayed fault and a lost one.
+		// Deferred, not dropped: recording the boot now would be final, since
+		// the bookmark keys on boot UUID alone and the fault can't be
+		// reproduced by a later boot. A queue that never drains just costs one
+		// IORegistry read per reconcile tick, same as the contended-commit case
+		// above.
 		firstWarning := !c.shutdownCauseSaturationWarned
 		c.shutdownCauseSaturationWarned = true
 		c.shutdownCauseDeferred = true
 		c.stateMu.Unlock()
 		if firstWarning {
-			// Warned once: the retry re-enters here on every tick until
-			// delivery recovers, and the condition is a property of the queue
-			// rather than of this attempt.
+			// Warned once per saturation episode; the retry re-enters every
+			// tick until delivery recovers.
 			log.Warnf("Deferring macOS shutdown fault event %s: pending delivery is saturated", event.ID)
 		}
 		return
@@ -612,11 +585,9 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 	c.stateMu.Unlock()
 
 	if err := c.store.Save(cloneDarwinBookmarkState(candidate)); err != nil {
-		// Nothing becomes pending and no boot is recorded, so the read stays
-		// available. Deferring is what makes a transient failure recoverable
-		// within this process instead of only at the next Agent start: the
-		// candidate is cheap to rebuild, because the property it derives from
-		// does not change until the machine reboots.
+		// Nothing pending, no boot recorded: the read stays retryable within
+		// this process. The candidate is cheap to rebuild since the property
+		// it derives from doesn't change until reboot.
 		c.stateMu.Lock()
 		c.shutdownCauseDeferred = true
 		firstWarning := !c.shutdownCauseSaveWarned
@@ -1458,12 +1429,10 @@ func eventID(identity string) string {
 	return "macos-crash-v1:" + hashString(identity)
 }
 
-// shutdownCauseIdentity identifies one fault on one boot.
-//
-// The boot UUID alone carries no information about what was read, and the token
-// set alone repeats across boots, which would deduplicate a machine that
-// overheats every afternoon into permanent silence. Tokens arrive sorted
-// because PMU enumeration order is not stable between boots.
+// shutdownCauseIdentity identifies one fault on one boot. The boot UUID alone
+// carries no fault info, and the token set alone would collapse a machine
+// that overheats repeatedly into permanent silence. Tokens arrive pre-sorted
+// since PMU enumeration order isn't stable across boots.
 func shutdownCauseIdentity(bootUUID string, sortedFaultTokens []string) string {
 	return "shutdown:" + bootUUID + ":" + strings.Join(sortedFaultTokens, ",")
 }
