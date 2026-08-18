@@ -1,14 +1,13 @@
 services:
   fake-krakend-conflict:
     container_name: fake-krakend-conflict
-    # Built and tagged as image "krakend" (rather than using the
-    # com.datadoghq.ad.check.id override label like docker-compose.fake-krakend.yaml)
-    # so that this container's own entity ID *also* remains among its AD
-    # identifiers -- needed so the manual com.datadoghq.ad.checks openmetrics
-    # config below (matched by entity ID) is a sibling of krakend's
-    # image-matched discovery template on the exact same service, reproducing
-    # the scenario where a manual openmetrics config and a later-discovered
-    # dedicated integration both target the same container.
+    # Image named "krakend" so krakend's discovery template matches it.
+    # Do not use com.datadoghq.ad.check.id (as docker-compose.fake-krakend.yaml
+    # does): that label *replaces* the container's AD identifiers, dropping
+    # the entity ID that com.datadoghq.ad.checks below is keyed to, so the
+    # openmetrics config would never match this (or any) service. Matching via
+    # image name keeps both identifiers, so the manual openmetrics config and
+    # the discovery template are siblings on this container.
     image: krakend:e2e-conflict-test
     build:
       context: .
