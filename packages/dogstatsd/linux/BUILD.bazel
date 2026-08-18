@@ -8,6 +8,7 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 
 package(default_visibility = ["//packages:__subpackages__"])
@@ -73,6 +74,29 @@ pkg_files(
 )
 
 # ---------------------------------------------------------------------------
+# Binary
+# ---------------------------------------------------------------------------
+
+# dogstatsd's install root is fixed (unlike the agent's, which varies by
+# flavor), so the prefix is hardcoded rather than driven by --//:install_dir.
+pkg_files(
+    name = "dogstatsd_bin",
+    srcs = ["//cmd/dogstatsd"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "opt/datadog-dogstatsd/bin",
+)
+
+# dogstatsd ships without cgo on Linux (see the `cgo` select on
+# //cmd/dogstatsd:dogstatsd) and must stay statically linked.
+sh_test(
+    name = "dogstatsd_static_link_test",
+    srcs = ["check_static_link.sh"],
+    args = ["$(location //cmd/dogstatsd:dogstatsd)"],
+    data = ["//cmd/dogstatsd"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# ---------------------------------------------------------------------------
 # Install-dir directories
 # ---------------------------------------------------------------------------
 
@@ -91,6 +115,7 @@ pkg_filegroup(
     name = "debian_files",
     srcs = [
         ":config_example_files",
+        ":dogstatsd_bin",
         ":system_dirs",
         ":systemd_service_gen",
         ":upstart_debian_files",
@@ -106,6 +131,7 @@ pkg_filegroup(
     name = "redhat_files",
     srcs = [
         ":config_example_files",
+        ":dogstatsd_bin",
         ":system_dirs",
         ":systemd_service_gen",
         ":upstart_redhat_files",
