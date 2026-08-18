@@ -15,6 +15,7 @@ use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
 use std::collections::VecDeque;
+use std::pin::Pin;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
@@ -137,9 +138,6 @@ enum ForceKillWaitTarget<'a> {
     Watcher(&'a mut Pin<&'a mut JoinHandle<Option<std::process::ExitStatus>>>),
     Child,
 }
-
-/// Placeholder until platform spawn resolves the intended account.
-const DEFERRED_SPAWN_USER: &str = "unknown";
 
 pub struct ManagedProcess {
     name: String,
@@ -563,8 +561,7 @@ impl ManagedProcess {
 
     async fn force_kill_and_wait(
         &mut self,
-        graceful_budget: Duration,
-        budget: ShutdownBudget,
+        graceful_timeout: Duration,
         target: ForceKillWaitTarget<'_>,
     ) -> Option<std::process::ExitStatus> {
         warn!(
@@ -574,20 +571,9 @@ impl ManagedProcess {
         );
         self.force_kill();
 
-        let force_timeout = budget.remaining_cap(Self::FORCE_KILL_TIMEOUT);
-        if force_timeout.is_zero() {
-            warn!(
-                "[{}] shutdown deadline reached; skipping force-kill wait",
-                self.name
-            );
-            #[cfg(windows)]
-            self.cancel_process_wait();
-            return None;
-        }
-
         match target {
             ForceKillWaitTarget::Watcher(handle) => {
-                match time::timeout(force_timeout, &mut **handle).await {
+                match time::timeout(Self::FORCE_KILL_TIMEOUT, &mut **handle).await {
                     Ok(Ok(status)) => status,
                     Ok(Err(e)) => {
                         warn!(
@@ -598,35 +584,29 @@ impl ManagedProcess {
                     }
                     Err(_) => {
                         warn!("[{}] still running after force-kill, giving up", self.name);
-                        #[cfg(windows)]
-                        {
-                            self.cancel_process_wait();
-                            let _ = time::timeout(Duration::from_secs(1), &mut **handle).await;
-                        }
                         None
                     }
                 }
             }
-            ForceKillWaitTarget::Child => match time::timeout(force_timeout, self.wait()).await {
-                Ok(Ok(status)) => Some(status),
-                Ok(Err(e)) => {
-                    warn!("[{}] wait failed after force-kill: {e:#}", self.name);
-                    None
-                }
-                Err(_) => {
-                    warn!("[{}] still running after force-kill, giving up", self.name);
-                    #[cfg(windows)]
-                    {
-                        self.cancel_process_wait();
+            ForceKillWaitTarget::Child => {
+                match time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait()).await {
+                    Ok(Ok(status)) => Some(status),
+                    Ok(Err(e)) => {
+                        warn!("[{}] wait failed after force-kill: {e:#}", self.name);
+                        None
                     }
-                    None
+                    Err(_) => {
+                        warn!("[{}] still running after force-kill, giving up", self.name);
+                        None
+                    }
                 }
-            },
+            }
         }
     }
 
-    async fn wait_for_stop_exit(&mut self, budget: ShutdownBudget) -> bool {
-        let graceful_budget = budget.graceful_budget(self.stop_timeout());
+    async fn wait_for_stop_exit(&mut self) -> bool {
+        let timeout = self.stop_timeout();
+
         if let Some(handle) = self.watcher_handle.take() {
             tokio::pin!(handle);
             let status = match time::timeout(graceful_budget, &mut handle).await {
@@ -636,12 +616,8 @@ impl ManagedProcess {
                     None
                 }
                 Err(_) => {
-                    self.force_kill_and_wait(
-                        graceful_budget,
-                        budget,
-                        ForceKillWaitTarget::Watcher(&mut handle),
-                    )
-                    .await
+                    self.force_kill_and_wait(timeout, ForceKillWaitTarget::Watcher(&mut handle))
+                        .await
                 }
             };
             return status.is_some_and(|status| {
@@ -657,10 +633,7 @@ impl ManagedProcess {
                     warn!("[{}] wait failed during stop: {e:#}", self.name);
                     None
                 }
-                Err(_) => {
-                    self.force_kill_and_wait(graceful_budget, budget, ForceKillWaitTarget::Child)
-                        .await
-                }
+                Err(_) => self.force_kill_and_wait(timeout, ForceKillWaitTarget::Child).await,
             };
             return status.is_some_and(|status| {
                 self.set_last_status(status);
