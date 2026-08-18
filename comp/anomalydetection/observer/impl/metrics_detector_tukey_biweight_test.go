@@ -187,6 +187,28 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	assert.Equal(t, int64(11), state.lastProcessedTime)
 }
 
+func TestTukeyBiweight_ContinuesAfterRetentionDropsBelowMinimum(t *testing.T) {
+	d := testTukeyBiweightDetector()
+	d.WindowSize = 4
+	d.MinPoints = 3
+	d.ScoreEvery = 100
+	storage := newDetectorTestStorage()
+
+	for timestamp := int64(1); timestamp <= 3; timestamp++ {
+		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+	d.Detect(storage, 3)
+	key := tbStateKey{ref: 0, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+
+	storage.cfg.PointRetentionSecs = 1
+	storage.Add("ns", "metric", 4, 4, nil)
+	d.Detect(storage, 4)
+	require.Same(t, state, d.series[key])
+	require.Equal(t, int64(4), state.lastProcessedTime)
+}
+
 // TestTukeyBiweight_NoFireOnStableGaussian verifies that 200 deterministic
 // N(10, 0.5²) samples produce zero anomalies. With ZThreshold=5 the per-tick
 // false-positive rate under N(0,1) is ~5.7e-7, so 200 ticks should be well

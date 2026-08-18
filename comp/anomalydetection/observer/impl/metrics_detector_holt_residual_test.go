@@ -437,6 +437,27 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	assert.Equal(t, int64(11), state.lastProcessedTime)
 }
 
+func TestHoltResidual_ContinuesAfterRetentionDropsBelowWarmup(t *testing.T) {
+	d := testHoltResidualDetector()
+	d.WarmupPoints = 3
+	d.ResidualWindow = 4
+	storage := newDetectorTestStorage()
+
+	for timestamp := int64(1); timestamp <= 3; timestamp++ {
+		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+	d.Detect(storage, 3)
+	key := holtStateKey{ref: 0, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+
+	storage.cfg.PointRetentionSecs = 1
+	storage.Add("ns", "metric", 4, 4, nil)
+	d.Detect(storage, 4)
+	require.Same(t, state, d.series[key])
+	require.Equal(t, int64(4), state.lastProcessedTime)
+}
+
 // TestHoltResidual_ConfirmationStartsAfterWindowsReady verifies that
 // under-filled MAD windows cannot pre-arm confirmation counters. The first
 // point has a huge residual but is observed before both windows are full; the

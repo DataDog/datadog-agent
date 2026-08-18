@@ -232,7 +232,7 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 			}
 
 			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
-			if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
+			if status.pointCount <= state.lastProcessedCount && status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 			startTime := state.lastProcessedTime
@@ -280,7 +280,8 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				state.lastProcessedTime = p.Timestamp
 			})
 
-			if !pointsSeen && mergeOccurred {
+			if !pointsSeen && status.writeGeneration != state.lastWriteGen {
+				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}

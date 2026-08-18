@@ -278,7 +278,7 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 
 			// Replay-gate: skip when no new bucket or in-place merge is visible.
 			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
-			if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
+			if status.pointCount <= state.lastProcessedCount && status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 			startTime := state.lastProcessedTime
@@ -301,7 +301,8 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 			}
 			allAnomalies = append(allAnomalies, anomalies...)
 
-			if !pointsSeen && mergeOccurred {
+			if !pointsSeen && status.writeGeneration != state.lastWriteGen {
+				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
