@@ -14,11 +14,10 @@ import (
 
 // Package contains a validated authored script and the paths needed to execute it.
 type Package struct {
-	Manifest       *Manifest
-	Directory      string
-	ArtifactDigest string
-	Command        []string
-	ToolPaths      []string
+	Manifest  *Manifest
+	Directory string
+	Command   []string
+	ToolPaths []string
 }
 
 func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Package, error) {
@@ -53,11 +52,10 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 	}
 
 	return &Package{
-		Manifest:       manifest,
-		Directory:      artifact.Directory,
-		ArtifactDigest: descriptor.SHA256,
-		Command:        command,
-		ToolPaths:      toolPaths,
+		Manifest:  manifest,
+		Directory: artifact.Directory,
+		Command:   command,
+		ToolPaths: toolPaths,
 	}, nil
 }
 

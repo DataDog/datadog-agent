@@ -48,12 +48,8 @@ func TestLoadManifest_Valid(t *testing.T) {
 	assert.Equal(t, []string{"HOME"}, manifest.Config.AllowedEnvVars)
 }
 
-func TestLoadManifest_WithGlobalAndSessionEnvVars(t *testing.T) {
+func TestLoadManifest_WithSessionEnvVars(t *testing.T) {
 	artifactDirectory := writeManifest(t, validManifest+`
-  setGlobalEnvVars:
-    - name: EXAMPLE_FILE
-      value: path/to/file
-      kind: file
   setSessionEnvVars:
     - name: SESSION_EXAMPLE_VALUE
       value: example-session-value
@@ -63,8 +59,6 @@ func TestLoadManifest_WithGlobalAndSessionEnvVars(t *testing.T) {
 	manifest, err := loadManifest(artifactDirectory)
 
 	require.NoError(t, err)
-	require.Len(t, manifest.Config.SetGlobalEnvVars, 1)
-	assert.Equal(t, environmentKindFile, manifest.Config.SetGlobalEnvVars[0].Kind)
 	require.Len(t, manifest.Config.SetSessionEnvVars, 1)
 	assert.Equal(t, environmentKindValue, manifest.Config.SetSessionEnvVars[0].Kind)
 }
@@ -175,18 +169,18 @@ func TestValidateManifest(t *testing.T) {
 			expectError: "command is required",
 		},
 		{
-			name: "unsupported global env var kind",
+			name: "unsupported session env var kind",
 			manifest: &Manifest{
 				SchemaVersion: manifestSchemaVersion,
 				Package:       "dd-par-scripts-echo",
 				Version:       "0.0.1",
 				FQN:           "com.datadoghq.authoredscripts.echo",
 				Config: ScriptConfig{
-					Command:          validCommand,
-					SetGlobalEnvVars: []EnvironmentVariable{{Name: "X", Value: "y", Kind: "socket"}},
+					Command:           validCommand,
+					SetSessionEnvVars: []EnvironmentVariable{{Name: "X", Value: "y", Kind: "socket"}},
 				},
 			},
-			expectError: "global environment variable",
+			expectError: "session environment variable",
 		},
 		{
 			name: "incomplete session env var",
