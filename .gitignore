@@ -18,6 +18,9 @@ target
 
 **/*.tmp
 **/debug.test
+
+# e2ectl-generated state files, centralized under test/e2e-framework
+test/e2e-framework/.e2ectl-state/
 # files
 .DS_Store
 # *.cov could be removed in OCT 2023, replaced by **/coverage.out

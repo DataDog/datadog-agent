@@ -7,6 +7,8 @@ package provisioners
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,14 +17,21 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 const (
 	staticStackProvisionerDefaultID = "static-stack"
+	// importKeyTag matches environments.importKey — the same struct tag
+	// BuildEnvFromResources consults when resolving a field's import key.
+	importKeyTag = "import"
 )
 
 // StaticStackProvisioner is a provisioner that reads a single JSON file and
-// populates a typed environment directly.
+// populates a typed environment directly. For environments implementing
+// [common.FileBacked], it also records the descriptor path so later updates can
+// be persisted. The descriptor content is fingerprinted at construction time so
+// BaseSuite.UpdateEnv detects out-of-band changes at the same path.
 //
 // # JSON file format
 //
@@ -111,6 +120,9 @@ const (
 type StaticStackProvisioner[Env any] struct {
 	id       string
 	filePath string
+	// fingerprint makes a changed descriptor compare unequal when BaseSuite
+	// decides whether UpdateEnv must re-provision via reflect.DeepEqual.
+	fingerprint string
 }
 
 var _ TypedProvisioner[any] = &StaticStackProvisioner[any]{}
@@ -122,10 +134,15 @@ func NewStaticStackProvisioner[Env any](id string, filePath string) *StaticStack
 	if id == "" {
 		id = staticStackProvisionerDefaultID
 	}
-	return &StaticStackProvisioner[Env]{
+	provisioner := &StaticStackProvisioner[Env]{
 		id:       id,
 		filePath: filePath,
 	}
+	if data, err := os.ReadFile(filePath); err == nil {
+		sum := sha256.Sum256(data)
+		provisioner.fingerprint = hex.EncodeToString(sum[:])
+	}
+	return provisioner
 }
 
 // ID returns the provisioner's identifier.
@@ -143,6 +160,10 @@ func (fp *StaticStackProvisioner[Env]) ProvisionEnv(_ context.Context, _ string,
 
 	if err := fp.wireEnv(env, resources); err != nil {
 		return nil, err
+	}
+
+	if fileBacked, ok := any(env).(common.FileBacked); ok {
+		fileBacked.SetEnvFilePath(fp.filePath)
 	}
 
 	return resources, nil
@@ -209,7 +230,7 @@ func (fp *StaticStackProvisioner[Env]) wireEnv(env *Env, resources RawResources)
 
 		// Derive the canonical resource key: prefer the `import` tag, fall back
 		// to the field name with its first letter lowercased.
-		key := field.Tag.Get("import")
+		key := field.Tag.Get(importKeyTag)
 		if key == "" {
 			name := field.Name
 			key = strings.ToLower(name[:1]) + name[1:]

@@ -6,6 +6,8 @@
 package environments
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -19,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -28,10 +31,40 @@ import (
 // Host is an environment that contains a Host, FakeIntake and Agent configured to talk to each other.
 type Host struct {
 	CoverageBase
+	common.FileBackedEnv
 	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake
 	Agent      *components.RemoteHostAgent
 	Updater    *components.RemoteHostUpdater
+}
+
+// UpdateAgent runs the agent install script over e's already-connected RemoteHost and
+// updates e.Agent to reflect the change. Works regardless of how e was provisioned, for
+// the same reason environments.Kubernetes.UpdateAgent does — see its doc comment.
+func (e *Host) UpdateAgent(ctx context.Context, params installers.HostInstallParams) error {
+	if e.RemoteHost == nil {
+		return errors.New("environments.Host: RemoteHost is not initialized")
+	}
+	agentJSON, err := installers.InstallHostAgent(ctx, e.RemoteHost, params)
+	if err != nil {
+		return err
+	}
+	if e.Agent == nil {
+		e.Agent = &components.RemoteHostAgent{}
+	}
+	if err := json.Unmarshal(agentJSON, &e.Agent.HostAgentOutput); err != nil {
+		return err
+	}
+
+	if path, ok := e.EnvFilePath(); ok {
+		entries, err := installers.ReadEnvFile(path)
+		if err != nil {
+			return err
+		}
+		entries["agent"] = agentJSON
+		return installers.WriteEnvFileAtomic(path, entries)
+	}
+	return nil
 }
 
 // Ensure Host implements the HostOutputs interface for use with scenario Run functions

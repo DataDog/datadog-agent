@@ -27,6 +27,7 @@ go_library(
         "//test/e2e-framework/components/remote",
         "//test/e2e-framework/scenarios/outputs",
         "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/installers",
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/utils/common",
         "//test/e2e-framework/testing/utils/e2e/client",

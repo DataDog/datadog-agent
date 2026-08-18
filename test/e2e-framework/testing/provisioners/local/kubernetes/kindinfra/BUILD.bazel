@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kindinfra",
+    srcs = ["provisioner.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes/kindinfra",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/testing/provisioners",
+    ],
+)
