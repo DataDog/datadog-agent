@@ -21,10 +21,10 @@ type postgresConfigCollector struct{}
 // forwards. PGDATA and other PG*/POSTGRES* variables otherwise carry
 // credentials, connection strings, or arbitrary argument bags.
 var postgresEnvAllow = map[string]struct{}{
-	"PGDATA":                    {},
-	"POSTGRES_DB":               {},
-	"POSTGRES_USER":             {},
-	"POSTGRES_INITDB_WALDIR":    {},
+	"PGDATA":                 {},
+	"POSTGRES_DB":            {},
+	"POSTGRES_USER":          {},
+	"POSTGRES_INITDB_WALDIR": {},
 }
 
 // postgresEnvDeny is defense in depth and documentation: the allow-list above
