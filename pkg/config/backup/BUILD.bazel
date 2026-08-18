@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
-    name = "impl",
+    name = "backup",
     srcs = [
         "backup.go",
         "backup_nix.go",
@@ -11,18 +11,15 @@ go_library(
         "list.go",
         "test_common.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/core/configbackup/impl",
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/backup",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/core/configbackup/def",
         "//comp/core/flare/types",
-        "//comp/core/log/def",
-        "//comp/core/log/mock",
-        "//comp/core/sysprobeconfig/def",
-        "//comp/core/sysprobeconfig/mock",
-        "//comp/def",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/setup",
         "//pkg/util/hostname",
+        "//pkg/util/log",
         "//pkg/version",
         "@com_github_gofrs_flock//:flock",
         "@com_github_stretchr_testify//require",
@@ -30,10 +27,11 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "impl_test",
+    name = "backup_test",
     srcs = ["backup_test.go"],
-    embed = [":impl"],
+    embed = [":backup"],
     deps = [
+        "//pkg/config/mock",
         "//pkg/config/model",
         "@com_github_gofrs_flock//:flock",
         "@com_github_stretchr_testify//assert",

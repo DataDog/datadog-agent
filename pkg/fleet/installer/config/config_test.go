@@ -197,15 +197,6 @@ func TestOperationApply_NoFile(t *testing.T) {
 	assert.Equal(t, "bar", updatedMap["foo"])
 }
 
-func TestGetConfigFileSpecRefusesBackupDir(t *testing.T) {
-	// A config experiment cannot write into the config-backups directory: the
-	// core Agent owns that history, and an experiment must never touch it.
-	// This pins both the direct path and the /managed fallback branch.
-	assert.Nil(t, getConfigFileSpec("/config-backups/abc123.tar.gz"))
-	assert.Nil(t, getConfigFileSpec("/config-backups/abc123.manifest.json"))
-	assert.Nil(t, getConfigFileSpec("/managed/config-backups/abc123.tar.gz"))
-}
-
 func TestOperationApply_DisallowedFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "notallowed.yaml")

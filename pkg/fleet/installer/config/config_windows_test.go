@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 )
 
@@ -365,32 +364,4 @@ func TestDeploymentIDAfterRollback(t *testing.T) {
 		"BUG: stable_config_version should remain empty after rollback, but got: %s",
 		state.StableDeploymentID)
 	assert.Equal(t, "", state.ExperimentDeploymentID, "experiment should be deleted")
-}
-
-func TestBackupOrRestoreDirectoryLeavesConfigBackupsUntouched(t *testing.T) {
-	// The robocopy mask is *.yaml, so the config-backups directory (which
-	// holds .tar.gz archives, .manifest.json and starts.jsonl) must never be
-	// copied in either direction. This pins the mask so a future change to it
-	// cannot silently start copying the history.
-	src := filepath.Join(t.TempDir(), "src")
-	dst := filepath.Join(t.TempDir(), "dst")
-	require.NoError(t, os.MkdirAll(filepath.Join(src, backupDirName), 0755))
-	require.NoError(t, os.MkdirAll(dst, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(src, backupDirName, "abc123.tar.gz"), []byte("archive"), 0600))
-	require.NoError(t, os.WriteFile(filepath.Join(src, backupDirName, "starts.jsonl"), []byte("{}"), 0600))
-	require.NoError(t, os.WriteFile(filepath.Join(src, "datadog.yaml"), []byte("log_level: debug\n"), 0644))
-
-	// Forward direction: stable -> experiment.
-	require.NoError(t, backupOrRestoreDirectory(context.Background(), src, dst))
-	_, err := os.Stat(filepath.Join(dst, backupDirName))
-	assert.True(t, os.IsNotExist(err))
-	_, err = os.Stat(filepath.Join(dst, "datadog.yaml"))
-	assert.NoError(t, err)
-
-	// Reverse direction: experiment -> stable.
-	dst2 := filepath.Join(t.TempDir(), "dst2")
-	require.NoError(t, os.MkdirAll(dst2, 0755))
-	require.NoError(t, backupOrRestoreDirectory(context.Background(), dst, dst2))
-	_, err = os.Stat(filepath.Join(dst2, backupDirName))
-	assert.True(t, os.IsNotExist(err))
 }

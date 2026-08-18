@@ -82,8 +82,6 @@ import (
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	configbackupfx "github.com/DataDog/datadog-agent/comp/core/configbackup/fx"
-	configbackupimpl "github.com/DataDog/datadog-agent/comp/core/configbackup/impl"
 	configfilesdiscoveryfx "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/fx"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -190,6 +188,7 @@ import (
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
+	"github.com/DataDog/datadog-agent/pkg/config/backup"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -441,10 +440,7 @@ func getSharedFxOption() fx.Option {
 		// archives themselves are never added: they contain verbatim
 		// configuration copies including secrets.
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
-			provider := &configbackupimpl.FlareProvider{
-				Config: cfg,
-			}
-			return flaretypes.NewProvider(provider.ProvideFlare)
+			return flaretypes.NewProvider(backup.FillFlare(cfg))
 		}),
 		lsof.Module(),
 		// Enable core agent specific features like persistence-to-disk
@@ -514,7 +510,12 @@ func getSharedFxOption() fx.Option {
 		// Write a configuration snapshot at every agent start. Registered only in
 		// the run command so that agent status, agent config and the other CLI
 		// commands never write a snapshot.
-		configbackupfx.Module(),
+		fx.Invoke(func(lc fx.Lifecycle, cfg config.Component, spCfg sysprobeconfig.Component) {
+			lc.Append(fx.Hook{OnStart: func(context.Context) error {
+				backup.Write(cfg, spCfg.GetString("runtime_security_config.policies.dir"))
+				return nil
+			}})
+		}),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component

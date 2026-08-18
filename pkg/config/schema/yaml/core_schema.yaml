@@ -9635,9 +9635,7 @@ properties:
       directory:
         node_type: setting
         type: string
-        default: ''
+        default: ${run_path}/config-backups
         visibility: public
         description: |-
-          The directory where configuration backups are stored. When empty,
-          the directory is derived from the location of the configuration
-          file used by the agent.
+          The directory where configuration backups are stored.

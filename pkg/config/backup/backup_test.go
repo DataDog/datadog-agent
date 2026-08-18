@@ -5,7 +5,7 @@
 
 //go:build test
 
-package configbackupimpl
+package backup
 
 import (
 	"os"
@@ -17,12 +17,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestResolveSrcDirFromConfigFile(t *testing.T) {
-	cb, dir := writeConfigDir(t)
-	got, err := resolveSrcDir(cb.config)
+	cfg, dir := writeConfigDir(t)
+	got, err := resolveSrcDir(cfg)
 	require.NoError(t, err)
 	expected, err := filepath.EvalSymlinks(dir)
 	require.NoError(t, err)
@@ -30,35 +31,35 @@ func TestResolveSrcDirFromConfigFile(t *testing.T) {
 }
 
 func TestResolveSrcDirFallsBackToConfPath(t *testing.T) {
-	cb := makeBackup(t)
-	cb.config.Set("conf_path", "/tmp/ddplan-nonexistent-conf", pkgconfigmodel.SourceFile)
-	got, err := resolveSrcDir(cb.config)
+	cfg := configmock.New(t)
+	cfg.Set("conf_path", "/tmp/ddplan-nonexistent-conf", pkgconfigmodel.SourceFile)
+	got, err := resolveSrcDir(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp/ddplan-nonexistent-conf", got)
 }
 
 func TestResolveSrcDirEmptyFails(t *testing.T) {
-	cb := makeBackup(t)
+	cfg := configmock.New(t)
 	// ConfigFileUsed() is empty and conf_path is explicitly empty.
-	cb.config.Set("conf_path", "", pkgconfigmodel.SourceFile)
-	_, err := resolveSrcDir(cb.config)
+	cfg.Set("conf_path", "", pkgconfigmodel.SourceFile)
+	_, err := resolveSrcDir(cfg)
 	require.Error(t, err)
 }
 
 func TestResolveSrcDirEmptyDoesNotWriteToDot(t *testing.T) {
-	cb := makeBackup(t)
+	cfg := configmock.New(t)
 	// Simulate the full backup path with no config file and no conf_path.
-	cb.config.Set("config_backup.enabled", true, pkgconfigmodel.SourceFile)
+	cfg.Set("config_backup.enabled", true, pkgconfigmodel.SourceFile)
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
-	cb.backup()
+	Write(cfg, "")
 	// Nothing must be written to the process working directory.
 	_, err = os.Stat(filepath.Join(cwd, backupDirName))
 	assert.True(t, os.IsNotExist(err))
 }
 
 func TestCollectFilesSelectionAndExclusions(t *testing.T) {
-	cb, dir := writeConfigDir(t)
+	cfg, dir := writeConfigDir(t)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "system-probe.yaml"), []byte("system_probe_config:\n"), 0o640))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "auth_token"), []byte("secret"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ipc_cert.pem"), []byte("cert"), 0o600))
@@ -71,9 +72,9 @@ func TestCollectFilesSelectionAndExclusions(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(confd, "baz.json"), []byte("{}"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(confd, "sub.d", "conf.yaml"), []byte("init_config:\n"), 0o644))
 
-	cb.config.Set("confd_path", confd, pkgconfigmodel.SourceFile)
+	cfg.Set("confd_path", confd, pkgconfigmodel.SourceFile)
 
-	files, err := collectFiles(cb, dir)
+	files, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 
 	paths := mapArchivePaths(files)
@@ -89,7 +90,7 @@ func TestCollectFilesSelectionAndExclusions(t *testing.T) {
 }
 
 func TestCollectFilesSymlinkNotReadThrough(t *testing.T) {
-	cb, dir := writeConfigDir(t)
+	cfg, dir := writeConfigDir(t)
 	confd := filepath.Join(dir, "conf.d")
 	require.NoError(t, os.MkdirAll(confd, 0o755))
 	// A symlink pointing outside the tree must be recorded as a symlink, and
@@ -97,9 +98,9 @@ func TestCollectFilesSymlinkNotReadThrough(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "shadow")
 	require.NoError(t, os.WriteFile(outside, []byte("root:secret"), 0o600))
 	require.NoError(t, os.Symlink(outside, filepath.Join(confd, "conf.yaml")))
-	cb.config.Set("confd_path", confd, pkgconfigmodel.SourceFile)
+	cfg.Set("confd_path", confd, pkgconfigmodel.SourceFile)
 
-	files, err := collectFiles(cb, dir)
+	files, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 	var symlink *collectedFile
 	for i := range files {
@@ -113,21 +114,21 @@ func TestCollectFilesSymlinkNotReadThrough(t *testing.T) {
 }
 
 func TestCollectFilesExternalTree(t *testing.T) {
-	cb, dir := writeConfigDir(t)
+	cfg, dir := writeConfigDir(t)
 	external := filepath.Join(t.TempDir(), "compliance.d")
 	require.NoError(t, os.MkdirAll(external, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(external, "cis.yaml"), []byte("benchmark:\n"), 0o644))
-	cb.config.Set("compliance_config.dir", external, pkgconfigmodel.SourceFile)
+	cfg.Set("compliance_config.dir", external, pkgconfigmodel.SourceFile)
 
-	files, err := collectFiles(cb, dir)
+	files, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 	paths := mapArchivePaths(files)
 	assert.Contains(t, paths, filepath.ToSlash(filepath.Join("external", "compliance_config.dir", "cis.yaml")))
 }
 
 func TestContentAddressedDedup(t *testing.T) {
-	cb, dir := writeConfigDir(t)
-	files, err := collectFiles(cb, dir)
+	cfg, dir := writeConfigDir(t)
+	files, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 	digest, err := computeDigest(files)
 	require.NoError(t, err)
@@ -144,13 +145,13 @@ func TestContentAddressedDedup(t *testing.T) {
 }
 
 func TestFlapKeepsTwoArchives(t *testing.T) {
-	cb, dir := writeConfigDir(t)
+	cfg, dir := writeConfigDir(t)
 	backupDir := filepath.Join(dir, backupDirName)
 	require.NoError(t, os.MkdirAll(backupDir, 0o700))
 
 	// Configuration A.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte("api_key: A\n"), 0o600))
-	filesA, err := collectFiles(cb, dir)
+	filesA, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 	digestA, err := computeDigest(filesA)
 	require.NoError(t, err)
@@ -158,7 +159,7 @@ func TestFlapKeepsTwoArchives(t *testing.T) {
 
 	// Configuration B.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte("api_key: B\n"), 0o600))
-	filesB, err := collectFiles(cb, dir)
+	filesB, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 	digestB, err := computeDigest(filesB)
 	require.NoError(t, err)
@@ -174,8 +175,8 @@ func TestFlapKeepsTwoArchives(t *testing.T) {
 	}
 	require.NoError(t, rewriteStartRecords(backupDir, records))
 
-	cb.config.Set("config_backup.max_snapshots", 10, pkgconfigmodel.SourceFile)
-	cb.rotate(backupDir, digestB)
+	cfg.Set("config_backup.max_snapshots", 10, pkgconfigmodel.SourceFile)
+	rotate(cfg, backupDir, digestB)
 
 	assert.Equal(t, 2, countArchives(backupDir))
 	got, err := readStartRecords(backupDir)
@@ -184,7 +185,7 @@ func TestFlapKeepsTwoArchives(t *testing.T) {
 }
 
 func TestRotationNeverEvictsCurrentOrPredecessor(t *testing.T) {
-	cb, dir := writeConfigDir(t)
+	cfg, dir := writeConfigDir(t)
 	backupDir := filepath.Join(dir, backupDirName)
 	require.NoError(t, os.MkdirAll(backupDir, 0o700))
 
@@ -192,7 +193,7 @@ func TestRotationNeverEvictsCurrentOrPredecessor(t *testing.T) {
 	digests := map[string]string{}
 	for name, key := range map[string]string{"A": "a", "B": "b", "C": "c"} {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte("api_key: "+key+"\n"), 0o600))
-		files, err := collectFiles(cb, dir)
+		files, err := collectFiles(cfg, dir, "")
 		require.NoError(t, err)
 		digest, err := computeDigest(files)
 		require.NoError(t, err)
@@ -210,8 +211,8 @@ func TestRotationNeverEvictsCurrentOrPredecessor(t *testing.T) {
 	}
 	require.NoError(t, rewriteStartRecords(backupDir, records))
 
-	cb.config.Set("config_backup.max_snapshots", 2, pkgconfigmodel.SourceFile)
-	cb.rotate(backupDir, digests["B"])
+	cfg.Set("config_backup.max_snapshots", 2, pkgconfigmodel.SourceFile)
+	rotate(cfg, backupDir, digests["B"])
 
 	// With maxSnapshots=2 and protected B (current) + C (predecessor), only A
 	// is evictable.
@@ -225,8 +226,8 @@ func TestRotationNeverEvictsCurrentOrPredecessor(t *testing.T) {
 }
 
 func TestPermissions(t *testing.T) {
-	cb, dir := writeConfigDir(t)
-	files, err := collectFiles(cb, dir)
+	cfg, dir := writeConfigDir(t)
+	files, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 	digest, err := computeDigest(files)
 	require.NoError(t, err)
@@ -255,13 +256,13 @@ func TestStaleTmpCleanup(t *testing.T) {
 }
 
 func TestReadOnlyBackupDir(t *testing.T) {
-	cb, dir := writeConfigDir(t)
+	cfg, dir := writeConfigDir(t)
 	backupDir := filepath.Join(dir, backupDirName)
 	require.NoError(t, os.MkdirAll(backupDir, 0o700))
 	require.NoError(t, os.Chmod(backupDir, 0o500))
 	defer os.Chmod(backupDir, 0o700) //nolint:errcheck
 
-	files, err := collectFiles(cb, dir)
+	files, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 	digest, err := computeDigest(files)
 	require.NoError(t, err)
@@ -271,7 +272,7 @@ func TestReadOnlyBackupDir(t *testing.T) {
 }
 
 func TestFlushContentionSkipsRotation(t *testing.T) {
-	cb, dir := writeConfigDir(t)
+	cfg, dir := writeConfigDir(t)
 	backupDir := filepath.Join(dir, backupDirName)
 	require.NoError(t, os.MkdirAll(backupDir, 0o700))
 
@@ -282,10 +283,10 @@ func TestFlushContentionSkipsRotation(t *testing.T) {
 	defer lock.Unlock()
 
 	// With the lock held, rotation must time out and skip, not hang.
-	cb.config.Set("config_backup.max_snapshots", 10, pkgconfigmodel.SourceFile)
+	cfg.Set("config_backup.max_snapshots", 10, pkgconfigmodel.SourceFile)
 	done := make(chan struct{})
 	runRotate := func() {
-		cb.rotate(backupDir, "deadbeef")
+		rotate(cfg, backupDir, "deadbeef")
 		close(done)
 	}
 	go runRotate()
@@ -297,8 +298,8 @@ func TestFlushContentionSkipsRotation(t *testing.T) {
 }
 
 func TestTruncatedArchiveDetected(t *testing.T) {
-	cb, dir := writeConfigDir(t)
-	files, err := collectFiles(cb, dir)
+	cfg, dir := writeConfigDir(t)
+	files, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 	digest, err := computeDigest(files)
 	require.NoError(t, err)
@@ -336,11 +337,12 @@ func mapArchivePaths(files []collectedFile) map[string]bool {
 }
 
 func TestBackupWritesSnapshot(t *testing.T) {
-	cb, dir := writeConfigDir(t)
-	cb.config.Set("config_backup.enabled", true, pkgconfigmodel.SourceFile)
-	cb.backup()
-
+	cfg, dir := writeConfigDir(t)
 	backupDir := filepath.Join(dir, backupDirName)
+	cfg.Set("config_backup.enabled", true, pkgconfigmodel.SourceFile)
+	cfg.Set("config_backup.directory", backupDir, pkgconfigmodel.SourceFile)
+	Write(cfg, "")
+
 	require.DirExists(t, backupDir)
 	require.FileExists(t, filepath.Join(backupDir, startsLogName))
 	assert.Equal(t, 1, countArchives(backupDir))
@@ -351,20 +353,22 @@ func TestBackupWritesSnapshot(t *testing.T) {
 }
 
 func TestBackupDisabled(t *testing.T) {
-	cb, dir := writeConfigDir(t)
-	cb.config.Set("config_backup.enabled", false, pkgconfigmodel.SourceFile)
-	cb.backup()
+	cfg, dir := writeConfigDir(t)
+	backupDir := filepath.Join(dir, backupDirName)
+	cfg.Set("config_backup.enabled", false, pkgconfigmodel.SourceFile)
+	cfg.Set("config_backup.directory", backupDir, pkgconfigmodel.SourceFile)
+	Write(cfg, "")
 
-	_, err := os.Stat(filepath.Join(dir, backupDirName))
+	_, err := os.Stat(backupDir)
 	assert.True(t, os.IsNotExist(err), "no backup directory must be created when disabled")
 }
 
 func TestBackupDirectoryOverride(t *testing.T) {
-	cb, dir := writeConfigDir(t)
+	cfg, dir := writeConfigDir(t)
 	override := filepath.Join(t.TempDir(), "custom-backups")
-	cb.config.Set("config_backup.enabled", true, pkgconfigmodel.SourceFile)
-	cb.config.Set("config_backup.directory", override, pkgconfigmodel.SourceFile)
-	cb.backup()
+	cfg.Set("config_backup.enabled", true, pkgconfigmodel.SourceFile)
+	cfg.Set("config_backup.directory", override, pkgconfigmodel.SourceFile)
+	Write(cfg, "")
 
 	require.DirExists(t, override)
 	assert.Equal(t, 1, countArchives(override))
@@ -374,8 +378,8 @@ func TestBackupDirectoryOverride(t *testing.T) {
 }
 
 func TestArchiveMatchesDigestPositive(t *testing.T) {
-	cb, dir := writeConfigDir(t)
-	files, err := collectFiles(cb, dir)
+	cfg, dir := writeConfigDir(t)
+	files, err := collectFiles(cfg, dir, "")
 	require.NoError(t, err)
 	digest, err := computeDigest(files)
 	require.NoError(t, err)

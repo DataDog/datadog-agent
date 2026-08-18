@@ -405,7 +405,6 @@
 /comp/checks/winregistry @DataDog/windows-products
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/config @DataDog/fleet-automation
-/comp/core/configbackup @DataDog/fleet-automation
 /comp/core/configfilesdiscovery @DataDog/agent-discovery
 /comp/core/configstream @DataDog/fleet-automation
 /comp/core/configstreamconsumer @DataDog/fleet-automation

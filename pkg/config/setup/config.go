@@ -49,6 +49,12 @@ const (
 	Traces string = "traces"
 )
 
+// SiblingConfigFileNames are the config files the Agent loads from the
+// directory that holds datadog.yaml, best-effort. Both the flare and the
+// config backup use this list, so they agree on what counts as the
+// configuration.
+var SiblingConfigFileNames = []string{"system-probe.yaml", "security-agent.yaml", "application_monitoring.yaml"}
+
 var (
 	// datadog is the global configuration object
 	// NOTE: The constructor `create.New` returns a `model.BuildableConfig`, which is the

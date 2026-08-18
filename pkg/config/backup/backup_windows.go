@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package configbackupimpl
+package backup
 
 import (
 	"io/fs"

@@ -3,17 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package configbackupimpl implements the configbackup component interface.
-//
-// At every core Agent start it writes a byte-exact snapshot of the
-// configuration files the Agent actually loaded into a dedicated directory
-// (`<confdir>/config-backups`). The snapshot is a content-addressed archive
-// plus an append-only occurrence log, so it survives restart flapping without
-// writing redundant bytes. It is a provenance and audit record, not a
-// disaster-recovery backup: a config experiment that fails inside the config
-// constructor never reaches this hook, and the installer already keeps
-// `/etc/datadog-agent` untouched for the whole experiment.
-package configbackupimpl
+// Package backup writes a byte-exact snapshot of the configuration files the
+// core Agent actually loaded into a dedicated directory
+// (`config_backup.directory`, `${run_path}/config-backups` by default). The
+// snapshot is a content-addressed archive plus an append-only occurrence log,
+// so it survives restart flapping without writing redundant bytes. It is a
+// provenance and audit record, not a disaster-recovery backup: a config
+// experiment that fails inside the config constructor never reaches Write,
+// and the installer already keeps `/etc/datadog-agent` untouched for the
+// whole experiment.
+package backup
 
 import (
 	"archive/tar"
@@ -34,17 +33,17 @@ import (
 
 	"github.com/gofrs/flock"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	configbackup "github.com/DataDog/datadog-agent/comp/core/configbackup/def"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	log "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	// backupDirName is the name of the backup directory inside the config directory.
+	// backupDirName is the name of the backup directory when it is derived
+	// from the config directory. Also used to exclude a nested backup
+	// directory from being archived.
 	backupDirName = "config-backups"
 	// startsLogName is the append-only occurrence log.
 	startsLogName = "starts.jsonl"
@@ -65,71 +64,43 @@ const (
 	deploymentIDFile = ".deployment-id"
 )
 
-// Requires defines the dependencies of the configbackup component.
-type Requires struct {
-	compdef.In
-	Lc             compdef.Lifecycle
-	Config         config.Component
-	SysprobeConfig sysprobeconfig.Component
-	Log            log.Component
-}
-
-type configBackup struct {
-	config         config.Component
-	sysprobeConfig sysprobeconfig.Component
-	log            log.Component
-}
-
-// NewComponent creates a new configbackup component.
-func NewComponent(deps Requires) (configbackup.Component, error) {
-	cb := &configBackup{
-		config:         deps.Config,
-		sysprobeConfig: deps.SysprobeConfig,
-		log:            deps.Log,
-	}
-	deps.Lc.Append(compdef.Hook{
-		OnStart: func(_ context.Context) error {
-			cb.backup()
-			return nil
-		},
-	})
-	return cb, nil
-}
-
-// backup writes a snapshot of the loaded configuration files. It never fails
-// startup: every error is logged at warning level.
-func (cb *configBackup) backup() {
-	if !cb.config.GetBool("config_backup.enabled") {
-		cb.log.Debugf("config backup: disabled by config_backup.enabled")
+// Write writes a snapshot of the configuration files cfg loaded. It never
+// fails the caller: every error is logged at warning level. policiesDir is
+// the CWS policies directory (system-probe's
+// runtime_security_config.policies.dir), passed in explicitly because it
+// lives in a config layer this package does not otherwise depend on.
+func Write(cfg model.Reader, policiesDir string) {
+	if !cfg.GetBool("config_backup.enabled") {
+		log.Debugf("config backup: disabled by config_backup.enabled")
 		return
 	}
 
-	srcDir, err := resolveSrcDir(cb.config)
+	srcDir, err := resolveSrcDir(cfg)
 	if err != nil {
-		cb.log.Warnf("config backup: %v", err)
+		log.Warnf("config backup: %v", err)
 		return
 	}
-	backupDir := backupDirFromConfig(cb.config, srcDir)
+	backupDir := Dir(cfg)
 
-	files, err := collectFiles(cb, srcDir)
+	files, err := collectFiles(cfg, srcDir, policiesDir)
 	if err != nil {
-		cb.log.Warnf("config backup: failed to collect configuration files: %v", err)
+		log.Warnf("config backup: failed to collect configuration files: %v", err)
 		return
 	}
 
 	digest, err := computeDigest(files)
 	if err != nil {
-		cb.log.Warnf("config backup: failed to compute configuration digest: %v", err)
+		log.Warnf("config backup: failed to compute configuration digest: %v", err)
 		return
 	}
 
 	if err := os.MkdirAll(backupDir, 0o700); err != nil {
-		cb.log.Warnf("config backup: failed to create backup directory %q: %v", backupDir, err)
+		log.Warnf("config backup: failed to create backup directory %q: %v", backupDir, err)
 		return
 	}
 	// Chmod explicitly so umask cannot widen the mode.
 	if err := os.Chmod(backupDir, 0o700); err != nil {
-		cb.log.Warnf("config backup: failed to set permissions on backup directory %q: %v", backupDir, err)
+		log.Warnf("config backup: failed to set permissions on backup directory %q: %v", backupDir, err)
 		return
 	}
 
@@ -138,7 +109,7 @@ func (cb *configBackup) backup() {
 	archivePath := filepath.Join(backupDir, digest+archiveSuffix)
 	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
 		if err := publishSnapshot(backupDir, srcDir, digest, files); err != nil {
-			cb.log.Warnf("config backup: failed to publish snapshot %s: %v", digest, err)
+			log.Warnf("config backup: failed to publish snapshot %s: %v", digest, err)
 			// Do not append the occurrence record on a failed publish: the
 			// snapshot does not exist, so the occurrence would point at nothing.
 			return
@@ -155,15 +126,15 @@ func (cb *configBackup) backup() {
 		ConfigDir:    srcDir,
 	}
 	if err := appendStartRecord(backupDir, record); err != nil {
-		cb.log.Warnf("config backup: failed to append start record: %v", err)
+		log.Warnf("config backup: failed to append start record: %v", err)
 	}
 
-	cb.rotate(backupDir, digest)
+	rotate(cfg, backupDir, digest)
 }
 
 // resolveSrcDir returns the canonical configuration directory. It derives it
 // from the config file actually used, falling back to the conf_path setting.
-func resolveSrcDir(cfg config.Component) (string, error) {
+func resolveSrcDir(cfg model.Reader) (string, error) {
 	if p := cfg.ConfigFileUsed(); p != "" {
 		srcDir := filepath.Dir(p)
 		resolved, err := filepath.EvalSymlinks(srcDir)
@@ -186,24 +157,11 @@ func resolveSrcDir(cfg config.Component) (string, error) {
 	return confPath, nil
 }
 
-// backupDirFromConfig returns the backup directory for a resolved config
-// directory. The config_backup.directory setting is an operator override;
-// when empty the directory is derived from the config directory.
-func backupDirFromConfig(cfg config.Component, srcDir string) string {
-	if d := cfg.GetString("config_backup.directory"); d != "" {
-		return d
-	}
-	return filepath.Join(srcDir, backupDirName)
-}
-
-// BackupDir returns the configuration backup directory for the given config,
-// resolving the config directory the same way the snapshot hook does.
-func BackupDir(cfg config.Component) (string, error) {
-	srcDir, err := resolveSrcDir(cfg)
-	if err != nil {
-		return "", err
-	}
-	return backupDirFromConfig(cfg, srcDir), nil
+// Dir returns the configuration backup directory for cfg. It defaults to
+// `${run_path}/config-backups`; config_backup.directory is the operator
+// override.
+func Dir(cfg model.Reader) string {
+	return cfg.GetString("config_backup.directory")
 }
 
 // collectedFile is one file (or symlink) that will be archived.
@@ -220,8 +178,7 @@ type collectedFile struct {
 }
 
 // collectFiles builds the sorted list of files to archive.
-func collectFiles(cb *configBackup, srcDir string) ([]collectedFile, error) {
-	cfg := cb.config
+func collectFiles(cfg model.Reader, srcDir, policiesDir string) ([]collectedFile, error) {
 	var files []collectedFile
 
 	addExplicit := func(diskPath, archivePath string) {
@@ -239,11 +196,11 @@ func collectFiles(cb *configBackup, srcDir string) ([]collectedFile, error) {
 	}
 
 	// Sibling config files that live next to datadog.yaml.
+	for _, name := range setup.SiblingConfigFileNames {
+		addExplicit(filepath.Join(srcDir, name), name)
+	}
 	for _, name := range []string{
-		"system-probe.yaml",
-		"security-agent.yaml",
 		"otel-config.yaml",
-		"application_monitoring.yaml",
 		"install_info",
 		deploymentIDFile,
 	} {
@@ -260,7 +217,7 @@ func collectFiles(cb *configBackup, srcDir string) ([]collectedFile, error) {
 	trees := []treeSource{
 		{setting: "confd_path", dir: cfg.GetString("confd_path"), extFilter: configExt},
 		{setting: "additional_checksd", dir: cfg.GetString("additional_checksd")},
-		{setting: "runtime_security_config.policies.dir", dir: cb.sysprobeConfig.GetString("runtime_security_config.policies.dir")},
+		{setting: "runtime_security_config.policies.dir", dir: policiesDir},
 		{setting: "compliance_config.dir", dir: cfg.GetString("compliance_config.dir")},
 		{setting: "fleet_policies_dir", dir: cfg.GetString("fleet_policies_dir")},
 	}
@@ -270,7 +227,7 @@ func collectFiles(cb *configBackup, srcDir string) ([]collectedFile, error) {
 		}
 		prefix := archivePrefix(srcDir, tree.dir, tree.setting)
 		if err := walkTree(tree.dir, prefix, tree.extFilter, &files); err != nil {
-			cb.log.Warnf("config backup: failed to walk %q: %v", tree.dir, err)
+			log.Warnf("config backup: failed to walk %q: %v", tree.dir, err)
 		}
 	}
 
@@ -696,33 +653,33 @@ func cleanStaleTmp(backupDir string) {
 
 // rotate trims the occurrence log and evicts old snapshots under an exclusive
 // file lock. On lock timeout it skips rotation only — never the snapshot.
-func (cb *configBackup) rotate(backupDir, currentDigest string) {
+func rotate(cfg model.Reader, backupDir, currentDigest string) {
 	lock := flock.New(filepath.Join(backupDir, lockFileName))
 	ctx, cancel := context.WithTimeout(context.Background(), lockTimeout)
 	defer cancel()
 	locked, err := lock.TryLockContext(ctx, 100*time.Millisecond)
 	if err != nil {
-		cb.log.Warnf("config backup: failed to acquire rotation lock: %v", err)
+		log.Warnf("config backup: failed to acquire rotation lock: %v", err)
 		return
 	}
 	if !locked {
-		cb.log.Warnf("config backup: timed out waiting for rotation lock, skipping rotation")
+		log.Warnf("config backup: timed out waiting for rotation lock, skipping rotation")
 		return
 	}
 	defer func() { _ = lock.Unlock() }()
 
-	maxSnapshots := cb.config.GetInt("config_backup.max_snapshots")
+	maxSnapshots := cfg.GetInt("config_backup.max_snapshots")
 	if maxSnapshots <= 0 {
 		maxSnapshots = 10
 	}
-	maxStarts := cb.config.GetInt("config_backup.max_starts_logged")
+	maxStarts := cfg.GetInt("config_backup.max_starts_logged")
 	if maxStarts <= 0 {
 		maxStarts = 1000
 	}
 
 	records, err := readStartRecords(backupDir)
 	if err != nil {
-		cb.log.Warnf("config backup: failed to read start log for rotation: %v", err)
+		log.Warnf("config backup: failed to read start log for rotation: %v", err)
 		return
 	}
 
@@ -730,7 +687,7 @@ func (cb *configBackup) rotate(backupDir, currentDigest string) {
 	if len(records) > maxStarts {
 		records = records[len(records)-maxStarts:]
 		if err := rewriteStartRecords(backupDir, records); err != nil {
-			cb.log.Warnf("config backup: failed to trim start log: %v", err)
+			log.Warnf("config backup: failed to trim start log: %v", err)
 		}
 	}
 

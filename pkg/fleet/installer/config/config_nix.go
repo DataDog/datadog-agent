@@ -10,14 +10,12 @@ package config
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -100,80 +98,10 @@ func (d *Directories) RemoveExperiment(_ context.Context) error {
 }
 
 // copyDirectory copies a directory from source to target.
-// It preserves the directory structure, file permissions, ownership and
-// symlinks, and skips the config-backups directory: the backups must never be
-// nested inside a copy of themselves, and promote must not replace the stable
-// history wholesale.
-func copyDirectory(_ context.Context, sourcePath, targetPath string) error {
-	return filepath.WalkDir(sourcePath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() && d.Name() == backupDirName {
-			return filepath.SkipDir
-		}
-		rel, err := filepath.Rel(sourcePath, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(targetPath, rel)
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if err := os.MkdirAll(target, info.Mode().Perm()); err != nil {
-				return err
-			}
-			return os.Chmod(target, info.Mode().Perm())
-		}
-		if info.Mode()&fs.ModeSymlink != 0 {
-			link, err := os.Readlink(path)
-			if err != nil {
-				return err
-			}
-			if err := os.Symlink(link, target); err != nil {
-				return err
-			}
-			return nil
-		}
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-		return copyRegularFile(path, target, info)
-	})
-}
-
-// copyRegularFile copies one regular file, preserving mode and ownership like
-// cp -a does when run as root.
-func copyRegularFile(src, dst string, info fs.FileInfo) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	if err := out.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(dst, info.Mode().Perm()); err != nil {
-		return err
-	}
-	if st, ok := info.Sys().(*syscall.Stat_t); ok {
-		if err := os.Lchown(dst, int(st.Uid), int(st.Gid)); err != nil {
-			// cp -a warns and continues when it cannot preserve ownership; do the
-			// same so the copy does not fail when running as non-root.
-			log.Warnf("error setting ownership on %s: %v", dst, err)
-		}
-	}
-	return nil
+// It preserves the directory structure and file permissions.
+func copyDirectory(ctx context.Context, sourcePath, targetPath string) error {
+	cmd := telemetry.CommandContext(ctx, "cp", "-a", sourcePath, targetPath)
+	return cmd.Run()
 }
 
 func isSameFile(file1, file2 string) bool {

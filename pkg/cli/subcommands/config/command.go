@@ -18,12 +18,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	configbackupimpl "github.com/DataDog/datadog-agent/comp/core/configbackup/impl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
+	"github.com/DataDog/datadog-agent/pkg/config/backup"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -175,11 +175,8 @@ func printSystemProbeSchema() error {
 }
 
 func listConfigBackups(cfg config.Component) error {
-	backupDir, err := configbackupimpl.BackupDir(cfg)
-	if err != nil {
-		return err
-	}
-	snapshots, err := configbackupimpl.ListSnapshots(backupDir)
+	backupDir := backup.Dir(cfg)
+	snapshots, err := backup.ListSnapshots(backupDir)
 	if err != nil {
 		return err
 	}

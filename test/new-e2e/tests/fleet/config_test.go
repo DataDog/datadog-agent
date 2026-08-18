@@ -659,29 +659,27 @@ func (s *configSuite) assertCollectorConfigPath(experiment bool) {
 }
 
 // TestConfigBackupHistory verifies the config backup history across the config
-// experiment lifecycle:
+// experiment lifecycle. The stable and experiment Agents share a single
+// backup directory under run_path, so the history is continuous: an
+// experiment's snapshot grows the same count the stable Agent reads from, and
+// each entry's manifest records the deployment ID that produced it.
 //   - the stable Agent writes a snapshot at startup;
-//   - the experiment Agent writes its own snapshot into the experiment
-//     directory (the copyDirectory exclusion means the stable history is not
-//     copied there, so this asserts the experiment Agent's own snapshot);
-//   - promote keeps the promoted config's history present;
-//   - rollback leaves the stable history untouched.
+//   - starting an experiment adds a snapshot whose manifest carries the
+//     experiment's deployment ID;
+//   - promote keeps the history growing and the promoted config's manifest
+//     carries its deployment ID;
+//   - rollback never shrinks the history.
 func (s *configSuite) TestConfigBackupHistory() {
-	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
-		s.T().Skip("Skipping config backup history test on Windows (in-place experiment model)")
-	}
-
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
-	// The stable Agent writes its first snapshot at startup.
+	backupDir := s.configBackupDir()
+
+	// The stable Agent writes its first snapshot at startup. The dir exists as
+	// soon as MkdirAll runs; the archive appears only after the atomic publish,
+	// so assert on the count inside the poll.
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		exists, err := s.Host.DirExists("/etc/datadog-agent/config-backups")
-		require.NoError(c, err)
-		require.True(c, exists, "stable config-backups dir not created")
-		// The dir exists as soon as MkdirAll runs; the archive appears only after
-		// the atomic publish, so assert on the count inside the poll.
-		require.GreaterOrEqual(c, countConfigBackups(c, s.Env().RemoteHost, "/etc/datadog-agent/config-backups"), 1, "stable history should hold at least one snapshot")
+		require.GreaterOrEqual(c, countConfigBackups(c, s.Env().RemoteHost, backupDir), 1, "history should hold at least one snapshot")
 	}, 3*time.Minute, 5*time.Second)
 
 	startExperiment := func(t *testing.T, deploymentID string) {
@@ -696,52 +694,86 @@ func (s *configSuite) TestConfigBackupHistory() {
 		}, nil))
 	}
 
-	// The experiment Agent resolves its own config directory and writes its own
-	// snapshot into the experiment directory.
+	// Starting an experiment adds a snapshot for the experiment Agent's own
+	// configuration, and its manifest records the experiment's deployment ID.
 	s.T().Run("experiment-writes-snapshot", func(t *testing.T) {
+		before := countConfigBackups(t, s.Env().RemoteHost, backupDir)
 		startExperiment(t, "backup-exp-snapshot")
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			exists, err := s.Host.DirExists("/etc/datadog-agent-exp/config-backups")
-			require.NoError(c, err)
-			require.True(c, exists, "experiment config-backups dir not created")
+			after := countConfigBackups(c, s.Env().RemoteHost, backupDir)
+			require.Greater(c, after, before, "experiment Agent should add its own snapshot to the shared history")
+			require.GreaterOrEqual(c, manifestCountForDeploymentID(c, s.Env().RemoteHost, backupDir, "backup-exp-snapshot"), 1,
+				"a manifest should record the experiment's deployment ID")
 		}, 3*time.Minute, 5*time.Second)
-		require.GreaterOrEqual(t, countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent-exp/config-backups"), 1, "experiment Agent should write its own snapshot")
 		require.NoError(t, s.Backend.StopConfigExperiment())
 	})
 
-	// Promote keeps the promoted config's history present. The promoted config
-	// (log_level: debug) differs from the initial stable config, so a new
-	// archive is guaranteed: assert the count strictly grows.
+	// Promote keeps the history growing and the promoted config's manifest
+	// carries its deployment ID. The promoted config (log_level: debug) differs
+	// from the initial stable config, so a new archive is guaranteed.
 	s.T().Run("promote-keeps-history", func(t *testing.T) {
-		before := countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent/config-backups")
+		before := countConfigBackups(t, s.Env().RemoteHost, backupDir)
 		startExperiment(t, "backup-promote")
 		require.NoError(t, s.Backend.PromoteConfigExperiment())
 		config, err := s.Agent.Configuration()
 		require.NoError(t, err)
 		require.Equal(t, "debug", config["log_level"])
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			exists, err := s.Host.DirExists("/etc/datadog-agent/config-backups")
-			require.NoError(c, err)
-			require.True(c, exists, "stable config-backups dir must survive promote")
-			after := countConfigBackups(c, s.Env().RemoteHost, "/etc/datadog-agent/config-backups")
-			require.Greater(c, after, before, "promoted config's snapshot must be added to the stable history")
+			after := countConfigBackups(c, s.Env().RemoteHost, backupDir)
+			require.Greater(c, after, before, "promoted config's snapshot must be added to the history")
+			require.GreaterOrEqual(c, manifestCountForDeploymentID(c, s.Env().RemoteHost, backupDir, "backup-promote"), 1,
+				"a manifest should record the promoted deployment ID")
 		}, 3*time.Minute, 5*time.Second)
 	})
 
-	// Rollback leaves the stable history untouched.
-	s.T().Run("rollback-keeps-stable-history", func(t *testing.T) {
-		before := countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent/config-backups")
+	// Rollback never shrinks the history.
+	s.T().Run("rollback-keeps-history", func(t *testing.T) {
+		before := countConfigBackups(t, s.Env().RemoteHost, backupDir)
 		startExperiment(t, "backup-rollback")
 		require.NoError(t, s.Backend.StopConfigExperiment())
-		after := countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent/config-backups")
-		require.GreaterOrEqual(t, after, before, "stable history must survive rollback")
+		after := countConfigBackups(t, s.Env().RemoteHost, backupDir)
+		require.GreaterOrEqual(t, after, before, "history must survive rollback")
 	})
 }
 
-// countConfigBackups returns the number of snapshot archives in a config
+// configBackupDir returns the shared config backup directory (run_path's
+// default location) for the suite's host OS.
+func (s *configSuite) configBackupDir() string {
+	switch s.Env().RemoteHost.OSFamily {
+	case e2eos.WindowsFamily:
+		return `C:\ProgramData\Datadog\run\config-backups`
+	default:
+		return "/opt/datadog-agent/run/config-backups"
+	}
+}
+
+// countConfigBackups returns the number of snapshot archives in the config
 // backup directory on the remote host.
 func countConfigBackups(t require.TestingT, host *components.RemoteHost, dir string) int {
-	out, err := host.Execute("sudo ls " + dir + "/*.tar.gz 2>/dev/null | wc -l")
+	var out string
+	var err error
+	if strings.Contains(dir, `\`) {
+		out, err = host.Execute(fmt.Sprintf(`(Get-ChildItem -Path '%s\*.tar.gz' -ErrorAction SilentlyContinue | Measure-Object).Count`, dir))
+	} else {
+		out, err = host.Execute("sudo ls " + dir + "/*.tar.gz 2>/dev/null | wc -l")
+	}
+	require.NoError(t, err)
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	require.NoError(t, err)
+	return n
+}
+
+// manifestCountForDeploymentID returns the number of manifest sidecars in the
+// config backup directory that record the given deployment ID.
+func manifestCountForDeploymentID(t require.TestingT, host *components.RemoteHost, dir, deploymentID string) int {
+	var out string
+	var err error
+	needle := fmt.Sprintf(`"deployment_id":"%s"`, deploymentID)
+	if strings.Contains(dir, `\`) {
+		out, err = host.Execute(fmt.Sprintf(`(Get-ChildItem -Path '%s\*.manifest.json' -ErrorAction SilentlyContinue | Select-String -SimpleMatch '%s' | Measure-Object).Count`, dir, needle))
+	} else {
+		out, err = host.Execute(fmt.Sprintf(`sudo grep -l '%s' %s/*.manifest.json 2>/dev/null | wc -l`, needle, dir))
+	}
 	require.NoError(t, err)
 	n, err := strconv.Atoi(strings.TrimSpace(out))
 	require.NoError(t, err)
