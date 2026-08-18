@@ -62,9 +62,9 @@ type Dependency struct {
 	Version string `yaml:"version"`
 }
 
-// LoadManifest reads and validates the package.yaml manifest for an authored-script
+// loadManifest reads and validates the package.yaml manifest for an authored-script
 // package that has already been downloaded and extracted to artifactDirectory.
-func LoadManifest(artifactDirectory string) (*Manifest, error) {
+func loadManifest(artifactDirectory string) (*Manifest, error) {
 	file, err := openPackageFile(artifactDirectory, filepath.Join(scriptDirectory, manifestFile))
 	if err != nil {
 		return nil, fmt.Errorf("could not open authored-script manifest: %w", err)

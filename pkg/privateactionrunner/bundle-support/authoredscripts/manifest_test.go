@@ -39,7 +39,7 @@ func writeManifest(t *testing.T, contents string) string {
 func TestLoadManifest_Valid(t *testing.T) {
 	artifactDirectory := writeManifest(t, validManifest)
 
-	manifest, err := LoadManifest(artifactDirectory)
+	manifest, err := loadManifest(artifactDirectory)
 
 	require.NoError(t, err)
 	assert.Equal(t, "v1", manifest.SchemaVersion)
@@ -60,7 +60,7 @@ func TestLoadManifest_WithGlobalAndSessionEnvVars(t *testing.T) {
       kind: value
 `)
 
-	manifest, err := LoadManifest(artifactDirectory)
+	manifest, err := loadManifest(artifactDirectory)
 
 	require.NoError(t, err)
 	require.Len(t, manifest.Config.SetGlobalEnvVars, 1)
@@ -72,7 +72,7 @@ func TestLoadManifest_WithGlobalAndSessionEnvVars(t *testing.T) {
 func TestLoadManifest_MissingManifestFile(t *testing.T) {
 	artifactDirectory := t.TempDir()
 
-	_, err := LoadManifest(artifactDirectory)
+	_, err := loadManifest(artifactDirectory)
 
 	require.Error(t, err)
 }
@@ -80,7 +80,7 @@ func TestLoadManifest_MissingManifestFile(t *testing.T) {
 func TestLoadManifest_RejectsUnknownField(t *testing.T) {
 	artifactDirectory := writeManifest(t, validManifest+"\nunexpectedField: true\n")
 
-	_, err := LoadManifest(artifactDirectory)
+	_, err := loadManifest(artifactDirectory)
 
 	require.Error(t, err)
 }
@@ -88,7 +88,7 @@ func TestLoadManifest_RejectsUnknownField(t *testing.T) {
 func TestLoadManifest_RejectsMultipleDocuments(t *testing.T) {
 	artifactDirectory := writeManifest(t, validManifest+"\n---\nschema-version: v1\n")
 
-	_, err := LoadManifest(artifactDirectory)
+	_, err := loadManifest(artifactDirectory)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exactly one YAML document")
@@ -98,7 +98,7 @@ func TestLoadManifest_RejectsOversizedManifest(t *testing.T) {
 	padding := strings.Repeat("a", maxManifestSize+1)
 	artifactDirectory := writeManifest(t, validManifest+"\n# "+padding+"\n")
 
-	_, err := LoadManifest(artifactDirectory)
+	_, err := loadManifest(artifactDirectory)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "byte limit")
