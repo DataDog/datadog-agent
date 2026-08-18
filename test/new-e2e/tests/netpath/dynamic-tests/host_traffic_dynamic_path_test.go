@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -59,7 +58,7 @@ services:
     privileged: true
     ports:
     - 80:8080/tcp
-    image: ghcr.io/datadog/apps-go-httpbin:{APPS_VERSION}
+    image: ${DD_REGISTRY:-docker.io}/mccutchen/go-httpbin:2.25.0@sha256:20739736d4eb8dc1b998dff701f437b8bd62dcc46492bd0d861e89890ca36500
     container_name: httpbin
     volumes: []
     environment: {}
@@ -151,7 +150,7 @@ func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Pr
 func hostTrafficHTTPBinCompose() docker.ComposeInlineManifest {
 	return docker.ComposeInlineManifest{
 		Name:    "httpbin",
-		Content: pulumi.String(strings.ReplaceAll(hostTrafficHTTPBinComposeYAML, "{APPS_VERSION}", apps.Version)),
+		Content: pulumi.String(hostTrafficHTTPBinComposeYAML),
 	}
 }
 
@@ -159,7 +158,6 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
-	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
@@ -259,10 +257,6 @@ func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {
 	require.Failf(s.T(), "Remote Config entry not found", "product=%s config_id=%s config_name=%s", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName)
 }
 
-func (s *hostTrafficDynamicPathSuite) ensureCurlInstalled() {
-	s.Env().RemoteHost.MustExecute("if ! command -v curl >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y curl; fi")
-}
-
 func (s *hostTrafficDynamicPathSuite) startHostTrafficDNSServer() {
 	httpbinHost := s.Env().HTTPBinHost
 	httpbinHost.CopyFileFromFS(hostTrafficDNSFiles, "fixtures/host_traffic_dns.py", hostTrafficDNSRemotePath)
@@ -346,15 +340,15 @@ func (s *hostTrafficDynamicPathSuite) assertHostTrafficDomainResolves() {
 	output := s.Env().RemoteHost.MustExecute("getent ahostsv4 " + shellQuote(hostTrafficRemoteConfigDomain))
 	require.Contains(s.T(), output, s.Env().HTTPBinHost.Address)
 
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -4 -fsS --retry 3 --max-time 5 %s >/dev/null", shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain))))
+	s.Env().RemoteHost.MustExecute(hostTrafficRequestCommand(hostTrafficRemoteConfigDomain))
 }
 
 func (s *hostTrafficDynamicPathSuite) startHostTrafficGenerator(duration time.Duration) {
 	seconds := int(duration.Seconds())
 	trafficCommand := fmt.Sprintf(
-		"i=0; while [ \"$i\" -lt %d ]; do curl -4 -fsS --max-time 5 %s >/dev/null || true; sleep 2; i=$((i+2)); done",
+		"i=0; while [ \"$i\" -lt %d ]; do %s >/dev/null 2>&1 || true; sleep 2; i=$((i+2)); done",
 		seconds,
-		shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain)),
+		hostTrafficRequestCommand(hostTrafficRemoteConfigDomain),
 	)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("nohup sh -c %s >%s 2>&1 & echo $! >%s",
 		shellQuote(trafficCommand),
@@ -413,6 +407,13 @@ func hasTracerouteDestinationIP(np *aggregator.Netpath) bool {
 
 func hostTrafficURL(domain string) string {
 	return "http://" + domain + "/"
+}
+
+func hostTrafficRequestCommand(domain string) string {
+	return fmt.Sprintf("python3 -c %s %s",
+		shellQuote("import sys, urllib.request; urllib.request.urlopen(sys.argv[1], timeout=5).read()"),
+		shellQuote(hostTrafficURL(domain)),
+	)
 }
 
 func shellQuote(value string) string {
