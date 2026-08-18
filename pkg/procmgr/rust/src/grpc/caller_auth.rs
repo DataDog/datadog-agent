@@ -8,16 +8,7 @@ use tonic::{Request, Status};
 #[cfg(windows)]
 use crate::transport::PipeCallerAuth;
 
-/// Gate mutating RPCs on the identity of the connected named-pipe client.
-///
-/// On Windows, each gRPC request arrives over a named pipe. When the server accepts
-/// the connection, `transport::named_pipe` wraps the pipe in [`PipeCallerAuth`] and
-/// tonic copies that into the request extensions (via `Connected::connect_info`).
-///
-/// This helper reads that extension and calls [`PipeCallerAuth::may_mutate`], which
-/// impersonates the pipe client and checks whether its token is LocalSystem or a
-/// member of the built-in Administrators group. If the extension is missing or the
-/// client fails that check, the RPC is rejected with `permission_denied`.
+/// Windows: config-mutating RPCs (`Create`, `ReloadConfig`) require an Administrator or LocalSystem pipe client.
 #[cfg(windows)]
 pub(crate) fn require_mutating_pipe_client<T>(request: &Request<T>) -> Result<(), Status> {
     let may_mutate = request
