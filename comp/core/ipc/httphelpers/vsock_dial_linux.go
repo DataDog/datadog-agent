@@ -16,6 +16,8 @@ import (
 )
 
 func dialVSockContext(ctx context.Context, cid, port uint32) (net.Conn, error) {
+	// Use socket directly so Connect observes the transport context, which carries
+	// the server timeout. vsock.Dial connects with context.Background instead.
 	conn, err := socket.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0, "vsock", nil)
 	if err != nil {
 		return nil, err
