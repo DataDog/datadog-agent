@@ -102,7 +102,7 @@ func (suite *CheckTestSuite) SetupTest() {
 	err = checkInstance.Run()
 	require.NoError(t, err, "Check.Run() should not return an error")
 
-	// Inject XID events for each device to ensure the errors.xid.total metric is emitted.
+	// Inject XID events for each device to ensure the errors.xid.total and errors.xid metrics are emitted.
 	for _, device := range devices {
 		deviceUUID := device.GetDeviceInfo().UUID
 		require.NoError(t, checkInternal.InjectXIDEventsForTest(deviceUUID, []safenvml.DeviceEventData{{

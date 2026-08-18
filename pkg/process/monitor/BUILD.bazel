@@ -37,6 +37,7 @@ dd_agent_go_test(
     embed = [":monitor"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/eventmonitor/consumers/testutil",
         "//pkg/network/protocols/telemetry",

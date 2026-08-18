@@ -20,7 +20,7 @@ type Component interface {
 	// The source name is used to identify where observations originate.
 	GetHandle(name string) Handle
 
-	// RecordSamplerDropped increments the rate-limiter dropped counter for the
+	// RecordSamplerDropped increments the observer input-rate-limiter drop counter for the
 	// given source ("internal", "kubelet", "containers") and priority ("high",
 	// "medium", "low"). Only rate-limit drops are counted; min_severity drops
 	// are intentional and not tracked here.

@@ -323,7 +323,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	}
 	serveOpts := executor.ServeOptions{
 		DrainTimeout: drainTimeout,
-		IdleTimeout:  executorIdleTimeout(p.coreConfig),
+		IdleTimeout:  executorIdleTimeout(p.coreConfig.GetInt(privateactionrunner.PARIdleTimeoutSeconds)),
 		OnIdleTimeout: func() {
 			p.logger.Info("Private action runner executor idle timeout elapsed; shutting down")
 			if err := p.shutdowner.Shutdown(); err != nil {
@@ -345,15 +345,11 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	return nil
 }
 
-// Keep self-termination behind the control plane's normal idle stop.
-const executorIdleTimeoutFactor = 3
-
-func executorIdleTimeout(cfg model.Reader) time.Duration {
-	idle := cfg.GetInt(privateactionrunner.PARIdleTimeoutSeconds)
-	if idle <= 0 {
+func executorIdleTimeout(idleSeconds int) time.Duration {
+	if idleSeconds <= 0 {
 		return 0
 	}
-	return time.Duration(idle) * executorIdleTimeoutFactor * time.Second
+	return time.Duration(idleSeconds) * time.Second
 }
 
 // StopExecutor gracefully stops the executor gRPC server and releases resources.

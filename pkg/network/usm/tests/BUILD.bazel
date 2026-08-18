@@ -30,6 +30,7 @@ dd_agent_go_test(
         ["npm"],
     ],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/config/env",

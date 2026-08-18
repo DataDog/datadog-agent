@@ -17,44 +17,44 @@ const (
 	// the Prometheus subsystem/name used below so the ingestion loop guard stays
 	// correct if the emitted name changes.
 	observerTelemetryMetricPrefix            = "datadog.agent.observer."
-	telemetryObsChannelDropped               = "observer.channel.dropped"                     // Observations dropped when the observer channel is full.
+	telemetryObservationsAccepted            = "observer.observations.accepted"               // Observations accepted by the observer admission boundary.
+	telemetryObservationsDropped             = "observer.observations.dropped"                // Observations dropped when the observer channel is full.
 	telemetryRRCFScore                       = "observer.rrcf.score"                          // Latest RRCF score per detector.
 	telemetryRRCFThreshold                   = "observer.rrcf.threshold"                      // Current RRCF anomaly threshold per detector.
-	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Delta of active log-pattern count.
-	telemetryLogsIngested                    = "observer.logs.ingested"                       // Number of logs ingested by anomaly detection.
-	telemetryProcessedLogSize                = "observer.logs.processed_bytes"                // Total bytes processed from ingested logs.
-	telemetryDroppedLogs                     = "observer.logs.dropped"                        // Number of logs dropped before processing.
+	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Current number of active log patterns.
+	telemetryLogsAcceptedBytes               = "observer.logs.accepted_bytes"                 // Total bytes accepted into observer log ingestion.
 	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
 	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
 	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
 	telemetryAdvanceSkipped                  = "observer.scheduler.advance_skipped"           // Number of advance requests skipped as already analyzed.
-	telemetryLogsSamplerDropped              = "observer.logs.sampler_dropped"                // Logs dropped by the source sampler before reaching the observer, by source and priority.
+	telemetryLogsInputRateLimiterDropped     = "observer.logs.input_rate_limiter.dropped"     // Logs dropped by the observer ingress rate limiter.
 	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
+	telemetryDetectorEmissions               = "observer.detections.detector_emissions"       // Deduplicated detector emissions by score severity before correlation.
 	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
-	telemetryScorerState                     = "observer.scorer.state"                        // Anomaly scorer severity level on transition (0=Low,1=Medium,2=High).
+	telemetryScorerSeverity                  = "observer.scorer.severity"                     // Current anomaly scorer severity level (0=Low,1=Medium,2=High).
 )
 
 type observerTelemetry struct {
-	channelDropped  telemetry.Counter
-	rrcfScore       telemetry.Gauge
-	rrcfThreshold   telemetry.Gauge
-	logPatternCount telemetry.Counter
+	observationsAccepted telemetry.Counter
+	observationsDropped  telemetry.Counter
+	rrcfScore            telemetry.Gauge
+	rrcfThreshold        telemetry.Gauge
+	logPatternCount      telemetry.Gauge
 
-	logsIngested     telemetry.Counter
-	processedLogSize telemetry.Counter
-	droppedLogs      telemetry.Counter
-	filteredMetrics  telemetry.Counter
-	seriesCount      telemetry.Gauge
-	logsInFlight     telemetry.Gauge
-	storageEvicted   telemetry.Counter
-	storageCapHit    telemetry.Counter
-	advanceSkipped   telemetry.Counter
-	samplerDropped   telemetry.Counter
-	processingTime   telemetry.Gauge
-	scorerEwma       telemetry.Gauge
-	scorerState      telemetry.Gauge
+	logsAcceptedBytes    telemetry.Counter
+	filteredMetrics      telemetry.Counter
+	seriesCount          telemetry.Gauge
+	logsInFlight         telemetry.Gauge
+	storageEvicted       telemetry.Counter
+	storageCapHit        telemetry.Counter
+	advanceSkipped       telemetry.Counter
+	inputRateLimiterDrop telemetry.Counter
+	processingTime       telemetry.Gauge
+	detectorEmissions    telemetry.Counter
+	scorerEwma           telemetry.Gauge
+	scorerSeverity       telemetry.Gauge
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -63,11 +63,17 @@ type observerTelemetry struct {
 
 func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry {
 	return &observerTelemetry{
-		channelDropped: telemetryComp.NewCounter(
+		observationsAccepted: telemetryComp.NewCounter(
 			"observer",
-			telemetryObsChannelDropped,
-			[]string{"source"},
-			"Observations dropped because the internal channel was full, tagged by source handle",
+			telemetryObservationsAccepted,
+			[]string{"kind", "source"},
+			"Observations accepted into the observer admission boundary, tagged by kind and source",
+		),
+		observationsDropped: telemetryComp.NewCounter(
+			"observer",
+			telemetryObservationsDropped,
+			[]string{"kind", "source"},
+			"Observations dropped because the internal channel was full, tagged by kind and source",
 		),
 		rrcfScore: telemetryComp.NewGauge(
 			"observer",
@@ -81,29 +87,17 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"detector"},
 			"RRCF dynamic anomaly detection threshold (post-warmup)",
 		),
-		logPatternCount: telemetryComp.NewCounter(
+		logPatternCount: telemetryComp.NewGauge(
 			"observer",
 			telemetryLogPatternExtractorPatternCount,
-			[]string{"detector"},
-			"Log pattern extractor number of active patterns",
+			nil,
+			"Current number of patterns held by the log pattern extractor",
 		),
-		logsIngested: telemetryComp.NewCounter(
+		logsAcceptedBytes: telemetryComp.NewCounter(
 			"observer",
-			telemetryLogsIngested,
-			[]string{"log_source"},
-			"Number of logs ingested by anomaly detection",
-		),
-		processedLogSize: telemetryComp.NewCounter(
-			"observer",
-			telemetryProcessedLogSize,
-			[]string{"log_source"},
-			"Processed log size in bytes by anomaly detection",
-		),
-		droppedLogs: telemetryComp.NewCounter(
-			"observer",
-			telemetryDroppedLogs,
-			[]string{"log_source"},
-			"Logs dropped because observer queue was full",
+			telemetryLogsAcceptedBytes,
+			[]string{"source"},
+			"Log content bytes accepted into the observer admission boundary",
 		),
 		filteredMetrics: telemetryComp.NewCounter(
 			"observer",
@@ -141,11 +135,11 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"reason"},
 			"Number of skipped advance requests by trigger reason",
 		),
-		samplerDropped: telemetryComp.NewCounter(
+		inputRateLimiterDrop: telemetryComp.NewCounter(
 			"observer",
-			telemetryLogsSamplerDropped,
+			telemetryLogsInputRateLimiterDropped,
 			[]string{"source", "priority"},
-			"Logs dropped by the source sampler (rate limit or min_severity) before reaching the observer",
+			"Logs dropped by the observer ingress rate limiter before reaching the observer",
 		),
 		processingTime: telemetryComp.NewGauge(
 			"observer",
@@ -153,23 +147,33 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"detector"},
 			"Per-detector processing time in nanoseconds",
 		),
+		detectorEmissions: telemetryComp.NewCounter(
+			"observer",
+			telemetryDetectorEmissions,
+			[]string{"detector", "severity"},
+			"Deduplicated detector emissions by score severity before correlation and reporting",
+		),
 		scorerEwma: telemetryComp.NewGauge(
 			"observer",
 			telemetryScorerEWMA,
 			[]string{"scorer"},
 			"Anomaly scorer EWMA signal, updated every second",
 		),
-		scorerState: telemetryComp.NewGauge(
+		scorerSeverity: telemetryComp.NewGauge(
 			"observer",
-			telemetryScorerState,
-			[]string{"scorer", "direction"},
-			"Anomaly scorer severity level on transition (0=Low, 1=Medium, 2=High)",
+			telemetryScorerSeverity,
+			[]string{"scorer"},
+			"Current anomaly scorer severity level (0=Low, 1=Medium, 2=High)",
 		),
 	}
 }
 
-func (t *observerTelemetry) recordChannelDropped(source string) {
-	t.channelDropped.Add(1, source)
+func (t *observerTelemetry) recordObservationAccepted(kind, source string) {
+	t.observationsAccepted.Add(1, kind, source)
+}
+
+func (t *observerTelemetry) recordObservationDropped(kind, source string) {
+	t.observationsDropped.Add(1, kind, source)
 }
 
 func (t *observerTelemetry) recordRRCFScore(detectorName string, score float64) {
@@ -180,18 +184,17 @@ func (t *observerTelemetry) recordRRCFThreshold(detectorName string, threshold f
 	t.rrcfThreshold.Set(threshold, detectorName)
 }
 
-func (t *observerTelemetry) recordLogPatternCountDelta(detectorName string, delta float64) {
-	t.logPatternCount.Add(delta, detectorName)
+func (t *observerTelemetry) setLogPatternCount(count int) {
+	t.logPatternCount.Set(float64(count))
 }
 
-func (t *observerTelemetry) recordLogIngested(logSource string, sizeBytes int) {
-	t.logsIngested.Add(1, logSource)
-	t.processedLogSize.Add(float64(sizeBytes), logSource)
+func (t *observerTelemetry) recordLogAccepted(source string, sizeBytes int) {
+	t.recordObservationAccepted("logs", source)
+	t.logsAcceptedBytes.Add(float64(sizeBytes), source)
 }
 
-func (t *observerTelemetry) recordDroppedLog(source string, tags []string) {
-	logSource := classifyLogSource(source, tags)
-	t.droppedLogs.Add(1, logSource)
+func (t *observerTelemetry) recordMetricAccepted(source string) {
+	t.recordObservationAccepted("metrics", source)
 }
 
 func (t *observerTelemetry) recordFilteredMetric(source string) {
@@ -238,8 +241,12 @@ func (t *observerTelemetry) recordAdvanceSkipped(reason string) {
 	t.advanceSkipped.Add(1, reason)
 }
 
-func (t *observerTelemetry) recordSamplerDropped(source, priority string) {
-	t.samplerDropped.Add(1, source, priority)
+func (t *observerTelemetry) recordInputRateLimiterDropped(source, priority string) {
+	t.inputRateLimiterDrop.Add(1, source, priority)
+}
+
+func (t *observerTelemetry) recordDetectorEmission(detector, severity string) {
+	t.detectorEmissions.Add(1, detector, severity)
 }
 
 func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {

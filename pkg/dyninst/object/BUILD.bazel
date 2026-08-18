@@ -46,6 +46,7 @@ dd_agent_go_test(
     embed = [":object"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/dyninst/testprogs",
         "//pkg/util/filesystem",
