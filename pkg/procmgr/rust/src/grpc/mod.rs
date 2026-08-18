@@ -269,6 +269,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_reload_config_unimplemented() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+        let err = client
+            .reload_config(proto::ReloadConfigRequest {})
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::Unimplemented);
+        assert!(err.message().contains("restart dd-procmgr-service"));
+    }
+
+    #[tokio::test]
     async fn test_get_config_reflects_runtime_creates() {
         let (cmd, args) = test_helpers::true_cmd();
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {

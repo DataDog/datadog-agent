@@ -16,6 +16,7 @@ service ProcessManager {
   rpc Create (CreateRequest) returns (CreateResponse);
   rpc Start (StartRequest) returns (StartResponse);
   rpc Stop (StopRequest) returns (StopResponse);
+  rpc ReloadConfig (ReloadConfigRequest) returns (ReloadConfigResponse);
   rpc GetConfig (GetConfigRequest) returns (GetConfigResponse);
 }
 
@@ -117,6 +118,15 @@ message StopRequest {
 message StopResponse {
   string uuid = 1;
   ProcessState state = 2;
+}
+
+message ReloadConfigRequest {}
+
+message ReloadConfigResponse {
+  repeated string added = 1;
+  repeated string removed = 2;
+  repeated string modified = 3;
+  repeated string unchanged = 4;
 }
 
 message GetStatusRequest {}
