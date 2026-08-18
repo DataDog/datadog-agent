@@ -45,7 +45,6 @@ install_dir ENV["INSTALL_DIR"] || raise('INSTALL_DIR must be set in tasks/omnibu
     conflict 'datadog-agent'
   end
 
-
 if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   dependency "package-artifact"
   do_package = true
@@ -153,7 +152,6 @@ if linux_target?
   extra_package_file '/var/log/datadog/'
 end
 
-# Windows .msi specific flags
 package :zip do
   skip_packager true
 end
