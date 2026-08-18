@@ -148,8 +148,9 @@ func (sd SeriesDescriptor) Key() string {
 }
 
 // SeriesRef is a compact numeric handle for a stored time series.
-// Storage assigns a SeriesRef when a series key is first created;
-// the ref remains stable for the lifetime of the storage instance.
+// Storage assigns a unique SeriesRef when a series key is first created. The
+// ref remains stable while the series is live and is never reused; after
+// eviction it is invalid for the remainder of the storage instance lifetime.
 type SeriesRef int
 
 // QueryHandle pairs a storage series ref with its aggregate, providing
@@ -163,6 +164,15 @@ type QueryHandle struct {
 // CompactID returns the compact series identifier (e.g. "42:avg").
 func (q QueryHandle) CompactID() string {
 	return strconv.Itoa(int(q.Ref)) + ":" + AggregateString(q.Aggregate)
+}
+
+// ScorerContributor is one storage-backed metric contributing to a scorer
+// episode. The reporter resolves Handle to a display name only when the event
+// is rendered.
+type ScorerContributor struct {
+	Handle QueryHandle
+	Weight float64
+	Share  float64
 }
 
 // AnomalyType distinguishes the source type of an anomaly.
@@ -213,19 +223,15 @@ type AnomalyDebugInfo struct {
 	// Baseline statistics
 	BaselineStart  int64   // timestamp of baseline period start
 	BaselineEnd    int64   // timestamp of baseline period end
-	BaselineMean   float64 // mean of baseline (for CUSUM)
+	BaselineMean   float64 // mean of baseline
 	BaselineMedian float64 // median of baseline
-	BaselineStddev float64 // stddev of baseline (for CUSUM)
+	BaselineStddev float64 // stddev of baseline
 	BaselineMAD    float64 // MAD of baseline
 
 	// Detection parameters
 	Threshold      float64 // threshold that was crossed
-	SlackParam     float64 // k parameter (CUSUM only)
 	CurrentValue   float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
-
-	// For CUSUM: the cumulative sum values leading up to detection
-	CUSUMValues []float64 // S[t] values (may be truncated to last N points)
 }
 
 // ReportOutput is the output model passed to reporters after each advance cycle.
@@ -326,6 +332,9 @@ type CorrelatorEvent struct {
 	// Populated only for EpisodeStarted/EpisodeEnded; zero for CorrelationDetected.
 	FromLevel severityeventsdef.SeverityLevel
 	ToLevel   severityeventsdef.SeverityLevel
+	// Contributors is the scorer's short-lived contributor snapshot. It is
+	// populated only for EpisodeStarted events.
+	Contributors []ScorerContributor
 }
 
 // Correlator accumulates anomaly events and produces correlated patterns.
@@ -535,6 +544,14 @@ type StorageReader interface {
 	// ListSeries returns metadata for all series matching the filter.
 	ListSeries(filter SeriesFilter) []SeriesMeta
 
+	// GetSeriesMeta returns metadata for one series ref, or nil if the series
+	// has been evicted.
+	GetSeriesMeta(ref SeriesRef) *SeriesMeta
+
+	// GetContext returns the optional context associated with a series, or nil
+	// if the series has been evicted or has no context.
+	GetContext(ref SeriesRef) *MetricContext
+
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
 	// Allocates a new []Point slice — see interface doc for when to prefer ForEachPoint.
@@ -595,11 +612,11 @@ type Detector interface {
 // segment buffers, ScanWelch posterior, the seriesDetectorAdapter visible
 // point count map, etc.) keyed by SeriesRef. Storage frees the series
 // payload itself when extractors evict their LRU contexts and the engine
-// calls RemoveSeriesByKeys, but without this hook the detector-side maps
+// calls its series-removal methods, but without this hook the detector-side maps
 // keep growing unbounded with the cumulative number of series ever
 // observed. The engine fans the freed refs out to every detector that
-// implements this interface immediately after RemoveSeriesByKeys returns
-// them, keeping detector state symmetric with storage state.
+// implements this interface immediately after storage returns them, keeping
+// detector state symmetric with storage state.
 //
 // Implementations should be cheap (a handful of map deletes) and tolerant
 // of refs they have never seen — adapters routinely receive refs for

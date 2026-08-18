@@ -55,7 +55,13 @@ run_binary(
     srcs = (
         glob(
             ["**"],
-            exclude = ["**/*.pyc", "BUILD.bazel"],
+            exclude = [
+                "**/*.pyc",
+                "BUILD.bazel",
+                # Unix-only build helper injected into the CPython repository.
+                # Keep it out of the Windows action key; the Windows build does not use it.
+                "redacted_compat.h",
+            ],
         ) + [
             "bzip2_win_dir",
             "mpdecimal_win_dir",
@@ -66,7 +72,15 @@ run_binary(
             "openssl-bin_win_dir",
             "tcltk_win_dir",
             "@python_3_12//:python3",
-            "@visual_studio//:msbuild",
+            # Hermetic compiler, SDK and MSBuild; nothing is taken from a host
+            # Visual Studio installation.
+            "@msvc_toolchains//msvc/tree:toolchain_tree",
+            "@msvc_toolchains//msvc/tree:version_marker",
+            "@msvc_toolchains//winsdk/tree:toolchain_tree",
+            "@msvc_toolchains//winsdk/tree:root_marker",
+            "@msvc_toolchains//msbuild:msbuild",
+            "@msvc_toolchains//msbuild:toolchain_tree",
+            "@msvc_toolchains//msbuild:vctargets_marker",
         ]
     ),
     env = {
@@ -84,8 +98,12 @@ run_binary(
         "OPENSSL_DIR": r"$(location openssl-bin_win_dir)",
         "TCLTK_DIR": r"$(location tcltk_win_dir)\amd64",
         "TCL_VERSION": python_externals["tcltk"],
-        "MSBUILD": "$(location @visual_studio//:msbuild)",
+        "MSBUILD": "$(location @msvc_toolchains//msbuild:msbuild)",
         "PYTHON_FOR_BUILD": "$(location @python_3_12//:python3)",
+        # Marker files; build_python.bat derives each toolchain root from them.
+        "VCTOOLS_VERSION_FILE": "$(location @msvc_toolchains//msvc/tree:version_marker)",
+        "WINSDK_MARKER": "$(location @msvc_toolchains//winsdk/tree:root_marker)",
+        "VCTARGETS_MARKER": "$(location @msvc_toolchains//msbuild:vctargets_marker)",
     },
     outs = [
         "build/{}".format(file)
@@ -383,6 +401,7 @@ pkg_filegroup(
 pkg_files(
     name = "install_files_win",
     srcs = [":python_win"],
+    strip_prefix = "build",
 )
 
 # On Windows, python_win is built via MSBuild (not cc_shared_library), so there are no

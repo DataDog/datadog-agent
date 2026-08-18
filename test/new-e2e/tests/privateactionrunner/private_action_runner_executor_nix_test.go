@@ -16,14 +16,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -31,6 +31,7 @@ const (
 	privateActionRunnerBinary     = "/opt/datadog-agent/embedded/bin/privateactionrunner"
 	privateActionRunnerConfigPath = "/etc/datadog-agent/datadog.yaml"
 	executorSocketPath            = "/opt/datadog-agent/run/par-executor.sock"
+	coreAgentServiceName          = "datadog-agent"
 
 	executorListeningLogLine = "Private action runner executor listening on"
 	executorReadyLogLine     = "Private action runner executor ready to accept actions"
@@ -86,6 +87,21 @@ func (s *linuxPrivateActionRunnerExecutorSuite) pushFakeRunnerKeysConfig() {
 // the log reports the server listening and ready.
 func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 	host := s.Env().RemoteHost
+	svcManager := common.GetServiceManager(host)
+	s.Require().NotNil(svcManager)
+
+	// The executor's remote-config client talks to the core Agent. Stop the Agent
+	// first so the executor has subscribed to AP_RUNNER_KEYS before the Agent's
+	// remote-config service performs its first fetch.
+	_, err := svcManager.Stop(coreAgentServiceName)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		_, _ = svcManager.Start(coreAgentServiceName)
+	})
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		_, statusErr := svcManager.Status(coreAgentServiceName)
+		require.Error(c, statusErr)
+	}, 30*time.Second, time.Second, "core Agent should be stopped")
 
 	s.pushFakeRunnerKeysConfig()
 
@@ -121,11 +137,17 @@ func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorListeningLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "executor log should report listening")
 
-	// Readiness depends on the KeysManager receiving its first AP_RUNNER_KEYS
-	// remote-config update. The backend director's first fetch of a brand-new
-	// product can take well over 2 minutes regardless of the client's poll
-	// interval (observed ~2m10s in CI), so this needs a longer budget than the
-	// other checks in this test.
+	// The executor is now listening but waiting for its first signing-key update.
+	// Start the core Agent only after the AP_RUNNER_KEYS subscription is in place;
+	// its first remote-config request can then include the product immediately.
+	_, err = svcManager.Start(coreAgentServiceName)
+	s.Require().NoError(err)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		status, statusErr := svcManager.Status(coreAgentServiceName)
+		require.NoError(c, statusErr)
+		require.Contains(c, status, "active")
+	}, 2*time.Minute, 5*time.Second, "core Agent should be active")
+
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorReadyLogLine, privateActionRunnerLogFile))
 	}, 5*time.Minute, 5*time.Second, "executor log should report ready")

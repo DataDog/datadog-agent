@@ -33,6 +33,7 @@ dd_agent_go_test(
     embed = [":procsubscribe"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/config/remote/data",
         "//pkg/discovery/tracermetadata/model",

@@ -146,6 +146,122 @@ func logRatePart(a observerdef.Anomaly, storage observerdef.StorageReader) strin
 	return fmt.Sprintf("\n\trate: %.1flog/s", curr)
 }
 
+// formatScorerContributorMessage resolves a scorer episode's compact handles
+// only when rendering the report. Entries whose backing series was evicted are
+// omitted without affecting the shares captured at episode start. The returned
+// message is always safe for the Event Management payload limit.
+func formatScorerContributorMessage(contributors []observerdef.ScorerContributor, storage observerdef.StorageReader) string {
+	if storage == nil || len(contributors) == 0 {
+		return ""
+	}
+
+	fullLines := make([]string, 0, len(contributors))
+	compactLines := make([]string, 0, len(contributors))
+	for _, contributor := range contributors {
+		meta := storage.GetSeriesMeta(contributor.Handle.Ref)
+		if meta == nil {
+			continue
+		}
+		context := storage.GetContext(contributor.Handle.Ref)
+		fullDisplay := scorerContributorDisplayName(meta, context, contributor.Handle.Aggregate)
+		compactDisplay := fullDisplay
+		if len(meta.Tags) > 0 {
+			compactMeta := *meta
+			compactMeta.Tags = nil
+			compactDisplay = scorerContributorDisplayName(&compactMeta, context, contributor.Handle.Aggregate)
+			if logDerivedContributorName(meta.Namespace, context) != "" {
+				compactDisplay += " — {...}"
+			} else {
+				compactDisplay += "{...}"
+			}
+		}
+		position := len(fullLines) + 1
+		fullLines = append(fullLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, fullDisplay))
+		compactLines = append(compactLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, compactDisplay))
+	}
+	if len(fullLines) == 0 {
+		return ""
+	}
+	if scorerContributorMessageLen(fullLines) <= changeEventMessageMaxLen {
+		return "Top contributions:\n" + strings.Join(fullLines, "\n")
+	}
+
+	lines := append([]string(nil), fullLines...)
+	for i := 3; i < len(lines); i++ {
+		lines[i] = compactLines[i]
+	}
+	return truncateScorerContributorLines(lines)
+}
+
+// scorerContributorDisplayName uses the same human-readable identifier as the
+// regular reporter for log-derived metrics: a log-frequency example, or a log
+// pattern when no example is available. Other metrics retain their series name.
+func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
+	if name := logDerivedContributorName(meta.Namespace, context); name != "" {
+		if len(meta.Tags) == 0 {
+			return name
+		}
+		return name + " — {" + strings.Join(meta.Tags, ",") + "}"
+	}
+	return observerdef.SeriesDescriptor{
+		Namespace: meta.Namespace,
+		Name:      meta.Name,
+		Tags:      meta.Tags,
+		Aggregate: aggregate,
+	}.DisplayName()
+}
+
+// logDerivedContributorName returns the human-readable name for a log-derived
+// metric. An empty result lets callers fall back to the metric descriptor when
+// its context is no longer available.
+func logDerivedContributorName(namespace string, context *observerdef.MetricContext) string {
+	if context == nil {
+		return ""
+	}
+	switch namespace {
+	case logMetricsExtractorNamespace:
+		if example := strings.TrimSpace(context.Example); example != "" {
+			return "log: " + example
+		}
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	case logPatternExtractorNamespace:
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	}
+	return ""
+}
+
+func scorerContributorMessageLen(lines []string) int {
+	return len("Top contributions:") + len(lines) + len(strings.Join(lines, ""))
+}
+
+func truncateScorerContributorLines(lines []string) string {
+	message := "Top contributions:"
+	for i, line := range lines {
+		remaining := len(lines) - i - 1
+		suffix := ""
+		if remaining > 0 {
+			suffix = fmt.Sprintf("\n… and %d other anomalies", remaining)
+		}
+		if len(message)+1+len(line)+len(suffix) <= changeEventMessageMaxLen {
+			message += "\n" + line
+			continue
+		}
+
+		available := changeEventMessageMaxLen - len(message) - len(suffix) - 1
+		if available >= 4 {
+			message += "\n" + truncateBytesValidUTF8(line, available)
+			remaining--
+			suffix = fmt.Sprintf("\n… and %d other anomalies", remaining)
+		}
+		return message + suffix
+	}
+	return message
+}
+
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	msg := BuildChangeMessage(c, s.storage)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
@@ -188,8 +304,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 
 	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
-	msg := fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
-		evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
+	msg := formatScorerEpisodeMessage(evt, s.storage, direction)
 
 	var host string
 	if s.hostname != nil {
@@ -248,6 +363,15 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 
 	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
 	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+}
+
+func formatScorerEpisodeMessage(evt observerdef.CorrelatorEvent, storage observerdef.StorageReader, direction string) string {
+	message := formatScorerContributorMessage(evt.Contributors, storage)
+	if message == "" {
+		message = fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
+			evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
+	}
+	return truncateBytesValidUTF8(message, changeEventMessageMaxLen)
 }
 
 // severityLevelName returns a human-readable label for a SeverityLevel.
