@@ -172,6 +172,7 @@ dd_agent_go_test(
     ],
     embed = [":dns"],
     gotags_sets = [["linux_bpf"]],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/config/mock",
         "//pkg/network/config",
