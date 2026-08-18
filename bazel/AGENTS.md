@@ -942,10 +942,8 @@ runner has 16 CPUs, and building the repo alongside ~1k race-instrumented Go tes
 asserting on wall-clock time fail. Prefer waiting on a signal over a fixed duration in any test that runs there.
 
 **Go test link memory.** Windows race/cgo Go test binaries can exhaust the container or host commit limit during
-external linking (`VirtualAlloc ... errno=1455`). `dd_agent_go_test` can omit DWARF with
-`--//bazel/rules/go:strip_test_dwarf`, preserving `pclntab` symbolization while reducing peak linker memory. Hybrid
-`dda inv test` runs enable this by default only on Windows CI when `DELVE` is absent; set
-`DD_BAZEL_STRIP_TEST_DWARF=0` to retain DWARF, or `DD_BAZEL_TEST_JOBS` to lower Bazel test concurrency.
+external linking (`VirtualAlloc ... errno=1455`). Hybrid `dda inv test` runs can lower Bazel test concurrency with
+`DD_BAZEL_TEST_JOBS`; keep this aligned with the Windows unit-test container memory ceiling.
 
 ## Testing
 
