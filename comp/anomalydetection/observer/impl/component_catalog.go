@@ -240,6 +240,13 @@ func defaultCatalog() *componentCatalog {
 					d.MaxPoints = c.MaxPoints
 					return d
 				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := *defaults.(*ScanMWDetector)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("scanmw: failed to parse JSON config: %w", err)
+					}
+					return &cfg, nil
+				},
 				defaultEnabled: false,
 				defaultConfig:  NewScanMWDetector(),
 				readConfig: func(reader ConfigReader, prefix string) any {
@@ -251,6 +258,13 @@ func defaultCatalog() *componentCatalog {
 						d.MaxPoints = reader.GetInt(k)
 					}
 					return d
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := *defaults.(*ScanWelchDetector)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("scanwelch: failed to parse JSON config: %w", err)
+					}
+					return &cfg, nil
 				},
 			},
 			{

@@ -10,6 +10,7 @@ import (
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // scanwelchStateKey identifies per-series state by ref and aggregation.
@@ -370,6 +371,10 @@ func (d *ScanWelchDetector) ensureDefaults() {
 	}
 	if d.MaxPoints <= 0 {
 		d.MaxPoints = scanMaxPoints
+	}
+	if d.MaxPoints < d.MinPoints {
+		pkglog.Warnf("[observer] ScanWelch max_points=%d is below min_points=%d; using %d", d.MaxPoints, d.MinPoints, d.MinPoints)
+		d.MaxPoints = d.MinPoints
 	}
 	if d.MinTStatistic <= 0 {
 		d.MinTStatistic = 8.0
