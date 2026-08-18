@@ -105,8 +105,8 @@ impl Supervisor {
 
         let (handles, mut exit_rx, mut restart_rx) = RuntimeHandles::new();
         #[cfg(unix)]
-        if let Err(e) = platform::spawn_user_for_supervisor() {
-            warn!("could not resolve supervisor spawn user for display: {e:#}");
+        {
+            let _ = platform::spawn_user_for_supervisor();
         }
         manager.auto_start_all(&handles).await;
 

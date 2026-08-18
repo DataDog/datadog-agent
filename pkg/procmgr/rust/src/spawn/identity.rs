@@ -28,7 +28,7 @@ fn resolve_spawn_user(process_name: &str, profile: SpawnProfile) -> anyhow::Resu
     #[cfg(unix)]
     {
         let _ = (process_name, profile);
-        crate::platform::spawn_user_for_supervisor()
+        Ok(crate::platform::spawn_user_for_supervisor())
     }
     #[cfg(not(any(windows, unix)))]
     {

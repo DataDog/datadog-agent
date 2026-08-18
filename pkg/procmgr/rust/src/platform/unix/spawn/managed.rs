@@ -15,9 +15,7 @@ use crate::spawn_context;
 pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {
     let profile = profile_for(process.name());
     let request = SpawnRequest::from_config(process.name(), process.config(), profile)?;
-    process.set_intended_user(
-        super::super::spawn_user_for_supervisor().unwrap_or_else(|_| "unknown".to_string()),
-    );
+    process.set_intended_user(super::super::spawn_user_for_supervisor());
     spawn_child(process.name(), request, profile)
 }
 
