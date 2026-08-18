@@ -12,6 +12,7 @@ use supervisor::RuntimeHandles;
 
 use crate::process::ManagedProcess;
 use anyhow::Result;
+use log::warn;
 use tonic::Status;
 
 pub use process_manager::ProcessManager;
@@ -59,7 +60,7 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
-fn queue_restart(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
+fn enqueue_pending_restart(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
     if let Some(delay) = proc.schedule_restart() {
         let pending = proc.uuid().to_owned();
         let tx = handles.restart_tx.clone();
@@ -67,6 +68,17 @@ fn queue_restart(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
             tokio::time::sleep(delay).await;
             let _ = tx.send(pending).await;
         });
+    }
+}
+
+fn try_auto_start(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
+    if !proc.may_auto_start() {
+        return;
+    }
+    let name = proc.name().to_owned();
+    if let Err(e) = proc.spawn_and_watch(handles.exit_tx.clone()) {
+        warn!("[{name}] auto-start failed: {e:#}");
+        enqueue_pending_restart(proc, handles);
     }
 }
 
@@ -145,7 +157,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_queue_restart_retries_after_failed_respawn() -> anyhow::Result<()> {
+    async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::Result<()> {
         let (cmd, _args) = test_helpers::sleep_cmd(60);
         let make_def = |secs: u32| ProcessDefinition {
             name: "action-executor".to_string(),
