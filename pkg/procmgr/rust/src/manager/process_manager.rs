@@ -1,6 +1,6 @@
 use super::{
-    ExitEvent, PendingRestart, RuntimeHandles, Supervisor, find_index_by_name, queue_restart,
-    resolve_index,
+    ExitEvent, PendingRestart, RuntimeHandles, Supervisor, find_index_by_name, enqueue_pending_restart,
+    resolve_index, try_auto_start,
 };
 use crate::command::{CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
@@ -47,14 +47,7 @@ impl ProcessManager {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
-            let proc = &mut procs[idx];
-            let name = proc.name().to_owned();
-            if proc.may_auto_start()
-                && let Err(e) = proc.spawn_and_watch(handles.exit_tx.clone())
-            {
-                warn!("[{name}] auto-start failed: {e:#}");
-                queue_restart(proc, handles);
-            }
+            try_auto_start(&mut procs[idx], handles);
         }
     }
 
@@ -82,7 +75,7 @@ impl ProcessManager {
             proc.set_last_status(event.status);
             #[cfg(windows)]
             proc.ensure_windows_spawn_resources_released().await;
-            queue_restart(proc, handles);
+            enqueue_pending_restart(proc, handles);
             return;
         }
 
@@ -118,7 +111,7 @@ impl ProcessManager {
         }
         if let Err(e) = proc.spawn_and_watch(handles.exit_tx.clone()) {
             warn!("[{name}] restart failed: {e:#}");
-            queue_restart(proc, handles);
+            enqueue_pending_restart(proc, handles);
         }
     }
 
@@ -154,12 +147,7 @@ impl ProcessManager {
             uuid = proc.uuid().to_owned();
             info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
-            let proc = procs.last_mut().unwrap();
-            if proc.may_auto_start()
-                && let Err(e) = proc.spawn_and_watch(handles.exit_tx.clone())
-            {
-                warn!("[{name}] auto-start failed: {e:#}");
-            }
+            try_auto_start(procs.last_mut().unwrap(), handles);
         }
         let warnings = self.update_startup_order().await;
         Ok(CreateResult { uuid, warnings })
