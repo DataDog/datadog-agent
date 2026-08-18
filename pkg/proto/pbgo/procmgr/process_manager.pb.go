@@ -949,6 +949,110 @@ func (x *StopResponse) GetState() ProcessState {
 	return ProcessState_UNKNOWN
 }
 
+type ReloadConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReloadConfigRequest) Reset() {
+	*x = ReloadConfigRequest{}
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReloadConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReloadConfigRequest) ProtoMessage() {}
+
+func (x *ReloadConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReloadConfigRequest.ProtoReflect.Descriptor instead.
+func (*ReloadConfigRequest) Descriptor() ([]byte, []int) {
+	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{12}
+}
+
+type ReloadConfigResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Added         []string               `protobuf:"bytes,1,rep,name=added,proto3" json:"added,omitempty"`
+	Removed       []string               `protobuf:"bytes,2,rep,name=removed,proto3" json:"removed,omitempty"`
+	Modified      []string               `protobuf:"bytes,3,rep,name=modified,proto3" json:"modified,omitempty"`
+	Unchanged     []string               `protobuf:"bytes,4,rep,name=unchanged,proto3" json:"unchanged,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReloadConfigResponse) Reset() {
+	*x = ReloadConfigResponse{}
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReloadConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReloadConfigResponse) ProtoMessage() {}
+
+func (x *ReloadConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReloadConfigResponse.ProtoReflect.Descriptor instead.
+func (*ReloadConfigResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ReloadConfigResponse) GetAdded() []string {
+	if x != nil {
+		return x.Added
+	}
+	return nil
+}
+
+func (x *ReloadConfigResponse) GetRemoved() []string {
+	if x != nil {
+		return x.Removed
+	}
+	return nil
+}
+
+func (x *ReloadConfigResponse) GetModified() []string {
+	if x != nil {
+		return x.Modified
+	}
+	return nil
+}
+
+func (x *ReloadConfigResponse) GetUnchanged() []string {
+	if x != nil {
+		return x.Unchanged
+	}
+	return nil
+}
+
 type GetStatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -957,7 +1061,7 @@ type GetStatusRequest struct {
 
 func (x *GetStatusRequest) Reset() {
 	*x = GetStatusRequest{}
-	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[12]
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -969,7 +1073,7 @@ func (x *GetStatusRequest) String() string {
 func (*GetStatusRequest) ProtoMessage() {}
 
 func (x *GetStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[12]
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -982,7 +1086,7 @@ func (x *GetStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetStatusRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{12}
+	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{14}
 }
 
 type GetStatusResponse struct {
@@ -1004,7 +1108,7 @@ type GetStatusResponse struct {
 
 func (x *GetStatusResponse) Reset() {
 	*x = GetStatusResponse{}
-	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[13]
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1016,7 +1120,7 @@ func (x *GetStatusResponse) String() string {
 func (*GetStatusResponse) ProtoMessage() {}
 
 func (x *GetStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[13]
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1029,7 +1133,7 @@ func (x *GetStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetStatusResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{13}
+	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetStatusResponse) GetReady() bool {
@@ -1117,7 +1221,7 @@ type GetConfigRequest struct {
 
 func (x *GetConfigRequest) Reset() {
 	*x = GetConfigRequest{}
-	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[14]
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1129,7 +1233,7 @@ func (x *GetConfigRequest) String() string {
 func (*GetConfigRequest) ProtoMessage() {}
 
 func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[14]
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1142,7 +1246,7 @@ func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigRequest.ProtoReflect.Descriptor instead.
 func (*GetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{14}
+	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{16}
 }
 
 type GetConfigResponse struct {
@@ -1157,7 +1261,7 @@ type GetConfigResponse struct {
 
 func (x *GetConfigResponse) Reset() {
 	*x = GetConfigResponse{}
-	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[15]
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1169,7 +1273,7 @@ func (x *GetConfigResponse) String() string {
 func (*GetConfigResponse) ProtoMessage() {}
 
 func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[15]
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1182,7 +1286,7 @@ func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetConfigResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{15}
+	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetConfigResponse) GetSource() string {
@@ -1304,7 +1408,13 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"nameOrUuid\"W\n" +
 	"\fStopResponse\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x123\n" +
-	"\x05state\x18\x02 \x01(\x0e2\x1d.datadog.procmgr.ProcessStateR\x05state\"\x12\n" +
+	"\x05state\x18\x02 \x01(\x0e2\x1d.datadog.procmgr.ProcessStateR\x05state\"\x15\n" +
+	"\x13ReloadConfigRequest\"\x80\x01\n" +
+	"\x14ReloadConfigResponse\x12\x14\n" +
+	"\x05added\x18\x01 \x03(\tR\x05added\x12\x18\n" +
+	"\aremoved\x18\x02 \x03(\tR\aremoved\x12\x1a\n" +
+	"\bmodified\x18\x03 \x03(\tR\bmodified\x12\x1c\n" +
+	"\tunchanged\x18\x04 \x03(\tR\tunchanged\"\x12\n" +
 	"\x10GetStatusRequest\"\xce\x03\n" +
 	"\x11GetStatusResponse\x12\x14\n" +
 	"\x05ready\x18\x01 \x01(\bR\x05ready\x12\x18\n" +
@@ -1336,14 +1446,15 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\n" +
 	"\x06EXITED\x10\a\x12\n" +
 	"\n" +
-	"\x06FAILED\x10\b2\xa6\x04\n" +
+	"\x06FAILED\x10\b2\x83\x05\n" +
 	"\x0eProcessManager\x12C\n" +
 	"\x04List\x12\x1c.datadog.procmgr.ListRequest\x1a\x1d.datadog.procmgr.ListResponse\x12O\n" +
 	"\bDescribe\x12 .datadog.procmgr.DescribeRequest\x1a!.datadog.procmgr.DescribeResponse\x12R\n" +
 	"\tGetStatus\x12!.datadog.procmgr.GetStatusRequest\x1a\".datadog.procmgr.GetStatusResponse\x12I\n" +
 	"\x06Create\x12\x1e.datadog.procmgr.CreateRequest\x1a\x1f.datadog.procmgr.CreateResponse\x12F\n" +
 	"\x05Start\x12\x1d.datadog.procmgr.StartRequest\x1a\x1e.datadog.procmgr.StartResponse\x12C\n" +
-	"\x04Stop\x12\x1c.datadog.procmgr.StopRequest\x1a\x1d.datadog.procmgr.StopResponse\x12R\n" +
+	"\x04Stop\x12\x1c.datadog.procmgr.StopRequest\x1a\x1d.datadog.procmgr.StopResponse\x12[\n" +
+	"\fReloadConfig\x12$.datadog.procmgr.ReloadConfigRequest\x1a%.datadog.procmgr.ReloadConfigResponse\x12R\n" +
 	"\tGetConfig\x12!.datadog.procmgr.GetConfigRequest\x1a\".datadog.procmgr.GetConfigResponseB9Z7github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgrb\x06proto3"
 
 var (
@@ -1359,53 +1470,57 @@ func file_datadog_procmgr_process_manager_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_procmgr_process_manager_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_datadog_procmgr_process_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_datadog_procmgr_process_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_datadog_procmgr_process_manager_proto_goTypes = []any{
-	(ProcessState)(0),         // 0: datadog.procmgr.ProcessState
-	(*ListRequest)(nil),       // 1: datadog.procmgr.ListRequest
-	(*Process)(nil),           // 2: datadog.procmgr.Process
-	(*ListResponse)(nil),      // 3: datadog.procmgr.ListResponse
-	(*DescribeRequest)(nil),   // 4: datadog.procmgr.DescribeRequest
-	(*ProcessDetail)(nil),     // 5: datadog.procmgr.ProcessDetail
-	(*DescribeResponse)(nil),  // 6: datadog.procmgr.DescribeResponse
-	(*CreateRequest)(nil),     // 7: datadog.procmgr.CreateRequest
-	(*CreateResponse)(nil),    // 8: datadog.procmgr.CreateResponse
-	(*StartRequest)(nil),      // 9: datadog.procmgr.StartRequest
-	(*StartResponse)(nil),     // 10: datadog.procmgr.StartResponse
-	(*StopRequest)(nil),       // 11: datadog.procmgr.StopRequest
-	(*StopResponse)(nil),      // 12: datadog.procmgr.StopResponse
-	(*GetStatusRequest)(nil),  // 13: datadog.procmgr.GetStatusRequest
-	(*GetStatusResponse)(nil), // 14: datadog.procmgr.GetStatusResponse
-	(*GetConfigRequest)(nil),  // 15: datadog.procmgr.GetConfigRequest
-	(*GetConfigResponse)(nil), // 16: datadog.procmgr.GetConfigResponse
-	nil,                       // 17: datadog.procmgr.ProcessDetail.EnvEntry
-	nil,                       // 18: datadog.procmgr.CreateRequest.EnvEntry
+	(ProcessState)(0),            // 0: datadog.procmgr.ProcessState
+	(*ListRequest)(nil),          // 1: datadog.procmgr.ListRequest
+	(*Process)(nil),              // 2: datadog.procmgr.Process
+	(*ListResponse)(nil),         // 3: datadog.procmgr.ListResponse
+	(*DescribeRequest)(nil),      // 4: datadog.procmgr.DescribeRequest
+	(*ProcessDetail)(nil),        // 5: datadog.procmgr.ProcessDetail
+	(*DescribeResponse)(nil),     // 6: datadog.procmgr.DescribeResponse
+	(*CreateRequest)(nil),        // 7: datadog.procmgr.CreateRequest
+	(*CreateResponse)(nil),       // 8: datadog.procmgr.CreateResponse
+	(*StartRequest)(nil),         // 9: datadog.procmgr.StartRequest
+	(*StartResponse)(nil),        // 10: datadog.procmgr.StartResponse
+	(*StopRequest)(nil),          // 11: datadog.procmgr.StopRequest
+	(*StopResponse)(nil),         // 12: datadog.procmgr.StopResponse
+	(*ReloadConfigRequest)(nil),  // 13: datadog.procmgr.ReloadConfigRequest
+	(*ReloadConfigResponse)(nil), // 14: datadog.procmgr.ReloadConfigResponse
+	(*GetStatusRequest)(nil),     // 15: datadog.procmgr.GetStatusRequest
+	(*GetStatusResponse)(nil),    // 16: datadog.procmgr.GetStatusResponse
+	(*GetConfigRequest)(nil),     // 17: datadog.procmgr.GetConfigRequest
+	(*GetConfigResponse)(nil),    // 18: datadog.procmgr.GetConfigResponse
+	nil,                          // 19: datadog.procmgr.ProcessDetail.EnvEntry
+	nil,                          // 20: datadog.procmgr.CreateRequest.EnvEntry
 }
 var file_datadog_procmgr_process_manager_proto_depIdxs = []int32{
 	0,  // 0: datadog.procmgr.Process.state:type_name -> datadog.procmgr.ProcessState
 	2,  // 1: datadog.procmgr.ListResponse.processes:type_name -> datadog.procmgr.Process
 	0,  // 2: datadog.procmgr.ProcessDetail.state:type_name -> datadog.procmgr.ProcessState
-	17, // 3: datadog.procmgr.ProcessDetail.env:type_name -> datadog.procmgr.ProcessDetail.EnvEntry
+	19, // 3: datadog.procmgr.ProcessDetail.env:type_name -> datadog.procmgr.ProcessDetail.EnvEntry
 	5,  // 4: datadog.procmgr.DescribeResponse.detail:type_name -> datadog.procmgr.ProcessDetail
-	18, // 5: datadog.procmgr.CreateRequest.env:type_name -> datadog.procmgr.CreateRequest.EnvEntry
+	20, // 5: datadog.procmgr.CreateRequest.env:type_name -> datadog.procmgr.CreateRequest.EnvEntry
 	0,  // 6: datadog.procmgr.StartResponse.state:type_name -> datadog.procmgr.ProcessState
 	0,  // 7: datadog.procmgr.StopResponse.state:type_name -> datadog.procmgr.ProcessState
 	1,  // 8: datadog.procmgr.ProcessManager.List:input_type -> datadog.procmgr.ListRequest
 	4,  // 9: datadog.procmgr.ProcessManager.Describe:input_type -> datadog.procmgr.DescribeRequest
-	13, // 10: datadog.procmgr.ProcessManager.GetStatus:input_type -> datadog.procmgr.GetStatusRequest
+	15, // 10: datadog.procmgr.ProcessManager.GetStatus:input_type -> datadog.procmgr.GetStatusRequest
 	7,  // 11: datadog.procmgr.ProcessManager.Create:input_type -> datadog.procmgr.CreateRequest
 	9,  // 12: datadog.procmgr.ProcessManager.Start:input_type -> datadog.procmgr.StartRequest
 	11, // 13: datadog.procmgr.ProcessManager.Stop:input_type -> datadog.procmgr.StopRequest
-	15, // 14: datadog.procmgr.ProcessManager.GetConfig:input_type -> datadog.procmgr.GetConfigRequest
-	3,  // 15: datadog.procmgr.ProcessManager.List:output_type -> datadog.procmgr.ListResponse
-	6,  // 16: datadog.procmgr.ProcessManager.Describe:output_type -> datadog.procmgr.DescribeResponse
-	14, // 17: datadog.procmgr.ProcessManager.GetStatus:output_type -> datadog.procmgr.GetStatusResponse
-	8,  // 18: datadog.procmgr.ProcessManager.Create:output_type -> datadog.procmgr.CreateResponse
-	10, // 19: datadog.procmgr.ProcessManager.Start:output_type -> datadog.procmgr.StartResponse
-	12, // 20: datadog.procmgr.ProcessManager.Stop:output_type -> datadog.procmgr.StopResponse
-	16, // 21: datadog.procmgr.ProcessManager.GetConfig:output_type -> datadog.procmgr.GetConfigResponse
-	15, // [15:22] is the sub-list for method output_type
-	8,  // [8:15] is the sub-list for method input_type
+	13, // 14: datadog.procmgr.ProcessManager.ReloadConfig:input_type -> datadog.procmgr.ReloadConfigRequest
+	17, // 15: datadog.procmgr.ProcessManager.GetConfig:input_type -> datadog.procmgr.GetConfigRequest
+	3,  // 16: datadog.procmgr.ProcessManager.List:output_type -> datadog.procmgr.ListResponse
+	6,  // 17: datadog.procmgr.ProcessManager.Describe:output_type -> datadog.procmgr.DescribeResponse
+	16, // 18: datadog.procmgr.ProcessManager.GetStatus:output_type -> datadog.procmgr.GetStatusResponse
+	8,  // 19: datadog.procmgr.ProcessManager.Create:output_type -> datadog.procmgr.CreateResponse
+	10, // 20: datadog.procmgr.ProcessManager.Start:output_type -> datadog.procmgr.StartResponse
+	12, // 21: datadog.procmgr.ProcessManager.Stop:output_type -> datadog.procmgr.StopResponse
+	14, // 22: datadog.procmgr.ProcessManager.ReloadConfig:output_type -> datadog.procmgr.ReloadConfigResponse
+	18, // 23: datadog.procmgr.ProcessManager.GetConfig:output_type -> datadog.procmgr.GetConfigResponse
+	16, // [16:24] is the sub-list for method output_type
+	8,  // [8:16] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
@@ -1425,7 +1540,7 @@ func file_datadog_procmgr_process_manager_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_procmgr_process_manager_proto_rawDesc), len(file_datadog_procmgr_process_manager_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   18,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
