@@ -24,7 +24,6 @@ var postgresEnvAllow = map[string]struct{}{
 	"PGDATA":                    {},
 	"POSTGRES_DB":               {},
 	"POSTGRES_USER":             {},
-	"POSTGRES_HOST_AUTH_METHOD": {},
 	"POSTGRES_INITDB_WALDIR":    {},
 }
 
@@ -50,7 +49,7 @@ var postgresEnvDeny = map[string]struct{}{
 
 // NewPostgres returns a collector that reads selected, non-secret PostgreSQL
 // environment variables. It does not read postgresql.conf; config-file
-// collection is a separate collector.
+// collection is intentionally out of scope.
 func NewPostgres() configfilesdiscoveryimpl.ConfigCollector {
 	return postgresConfigCollector{}
 }

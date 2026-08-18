@@ -5,6 +5,7 @@ services:
     # No command override: the image's normal bare `postgres` startup is the
     # realistic deployment scenario.
     environment:
+      PGDATA: /var/lib/postgresql/data/configfilesdiscovery
       POSTGRES_DB: configfilesdiscovery
       POSTGRES_USER: configfilesdiscovery
       POSTGRES_PASSWORD: must-not-be-forwarded

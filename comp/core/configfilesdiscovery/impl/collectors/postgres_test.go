@@ -24,7 +24,7 @@ func TestIncludePostgresEnvVar(t *testing.T) {
 		{name: "data directory", envName: "PGDATA", want: true},
 		{name: "database name", envName: "POSTGRES_DB", want: true},
 		{name: "user", envName: "POSTGRES_USER", want: true},
-		{name: "host auth method", envName: "POSTGRES_HOST_AUTH_METHOD", want: true},
+		{name: "host auth method", envName: "POSTGRES_HOST_AUTH_METHOD"},
 		{name: "initdb waldir", envName: "POSTGRES_INITDB_WALDIR", want: true},
 		{name: "unrelated", envName: "UNREQUESTED"},
 		{name: "lowercase", envName: "postgres_db"},

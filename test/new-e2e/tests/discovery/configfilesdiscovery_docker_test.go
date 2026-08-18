@@ -380,6 +380,7 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresEnvVarsDiscovered() {
 			for _, envVar := range payload.EnvVars {
 				envVars[envVar.Name] = envVar.Value
 			}
+			assert.Equal(c, "/var/lib/postgresql/data/configfilesdiscovery", envVars["PGDATA"])
 			assert.Equal(c, postgresDBName, envVars["POSTGRES_DB"])
 			assert.Equal(c, postgresUser, envVars["POSTGRES_USER"])
 			assert.NotContains(c, envVars, "POSTGRES_PASSWORD")
