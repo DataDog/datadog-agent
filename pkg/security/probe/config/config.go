@@ -91,6 +91,15 @@ type Config struct {
 	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
 	EventStreamBufferSize int
 
+	// EventStreamDispatcherQueueSize specifies the size of the user space dispatcher queue that decouples
+	// reading the kernel ring buffer from event processing. It acts as a cushion to absorb bursts of events.
+	// When EventStreamDispatcherQueueSizePerCore is true, this value is multiplied by the number of CPUs.
+	EventStreamDispatcherQueueSize int
+
+	// EventStreamDispatcherQueueSizePerCore specifies whether EventStreamDispatcherQueueSize should be
+	// multiplied by the number of CPUs on the system to compute the final dispatcher queue size.
+	EventStreamDispatcherQueueSizePerCore bool
+
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
 	EventStreamUseFentry bool
 
@@ -190,32 +199,34 @@ func NewConfig() (*Config, error) {
 	setEnv()
 
 	c := &Config{
-		Config:                             *ebpf.NewConfig(),
-		EnableAllProbes:                    getBool("enable_all_probes"),
-		EnableKernelFilters:                getBool("enable_kernel_filters"),
-		EnableApprovers:                    getBool("enable_approvers"),
-		BasenameApproversSize:              getInt("basename_approvers_size"),
-		EnableDiscarders:                   getBool("enable_discarders"),
-		FlushDiscarderWindow:               getInt("flush_discarder_window"),
-		PIDCacheSize:                       getInt("pid_cache_size"),
-		StatsTagsCardinality:               getString("events_stats.tags_cardinality"),
-		CustomSensitiveWords:               getStringSlice("custom_sensitive_words"),
-		CustomSensitiveRegexps:             getStringSlice("custom_sensitive_regexps"),
-		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
-		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
-		DentryCacheSize:                    getInt("dentry_cache_size"),
-		NetworkLazyInterfacePrefixes:       getStringSlice("network.lazy_interface_prefixes"),
-		NetworkClassifierPriority:          uint16(getInt("network.classifier_priority")),
-		NetworkClassifierHandle:            uint16(getInt("network.classifier_handle")),
-		RawNetworkClassifierHandle:         uint16(getInt("network.raw_classifier_handle")),
-		NetworkFlowMonitorPeriod:           getDuration("network.flow_monitor.period"),
-		NetworkFlowMonitorEnabled:          getBool("network.flow_monitor.enabled"),
-		NetworkFlowMonitorSKStorageEnabled: getBool("network.flow_monitor.sk_storage.enabled"),
-		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
-		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
-		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
-		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
-		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
+		Config:                                *ebpf.NewConfig(),
+		EnableAllProbes:                       getBool("enable_all_probes"),
+		EnableKernelFilters:                   getBool("enable_kernel_filters"),
+		EnableApprovers:                       getBool("enable_approvers"),
+		BasenameApproversSize:                 getInt("basename_approvers_size"),
+		EnableDiscarders:                      getBool("enable_discarders"),
+		FlushDiscarderWindow:                  getInt("flush_discarder_window"),
+		PIDCacheSize:                          getInt("pid_cache_size"),
+		StatsTagsCardinality:                  getString("events_stats.tags_cardinality"),
+		CustomSensitiveWords:                  getStringSlice("custom_sensitive_words"),
+		CustomSensitiveRegexps:                getStringSlice("custom_sensitive_regexps"),
+		ERPCDentryResolutionEnabled:           getBool("erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:            getBool("map_dentry_resolution_enabled"),
+		DentryCacheSize:                       getInt("dentry_cache_size"),
+		NetworkLazyInterfacePrefixes:          getStringSlice("network.lazy_interface_prefixes"),
+		NetworkClassifierPriority:             uint16(getInt("network.classifier_priority")),
+		NetworkClassifierHandle:               uint16(getInt("network.classifier_handle")),
+		RawNetworkClassifierHandle:            uint16(getInt("network.raw_classifier_handle")),
+		NetworkFlowMonitorPeriod:              getDuration("network.flow_monitor.period"),
+		NetworkFlowMonitorEnabled:             getBool("network.flow_monitor.enabled"),
+		NetworkFlowMonitorSKStorageEnabled:    getBool("network.flow_monitor.sk_storage.enabled"),
+		EventStreamUseRingBuffer:              getBool("event_stream.use_ring_buffer"),
+		EventStreamBufferSize:                 getInt("event_stream.buffer_size"),
+		EventStreamDispatcherQueueSize:        getInt("event_stream.dispatcher_queue_size"),
+		EventStreamDispatcherQueueSizePerCore: getBool("event_stream.dispatcher_queue_size_per_core"),
+		EventStreamUseFentry:                  getBool("event_stream.use_fentry"),
+		EventStreamUseKprobeFallback:          getBool("event_stream.use_kprobe_fallback"),
+		EventStreamKretprobeMaxActive:         getInt("event_stream.kretprobe_max_active"),
 
 		EnvsWithValue:               getStringSlice("envs_with_value"),
 		NetworkEnabled:              getBool("network.enabled"),
