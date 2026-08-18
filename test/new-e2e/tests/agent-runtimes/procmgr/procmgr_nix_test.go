@@ -94,6 +94,77 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	s.hasDDOT = s.installRealDDOT()
 }
 
+func (s *procmgrLinuxSuite) TestCLIListShowsConfiguredProcess() {
+	s.requireCLI()
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, "test-sleep", map[string]string{
+			"STATE":   "Running",
+			"COMMAND": s.platform.sleepCommand,
+		})
+	}, 30*time.Second, 2*time.Second)
+}
+
+func (s *procmgrLinuxSuite) TestCLIDescribe() {
+	s.requireCLI()
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		assertField(ct, out, "Name", "test-sleep")
+		assertField(ct, out, "State", "Running")
+		assertField(ct, out, "Command", s.platform.sleepCommand)
+	}, 30*time.Second, 2*time.Second)
+}
+
+// TestCLIStopStartThenKillRestarts verifies that after an explicit stop/start
+// cycle, an external kill still triggers the configured restart policy. A bug
+// in dd-procmgrd left stop_requested set after handle_stop, so the next crash
+// was treated as intentional and on-failure/always restart did not run.
+func (s *procmgrLinuxSuite) TestCLIStopStartThenKillRestarts() {
+	s.requireCLI()
+	const procName = "test-sleep"
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
+	}, 30*time.Second, 2*time.Second)
+
+	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("stop " + procName))
+	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("start " + procName))
+
+	var pidBeforeKill uint64
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		assertField(ct, out, "State", "Running")
+		pidStr := fieldValue(out, "PID")
+		require.NotEmpty(ct, pidStr)
+		require.NotEqual(ct, "-", pidStr)
+		var err error
+		pidBeforeKill, err = strconv.ParseUint(pidStr, 10, 32)
+		require.NoError(ct, err)
+	}, 30*time.Second, 2*time.Second)
+
+	s.Env().RemoteHost.MustExecute(s.platform.killPIDCmd(uint32(pidBeforeKill)))
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
+		desc := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		pidAfter := fieldValue(desc, "PID")
+		require.NotEmpty(ct, pidAfter)
+		require.NotEqual(ct, "-", pidAfter)
+		assert.NotEqual(ct, strconv.FormatUint(pidBeforeKill, 10), pidAfter, "PID should change after crash restart")
+		restarts := fieldValue(desc, "Restarts")
+		require.NotEmpty(ct, restarts)
+		restartCount, err := strconv.ParseUint(restarts, 10, 32)
+		require.NoError(ct, err)
+		assert.GreaterOrEqual(ct, restartCount, uint64(1), "restart count should reflect crash restart")
+	}, 30*time.Second, 2*time.Second)
+}
+
+// ---------------------------------------------------------------------------
+// Linux-only: DDOT tests
+// ---------------------------------------------------------------------------
+
 func ddotPackageName() string {
 	if os.Getenv("E2E_FIPS") != "" {
 		return "datadog-fips-agent-ddot"

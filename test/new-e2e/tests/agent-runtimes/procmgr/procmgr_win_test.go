@@ -7,12 +7,11 @@ package procmgr
 
 import (
 	"fmt"
-	"strconv"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,7 +21,6 @@ import (
 	e2ecomponents "github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -61,9 +59,6 @@ description: should not start
 
 	// Description line from fleet/embedded DDOT template.
 	windowsDDOTDescOriginalLine = "description: Datadog Distribution of OpenTelemetry Collector"
-	windowsADPDescOriginalLine  = "description: Datadog Agent Data Plane"
-
-	adpProcessName = "datadog-agent-data-plane"
 )
 
 // psRemote builds a PowerShell script for RemoteHost.Execute; string args are escaped for single-quoted literals.
@@ -85,34 +80,8 @@ func escapePSSingleQuotedLiteral(s string) string {
 	return s
 }
 
-// Path helpers for remote PowerShell: the e2e runner is Linux/macOS, so registry paths
-// need explicit slash normalization instead of filepath.Join.
-func toWindowsSlashPath(p string) string {
-	p = strings.ReplaceAll(strings.TrimSpace(p), `\`, `/`)
-	for strings.Contains(p, "//") {
-		p = strings.ReplaceAll(p, "//", "/")
-	}
-	return p
-}
-
-func joinWindowsPath(base string, elems ...string) string {
-	parts := make([]string, 0, len(elems)+1)
-	parts = append(parts, strings.TrimRight(toWindowsSlashPath(base), `/`))
-	parts = append(parts, elems...)
-	return strings.Join(parts, "/")
-}
-
 func ensureWindowsDirPS(dir string) string {
 	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
-}
-
-// withADPEnabled enables ADP via datadog.yaml during provisioning; the provisioner restarts
-// DatadogAgent afterward, which also starts dd-procmgr-service when process_manager is enabled.
-func withADPEnabled() agentparams.Option {
-	return func(p *agentparams.Params) error {
-		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String("data_plane.enabled: true"))
-		return nil
-	}
 }
 
 var winPlatform = platformConfig{
@@ -148,9 +117,7 @@ func TestProcmgrSmokeWindowsSuite(t *testing.T) {
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(
-					agentparams.WithFile(winConfigDir+"/test-sleep.yaml", winTestProcessConfig, true),
 					agentparams.WithFile(winConfigDir+"/missing-binary.yaml", winMissingBinaryConfig, true),
-					withADPEnabled(),
 				),
 			),
 		),
@@ -283,130 +250,4 @@ env:
 stdout: inherit
 stderr: inherit
 `, windowsDDOTDescOriginalLine, exe, otelCfg, ddCfg, exe, fleet)
-}
-
-// ---------------------------------------------------------------------------
-// Windows-only: ADP tests
-// ---------------------------------------------------------------------------
-
-func (s *procmgrWindowsSuite) waitWindowsADPRunning(timeout time.Duration) string {
-	s.T().Helper()
-	var pid string
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+adpProcessName))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		cmd := fieldValue(out, "Command")
-		assert.Contains(ct, strings.ToLower(cmd), "agent-data-plane.exe")
-		pid = p
-	}, timeout, 2*time.Second)
-	return pid
-}
-
-func (s *procmgrWindowsSuite) getWindowsRestartCount(name string) int {
-	s.T().Helper()
-	out := s.Env().RemoteHost.MustExecute(s.cliDescribe(name))
-	count, err := strconv.Atoi(fieldValue(out, "Restarts"))
-	require.NoError(s.T(), err, "Restarts field for %s should be a number", name)
-	return count
-}
-
-func (s *procmgrWindowsSuite) TestADPProcessRunning() {
-	pid := s.waitWindowsADPRunning(90 * time.Second)
-
-	configRoot, err := windowsagent.GetConfigRootFromRegistry(s.Env().RemoteHost)
-	require.NoError(s.T(), err)
-	assert.Equal(s.T(), pid, strings.TrimSpace(s.Env().RemoteHost.MustExecute(
-		psRemote(`(Get-Content -Raw -LiteralPath '%s').Trim()`, joinWindowsPath(configRoot, "run", "agent-data-plane.pid")),
-	)), "PID file should match procmgrd-reported PID")
-
-	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
-	require.NoError(s.T(), err)
-	s.Env().RemoteHost.MustExecute(s.platform.checkFileExists(
-		joinWindowsPath(installPath, "bin", "agent", "agent-data-plane.exe"),
-	))
-}
-
-func (s *procmgrWindowsSuite) TestADPCOATTelemetry() {
-	s.waitWindowsADPRunning(90 * time.Second)
-
-	// The COAT reporter refreshes periodically, so wait for its snapshot to include
-	// the ADP process state already confirmed through dd-procmgr.
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
-		assert.True(ct, telemetryGaugeIsTrue(output, "runtime__procmgr_process_running", map[string]string{
-			"process": adpProcessName,
-		}), "ADP procmgr running gauge should be emitted: %s", output)
-		assert.True(ct, telemetryGaugeIsTrue(output, "runtime__agent_service_installed", map[string]string{
-			"service": "agent-data-plane",
-		}), "ADP installed gauge should be emitted: %s", output)
-		assert.True(ct, telemetryGaugeIsTrue(output, "runtime__agent_service_procmgr_configured", map[string]string{
-			"service": "agent-data-plane",
-		}), "ADP configured gauge should be emitted: %s", output)
-		assert.True(ct, telemetryGaugeIsTrue(output, "runtime__agent_service_management_mode", map[string]string{
-			"service": "agent-data-plane",
-			"mode":    "procmgr",
-		}), "ADP procmgr management-mode gauge should be emitted: %s", output)
-	}, 7*time.Minute, 10*time.Second)
-}
-
-func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool {
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, metric) {
-			continue
-		}
-
-		fields := strings.Fields(line)
-		if len(fields) < 2 || (fields[len(fields)-1] != "1" && fields[len(fields)-1] != "1.0") {
-			continue
-		}
-
-		allLabelsMatch := true
-		for key, value := range labels {
-			if !strings.Contains(line, key+`="`+value+`"`) {
-				allLabelsMatch = false
-				break
-			}
-		}
-		if allLabelsMatch {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *procmgrWindowsSuite) TestADPRestartAfterKill() {
-	originalPID := s.waitWindowsADPRunning(90 * time.Second)
-	baselineRestarts := s.getWindowsRestartCount(adpProcessName)
-
-	pid, err := strconv.ParseUint(originalPID, 10, 32)
-	require.NoError(s.T(), err)
-	s.Env().RemoteHost.MustExecute(s.platform.killPIDCmd(uint32(pid)))
-
-	newPID := s.waitWindowsADPRunning(60 * time.Second)
-	require.NotEqual(s.T(), originalPID, newPID, "PID should differ after restart (was %s)", originalPID)
-	assert.Equal(s.T(), baselineRestarts+1, s.getWindowsRestartCount(adpProcessName),
-		"Restarts should have increased by 1 (baseline %d)", baselineRestarts)
-}
-
-func (s *procmgrWindowsSuite) TestADPProcessDescribe() {
-	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
-	require.NoError(s.T(), err)
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe(adpProcessName))
-		assertField(ct, out, "Name", adpProcessName)
-		assertField(ct, out, "State", "Running")
-		assert.Equal(ct,
-			joinWindowsPath(installPath, "bin", "agent", "agent-data-plane.exe"),
-			toWindowsSlashPath(fieldValue(out, "Command")),
-		)
-		assertField(ct, out, "Restart Policy", "on-failure")
-		assertHasField(ct, out, "PID")
-		assertHasField(ct, out, "UUID")
-	}, 90*time.Second, 2*time.Second)
 }

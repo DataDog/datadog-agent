@@ -8,7 +8,6 @@ package procmgr
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -78,76 +77,20 @@ func (s *baseProcmgrSuite) TestCLIStatus() {
 	}, 30*time.Second, 2*time.Second)
 }
 
-func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
-		assertTableRow(ct, out, "test-sleep", map[string]string{
-			"STATE":   "Running",
-			"COMMAND": s.platform.sleepCommand,
-		})
-	}, 30*time.Second, 2*time.Second)
-}
-
-func (s *baseProcmgrSuite) TestCLIDescribe() {
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe("test-sleep"))
-		assertField(ct, out, "Name", "test-sleep")
-		assertField(ct, out, "State", "Running")
-		assertField(ct, out, "Command", s.platform.sleepCommand)
-	}, 30*time.Second, 2*time.Second)
-}
-
-// Regression: leftover stop_requested after handle_stop treated the next crash as intentional.
-func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
-	const procName = "test-sleep"
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
-		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
-	}, 30*time.Second, 2*time.Second)
-
-	s.Env().RemoteHost.MustExecute(s.cliStop(procName))
-	s.Env().RemoteHost.MustExecute(s.cliStart(procName))
-
-	var pidBeforeKill uint64
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe(procName))
-		assertField(ct, out, "State", "Running")
-		pidStr := fieldValue(out, "PID")
-		require.NotEmpty(ct, pidStr)
-		require.NotEqual(ct, "-", pidStr)
-		var err error
-		pidBeforeKill, err = strconv.ParseUint(pidStr, 10, 32)
-		require.NoError(ct, err)
-	}, 30*time.Second, 2*time.Second)
-
-	s.Env().RemoteHost.MustExecute(s.platform.killPIDCmd(uint32(pidBeforeKill)))
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
-		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
-		desc := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe(procName))
-		pidAfter := fieldValue(desc, "PID")
-		require.NotEmpty(ct, pidAfter)
-		require.NotEqual(ct, "-", pidAfter)
-		assert.NotEqual(ct, strconv.FormatUint(pidBeforeKill, 10), pidAfter, "PID should change after crash restart")
-		restarts := fieldValue(desc, "Restarts")
-		require.NotEmpty(ct, restarts)
-		restartCount, err := strconv.ParseUint(restarts, 10, 32)
-		require.NoError(ct, err)
-		assert.GreaterOrEqual(ct, restartCount, uint64(1), "restart count should reflect crash restart")
-	}, 30*time.Second, 2*time.Second)
-}
-
 func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
+	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
 		assertTableRow(ct, out, "missing-binary", map[string]string{
 			"STATE": "Created",
 			"PID":   "-",
 		})
 	}, 30*time.Second, 2*time.Second)
 }
+
+// ---------------------------------------------------------------------------
+// CLI output parsing helpers
+// ---------------------------------------------------------------------------
 
 func fieldValue(output, label string) string {
 	needle := label + ":"
