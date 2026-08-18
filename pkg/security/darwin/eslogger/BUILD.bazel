@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "eslogger",
+    srcs = [
+        "decode.go",
+        "message.go",
+        "runner_darwin.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/darwin/eslogger",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "eslogger_test",
+    srcs = ["decode_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":eslogger"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

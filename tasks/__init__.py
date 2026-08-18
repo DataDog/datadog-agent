@@ -25,6 +25,7 @@ from tasks import (
     components,
     coverage,
     cws_instrumentation,
+    cws_macos_poc,
     debug,
     debugging,
     devcontainer,
@@ -212,6 +213,7 @@ ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
 ns.add_collection(coverage)
+ns.add_collection(cws_macos_poc, "cws-macos-poc")
 ns.add_collection(debugging)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)

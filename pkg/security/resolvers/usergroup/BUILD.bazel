@@ -1,8 +1,10 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "usergroup",
     srcs = [
+        "resolver_darwin.go",
         "resolver_linux.go",
         "resolver_windows.go",
     ],
@@ -19,6 +21,12 @@ go_library(
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
             "@org_golang_x_time//rate",
         ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+        ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/common/usergrouputils",
             "//pkg/security/resolvers/cgroup",
@@ -33,6 +41,23 @@ go_library(
             "//pkg/security/utils",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
             "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "usergroup_test",
+    srcs = ["resolver_darwin_test.go"],
+    embed = [":usergroup"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),
