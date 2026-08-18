@@ -14,9 +14,10 @@
 // sequence with no service-boundary marker, so no Core Foundation type
 // crosses the cgo boundary. A service whose array exceeds
 // DD_PMU_MAX_TOKENS_PER_SERVICE, DD_PMU_MAX_TOKEN_CHARS or the buffer's
-// remaining capacity is dropped and logged rather than failing the read.
-// Returns 0 on success and -1 on an IOKit failure or invalid arguments.
-// *written receives the byte count.
+// remaining capacity is dropped and logged rather than failing the read, and
+// a token already emitted by an earlier element or service is never written
+// twice. Returns 0 on success and -1 on an IOKit failure or invalid
+// arguments. *written receives the byte count.
 int dd_pkg_notableevents_read_pmu_boot_fault_info(
     char *buffer,
     size_t size,

@@ -49,6 +49,30 @@ static bool dd_pkg_notableevents_append(
     return true;
 }
 
+// dd_pkg_notableevents_contains_token reports whether token already occurs as
+// a complete, separator-delimited entry in buffer[0, written), the same way
+// strings.Split on the Go side would see it: this is how a token already
+// written by an earlier element, or by an earlier service, is recognized as a
+// repeat rather than re-scanned some other way.
+static bool dd_pkg_notableevents_contains_token(
+    const char *buffer,
+    size_t written,
+    const char *token,
+    size_t token_length) {
+    size_t start = 0;
+    while (start < written) {
+        size_t end = start;
+        while (end < written && buffer[end] != DD_PMU_TOKEN_SEPARATOR) {
+            end++;
+        }
+        if (end - start == token_length && memcmp(buffer + start, token, token_length) == 0) {
+            return true;
+        }
+        start = end + 1;
+    }
+    return false;
+}
+
 // dd_pkg_notableevents_append_tokens flattens one service's IOPMUBootFaultInfo
 // array into buffer, continuing the flat, DD_PMU_TOKEN_SEPARATOR-delimited
 // sequence started by an earlier call: every token is followed by a
@@ -60,7 +84,10 @@ static bool dd_pkg_notableevents_append(
 // A token is never shortened or truncated to fit a bound: a service whose
 // array trips DD_PMU_MAX_TOKENS_PER_SERVICE, DD_PMU_MAX_TOKEN_CHARS or the
 // buffer's remaining capacity is dropped by the caller in its entirety and
-// logged, rather than passing a partial token set into classification.
+// logged, rather than passing a partial token set into classification. A
+// token already present in the buffer, whether from an earlier element in
+// this same array or from a service processed earlier, is skipped rather
+// than written a second time.
 static int dd_pkg_notableevents_append_tokens(
     CFArrayRef tokens,
     char *buffer,
@@ -118,7 +145,13 @@ static int dd_pkg_notableevents_append_tokens(
             continue;
         }
 
-        if (!dd_pkg_notableevents_append(buffer, size, written, token, strlen(token))) {
+        size_t token_length = strlen(token);
+        if (dd_pkg_notableevents_contains_token(buffer, *written, token, token_length)) {
+            free(heap_token);
+            continue;
+        }
+
+        if (!dd_pkg_notableevents_append(buffer, size, written, token, token_length)) {
             free(heap_token);
             return -2;
         }

@@ -39,11 +39,6 @@ func TestParsePMUBootFaultPayload(t *testing.T) {
 			payload: "\x1frst\x1f\x1fwdog,reset_in_1\x1f",
 			expect:  []string{"rst", "wdog,reset_in_1"},
 		},
-		{
-			name:    "duplicate tokens are deduplicated",
-			payload: "wdog,reset_in_1\x1frst_in,reset_in_1_deassert\x1fwdog,reset_in_1",
-			expect:  []string{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
-		},
 	}
 
 	for _, test := range tests {

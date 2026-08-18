@@ -57,20 +57,15 @@ type pmuBootFaultInfo struct {
 
 // readPMUBootFaultInfo reads IOPMUBootFaultInfo from every service in the
 // IOService plane that publishes it. An absent property is not an error: it
-// yields an empty result, which classifies as no event.
+// yields an empty result, which classifies as no event. The C reader drops
+// and logs any service that would not fit rather than reporting the read as
+// incomplete, so a non-zero status here is always a fatal IOKit failure.
 func readPMUBootFaultInfo() (pmuBootFaultInfo, error) {
 	if runtime.GOARCH != "arm64" {
 		return pmuBootFaultInfo{}, errShutdownCauseUnsupported
 	}
-	return readPMUBootFaultInfoWithBufferSize(pmuBootFaultInitialBufferSize)
-}
 
-// readPMUBootFaultInfoWithBufferSize performs the native read into a
-// fixed-size buffer. The C reader drops and logs any service that would not
-// fit rather than reporting the read as incomplete, so a non-zero status here
-// is always a fatal IOKit failure.
-func readPMUBootFaultInfoWithBufferSize(size int) (pmuBootFaultInfo, error) {
-	buffer := C.malloc(C.size_t(size))
+	buffer := C.malloc(C.size_t(pmuBootFaultInitialBufferSize))
 	if buffer == nil {
 		return pmuBootFaultInfo{}, errors.New("failed to allocate PMU boot fault buffer")
 	}
@@ -79,7 +74,7 @@ func readPMUBootFaultInfoWithBufferSize(size int) (pmuBootFaultInfo, error) {
 	var written C.size_t
 	status := C.dd_pkg_notableevents_read_pmu_boot_fault_info(
 		(*C.char)(buffer),
-		C.size_t(size),
+		C.size_t(pmuBootFaultInitialBufferSize),
 		&written)
 	if status != 0 {
 		return pmuBootFaultInfo{}, fmt.Errorf("failed to read %s from the IORegistry", pmuBootFaultProperty)
@@ -93,19 +88,14 @@ func readPMUBootFaultInfoWithBufferSize(size int) (pmuBootFaultInfo, error) {
 }
 
 // parsePMUBootFaultPayload splits the flattened native payload into its
-// tokens and dedupes them. It performs no validation; the classifier owns
-// that.
+// tokens. The native reader never emits the same token twice, so no dedup
+// happens here. It performs no validation; the classifier owns that.
 func parsePMUBootFaultPayload(payload string) pmuBootFaultInfo {
 	var info pmuBootFaultInfo
-	seen := make(map[string]struct{})
 	for _, token := range strings.Split(payload, pmuTokenSeparator) {
 		if token == "" {
 			continue
 		}
-		if _, duplicate := seen[token]; duplicate {
-			continue
-		}
-		seen[token] = struct{}{}
 		info.Tokens = append(info.Tokens, token)
 	}
 	return info
