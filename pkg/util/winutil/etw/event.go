@@ -21,18 +21,23 @@ import (
 )
 
 // Event represents a parsed ETW event from an ETL file.
-// ProviderID, EventID, and Timestamp are available directly.
+// ProviderID, EventID, ActivityID, and Timestamp are available directly.
 // Use EventProperties or GetEventPropertyString for event-specific data.
 // The Event is only valid during the ProcessETLFile callback; do not use it after the callback returns.
 type Event struct {
-	ProviderID  windows.GUID
-	EventID     uint16
+	ProviderID windows.GUID
+	EventID    uint16
+	// ActivityID correlates events in the same logical operation; zero GUID when the provider sets none.
+	ActivityID  windows.GUID
 	Timestamp   time.Time
 	eventRecord C.PEVENT_RECORD
 }
 
 // EventProperties returns a map of property names to values for this event.
 // Uses TDH (Trace Data Helper) to parse the event schema and user data.
+// On failure it returns the properties parsed so far alongside the error.
+// Stops at the first failure and does not skip past it: every property is decoded
+// from one shared user-data cursor, so anything after a failure would be garbage.
 func (e *Event) EventProperties() (map[string]interface{}, error) {
 	if e.eventRecord == nil {
 		return nil, errors.New("event record is nil or no longer valid")
@@ -48,7 +53,7 @@ func (e *Event) EventProperties() (map[string]interface{}, error) {
 		name := p.getPropertyName(i)
 		value, err := p.getPropertyValue(i)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse property [%d] %q: %w", i, name, err)
+			return props, fmt.Errorf("failed to parse property [%d] %q: %w", i, name, err)
 		}
 		props[name] = value
 	}
@@ -65,6 +70,7 @@ func (e *Event) GetPropertyByName(name string) (string, error) {
 
 // GetEventPropertyString returns the string value of a named property.
 // GetPropertyString on Event provides the same functionality as a method.
+// A failed decode yields "" even for a property that precedes the failure and was recovered.
 func GetEventPropertyString(e *Event, name string) string {
 	props, err := e.EventProperties()
 	if err != nil {
@@ -90,6 +96,11 @@ func (e *Event) GetProviderID() windows.GUID {
 // GetEventID returns the event's ID.
 func (e *Event) GetEventID() uint16 {
 	return e.EventID
+}
+
+// GetActivityID returns the event's activity GUID, or the zero GUID when the provider does not populate one.
+func (e *Event) GetActivityID() windows.GUID {
+	return e.ActivityID
 }
 
 // GetTimestamp returns the event's timestamp.
