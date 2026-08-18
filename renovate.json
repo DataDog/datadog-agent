@@ -287,6 +287,18 @@
       },
       {
         "customType": "regex",
+        "managerFilePatterns": ["tasks/gpu.py"],
+        "matchStrings": [
+          "GPU_BURNER_VERSION = \"(?<currentDigest>[a-f0-9]{8,40})\""
+        ],
+        "currentValueTemplate": "main",
+        "depNameTemplate": "gpu-burner",
+        "packageNameTemplate": "https://github.com/DataDog/gpu-burner",
+        "datasourceTemplate": "git-refs",
+        "registryUrlTemplate": ""
+      },
+      {
+        "customType": "regex",
         "managerFilePatterns": [
           "test/new-e2e/tests/installer/unix/package_definitions.go"
         ],

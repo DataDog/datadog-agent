@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import tempfile
 import traceback
@@ -25,9 +26,16 @@ DEFAULT_METRICS_LIST_PATH = "gpu_metrics.tsv"
 VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
-GPU_BURNER_ARTIFACT_PATH = "gpu-burner/branches/guillermo-julian-publish-package-to-mass" "/f05853f8/gpu-burner.tar.gz"
+GPU_BURNER_BRANCH = "main"
+GPU_BURNER_VERSION = "f05853f8"
 MASS_READ_URL = "https://mass-read.us1.ddbuild.io/internal/artifact"
 MASS_AUDIENCE = "rapid-dependency-management-mass"
+
+
+def get_gpu_burner_artifact_path() -> str:
+    branch = os.environ.get("GPU_BURNER_BRANCH", GPU_BURNER_BRANCH)
+    version = os.environ.get("GPU_BURNER_VERSION", GPU_BURNER_VERSION)
+    return f"gpu-burner/branches/{branch}/{version}/gpu-burner.tar.gz"
 
 
 def build_binary(ctx, package: str, output_path: str, label: str) -> str:
@@ -54,7 +62,8 @@ def download_gpu_burner(ctx, output_path: str):
     """
     destination = Path(output_path).resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    artifact_url = f"{MASS_READ_URL}/{GPU_BURNER_ARTIFACT_PATH}"
+    gpu_burner_artifact_path = get_gpu_burner_artifact_path()
+    artifact_url = f"{MASS_READ_URL}/{gpu_burner_artifact_path}"
     print("== Fetching mASS authorization token ==", flush=True)
     token = datadog_infra_token(ctx, audience=MASS_AUDIENCE)
 
