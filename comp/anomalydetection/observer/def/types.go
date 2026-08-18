@@ -222,19 +222,15 @@ type AnomalyDebugInfo struct {
 	// Baseline statistics
 	BaselineStart  int64   // timestamp of baseline period start
 	BaselineEnd    int64   // timestamp of baseline period end
-	BaselineMean   float64 // mean of baseline (for CUSUM)
+	BaselineMean   float64 // mean of baseline
 	BaselineMedian float64 // median of baseline
-	BaselineStddev float64 // stddev of baseline (for CUSUM)
+	BaselineStddev float64 // stddev of baseline
 	BaselineMAD    float64 // MAD of baseline
 
 	// Detection parameters
 	Threshold      float64 // threshold that was crossed
-	SlackParam     float64 // k parameter (CUSUM only)
 	CurrentValue   float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
-
-	// For CUSUM: the cumulative sum values leading up to detection
-	CUSUMValues []float64 // S[t] values (may be truncated to last N points)
 }
 
 // ReportOutput is the output model passed to reporters after each advance cycle.
@@ -550,6 +546,10 @@ type StorageReader interface {
 	// GetSeriesMeta returns metadata for one series ref, or nil if the series
 	// has been evicted.
 	GetSeriesMeta(ref SeriesRef) *SeriesMeta
+
+	// GetContext returns the optional context associated with a series, or nil
+	// if the series has been evicted or has no context.
+	GetContext(ref SeriesRef) *MetricContext
 
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
