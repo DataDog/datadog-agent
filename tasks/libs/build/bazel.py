@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import codecs
 import os
-import shlex
 import shutil
 import subprocess
 import sys
@@ -13,7 +12,7 @@ from pathlib import Path
 from typing import IO, NamedTuple
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import get_repo_root
+from tasks.libs.common.utils import get_repo_root, join_command
 
 
 class Label(NamedTuple):
@@ -226,7 +225,7 @@ def bazel(
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise SystemExit(bazel_not_found_message("red"))
     cmd = (("sudo",) if sudo else ()) + (bazelisk, *_insert_omnibazel_flags(args))
-    cmdline = (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd)
+    cmdline = join_command(cmd)
     print(color_message(cmdline.replace(bazelisk, "bazel", 1), "bold"), file=sys.stderr)  # brevity: abspath -> bazel
 
     completed = _run_command(
