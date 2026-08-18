@@ -27,6 +27,7 @@ import (
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -114,15 +115,16 @@ type CollectorTestSuite struct {
 func (suite *CollectorTestSuite) SetupTest() {
 	hostname, _ := hostnameinterface.NewMock("my-hostname")
 	suite.c = newCollector(dependencies{
-		Lc:               compdef.NewTestLifecycle(suite.T()),
-		Config:           config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
-		Log:              logmock.New(suite.T()),
-		HaAgent:          haagentmock.NewMockHaAgent(),
-		HealthPlatform:   healthplatformnoopimpl.NewNoopComponent(),
-		Hostname:         hostname,
-		SenderManager:    aggregator.NewNoOpSenderManager(),
-		MetricSerializer: option.None[serializer.MetricSerializer](),
-		AgentTelemetry:   option.None[agenttelemetry.Component](),
+		Lc:                compdef.NewTestLifecycle(suite.T()),
+		Config:            config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
+		Log:               logmock.New(suite.T()),
+		HaAgent:           haagentmock.NewMockHaAgent(),
+		WorkloadBalancing: workloadbalancingmock.NewMockWorkloadBalancing(),
+		HealthPlatform:    healthplatformnoopimpl.NewNoopComponent(),
+		Hostname:          hostname,
+		SenderManager:     aggregator.NewNoOpSenderManager(),
+		MetricSerializer:  option.None[serializer.MetricSerializer](),
+		AgentTelemetry:    option.None[agenttelemetry.Component](),
 	})
 	suite.c.start(context.TODO())
 }

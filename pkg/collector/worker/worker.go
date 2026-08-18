@@ -14,6 +14,7 @@ import (
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	workloadbalancing "github.com/DataDog/datadog-agent/comp/workloadbalancing/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -57,6 +58,7 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
+	workloadBalancing       workloadbalancing.Component
 	watchdogWarningTimeout  time.Duration
 	isShadowWorker          bool
 }
@@ -65,6 +67,7 @@ type Worker struct {
 func NewWorker(
 	senderManager sender.SenderManager,
 	haAgent haagent.Component,
+	workloadBalancing workloadbalancing.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -81,6 +84,7 @@ func NewWorker(
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
 		haAgent,
+		workloadBalancing,
 		pollingInterval,
 		watchdogWarningTimeout,
 		false,
@@ -91,6 +95,7 @@ func NewWorker(
 func NewShadowWorker(
 	senderManager sender.SenderManager,
 	haAgent haagent.Component,
+	workloadBalancing workloadbalancing.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -107,6 +112,7 @@ func NewShadowWorker(
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
 		haAgent,
+		workloadBalancing,
 		pollingInterval,
 		watchdogWarningTimeout,
 		true,
@@ -121,6 +127,7 @@ func newWorkerWithOptions(
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	getDefaultSenderFunc func() (sender.Sender, error),
 	haAgent haagent.Component,
+	workloadBalancing workloadbalancing.Component,
 	utilizationTickInterval time.Duration,
 	watchdogWarningTimeout time.Duration,
 	isShadowWorker bool,
@@ -155,6 +162,7 @@ func newWorkerWithOptions(
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
 		haAgent:                 haAgent,
+		workloadBalancing:       workloadBalancing,
 		utilizationTickInterval: utilizationTickInterval,
 		watchdogWarningTimeout:  watchdogWarningTimeout,
 		isShadowWorker:          isShadowWorker,
@@ -179,7 +187,12 @@ func (w *Worker) Run(ctx context.Context) {
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
 
-		if w.haAgent.Enabled() && check.IsHASupported() && !w.haAgent.IsActive() {
+		if wbGroup := check.WorkloadBalancingGroupID(); wbGroup != "" {
+			if !w.workloadBalancing.IsGroupActive(wbGroup) {
+				checkLogger.Debug("Check's workload balancing group is not active on this agent, skipping execution...")
+				continue
+			}
+		} else if w.haAgent.Enabled() && check.IsHASupported() && !w.haAgent.IsActive() {
 			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
 			continue
 		}

@@ -203,3 +203,8 @@ func (*Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (*Check) IsHASupported() bool {
 	return false
 }
+
+// WorkloadBalancingGroupID does not apply to shared library checks
+func (*Check) WorkloadBalancingGroupID() string {
+	return ""
+}
