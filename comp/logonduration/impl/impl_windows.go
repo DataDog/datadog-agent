@@ -227,9 +227,6 @@ func durationBetween(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
 
-// milestoneCandidate is one entry of the boot timeline: what the payload renders and, via its
-// duration, the interval bootOffsetFunc treats as observed activity. Both consumers read the
-// same list so no milestone can be rendered from an interval the offset function did not see.
 type milestoneCandidate struct {
 	id       string
 	name     string
@@ -253,16 +250,13 @@ func timelineCandidates(tl BootTimeline) []milestoneCandidate {
 	}
 }
 
-// interval is a half-open [start, end) span of wall-clock time.
 type interval struct {
 	start time.Time
 	end   time.Time
 }
 
 // unobservedIntervals returns the sub-intervals of [start, end) that no milestone covers,
-// sorted and disjoint. A milestone reaching into the region from either side counts for the
-// part that lies inside it; the rest of its span is outside the region and cannot matter,
-// because elision never happens there.
+// sorted and disjoint - bootOffsetFunc walks them in order and stops at the first one past ts.
 func unobservedIntervals(tl BootTimeline, start, end time.Time) []interval {
 	var busy []interval
 	for _, c := range timelineCandidates(tl) {
@@ -295,14 +289,8 @@ func unobservedIntervals(tl BootTimeline, start, end time.Time) []interval {
 
 // bootOffsetFunc returns the boot-relative offset in milliseconds of a timestamp. The stretches of
 // the login screen wait (LoginUIDone -> SessionLogon) where nothing was observed are elided so the
-// timeline renders contiguously; the per-milestone Timestamp retains wall-clock truth.
-//
-// Eliding only the unobserved stretches, rather than the whole wait, is what keeps the mapping
-// order-preserving: its derivative is 1 outside those stretches and 0 inside, never negative. A
-// single-step shift would place a milestone that ran during the wait - Machine Group Policy does,
-// on every trace we have - on a different axis from everything after logon, so it could render
-// ahead of milestones that happened before it. No milestone span can itself be elided, because
-// elision only happens where nothing was observed and a span is an observation.
+// timeline renders contiguously; the per-milestone Timestamp retains wall-clock truth. Eliding only
+// the unobserved stretches, never an observed span, is what keeps the mapping order-preserving.
 func bootOffsetFunc(tl BootTimeline) func(time.Time) int64 {
 	boot := tl.BootStart
 	if boot.IsZero() {

@@ -479,7 +479,6 @@ func TestCSEOffsetsShareTheBootTimelineAxis(t *testing.T) {
 		"invocation ends at or before its pass")
 }
 
-// assertNested requires an invocation to lie inside its pass milestone on the shared axis.
 func assertNested(t *testing.T, inv CSEInvocation, parent Milestone) {
 	t.Helper()
 	assert.GreaterOrEqualf(t, float64(inv.OffsetMs), parent.OffsetMs,
@@ -488,10 +487,6 @@ func assertNested(t *testing.T, inv CSEInvocation, parent Milestone) {
 		"%s ends at or before %s", inv.CSEName, parent.ID)
 }
 
-// The reported shape: a computer pass that ran during the login screen wait, with the user pass
-// after logon. Collapsing the wait in one step left the computer pass on the raw axis while
-// pulling the user pass left by the whole wait, so the earlier pass and its extensions rendered
-// after the later ones.
 func TestCSEOffsetsKeepPassesInOrderAcrossTheLoginScreen(t *testing.T) {
 	f := newGPFixture(t)
 	f.coll.timeline.LoginUIDone = gpTestBoot.Add(10 * time.Second)
@@ -519,7 +514,7 @@ func TestCSEOffsetsKeepPassesInOrderAcrossTheLoginScreen(t *testing.T) {
 	}
 	computer, user := milestones["computer_group_policy"], milestones["user_group_policy"]
 
-	// The 2000ms before the pass and the 10000ms after it are elided; the pass itself is not.
+	// 2000ms before the pass and 10000ms after it are elided; the pass itself is not.
 	assert.Equal(t, float64(10000), computer.OffsetMs)
 	assert.Equal(t, float64(19000), user.OffsetMs)
 

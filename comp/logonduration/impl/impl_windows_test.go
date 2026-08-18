@@ -53,9 +53,8 @@ func fullBootTimeline(boot time.Time) BootTimeline {
 	}
 }
 
-// straddlingGPTimeline is the shape a slow domain-joined boot produces: the computer Group
-// Policy pass starts at the login screen and is still running when the session logs on, in
-// milliseconds off boot so the numbers match a real capture.
+// straddlingGPTimeline is a real capture, in ms off boot: the computer pass starts at the
+// login screen and is still running when the session logs on.
 func straddlingGPTimeline(boot time.Time) BootTimeline {
 	ms := func(n int) time.Time { return boot.Add(time.Duration(n) * time.Millisecond) }
 	return BootTimeline{
@@ -77,8 +76,6 @@ func milestonesByID(milestones []Milestone) map[string]Milestone {
 	return byID
 }
 
-// assertMonotoneTimeline fails if any milestone renders ahead of one that happened before it:
-// walked in wall-clock order, OffsetMs must never go backwards.
 func assertMonotoneTimeline(t *testing.T, milestones []Milestone) {
 	t.Helper()
 	ordered := make([]Milestone, len(milestones))
@@ -93,9 +90,6 @@ func assertMonotoneTimeline(t *testing.T, milestones []Milestone) {
 	}
 }
 
-// The axis must render milestones in the order they happened, for any input. This is the
-// property a single-step collapse of the login screen wait cannot satisfy: it puts anything
-// that ran during the wait on a different axis from everything after logon.
 func TestBootTimelineOffsetsAreMonotone(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 
@@ -196,9 +190,8 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		require.Len(t, milestones, 11)
 
-		// Region is LoginUIDone(10s) -> SessionLogon(29s). The computer pass occupies
-		// [12s, 20s] of it, so only the 2000ms before it and the 9000ms after it are
-		// elided; everything from 20s on shifts left by 11000ms, not by the full 19000ms.
+		// Region is LoginUIDone(10s) -> SessionLogon(29s) and the computer pass holds
+		// [12s, 20s] of it, so 2000+9000ms is elided, not the full 19000ms.
 		expected := []struct {
 			name     string
 			offsetMs float64
@@ -263,8 +256,8 @@ func TestBuildTimelineMilestones(t *testing.T) {
 	t.Run("machine pass straddling logon keeps its full span", func(t *testing.T) {
 		m := milestonesByID(buildTimelineMilestones(straddlingGPTimeline(boot)))
 
-		// Only the 2062ms of login screen before the pass started is unobserved. From
-		// there the machine is busy right through logon, so nothing else is elided.
+		// Only the 2062ms before the pass is unobserved; from there the machine is busy
+		// through logon.
 		gp, logon := m["computer_group_policy"], m["logon_duration"]
 		assert.InDelta(t, 8746.0, gp.OffsetMs, 0.001)
 		assert.InDelta(t, 28529.0, gp.DurationMs, 0.001)
@@ -281,8 +274,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		m := milestonesByID(buildTimelineMilestones(tl))
 
-		// With no interval to preserve the whole 19000ms wait goes, which is what
-		// collapsing it in one step always did.
+		// Nothing to preserve, so the whole 19000ms wait goes - the pre-fix numbers.
 		for id, offset := range map[string]float64{
 			"logon_duration":         10000,
 			"profile_loaded":         12000,
@@ -304,8 +296,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		m := milestonesByID(buildTimelineMilestones(tl))
 
-		// An 8000 that never arrived leaves the pass no span to preserve, so the region
-		// is elided whole and the point lands on its start.
+		// No span to preserve, so the region is elided whole and the point lands on its start.
 		assert.InDelta(t, 10000.0, m["computer_group_policy"].OffsetMs, 0.001)
 		assert.InDelta(t, 0.0, m["computer_group_policy"].DurationMs, 0.001)
 		assert.InDelta(t, 10000.0, m["logon_duration"].OffsetMs, 0.001)
@@ -319,8 +310,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		m := milestonesByID(buildTimelineMilestones(tl))
 
-		// Only [20s, 29s) is unobserved. The part of the pass before LoginUIDone lies
-		// outside the region, where nothing is ever elided.
+		// Only [20s, 29s) is unobserved; the part before LoginUIDone is outside the region.
 		gp := m["computer_group_policy"]
 		assert.InDelta(t, 9000.0, gp.OffsetMs, 0.001)
 		assert.InDelta(t, 11000.0, gp.DurationMs, 0.001)
