@@ -31,11 +31,11 @@ _WINDOWS_BIN_PREFIX_LEN = 73
 # Separators plus the "_" and ".exe.runfiles\_main" the wrapper appends.
 _WINDOWS_RUNFILES_OVERHEAD = 23
 
-_WINDOWS_GC_LINKOPTS = select({
-    # Match the legacy Windows `dda inv test` path: omit DWARF from Go test
-    # binaries to reduce peak external-linker memory while preserving pclntab
-    # symbolization.
-    "@platforms//os:windows": ["-w"],
+_WINDOWS_STRIP_TEST_DWARF_GC_LINKOPTS = select({
+    # Opt-in CI mitigation for large Windows race/cgo test binaries: omit DWARF
+    # to reduce peak external-linker memory while preserving pclntab symbolization.
+    # Local debug builds keep DWARF unless the build setting is explicitly enabled.
+    "//bazel/rules/go:windows_strip_test_dwarf": ["-w"],
     "//conditions:default": [],
 })
 
@@ -132,7 +132,7 @@ def dd_agent_go_test(
         _test_tag_set_check_name(name)
         go_test(
             name = name,
-            gc_linkopts = user_gc_linkopts + _WINDOWS_GC_LINKOPTS,
+            gc_linkopts = user_gc_linkopts + _WINDOWS_STRIP_TEST_DWARF_GC_LINKOPTS,
             gotags = _test_tag_set_tags(),
             tags = user_tags + ["dd_agent_go_test"],
             target_compatible_with = user_tcw,
@@ -144,7 +144,7 @@ def dd_agent_go_test(
         _test_tag_set_check_name(name + "_" + suffix, gotags)
         go_test(
             name = name + "_" + suffix,
-            gc_linkopts = user_gc_linkopts + _WINDOWS_GC_LINKOPTS,
+            gc_linkopts = user_gc_linkopts + _WINDOWS_STRIP_TEST_DWARF_GC_LINKOPTS,
             gotags = _test_tag_set_tags(gotags),
             tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
             target_compatible_with = user_tcw + _test_tag_set_target_compatible_with(gotags),

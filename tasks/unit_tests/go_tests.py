@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 from invoke.exceptions import Exit
 
 from tasks.gotest import (
+    _bazel_strip_test_dwarf,
+    _bazel_strip_test_dwarf_flags,
     _bazel_test_jobs,
     _minimize_bazel_patterns,
     _parse_bazel_test_line,
@@ -239,3 +241,50 @@ class TestBazelTestJobs(unittest.TestCase):
 
         self.assertEqual(stats.passed, 1)
         self.assertIn("--jobs=3", run_bazel.call_args.args)
+
+
+class TestBazelStripTestDwarf(unittest.TestCase):
+    def test_bazel_strip_test_dwarf_from_env_true(self):
+        with patch.dict("os.environ", {"DD_BAZEL_STRIP_TEST_DWARF": "true"}, clear=True):
+            self.assertTrue(_bazel_strip_test_dwarf())
+
+    def test_bazel_strip_test_dwarf_from_env_false_overrides_windows_ci_default(self):
+        with (
+            patch.dict("os.environ", {"DD_BAZEL_STRIP_TEST_DWARF": "0"}, clear=True),
+            patch("tasks.gotest.sys.platform", "win32"),
+            patch("tasks.gotest.running_in_ci", return_value=True),
+        ):
+            self.assertFalse(_bazel_strip_test_dwarf())
+
+    def test_bazel_strip_test_dwarf_default_for_windows_ci(self):
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("tasks.gotest.sys.platform", "win32"),
+            patch("tasks.gotest.running_in_ci", return_value=True),
+        ):
+            self.assertTrue(_bazel_strip_test_dwarf())
+
+    def test_bazel_strip_test_dwarf_default_disabled_with_delve(self):
+        with (
+            patch.dict("os.environ", {"DELVE": "1"}, clear=True),
+            patch("tasks.gotest.sys.platform", "win32"),
+            patch("tasks.gotest.running_in_ci", return_value=True),
+        ):
+            self.assertFalse(_bazel_strip_test_dwarf())
+
+    def test_bazel_strip_test_dwarf_default_disabled_outside_windows_ci(self):
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("tasks.gotest.sys.platform", "linux"),
+            patch("tasks.gotest.running_in_ci", return_value=True),
+        ):
+            self.assertFalse(_bazel_strip_test_dwarf())
+
+    def test_bazel_strip_test_dwarf_rejects_invalid_value(self):
+        with patch.dict("os.environ", {"DD_BAZEL_STRIP_TEST_DWARF": "maybe"}, clear=True):
+            with self.assertRaises(Exit):
+                _bazel_strip_test_dwarf()
+
+    def test_bazel_strip_test_dwarf_flags(self):
+        with patch.dict("os.environ", {"DD_BAZEL_STRIP_TEST_DWARF": "1"}, clear=True):
+            self.assertEqual(_bazel_strip_test_dwarf_flags(), ["--//bazel/rules/go:strip_test_dwarf"])

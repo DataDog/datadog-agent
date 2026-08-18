@@ -78,6 +78,8 @@ TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/bu
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
 DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
+BAZEL_STRIP_TEST_DWARF_ENV = "DD_BAZEL_STRIP_TEST_DWARF"
+BAZEL_STRIP_TEST_DWARF_FLAG = "--//bazel/rules/go:strip_test_dwarf"
 OTEL_UPSTREAM_GO_MOD_PATH = (
     f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
 )
@@ -285,6 +287,31 @@ def _bazel_test_jobs() -> str | None:
     if not jobs.isdigit() or int(jobs) <= 0:
         raise Exit(f"{BAZEL_TEST_JOBS_ENV} must be a positive integer, got {jobs!r}")
     return jobs
+
+
+def _env_bool(name: str) -> bool | None:
+    value = os.environ.get(name)
+    if not value:
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise Exit(f"{name} must be one of 1, 0, true, false, yes, no, on, off; got {value!r}")
+
+
+def _bazel_strip_test_dwarf() -> bool:
+    strip = _env_bool(BAZEL_STRIP_TEST_DWARF_ENV)
+    if strip is not None:
+        return strip
+    return sys.platform == "win32" and running_in_ci() and "DELVE" not in os.environ
+
+
+def _bazel_strip_test_dwarf_flags() -> list[str]:
+    if _bazel_strip_test_dwarf():
+        return [BAZEL_STRIP_TEST_DWARF_FLAG]
+    return []
 
 
 def _run_bazel_tests(
@@ -758,7 +785,7 @@ def test(
 
     exclude_packages: set[str] = set()
     bazel_targets: dict[str, str] = {}
-    bazel_flags = []
+    bazel_flags = _bazel_strip_test_dwarf_flags()
     if race:
         bazel_flags.append("--config=gorace")
     if unit_tests_tags:
