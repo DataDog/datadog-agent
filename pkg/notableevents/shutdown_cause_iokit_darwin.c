@@ -8,6 +8,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 #include <mach/mach.h>
+#include <os/log.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,15 +16,15 @@
 // The IORegistry is machine-controlled, so every traversal bound is explicit
 // even though this runs as root inside system-probe.
 #define DD_PMU_MAX_SERVICES 64
-#define DD_PMU_MAX_TOKENS_PER_SERVICE 128
 
-// DD_PMU_MAX_TOKEN_CHARS bounds one token's length, and with it the render
-// buffer sized from that length. It mirrors maxShutdownTokenBytes in the Go
-// classifier: a UTF-8 encoding is never shorter than the string's UTF-16
-// length, so a longer string cannot pass that limit either. Rejecting it here
-// declines the same payload the classifier would, before its length can decide
-// an allocation size.
-#define DD_PMU_MAX_TOKEN_CHARS 128
+// DD_PMU_MAX_TOKENS_PER_SERVICE and DD_PMU_MAX_TOKEN_CHARS are sized from the
+// largest payload observed on real hardware (the 80-token dictionary in
+// allPMUFaultTokens(), longest token 35 bytes), with a margin rather than an
+// exact fit: 10% over the token count, 50% over the longest token's length.
+// A service that exceeds either bound is dropped rather than failing the
+// whole read; see the caller in dd_pkg_notableevents_read_pmu_boot_fault_info.
+#define DD_PMU_MAX_TOKENS_PER_SERVICE 88
+#define DD_PMU_MAX_TOKEN_CHARS 53
 
 // DD_PMU_TOKEN_INLINE_BYTES is the stack fast path for the common short token,
 // not a maximum: a token longer than this is rendered through the heap rather
@@ -56,9 +57,10 @@ static bool dd_pkg_notableevents_append(
 // processed. Returns 0 on success, -2 when buffer was too small and -3 when
 // the array could not be rendered in full.
 //
-// A token is never shortened and never skipped for its length. Classification
-// runs over the whole set and a missing token can change the elected class, so
-// an incomplete set has to fail the read instead of passing as complete.
+// A token is never shortened or truncated to fit a bound: a service whose
+// array trips DD_PMU_MAX_TOKENS_PER_SERVICE, DD_PMU_MAX_TOKEN_CHARS or the
+// buffer's remaining capacity is dropped by the caller in its entirety and
+// logged, rather than passing a partial token set into classification.
 static int dd_pkg_notableevents_append_tokens(
     CFArrayRef tokens,
     char *buffer,
@@ -158,7 +160,6 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
         return -1;
     }
 
-    int status = 0;
     size_t services = 0;
     io_object_t entry = IO_OBJECT_NULL;
     while ((entry = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
@@ -182,10 +183,16 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
         }
 
         size_t candidate = *written;
-        status = dd_pkg_notableevents_append_tokens(property, buffer, size, &candidate);
+        int status = dd_pkg_notableevents_append_tokens(property, buffer, size, &candidate);
         CFRelease(property);
         if (status != 0) {
-            break;
+            // A bound violation is scoped to this one service: drop its
+            // tokens and keep walking the plane rather than discarding
+            // every service already accumulated in *written.
+            os_log_error(OS_LOG_DEFAULT,
+                "dd_pkg_notableevents: dropping IOPMUBootFaultInfo for one service (status %d)",
+                status);
+            continue;
         }
 
         *written = candidate;
@@ -193,14 +200,12 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
     }
 
     IOObjectRelease(iterator);
-    if (status != 0) {
-        *written = 0;
-    } else if (*written > 0 && buffer[*written - 1] == DD_PMU_TOKEN_SEPARATOR) {
+    if (*written > 0 && buffer[*written - 1] == DD_PMU_TOKEN_SEPARATOR) {
         // Every emitted token is followed by a separator, so the very last
         // token wrote one that has nothing after it. Trim it here rather
         // than avoid writing it in dd_pkg_notableevents_append_tokens, which
         // would need to know whether more tokens follow from a later service.
         *written -= 1;
     }
-    return status;
+    return 0;
 }

@@ -34,10 +34,12 @@ const (
 	// pmuTokenSeparator matches the flattening performed by the C reader.
 	pmuTokenSeparator = "\x1f"
 
-	// pmuBootFaultInitialBufferSize holds every payload observed in testing
-	// with room to spare; pmuBootFaultMaxBufferSize is the single retry.
-	pmuBootFaultInitialBufferSize = 16 * 1024
-	pmuBootFaultMaxBufferSize     = 64 * 1024
+	// pmuBootFaultInitialBufferSize is
+	// DD_PMU_MAX_TOKENS_PER_SERVICE * DD_PMU_MAX_TOKEN_CHARS from
+	// shutdown_cause_iokit_darwin.c: the largest single service the C reader
+	// will ever hand back. A service beyond either bound is dropped and
+	// logged by the C reader itself, so there is nothing here to retry.
+	pmuBootFaultInitialBufferSize = 88 * 53
 )
 
 // errShutdownCauseUnsupported reports a platform where IOPMUBootFaultInfo
@@ -60,26 +62,17 @@ func readPMUBootFaultInfo() (pmuBootFaultInfo, error) {
 	if runtime.GOARCH != "arm64" {
 		return pmuBootFaultInfo{}, errShutdownCauseUnsupported
 	}
-
-	for _, size := range []int{pmuBootFaultInitialBufferSize, pmuBootFaultMaxBufferSize} {
-		info, tooSmall, err := readPMUBootFaultInfoWithBufferSize(size)
-		if err != nil {
-			return pmuBootFaultInfo{}, err
-		}
-		if !tooSmall {
-			return info, nil
-		}
-	}
-	return pmuBootFaultInfo{}, fmt.Errorf("%s exceeds %d bytes", pmuBootFaultProperty, pmuBootFaultMaxBufferSize)
+	return readPMUBootFaultInfoWithBufferSize(pmuBootFaultInitialBufferSize)
 }
 
-// readPMUBootFaultInfoWithBufferSize performs one attempt at the native read,
-// reporting separately whether the buffer was too small so the caller can
-// retry larger.
-func readPMUBootFaultInfoWithBufferSize(size int) (pmuBootFaultInfo, bool, error) {
+// readPMUBootFaultInfoWithBufferSize performs the native read into a
+// fixed-size buffer. The C reader drops and logs any service that would not
+// fit rather than reporting the read as incomplete, so a non-zero status here
+// is always a fatal IOKit failure.
+func readPMUBootFaultInfoWithBufferSize(size int) (pmuBootFaultInfo, error) {
 	buffer := C.malloc(C.size_t(size))
 	if buffer == nil {
-		return pmuBootFaultInfo{}, false, errors.New("failed to allocate PMU boot fault buffer")
+		return pmuBootFaultInfo{}, errors.New("failed to allocate PMU boot fault buffer")
 	}
 	defer C.free(buffer)
 
@@ -88,22 +81,15 @@ func readPMUBootFaultInfoWithBufferSize(size int) (pmuBootFaultInfo, bool, error
 		(*C.char)(buffer),
 		C.size_t(size),
 		&written)
-
-	switch status {
-	case 0:
-	case -2:
-		return pmuBootFaultInfo{}, true, nil
-	case -3:
-		return pmuBootFaultInfo{}, false, fmt.Errorf("%s could not be read in full", pmuBootFaultProperty)
-	default:
-		return pmuBootFaultInfo{}, false, fmt.Errorf("failed to read %s from the IORegistry", pmuBootFaultProperty)
+	if status != 0 {
+		return pmuBootFaultInfo{}, fmt.Errorf("failed to read %s from the IORegistry", pmuBootFaultProperty)
 	}
 
 	if written == 0 {
-		return pmuBootFaultInfo{}, false, nil
+		return pmuBootFaultInfo{}, nil
 	}
 	payload := C.GoStringN((*C.char)(buffer), C.int(written))
-	return parsePMUBootFaultPayload(payload), false, nil
+	return parsePMUBootFaultPayload(payload), nil
 }
 
 // parsePMUBootFaultPayload splits the flattened native payload into its

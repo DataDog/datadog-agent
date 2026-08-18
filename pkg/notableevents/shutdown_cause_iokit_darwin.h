@@ -12,10 +12,11 @@
 // IOPMUBootFaultInfo string array in the IOService plane into buffer. Every
 // token from every publishing service lands in the same flat, 0x1f-separated
 // sequence with no service-boundary marker, so no Core Foundation type
-// crosses the cgo boundary. Returns 0 on success, -1 on an IOKit failure, -2
-// when buffer was too small and -3 when a service's array could not be
-// rendered in full, which is never reported as a partial read. *written
-// receives the byte count.
+// crosses the cgo boundary. A service whose array exceeds
+// DD_PMU_MAX_TOKENS_PER_SERVICE, DD_PMU_MAX_TOKEN_CHARS or the buffer's
+// remaining capacity is dropped and logged rather than failing the read.
+// Returns 0 on success and -1 on an IOKit failure or invalid arguments.
+// *written receives the byte count.
 int dd_pkg_notableevents_read_pmu_boot_fault_info(
     char *buffer,
     size_t size,
