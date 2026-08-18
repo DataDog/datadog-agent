@@ -25,6 +25,8 @@ type Component interface {
 	AddConfigProvider(provider types.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
 	LoadAndRun(ctx context.Context)
 	GetUnresolvedConfigs() []integration.Config
+	// GetAllConfigs returns the scheduled configs: resolved templates (%%VARIABLES%% substituted) plus non-template configs.
+	GetAllConfigs() []integration.Config
 	AddListeners(listenerConfigs []pkgconfigsetup.Listeners)
 	AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool)
 	RemoveScheduler(name string)

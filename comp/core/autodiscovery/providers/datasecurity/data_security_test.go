@@ -48,6 +48,10 @@ func (m *mockedAutodiscovery) GetUnresolvedConfigs() []integration.Config {
 	return m.configs
 }
 
+func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config {
+	return m.configs
+}
+
 func getMockedAutodiscovery(t *testing.T, configs []integration.Config) autodiscovery.Component {
 	return &mockedAutodiscovery{
 		Component: fxutil.Test[autodiscovery.Component](t, noopautoconfig.Module()),
@@ -115,6 +119,58 @@ const scanTaskUnknownHostConfig = `{
   ]
 }`
 
+// scanTaskInstanceIdentityConfig matches the instance by database_instance_name, not host.
+const scanTaskInstanceIdentityConfig = `{
+  "task_id": "task-1",
+  "scanning_rules": [
+    {"id": "rule-1", "license": "proprietary", "pattern": "\\d+"}
+  ],
+  "scan_data": [
+    {
+      "sub_task_id": "sub-1",
+      "query": "SELECT * FROM users",
+      "timeout_seconds": 30,
+      "entity": {
+        "platform": "postgres",
+        "database_cluster_name": "cluster",
+        "database_instance_name": "db-host",
+        "database_host_name": "reported-elsewhere",
+        "database": "app",
+        "schema": "public",
+        "table": "users"
+      }
+    }
+  ]
+}`
+
+// wantInstanceIdentityCheckInstance is the check instance expected for scanTaskInstanceIdentityConfig.
+const wantInstanceIdentityCheckInstance = `
+min_collection_interval: 0
+task_id: task-1
+scanning_rules:
+  - id: rule-1
+    license: proprietary
+    pattern: '\d+'
+scan_data:
+  - sub_task_id: sub-1
+    query: SELECT * FROM users
+    timeout_seconds: 30
+    entity:
+      platform: postgres
+      database_cluster_name: cluster
+      database_instance_name: db-host
+      database_host_name: reported-elsewhere
+      database: app
+      schema: public
+      table: users
+    connection:
+      host: db-host
+      port: 5678
+      dbname: app
+      username: datadog
+      password: secret
+`
+
 // wantCheckInstance is the check instance the provider is expected to emit for
 // scanTaskConfig once the local postgres connection has been resolved. The
 // scanning rule (with its license) is forwarded verbatim.
@@ -180,6 +236,10 @@ func TestControllerUpdate(t *testing.T) {
 		Name:      dataSecurityCheckName,
 		Instances: []integration.Data{integration.Data(wantCheckInstance)},
 	}
+	wantInstanceIdentityScheduledConfig := integration.Config{
+		Name:      dataSecurityCheckName,
+		Instances: []integration.Data{integration.Data(wantInstanceIdentityCheckInstance)},
+	}
 	tests := []struct {
 		name          string
 		remoteConfigs []map[string]state.RawConfig // successive RC updates, each keyed by path
@@ -197,9 +257,15 @@ func TestControllerUpdate(t *testing.T) {
 			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskUnknownHostConfig)}},
 			wantStatus: map[string]state.ApplyStatus{"rc-1": {
 				State: state.ApplyStateError,
-				Error: `failed to build sub task "sub-1": postgres integration with host="unknown-host" not found`,
+				Error: `failed to build sub task "sub-1": postgres integration for entity (host="unknown-host", instance="instance", cluster="cluster") not found`,
 			}},
 			wantChanges: []integration.ConfigChanges{{}},
+		},
+		{
+			name:          "scan task matched by database_instance_name schedules check",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskInstanceIdentityConfig)}},
+			wantStatus:    map[string]state.ApplyStatus{"rc-1": {State: state.ApplyStateAcknowledged}},
+			wantChanges:   []integration.ConfigChanges{{Schedule: []integration.Config{wantInstanceIdentityScheduledConfig}}},
 		},
 		{
 			name:          "re-delivery at the same RC path unschedules the previous check",
