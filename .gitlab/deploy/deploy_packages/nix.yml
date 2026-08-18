@@ -47,6 +47,10 @@ deploy_packages_iot_deb-arm64-7:
 deploy_packages_iot_deb-armhf-7:
   extends: .deploy_packages_deb
   needs: [ iot_agent_deb-armhf ]
+  # armv7 support is being dropped. Publishing is manual-only so we stop
+  # shipping it by default while keeping the build/package jobs intact.
+  # To revert, remove this rules override (falls back to .deploy_packages_deb's default).
+  rules: !reference [.on_deploy_manual]
   variables:
     PACKAGE_ARCH: armhf
 
@@ -113,6 +117,10 @@ deploy_packages_iot_rpm-arm64-7:
 deploy_packages_iot_rpm-armhf-7:
   extends: .deploy_packages_rpm
   needs: [ iot_agent_rpm-armhf ]
+  # armv7 support is being dropped. Publishing is manual-only so we stop
+  # shipping it by default while keeping the build/package jobs intact.
+  # To revert, remove this rules override (falls back to .deploy_packages_rpm's default).
+  rules: !reference [.on_deploy_manual]
   variables:
     PACKAGE_ARCH: armv7hl
 
