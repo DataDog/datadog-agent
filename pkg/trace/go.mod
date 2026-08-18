@@ -26,7 +26,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5
-	github.com/DataDog/datadog-go/v5 v5.9.0
+	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/go-viper/mapstructure/v2 v2.5.0
@@ -208,7 +208,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../pkg/config/basic
-	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../pkg/config/helper
