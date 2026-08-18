@@ -9,6 +9,7 @@ package httphelpers
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"github.com/mdlayher/socket"
@@ -23,10 +24,51 @@ func dialVSockContext(ctx context.Context, cid, port uint32) (net.Conn, error) {
 		return nil, err
 	}
 
-	if _, err := conn.Connect(ctx, &unix.SockaddrVM{CID: cid, Port: port}); err != nil {
+	remote, err := conn.Connect(ctx, &unix.SockaddrVM{CID: cid, Port: port})
+	if err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
 
-	return conn, nil
+	local, err := conn.Getsockname()
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+
+	localAddr, ok := local.(*unix.SockaddrVM)
+	if !ok {
+		_ = conn.Close()
+		return nil, fmt.Errorf("unexpected local vsock address %T", local)
+	}
+	remoteAddr, ok := remote.(*unix.SockaddrVM)
+	if !ok {
+		_ = conn.Close()
+		return nil, fmt.Errorf("unexpected remote vsock address %T", remote)
+	}
+
+	return &vsockConn{
+		Conn:       conn,
+		localAddr:  vsockAddr{cid: localAddr.CID, port: localAddr.Port},
+		remoteAddr: vsockAddr{cid: remoteAddr.CID, port: remoteAddr.Port},
+	}, nil
 }
+
+// vsockConn adapts socket.Conn to net.Conn. socket.Conn has context-aware
+// Connect, but does not expose the addresses required by net.Conn.
+type vsockConn struct {
+	*socket.Conn
+	localAddr  net.Addr
+	remoteAddr net.Addr
+}
+
+func (c *vsockConn) LocalAddr() net.Addr  { return c.localAddr }
+func (c *vsockConn) RemoteAddr() net.Addr { return c.remoteAddr }
+
+type vsockAddr struct {
+	cid  uint32
+	port uint32
+}
+
+func (a vsockAddr) Network() string { return "vsock" }
+func (a vsockAddr) String() string  { return fmt.Sprintf("%d:%d", a.cid, a.port) }
