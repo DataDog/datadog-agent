@@ -267,12 +267,12 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 					seriesMeta, d.scoreBuf = collectLastPoints(storage, meta.Ref, p.Timestamp, d.WindowSize, agg, d.scoreBuf)
 					if len(d.scoreBuf) >= d.MinPoints {
 						d.ready = true
-					}
-					if anomaly, fired := d.scoreBiweight(d.scoreBuf, seriesMeta, agg, p.Timestamp); fired {
-						anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
-						allAnomalies = append(allAnomalies, anomaly)
-						state.cooldownLeft = d.CooldownPoints
-						state.lastFireTime = p.Timestamp
+						if anomaly, fired := d.scoreBiweight(d.scoreBuf, seriesMeta, agg, p.Timestamp); fired {
+							anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
+							allAnomalies = append(allAnomalies, anomaly)
+							state.cooldownLeft = d.CooldownPoints
+							state.lastFireTime = p.Timestamp
+						}
 					}
 				}
 

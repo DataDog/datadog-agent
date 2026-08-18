@@ -61,8 +61,8 @@ type holtStateKey struct {
 
 // holtSeriesState holds the streaming state for one (series, aggregation).
 //
-// The lifecycle is warmup → smoothing. During warmup, points accumulate in
-// warmupBuf until WarmupPoints points have been seen; at that boundary the
+// The lifecycle is warmup → smoothing. During warmup, scalar half-window sums
+// accumulate until WarmupPoints points have been seen; at that boundary the
 // level and trend are seeded and warmedUp flips to true. From then on the
 // recurrences run on every ingested point; a separate residual window and
 // a raw-value window feed the two MAD-based gates.
@@ -73,9 +73,13 @@ type holtSeriesState struct {
 	lastProcessedTime  int64
 	lastProcessedValue float64
 
-	// warmup buffer; cap = WarmupPoints. Discarded once warmedUp.
-	warmupBuf []float64
-	warmedUp  bool
+	// Warmup aggregates retain only the values needed to seed the two-half
+	// estimate; raw warmup points remain in storage rather than detector state.
+	warmupCount      int
+	warmupFirstValue float64
+	warmupFirstSum   float64
+	warmupLastSum    float64
+	warmedUp         bool
 
 	// Holt smoothed state. After warmup, level ≈ x_t and trend ≈ Δx_t.
 	level float64
@@ -320,7 +324,6 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 // buffers. Splitting allocation here keeps Detect's hot path branch-free.
 func (d *HoltResidualDetector) newState() *holtSeriesState {
 	return &holtSeriesState{
-		warmupBuf:        make([]float64, 0, d.WarmupPoints),
 		resWin:           make([]float64, 0, d.ResidualWindow),
 		valWin:           make([]float64, 0, d.ResidualWindow),
 		recentTimestamps: make([]int64, 0, holtTimestampRing),
@@ -332,7 +335,7 @@ func (d *HoltResidualDetector) newState() *holtSeriesState {
 // points were ingested.
 //
 // Lifecycle:
-//   - During warmup, points accumulate in warmupBuf. When the buffer fills
+//   - During warmup, scalar half-window sums accumulate. When warmup completes
 //     to WarmupPoints, we seed level and trend from its halves and flip
 //     warmedUp.
 //   - Post-warmup, each point produces a forecast and residual; the gate
@@ -373,11 +376,19 @@ func (d *HoltResidualDetector) ingestNewPoints(
 		pushTimestamp(state, p.Timestamp)
 
 		if !state.warmedUp {
-			state.warmupBuf = append(state.warmupBuf, p.Value)
-			if len(state.warmupBuf) >= d.WarmupPoints {
+			state.warmupCount++
+			if state.warmupCount == 1 {
+				state.warmupFirstValue = p.Value
+			}
+			half := d.WarmupPoints / 2
+			if state.warmupCount <= half {
+				state.warmupFirstSum += p.Value
+			}
+			if state.warmupCount > d.WarmupPoints-half {
+				state.warmupLastSum += p.Value
+			}
+			if state.warmupCount >= d.WarmupPoints {
 				seedLevelTrend(state, d.WarmupPoints)
-				// Free the bootstrap buffer — it is not used again.
-				state.warmupBuf = nil
 				state.warmedUp = true
 			}
 			return
@@ -538,32 +549,22 @@ func (d *HoltResidualDetector) processPoint(
 	return anomaly, true
 }
 
-// seedLevelTrend bootstraps the smoother from the warmup buffer using the
+// seedLevelTrend bootstraps the smoother from warmup aggregates using the
 // classic two-half average:
 //
 //	L_0 = mean(first half), T_0 = (mean(last half) - mean(first half)) / half.
-//
-// Caller must pass n equal to len(state.warmupBuf) at the boundary; this
-// keeps the math obvious even though n is duplicated with d.WarmupPoints.
 func seedLevelTrend(state *holtSeriesState, n int) {
 	half := n / 2
 	if half < 1 {
 		// Degenerate config: fall back to single-point seed.
 		if n == 1 {
-			state.level = state.warmupBuf[0]
+			state.level = state.warmupFirstValue
 			state.trend = 0
 		}
 		return
 	}
-	var sumFirst, sumLast float64
-	for i := 0; i < half; i++ {
-		sumFirst += state.warmupBuf[i]
-	}
-	for i := n - half; i < n; i++ {
-		sumLast += state.warmupBuf[i]
-	}
-	meanFirst := sumFirst / float64(half)
-	meanLast := sumLast / float64(half)
+	meanFirst := state.warmupFirstSum / float64(half)
+	meanLast := state.warmupLastSum / float64(half)
 	state.level = meanFirst
 	state.trend = (meanLast - meanFirst) / float64(half)
 }
