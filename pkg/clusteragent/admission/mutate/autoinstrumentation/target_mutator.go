@@ -305,11 +305,13 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	// Library selection still short-circuits on annotations (unchanged GA
 	// precedence). SSI mode is decided separately from whether a target/policy
 	// matched the pod — not from a namespace-level eligibility approximation.
-	target := m.getTarget(pod)
+	// Load the policy set once so target selection and SSI mode cannot diverge
+	// if remote config swaps active between two match evaluations.
+	set := m.activeSet()
+	target, ssi := m.resolveTargetAndSSI(set, pod)
 	if target == nil {
 		return false, nil
 	}
-	ssi := m.getMatchingTarget(pod) != nil
 	extracted := m.core.initExtractedLibInfo(pod, ssi).withLibs(target.libVersions)
 
 	// Language detection is an SSI-only fallback when the selected target did
@@ -409,12 +411,19 @@ type targetInternal struct {
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
 // Library annotations still short-circuit matching (GA precedence unchanged in this change).
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
+	target, _ := m.resolveTargetAndSSI(m.activeSet(), pod)
+	return target
+}
+
+// resolveTargetAndSSI selects what to inject and whether the pod is in SSI mode
+// from a single loaded policy set snapshot.
+func (m *TargetMutator) resolveTargetAndSSI(set *policySet, pod *corev1.Pod) (*targetInternal, bool) {
+	matched := m.matchingTargetFromSet(set, pod)
 	result := m.getTargetFromAnnotation(pod)
 	if !result.shouldContinue {
-		return result.target
+		return result.target, matched != nil
 	}
-
-	return m.getMatchingTarget(pod)
+	return matched, matched != nil
 }
 
 type annotationResult struct {
@@ -476,8 +485,10 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 // the first policy that evaluates to true wins, preserving the previous
 // first-match semantics without relying on CGO or k8s label selectors.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
-	set := m.activeSet()
+	return m.matchingTargetFromSet(m.activeSet(), pod)
+}
 
+func (m *TargetMutator) matchingTargetFromSet(set *policySet, pod *corev1.Pod) *targetInternal {
 	// If the namespace is disabled, we don't need to check the targets.
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
