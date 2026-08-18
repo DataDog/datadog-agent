@@ -55,7 +55,7 @@ func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(result) == 1 {
+	if len(result) == 0 {
 		return nil, nil
 	}
 	r := result[0]
