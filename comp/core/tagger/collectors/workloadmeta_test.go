@@ -3516,7 +3516,7 @@ func TestHandleContainer(t *testing.T) {
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 			collector.staticTags = tt.staticTags
 
-			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
+			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags, nil)
 
 			actual := collector.handleContainer(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -3752,9 +3752,10 @@ func TestHandleContainerImage(t *testing.T) {
 	taggerEntityID := types.NewEntityID(types.ContainerImageMetadata, entityID.ID)
 
 	tests := []struct {
-		name     string
-		image    workloadmeta.ContainerImageMetadata
-		expected []*types.TagInfo
+		name         string
+		configValues map[string]interface{}
+		image        workloadmeta.ContainerImageMetadata
+		expected     []*types.TagInfo
 	}{
 		{
 			name: "basic",
@@ -3848,11 +3849,63 @@ func TestHandleContainerImage(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Image OCI annotations are turned into tags when they match the
+			// container_image_annotations_as_tags mapping. Annotations that are
+			// not in the mapping are ignored.
+			name: "annotations as tags",
+			configValues: map[string]interface{}{
+				"container_image_annotations_as_tags": map[string]string{
+					"containerd.io/snapshot/nydus-builder-version": "nydus_builder_version",
+					"target": "+image_target",
+				},
+			},
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+					Annotations: map[string]string{
+						"containerd.io/snapshot/nydus-builder-version": "v2.3.7",
+						"target": "staging",
+						"org.opencontainers.image.source": "https://github.com/DataDog/images",
+					},
+				},
+				RepoTags: []string{
+					"datadog/agent:main-nydus",
+				},
+				OS:           "linux",
+				OSVersion:    "1",
+				Architecture: "amd64",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               containerImageSource,
+					EntityID:             taggerEntityID,
+					HighCardTags: []string{
+						"image_target:staging",
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"architecture:amd64",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+						"image_tag:main-nydus",
+						"nydus_builder_version:v2.3.7",
+						"os_name:linux",
+						"os_version:1",
+						"short_image:agent",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
+			for k, v := range tt.configValues {
+				cfg.SetInTest(k, v)
+			}
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 
 			actual := collector.handleContainerImage(workloadmeta.Event{
