@@ -26,6 +26,73 @@ static u64 __attribute__((always_inline)) read_thread_pointer() {
     return tp;
 }
 
+#if defined(__aarch64__)
+// Processor state bits used to tell a user-mode register context from a
+// kernel-mode one. From arch/arm64/include/uapi/asm/ptrace.h.
+#define PSR_MODE_MASK 0x0000000f
+#define PSR_MODE_EL0t 0x00000000
+
+// bpf_task_pt_regs() landed in kernel 5.15. The call sites below are guarded by
+// this load-time constant so the verifier folds the branch away and never walks
+// the (unknown) helper call on older kernels.
+static __attribute__((always_inline)) u64 has_task_pt_regs_helper() {
+    u64 has_task_pt_regs_helper;
+    LOAD_CONSTANT("has_task_pt_regs_helper", has_task_pt_regs_helper);
+    return has_task_pt_regs_helper;
+}
+#endif
+
+// Reads the current goroutine pointer out of the task's saved user registers.
+//
+// On arm64 the Go ABI keeps g in R28, and a program built without cgo keeps it
+// *only* there: runtime.save_g is a no-op when runtime.iscgo is false, so the
+// TLS slot is never written and user space reports a tls_offset of 0.
+// See https://github.com/golang/go/blob/master/src/runtime/tls_arm64.s.
+//
+// x86_64 has no dedicated g register, so g always lives in TLS and there is
+// nothing to fall back to.
+static u64 __attribute__((always_inline)) read_go_g_register() {
+#if defined(__aarch64__)
+    // bpf_task_pt_regs() requires kernel 5.15; the constant is folded at load
+    // time so the verifier never walks the call on older kernels.
+    if (!has_task_pt_regs_helper()) {
+        return 0;
+    }
+
+    // Must be bpf_get_current_task_btf(): bpf_task_pt_regs() only accepts a
+    // trusted BTF pointer, and bpf_get_current_task() returns a scalar, which
+    // the verifier rejects with "R1 type=scalar expected=ptr_, trusted_ptr_".
+    struct task_struct *task = bpf_get_current_task_btf();
+    if (task == NULL) {
+        return 0;
+    }
+
+    struct user_pt_regs *user_regs = (struct user_pt_regs *)bpf_task_pt_regs(task);
+    if (user_regs == NULL) {
+        return 0;
+    }
+
+    // Not every task we run on has a user-mode register context: kernel threads
+    // do not, and the network programs below run in softirq on whatever task
+    // happens to be current. Only EL0t means the saved state is user mode.
+    u64 pstate = 0;
+    if (bpf_probe_read_kernel(&pstate, sizeof(pstate), &user_regs->pstate) < 0) {
+        return 0;
+    }
+    if ((pstate & PSR_MODE_MASK) != PSR_MODE_EL0t) {
+        return 0;
+    }
+
+    u64 g_addr = 0;
+    if (bpf_probe_read_kernel(&g_addr, sizeof(g_addr), &user_regs->regs[28]) < 0) {
+        return 0;
+    }
+    return g_addr;
+#else
+    return 0;
+#endif
+}
+
 // --- Go pprof labels reader (for dd-trace-go) ---
 // dd-trace-go sets goroutine-level pprof labels (e.g. "span id",
 // "local root span id"). Rather than interpret them in eBPF, we copy the raw
@@ -33,7 +100,7 @@ static u64 __attribute__((always_inline)) read_thread_pointer() {
 // (mirrors the syscall_ctx design).
 //
 // The chain from eBPF is:
-//   thread_pointer + tls_offset -> G (runtime.g)
+//   thread_pointer + tls_offset -> G (runtime.g)   (or R28, see read_go_g_register)
 //   G + m_offset                -> M (runtime.m)
 //   M + curg                    -> curg (current user goroutine)
 //   curg + labels               -> labels pointer (map or slice)
@@ -156,15 +223,21 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
         return 0;
     }
 
-    u64 tp = read_thread_pointer();
-    if (tp == 0) {
-        return 0;
-    }
-
-    // TLS -> G
+    // TLS -> G, with a fallback to the g register where the ABI has one. A
+    // tls_offset of 0 means user space determined that this binary does not keep
+    // g in TLS at all, so the register is the only source.
     u64 g_addr = 0;
-    if (bpf_probe_read_user(&g_addr, sizeof(g_addr),
-                            (void *)((s64)tp + offs->tls_offset)) < 0 || g_addr == 0) {
+    if (offs->tls_offset != 0) {
+        u64 tp = read_thread_pointer();
+        if (tp != 0 && bpf_probe_read_user(&g_addr, sizeof(g_addr),
+                                           (void *)((s64)tp + offs->tls_offset)) < 0) {
+            g_addr = 0;
+        }
+    }
+    if (g_addr == 0) {
+        g_addr = read_go_g_register();
+    }
+    if (g_addr == 0) {
         return 0;
     }
 

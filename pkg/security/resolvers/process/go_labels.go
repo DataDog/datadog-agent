@@ -11,125 +11,85 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"runtime"
+	"go/version"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
+	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
+
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
-	"github.com/go-delve/delve/pkg/goversion"
 )
 
 // goLabelsOffsetsValueSize is the serialized size of go_labels_offsets_t:
 // 6 * u32 + 1 * s32 = 28 bytes.
 const goLabelsOffsetsValueSize = 28
 
+// Supported Go version range. The struct offsets below are hand-maintained per
+// release, so a version we have never seen must be rejected rather than silently
+// read with the offsets of an older one.
+const (
+	minGoVersion = "go1.13"
+	// maxGoVersion is exclusive.
+	maxGoVersion = "go1.28"
+)
+
+var (
+	// errDecodeSymbol is returned when the TLS offset could not be recovered from
+	// the instruction stream of the symbol we decode.
+	errDecodeSymbol = errors.New("failed to decode symbol")
+	// errRuntimeIsCgoUnavailable is returned when runtime.iscgo could not be read
+	// out of the binary, so we cannot tell whether the runtime keeps g in TLS.
+	errRuntimeIsCgoUnavailable = errors.New("runtime.iscgo value unavailable")
+)
+
 // getGoLabelsOffsets returns the Go runtime struct offsets for pprof label reading,
-// based on the Go version. Ported from the OTel eBPF profiler's runtime_data.go.
+// based on the Go version. Kept in sync with the OTel eBPF profiler's
+// interpreter/go/offsets.go (DataDog fork); update both together.
 //
 // References:
 //   - runtime.g: https://github.com/golang/go/blob/master/src/runtime/runtime2.go
 //   - runtime.m: https://github.com/golang/go/blob/master/src/runtime/runtime2.go
 //   - runtime.hmap: https://github.com/golang/go/blob/master/src/runtime/map.go
-func getGoLabelsOffsets(goVer goversion.GoVersion) (mOffset, curg, labels, hmapCount, hmapLog2BucketCount, hmapBuckets uint32) {
+func getGoLabelsOffsets(goVersion string) (mOffset, curg, labels, hmapCount, hmapLog2BucketCount, hmapBuckets uint32) {
 	// m_offset: offset of 'm' field in runtime.g — stable across versions.
 	mOffset = 48
 
 	// curg: offset of 'curg' field in runtime.m.
-	if goVer.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 25}) {
+	curg = 192
+	if version.Compare(goVersion, "go1.25") >= 0 {
 		curg = 184
-	} else {
-		curg = 192
 	}
 
 	// labels: offset of 'labels' field in runtime.g.
+	// Go 1.24+ changed labels from a map to a slice — signal that to eBPF by
+	// leaving hmap_buckets at 0.
 	switch {
-	case goVer.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 26}):
-		labels = 352
-		// Go 1.24+ changed labels from map to slice — signal with hmap_buckets=0.
-		return
-	case goVer.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 25}):
-		labels = 344
-		return
-	case goVer.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 24}):
+	case version.Compare(goVersion, "go1.26") >= 0:
 		labels = 352
 		return
-	case goVer.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 23}):
+	case version.Compare(goVersion, "go1.25") >= 0:
+		labels = 344
+		return
+	case version.Compare(goVersion, "go1.24") >= 0:
 		labels = 352
-	case goVer.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 21}):
-		labels = 344
-	case goVer.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 17}):
-		labels = 360
-	default:
-		labels = 344
+		return
 	}
 
 	// Go <1.24: labels is a map, need hmap offsets.
 	hmapLog2BucketCount = 9
 	hmapBuckets = 16
-	return
-}
 
-// getGoTLSGOffset computes the TLS offset for the G pointer in a Go binary.
-// This is the offset from the thread pointer (fsbase on x86_64, tpidr_el0 on ARM64)
-// to the runtime.g pointer.
-//
-// Based on github.com/go-delve/delve/pkg/proc.(*BinaryInfo).setGStructOffsetElf.
-func getGoTLSGOffset(elfFile *safeelf.File) (int32, error) {
-	var tls *safeelf.Prog
-	for _, prog := range elfFile.Progs {
-		if prog.Type == safeelf.PT_TLS {
-			tls = prog
-			break
-		}
-	}
-
-	switch runtime.GOARCH {
-	case "amd64":
-		// Look for runtime.tlsg symbol.
-		syms, err := elfFile.Symbols()
-		if err != nil {
-			// Pure Go binary without symbol table: G is at fs-8.
-			return -8, nil
-		}
-		var tlsg *safeelf.Symbol
-		for i := range syms {
-			if syms[i].Name == "runtime.tlsg" {
-				tlsg = &syms[i]
-				break
-			}
-		}
-		if tlsg == nil || tls == nil {
-			return -8, nil // Pure Go, no cgo: G at fs-8.
-		}
-
-		// Linker padding formula (from LLVM lld):
-		memsz := tls.Memsz + (-tls.Vaddr-tls.Memsz)&(tls.Align-1)
-		// TLS register points to end of TLS block; tlsg is offset from start.
-		offset := int64(tlsg.Value) - int64(memsz)
-		return int32(offset), nil
-
-	case "arm64":
-		syms, err := elfFile.Symbols()
-		if err != nil {
-			return 16, nil // Default: 2 * pointer_size = 16.
-		}
-		var tlsg *safeelf.Symbol
-		for i := range syms {
-			if syms[i].Name == "runtime.tls_g" {
-				tlsg = &syms[i]
-				break
-			}
-		}
-		if tlsg == nil || tls == nil {
-			return 16, nil
-		}
-		offset := int64(tlsg.Value) + 16 + int64((tls.Vaddr-16)&(tls.Align-1))
-		return int32(offset), nil
-
+	switch {
+	case version.Compare(goVersion, "go1.23") >= 0:
+		labels = 352
+	case version.Compare(goVersion, "go1.21") >= 0:
+		labels = 344
+	case version.Compare(goVersion, "go1.17") >= 0:
+		labels = 360
 	default:
-		return 0, fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
+		labels = 344
 	}
+	return
 }
 
 // resolveGoLabels discovers the Go runtime offsets for pprof label reading
@@ -139,38 +99,42 @@ func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 		return errors.New("go_labels_procs map not available")
 	}
 
-	pidStr := strconv.FormatUint(uint64(pid), 10)
-	exePath := kernel.HostProc(pidStr, "exe")
+	exePath := kernel.HostProc(strconv.FormatUint(uint64(pid), 10), "exe")
 
-	elfFile, err := safeelf.Open(exePath)
+	elfFile, err := pfelf.Open(exePath)
 	if err != nil {
 		return fmt.Errorf("failed to open ELF: %w", err)
 	}
 	defer elfFile.Close()
 
-	// Detect Go version from the binary.
-	goVersionStr, err := binversion.ReadElfBuildInfo(elfFile)
+	// Detect the Go version from the binary. This reads .go.buildinfo, which
+	// survives `-ldflags=-s -w`.
+	goVersion, err := elfFile.GoVersion()
 	if err != nil {
-		return fmt.Errorf("not a Go binary or failed to read build info: %w", err)
+		return fmt.Errorf("failed to read Go build info: %w", err)
+	}
+	if goVersion == "" {
+		return errors.New("not a Go binary")
 	}
 
-	goVer, ok := goversion.Parse(goVersionStr)
-	if !ok {
-		return fmt.Errorf("failed to parse Go version: %s", goVersionStr)
+	if version.Compare(goVersion, minGoVersion) < 0 || version.Compare(goVersion, maxGoVersion) >= 0 {
+		return fmt.Errorf("unsupported Go version %s (need >= %s and < %s)", goVersion, minGoVersion, maxGoVersion)
 	}
 
-	// Minimum supported Go version: 1.13.
-	if !goVer.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13}) {
-		return fmt.Errorf("unsupported Go version: %s (need >= 1.13)", goVersionStr)
-	}
+	// Get struct offsets from the version table.
+	mOffset, curgOffset, labelsOffset, hmapCount, hmapLog2BC, hmapBuckets := getGoLabelsOffsets(goVersion)
 
-	// Get struct offsets from version table.
-	mOffset, curgOffset, labelsOffset, hmapCount, hmapLog2BC, hmapBuckets := getGoLabelsOffsets(goVer)
-
-	// Get TLS G offset from ELF analysis.
-	tlsOffset, err := getGoTLSGOffset(elfFile)
-	if err != nil {
-		return fmt.Errorf("failed to compute TLS G offset: %w", err)
+	// Get the TLS G offset by decoding the runtime's own g-load sequence.
+	tlsOffset, err := extractTLSGOffset(elfFile)
+	switch {
+	case err == nil:
+	case errors.Is(err, errDecodeSymbol), errors.Is(err, errRuntimeIsCgoUnavailable):
+		// Not fatal: extractTLSGOffset still returns the best value it can (the
+		// conventional offset on amd64, 0 on arm64). A 0 offset means "g is not
+		// in TLS", and eBPF falls back to the g register where the ABI has one.
+		seclog.Debugf("Go labels TLS offset for pid %d: %s", pid, err)
+	default:
+		return fmt.Errorf("failed to extract TLS G offset: %w", err)
 	}
 
 	// Serialize and push to BPF map.
