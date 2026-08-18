@@ -5,15 +5,6 @@
         "testbench_config": {}
     },
     "executor_config": {
-        "binary_artifacts": {
-            "testbench": {
-                "s3_uri": "s3://observer-log-ad-eval-artifacts/observer-log-ad-binaries/69eae6f3f83/20260608T184310Z/linux-amd64/anomalydetection-testbench",
-                "filename": "anomalydetection-testbench"
-            },
-            "scorer": {
-                "s3_uri": "s3://observer-log-ad-eval-artifacts/observer-log-ad-binaries/69eae6f3f83/20260608T184310Z/linux-amd64/anomalydetection-scorer",
-                "filename": "anomalydetection-scorer"
-            }
-        }
+        "binary_artifacts": {}
     }
 }
