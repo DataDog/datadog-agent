@@ -575,6 +575,26 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  errors.xid:
+    metadata:
+      metric_type: counter
+      description: >-
+        XID errors received during the last collection interval. XID errors are
+        NVIDIA driver error codes that indicate GPU hardware or software issues
+        like thermal throttling to hardware defects. Investigate these errors
+        immediately as they often precede total GPU failures.
+      aggregation: interval_count
+    tagsets:
+      - device
+    custom_tags:
+      - origin
+      - type
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   errors.xid.total:
     metadata:
       metric_type: gauge

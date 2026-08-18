@@ -32,6 +32,8 @@ const (
 	xidOriginDriver               = "driver"
 	xidOriginHardware             = "hardware"
 	xidOriginUnknown              = "unknown"
+	xidErrorsTotalMetricName      = "errors.xid.total"
+	xidErrorsCountMetricName      = "errors.xid"
 )
 
 var eventSetWaitTimeout = defaultEventSetWaitTimeout
@@ -48,7 +50,7 @@ type deviceEventsCollector struct {
 	registrationAttempts int
 	device               ddnvml.Device
 	eventsCache          deviceEventsCollectorCache
-	metricsByXidCode     map[uint64]*Metric
+	accumulatedCounts    map[uint64]int
 }
 
 func newDeviceEventsCollector(device ddnvml.Device, deps *CollectorDependencies) (c Collector, err error) {
@@ -68,9 +70,9 @@ func newDeviceEventsCollectorWithCache(device ddnvml.Device, cache deviceEventsC
 	}
 
 	return &deviceEventsCollector{
-		device:           device,
-		eventsCache:      cache,
-		metricsByXidCode: map[uint64]*Metric{},
+		device:            device,
+		eventsCache:       cache,
+		accumulatedCounts: map[uint64]int{},
 	}, nil
 }
 
@@ -92,36 +94,49 @@ func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
 		return nil, fmt.Errorf("failed collecting device events: %w", err)
 	}
 
+	intervalCounts := make(map[uint64]int)
 	for _, evt := range events {
 		if evt.EventType != nvml.EventTypeXidCriticalError {
 			// currently considering only xid events
 			continue
 		}
 
-		if _, ok := c.metricsByXidCode[evt.EventData]; !ok {
-			xidOrigin, ok := xidCodeToOrigin[evt.EventData]
-			if !ok {
-				xidOrigin = xidOriginUnknown
-			}
-			c.metricsByXidCode[evt.EventData] = &Metric{
-				Name:     "errors.xid.total",
-				Type:     metrics.GaugeType,
-				Priority: Medium,
-				Tags: []string{
-					"type:" + strconv.Itoa(int(evt.EventData)),
-					"origin:" + xidOrigin,
-				},
-			}
+		intervalCounts[evt.EventData]++
+		c.accumulatedCounts[evt.EventData]++
+	}
+
+	var metricsOut []*Metric
+	// iterate through accumulated counts so that we always emit metrics for XID codes we have seen previously, even
+	// if they were not seen in the current interval
+	for xidCode, accumulatedCount := range c.accumulatedCounts {
+		xidOrigin, ok := xidCodeToOrigin[xidCode]
+		if !ok {
+			xidOrigin = xidOriginUnknown
 		}
 
-		c.metricsByXidCode[evt.EventData].Value++
+		tags := []string{
+			"type:" + strconv.Itoa(int(xidCode)),
+			"origin:" + xidOrigin,
+		}
+
+		metricsOut = append(metricsOut, &Metric{
+			Name:     xidErrorsCountMetricName,
+			Value:    float64(intervalCounts[xidCode]),
+			Type:     metrics.CountType,
+			Priority: Medium,
+			Tags:     tags,
+		})
+
+		metricsOut = append(metricsOut, &Metric{
+			Name:     xidErrorsTotalMetricName,
+			Value:    float64(accumulatedCount),
+			Type:     metrics.GaugeType,
+			Priority: Medium,
+			Tags:     tags,
+		})
 	}
 
-	var metrics []*Metric
-	for _, m := range c.metricsByXidCode {
-		metrics = append(metrics, m)
-	}
-	return metrics, nil
+	return metricsOut, nil
 }
 
 // note: watching device events seems to require specific permission/status with the NVIDIA driver,

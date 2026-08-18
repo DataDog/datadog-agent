@@ -125,6 +125,7 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/util/log",
         "//pkg/util/option",
+        "@com_github_prometheus_client_model//go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

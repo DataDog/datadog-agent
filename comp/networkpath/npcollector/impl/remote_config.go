@@ -24,10 +24,11 @@ const (
 )
 
 type remoteConfigEnvelope struct {
-	Type         string               `json:"type"`
-	TestConfigID string               `json:"test_config_id"`
-	Tags         []string             `json:"tags,omitempty"`
-	Config       *remoteDynamicConfig `json:"config"`
+	Type           string               `json:"type"`
+	TestConfigID   string               `json:"test_config_id"`
+	TestConfigName string               `json:"test_config_name"`
+	Tags           []string             `json:"tags,omitempty"`
+	Config         *remoteDynamicConfig `json:"config"`
 }
 
 type remoteDynamicConfig struct {
@@ -49,13 +50,14 @@ const (
 	remoteConfigDocumentDynamic
 )
 
-func (c remoteFilterConfig) toConnFilterConfig(testConfigID string, tags []string) connfilter.Config {
+func (c remoteFilterConfig) toConnFilterConfig(testConfigID, testConfigName string, tags []string) connfilter.Config {
 	return connfilter.Config{
 		Type:                c.Type,
 		MatchDomain:         c.MatchDomain,
 		MatchDomainStrategy: c.MatchDomainStrategy,
 		MatchIP:             c.MatchIP,
 		TestConfigID:        testConfigID,
+		TestConfigName:      testConfigName,
 		Tags:                tags,
 	}
 }
@@ -168,7 +170,7 @@ func parseRemoteDynamicConfig(raw []byte) ([]connfilter.Config, remoteConfigDocu
 		if filterConfig.MatchDomain == "" && filterConfig.MatchIP == "" {
 			return nil, remoteConfigDocumentDynamic, fmt.Errorf("invalid dynamic Network Path config at filters[%d]: match_domain or match_ip is required", i)
 		}
-		filters[i] = filterConfig.toConnFilterConfig(envelope.TestConfigID, envelope.Tags)
+		filters[i] = filterConfig.toConnFilterConfig(envelope.TestConfigID, envelope.TestConfigName, envelope.Tags)
 	}
 	_, validationErrors := connfilter.NewConnFilter(filters, "", false)
 	if len(validationErrors) > 0 {

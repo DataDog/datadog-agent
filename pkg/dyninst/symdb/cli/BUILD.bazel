@@ -38,6 +38,7 @@ dd_agent_go_test(
     embed = [":cli_lib"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/dyninst/object",
         "//pkg/dyninst/symdb",

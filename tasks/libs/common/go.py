@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import os
 import os.path
 import platform
@@ -222,13 +221,13 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     # it returns 0, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
     whydeadcode_out = bazel(
-        runner,
+        ctx,
         "run",
         *(f"--run_env={k}={v}" for k, v in (env or {}).items()),
         "@com_github_aarzilli_whydeadcode//:whydeadcode",
         "--",
         "--ignore-unrecognized-input",
-        input_stream=CustomReader(result.stderr),
+        input=result.stderr,
         capture_output=True,
     )
     if whydeadcode_out:
@@ -237,17 +236,3 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
         )
 
     return result
-
-
-class CustomReader(io.StringIO):
-    """
-    Custom reader to read 10MiB at a time.
-    This is a workaround to increase invoke performance at reading from stdin
-    See https://github.com/pyinvoke/invoke/issues/819
-    """
-
-    def __init__(self, data: str):
-        super().__init__(data)
-
-    def read(self, n: int | None = None) -> str:
-        return super().read(1024 * 1024 * 10)

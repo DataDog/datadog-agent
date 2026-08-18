@@ -44,33 +44,6 @@ func requireCounterMetricValueBySource(t *testing.T, source string, want float64
 	t.Fatalf("counter %q with source=%q not found", metricName, source)
 }
 
-func requireCounterMetricValueForNameBySource(t *testing.T, metricName, source string, want float64, telemetryComp telemetry.Component) {
-	t.Helper()
-
-	metricFamilies, err := telemetryComp.Gather(false)
-	require.NoError(t, err)
-
-	fullMetricName := "observer__" + metricName
-	for _, family := range metricFamilies {
-		if family.GetName() != fullMetricName {
-			continue
-		}
-
-		for _, metric := range family.GetMetric() {
-			labels := map[string]string{}
-			for _, label := range metric.GetLabel() {
-				labels[label.GetName()] = label.GetValue()
-			}
-			if labels["source"] == source {
-				assert.Equal(t, want, metric.GetCounter().GetValue())
-				return
-			}
-		}
-	}
-
-	t.Fatalf("counter %q with source=%q not found", fullMetricName, source)
-}
-
 func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source string, telemetryComp telemetry.Component) {
 	t.Helper()
 
@@ -572,7 +545,7 @@ func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t 
 	assert.Equal(t, "datadog.agent.running", agentSeries[0].Name)
 
 	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
-	requireNoCounterMetricForNameBySource(t, telemetryObsChannelDropped, "check", telComp)
+	requireNoCounterMetricForNameBySource(t, telemetryObservationsDropped, "check", telComp)
 }
 
 func TestTagBasedFilterCountsOnlyFullyMatchingSamples(t *testing.T) {
@@ -870,6 +843,7 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 		timestamp: 1000,
 	}))
 
-	requireCounterMetricValueForNameBySource(t, telemetryObsChannelDropped, "dogstatsd", 1.0, telComp)
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsDropped, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
 }

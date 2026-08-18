@@ -12,7 +12,6 @@ comp/core/gui/impl/views/private/images/datadog_icon_white.svg -text
 deps/msodbcsql18/LICENSE.txt -text
 devenv/answer_files/**/*.xml -text
 pkg/collector/corechecks/containers/kubelet/testdata/summary.json -text
-releasenotes/notes/*.yaml -text
 tasks/unit_tests/testdata/secret.tar.gz/*.xml -text
 
 # Set batch file line endings to CRLF so that they can be executed on Windows

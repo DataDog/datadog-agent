@@ -97,6 +97,32 @@ dd_agent_go_test(
     embed = [":runtime"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/util/kernel",
+        "//pkg/util/kernel/headers",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "asset_test",
+    srcs = ["asset_test.go"],
+    embed = [":runtime"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    deps = ["@com_github_stretchr_testify//require"],
+)
+
+dd_agent_go_test(
+    name = "helpers_test",
+    srcs = ["helpers_test.go"],
+    embed = [":runtime"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/util/kernel",

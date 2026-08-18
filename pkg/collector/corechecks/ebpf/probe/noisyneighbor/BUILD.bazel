@@ -64,6 +64,7 @@ dd_agent_go_test(
     srcs = ["probe_test.go"],
     embed = [":noisyneighbor"],
     gotags_sets = [["linux_bpf"]],
+    tags = ["requires_ebpf"],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/ebpf",

@@ -52,6 +52,7 @@ dd_agent_go_test(
     ],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/discovery/tracermetadata",
         "//pkg/discovery/tracermetadata/model",

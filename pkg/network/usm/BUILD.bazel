@@ -102,6 +102,7 @@ dd_agent_go_test(
         ["npm"],
     ],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/ebpftest",
