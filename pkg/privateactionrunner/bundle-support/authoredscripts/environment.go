@@ -20,10 +20,10 @@ const (
 )
 
 // managedEnvironmentVariables are set by BuildEnvironment from session/package state.
-// AllowedEnvVars entries with these names will error out, since the script cannot pass through
-// the runner's own value for them; setSessionEnvVars may still use these names to override
-// HOME & TMPDIR the managed value. For PATH, the value from setSessionEnvVars will be appended
-// to the PATH env var.
+// AllowedEnvVars or setSessionEnvVars entries with these names will error out, since the
+// script cannot pass through the runner's own value for them. PATH is the only
+// exception: setSessionEnvVars may extend it, and its value is appended rather than
+// replacing the runner's computed PATH.
 var managedEnvironmentVariables = map[string]struct{}{
 	"HOME":   {},
 	"PATH":   {},
@@ -58,6 +58,9 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 	}
 
 	for _, variable := range pkg.Manifest.Config.SetSessionEnvVars {
+		if variable.Name == "HOME" || variable.Name == "TMPDIR" {
+			return nil, fmt.Errorf("authored-script session environment variable %q cannot override the managed %q value", variable.Name, variable.Name)
+		}
 		value, err := materializeEnvironmentVariable(session.RootDirectory, "session", variable)
 		if err != nil {
 			return nil, err

@@ -25,7 +25,8 @@ type Session struct {
 	HomeDirectory string
 	TempDirectory string
 
-	cleanupOnce sync.Once
+	cleanupMutex sync.Mutex
+	cleaned      bool
 }
 
 func NewSession() (*Session, error) {
@@ -57,11 +58,15 @@ func NewSession() (*Session, error) {
 }
 
 func (s *Session) Cleanup() error {
-	var err error
-	s.cleanupOnce.Do(func() {
-		if removeErr := os.RemoveAll(s.RootDirectory); removeErr != nil {
-			err = fmt.Errorf("could not remove authored-script session directory %q: %w", s.RootDirectory, removeErr)
-		}
-	})
-	return err
+	s.cleanupMutex.Lock()
+	defer s.cleanupMutex.Unlock()
+
+	if s.cleaned {
+		return nil
+	}
+	if err := os.RemoveAll(s.RootDirectory); err != nil {
+		return fmt.Errorf("could not remove authored-script session directory %q: %w", s.RootDirectory, err)
+	}
+	s.cleaned = true
+	return nil
 }
