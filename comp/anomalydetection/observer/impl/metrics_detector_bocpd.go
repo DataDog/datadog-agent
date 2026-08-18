@@ -184,6 +184,11 @@ func (b *BOCPDDetector) Name() string {
 
 func (b *BOCPDDetector) Ready() bool { return b.ready }
 
+// DetectorPointWindow implements observer.DetectorPointWindowRequirement.
+func (b *BOCPDDetector) DetectorPointWindow() observer.DetectorPointWindow {
+	return observer.DetectorPointWindow{MinPoints: b.config.WarmupPoints, MaxPoints: b.config.WarmupPoints}
+}
+
 // Detect implements Detector. It discovers series, reads only newly visible
 // points, and updates per-series BOCPD posterior state incrementally.
 //
@@ -200,6 +205,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 	var allAnomalies []observer.Anomaly
 
 	for _, ref := range b.cachedRefs {
+		visibleCount := storage.PointCountUpTo(ref, dataTime)
 		for _, agg := range b.config.Aggregations {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
@@ -207,6 +213,9 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			sk := bocpdStateKey{ref: ref, agg: agg}
 
 			state, exists := b.series[sk]
+			if !exists && visibleCount < b.config.WarmupPoints {
+				continue
+			}
 			if !exists {
 				state = &bocpdSeriesState{}
 				b.series[sk] = state
@@ -217,7 +226,6 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			// advances) and the common live case. WriteGeneration catches
 			// same-bucket merges and retention-churn scenarios where point
 			// count stays constant but stored values changed.
-			visibleCount := storage.PointCountUpTo(ref, dataTime)
 			writeGen := storage.WriteGeneration(ref)
 			if visibleCount <= state.lastProcessedCount && writeGen == state.lastWriteGen {
 				continue
@@ -225,7 +233,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 
 			prevLen := len(allAnomalies)
 			storage.ForEachPoint(ref, state.lastProcessedTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
-				anomaly := b.processPoint(state, p, series, agg)
+				anomaly := b.processPoint(state, p, series, agg, visibleCount >= b.config.WarmupPoints)
 				if anomaly != nil {
 					allAnomalies = append(allAnomalies, *anomaly)
 				}
@@ -275,13 +283,18 @@ func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
 
 // processPoint handles a single new observation for a series.
 // Returns an anomaly pointer if this point triggers a new alert onset.
-func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
+func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, allowAlert bool) *observer.Anomaly {
 	x := p.Value
 
 	if !state.initialized {
 		return b.warmupPoint(state, x)
 	}
 	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
+	if !allowAlert {
+		state.inAlert = false
+		state.recoveryCount = 0
+		return nil
+	}
 
 	if triggered {
 		state.recoveryCount = 0

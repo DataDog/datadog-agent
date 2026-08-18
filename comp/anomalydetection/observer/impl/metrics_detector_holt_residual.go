@@ -206,6 +206,15 @@ func (d *HoltResidualDetector) Name() string { return "holt_residual" }
 
 func (d *HoltResidualDetector) Ready() bool { return d.ready }
 
+// DetectorPointWindow implements observer.DetectorPointWindowRequirement.
+func (d *HoltResidualDetector) DetectorPointWindow() observer.DetectorPointWindow {
+	d.ensureDefaults()
+	return observer.DetectorPointWindow{
+		MinPoints: d.WarmupPoints,
+		MaxPoints: max(d.WarmupPoints, d.ResidualWindow),
+	}
+}
+
 // Reset clears all per-series state for replay/reanalysis.
 func (d *HoltResidualDetector) Reset() {
 	d.series = make(map[holtStateKey]*holtSeriesState)
@@ -259,6 +268,9 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 			}
 			sk := holtStateKey{ref: meta.Ref, agg: agg}
 			state, exists := d.series[sk]
+			if !exists && status.pointCount < d.WarmupPoints {
+				continue
+			}
 			if !exists {
 				state = d.newState()
 				d.series[sk] = state
@@ -283,7 +295,7 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 				startTime = 0
 			}
 
-			anomalies, pointsSeen := d.ingestNewPoints(storage, meta.Ref, agg, state, startTime, dataTime)
+			anomalies, pointsSeen := d.ingestNewPoints(storage, meta.Ref, agg, state, startTime, dataTime, status.pointCount >= d.WarmupPoints)
 			for j := range anomalies {
 				anomalies[j].SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
 			}
@@ -332,6 +344,7 @@ func (d *HoltResidualDetector) ingestNewPoints(
 	state *holtSeriesState,
 	startTime int64,
 	dataTime int64,
+	allowFire bool,
 ) ([]observer.Anomaly, bool) {
 	if dataTime <= startTime {
 		return nil, false
@@ -369,7 +382,7 @@ func (d *HoltResidualDetector) ingestNewPoints(
 			return
 		}
 
-		anomaly, hasFire := d.processPoint(state, p, agg)
+		anomaly, hasFire := d.processPoint(state, p, agg, allowFire)
 		if len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow {
 			d.ready = true
 		}
@@ -408,6 +421,7 @@ func (d *HoltResidualDetector) processPoint(
 	state *holtSeriesState,
 	p observer.Point,
 	agg observer.Aggregate,
+	allowFire bool,
 ) (observer.Anomaly, bool) {
 	// 1. One-step forecast and residual.
 	forecast := state.level + state.trend
@@ -468,7 +482,7 @@ func (d *HoltResidualDetector) processPoint(
 	state.level = newLevel
 
 	// 5. Decide whether to actually emit a fire.
-	fire := gateOK && state.refractoryRemaining == 0
+	fire := allowFire && gateOK && state.refractoryRemaining == 0
 
 	// 6. Push residual into the MAD window. On fire, replace it with the
 	// median of the last N non-fire residuals (Hampel rejection — applied

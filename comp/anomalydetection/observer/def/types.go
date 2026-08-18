@@ -606,8 +606,9 @@ type Detector interface {
 
 // DetectorPointWindow bounds a detector's raw-observation history.
 type DetectorPointWindow struct {
-	// MinPoints activates a cold series. Once active, it remains active until
-	// explicitly reset or removed, even if visible history later drops below it.
+	// MinPoints is the visible-history threshold for a cold series. On first
+	// activation, the detector replays retained points, including earlier ones.
+	// Active state continues even if visible history later drops below it.
 	MinPoints int
 	// MaxPoints limits raw history, not detector-state lifetime. It must be at
 	// least MinPoints; storage keeps an additional scheduler pending bucket.

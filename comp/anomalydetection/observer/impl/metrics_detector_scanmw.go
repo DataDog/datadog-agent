@@ -102,6 +102,12 @@ func (d *ScanMWDetector) Name() string {
 
 func (d *ScanMWDetector) Ready() bool { return d.ready }
 
+// DetectorPointWindow implements observer.DetectorPointWindowRequirement.
+func (d *ScanMWDetector) DetectorPointWindow() observer.DetectorPointWindow {
+	d.ensureDefaults()
+	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: scanMaxPoints}
+}
+
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanMWDetector) Reset() {
 	d.series = make(map[scanmwStateKey]*scanmwSeriesState)
@@ -159,6 +165,10 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			sk := scanmwStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
+			if !exists && status.pointCount < d.MinPoints {
+				continue
+			}
+			activated := !exists
 			if !exists {
 				state = &scanmwSeriesState{}
 				d.series[sk] = state
@@ -184,7 +194,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 					sCopy := *s
 					seriesMeta = &sCopy
 				}
-				state.buf = append(state.buf, p)
+				state.buf = appendPointWindow(state.buf, scanMaxPoints, p)
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
@@ -201,7 +211,11 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
-			state.lastProcessedCount = status.pointCount
+			if activated {
+				state.lastProcessedCount = 1 + ((status.pointCount-1)/d.MinSegment)*d.MinSegment
+			} else {
+				state.lastProcessedCount = status.pointCount
+			}
 			state.lastWriteGen = status.writeGeneration
 		}
 	}

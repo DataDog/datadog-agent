@@ -90,7 +90,7 @@ func TestTukeyBiweight_IncrementalMatchesBatch(t *testing.T) {
 func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 	d := testTukeyBiweightDetector()
 	d.WindowSize = 4
-	d.MinPoints = 4
+	d.MinPoints = 1
 	d.ScoreEvery = 100
 	storage := newDetectorTestStorage()
 
@@ -124,7 +124,7 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	d := testTukeyBiweightDetector()
 	d.WindowSize = 4
-	d.MinPoints = 4
+	d.MinPoints = 1
 	d.ScoreEvery = 100
 	storage := newDetectorTestStorage()
 
@@ -155,7 +155,7 @@ func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	d := testTukeyBiweightDetector()
 	d.WindowSize = 4
-	d.MinPoints = 4
+	d.MinPoints = 1
 	d.ScoreEvery = 100
 	storage := newDetectorTestStorage()
 
@@ -373,6 +373,7 @@ func TestTukeyBiweight_IRLSConverges(t *testing.T) {
 // grow unbounded as storage evicts series.
 func TestTukeyBiweight_RemoveSeries(t *testing.T) {
 	d := NewTukeyBiweightDetector() // exercise the default [Average, Count] aggregations
+	d.MinPoints = 8
 	storage := newDetectorTestStorage()
 
 	// Three series, each populated with enough points to allocate state.

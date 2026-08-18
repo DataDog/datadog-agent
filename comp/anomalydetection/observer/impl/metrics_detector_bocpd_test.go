@@ -34,6 +34,32 @@ func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {
 
 	result := d.Detect(storage, 1)
 	assert.Empty(t, result.Anomalies)
+	assert.Empty(t, d.series, "cold series must not allocate state")
+}
+
+func TestBOCPDDetector_ActivationSurvivesRetention(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 3
+	d := NewBOCPDDetector(config)
+	storage := newDetectorTestStorage()
+
+	storage.Add("ns", "test.metric", 1, 1, nil)
+	storage.Add("ns", "test.metric", 2, 2, nil)
+	d.Detect(storage, 2)
+	require.Empty(t, d.series)
+
+	storage.Add("ns", "test.metric", 3, 3, nil)
+	d.Detect(storage, 3)
+	key := bocpdStateKey{ref: 0, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state, "series must activate at the warmup threshold")
+	require.True(t, state.initialized, "activation must replay retained warmup points")
+
+	storage.cfg.PointRetentionSecs = 1
+	storage.Add("ns", "test.metric", 4, 4, nil)
+	d.Detect(storage, 4)
+	require.Same(t, state, d.series[key], "retention below warmup must not reset active state")
+	require.Equal(t, int64(4), state.lastProcessedTime, "active state must continue processing after retention")
 }
 
 func TestBOCPDDetector_StableData(t *testing.T) {

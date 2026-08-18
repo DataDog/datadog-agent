@@ -30,6 +30,43 @@ func TestListSeriesRefsFallbackUsesListSeries(t *testing.T) {
 	require.Same(t, &dst[0], &refs[0])
 }
 
+func TestDetectorPointWindows(t *testing.T) {
+	bocpdConfig := DefaultBOCPDConfig()
+	bocpdConfig.WarmupPoints = 40
+	bocpd := NewBOCPDDetector(bocpdConfig)
+
+	holt := NewHoltResidualDetector()
+	holt.WarmupPoints = 24
+	holt.ResidualWindow = 60
+
+	tukey := NewTukeyBiweightDetector()
+	tukey.MinPoints = 40
+	tukey.WindowSize = 80
+
+	for name, test := range map[string]struct {
+		detector observer.DetectorPointWindowRequirement
+		want     observer.DetectorPointWindow
+	}{
+		"bocpd":     {bocpd, observer.DetectorPointWindow{MinPoints: 40, MaxPoints: 40}},
+		"holt":      {holt, observer.DetectorPointWindow{MinPoints: 24, MaxPoints: 60}},
+		"tukey":     {tukey, observer.DetectorPointWindow{MinPoints: 40, MaxPoints: 80}},
+		"scanmw":    {NewScanMWDetector(), observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}},
+		"scanwelch": {NewScanWelchDetector(), observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, test.want, test.detector.DetectorPointWindow())
+		})
+	}
+}
+
+func TestAppendPointWindow(t *testing.T) {
+	points := make([]observer.Point, 0, 3)
+	for timestamp := int64(1); timestamp <= 5; timestamp++ {
+		points = appendPointWindow(points, 3, observer.Point{Timestamp: timestamp})
+	}
+	require.Equal(t, []observer.Point{{Timestamp: 3}, {Timestamp: 4}, {Timestamp: 5}}, points)
+}
+
 type seriesListOnlyStorage struct {
 	metas      []observer.SeriesMeta
 	listCalls  int
