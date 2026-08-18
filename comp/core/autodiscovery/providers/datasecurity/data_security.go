@@ -40,7 +40,7 @@ const (
 
 // isConnectedToPostgres reports whether any postgres integration is configured.
 func isConnectedToPostgres(ac autodiscovery.Component) bool {
-	for _, config := range ac.GetUnresolvedConfigs() {
+	for _, config := range ac.GetAllConfigs() {
 		if config.Name == postgresIntegrationName {
 			return true
 		}
@@ -215,9 +215,8 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 	return json.Marshal(inst)
 }
 
-// resolvePostgresConnection builds the scan connection from the resolved local postgres instance
-// matching the entity's host. It uses GetAllConfigs so templated hosts (e.g. %%kube_pod_name%%)
-// are substituted before matching.
+// resolvePostgresConnection builds the scan connection from the local postgres instance
+// matching the entity's host.
 func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
 	for _, cfg := range c.ac.GetAllConfigs() {
 		if cfg.Name != postgresIntegrationName {
