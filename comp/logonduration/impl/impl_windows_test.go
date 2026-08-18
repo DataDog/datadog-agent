@@ -10,6 +10,7 @@ package logondurationimpl
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -49,6 +50,76 @@ func fullBootTimeline(boot time.Time) BootTimeline {
 		DesktopVisibleEnd:            boot.Add(57 * time.Second),
 		DesktopStartupAppsStart:      boot.Add(58 * time.Second),
 		DesktopStartupAppsEnd:        boot.Add(62 * time.Second),
+	}
+}
+
+// straddlingGPTimeline is the shape a slow domain-joined boot produces: the computer Group
+// Policy pass starts at the login screen and is still running when the session logs on, in
+// milliseconds off boot so the numbers match a real capture.
+func straddlingGPTimeline(boot time.Time) BootTimeline {
+	ms := func(n int) time.Time { return boot.Add(time.Duration(n) * time.Millisecond) }
+	return BootTimeline{
+		BootStart:           boot,
+		LoginUIStart:        ms(8698),
+		LoginUIDone:         ms(8746),
+		MachineGPStart:      ms(10808),
+		MachineGPEnd:        ms(39337),
+		SessionLogon:        ms(36486),
+		DesktopVisibleStart: ms(47159),
+	}
+}
+
+func milestonesByID(milestones []Milestone) map[string]Milestone {
+	byID := make(map[string]Milestone, len(milestones))
+	for _, m := range milestones {
+		byID[m.ID] = m
+	}
+	return byID
+}
+
+// assertMonotoneTimeline fails if any milestone renders ahead of one that happened before it:
+// walked in wall-clock order, OffsetMs must never go backwards.
+func assertMonotoneTimeline(t *testing.T, milestones []Milestone) {
+	t.Helper()
+	ordered := make([]Milestone, len(milestones))
+	copy(ordered, milestones)
+	// Timestamp is fixed-width UTC, so lexical order is chronological order.
+	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].Timestamp < ordered[j].Timestamp })
+	for i := 1; i < len(ordered); i++ {
+		prev, cur := ordered[i-1], ordered[i]
+		assert.GreaterOrEqualf(t, cur.OffsetMs, prev.OffsetMs,
+			"%s at %s renders at %.0f, behind %s at %s which renders at %.0f",
+			cur.ID, cur.Timestamp, cur.OffsetMs, prev.ID, prev.Timestamp, prev.OffsetMs)
+	}
+}
+
+// The axis must render milestones in the order they happened, for any input. This is the
+// property a single-step collapse of the login screen wait cannot satisfy: it puts anything
+// that ran during the wait on a different axis from everything after logon.
+func TestBootTimelineOffsetsAreMonotone(t *testing.T) {
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	noMachinePass := fullBootTimeline(boot)
+	noMachinePass.MachineGPStart = time.Time{}
+	noMachinePass.MachineGPEnd = time.Time{}
+
+	unterminatedPass := fullBootTimeline(boot)
+	unterminatedPass.MachineGPEnd = time.Time{}
+
+	passFromBeforeTheWait := fullBootTimeline(boot)
+	passFromBeforeTheWait.MachineGPStart = boot.Add(9 * time.Second)
+	passFromBeforeTheWait.MachineGPEnd = boot.Add(20 * time.Second)
+
+	for name, tl := range map[string]BootTimeline{
+		"full timeline":                  fullBootTimeline(boot),
+		"machine pass straddles logon":   straddlingGPTimeline(boot),
+		"no machine pass":                noMachinePass,
+		"machine pass never ended":       unterminatedPass,
+		"machine pass predates the wait": passFromBeforeTheWait,
+	} {
+		t.Run(name, func(t *testing.T) {
+			assertMonotoneTimeline(t, buildTimelineMilestones(tl))
+		})
 	}
 }
 
@@ -125,23 +196,24 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		require.Len(t, milestones, 11)
 
-		// gap = SessionLogon(29s) - LoginUIDone(10s) = 19000ms; milestones
-		// at/after SessionLogon have their offset collapsed by the idle gap.
+		// Region is LoginUIDone(10s) -> SessionLogon(29s). The computer pass occupies
+		// [12s, 20s] of it, so only the 2000ms before it and the 9000ms after it are
+		// elided; everything from 20s on shifts left by 11000ms, not by the full 19000ms.
 		expected := []struct {
 			name     string
 			offsetMs float64
 		}{
 			{"Boot Duration", 0},
 			{"Login UI Start", 8000},
-			{"Computer Group Policy", 12000},
-			{"User Group Policy", 13000},
-			{"Logon Duration", 10000},
-			{"Profile Loaded", 12000},
-			{"Profile Created", 14000},
-			{"Execute Shell Commands", 21000},
-			{"Explorer Initializing", 32000},
-			{"Desktop Visible", 34000},
-			{"Desktop Startup Apps", 39000},
+			{"Computer Group Policy", 10000},
+			{"User Group Policy", 21000},
+			{"Logon Duration", 18000},
+			{"Profile Loaded", 20000},
+			{"Profile Created", 22000},
+			{"Execute Shell Commands", 29000},
+			{"Explorer Initializing", 40000},
+			{"Desktop Visible", 42000},
+			{"Desktop Startup Apps", 47000},
 		}
 		for i, exp := range expected {
 			assert.Equal(t, exp.name, milestones[i].Name, "milestone %d name", i)
@@ -186,6 +258,73 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.InDelta(t, 10000.0, logon.OffsetMs, 0.001)
 		// timestamp stays wall-clock (SessionLogon = boot + 29s)
 		assert.Equal(t, "2026-01-15T08:00:29.000Z", logon.Timestamp)
+	})
+
+	t.Run("machine pass straddling logon keeps its full span", func(t *testing.T) {
+		m := milestonesByID(buildTimelineMilestones(straddlingGPTimeline(boot)))
+
+		// Only the 2062ms of login screen before the pass started is unobserved. From
+		// there the machine is busy right through logon, so nothing else is elided.
+		gp, logon := m["computer_group_policy"], m["logon_duration"]
+		assert.InDelta(t, 8746.0, gp.OffsetMs, 0.001)
+		assert.InDelta(t, 28529.0, gp.DurationMs, 0.001)
+		assert.InDelta(t, 34424.0, logon.OffsetMs, 0.001)
+		assert.InDelta(t, 10673.0, logon.DurationMs, 0.001)
+		assert.InDelta(t, 2851.0, (gp.OffsetMs+gp.DurationMs)-logon.OffsetMs, 0.001,
+			"the pass outlives the start of logon by exactly as long as it really did")
+	})
+
+	t.Run("nothing observed in the region elides all of it", func(t *testing.T) {
+		tl := fullBootTimeline(boot)
+		tl.MachineGPStart = time.Time{}
+		tl.MachineGPEnd = time.Time{}
+
+		m := milestonesByID(buildTimelineMilestones(tl))
+
+		// With no interval to preserve the whole 19000ms wait goes, which is what
+		// collapsing it in one step always did.
+		for id, offset := range map[string]float64{
+			"logon_duration":         10000,
+			"profile_loaded":         12000,
+			"user_group_policy":      13000,
+			"profile_created":        14000,
+			"execute_shell_commands": 21000,
+			"explorer_initializing":  32000,
+			"desktop_visible":        34000,
+			"desktop_startup_apps":   39000,
+		} {
+			require.Contains(t, m, id)
+			assert.InDelta(t, offset, m[id].OffsetMs, 0.001, id)
+		}
+	})
+
+	t.Run("a pass with no end clamps to the start of the region", func(t *testing.T) {
+		tl := fullBootTimeline(boot)
+		tl.MachineGPEnd = time.Time{}
+
+		m := milestonesByID(buildTimelineMilestones(tl))
+
+		// An 8000 that never arrived leaves the pass no span to preserve, so the region
+		// is elided whole and the point lands on its start.
+		assert.InDelta(t, 10000.0, m["computer_group_policy"].OffsetMs, 0.001)
+		assert.InDelta(t, 0.0, m["computer_group_policy"].DurationMs, 0.001)
+		assert.InDelta(t, 10000.0, m["logon_duration"].OffsetMs, 0.001)
+		assert.InDelta(t, 39000.0, m["desktop_startup_apps"].OffsetMs, 0.001)
+	})
+
+	t.Run("a pass reaching into the region from before it keeps its full width", func(t *testing.T) {
+		tl := fullBootTimeline(boot)
+		tl.MachineGPStart = boot.Add(9 * time.Second)
+		tl.MachineGPEnd = boot.Add(20 * time.Second)
+
+		m := milestonesByID(buildTimelineMilestones(tl))
+
+		// Only [20s, 29s) is unobserved. The part of the pass before LoginUIDone lies
+		// outside the region, where nothing is ever elided.
+		gp := m["computer_group_policy"]
+		assert.InDelta(t, 9000.0, gp.OffsetMs, 0.001)
+		assert.InDelta(t, 11000.0, gp.DurationMs, 0.001)
+		assert.InDelta(t, 20000.0, m["logon_duration"].OffsetMs, 0.001)
 	})
 
 	t.Run("desktop_visible merged spans DesktopCreateStart to DesktopVisibleEnd", func(t *testing.T) {
