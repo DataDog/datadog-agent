@@ -216,8 +216,8 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 }
 
 // resolvePostgresConnection builds the scan connection from the resolved local postgres instance
-// matching the entity. It uses GetAllConfigs so templated hosts (e.g. %%kube_pod_name%%) are
-// substituted before matching.
+// matching the entity's host. It uses GetAllConfigs so templated hosts (e.g. %%kube_pod_name%%)
+// are substituted before matching.
 func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
 	for _, cfg := range c.ac.GetAllConfigs() {
 		if cfg.Name != postgresIntegrationName {
@@ -229,38 +229,24 @@ func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
 				log.Warnf("skipping postgres instance: failed to unmarshal: %v", err)
 				continue
 			}
-			if matchesEntity(instance, e) {
+			if matchesHost(instance, e.DatabaseHostName) {
 				return buildPostgresConnection(instance, e), nil
 			}
 		}
 	}
-	log.Warnf("no postgres integration found for entity (host=%q, instance=%q, cluster=%q)",
-		e.DatabaseHostName, e.DatabaseInstanceName, e.DatabaseClusterName)
-	return connection{}, fmt.Errorf(
-		"postgres integration for entity (host=%q, instance=%q, cluster=%q) not found",
-		e.DatabaseHostName, e.DatabaseInstanceName, e.DatabaseClusterName)
+	log.Warnf("no postgres integration found with host=%q", e.DatabaseHostName)
+	return connection{}, fmt.Errorf("postgres integration with host=%q not found", e.DatabaseHostName)
 }
 
-// matchesEntity matches the instance's resolved host (and its host:port form) against the entity's
-// host, instance, and cluster identifiers, since the backend may key the entity off any of them.
-func matchesEntity(instance map[string]any, e entity) bool {
+// matchesHost reports whether a postgres instance targets the given host: an exact match
+// or the "host:port" form some backends send.
+func matchesHost(instance map[string]any, targetHost string) bool {
 	host, _ := instance["host"].(string)
-	if host == "" {
-		return false
+	if host == targetHost {
+		return true
 	}
-
-	candidates := []string{host}
 	if port, ok := instancePort(instance); ok {
-		candidates = append(candidates, fmt.Sprintf("%s:%d", host, port))
-	}
-
-	targets := []string{e.DatabaseHostName, e.DatabaseInstanceName, e.DatabaseClusterName}
-	for _, candidate := range candidates {
-		for _, target := range targets {
-			if target != "" && candidate == target {
-				return true
-			}
-		}
+		return fmt.Sprintf("%s:%d", host, port) == targetHost
 	}
 	return false
 }
