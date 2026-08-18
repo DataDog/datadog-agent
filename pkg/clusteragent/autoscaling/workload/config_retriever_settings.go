@@ -107,8 +107,8 @@ func (p *autoscalingSettingsProcessor) postProcess() {
 }
 
 func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
-	// We only reconcile if we are the leader and we have a state
-	if !isLeader || p.state == nil {
+	// We only reconcile if we are the leader
+	if !isLeader {
 		return
 	}
 
@@ -118,6 +118,11 @@ func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
 		return
 	}
 	defer p.updateLock.Unlock()
+
+	// Check state under the lock to avoid racing with postProcess which writes p.state
+	if p.state == nil {
+		return
+	}
 
 	inStore := make(map[string]struct{}, len(p.state))
 
