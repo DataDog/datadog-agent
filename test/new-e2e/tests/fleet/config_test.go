@@ -679,8 +679,10 @@ func (s *configSuite) TestConfigBackupHistory() {
 		exists, err := s.Host.DirExists("/etc/datadog-agent/config-backups")
 		require.NoError(c, err)
 		require.True(c, exists, "stable config-backups dir not created")
+		// The dir exists as soon as MkdirAll runs; the archive appears only after
+		// the atomic publish, so assert on the count inside the poll.
+		require.GreaterOrEqual(c, countConfigBackups(c, s.Env().RemoteHost, "/etc/datadog-agent/config-backups"), 1, "stable history should hold at least one snapshot")
 	}, 3*time.Minute, 5*time.Second)
-	require.GreaterOrEqual(s.T(), countConfigBackups(s.T(), s.Env().RemoteHost, "/etc/datadog-agent/config-backups"), 1, "stable history should hold at least one snapshot")
 
 	startExperiment := func(t *testing.T, deploymentID string) {
 		t.Helper()
@@ -707,8 +709,11 @@ func (s *configSuite) TestConfigBackupHistory() {
 		require.NoError(t, s.Backend.StopConfigExperiment())
 	})
 
-	// Promote keeps the promoted config's history present.
+	// Promote keeps the promoted config's history present. The promoted config
+	// (log_level: debug) differs from the initial stable config, so a new
+	// archive is guaranteed: assert the count strictly grows.
 	s.T().Run("promote-keeps-history", func(t *testing.T) {
+		before := countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent/config-backups")
 		startExperiment(t, "backup-promote")
 		require.NoError(t, s.Backend.PromoteConfigExperiment())
 		config, err := s.Agent.Configuration()
@@ -718,8 +723,9 @@ func (s *configSuite) TestConfigBackupHistory() {
 			exists, err := s.Host.DirExists("/etc/datadog-agent/config-backups")
 			require.NoError(c, err)
 			require.True(c, exists, "stable config-backups dir must survive promote")
+			after := countConfigBackups(c, s.Env().RemoteHost, "/etc/datadog-agent/config-backups")
+			require.Greater(c, after, before, "promoted config's snapshot must be added to the stable history")
 		}, 3*time.Minute, 5*time.Second)
-		require.GreaterOrEqual(t, countConfigBackups(t, s.Env().RemoteHost, "/etc/datadog-agent/config-backups"), 1, "promoted config's history must be present")
 	})
 
 	// Rollback leaves the stable history untouched.
@@ -734,8 +740,7 @@ func (s *configSuite) TestConfigBackupHistory() {
 
 // countConfigBackups returns the number of snapshot archives in a config
 // backup directory on the remote host.
-func countConfigBackups(t *testing.T, host *components.RemoteHost, dir string) int {
-	t.Helper()
+func countConfigBackups(t require.TestingT, host *components.RemoteHost, dir string) int {
 	out, err := host.Execute("sudo ls " + dir + "/*.tar.gz 2>/dev/null | wc -l")
 	require.NoError(t, err)
 	n, err := strconv.Atoi(strings.TrimSpace(out))

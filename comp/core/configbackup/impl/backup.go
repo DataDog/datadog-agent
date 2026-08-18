@@ -388,15 +388,17 @@ func walkTree(root, prefix string, extFilter func(string) bool, out *[]collected
 			})
 			return nil
 		}
-		if !d.Type().IsRegular() {
+		// Use info.Mode() rather than d.Type(): on filesystems that do not
+		// populate d_type, d.Type() can misreport regular files.
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
 			return nil
 		}
 		if extFilter != nil && !extFilter(rel) {
 			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
 		}
 		if info.Size() > maxFileSize {
 			return nil
@@ -507,6 +509,13 @@ func publishSnapshot(backupDir, srcDir, digest string, files []collectedFile) er
 		os.Remove(tmpName)
 		return fmt.Errorf("failed to write archive: %w", err)
 	}
+	// Make the archive data durable before the rename, so a visible archive is
+	// never zero or partial after a crash.
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return fmt.Errorf("failed to sync archive: %w", err)
+	}
 	if err := tmp.Close(); err != nil {
 		os.Remove(tmpName)
 		return fmt.Errorf("failed to close archive: %w", err)
@@ -561,7 +570,7 @@ func writeTarGz(w io.Writer, files []collectedFile) error {
 	return gz.Close()
 }
 
-// manifest describes a single configuration snapshot.
+// Manifest describes a single configuration snapshot.
 type Manifest struct {
 	Timestamp    time.Time      `json:"timestamp"`
 	Digest       string         `json:"digest"`
@@ -573,6 +582,7 @@ type Manifest struct {
 	Files        []ManifestFile `json:"files"`
 }
 
+// ManifestFile describes one file in a configuration snapshot.
 type ManifestFile struct {
 	Path   string      `json:"path"`
 	Size   int64       `json:"size"`
@@ -729,7 +739,10 @@ func (cb *configBackup) rotate(backupDir, currentDigest string) {
 
 // evictSnapshots removes the oldest snapshots beyond maxSnapshots, by
 // last-seen time from the occurrence log. It never evicts the current
-// configuration or its most recent distinct predecessor.
+// configuration or its most recent distinct predecessor. Candidates are built
+// from every archive on disk (not only logged digests), so orphaned archives
+// whose start records were trimmed or never written are still evictable and
+// max_snapshots stays a hard bound.
 func evictSnapshots(backupDir string, records []startRecord, currentDigest string, maxSnapshots int) {
 	lastSeen := map[string]time.Time{}
 	var order []string
@@ -748,29 +761,50 @@ func evictSnapshots(backupDir string, records []startRecord, currentDigest strin
 		}
 	}
 
+	// Candidate digests: every archive on disk plus every logged digest, minus
+	// the protected ones. Orphans carry a zero last-seen time and sort last, so
+	// logged history is evicted before them.
+	candidates := map[string]time.Time{}
+	entries, err := os.ReadDir(backupDir)
+	if err == nil {
+		for _, e := range entries {
+			if !strings.HasSuffix(e.Name(), archiveSuffix) {
+				continue
+			}
+			digest := strings.TrimSuffix(e.Name(), archiveSuffix)
+			if !validArchiveName(digest) {
+				continue
+			}
+			candidates[digest] = lastSeen[digest]
+		}
+	}
+	for _, digest := range order {
+		if _, ok := candidates[digest]; !ok {
+			candidates[digest] = lastSeen[digest]
+		}
+	}
+	for digest := range protected {
+		delete(candidates, digest)
+	}
+
 	type candidate struct {
 		digest   string
 		lastSeen time.Time
 	}
-	var candidates []candidate
-	for _, digest := range order {
-		if protected[digest] {
-			continue
-		}
-		if _, err := os.Stat(filepath.Join(backupDir, digest+archiveSuffix)); err == nil {
-			candidates = append(candidates, candidate{digest: digest, lastSeen: lastSeen[digest]})
-		}
+	var sorted []candidate
+	for digest, seen := range candidates {
+		sorted = append(sorted, candidate{digest: digest, lastSeen: seen})
 	}
-	sort.Slice(candidates, func(i, j int) bool { return candidates[i].lastSeen.Before(candidates[j].lastSeen) })
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].lastSeen.Before(sorted[j].lastSeen) })
 
 	total := countArchives(backupDir)
 	toEvict := total - maxSnapshots
 	if toEvict <= 0 {
 		return
 	}
-	for i := 0; i < toEvict && i < len(candidates); i++ {
-		_ = os.Remove(filepath.Join(backupDir, candidates[i].digest+archiveSuffix))
-		_ = os.Remove(filepath.Join(backupDir, candidates[i].digest+manifestSuffix))
+	for i := 0; i < toEvict && i < len(sorted); i++ {
+		_ = os.Remove(filepath.Join(backupDir, sorted[i].digest+archiveSuffix))
+		_ = os.Remove(filepath.Join(backupDir, sorted[i].digest+manifestSuffix))
 	}
 }
 

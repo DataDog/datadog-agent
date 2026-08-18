@@ -168,7 +168,9 @@ func copyRegularFile(src, dst string, info fs.FileInfo) error {
 	}
 	if st, ok := info.Sys().(*syscall.Stat_t); ok {
 		if err := os.Lchown(dst, int(st.Uid), int(st.Gid)); err != nil {
-			return err
+			// cp -a warns and continues when it cannot preserve ownership; do the
+			// same so the copy does not fail when running as non-root.
+			log.Warnf("error setting ownership on %s: %v", dst, err)
 		}
 	}
 	return nil

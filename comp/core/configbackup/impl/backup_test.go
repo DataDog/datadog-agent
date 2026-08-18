@@ -334,3 +334,61 @@ func mapArchivePaths(files []collectedFile) map[string]bool {
 	}
 	return m
 }
+
+func TestBackupWritesSnapshot(t *testing.T) {
+	cb, dir := writeConfigDir(t)
+	cb.config.Set("config_backup.enabled", true, pkgconfigmodel.SourceFile)
+	cb.backup()
+
+	backupDir := filepath.Join(dir, backupDirName)
+	require.DirExists(t, backupDir)
+	require.FileExists(t, filepath.Join(backupDir, startsLogName))
+	assert.Equal(t, 1, countArchives(backupDir))
+	// The occurrence log has exactly one start record.
+	records, err := readStartRecords(backupDir)
+	require.NoError(t, err)
+	assert.Len(t, records, 1)
+}
+
+func TestBackupDisabled(t *testing.T) {
+	cb, dir := writeConfigDir(t)
+	cb.config.Set("config_backup.enabled", false, pkgconfigmodel.SourceFile)
+	cb.backup()
+
+	_, err := os.Stat(filepath.Join(dir, backupDirName))
+	assert.True(t, os.IsNotExist(err), "no backup directory must be created when disabled")
+}
+
+func TestBackupDirectoryOverride(t *testing.T) {
+	cb, dir := writeConfigDir(t)
+	override := filepath.Join(t.TempDir(), "custom-backups")
+	cb.config.Set("config_backup.enabled", true, pkgconfigmodel.SourceFile)
+	cb.config.Set("config_backup.directory", override, pkgconfigmodel.SourceFile)
+	cb.backup()
+
+	require.DirExists(t, override)
+	assert.Equal(t, 1, countArchives(override))
+	// Nothing is written under the derived directory.
+	_, err := os.Stat(filepath.Join(dir, backupDirName))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestArchiveMatchesDigestPositive(t *testing.T) {
+	cb, dir := writeConfigDir(t)
+	files, err := collectFiles(cb, dir)
+	require.NoError(t, err)
+	digest, err := computeDigest(files)
+	require.NoError(t, err)
+
+	backupDir := filepath.Join(dir, backupDirName)
+	require.NoError(t, os.MkdirAll(backupDir, 0o700))
+	require.NoError(t, publishSnapshot(backupDir, dir, digest, files))
+	require.NoError(t, appendStartRecord(backupDir, startRecord{Timestamp: time.Now().UTC(), Digest: digest}))
+
+	archivePath := filepath.Join(backupDir, digest+archiveSuffix)
+	assert.True(t, archiveMatchesDigest(archivePath, digest))
+	snapshots, err := ListSnapshots(backupDir)
+	require.NoError(t, err)
+	require.Len(t, snapshots, 1)
+	assert.Equal(t, digest, snapshots[0].Digest)
+}
