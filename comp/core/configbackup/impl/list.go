@@ -59,7 +59,7 @@ func ListSnapshots(backupDir string) ([]Snapshot, error) {
 	}
 
 	// Manifest metadata per digest.
-	manifests := map[string]manifest{}
+	manifests := map[string]Manifest{}
 	if read, err := ReadManifests(backupDir); err == nil {
 		for _, m := range read {
 			manifests[m.Digest] = m
@@ -208,12 +208,12 @@ func safeArchiveName(name string) bool {
 }
 
 // ReadManifests reads all manifest sidecars in the backup directory.
-func ReadManifests(backupDir string) ([]manifest, error) {
+func ReadManifests(backupDir string) ([]Manifest, error) {
 	entries, err := os.ReadDir(backupDir)
 	if err != nil {
 		return nil, err
 	}
-	var manifests []manifest
+	var manifests []Manifest
 	for _, e := range entries {
 		if !strings.HasSuffix(e.Name(), manifestSuffix) {
 			continue
@@ -222,7 +222,7 @@ func ReadManifests(backupDir string) ([]manifest, error) {
 		if err != nil {
 			continue
 		}
-		var m manifest
+		var m Manifest
 		if err := json.Unmarshal(data, &m); err != nil {
 			continue
 		}

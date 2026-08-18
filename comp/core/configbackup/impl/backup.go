@@ -562,7 +562,7 @@ func writeTarGz(w io.Writer, files []collectedFile) error {
 }
 
 // manifest describes a single configuration snapshot.
-type manifest struct {
+type Manifest struct {
 	Timestamp    time.Time      `json:"timestamp"`
 	Digest       string         `json:"digest"`
 	ConfigDir    string         `json:"config_dir"`
@@ -570,10 +570,10 @@ type manifest struct {
 	DeploymentID string         `json:"deployment_id,omitempty"`
 	AgentVersion string         `json:"agent_version"`
 	Hostname     string         `json:"hostname"`
-	Files        []manifestFile `json:"files"`
+	Files        []ManifestFile `json:"files"`
 }
 
-type manifestFile struct {
+type ManifestFile struct {
 	Path   string      `json:"path"`
 	Size   int64       `json:"size"`
 	Mode   fs.FileMode `json:"mode"`
@@ -582,12 +582,12 @@ type manifestFile struct {
 	Digest string      `json:"digest"`
 }
 
-func buildManifest(srcDir, digest string, files []collectedFile) manifest {
+func buildManifest(srcDir, digest string, files []collectedFile) Manifest {
 	host, err := hostname.Get(context.Background())
 	if err != nil {
 		host = "unknown"
 	}
-	m := manifest{
+	m := Manifest{
 		Timestamp:    time.Now().UTC(),
 		Digest:       digest,
 		ConfigDir:    srcDir,
@@ -595,10 +595,10 @@ func buildManifest(srcDir, digest string, files []collectedFile) manifest {
 		DeploymentID: readDeploymentID(srcDir),
 		AgentVersion: version.AgentVersion,
 		Hostname:     host,
-		Files:        make([]manifestFile, 0, len(files)),
+		Files:        make([]ManifestFile, 0, len(files)),
 	}
 	for _, f := range files {
-		m.Files = append(m.Files, manifestFile{
+		m.Files = append(m.Files, ManifestFile{
 			Path:   f.archivePath,
 			Size:   f.size,
 			Mode:   f.mode,
@@ -611,7 +611,7 @@ func buildManifest(srcDir, digest string, files []collectedFile) manifest {
 }
 
 // writeManifestAtomic writes the manifest to a temp file and renames it.
-func writeManifestAtomic(backupDir, digest string, m manifest) error {
+func writeManifestAtomic(backupDir, digest string, m Manifest) error {
 	tmp, err := os.CreateTemp(backupDir, tmpPrefix+"*.manifest.json")
 	if err != nil {
 		return err
@@ -699,7 +699,7 @@ func (cb *configBackup) rotate(backupDir, currentDigest string) {
 		cb.log.Warnf("config backup: timed out waiting for rotation lock, skipping rotation")
 		return
 	}
-	defer lock.Unlock()
+	defer func() { _ = lock.Unlock() }()
 
 	maxSnapshots := cb.config.GetInt("config_backup.max_snapshots")
 	if maxSnapshots <= 0 {

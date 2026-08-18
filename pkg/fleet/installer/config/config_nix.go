@@ -104,7 +104,7 @@ func (d *Directories) RemoveExperiment(_ context.Context) error {
 // symlinks, and skips the config-backups directory: the backups must never be
 // nested inside a copy of themselves, and promote must not replace the stable
 // history wholesale.
-func copyDirectory(ctx context.Context, sourcePath, targetPath string) error {
+func copyDirectory(_ context.Context, sourcePath, targetPath string) error {
 	return filepath.WalkDir(sourcePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
