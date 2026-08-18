@@ -28,8 +28,8 @@ import (
 // trending baselines, so a slow ramp punctuated by a jump produces a small
 // forecast residual on the ramp itself and a large one on the jump.
 //
-// Memory per (series, aggregation): a 24-point warmup buffer, a
-// 60-residual MAD window, a 60-value MAD window, plus scalars — ~1.5 KB.
+// Memory per (series, aggregation): scalar warmup accumulators, a 60-residual
+// MAD window, a 60-value MAD window, plus scalars — ~1.1 KB.
 // Per-tick cost: O(1) smoother update + O(W log W) MAD recompute (W=60),
 // dominated by the two sort.Float64s calls inside detectorMAD.
 

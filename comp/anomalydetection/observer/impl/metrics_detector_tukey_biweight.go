@@ -26,11 +26,9 @@ type tbStateKey struct {
 
 // tbSeriesState holds streaming state per (series, aggregate) pair.
 //
-// Memory footprint per key (rough):
-//
-//	scalars                      ~  100 B
-//	                              -------
-//	                             ~1.4 KB
+// Memory footprint per key is limited to cursor and cooldown scalars. The
+// scoring window is read from bounded storage into a detector-wide scratch
+// buffer instead of being retained per series.
 type tbSeriesState struct {
 	// Cursor over visible storage buckets plus in-place write generation.
 	lastProcessedCount int

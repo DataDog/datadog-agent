@@ -120,7 +120,6 @@ func (d *ScanMWDetector) Reset() {
 }
 
 // RemoveSeries drops segment-tracking state for refs that storage has freed.
-// RemoveSeries drops segment-tracking state for refs that storage has freed.
 func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
