@@ -62,7 +62,7 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
 fn queue_restart(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
     if let Some(delay) = proc.schedule_restart() {
         let pending = proc.uuid().to_owned();
-        let tx = handles.restart_sender();
+        let tx = handles.restart_tx.clone();
         tokio::spawn(async move {
             tokio::time::sleep(delay).await;
             let _ = tx.send(pending).await;
