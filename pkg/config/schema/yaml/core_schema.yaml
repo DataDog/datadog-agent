@@ -5439,8 +5439,9 @@ properties:
           point_retention:
             node_type: setting
             type: string
-            default: 2m0s
+            default: 0s
             format: duration
+            comment: 0s derives retention from the maximum point window of enabled detectors.
             tags:
             - golang_type:duration
     tags:
