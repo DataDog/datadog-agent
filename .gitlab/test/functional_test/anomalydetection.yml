@@ -11,6 +11,8 @@ observer-build-upload-ddeval-testbench:
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   needs: []
   allow_failure: true
   interruptible: false
@@ -19,10 +21,21 @@ observer-build-upload-ddeval-testbench:
     KUBERNETES_CPU_REQUEST: "4"
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
+    AWS_SHARED_CREDENTIALS_FILE: "$CI_PROJECT_DIR/.aws/credentials-by-job-id/$CI_JOB_ID"
+    CI_IDENTITIES_CLIENT_VERSION: "v0.6.6"
     OBSERVER_ABLATION_ARTIFACT_BUCKET: "observer-log-ad-eval-artifacts-ddbuild"
   script:
     - |
-      ci_identity_client="$(command -v ci-identities-ci-job-client || command -v ci-identities-gitlab-job-client)"
+      if [[ -z "${CI_IDENTITIES_GITLAB_ID_TOKEN:-}" ]]; then
+        echo "CI_IDENTITIES_GITLAB_ID_TOKEN is not available to the job."
+        exit 1
+      fi
+      ci_identity_client="$CI_PROJECT_DIR/ci-identities-gitlab-job-client"
+      aws s3 cp \
+        "s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/versions/${CI_IDENTITIES_CLIENT_VERSION}/ci-identities-gitlab-job-client-linux-amd64" \
+        "$ci_identity_client"
+      chmod +x "$ci_identity_client"
+      mkdir -p "$(dirname "$AWS_SHARED_CREDENTIALS_FILE")"
       "$ci_identity_client" assume-role
     - bash tasks/anomalydetection/ddeval/publish-testbench.sh
   artifacts:
@@ -47,6 +60,8 @@ observer-ablation-ddeval:
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   needs: []
   allow_failure: true
   interruptible: false
@@ -55,6 +70,8 @@ observer-ablation-ddeval:
     KUBERNETES_CPU_REQUEST: "4"
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
+    AWS_SHARED_CREDENTIALS_FILE: "$CI_PROJECT_DIR/.aws/credentials-by-job-id/$CI_JOB_ID"
+    CI_IDENTITIES_CLIENT_VERSION: "v0.6.6"
     OBSERVER_ABLATION_OUTPUT_DIR: "$CI_PROJECT_DIR/observer-ablation-ddeval"
     OBSERVER_ABLATION_N_COMBOS: "1"
     OBSERVER_ABLATION_N_TRIALS_SEARCH: "1"
@@ -68,7 +85,16 @@ observer-ablation-ddeval:
     OBSERVER_ABLATION_ARTIFACT_BUCKET: "observer-log-ad-eval-artifacts-ddbuild"
   script:
     - |
-      ci_identity_client="$(command -v ci-identities-ci-job-client || command -v ci-identities-gitlab-job-client)"
+      if [[ -z "${CI_IDENTITIES_GITLAB_ID_TOKEN:-}" ]]; then
+        echo "CI_IDENTITIES_GITLAB_ID_TOKEN is not available to the job."
+        exit 1
+      fi
+      ci_identity_client="$CI_PROJECT_DIR/ci-identities-gitlab-job-client"
+      aws s3 cp \
+        "s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/versions/${CI_IDENTITIES_CLIENT_VERSION}/ci-identities-gitlab-job-client-linux-amd64" \
+        "$ci_identity_client"
+      chmod +x "$ci_identity_client"
+      mkdir -p "$(dirname "$AWS_SHARED_CREDENTIALS_FILE")"
       "$ci_identity_client" assume-role
     - mkdir -p "$OBSERVER_ABLATION_OUTPUT_DIR"
     - DD_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DD_API_KEY
