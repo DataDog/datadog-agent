@@ -81,6 +81,7 @@ type DatadogConfig struct {
 	APIKey               string                     `yaml:"api_key,omitempty"`
 	Hostname             string                     `yaml:"hostname,omitempty"`
 	Site                 string                     `yaml:"site,omitempty"`
+	LogLevel             string                     `yaml:"log_level,omitempty"`
 	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`

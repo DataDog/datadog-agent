@@ -1,4 +1,33 @@
 services:
+  redis-env-configfilesdiscovery:
+    image: ghcr.io/datadog/redis:{APPS_VERSION}
+    container_name: redis-env-configfilesdiscovery
+    # Keep the image running without redis-server or a config path so discovery
+    # has to rely on the container environment.
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - "trap : TERM INT; sleep 2147483647 & wait"
+    environment:
+      REDIS_AOF_ENABLED: "yes"
+      REDIS_PASSWORD: must-not-be-forwarded
+      REDIS_PORT_NUMBER: "6380"
+      REDIS_REQUIREPASS: must-not-be-forwarded
+      REDIS_TLS_CERT_FILE: /etc/redis/tls.crt
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "redisdb": {
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": 6380
+              }
+            ]
+          }
+        }
+
   redis-configfilesdiscovery-explicit:
     image: ghcr.io/datadog/redis:{APPS_VERSION}
     container_name: redis-configfilesdiscovery-explicit
