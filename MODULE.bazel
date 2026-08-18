@@ -85,6 +85,15 @@ bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
+# Temporary until gazelle carries https://github.com/bazel-contrib/bazel-gazelle/pull/2383
+# without which `std_package_list` reaches no cgo-capable `go_context()` under `--config=gorace`
+archive_override(
+    module_name = "gazelle",
+    sha256 = "b8defdcfc6b98ebf5f544e91dfdaad03c6f9ca89ec8780796840ffcae2c205eb",
+    strip_prefix = "bazel-gazelle-b9fe795df6681bd0f688d9272cfbd8fa46357078",
+    urls = ["https://github.com/bazel-contrib/bazel-gazelle/archive/b9fe795df6681bd0f688d9272cfbd8fa46357078.tar.gz"],  # master as of August 18, 2026
+)
+
 single_version_override(
     module_name = "protobuf",
     patch_strip = 1,
