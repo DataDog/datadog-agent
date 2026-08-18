@@ -56,16 +56,6 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
 )
-go_deps.gazelle_override(
-    # strptime_cgo_testlib.go uses tm_gmtoff (GNU extension, absent in
-    # musl libc). Exclude the CGo test-helper files so Gazelle does not
-    # include them in the generated go_library BUILD rules.
-    build_extra_args = [
-        "-exclude=timeutils/strptime_cgo_testlib.go",
-        "-exclude=timeutils/strptime_cgo_test.go",
-    ],
-    path = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal",
-)
 use_repo(
     go_deps,
     "cat_dario_mergo",
