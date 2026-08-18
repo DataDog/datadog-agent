@@ -8,7 +8,6 @@ package sysprobefunctional
 import (
 	_ "embed"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -30,8 +29,6 @@ import (
 
 type apmvmSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-
-	testspath string
 }
 
 //go:embed fixtures/system-probe.yaml
@@ -104,14 +101,30 @@ var sites = []windows.IISSiteDefinition{
 	},
 }
 
+// packagePath resolves rel against this package's source directory.
+//
+// Asset paths must not be resolved against the process working directory. The
+// test binary is only run from the package directory by convention -- `go test`
+// chdirs there, and the prebuilt-binary launcher sets Dir explicitly -- but
+// neither is guaranteed, and when the process starts elsewhere a relative path
+// silently points at nothing. Deriving the directory from this file's own
+// compile-time path keeps asset lookups correct either way.
+//
+// An already-absolute path is returned unchanged, so the helper is safe to apply
+// unconditionally at the copy helpers below.
+func packagePath(rel string) string {
+	if filepath.IsAbs(rel) {
+		return rel
+	}
+	_, srcfile, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("sysprobe-functional: could not determine the test package source path")
+	}
+	return filepath.Join(filepath.Dir(srcfile), rel)
+}
+
 func (v *apmvmSuite) SetupSuite() {
 	t := v.T()
-
-	// Get the absolute path to the test assets directory
-	currDir, err := os.Getwd()
-	require.NoError(t, err)
-
-	v.testspath = filepath.Join(currDir, "artifacts")
 
 	// this creates the VM.
 	v.BaseSuite.SetupSuite()
@@ -121,21 +134,16 @@ func (v *apmvmSuite) SetupSuite() {
 	// get the remote host
 	vm := v.Env().RemoteHost
 
-	err = windows.InstallIIS(vm)
+	err := windows.InstallIIS(vm)
 	require.NoError(t, err)
 	// HEADSUP the paths are windows, but this will execute in linux. So fix the paths
 	t.Log("IIS Installed, continuing")
 
 	t.Log("Creating sites")
-	// figure out where we're being executed from.  These paths should be in
-	// native path separators (i.e. not windows paths if executing in ci/on linux)
-
-	_, srcfile, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	exPath := filepath.Dir(srcfile)
-
+	// These paths are consumed on the remote windows host but built here on
+	// linux, so they must be in native separators.
 	for idx := range sites {
-		sites[idx].AssetsDir = path.Join(exPath, "assets")
+		sites[idx].AssetsDir = packagePath("assets")
 	}
 
 	err = windows.CreateIISSite(vm, sites)
@@ -164,15 +172,14 @@ func copyFileToSiteRoot(host *components.RemoteHost, sitename, filename, targetf
 		}
 	}
 
-	// test this out.  Should copy path-relative to assets
-	host.CopyFile(filename, sitepath)
+	host.CopyFile(packagePath(filename), sitepath)
 	return nil
 }
 
 func copyFileToAppRoot(host *components.RemoteHost, app windows.IISApplicationDefinition, filename, targetfilename string) error {
 
 	apppath := path.Join(app.PhysicalPath, targetfilename)
-	host.CopyFile(filename, apppath)
+	host.CopyFile(packagePath(filename), apppath)
 	return nil
 }
 
@@ -228,11 +235,11 @@ func setupTest(vm *components.RemoteHost, test usmTaggingTest) error {
 	removeIfExists(vm, clientAppConfig)
 
 	if test.clientJSONFile != "" {
-		vm.CopyFile(test.clientJSONFile, clientJSONFile)
+		vm.CopyFile(packagePath(test.clientJSONFile), clientJSONFile)
 	}
 
 	if test.clientAppConfig != "" {
-		vm.CopyFile(test.clientAppConfig, clientAppConfig)
+		vm.CopyFile(packagePath(test.clientAppConfig), clientAppConfig)
 	}
 
 	cleanSites(vm)
@@ -295,13 +302,13 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 
 	// copy test script
 	testScript := path.Join("c:", "users", "administrator", "test_tags.ps1")
-	vm.CopyFile("usmtest/test_tags.ps1", testScript)
+	vm.CopyFile(packagePath("usmtest/test_tags.ps1"), testScript)
 
 	testExe := path.Join("c:", "users", "administrator", "littleget.exe")
-	vm.CopyFile("usmtest/littleget.exe", testExe)
+	vm.CopyFile(packagePath("usmtest/littleget.exe"), testExe)
 
 	pipeExe := path.Join("c:", "users", "administrator", "NamedPipeCmd.exe")
-	vm.CopyFile("usmtest/NamedPipeCmd.exe", pipeExe)
+	vm.CopyFile(packagePath("usmtest/NamedPipeCmd.exe"), pipeExe)
 
 	pscommand := "%s %s -TargetHost localhost -TargetPort %s -TargetPath %s -ExpectedClientTags %s -ExpectedServerTags %s -ConnExe %s"
 
