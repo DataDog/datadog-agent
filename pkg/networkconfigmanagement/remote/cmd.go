@@ -34,12 +34,22 @@ func errorStr(e error) string {
 // Execute runs a command and validates the output with its validation rules.
 // The validation runs on the combined stdout and stderr of the command.
 func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	if len(cmd.SetupCommands) > 0 {
+		return executeWithSetup(ctx, client, cmd)
+	}
+	r, err := runMain(ctx, client, cmd)
+	if err != nil {
+		return nil, err
+	}
+	return r, r.FormattedError()
+}
+
+// executeWithSetup runs the setup commands and the main command on a single
+// connection. Setup commands (e.g. "terminal pager 0") run first, each in its
+// own exec session because many devices execute only the first command of a
+// multi-command exec.
+func executeWithSetup(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
 	var result *types.CommandResult
-	// run executes the setup commands and the main command on a single
-	// connection. Setup commands (e.g. "terminal pager 0") run first, each in
-	// its own exec session because many devices execute only the first command
-	// of a multi-command exec; their side effect is scoped to the connection, so
-	// the main command must run on that same connection.
 	run := func(conn sshClient) error {
 		// Setup commands are best-effort, but honor cancellation.
 		for _, setup := range cmd.SetupCommands {
@@ -52,10 +62,6 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 		result = r
 		return err
 	}
-
-	// A RetryingSSHClient can reconnect between sessions, which would strand the
-	// setup commands on the previous connection; run the whole sequence on one
-	// pinned connection and retry it as a unit instead.
 	if rc, ok := client.(*RetryingSSHClient); ok {
 		if err := rc.Pinned(run); err != nil {
 			return nil, err
