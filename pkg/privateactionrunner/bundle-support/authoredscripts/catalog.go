@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build !windows
+
 package authoredscripts
 
 // Descriptor identifies an immutable published artifact variant.
