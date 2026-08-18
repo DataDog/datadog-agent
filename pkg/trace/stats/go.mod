@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.83.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.83.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.83.0-rc.3
-	github.com/DataDog/datadog-go/v5 v5.9.0
+	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/google/gofuzz v1.2.0
 	github.com/stretchr/testify v1.11.1
