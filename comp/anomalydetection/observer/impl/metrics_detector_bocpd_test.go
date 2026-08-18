@@ -27,6 +27,19 @@ func TestBOCPDDetector_Name(t *testing.T) {
 	assert.Equal(t, "bocpd", d.Name())
 }
 
+func TestBOCPDDetector_ClampsRunLengthToWarmup(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	assert.Equal(t, config.WarmupPoints, config.MaxRunLength)
+	config.WarmupPoints = 40
+	config.MaxRunLength = 100
+	d := NewBOCPDDetector(config)
+	assert.Equal(t, 40, d.config.MaxRunLength)
+
+	config.MaxRunLength = 0
+	d = NewBOCPDDetector(config)
+	assert.Equal(t, 40, d.config.MaxRunLength)
+}
+
 func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {
 	d := testBOCPDDetector()
 	storage := newTimeSeriesStorage()

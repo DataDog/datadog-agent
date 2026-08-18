@@ -10,7 +10,10 @@ import (
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const defaultBOCPDWarmupPoints = 120
 
 // bocpdStateKey uniquely identifies a (series, aggregation) pair for BOCPD state.
 type bocpdStateKey struct {
@@ -80,7 +83,7 @@ type BOCPDConfig struct {
 	CPMassThreshold float64 `json:"cp_mass_threshold"`
 
 	// MaxRunLength caps tracked run-length hypotheses for bounded compute.
-	// Default: 200
+	// Default: WarmupPoints. Values above WarmupPoints are clamped.
 	MaxRunLength int `json:"max_run_length"`
 
 	// PriorVarianceScale controls prior variance over the mean relative to observed variance.
@@ -103,12 +106,12 @@ type BOCPDConfig struct {
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
 func DefaultBOCPDConfig() BOCPDConfig {
 	return BOCPDConfig{
-		WarmupPoints:       120,
+		WarmupPoints:       defaultBOCPDWarmupPoints,
 		Hazard:             0.05,
 		CPThreshold:        0.6,
 		ShortRunLength:     5,
 		CPMassThreshold:    0.7,
-		MaxRunLength:       200,
+		MaxRunLength:       defaultBOCPDWarmupPoints,
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
@@ -157,7 +160,11 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 		config.CPMassThreshold = defaults.CPMassThreshold
 	}
 	if config.MaxRunLength <= 0 {
-		config.MaxRunLength = defaults.MaxRunLength
+		config.MaxRunLength = config.WarmupPoints
+	}
+	if config.MaxRunLength > config.WarmupPoints {
+		pkglog.Warnf("[observer] BOCPD max_run_length=%d exceeds warmup_points=%d; using %d", config.MaxRunLength, config.WarmupPoints, config.WarmupPoints)
+		config.MaxRunLength = config.WarmupPoints
 	}
 	if config.PriorVarianceScale <= 0 {
 		config.PriorVarianceScale = defaults.PriorVarianceScale
