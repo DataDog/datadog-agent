@@ -209,8 +209,8 @@ func (c *Compressor) establishPivots(ts, value, errorBound float64) {
 // Scale returns the compressor's current EWMA estimate of the signal's
 // magnitude (a smoothed |value|) — the basis for its tolerance (tolerance =
 // max(Epsilon*Scale(), Floor)). Exposed for observability only (see
-// sdcsender's scale-deviation telemetry); the compressor's own correctness
-// never depends on a caller reading this.
+// pkg/aggregator's checksampler_sdc scale-deviation telemetry); the
+// compressor's own correctness never depends on a caller reading this.
 func (c *Compressor) Scale() float64 {
 	return c.scale
 }

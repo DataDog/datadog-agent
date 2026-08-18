@@ -43,6 +43,7 @@ type CheckSampler struct {
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
 	observerHandle         observer.Handle
+	sdcCompressor          *checkSDCCompressor
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -67,6 +68,7 @@ func newCheckSampler(
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 		allowSketchBucketReset: allowSketchBucketReset,
+		sdcCompressor:          newCheckSDCCompressor(id),
 	}
 }
 
@@ -79,6 +81,14 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
 		cs.observerHandle.ObserveMetric(metricSample)
+	}
+	if cs.sdcCompressor != nil &&
+		(metricSample.Mtype == metrics.GaugeType || metricSample.Mtype == metrics.GaugeWithTimestampType) {
+		// metricSample.Mtype is the unambiguous check-level kind, only
+		// available here — the outgoing Serie.MType seen later in
+		// commitSeries conflates Gauge and Rate (both wire as
+		// APIGaugeType), so eligibility must be decided at this layer.
+		cs.sdcCompressor.noteSample(contextKey, metricSample.Name)
 	}
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
@@ -227,6 +237,12 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.
 			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
+		if cs.sdcCompressor != nil && !cs.sdcCompressor.apply(serie.ContextKey, serie) {
+			// SDC compression swallowed every point in this serie for this
+			// commit — no data point ships, exactly like an uncompressed
+			// gauge that wasn't sampled this cycle.
+			continue
+		}
 		serie.Name = name
 		serie.Tags = context.Tags()
 		serie.Host = context.Host
@@ -273,6 +289,9 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matche
 	for _, ctxKey := range expiredContextKeys {
 		delete(cs.lastBucketValue, ctxKey)
 		delete(cs.lastBucketValueByBound, ctxKey)
+		if cs.sdcCompressor != nil {
+			cs.sdcCompressor.expire(ctxKey)
+		}
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)
