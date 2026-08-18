@@ -7,42 +7,44 @@ package bench
 
 import (
 	"fmt"
+	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-// PassthroughCorrelator is a simple correlator that converts each anomaly to a report.
-// It serves as an example implementation and for testing.
-type PassthroughCorrelator struct {
-	anomalies []observer.Anomaly
-}
+// passthroughCorrelations converts raw anomalies into one evaluation period
+// each. It lives in the testbench instead of the observer component catalog so
+// this evaluation adapter can never run in the production agent pipeline.
+func passthroughCorrelations(anomalies []observer.Anomaly) []observer.ActiveCorrelation {
+	byDetector := make(map[string][]observer.Anomaly)
+	for _, anomaly := range anomalies {
+		byDetector[anomaly.DetectorName] = append(byDetector[anomaly.DetectorName], anomaly)
+	}
 
-// Name returns the correlator name.
-func (p *PassthroughCorrelator) Name() string {
-	return "passthrough_correlator"
-}
+	detectorNames := make([]string, 0, len(byDetector))
+	for name := range byDetector {
+		detectorNames = append(detectorNames, name)
+	}
+	sort.Strings(detectorNames)
 
-// ProcessAnomaly adds an anomaly to the pending list.
-func (p *PassthroughCorrelator) ProcessAnomaly(a observer.Anomaly) {
-	p.anomalies = append(p.anomalies, a)
-}
-
-// Advance is a no-op for the passthrough correlator (no time-based eviction).
-func (p *PassthroughCorrelator) Advance(_ int64) {}
-
-// ActiveCorrelations returns empty (passthrough does not produce correlations).
-func (p *PassthroughCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
-	return nil
-}
-
-// Reset clears accumulated anomalies.
-func (p *PassthroughCorrelator) Reset() {
-	p.anomalies = nil
-}
-
-// GetPending returns pending anomalies (for testing).
-func (p *PassthroughCorrelator) GetPending() []observer.Anomaly {
-	return p.anomalies
+	var correlations []observer.ActiveCorrelation
+	for _, detectorName := range detectorNames {
+		detected := append([]observer.Anomaly(nil), byDetector[detectorName]...)
+		sort.SliceStable(detected, func(i, j int) bool {
+			return detected[i].Timestamp < detected[j].Timestamp
+		})
+		for i, anomaly := range detected {
+			correlations = append(correlations, observer.ActiveCorrelation{
+				Pattern:     fmt.Sprintf("passthrough_%s_%d", detectorName, i),
+				Title:       fmt.Sprintf("Passthrough[%s]: %s", detectorName, anomaly.Source),
+				Members:     []observer.SeriesDescriptor{anomaly.Source},
+				Anomalies:   []observer.Anomaly{anomaly},
+				FirstSeen:   anomaly.Timestamp,
+				LastUpdated: anomaly.Timestamp,
+			})
+		}
+	}
+	return correlations
 }
 
 // StdoutReporter prints reports to stdout.

@@ -45,7 +45,7 @@ type ReportOutput struct {
 	// this advance cycle. Each event is emitted exactly once by the correlator
 	// that generated it — reporters forward them directly without deduplication.
 	//   EpisodeStarted / EpisodeEnded — from anomaly_scorer
-	//   CorrelationDetected           — from time_cluster, cross_signal, passthrough
+	//   CorrelationDetected           — from time_cluster
 	CorrelatorEvents []observerdef.CorrelatorEvent
 }
 

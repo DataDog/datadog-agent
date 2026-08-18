@@ -2979,8 +2979,9 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 	require.NotNil(t, profile.Schedule)
 
 	// The first flush must land after the run finishes, or it would report an empty run. The
-	// window is preflightModeDuration in comp/dataplane/preflightmode/impl (90s, deliberately not
-	// configurable); this asserts the schedule keeps clear of it with margin. Raising that
+	// shortest possible window is minPreflightModeDuration in comp/dataplane/preflightmode/impl
+	// (90s; data_plane.preflight_mode_duration can only extend it, which the recurring schedule
+	// below covers). This asserts the schedule keeps clear of the floor with margin. Raising that
 	// constant past this bound should fail here.
 	const preflightModeWindowSeconds = 90
 	assert.Greater(t, int(profile.Schedule.StartAfter), preflightModeWindowSeconds,

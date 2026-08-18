@@ -99,6 +99,41 @@ func TestPull(t *testing.T) {
 	}
 }
 
+func TestPullNVLinkVersion(t *testing.T) {
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1, NvLinkLinkCount: 1}),
+	)
+	c := newTestCollector(t, wmetaMock)
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	c.Pull(context.Background())
+
+	for _, gpu := range wmetaMock.ListGPUs() {
+		expectedVersion := "1.0"
+		if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
+			// MIG devices do not have NVLink ports, even when their parent does.
+			expectedVersion = "not_nvlink_capable"
+		}
+		require.Equalf(t, expectedVersion, gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
+	}
+}
+
+func TestPullWithoutNVLink(t *testing.T) {
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithNVLinkLinkCount(0),
+	)
+	c := newTestCollector(t, wmetaMock)
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	c.Pull(context.Background())
+
+	for _, gpu := range wmetaMock.ListGPUs() {
+		require.Equalf(t, "not_nvlink_capable", gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
+	}
+}
+
 func TestFabricInfoToTags(t *testing.T) {
 	clusterUUID := [16]uint8{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 	tests := []struct {

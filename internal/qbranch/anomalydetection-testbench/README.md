@@ -92,8 +92,7 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 |------|---------|-------------|
 | `anomaly_scorer` | enabled | Produces anomaly periods from the EWMA anomaly-severity score |
 | `time_cluster` | disabled | Groups anomalies that occur close together in time |
-| `cross_signal` | disabled | Cross-signal pattern correlator (fixed known patterns) |
-| `passthrough` | disabled | Passes every anomaly through as its own correlation (for TP metric scoring) |
+| `passthrough` | disabled | Testbench-only adapter that serializes every raw anomaly as its own evaluation period |
 
 ### Extractors
 
@@ -305,12 +304,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `min_token_match_ratio` | 0.5 | Minimum fraction of token positions that must match to merge lines (0 = default 0.5) |
 | `cluster_time_to_live_sec` | 14400 | Clusters with no matching log for this many seconds are removed during GC. `0` disables cluster garbage collection. |
 | `garbage_collection_interval_sec` | 3600 | Minimum seconds between GC passes when cluster TTL is enabled (nonzero `cluster_time_to_live_sec`) |
-
-#### `cross_signal`
-
-| Param | Default | Description |
-|-------|---------|-------------|
-| `window_seconds` | 30 | Time window for clustering anomalies |
 
 ## Architecture
 

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -279,4 +280,65 @@ func TestPathCPipeline_EndToEndByteConservation(t *testing.T) {
 	expected := strings.Join([]string{"2024-01-15 10:30:45 LEADER", "cont 1", "cont 2"}, `\n`)
 	assert.Equal(t, expected, combined,
 		"combined emission must be the input contents joined by the escaped-line-feed separator (no other bytes)")
+}
+
+// newDefaultThresholdCombiningPipeline wires CombiningAggregator with the
+// production timestamp-detector threshold (0.5) and labeler window (60).
+// newPathCPipeline uses 0.75, which would hide the IIS failure mode
+// (Kadane average 0.5 is not > 0.5, but is not > 0.75 either).
+//
+// Tokenizer max bytes matches the production default (equal to the
+// labeler window). Adaptive sampling is off by default, so the
+// tokenizer is not widened.
+func newDefaultThresholdCombiningPipeline(t *testing.T) (*Preprocessor, chan *message.Message) {
+	t.Helper()
+	mockConfig := configmock.New(t)
+	threshold := mockConfig.GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold")
+	labelerMaxBytes := mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	require.Equal(t, 0.5, threshold)
+	require.Equal(t, 60, labelerMaxBytes)
+
+	tailerInfo := status.NewInfoRegistry()
+	tok := NewTokenizer(labelerMaxBytes)
+	heuristics := []Heuristic{
+		NewJSONDetector(),
+		NewTimestampDetector(threshold),
+	}
+	labeler := NewLabeler(heuristics, nil)
+	combining := NewCombiningAggregator(100_000, false, false, tailerInfo)
+	sampler := NewAdaptiveSampler(generousSamplerCfg(), staticSourceTag("iis-aml-test"), 0)
+	outputChan := make(chan *message.Message, 1024)
+	pipeline := NewPreprocessor(combining, tok, labeler, sampler, outputChan, NewNoopJSONAggregator(), NewNoopStackTraceAggregator(), 10*time.Second, labelerMaxBytes)
+	return pipeline, outputChan
+}
+
+// TestPathCPipeline_IISW3CRecordsStaySingleLineAtDefaultThreshold is the
+// end-to-end check that IIS W3C records stay single-line at threshold 0.5.
+//
+// CombiningAggregator only concatenates aggregate lines onto an open
+// startGroup bucket. Isolated aggregate lines flush immediately, so two
+// IIS records by themselves would not reproduce the customer failure.
+// IIS W3C files open with a timestamped #Date header (startGroup); without
+// IPv4 collapse the following 10.1.48.10 records stay aggregate and are
+// appended until flush. With collapse each record starts its own group.
+func TestPathCPipeline_IISW3CRecordsStaySingleLineAtDefaultThreshold(t *testing.T) {
+	pipeline, outputChan := newDefaultThresholdCombiningPipeline(t)
+
+	pipeline.Process(newTestPreprocessorMessage(iisW3CDateHeader))
+	require.Empty(t, drainAll(outputChan), "timestamped #Date header must open a group and stay buffered")
+
+	pipeline.Process(newTestPreprocessorMessage(iisW3CFailingShape))
+	emitted := drainAll(outputChan)
+	require.Len(t, emitted, 1, "first IIS record must start a group and flush the header, not append to it")
+	assert.Equal(t, iisW3CDateHeader, string(emitted[0].GetContent()))
+
+	pipeline.Process(newTestPreprocessorMessage(iisW3CPostLine))
+	emitted = drainAll(outputChan)
+	require.Len(t, emitted, 1, "second IIS record must start a group and flush the first record")
+	assert.Equal(t, iisW3CFailingShape, string(emitted[0].GetContent()))
+
+	pipeline.Flush()
+	emitted = drainAll(outputChan)
+	require.Len(t, emitted, 1)
+	assert.Equal(t, iisW3CPostLine, string(emitted[0].GetContent()))
 }

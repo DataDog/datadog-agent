@@ -25,6 +25,10 @@ tags:
     regex: "^(gpu|mig)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
   gpu_pci_bus_id:
     regex: "^[0-9a-f]{4,8}:[0-9a-f]{2}:[0-9a-f]{2}\\.0$"
+  gpu_nvlink_version:
+    regex: "^(1\\.0|2\\.0|2\\.2|3\\.0|3\\.1|4\\.0|5\\.0|unknown(_-?\\d+)?|not_nvlink_capable)$"
+  gpu_nvlink_capable:
+    regex: "^(true|false)$"
   gpu_host:
     regex: "^true$"
   pid:
@@ -66,6 +70,8 @@ tagsets:
       - gpu_type
       - gpu_parent_uuid
       - gpu_pci_bus_id
+      - gpu_nvlink_version
+      - gpu_nvlink_capable
       - gpu_host
   nvlink:
     tags:

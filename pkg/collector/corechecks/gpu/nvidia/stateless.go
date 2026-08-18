@@ -23,9 +23,9 @@ import (
 
 // nvlinkSample handles NVLink metrics collection logic
 func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
-	totalNVLinks, err := GetNVLinkCount(device)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get nvlink count: %w", err)
+	totalNVLinks := device.GetDeviceInfo().NVLinkLinkCount
+	if totalNVLinks <= 0 {
+		return nil, 0, errUnsupportedDevice
 	}
 
 	// Collect NVLink states
