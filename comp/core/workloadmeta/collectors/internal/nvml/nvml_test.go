@@ -110,7 +110,12 @@ func TestPullNVLinkVersion(t *testing.T) {
 	c.Pull(context.Background())
 
 	for _, gpu := range wmetaMock.ListGPUs() {
-		require.Equalf(t, "1.0", gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
+		expectedVersion := "1.0"
+		if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
+			// MIG devices do not have NVLink ports, even when their parent does.
+			expectedVersion = "not_nvlink_capable"
+		}
+		require.Equalf(t, expectedVersion, gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
 	}
 }
 
