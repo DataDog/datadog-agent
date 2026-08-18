@@ -104,6 +104,10 @@ impl Supervisor {
             tokio::spawn(grpc::server::run(manager.clone(), cmd_tx, grpc_shutdown_rx));
 
         let (handles, mut exit_rx, mut restart_rx) = RuntimeHandles::new();
+        #[cfg(unix)]
+        if let Err(e) = platform::spawn_user_for_supervisor() {
+            warn!("could not resolve supervisor spawn user for display: {e:#}");
+        }
         manager.auto_start_all(&handles).await;
 
         let shutdown = platform::shutdown_signal();

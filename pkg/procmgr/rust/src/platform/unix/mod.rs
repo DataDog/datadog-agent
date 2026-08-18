@@ -17,13 +17,21 @@ use tokio::process::Command;
 
 use anyhow::{Context, Result};
 use nix::unistd::{User, geteuid};
+use std::sync::OnceLock;
+
+static SUPERVISOR_SPAWN_USER: OnceLock<String> = OnceLock::new();
 
 /// Return the passwd name for procmgr's effective user (the account Unix children inherit).
+/// The result is cached after the first successful lookup.
 pub(crate) fn spawn_user_for_supervisor() -> Result<String> {
-    User::from_uid(geteuid())
-        .context("getpwuid")?
-        .map(|u| u.name)
-        .context("no passwd entry for supervisor uid")
+    SUPERVISOR_SPAWN_USER
+        .get_or_try_init(|| {
+            User::from_uid(geteuid())
+                .context("getpwuid")?
+                .map(|u| u.name)
+                .context("no passwd entry for supervisor uid")
+        })
+        .cloned()
 }
 
 /// Place the child in its own process group so signals don't propagate
