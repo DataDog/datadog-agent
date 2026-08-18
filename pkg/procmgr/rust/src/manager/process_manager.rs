@@ -1,6 +1,6 @@
 use super::{
-    ExitEvent, PendingRestart, RuntimeHandles, Supervisor, find_index_by_name, enqueue_pending_restart,
-    resolve_index, try_auto_start,
+    ExitEvent, PendingRestart, RuntimeHandles, Supervisor, enqueue_pending_restart,
+    find_index_by_name, resolve_index, try_auto_start,
 };
 use crate::command::{CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
