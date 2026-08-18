@@ -14,6 +14,7 @@ permissions: {}
 
 jobs:
   review:
+    if: github.event_name != 'pull_request' || github.event.action != 'opened' || github.event.pull_request.draft != true || !contains(github.event.pull_request.labels.*.name, 'no-draft-review')
     permissions:
       contents: read
       pull-requests: write
@@ -21,9 +22,9 @@ jobs:
     uses: DataDog/code-review-action/.github/workflows/code-review.yml@56d6862711348b11ec2603edfb29c52c09f4b84c # v1.1.0
     with:
       provider: codex
-      # Automatically replace the Codex review with a dd-review when a draft PR
-      # becomes ready. Keep every other event on demand via /dd-review.
-      trigger_mode: ${{ github.event_name == 'pull_request' && github.event.action == 'ready_for_review' && 'always' || 'on_demand' }}
+      # Review PRs when they are opened or transition out of draft. Keep every
+      # other event on demand via /dd-review.
+      trigger_mode: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'ready_for_review') && 'always' || 'on_demand' }}
       # Root-level files apply to every PR.
       # Sub-directory files apply only when the PR touches files under that prefix.
       prompt_file_pattern: "**/codereview_guideline.md"
