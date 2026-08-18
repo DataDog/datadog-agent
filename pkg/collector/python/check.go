@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"runtime/cgo"
 	"runtime/pprof"
 	"strings"
 	"time"
@@ -33,12 +34,19 @@ import (
 )
 
 /*
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 
 char *getStringAddr(char **array, unsigned int idx);
+extern int remoteQueryStreamEmitBridge(const char *event_type, const char *metadata_json, const uint8_t *payload, size_t payload_len, void *userdata);
+int run_remote_query_stream(rtloader_t *, rtloader_pyobject_t *check, const char *integration, const char *request_json, int (*emit)(const char *, const char *, const uint8_t *, size_t, void *), void *userdata);
+
+static inline int call_run_remote_query_stream(rtloader_t *rtloader, rtloader_pyobject_t *check, const char *integration, const char *request_json, uintptr_t userdata) {
+    return run_remote_query_stream(rtloader, check, integration, request_json, remoteQueryStreamEmitBridge, (void *)userdata);
+}
 
 static inline void call_free(void* ptr) {
     _free(ptr);
@@ -155,6 +163,43 @@ func (c *PythonCheck) Run() error {
 // RunSimple runs a Python check without sending data to the aggregator
 func (c *PythonCheck) RunSimple() error {
 	return c.runCheck(false)
+}
+
+// RunRemoteQueryStream runs a streaming remote query helper for this Python check.
+func (c *PythonCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(checkbase.RemoteQueryStreamEvent) error) error {
+	integration = strings.ToLower(strings.TrimSpace(integration))
+	if integration == "" {
+		return errors.New("integration is required")
+	}
+	if emit == nil {
+		return errors.New("emit callback is required")
+	}
+
+	gstate, err := newStickyLock()
+	if err != nil {
+		return err
+	}
+	defer gstate.unlock()
+
+	if c.cancelled {
+		return fmt.Errorf("check %s is already cancelled", c.ModuleName)
+	}
+
+	cIntegration := C.CString(integration)
+	defer C.free(unsafe.Pointer(cIntegration))
+	cRequestJSON := C.CString(requestJSON)
+	defer C.free(unsafe.Pointer(cRequestJSON))
+
+	h := cgo.NewHandle(emit)
+	defer h.Delete()
+	ok := C.call_run_remote_query_stream(rtloader, c.instance, cIntegration, cRequestJSON, C.uintptr_t(h))
+	if ok == 0 {
+		if err := getRtLoaderError(); err != nil {
+			return err
+		}
+		return errors.New("an error occurred while running remote query stream")
+	}
+	return nil
 }
 
 // Stop does nothing

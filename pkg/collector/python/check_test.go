@@ -70,3 +70,15 @@ func TestCheckDiagnosesDeserialization(t *testing.T) {
 func TestRunAfterCancel(t *testing.T) {
 	testRunAfterCancel(t)
 }
+
+func TestRunRemoteQueryStream(t *testing.T) {
+	testRunRemoteQueryStream(t)
+}
+
+func TestRunRemoteQueryStreamEmitError(t *testing.T) {
+	testRunRemoteQueryStreamEmitError(t)
+}
+
+func TestRunRemoteQueryStreamAfterCancel(t *testing.T) {
+	testRunRemoteQueryStreamAfterCancel(t)
+}

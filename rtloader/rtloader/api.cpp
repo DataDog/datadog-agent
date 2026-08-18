@@ -283,6 +283,15 @@ char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
 }
 
+int run_remote_query_stream(rtloader_t *rtloader, rtloader_pyobject_t *check, const char *integration,
+                            const char *request_json, remote_query_stream_emit_cb emit, void *userdata)
+{
+    return AS_TYPE(RtLoader, rtloader)
+               ->runRemoteQueryStream(AS_TYPE(RtLoaderPyObject, check), integration, request_json, emit, userdata)
+        ? 1
+        : 0;
+}
+
 void cancel_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     AS_TYPE(RtLoader, rtloader)->cancelCheck(AS_TYPE(RtLoaderPyObject, check));

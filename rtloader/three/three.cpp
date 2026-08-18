@@ -19,6 +19,7 @@
 #include "util.h"
 
 #include <algorithm>
+#include <cctype>
 #include <functional>
 #include <sstream>
 
@@ -140,16 +141,19 @@ bool Three::init()
             setError("could not access sys.path");
             goto done;
         }
-        for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
+        // Explicit rtloader paths must take precedence over ambient site-packages.
+        // This keeps tests on their stubs even when a developer has datadog_checks installed locally.
+        Py_ssize_t pythonPathIndex = 0;
+        for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit, ++pythonPathIndex) {
             PyObject *p = PyUnicode_FromString(pit->c_str());
             if (p == NULL) {
                 setError("could not set pythonPath: " + _fetchPythonError());
                 goto done;
             }
-            int retval = PyList_Append(path, p);
+            int retval = PyList_Insert(path, pythonPathIndex, p);
             Py_XDECREF(p);
             if (retval == -1) {
-                setError("could not append path to pythonPath: " + _fetchPythonError());
+                setError("could not add path to pythonPath: " + _fetchPythonError());
                 goto done;
             }
         }
@@ -533,6 +537,149 @@ char *Three::runCheck(RtLoaderPyObject *check)
 done:
     Py_XDECREF(result);
     return ret;
+}
+
+namespace {
+    std::string normalizeRemoteQueryIntegration(const char *integration)
+    {
+        if (integration == NULL) {
+            return "";
+        }
+
+        std::string normalized(integration);
+        normalized.erase(normalized.begin(), std::find_if(normalized.begin(), normalized.end(), [](unsigned char ch) {
+                             return !std::isspace(ch);
+                         }));
+        normalized.erase(
+            std::find_if(normalized.rbegin(), normalized.rend(), [](unsigned char ch) { return !std::isspace(ch); })
+                .base(),
+            normalized.end());
+        std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        return normalized;
+    }
+
+    bool isValidRemoteQueryIntegration(const std::string &integration)
+    {
+        if (integration.empty()) {
+            return false;
+        }
+        return std::all_of(integration.begin(), integration.end(),
+                           [](unsigned char ch) { return std::islower(ch) || std::isdigit(ch) || ch == '_'; });
+    }
+
+    struct RemoteQueryStreamEmitContext {
+        remote_query_stream_emit_cb emit;
+        void *userdata;
+    };
+
+    PyObject *remoteQueryStreamEmit(PyObject *self, PyObject *args)
+    {
+        RemoteQueryStreamEmitContext *ctx
+            = static_cast<RemoteQueryStreamEmitContext *>(PyCapsule_GetPointer(self, "remote_query_stream_emit"));
+        if (ctx == NULL || ctx->emit == NULL) {
+            PyErr_SetString(PyExc_RuntimeError, "remote query stream emit callback is unavailable");
+            return NULL;
+        }
+
+        const char *event_type = NULL;
+        const char *metadata_json = NULL;
+        PyObject *payload = NULL;
+        if (!PyArg_ParseTuple(args, "ssO:remote_query_stream_emit", &event_type, &metadata_json, &payload)) {
+            return NULL;
+        }
+        if (!PyBytes_Check(payload)) {
+            PyErr_SetString(PyExc_TypeError, "remote query stream payload must be bytes");
+            return NULL;
+        }
+
+        char *payload_bytes = NULL;
+        Py_ssize_t payload_len = 0;
+        if (PyBytes_AsStringAndSize(payload, &payload_bytes, &payload_len) != 0) {
+            return NULL;
+        }
+        int emit_result = ctx->emit(event_type, metadata_json, reinterpret_cast<const uint8_t *>(payload_bytes),
+                                    static_cast<size_t>(payload_len), ctx->userdata);
+        if (emit_result != 0) {
+            PyErr_SetString(PyExc_RuntimeError, "remote query stream emit callback failed");
+            return NULL;
+        }
+
+        Py_RETURN_NONE;
+    }
+
+    PyMethodDef remoteQueryStreamEmitMethod
+        = { "remote_query_stream_emit", remoteQueryStreamEmit, METH_VARARGS, "Emit a remote query stream event." };
+} // namespace
+
+bool Three::runRemoteQueryStream(RtLoaderPyObject *check, const char *integration, const char *request_json,
+                                 remote_query_stream_emit_cb emit, void *userdata)
+{
+    if (check == NULL || request_json == NULL || emit == NULL) {
+        return false;
+    }
+
+    std::string normalized_integration = normalizeRemoteQueryIntegration(integration);
+    if (!isValidRemoteQueryIntegration(normalized_integration)) {
+        setError("invalid remote query integration name");
+        return false;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+    PyObject *remote_query_module = NULL;
+    PyObject *execute_func = NULL;
+    PyObject *py_request_json = NULL;
+    PyObject *capsule = NULL;
+    PyObject *emit_func = NULL;
+    PyObject *result = NULL;
+    std::string module_name = "datadog_checks." + normalized_integration + ".remote_query";
+    RemoteQueryStreamEmitContext ctx{ emit, userdata };
+    bool ok = false;
+
+    remote_query_module = PyImport_ImportModule(module_name.c_str());
+    if (remote_query_module == NULL) {
+        setError("error importing remote query helper: " + _fetchPythonError());
+        goto done;
+    }
+
+    execute_func = PyObject_GetAttrString(remote_query_module, "execute_agent_rpc_stream_copy");
+    if (execute_func == NULL || !PyCallable_Check(execute_func)) {
+        setError("error loading remote query stream helper: " + _fetchPythonError());
+        goto done;
+    }
+
+    py_request_json = PyUnicode_FromString(request_json);
+    if (py_request_json == NULL) {
+        setError("error converting remote query stream request to Python string: " + _fetchPythonError());
+        goto done;
+    }
+
+    capsule = PyCapsule_New(&ctx, "remote_query_stream_emit", NULL);
+    if (capsule == NULL) {
+        setError("error creating remote query stream emit context: " + _fetchPythonError());
+        goto done;
+    }
+    emit_func = PyCFunction_NewEx(&remoteQueryStreamEmitMethod, capsule, NULL);
+    if (emit_func == NULL) {
+        setError("error creating remote query stream emit callback: " + _fetchPythonError());
+        goto done;
+    }
+
+    result = PyObject_CallFunctionObjArgs(execute_func, py_request_json, py_check, emit_func, NULL);
+    if (result == NULL) {
+        setError("error invoking remote query stream helper: " + _fetchPythonError());
+        goto done;
+    }
+    ok = true;
+
+done:
+    Py_XDECREF(result);
+    Py_XDECREF(emit_func);
+    Py_XDECREF(capsule);
+    Py_XDECREF(py_request_json);
+    Py_XDECREF(execute_func);
+    Py_XDECREF(remote_query_module);
+    return ok;
 }
 
 void Three::cancelCheck(RtLoaderPyObject *check)
