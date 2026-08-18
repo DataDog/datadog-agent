@@ -95,6 +95,7 @@ type engine struct {
 	onStorageCapacityHit   func()
 	onAdvanceSkipped       func(reason string)
 	onProcessingTime       func(detectorTag string, durationNs float64)
+	onDetectorEmission     func(detector, severity string)
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -546,6 +547,13 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 // clusters are captured while still alive.
 func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
+	var severityConfig observerdef.AnomalyScorerConfig
+	if e.onDetectorEmission != nil {
+		severityConfig = DefaultAnomalyScorerConfig().AnomalyScorerConfig
+		if e.scorer != nil {
+			severityConfig = e.scorer.config.AnomalyScorerConfig
+		}
+	}
 
 	// Detect, deduplicate, and feed anomalies to correlators.
 	for _, detector := range detectors {
@@ -604,6 +612,13 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			}
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate
+			}
+			if e.onDetectorEmission != nil {
+				detectorName := anomaly.DetectorName
+				if detectorName == "" {
+					detectorName = detector.Name()
+				}
+				e.onDetectorEmission(detectorName, anomalySeverityLabel(anomalyLevel(anomaly, severityConfig)))
 			}
 			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
@@ -855,7 +870,7 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 		e.baseline.recordMutedNames(displayNames)
 	}
 
-	totalSeries := e.storage.TotalSeriesCount("")
+	totalSeries := e.storage.TotalSeriesCount()
 
 	// Emit before removal so testbench sinks can read metadata. The controller
 	// uses copy-on-write snapshots, so this immutable union can be published to

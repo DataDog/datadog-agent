@@ -174,6 +174,11 @@ default:
     max: 1 # Retry everything once on failure
     when: always
 
+# Full git history. Override the default shallow clone.
+.needs_full_git_history:
+  variables:
+    GIT_DEPTH: 0
+
 stages:
   - .pre
   - setup
@@ -294,25 +299,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v126430166-27084be1
+  CI_IMAGE_BTF_GEN: v130938967-3a9f81bc
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v126430166-27084be1
+  CI_IMAGE_DOCKER_X64: v130938967-3a9f81bc
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v126430166-27084be1
+  CI_IMAGE_DOCKER_ARM64: v130938967-3a9f81bc
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v126430166-27084be1
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v130938967-3a9f81bc
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v130080789-6e218ce5
-  CI_IMAGE_LINUX_SUFFIX: "_test_only"
-  CI_IMAGE_RPM_X64: v126430166-27084be1
+  CI_IMAGE_LINUX: v130938967-3a9f81bc
+  CI_IMAGE_LINUX_SUFFIX: ""
+  CI_IMAGE_RPM_X64: v130938967-3a9f81bc
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v126430166-27084be1
+  CI_IMAGE_RPM_ARM64: v130938967-3a9f81bc
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v126430166-27084be1
+  CI_IMAGE_RPM_ARMHF: v130938967-3a9f81bc
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v127592905-6a747366
+  CI_IMAGE_WIN_LTSC2022_X64: v130938967-3a9f81bc
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v127592905-6a747366
+  CI_IMAGE_WIN_LTSC2025_X64: v130938967-3a9f81bc
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -375,8 +380,9 @@ variables:
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
-  # Job cloning strategy
+  # Shallow clone by default.
   GIT_STRATEGY: "fetch"
+  GIT_DEPTH: 1
   DISABLE_GIT_CACHE: true
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
@@ -986,33 +992,13 @@ workflow:
   - changes:
       paths:
         - .gitlab/test/e2e/e2e.yml
+        - bazel/rules/go_shim/**/* # Runs bazelified Go tools
+        - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)
         - test/e2e-framework/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
-
-.except_e2e_main_release_or_rc: # This rule is to not trigger dynamic test evaluation when we force all e2e tests to run
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_run_all_e2e_tests
-    when: never
-  - <<: *if_main_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: never
-  - changes:
-      paths:
-        - .gitlab/test/e2e/e2e.yml
-        - test/e2e-framework/testing/**/*
-        - test/new-e2e/go.mod
-        - flakes.yaml
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
-    when: never
 
 .dynamic_tests:
   - changes:
