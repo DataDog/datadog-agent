@@ -1023,6 +1023,12 @@ versions, installation dates, and other relevant details for inventory tracking.
 Package syntheticstestscheduler defines a synthetics scheduler component to run
 network tests based on remote config.
 
+### [comp/workloadbalancing](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/workloadbalancing)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package workloadbalancing handles state for NDM Agent Workload Balancing.
+
 ### [comp/workloadselection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/workloadselection)
 
 *Datadog Team*: injection-platform
