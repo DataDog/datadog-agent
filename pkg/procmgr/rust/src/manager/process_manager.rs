@@ -24,15 +24,10 @@ pub struct ProcessManager {
 
 impl ProcessManager {
     pub fn new(config_loader: Arc<dyn ConfigLoader>, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
-        let configs = config_loader.load();
-        let processes: Vec<ManagedProcess> = configs
-            .into_iter()
-            .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
-            .collect();
-        let startup_result = recompute_startup_order(&processes);
+        let (processes, startup_order) = load_catalog(config_loader.as_ref(), uuid_gen.as_ref());
         Self {
             processes: Arc::new(RwLock::new(processes)),
-            startup_order: Arc::new(RwLock::new(startup_result.order)),
+            startup_order: Arc::new(RwLock::new(startup_order)),
             config_loader,
             uuid_gen,
         }
@@ -43,7 +38,7 @@ impl ProcessManager {
         Supervisor::new(self)
     }
 
-    pub(in crate::manager) async fn start_configured_processes(&self, handles: &RuntimeHandles) {
+    pub(in crate::manager) async fn auto_start_all(&self, handles: &RuntimeHandles) {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
@@ -220,6 +215,19 @@ impl ProcessManager {
 struct StartupOrderResult {
     order: Vec<usize>,
     warnings: Vec<String>,
+}
+
+fn load_catalog(
+    config_loader: &dyn ConfigLoader,
+    uuid_gen: &dyn UuidGenerator,
+) -> (Vec<ManagedProcess>, Vec<usize>) {
+    let processes: Vec<ManagedProcess> = config_loader
+        .load()
+        .into_iter()
+        .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
+        .collect();
+    let startup_order = recompute_startup_order(&processes).order;
+    (processes, startup_order)
 }
 
 fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {

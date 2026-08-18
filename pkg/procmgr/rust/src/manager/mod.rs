@@ -145,7 +145,7 @@ mod tests {
         );
         let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
 
-        mgr.start_configured_processes(&handles).await;
+        mgr.auto_start_all(&handles).await;
 
         assert!(!mgr.processes().await[0].is_running());
         let expected_uuid = mgr.processes().await[0].uuid().to_owned();

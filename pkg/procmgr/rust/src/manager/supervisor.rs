@@ -108,7 +108,7 @@ impl Supervisor {
             tokio::spawn(grpc::server::run(manager.clone(), cmd_tx, grpc_shutdown_rx));
 
         let (handles, mut exit_rx, mut restart_rx) = RuntimeHandles::new();
-        manager.start_configured_processes(&handles).await;
+        manager.auto_start_all(&handles).await;
 
         let shutdown = platform::shutdown_signal();
         tokio::pin!(shutdown);
