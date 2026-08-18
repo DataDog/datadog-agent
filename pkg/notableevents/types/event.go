@@ -31,9 +31,14 @@ const (
 	// MaxCustomItems bounds each custom payload container.
 	MaxCustomItems = 128
 
-	eventIDPrefix   = "macos-crash-v1:"
-	sha256HexLength = 64
+	crashEventIDPrefix = "macos-crash-v1:"
+	// ThermalEventIDPrefix identifies macOS thermal-pressure notable event IDs.
+	ThermalEventIDPrefix = "macos-thermal-v1:"
+	sha256HexLength      = 64
 )
+
+// knownEventIDPrefixes lists every currently valid notable-event ID prefix.
+var knownEventIDPrefixes = []string{crashEventIDPrefix, ThermalEventIDPrefix}
 
 // Event is the sanitized wire representation of a notable event.
 //
@@ -46,6 +51,9 @@ type Event struct {
 	Title     string                 `json:"title"`
 	Message   string                 `json:"message"`
 	Custom    map[string]interface{} `json:"custom,omitempty"`
+	// Status is the severity reported to the event platform (e.g. "warning",
+	// "error"). Empty means the submitter falls back to its default.
+	Status string `json:"status,omitempty"`
 }
 
 // UnmarshalJSON preserves exact JSON numbers and validates the wire contract.
@@ -89,17 +97,20 @@ func ValidateEvent(event Event) error {
 	return nil
 }
 
-// IsEventID reports whether id has the stable macOS crash identifier format.
+// IsEventID reports whether id has one of the stable notable event identifier formats.
 func IsEventID(id string) bool {
-	if !strings.HasPrefix(id, eventIDPrefix) {
-		return false
+	for _, prefix := range knownEventIDPrefixes {
+		if !strings.HasPrefix(id, prefix) {
+			continue
+		}
+		value := strings.TrimPrefix(id, prefix)
+		if len(value) != sha256HexLength || strings.ToLower(value) != value {
+			return false
+		}
+		_, err := hex.DecodeString(value)
+		return err == nil
 	}
-	value := strings.TrimPrefix(id, eventIDPrefix)
-	if len(value) != sha256HexLength || strings.ToLower(value) != value {
-		return false
-	}
-	_, err := hex.DecodeString(value)
-	return err == nil
+	return false
 }
 
 func validateCustomValue(value interface{}, depth int, nodes *int) bool {

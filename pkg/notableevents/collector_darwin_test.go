@@ -1667,6 +1667,129 @@ func fmtCorrupt(err error) error {
 	return errors.Join(errDarwinBookmarkCorrupt, err)
 }
 
+func TestDarwinThermalPressureEdgeTriggered(t *testing.T) {
+	levels := []struct {
+		level int
+		ok    bool
+	}{
+		{level: 0, ok: true}, // nominal baseline, no event
+		{level: 2, ok: true}, // Heavy, no event
+		{level: 3, ok: true}, // Trapping, rising edge -> warning event 1
+		{level: 2, ok: true}, // drop to Heavy (not <= 1), latch holds, no event
+		{level: 4, ok: true}, // escalate to Sleeping -> error event 2
+		{level: 1, ok: true}, // falling edge to <= 1, disarm, no event
+		{level: 3, ok: true}, // rising edge -> warning event 3
+	}
+	callIndex := 0
+
+	collector, err := newDarwinCollectorWithDeps(
+		func() []reportDirectory { return nil },
+		time.Hour,
+		time.Hour,
+		&fakeDarwinBookmarkStore{},
+		nil,
+	)
+	require.NoError(t, err)
+
+	clockTick := 0
+	collector.now = func() time.Time {
+		clockTick++
+		return time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC).Add(time.Duration(clockTick) * time.Second)
+	}
+	collector.readThermalPressure = func() (int, bool) {
+		result := levels[callIndex]
+		callIndex++
+		return result.level, result.ok
+	}
+
+	for range levels {
+		collector.pollThermalPressure()
+	}
+
+	pending := collector.Pending()
+	require.Len(t, pending, 3)
+	statuses := make([]string, 0, len(pending))
+	for _, event := range pending {
+		statuses = append(statuses, event.Status)
+	}
+	assert.ElementsMatch(t, []string{"warn", "error", "warn"}, statuses)
+	assert.Equal(t, thermalPressureWarningLevel, collector.state.ThermalPressure.ArmedLevel)
+}
+
+func TestDarwinThermalPressureRestartWhileElevatedDoesNotReemit(t *testing.T) {
+	seed := newDarwinBookmarkState()
+	seed.ThermalPressure.ArmedLevel = thermalPressureWarningLevel
+	store := &fakeDarwinBookmarkStore{state: seed}
+
+	collector, err := newDarwinCollectorWithDeps(
+		func() []reportDirectory { return nil },
+		time.Hour,
+		time.Hour,
+		store,
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, thermalPressureWarningLevel, collector.state.ThermalPressure.ArmedLevel)
+
+	collector.readThermalPressure = func() (int, bool) { return 3, true }
+	collector.pollThermalPressure()
+
+	assert.Empty(t, collector.Pending())
+	assert.Equal(t, thermalPressureWarningLevel, collector.state.ThermalPressure.ArmedLevel)
+	assert.Zero(t, store.saveCalls)
+}
+
+func TestDarwinThermalPressureErrorLevelReArmsAfterDroppingToNominal(t *testing.T) {
+	seed := newDarwinBookmarkState()
+	seed.ThermalPressure.ArmedLevel = thermalPressureErrorLevel
+	store := &fakeDarwinBookmarkStore{state: seed}
+
+	collector, err := newDarwinCollectorWithDeps(
+		func() []reportDirectory { return nil },
+		time.Hour,
+		time.Hour,
+		store,
+		nil,
+	)
+	require.NoError(t, err)
+
+	// Still elevated (not <= 1): the error latch holds, no re-emission.
+	collector.readThermalPressure = func() (int, bool) { return 4, true }
+	collector.pollThermalPressure()
+	assert.Empty(t, collector.Pending())
+	assert.Equal(t, thermalPressureErrorLevel, collector.state.ThermalPressure.ArmedLevel)
+
+	// Drop to nominal resets the latch.
+	collector.readThermalPressure = func() (int, bool) { return 1, true }
+	collector.pollThermalPressure()
+	assert.Zero(t, collector.state.ThermalPressure.ArmedLevel)
+
+	// A fresh rise to error fires again.
+	collector.readThermalPressure = func() (int, bool) { return 4, true }
+	collector.pollThermalPressure()
+	pending := collector.Pending()
+	require.Len(t, pending, 1)
+	assert.Equal(t, "error", pending[0].Status)
+	assert.Equal(t, thermalPressureErrorLevel, collector.state.ThermalPressure.ArmedLevel)
+}
+
+func TestDarwinThermalPressureUnreadableLevelIsNoop(t *testing.T) {
+	collector, err := newDarwinCollectorWithDeps(
+		func() []reportDirectory { return nil },
+		time.Hour,
+		time.Hour,
+		&fakeDarwinBookmarkStore{},
+		nil,
+	)
+	require.NoError(t, err)
+
+	collector.readThermalPressure = func() (int, bool) { return 0, false }
+	collector.pollThermalPressure()
+
+	assert.Empty(t, collector.Pending())
+	assert.Zero(t, collector.state.ThermalPressure.ArmedLevel)
+}
+
 // realTempDir resolves a temporary directory to satisfy no-symlink directory validation.
 func realTempDir(t *testing.T) string {
 	t.Helper()
