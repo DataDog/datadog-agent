@@ -390,6 +390,11 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 
 	c.labelsToTags(image.Labels, tagList)
 
+	// image annotations as tags
+	for annotation, value := range image.Annotations {
+		k8smetadata.AddMetadataAsTags(annotation, value, c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations, tagList)
+	}
+
 	low, orch, high, standard := tagList.Compute()
 	return []*types.TagInfo{
 		{
