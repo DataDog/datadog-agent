@@ -12,7 +12,6 @@ use crate::grpc::proto;
 use crate::manager::ProcessManager;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
-use log::warn;
 use std::time::Instant;
 use tokio::sync::{mpsc, oneshot};
 use tonic::{Request, Response, Status};
@@ -174,9 +173,6 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
     ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
         require_mutating_pipe_client(&request)?;
         let _ = request.into_inner();
-        warn!(
-            "ReloadConfig is not implemented; restart dd-procmgr-service to pick up processes.d changes"
-        );
         Err(Status::unimplemented(
             "config reload is not implemented; restart dd-procmgr-service instead",
         ))
