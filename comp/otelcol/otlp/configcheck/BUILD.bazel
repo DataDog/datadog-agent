@@ -21,11 +21,8 @@ dd_agent_go_test(
     name = "configcheck_test",
     srcs = ["configcheck_test.go"],
     embed = [":configcheck"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [["otlp"]],
+    include_default = False,
     deps = [
         "//pkg/config/mock",
         "//pkg/config/setup",

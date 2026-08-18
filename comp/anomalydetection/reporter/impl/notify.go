@@ -17,7 +17,6 @@ import (
 	"unicode/utf8"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -105,7 +104,7 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 	if a.SourceRef == nil || storage == nil {
 		return 0, false
 	}
-	total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateCount)
+	total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateSum)
 	return total / logPatternRateWindowSec, true
 }
 
@@ -114,7 +113,7 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 func logPatternPrevRate(a observerdef.Anomaly, storage observerdef.StorageReader) (rate float64, ok bool) {
 	if a.SourceRef != nil && storage != nil {
 		start := a.Timestamp - logPatternPrevRateWindowSec - logPatternRateWindowSec
-		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateCount)
+		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateSum)
 		if total == 0 {
 			return 0, false
 		}
@@ -144,6 +143,122 @@ func logRatePart(a observerdef.Anomaly, storage observerdef.StorageReader) strin
 		return fmt.Sprintf("\n\trate: %.1flog/s (was %.1flog/s last minutes)", curr, prev)
 	}
 	return fmt.Sprintf("\n\trate: %.1flog/s", curr)
+}
+
+// formatScorerContributorMessage resolves a scorer episode's compact handles
+// only when rendering the report. Entries whose backing series was evicted are
+// omitted without affecting the shares captured at episode start. The returned
+// message is always safe for the Event Management payload limit.
+func formatScorerContributorMessage(contributors []observerdef.ScorerContributor, storage observerdef.StorageReader) string {
+	if storage == nil || len(contributors) == 0 {
+		return ""
+	}
+
+	fullLines := make([]string, 0, len(contributors))
+	compactLines := make([]string, 0, len(contributors))
+	for _, contributor := range contributors {
+		meta := storage.GetSeriesMeta(contributor.Handle.Ref)
+		if meta == nil {
+			continue
+		}
+		context := storage.GetContext(contributor.Handle.Ref)
+		fullDisplay := scorerContributorDisplayName(meta, context, contributor.Handle.Aggregate)
+		compactDisplay := fullDisplay
+		if len(meta.Tags) > 0 {
+			compactMeta := *meta
+			compactMeta.Tags = nil
+			compactDisplay = scorerContributorDisplayName(&compactMeta, context, contributor.Handle.Aggregate)
+			if logDerivedContributorName(meta.Namespace, context) != "" {
+				compactDisplay += " — {...}"
+			} else {
+				compactDisplay += "{...}"
+			}
+		}
+		position := len(fullLines) + 1
+		fullLines = append(fullLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, fullDisplay))
+		compactLines = append(compactLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, compactDisplay))
+	}
+	if len(fullLines) == 0 {
+		return ""
+	}
+	if scorerContributorMessageLen(fullLines) <= changeEventMessageMaxLen {
+		return "Top contributions:\n" + strings.Join(fullLines, "\n")
+	}
+
+	lines := append([]string(nil), fullLines...)
+	for i := 3; i < len(lines); i++ {
+		lines[i] = compactLines[i]
+	}
+	return truncateScorerContributorLines(lines)
+}
+
+// scorerContributorDisplayName uses the same human-readable identifier as the
+// regular reporter for log-derived metrics: a log-frequency example, or a log
+// pattern when no example is available. Other metrics retain their series name.
+func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
+	if name := logDerivedContributorName(meta.Namespace, context); name != "" {
+		if len(meta.Tags) == 0 {
+			return name
+		}
+		return name + " — {" + strings.Join(meta.Tags, ",") + "}"
+	}
+	return observerdef.SeriesDescriptor{
+		Namespace: meta.Namespace,
+		Name:      meta.Name,
+		Tags:      meta.Tags,
+		Aggregate: aggregate,
+	}.DisplayName()
+}
+
+// logDerivedContributorName returns the human-readable name for a log-derived
+// metric. An empty result lets callers fall back to the metric descriptor when
+// its context is no longer available.
+func logDerivedContributorName(namespace string, context *observerdef.MetricContext) string {
+	if context == nil {
+		return ""
+	}
+	switch namespace {
+	case logMetricsExtractorNamespace:
+		if example := strings.TrimSpace(context.Example); example != "" {
+			return "log: " + example
+		}
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	case logPatternExtractorNamespace:
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	}
+	return ""
+}
+
+func scorerContributorMessageLen(lines []string) int {
+	return len("Top contributions:") + len(lines) + len(strings.Join(lines, ""))
+}
+
+func truncateScorerContributorLines(lines []string) string {
+	message := "Top contributions:"
+	for i, line := range lines {
+		remaining := len(lines) - i - 1
+		suffix := ""
+		if remaining > 0 {
+			suffix = fmt.Sprintf("\n… and %d other anomalies", remaining)
+		}
+		if len(message)+1+len(line)+len(suffix) <= changeEventMessageMaxLen {
+			message += "\n" + line
+			continue
+		}
+
+		available := changeEventMessageMaxLen - len(message) - len(suffix) - 1
+		if available >= 4 {
+			message += "\n" + truncateBytesValidUTF8(line, available)
+			remaining--
+			suffix = fmt.Sprintf("\n… and %d other anomalies", remaining)
+		}
+		return message + suffix
+	}
+	return message
 }
 
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
@@ -176,11 +291,11 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 	switch evt.Kind {
 	case observerdef.CorrelatorEventEpisodeStarted:
 		title = fmt.Sprintf("Anomaly scorer: episode started (%s → %s)",
-			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+			evt.FromLevel.String(), evt.ToLevel.String())
 		direction = "started"
 	case observerdef.CorrelatorEventEpisodeEnded:
 		title = fmt.Sprintf("Anomaly scorer: episode ended (%s → %s)",
-			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+			evt.FromLevel.String(), evt.ToLevel.String())
 		direction = "ended"
 	default:
 		return fmt.Errorf("unsupported CorrelatorEventKind %d", evt.Kind)
@@ -188,8 +303,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 
 	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
-	msg := fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
-		evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
+	msg := formatScorerEpisodeMessage(evt, s.storage, direction)
 
 	var host string
 	if s.hostname != nil {
@@ -228,8 +342,8 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 					"change_metadata": map[string]any{
 						"episode_pattern":   evt.Correlation.Pattern,
 						"episode_direction": direction,
-						"from_level":        severityLevelName(evt.FromLevel),
-						"to_level":          severityLevelName(evt.ToLevel),
+						"from_level":        evt.FromLevel.String(),
+						"to_level":          evt.ToLevel.String(),
 						"first_seen":        time.Unix(evt.Correlation.FirstSeen, 0).UTC().Format(time.RFC3339),
 						"last_updated":      time.Unix(evt.Correlation.LastUpdated, 0).UTC().Format(time.RFC3339),
 					},
@@ -250,18 +364,13 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
 }
 
-// severityLevelName returns a human-readable label for a SeverityLevel.
-func severityLevelName(level severityeventsdef.SeverityLevel) string {
-	switch level {
-	case severityeventsdef.SeverityLow:
-		return "low"
-	case severityeventsdef.SeverityMedium:
-		return "medium"
-	case severityeventsdef.SeverityHigh:
-		return "high"
-	default:
-		return fmt.Sprintf("level(%d)", int(level))
+func formatScorerEpisodeMessage(evt observerdef.CorrelatorEvent, storage observerdef.StorageReader, direction string) string {
+	message := formatScorerContributorMessage(evt.Contributors, storage)
+	if message == "" {
+		message = fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
+			evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
 	}
+	return truncateBytesValidUTF8(message, changeEventMessageMaxLen)
 }
 
 // buildChangeEventPayload returns the v2 Events API JSON envelope for a

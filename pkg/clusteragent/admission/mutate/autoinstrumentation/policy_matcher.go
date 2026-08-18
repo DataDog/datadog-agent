@@ -8,11 +8,10 @@
 package autoinstrumentation
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
 
@@ -33,52 +32,56 @@ func newPolicyMatcher(ps []policies.Policy, wmeta workloadmeta.Component) *polic
 }
 
 // Match returns the outcome of the first policy that matches the pod, mirroring
-// the "first match wins" semantics of the target mutator. It returns an error
-// when a policy cannot be evaluated because required facts are unavailable.
-func (m *policyMatcher) Match(pod *corev1.Pod) (policies.Outcome, bool, error) {
-	idx, err := m.matchIndex(pod)
-	if err != nil {
-		return policies.Outcome{}, false, err
-	}
+// the "first match wins" semantics of the target mutator.
+func (m *policyMatcher) Match(pod *corev1.Pod) (policies.Outcome, bool) {
+	idx := m.matchIndex(pod)
 	if idx < 0 {
-		return policies.Outcome{}, false, nil
+		return policies.Outcome{}, false
 	}
-	return m.policies[idx].Outcome, true, nil
+	return m.policies[idx].Outcome, true
 }
 
 // matchIndex returns the index of the first policy that matches the pod, or -1
 // if none match. Policies are evaluated in order (first match wins).
 //
 // Namespace labels are fetched lazily when the first policy that needs them is
-// reached. If they cannot be resolved, matching aborts rather than considering
-// later policies with incomplete facts. This preserves the legacy target
-// matcher's fail-closed behavior and first-match semantics.
-func (m *policyMatcher) matchIndex(pod *corev1.Pod) (int, error) {
+// reached. If they cannot be resolved, policies that need namespace labels are
+// skipped while policies using the available pod and namespace-name facts keep
+// their relative first-match ordering.
+func (m *policyMatcher) matchIndex(pod *corev1.Pod) int {
 	if m == nil || pod == nil {
-		return -1, nil
+		return -1
 	}
+
 	ctx := policies.Context{
 		Strings: map[string]string{policies.IDNamespaceName: pod.Namespace},
 		Labels:  map[string]map[string]string{policies.IDPodLabel: pod.Labels},
 	}
 	namespaceLabelsLoaded := false
+	namespaceLabelsUnavailable := false
+
 	for i := range m.policies {
 		if nodeUsesNamespaceLabels(m.policies[i].Rules) && !namespaceLabelsLoaded {
-			if m.wmeta == nil {
-				return -1, fmt.Errorf("namespace labels unavailable for namespace %q: workloadmeta is not configured", pod.Namespace)
+			if namespaceLabelsUnavailable || m.wmeta == nil {
+				namespaceLabelsUnavailable = true
+				continue
 			}
+
 			nsLabels, err := getNamespaceLabels(m.wmeta, pod.Namespace)
 			if err != nil {
-				return -1, fmt.Errorf("namespace labels unavailable for namespace %q: %w", pod.Namespace, err)
+				log.Debugf("policy matcher: namespace labels unavailable for namespace %q, namespace-label rules will be skipped: %v", pod.Namespace, err)
+				namespaceLabelsUnavailable = true
+				continue
 			}
 			ctx.Labels[policies.IDNamespaceLabel] = nsLabels
 			namespaceLabelsLoaded = true
 		}
+
 		if policies.Evaluate(m.policies[i].Rules, ctx) == policies.ResultTrue {
-			return i, nil
+			return i
 		}
 	}
-	return -1, nil
+	return -1
 }
 
 func nodeUsesNamespaceLabels(n *policies.Node) bool {

@@ -80,6 +80,8 @@ dd_agent_go_test(
         "encoding_test.go",
     ],
     embed = [":netlink"],
+    gotags_sets = [["linux_bpf"]],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/network",

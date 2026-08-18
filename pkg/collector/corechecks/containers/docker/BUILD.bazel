@@ -61,11 +61,12 @@ dd_agent_go_test(
         "unbundled_events_test.go",
     ],
     embed = [":docker"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "docker",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",

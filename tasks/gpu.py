@@ -9,6 +9,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.libs.common.auth import dd_auth_api_app_keys
+from tasks.schema.generate import schema_codegen
 
 SPEC_PACKAGE = "./pkg/collector/corechecks/gpu/spec"
 ALLOWLIST_PACKAGE = f"{SPEC_PACKAGE}/allowlist"
@@ -27,6 +28,10 @@ VALIDATOR_SITE = "datadoghq.com"
 
 def build_binary(ctx, package: str, output_path: str, label: str) -> str:
     print(f"== Building {label} binary ==")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(f"go build -o {shlex.quote(output_path)} {package}")
     return output_path
 

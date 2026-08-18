@@ -185,6 +185,11 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":network"],
+    gotags_sets = [
+        ["linux_bpf"],
+        ["npm"],
+    ],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/network/dns",
         "//pkg/network/netlink/testutil",
