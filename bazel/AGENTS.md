@@ -941,6 +941,11 @@ The target name is spent twice in that path, so keep target names, tag-set suffi
 runner has 16 CPUs, and building the repo alongside ~1k race-instrumented Go tests starves them enough that tests
 asserting on wall-clock time fail. Prefer waiting on a signal over a fixed duration in any test that runs there.
 
+**Go test link memory.** Windows race/cgo Go test binaries can exhaust the container or host commit limit during
+external linking (`VirtualAlloc ... errno=1455`). `dd_agent_go_test` omits DWARF with a Windows-only `-w` link option,
+matching the legacy `dda inv test` path while keeping `pclntab` symbolization. Hybrid `dda inv test` runs can lower
+Bazel test concurrency with `DD_BAZEL_TEST_JOBS`.
+
 ## Testing
 
 ### Testing rules (Starlark unit tests)

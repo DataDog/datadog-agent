@@ -31,6 +31,14 @@ _WINDOWS_BIN_PREFIX_LEN = 73
 # Separators plus the "_" and ".exe.runfiles\_main" the wrapper appends.
 _WINDOWS_RUNFILES_OVERHEAD = 23
 
+_WINDOWS_GC_LINKOPTS = select({
+    # Match the legacy Windows `dda inv test` path: omit DWARF from Go test
+    # binaries to reduce peak external-linker memory while preserving pclntab
+    # symbolization.
+    "@platforms//os:windows": ["-w"],
+    "//conditions:default": [],
+})
+
 def _tag_set_key(gotags):
     return "+".join(sorted(gotags))
 
@@ -116,11 +124,15 @@ def dd_agent_go_test(
     """
     user_tags = tags or []
     user_tcw = [] if target_compatible_with == None else target_compatible_with
+    user_gc_linkopts = kwargs.pop("gc_linkopts", [])
+    if user_gc_linkopts == None:
+        user_gc_linkopts = []
 
     if include_default:
         _test_tag_set_check_name(name)
         go_test(
             name = name,
+            gc_linkopts = user_gc_linkopts + _WINDOWS_GC_LINKOPTS,
             gotags = _test_tag_set_tags(),
             tags = user_tags + ["dd_agent_go_test"],
             target_compatible_with = user_tcw,
@@ -132,6 +144,7 @@ def dd_agent_go_test(
         _test_tag_set_check_name(name + "_" + suffix, gotags)
         go_test(
             name = name + "_" + suffix,
+            gc_linkopts = user_gc_linkopts + _WINDOWS_GC_LINKOPTS,
             gotags = _test_tag_set_tags(gotags),
             tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
             target_compatible_with = user_tcw + _test_tag_set_target_compatible_with(gotags),
