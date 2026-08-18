@@ -393,7 +393,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
             ) as mock_generate_reports,
             patch(
-                "tasks.static_quality_gates.decisions.ExceptionApprovalChecker._fetch_team_members",
+                "tasks.static_quality_gates.decisions.get_team_members",
                 return_value={"aiuto"},
             ),
         ):
@@ -491,7 +491,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
             ) as mock_generate_reports,
             patch(
-                "tasks.static_quality_gates.decisions.ExceptionApprovalChecker._fetch_team_members",
+                "tasks.static_quality_gates.decisions.get_team_members",
                 return_value={"aiuto"},
             ),
         ):

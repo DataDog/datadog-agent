@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.gates import GateExecutionError, GateMetricHandler, GateResult, byte_to_string
+from tasks.static_quality_gates.github import get_team_members
 
 PER_PR_THRESHOLDS = {
     "on_disk": 600 * 1024,
@@ -59,11 +59,7 @@ class ExceptionApprovalChecker:
         self._pr = pr
         self._checked = False
         self._result: str | None = None
-        self._team_members_fetcher = team_members_fetcher or self._fetch_team_members
-
-    @staticmethod
-    def _fetch_team_members(team_slug: str) -> set[str]:
-        return {member.login for member in GithubAPI().get_team_members(team_slug)}
+        self._team_members_fetcher = team_members_fetcher or get_team_members
 
     def _authorized_logins(self) -> set[str]:
         """Expand EXCEPTION_APPROVERS into a flat set of GitHub logins.
