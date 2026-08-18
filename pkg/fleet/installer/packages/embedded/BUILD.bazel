@@ -143,20 +143,19 @@ go_library(
     deps = ["//pkg/template/text"],
 )
 
-# keep
 go_binary(
     name = "tmpl",
     embed = [":tmpl_lib"],
     visibility = ["//visibility:public"],
 )
 
-# keep
 go_test(
     name = "tmpl_test",
     srcs = ["tmpl/main_test.go"],
     embed = [":tmpl_lib"],
     # keep
-    embedsrcs = glob(["tmpl/**"]),
+    embedsrcs = service_srcs + glob(["tmpl/**"]),
+    tags = ["dd_agent_go_test"],
     deps = [
         "//pkg/fleet/installer/fixtures",
         "@com_github_stretchr_testify//assert",
