@@ -9787,6 +9787,30 @@ properties:
     tags:
     - no-env
     comment: Legacy installer configuration
+  remote_queries:
+    node_type: section
+    type: object
+    properties:
+      execute:
+        node_type: section
+        type: object
+        properties:
+          enable_query_allowlist:
+            node_type: setting
+            type: boolean
+            default: true
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+      match_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
   remote_tagger:
     node_type: section
     type: object
