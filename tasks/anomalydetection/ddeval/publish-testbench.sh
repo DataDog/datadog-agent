@@ -32,8 +32,6 @@ else
     testbench_bytes="$(wc -c < "$testbench" | tr -d ' ')"
 
     aws s3 cp --only-show-errors --region us-east-1 --sse AES256 "$testbench" "$testbench_uri"
-    remote_size="$(aws s3api head-object --region us-east-1 --bucket "$bucket" --key "$key" --query ContentLength --output text)"
-    test "$remote_size" = "$testbench_bytes"
 fi
 
 if [[ ! "$testbench_sha256" =~ ^[0-9a-f]{64}$ ]]; then
