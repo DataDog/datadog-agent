@@ -167,8 +167,8 @@ lives inside each correlator via the shared `correlationEmitter` helper
   after `defaultMaxRetryAttempts` consecutive failures.
 
 `ReportOutput.CorrelatorEvents` carries three event kinds:
-- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster`, `CrossSignal`,
-  `Passthrough` at first-seen (and again after a pattern goes inactive and recurs)
+- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster` at first-seen
+  (and again after a pattern goes inactive and recurs)
 - `CorrelatorEventEpisodeStarted` — emitted by `anomaly_scorer` when severity enters
   the configured correlation threshold (`medium` or `high`)
 - `CorrelatorEventEpisodeEnded` — emitted by `anomaly_scorer` when severity exits

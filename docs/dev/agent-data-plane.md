@@ -21,20 +21,29 @@ All of the following must hold:
 
 | Condition | Why |
 |---|---|
-| `data_plane.preflight_mode` is `true` (the default) | The off switch, and the only knob preflight mode exposes. |
+| `data_plane.preflight_mode` is `true` (the default) | The off switch, and the only knob operators need. |
 | `data_plane.enabled` has not been set **at all** | An explicit `true` means ADP is already running for real and two instances would contend for the API, secure API and telemetry ports plus the DogStatsD socket. An explicit `false` means the operator does not want ADP running. Either way the operator has an opinion and preflight mode stays out of the way. Note the platform gate in `sanitizeDataPlaneConfig` sets this to `false` on unsupported platforms, which also disables preflight mode. |
 | The Agent flavor is the default Agent | Heroku and IoT share the same `run` command with fewer build tags and neither ships ADP. |
 | No secrets are in play | The pre-flight writes the resolved configuration to a file, so a secret the resolver only ever held in memory would be materialized in plaintext on disk. Skipped when `secret_backend_command`, `secret_backend_type` or `multi_secret_backends` is set, or when anything at all is sitting in the config's `secret` source layer. See `secretsInUse`. |
 | The ADP binary is on disk | Absent on Heroku packages and slim container images. Silently skipped — not reported. |
 
-It runs **once** per Agent start, not on a schedule, for a fixed 90 seconds.
+It runs **once** per Agent start, not on a schedule, for 90 seconds.
 
-The window is deliberately **not** configurable (`preflightModeDuration` in
-`comp/dataplane/preflightmode/impl`). There is no operational reason to tune it — the switch
-operators need is `data_plane.preflight_mode` — and a documented duration setting would be public
-API to support and later deprecate for a mechanism that only exists until ADP goes GA. Fixing
-it also makes the agent telemetry `start_after` a provable relationship instead of one an
-operator could silently break.
+`data_plane.preflight_mode_duration` can extend that window but not shrink it: anything below
+`minPreflightModeDuration` (90s, in `comp/dataplane/preflightmode/impl`) is raised to it. The
+floor is the contract — a shorter window stops ADP while its startup is still in progress and
+turns a healthy host into a finding, and the clamp is also what absorbs a value that is not a
+duration at all, since `GetDuration` reads a bare `90` as 90 nanoseconds.
+
+Extending it is not something to do on a real host; the switch operators need is
+`data_plane.preflight_mode`. It exists for benchmarking harnesses that need ADP resident for the
+whole of a fixed-length run, where the pre-flight otherwise stops halfway through and the step
+down in RSS reads as an oscillation in the target's footprint. The SMP quality gates in
+`test/regression/cases/quality_gate_*` set it for exactly that reason.
+
+Extending the window past the agent telemetry `start_after` does not strand the outcome: the
+`data-plane-preflight-mode` schedule is recurring, so a flush landing mid-run finds nothing and a
+later one ships the result.
 
 ### What makes the run inert
 

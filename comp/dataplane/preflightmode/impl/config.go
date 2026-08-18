@@ -21,9 +21,10 @@ import (
 const (
 	preflightConfigFileName = "datadog.yaml"
 
-	DataPlaneEnabled       = "data_plane.enabled"
-	DataPlanePreflightMode = "data_plane.preflight_mode"
-	DataPlaneStopTimeout   = "data_plane.stop_timeout"
+	DataPlaneEnabled               = "data_plane.enabled"
+	DataPlanePreflightMode         = "data_plane.preflight_mode"
+	DataPlanePreflightModeDuration = "data_plane.preflight_mode_duration"
+	DataPlaneStopTimeout           = "data_plane.stop_timeout"
 )
 
 // preflightModeDataPlaneOnlyOverrides holds settings ADP understands but the Core Agent does not, so they cannot be

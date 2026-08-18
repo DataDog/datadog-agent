@@ -588,6 +588,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
 		},
+		GetNvLinkVersionFunc: func(link int) (uint32, nvml.Return) {
+			if isMIGUnsupported || !opts.nvlinkSupported() || link >= opts.nvlinkLinkCount {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return uint32(opts.nvlinkGeneration), nvml.SUCCESS
+		},
 		GetNvLinkUtilizationCounterFunc: func(_, _ int) (uint64, uint64, nvml.Return) {
 			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
 				return 0, 0, nvml.ERROR_NOT_SUPPORTED
