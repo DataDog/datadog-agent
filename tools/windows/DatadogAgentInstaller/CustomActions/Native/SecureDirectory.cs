@@ -32,6 +32,24 @@ namespace Datadog.CustomActions.Native
         /// </summary>
         internal static void CreateAndSecure(ISession session, string path)
         {
+            CreateSecurely(session, path, resetPermissionsIfExists: true);
+        }
+
+        /// <summary>
+        /// Create @path granting access to SYSTEM and Administrators only, if it does not already
+        /// exist.
+        ///
+        /// An existing directory must be owned by SYSTEM or Administrators, otherwise a
+        /// <see cref="SecureDirectoryException"/> is thrown, but unlike <see cref="CreateAndSecure"/>
+        /// its permissions are left untouched: only a missing directory is created and secured.
+        /// </summary>
+        internal static void CreateIfMissing(ISession session, string path)
+        {
+            CreateSecurely(session, path, resetPermissionsIfExists: false);
+        }
+
+        private static void CreateSecurely(ISession session, string path, bool resetPermissionsIfExists)
+        {
             session.Log(Directory.Exists(path) ? $"Securing existing {path}" : $"Creating {path}");
 
             var security = AdminOnlySecurity();
@@ -44,11 +62,14 @@ namespace Datadog.CustomActions.Native
             Directory.CreateDirectory(path, security);
 
             // The handle does not follow reparse points, so a junction here is the object inspected,
-            // never its target.
+            // never its target. Only request WriteDac/WriteOwner when the permissions will actually
+            // be reset: requesting them unconditionally could reject a trusted directory whose DACL
+            // does not grant this process those rights, even though only the owner needs reading.
+            var access = resetPermissionsIfExists ? ReadControl | WriteDac | WriteOwner : ReadControl;
             SafeFileHandle handle;
             try
             {
-                handle = OpenDirectory(path, ReadControl | WriteDac | WriteOwner);
+                handle = OpenDirectory(path, access);
             }
             catch (Win32Exception e)
             {
@@ -63,8 +84,15 @@ namespace Datadog.CustomActions.Native
                     throw new SecureDirectoryException(UntrustedOwnerMessage(path, owner));
                 }
 
-                session.Log($"{path} is owned by {Describe(owner)}, resetting its permissions");
-                SetSecurity(handle, security);
+                if (resetPermissionsIfExists)
+                {
+                    session.Log($"{path} is owned by {Describe(owner)}, resetting its permissions");
+                    SetSecurity(handle, security);
+                }
+                else
+                {
+                    session.Log($"{path} is owned by {Describe(owner)}");
+                }
             }
         }
 
