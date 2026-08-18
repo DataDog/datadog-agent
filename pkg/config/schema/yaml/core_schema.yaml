@@ -6841,16 +6841,16 @@ properties:
         comment: |-
           Check names that should have their metrics streaming-compressed via
           Swinging Door Trending/Compression (SDC). Experimental; see
-          pkg/aggregator/sender/sdcsender. Ignored when checks.sdc_compression_all
-          is true.
+          pkg/aggregator/check_sampler_sdc.go and pkg/aggregator/sdceligibility.
+          Ignored when checks.sdc_compression_all is true.
       sdc_compression_dry_run:
         node_type: setting
         type: boolean
         default: false
         comment: "When true, SDC-compressed checks still run every sample through\
-          \ the\ncompressor for measurement (see the sdcsender_samples_total /\nsdcsender_breakpoints_total\
-          \ telemetry), but ship their original,\nuncompressed data \u2014 nothing\
-          \ the compressor produces is actually sent."
+          \ the\ncompressor for measurement (see the checksampler_sdc_samples_total\
+          \ /\nchecksampler_sdc_breakpoints_total telemetry), but ship their original,\n\
+          uncompressed data \u2014 nothing the compressor produces is actually sent."
       sdc_compression_epsilon:
         node_type: setting
         type: number
@@ -6863,8 +6863,7 @@ properties:
           sdc_compression_floor), where scale is an EWMA (smoothing factor
           sdc_compression_alpha) of the signal's magnitude. sdc_compression_warmup
           leading samples per context ship verbatim and seed the scale estimate
-          before compression engages. Defaults match sdcsender's previous
-          hardcoded values.
+          before compression engages.
       sdc_compression_floor:
         node_type: setting
         type: number
@@ -6873,8 +6872,8 @@ properties:
         - golang_type:float64
         comment: "Setting this to 0 disables the floor entirely: tolerance becomes\
           \ purely\nsdc_compression_epsilon*scale, however small that gets for a\n\
-          near-zero-scale signal \u2014 see sdcsender_floor_bound_samples_total for\n\
-          visibility into how often the floor binds with a non-zero value."
+          near-zero-scale signal \u2014 see checksampler_sdc_floor_bound_samples_total\n\
+          for visibility into how often the floor binds with a non-zero value."
       sdc_compression_interval_override:
         node_type: setting
         type: integer
@@ -6884,30 +6883,30 @@ properties:
           \ taking\nprecedence over each check's own min_collection_interval \u2014\
           \ mirrors\ngpu.collection_interval_override, generalized to any SDC-compressed\n\
           check instead of just the gpu check."
-      sdc_compression_metric_types:
+      sdc_compression_keepalive_commits:
         node_type: setting
-        type: array
-        default: []
-        env_parser: comma_separated
-        items:
-          type: string
-        comment: |-
-          Restricts SDC compression to only these check-sender metric types
-          (valid values: gauge, count, rate, monotonic_count; "gauge" covers
-          both Gauge and GaugeWithTimestamp calls, "count" covers Count and
-          CountWithTimestamp). A call whose type isn't listed here bypasses
-          the compressor entirely, forwarded unmodified like dry-run mode
-          does. Empty (the default) applies no restriction — every
-          supported type is compressed.
+        type: integer
+        default: 1
+        comment: "How many consecutive real check-flush commits with a sample,\
+          \ but no\nnatural breakpoint, a compressed context tolerates before\
+          \ force-shipping\na point anyway (so a flat signal doesn't go silent\
+          \ forever). Counted in\nreal commits, not wall-clock time, since\
+          \ pkg/aggregator's CheckSampler\nhas direct access to the real per-check\
+          \ flush tick. 1 (the default) ships\na keep-alive on every commit that\
+          \ has no natural breakpoint — the\nbehavior-preserving choice,\
+          \ since a typical once-per-flush check already\nforce-shipped almost\
+          \ every cycle under the previous, wall-clock-based\ndesign. 0 or negative\
+          \ disables the keep-alive entirely (pure compression;\na flat signal\
+          \ can go silent indefinitely)."
       sdc_compression_telemetry_enabled:
         node_type: setting
         type: boolean
         default: true
         comment: |-
-          When false, sdcsender's own diagnostic telemetry (sdcsender_samples_total,
-          sdcsender_breakpoints_total, sdcsender_contexts, etc., tagged by
-          check_name/metric_name) never materializes a series for any
-          check/metric, so nothing ships under datadog.agent.sdcsender_*.
+          When false, SDC's own diagnostic telemetry (checksampler_sdc_samples_total,
+          checksampler_sdc_breakpoints_total, checksampler_sdc_contexts, etc.,
+          tagged by check_name/metric_name) never materializes a series for
+          any check/metric, so nothing ships under datadog.agent.checksampler_sdc_*.
           Useful when measuring forwarder payload size, since that
           telemetry can otherwise become a sizable, confounding share of
           the payload on its own once SDC compression is enabled broadly.
@@ -6915,17 +6914,6 @@ properties:
         node_type: setting
         type: integer
         default: 2
-      sdc_compression_window_duration:
-        node_type: setting
-        type: integer
-        default: 15
-        comment: "How often (in seconds) a compressed context force-closes and ships\
-          \ a\npoint even if nothing has changed. Defaults to 15s, matching the real\n\
-          aggregator's own flush cadence \u2014 accumulated Gauge/Count/Rate/\nMonotonicCount\
-          \ samples never actually leave the process before that\ntick fires anyway,\
-          \ so shipping a compressed breakpoint any more often\nthan that is pointless\
-          \ by default. A shorter window trades\ncompression ratio for fresher-looking\
-          \ graphs, and vice versa."
   clc_runner_enabled:
     node_type: setting
     type: boolean
