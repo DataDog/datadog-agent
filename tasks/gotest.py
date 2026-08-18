@@ -456,7 +456,6 @@ def test_flavor(
         batch_packages = ' '.join(batch)
         with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
             res = bazel(
-                ctx,
                 "run",
                 "//internal/tools:gotestsum",
                 "--",
@@ -897,7 +896,6 @@ def test_new(
     ]
 
     bazel(
-        ctx,
         "test",
         *bazel_flags,
         *_minimize_bazel_patterns(bazel_targets),

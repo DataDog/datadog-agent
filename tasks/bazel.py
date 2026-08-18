@@ -254,7 +254,6 @@ def _collect_test2json(ctx, test_artifacts, output_path):
                 )
 
         bazel(
-            ctx,
             "run",
             "--config=gorace",  # to use same analysis cache across test & run commands
             "//bazel/tools/testlogs_to_json",
