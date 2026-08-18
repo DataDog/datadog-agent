@@ -8,9 +8,9 @@ use tonic::{Request, Status};
 #[cfg(windows)]
 use crate::transport::PipeCallerAuth;
 
-/// Windows: `Create` requires Administrator or LocalSystem pipe client.
+/// Windows: config-mutating RPCs (`Create`, `ReloadConfig`) require an Administrator or LocalSystem pipe client.
 #[cfg(windows)]
-pub(crate) fn require_privileged_pipe_client<T>(request: &Request<T>) -> Result<(), Status> {
+pub(crate) fn require_mutating_pipe_client<T>(request: &Request<T>) -> Result<(), Status> {
     let may_mutate = request
         .extensions()
         .get::<PipeCallerAuth>()
@@ -25,6 +25,6 @@ pub(crate) fn require_privileged_pipe_client<T>(request: &Request<T>) -> Result<
 }
 
 #[cfg(not(windows))]
-pub(crate) fn require_privileged_pipe_client<T>(_request: &Request<T>) -> Result<(), Status> {
+pub(crate) fn require_mutating_pipe_client<T>(_request: &Request<T>) -> Result<(), Status> {
     Ok(())
 }
