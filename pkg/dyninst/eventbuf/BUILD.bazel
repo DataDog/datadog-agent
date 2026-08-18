@@ -33,6 +33,7 @@ dd_agent_go_test(
     embed = [":eventbuf"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/dyninst/output",
         "@com_github_stretchr_testify//assert",

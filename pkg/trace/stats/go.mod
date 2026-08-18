@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
-	github.com/DataDog/datadog-go/v5 v5.9.0
+	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/google/gofuzz v1.2.0
 	github.com/stretchr/testify v1.11.1
@@ -145,7 +145,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../pkg/config/basic
-	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../pkg/config/helper
