@@ -130,6 +130,48 @@ namespace Datadog.CustomActions
             return EnsureSecureConfigRoot(new SessionWrapper(session));
         }
 
+        /// <summary>
+        /// Create the Agent configuration directory if it does not exist. Runs on every
+        /// InstallExecuteSequence pass other than FirstInstall, where DDCreateFolders already creates
+        /// it; see AgentCustomActions for why the two are split.
+        /// </summary>
+        /// <remarks>
+        /// Unlike DDCreateFolders, this never resets the permissions of a directory that already
+        /// exists: EnsureSecureConfigRoot already asserted it's trusted earlier, before any change was
+        /// made, and resetting it here could strip access (e.g. ddagentuser's) granted after it was
+        /// first created, with no rollback action to restore it if the transaction later fails.
+        /// </remarks>
+        private static ActionResult EnsureSecureConfigRootExists(ISession session)
+        {
+            var path = session.Property("APPLICATIONDATADIRECTORY");
+            try
+            {
+                if (string.IsNullOrEmpty(path))
+                {
+                    throw new InvalidOperationException("APPLICATIONDATADIRECTORY is not set");
+                }
+
+                SecureDirectory.CreateIfMissing(session, path);
+            }
+            catch (SecureDirectoryException e)
+            {
+                session.LogAndDisplayError(e.Message);
+                return ActionResult.Failure;
+            }
+            catch (Exception e)
+            {
+                session.Log($"Configuration directory \"{path}\" could not be created: {e}");
+                return ActionResult.Failure;
+            }
+
+            return ActionResult.Success;
+        }
+
+        public static ActionResult EnsureSecureConfigRootExists(Session session)
+        {
+            return EnsureSecureConfigRootExists(new SessionWrapper(session));
+        }
+
         public static ActionResult EnsureSecureConfigRootUI(Session session)
         {
             return EnsureSecureConfigRoot(new SessionWrapper(session), calledFromUIControl: true);
