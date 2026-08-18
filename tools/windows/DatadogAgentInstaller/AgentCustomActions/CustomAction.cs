@@ -216,12 +216,6 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult EnsureSecureConfigRootExists(Session session)
-        {
-            return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRootExists(session);
-        }
-
-        [CustomAction]
         public static ActionResult EnsureSecureConfigRootUI(Session session)
         {
             return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRootUI(session);

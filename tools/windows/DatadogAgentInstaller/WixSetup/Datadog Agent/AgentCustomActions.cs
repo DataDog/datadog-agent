@@ -16,8 +16,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction EnsureSecureConfigRoot { get; }
 
-        public ManagedAction EnsureSecureConfigRootExists { get; }
-
         public ManagedAction EnsureSecureConfigRootUI { get; }
 
         public ManagedAction ReadConfig { get; }
@@ -133,8 +131,8 @@ namespace WixSetup.Datadog_Agent
             //
             // Runs unconditionally, including on uninstall and on removal for an upgrade: this only
             // asserts (never creates or modifies) the directory, so it cannot leave a partial
-            // installation behind either way. See EnsureSecureConfigRootExists for the part of the
-            // check that creates the directory when missing.
+            // installation behind either way. See DDCreateFolders for the part of the check that
+            // creates the directory when missing.
             EnsureSecureConfigRoot = new CustomAction<CustomActions>(
                 new Id(nameof(EnsureSecureConfigRoot)),
                 CustomActions.EnsureSecureConfigRoot,
@@ -789,42 +787,22 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
+            // Runs on every install/upgrade/repair/uninstall pass.
             DDCreateFolders = new CustomAction<CustomActions>(
                     new Id(nameof(DDCreateFolders)),
                     CustomActions.DDCreateFolders,
                     Return.check,
                     When.Before,
                     Step.CreateFolders,
-                    // Run only on FirstInstall.
-                    // In Upgrade/Repair the directory has already been
-                    // created and configured, and this action could leave the directory
-                    // without access for ddagentuser if the installer rolls back.
-                    Conditions.FirstInstall
+                    Condition.Always
                     )
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-
-            // Creates the config root when it is missing, on every InstallExecuteSequence pass other
-            // than FirstInstall (DDCreateFolders above already covers that one). Unlike DDCreateFolders
-            // this never resets the permissions of a directory that already exists, so an
-            // upgrade/uninstall/repair never strips access (e.g. ddagentuser's) that was granted after
-            // the directory was first created. See PrerequisitesCustomActions.EnsureSecureConfigRoot for
-            // the read-only assertion that runs earlier, before any change, when the directory exists
-            // but is untrusted.
-            EnsureSecureConfigRootExists = new CustomAction<CustomActions>(
-                    new Id(nameof(EnsureSecureConfigRootExists)),
-                    CustomActions.EnsureSecureConfigRootExists,
-                    Return.check,
-                    When.Before,
-                    Step.CreateFolders,
-                    Condition.NOT(Conditions.FirstInstall)
-                    )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+            }.SetProperties(
+                "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                "INSTALLED=[Installed], " +
+                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]");
 
             // Installer package hooks (prerm / postinst)
             // These call datadog-installer.exe prerm/postinst, mirroring the deb/rpm maintainer
