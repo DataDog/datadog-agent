@@ -1,11 +1,7 @@
 ---
 fixes:
   - |
-    The Windows logon duration event no longer reports ``boot_timeline`` milestones out of
-    chronological order. The wait at the login screen was previously removed from the timeline
-    in a single step, which left any milestone that ran during that wait - Computer Group Policy,
-    on a domain-joined machine - on a different axis from everything after logon, so it could
-    render after milestones that actually followed it. Only the stretches of the wait where
-    nothing was observed are now removed, so a milestone that ran during it keeps its real
-    position and duration. The ``group_policy_details`` breakdown shares this axis and is
-    corrected by the same change. ``durations`` and ``total_boot_duration_ms`` are unaffected.
+    Windows: Fix the logon duration event reporting ``boot_timeline`` and
+    ``group_policy_details`` entries out of chronological order. A milestone that ran while the
+    machine sat at the login screen, such as Computer Group Policy on a domain-joined host,
+    could render after milestones that actually followed it.
