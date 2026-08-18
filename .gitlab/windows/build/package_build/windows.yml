@@ -1,7 +1,7 @@
 ---
 .windows_msi_base:
   stage: package_build
-  extends: [.windows_docker_default, .bazel:defs:cache:windows]
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]  # the latter for `bazel run @openssl//:install`
   needs: ["go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
@@ -93,7 +93,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  extends: [.windows_docker_default, .bazel:defs:cache:windows]
+  extends: .windows_docker_default
   needs: ["go_deps"]
   variables:
     ARCH: "x64"
@@ -105,9 +105,10 @@ windows_msi_and_bosh_zip_x64-a7-fips:
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
-      .\tools\ci\docker-run-with-bazel-cache.ps1
+      docker run --rm
       -m 24576M
       -v "$(Get-Location):c:\mnt"
+      -e CI
       -e GITLAB_CI
       -e CI_COMMIT_BRANCH
       -e CI_PIPELINE_ID
