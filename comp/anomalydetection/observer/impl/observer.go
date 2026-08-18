@@ -293,7 +293,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	// watcher with nil gauges when settings are reset below.
 	var scorer *anomalyScorer
 	if rawScorer != nil {
-		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerState, obsTelemetry.scorerEwma)
+		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerSeverity, obsTelemetry.scorerEwma)
 		pkglog.Infof("[observer] anomaly_scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
 	}
@@ -313,6 +313,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	eng.onProcessingTime = obsTelemetry.recordProcessingTime
+	eng.onDetectorEmission = obsTelemetry.recordDetectorEmission
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -425,7 +426,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.internal", maxRateLow, maxRateMedium, maxRateHigh)
 		agentLogsHandle := obs.GetHandle("agent_logs")
 		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
-			obsTelemetry.recordSamplerDropped("internal", priority)
+			obsTelemetry.recordInputRateLimiterDropped("internal", priority)
 		}, logsRules)
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
@@ -507,11 +508,20 @@ func (o *observerImpl) run() {
 		for _, req := range requests {
 			_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 		}
-		if o.telemetry != nil {
-			o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+		if len(requests) > 0 {
+			o.publishSeriesCount()
 		}
 		o.replayMu.Unlock()
 	}
+}
+
+// publishSeriesCount updates the series-count gauge after an analysis advance,
+// when any storage capacity eviction triggered by that advance has completed.
+func (o *observerImpl) publishSeriesCount() {
+	if o.telemetry == nil {
+		return
+	}
+	o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount())
 }
 
 // defaultDetectorWindowSec is the default window (in seconds) that limits how
@@ -549,8 +559,8 @@ type seriesDetectorAdapter struct {
 
 	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
 	// avoid rebuilding a string key per series per Detect call. SeriesRefs
-	// are append-only (storage.go:305) so they remain stable for the lifetime
-	// of a series.
+	// are unique and never reused, so they remain stable for the lifetime of
+	// a series.
 	lastVisibleCount map[observerdef.SeriesRef]int
 }
 
@@ -731,10 +741,10 @@ func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView)
 }
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
 
-// RecordSamplerDropped increments the rate-limiter dropped counter.
+// RecordSamplerDropped increments the observer input-rate-limiter drop counter.
 func (o *observerImpl) RecordSamplerDropped(source, priority string) {
 	if o.telemetry != nil {
-		o.telemetry.recordSamplerDropped(source, priority)
+		o.telemetry.recordInputRateLimiterDropped(source, priority)
 	}
 }
 
@@ -814,6 +824,7 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	o.replayMu.Lock()
 	o.metricFilter.muted.Store(nil)
 	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
+	o.publishSeriesCount()
 	o.replayMu.Unlock()
 }
 
@@ -935,6 +946,7 @@ func (o *observerImpl) ReplayStoredData() {
 	o.replayMu.Lock()
 	o.engine.resetAnalysisState()
 	o.engine.ReplayStoredData()
+	o.publishSeriesCount()
 	o.replayMu.Unlock()
 }
 
@@ -957,8 +969,7 @@ func (o *observerImpl) IngestLogForReplay(source string, msg observerdef.LogView
 	_ = o.engine.IngestLog(source, lo)
 	o.engine.storage.RecordObservationTime(lo.timestampMs / 1000)
 	if o.telemetry != nil {
-		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
-		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+		o.telemetry.recordLogAccepted(classifyLogSource(source, lo.tags), len(lo.content))
 	}
 	o.replayMu.Unlock()
 }
@@ -975,8 +986,10 @@ func (o *observerImpl) IngestLogAndAdvance(source string, msg observerdef.LogVie
 	}
 	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
 	if o.telemetry != nil {
-		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
-		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+		o.telemetry.recordLogAccepted(classifyLogSource(source, lo.tags), len(lo.content))
+	}
+	if len(requests) > 0 {
+		o.publishSeriesCount()
 	}
 	o.replayMu.Unlock()
 }
@@ -986,6 +999,7 @@ func (o *observerImpl) IngestLogAndAdvance(source string, msg observerdef.LogVie
 func (o *observerImpl) FinishReplayStream() {
 	o.replayMu.Lock()
 	o.engine.FinishReplayStream()
+	o.publishSeriesCount()
 	o.replayMu.Unlock()
 }
 
@@ -1055,7 +1069,10 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 	}
 	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
 	if o.telemetry != nil {
-		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+		o.telemetry.recordMetricAccepted(decision.source)
+	}
+	if len(requests) > 0 {
+		o.publishSeriesCount()
 	}
 	o.replayMu.Unlock()
 }
@@ -1095,11 +1112,14 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
+		if h.telemetry != nil {
+			h.telemetry.recordMetricAccepted(decision.source)
+		}
 		return false
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
-			h.telemetry.recordChannelDropped(h.source)
+			h.telemetry.recordObservationDropped("metrics", decision.source)
 		}
 		return true
 	}
@@ -1134,15 +1154,14 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	select {
 	case h.ch <- obs:
 		if h.telemetry != nil {
-			h.telemetry.recordLogIngested(logSource, len(content))
+			h.telemetry.recordLogAccepted(logSource, len(content))
 		}
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
 			// Roll back pre-enqueue in-flight increment for dropped logs.
 			h.telemetry.decrementLogsInFlight(logSource)
-			h.telemetry.recordDroppedLog(h.source, tags)
-			h.telemetry.recordChannelDropped(h.source)
+			h.telemetry.recordObservationDropped("logs", logSource)
 		}
 	}
 }
