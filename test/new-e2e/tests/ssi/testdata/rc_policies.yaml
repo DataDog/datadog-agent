@@ -1,17 +1,23 @@
 ---
 agents:
-  enabled: true
+  enabled: false
+clusterChecksRunner:
+  enabled: false
 clusterAgent:
   admissionController:
     configMode: "hostip"
+  image:
+    pullPolicy: IfNotPresent
   env:
     # Disable gradual rollout so injected images keep their human-readable tag
-    # instead of being resolved to a digest. The version assertions below compare
-    # against the configured tag (e.g. "v3.18.1"), which only holds when the
-    # rollout resolver is disabled.
+    # instead of being resolved to a digest.
     - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED
       value: "false"
+    - name: DD_APM_INSTRUMENTATION_ON_DEMAND
+      value: "true"
 datadog:
+  kubeStateMetricsCore:
+    useClusterCheckRunners: false
   apm:
     instrumentation:
       enabled: true
@@ -28,6 +34,3 @@ datadog:
               injection: "yes"
           ddTraceVersions:
             python: "v3.18.1"
-          ddTraceConfigs:
-            - name: "DD_PROFILING_ENABLED"
-              value: "true"
