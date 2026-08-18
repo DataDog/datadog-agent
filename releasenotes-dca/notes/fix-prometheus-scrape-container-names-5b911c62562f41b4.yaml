@@ -8,11 +8,4 @@
 ---
 fixes:
   - |
-    Fixed an issue where the Cluster Agent could schedule Prometheus Scrape
-    openmetrics checks against Kubernetes services even when the autodiscovery
-    configuration specified ``kubernetes_container_names``. Container name
-    filtering applies to pods, not services, so those checks could be dispatched
-    to node agents for workloads without a matching container and fail. The
-    Cluster Agent now skips service and endpoint Prometheus Scrape scheduling
-    for configurations that set ``kubernetes_container_names``; pod-level
-    scraping on node agents is unchanged.
+    Fixed an issue where the Cluster Agent could schedule Prometheus Scrape OpenMetrics checks against Kubernetes services even when the autodiscovery configuration included ``kubernetes_container_names``. The Cluster Agent now skips service and endpoint Prometheus Scrape scheduling for configurations that set ``kubernetes_container_names``; scraping discovered by node Agents remains as is.
