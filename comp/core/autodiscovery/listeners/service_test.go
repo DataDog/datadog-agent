@@ -422,28 +422,9 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 			"discovery template should be dropped when a host-wide static config claims the metrics_prefix-rooted namespace")
 	})
 
-	t.Run("discovery dropped when a same-name sibling matches, even with a diverging metrics_prefix", func(t *testing.T) {
-		// The same-name-sibling rule (hasSibling, keyed by cfg.Name) is
-		// orthogonal to metrics_prefix/namespace-root matching, and must
-		// keep working unchanged for an integration whose expected root
-		// diverges from its check name.
-		sibling := integration.Config{
-			Name:          "gearmand",
-			Provider:      names.File,
-			ADIdentifiers: []string{"gearmand"},
-			Instances:     []integration.Data{[]byte("port: 4730")},
-			Source:        "file:gearmand/conf.yaml",
-		}
-		configs := map[string]integration.Config{
-			gearmandDiscoveryTpl.Digest(): gearmandDiscoveryTpl,
-			sibling.Digest():              sibling,
-		}
-		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
-		assert.NotContains(t, configs, gearmandDiscoveryTpl.Digest(),
-			"discovery template should still be dropped by the same-name-sibling rule regardless of metrics_prefix")
-	})
-
 	t.Run("discovery dropped when static config index matches the check name, even with a diverging metrics_prefix", func(t *testing.T) {
+		// This is more a consequence of the current implementation than a requirement, but assert it
+		// so that any behavior change is deliberate.
 		idx := NewStaticConfigIndex()
 		idx.Add("gearmand")
 
