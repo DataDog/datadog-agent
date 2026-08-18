@@ -38,6 +38,7 @@ func TestStorageConfigFromAgentConfigDerivesRetentionFromDetectorWindows(t *test
 			cfg := configmock.NewFromYAML(t, test.yaml)
 			storageCfg := storageConfigFromAgentConfig(cfg, detectors)
 			require.Equal(t, test.want, storageCfg.PointRetentionSecs)
+			require.Equal(t, 120, storageCfg.MaxPointsPerSeries)
 		})
 	}
 }

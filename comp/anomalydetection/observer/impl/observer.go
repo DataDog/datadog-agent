@@ -448,6 +448,7 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 	storageCfg := DefaultStorageConfig()
 	maxPoints := maxDetectorPoints(detectors)
 	requiredRetention := time.Duration(maxPoints)*storagePointInterval + storageRetentionPad
+	storageCfg.MaxPointsPerSeries = maxPoints
 	storageCfg.PointRetentionSecs = int64(requiredRetention.Seconds())
 
 	if cfg == nil {

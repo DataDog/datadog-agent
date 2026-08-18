@@ -33,6 +33,11 @@ type StorageConfig struct {
 	// on each Add. 0 disables trimming.
 	PointRetentionSecs int64
 
+	// MaxPointsPerSeries is the maximum number of processable points retained
+	// for a series. Storage keeps one additional pending scheduler bucket.
+	// Zero disables count-based trimming.
+	MaxPointsPerSeries int
+
 	// MaxCorrelations caps how many unique correlation patterns are retained in
 	// the engine's accumulated-correlations map. 0 uses the built-in default
 	// (500). -1 disables the cap entirely (suitable for testbench replay where
@@ -394,6 +399,16 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		// points don't shift the cutoff backwards and over-retain stale data.
 		latestTS := stats.timestamps[len(stats.timestamps)-1]
 		if trim := searchAfter(stats.timestamps, latestTS-retentionSecs-1); trim > 0 {
+			stats.timestamps = trimFront(stats.timestamps, trim)
+			stats.sums = trimFront(stats.sums, trim)
+			stats.counts = trimFront(stats.counts, trim)
+			stats.mins = trimFront(stats.mins, trim)
+			stats.maxes = trimFront(stats.maxes, trim)
+		}
+	}
+	if s.cfg.MaxPointsPerSeries > 0 {
+		physicalCapacity := s.cfg.MaxPointsPerSeries + 1
+		if trim := len(stats.timestamps) - physicalCapacity; trim > 0 {
 			stats.timestamps = trimFront(stats.timestamps, trim)
 			stats.sums = trimFront(stats.sums, trim)
 			stats.counts = trimFront(stats.counts, trim)
