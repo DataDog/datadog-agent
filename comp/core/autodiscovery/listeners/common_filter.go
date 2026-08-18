@@ -40,18 +40,15 @@ func filterTemplatesMatched(svc FilterableService, configs map[string]integratio
 // a fallback to collect metrics from services that don't (yet) have a
 // dedicated Datadog integration. A configuration-discovery template is
 // suppressed when one of these already claims the same metric namespace the
-// discovery-driven integration would use, since that's a strong, specific
-// signal the user is already covering it manually.
+// discovery-driven integration would use, since that's an indication that the
+// user is already covering it manually.
 var genericIntegrationCheckNames = map[string]struct{}{
 	"openmetrics": {},
 	"prometheus":  {},
 }
 
-// IsGenericIntegrationCheckName reports whether name is a "generic"
-// integration check name (openmetrics, prometheus) — see
-// genericIntegrationCheckNames. Exported so the config manager can use the
-// same check to decide which scheduled static configs to also track by
-// namespace root in StaticConfigIndex.
+// IsGenericIntegrationCheckName reports whether name is a generic integration
+// check name.
 func IsGenericIntegrationCheckName(name string) bool {
 	_, ok := genericIntegrationCheckNames[name]
 	return ok
@@ -60,30 +57,22 @@ func IsGenericIntegrationCheckName(name string) bool {
 // NamespaceRoot returns the portion of namespace before the first '.', or the
 // whole string if there is none — e.g. "krakend.api" roots to "krakend".
 func NamespaceRoot(namespace string) string {
-	if i := strings.IndexByte(namespace, '.'); i >= 0 {
-		return namespace[:i]
-	}
-	return namespace
+	root, _, _ := strings.Cut(namespace, ".")
+	return root
 }
 
 // ExpectedNamespaceRoot returns the metric-namespace root a discovery-driven
 // integration's own metrics are expected to be published under: the root of
 // its declared `discovery.metrics_prefix` (see integration.DiscoveryConfig)
 // when set, or its own check name otherwise — true for the vast majority of
-// integrations, with a small set of exceptions (e.g. gearmand's own namespace
-// is "gearman", not "gearmandd") that need metrics_prefix to be detected
-// correctly.
+// integrations, with a small set of exceptions (e.g. zookeeper's namespace
+// is "zk", not "zookeeper") that need metrics_prefix to be detected correctly.
 //
 // Only the root is used even when metrics_prefix is itself multi-segment
 // (e.g. krakend's "krakend.api"): a generic scraper's own `namespace:` or
 // metric rename could independently collide at a shorter prefix (e.g.
-// `namespace: krakend` with no `.api`, or a pass-through metric whose raw
-// Prometheus name already happens to start with "krakend."), and there's no
-// way to tell from the raw instance config alone whether that would actually
-// produce the exact same final metric name — so comparing only the root
-// stays conservative and consistent with how the generic-scraper side of the
-// comparison already only ever compares roots (see
-// GenericIntegrationNamespaceRoots).
+// `namespace: krakend` with the `api` part coming from the rename targets),
+// so comparing only the root stays conservative.
 func ExpectedNamespaceRoot(cfg integration.Config) string {
 	if cfg.Discovery != nil && cfg.Discovery.MetricsPrefix != "" {
 		return NamespaceRoot(cfg.Discovery.MetricsPrefix)
@@ -101,19 +90,14 @@ func ExpectedNamespaceRoot(cfg integration.Config) string {
 // The metrics-rename fallback only matters when namespace is unset: a
 // generic openmetrics/prometheus check submits `namespace.metric_name`, but
 // when namespace is empty the metric name is submitted completely
-// unprefixed (verified in datadog_checks_base's AgentCheck._format_namespace)
-// — so a rename target that's already a fully-qualified dotted name (e.g.
-// `envoy_cluster_http2_streams_active: envoy.cluster.http2.streams_active`)
+// unprefixed — so a rename target that's already a fully-qualified dotted name
+// (e.g.  `envoy_cluster_http2_streams_active: envoy.cluster.http2.streams_active`)
 // collides with the native integration's own metric, and there's no
-// `namespace:` value to catch it. When namespace *is* set, it's prepended on
-// top of the rename target regardless, so the rename can't itself collide —
-// hence checking metrics only in the no-namespace case.
+// `namespace:` value to catch it.
 //
-// Instances with neither an explicit namespace nor a qualifying rename
-// contribute nothing: with no signal to compare, assuming a match would risk
-// suppressing discovery unnecessarily. Exported so the config manager can use
-// the same logic to populate StaticConfigIndex with namespace roots from
-// scheduled static (non-template) generic-scraper configs.
+// If an instance does not set an explicit namespace nor a qualifying rename,
+// we ignore it since we don't have any way to to tell if it would produce
+// conflicting metrics.
 func GenericIntegrationNamespaceRoots(cfg integration.Config) []string {
 	var roots []string
 	for _, inst := range cfg.Instances {
@@ -135,11 +119,15 @@ func GenericIntegrationNamespaceRoots(cfg integration.Config) []string {
 
 // instanceMetricRenameTargets returns the explicit rename target of each
 // entry in inst's `metrics`/`extra_metrics` field that renames a raw metric
-// to a different name, mirroring the shapes accepted by
-// MetricTransformer.normalize_metric_config (openmetrics v2) and the legacy
-// metrics_mapper loops (openmetrics v1, prometheus) in datadog_checks_base:
-// each list entry is either
-//   - a plain string: pass-through, not a rename, skipped;
+// to a different name.  Each list entry is either
+//   - a plain string: pass-through, not a rename, skipped; these involve wildcards
+//     and we can't tell from the raw instance config alone whether that would
+//     actually produce a metric that would collide with the native
+//     integration's own metrics. However, OpenMetrics/Prometheus metrics names
+//     traditionally do not contain dots (agent integrations only support them
+//     with an undocumented option), so a raw metric name should not collide
+//     with native integration's metrics, which do contain at least one dot
+//     after the namespace root.
 //   - a single-key map to a string: the string is the rename target; or
 //   - a single-key map to a nested map with a `name` key: that key's value is
 //     the rename target (no `name` key means the raw metric name is kept,
