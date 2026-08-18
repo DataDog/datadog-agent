@@ -32,7 +32,7 @@ func TestStorageConfigFromAgentConfigDerivesRetentionFromDetectorWindows(t *test
 		"unset":      {want: 1816},
 		"zero":       {yaml: "anomaly_detection:\n  storage:\n    point_retention: 0s\n", want: 1816},
 		"short":      {yaml: "anomaly_detection:\n  storage:\n    point_retention: 30s\n", want: 1816},
-		"sufficient": {yaml: "anomaly_detection:\n  storage:\n    point_retention: 1900s\n", want: 1900},
+		"sufficient": {yaml: "anomaly_detection:\n  storage:\n    point_retention: 3200s\n", want: 3200},
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := configmock.NewFromYAML(t, test.yaml)

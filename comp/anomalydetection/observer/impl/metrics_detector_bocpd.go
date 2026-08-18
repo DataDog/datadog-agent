@@ -13,7 +13,10 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultBOCPDWarmupPoints = 120
+const (
+	defaultBOCPDWarmupPoints = 60
+	defaultBOCPDMaxRunLength = 120
+)
 
 // bocpdStateKey uniquely identifies a (series, aggregation) pair for BOCPD state.
 type bocpdStateKey struct {
@@ -63,7 +66,7 @@ type bocpdSeriesState struct {
 type BOCPDConfig struct {
 	// WarmupPoints is the number of initial points used for baseline estimation.
 	// A longer warmup captures more of the metric's natural variability, reducing
-	// false positives from normal fluctuation. Default: 120 (~2 minutes at 1Hz).
+	// false positives from normal fluctuation. Default: 60 (~1 minute at 1Hz).
 	WarmupPoints int `json:"warmup_points"`
 
 	// Hazard is the constant changepoint hazard probability.
@@ -82,8 +85,8 @@ type BOCPDConfig struct {
 	// Default: 0.7
 	CPMassThreshold float64 `json:"cp_mass_threshold"`
 
-	// MaxRunLength caps tracked run-length hypotheses for bounded compute.
-	// Default: WarmupPoints. Values above WarmupPoints are clamped.
+	// MaxRunLength caps tracked run-length hypotheses and raw history.
+	// It must be at least WarmupPoints. Default: 120.
 	MaxRunLength int `json:"max_run_length"`
 
 	// PriorVarianceScale controls prior variance over the mean relative to observed variance.
@@ -111,7 +114,7 @@ func DefaultBOCPDConfig() BOCPDConfig {
 		CPThreshold:        0.6,
 		ShortRunLength:     5,
 		CPMassThreshold:    0.7,
-		MaxRunLength:       defaultBOCPDWarmupPoints,
+		MaxRunLength:       defaultBOCPDMaxRunLength,
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
@@ -160,10 +163,10 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 		config.CPMassThreshold = defaults.CPMassThreshold
 	}
 	if config.MaxRunLength <= 0 {
-		config.MaxRunLength = config.WarmupPoints
+		config.MaxRunLength = defaults.MaxRunLength
 	}
-	if config.MaxRunLength > config.WarmupPoints {
-		pkglog.Warnf("[observer] BOCPD max_run_length=%d exceeds warmup_points=%d; using %d", config.MaxRunLength, config.WarmupPoints, config.WarmupPoints)
+	if config.MaxRunLength < config.WarmupPoints {
+		pkglog.Warnf("[observer] BOCPD max_run_length=%d is below warmup_points=%d; using %d", config.MaxRunLength, config.WarmupPoints, config.WarmupPoints)
 		config.MaxRunLength = config.WarmupPoints
 	}
 	if config.PriorVarianceScale <= 0 {
@@ -193,7 +196,7 @@ func (b *BOCPDDetector) Ready() bool { return b.ready }
 
 // DetectorPointWindow implements observer.DetectorPointWindowRequirement.
 func (b *BOCPDDetector) DetectorPointWindow() observer.DetectorPointWindow {
-	return observer.DetectorPointWindow{MinPoints: b.config.WarmupPoints, MaxPoints: b.config.WarmupPoints}
+	return observer.DetectorPointWindow{MinPoints: b.config.WarmupPoints, MaxPoints: b.config.MaxRunLength}
 }
 
 // Detect implements Detector. It discovers series, reads only newly visible

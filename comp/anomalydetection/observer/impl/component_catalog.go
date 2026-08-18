@@ -104,7 +104,6 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 
 	bocpd := DefaultBOCPDConfig()
 	bocpd.WarmupPoints = 40
-	bocpd.MaxRunLength = bocpd.WarmupPoints
 	holt := DefaultHoltResidualConfig()
 	holt.WarmupPoints = 15
 	holt.ResidualWindow = 25
