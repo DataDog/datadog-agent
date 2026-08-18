@@ -16,6 +16,7 @@ dd_agent_go_test(
     embed = [":symdbprinter"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/dyninst/symdb",
         "//pkg/dyninst/symdb/uploader",

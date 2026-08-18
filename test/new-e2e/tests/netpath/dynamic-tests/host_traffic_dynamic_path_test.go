@@ -34,6 +34,7 @@ const (
 var hostTrafficDynamicRCConfig = []byte(`{
   "type": "dynamic",
   "test_config_id": "dynamic-host-traffic",
+  "test_config_name": "Host traffic dynamic paths",
   "tags": ["team:netpath", "env:e2e"],
   "config": {
     "filters": [
@@ -101,6 +102,7 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 
 		match := assertHostTrafficNetworkPath(c, netpaths, "", "RC-admitted")
 		assert.Equal(c, "dynamic-host-traffic", match.TestConfigID)
+		assert.Equal(c, "Host traffic dynamic paths", match.TestConfigName)
 		assert.Equal(c, payload.TestConfigSourceRemote, match.TestConfigSource)
 		assert.Equal(c, []string{"team:netpath", "env:e2e"}, match.Tags)
 		remoteConfigMatch = match
