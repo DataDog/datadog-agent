@@ -3486,7 +3486,8 @@ properties:
     visibility: public
     description: |-
       The Agent can extract container image OCI annotation values and set them as tags associated to a <TAG_KEY>.
-      These tags are attached to container image entities and appear on the Container Images page.
+      These tags are attached to container image entities (appearing on the Container Images page) and are also
+      applied to the containers using the image, so they show up on container.* metrics.
       If you prefix your tag name with `+`, it will only be added to high cardinality metrics. (Supported container
       runtimes: Containerd, CRI-O).
     example: |2-
