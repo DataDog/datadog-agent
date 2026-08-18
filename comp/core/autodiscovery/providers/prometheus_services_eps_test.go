@@ -113,7 +113,7 @@ func TestPrometheusServicesEPS_Collect(t *testing.T) {
 				},
 			},
 			collectEndpoints: true,
-			expectConfigs: nil,
+			expectConfigs:    nil,
 		},
 		{
 			name:   "collect only endpointslices",
