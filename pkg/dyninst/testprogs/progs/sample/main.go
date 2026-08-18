@@ -57,6 +57,7 @@ func runAll() {
 	executeArrayFuncs()
 	executeSliceFuncs()
 	executeStructFuncs()
+	executeServerFuncs()
 	executeStack()
 	executeInlined()
 	executePointerFuncs()

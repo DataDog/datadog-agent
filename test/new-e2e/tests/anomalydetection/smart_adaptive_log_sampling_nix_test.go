@@ -106,9 +106,10 @@ anomaly_detection:
     output:
       cooldown: 2s
   detectors:
-    cusum:
-      enabled: true
     bocpd:
+      enabled: true
+      warmup_points: 5
+    rrcf:
       enabled: false
     holt_residual:
       enabled: false
@@ -146,8 +147,8 @@ func (s *smartSeverityProfilesSuite) TestSmartSeverityProfilesDriveAdaptiveSampl
 	const (
 		seriesCount   = 8
 		metricPrefix  = "e2e.anomalydetection.smartseverity.s"
-		baseline      = 1.0
-		spike         = 5000.0
+		baseline      = 100.0
+		spike         = 140.0
 		baselineTicks = 8
 		spikeTicks    = 5
 		logBurst      = 12
