@@ -58,7 +58,6 @@ class TestBazel(unittest.TestCase):
         run_command.return_value = subprocess.CompletedProcess("/bzlx run //:go", 0, "", "")
         bazel(None, "run", "//:go")
         self.assertEqual(run_command.call_args.args[0], ("/bzlx", "run", "//:go"))
-        self.assertEqual(run_command.call_args.kwargs["cmdline"], "/bzlx run //:go")
 
     @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
@@ -83,10 +82,6 @@ class TestBazel(unittest.TestCase):
                 "--//:output_config_dir=",
                 "//:go",
             ),
-        )
-        self.assertEqual(
-            run_command.call_args.kwargs["cmdline"],
-            "/bzlx --batch run --//packages/agent:flavor=fips --//:install_dir=/opt --//:output_config_dir= //:go",
         )
 
 

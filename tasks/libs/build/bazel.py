@@ -95,7 +95,6 @@ def bazel_not_found_message(color: str) -> str:
 def _run_command(
     cmd: tuple[str, ...],
     *,
-    cmdline: str,
     capture_stdout: bool,
     capture_for_result: bool,
     env: dict[str, str] | None,
@@ -107,7 +106,6 @@ def _run_command(
     if capture_for_result:
         return _run_command_with_tee(
             cmd,
-            cmdline=cmdline,
             input=input,
             env=subprocess_env,
             tee_stdout=not capture_stdout,
@@ -152,7 +150,6 @@ async def _collect_output(
 async def _run_command_with_tee_async(
     cmd: tuple[str, ...],
     *,
-    cmdline: str,
     input: str | None,
     env: dict[str, str] | None,
     tee_stdout: bool,
@@ -186,13 +183,12 @@ async def _run_command_with_tee_async(
     returncode = await proc.wait()
     stdout, stderr = await asyncio.gather(*output_tasks)
 
-    return subprocess.CompletedProcess(cmdline, returncode, stdout, stderr)
+    return subprocess.CompletedProcess(cmd, returncode, stdout, stderr)
 
 
 def _run_command_with_tee(
     cmd: tuple[str, ...],
     *,
-    cmdline: str,
     input: str | None,
     env: dict[str, str] | None,
     tee_stdout: bool,
@@ -201,7 +197,6 @@ def _run_command_with_tee(
     return asyncio.run(
         _run_command_with_tee_async(
             cmd,
-            cmdline=cmdline,
             input=input,
             env=env,
             tee_stdout=tee_stdout,
@@ -236,7 +231,6 @@ def bazel(
 
     completed = _run_command(
         cmd,
-        cmdline=cmdline,
         capture_stdout=capture_output,
         capture_for_result=ignore_errors,
         env=env,
