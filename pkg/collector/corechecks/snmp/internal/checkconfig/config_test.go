@@ -1793,17 +1793,18 @@ func TestCheckConfig_Copy(t *testing.T) {
 				Device: profiledefinition.DeviceMeta{Vendor: "f5"},
 			},
 		}}),
-		ProfileName:           "f5",
-		ExtraTags:             []string{"ExtraTags:tag"},
-		InstanceTags:          []string{"InstanceTags:tag"},
-		CollectDeviceMetadata: true,
-		CollectTopology:       true,
-		CollectVPN:            true,
-		UseDeviceIDAsHostname: true,
-		DeviceID:              "123",
-		DeviceIDTags:          []string{"DeviceIDTags:tag"},
-		ResolvedSubnetName:    "1.2.3.4/28",
-		MinCollectionInterval: 120,
+		ProfileName:                 "f5",
+		ExtraTags:                   []string{"ExtraTags:tag"},
+		InstanceTags:                []string{"InstanceTags:tag"},
+		CollectDeviceMetadata:       true,
+		CollectTopology:             true,
+		CollectVPN:                  true,
+		UseDeviceIDAsHostname:       true,
+		DeviceID:                    "123",
+		DeviceIDTags:                []string{"DeviceIDTags:tag"},
+		ResolvedSubnetName:          "1.2.3.4/28",
+		MinCollectionInterval:       120,
+		AgentWorkloadBalancingGroup: "wb-group-1",
 	}
 	configCopy := config.Copy()
 
@@ -1818,10 +1819,11 @@ func TestCheckConfig_Copy(t *testing.T) {
 
 func TestCheckConfig_CopyWithNewIP(t *testing.T) {
 	config := CheckConfig{
-		IPAddress:       "127.0.0.5",
-		Port:            161,
-		CommunityString: "public",
-		InstanceTags:    []string{"tag1:val1"},
+		IPAddress:                   "127.0.0.5",
+		Port:                        161,
+		CommunityString:             "public",
+		InstanceTags:                []string{"tag1:val1"},
+		AgentWorkloadBalancingGroup: "wb-group-1",
 	}
 	config.UpdateDeviceIDAndTags()
 
@@ -1831,6 +1833,42 @@ func TestCheckConfig_CopyWithNewIP(t *testing.T) {
 	assert.Equal(t, config.Port, configCopy.Port)
 	assert.Equal(t, config.CommunityString, configCopy.CommunityString)
 	assert.NotEqual(t, config.DeviceID, configCopy.DeviceID)
+	assert.Equal(t, "wb-group-1", configCopy.AgentWorkloadBalancingGroup)
+}
+
+func TestNewCheckConfig_AgentWorkloadBalancingGroup(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+agent_workload_balancing_group: wb-group-1
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
+	require.NoError(t, err)
+	assert.Equal(t, "wb-group-1", config.AgentWorkloadBalancingGroup)
+
+	// language=yaml
+	rawInstanceConfigNoGroup := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+`)
+	configNoGroup, err := NewCheckConfig(rawInstanceConfigNoGroup, []byte(``), nil)
+	require.NoError(t, err)
+	assert.Equal(t, "", configNoGroup.AgentWorkloadBalancingGroup)
+
+	// language=yaml
+	rawDiscoveryInstanceConfig := []byte(`
+network_address: 127.0.0.0/30
+community_string: public
+agent_workload_balancing_group: wb-group-1
+`)
+	discoveryConfig, err := NewCheckConfig(rawDiscoveryInstanceConfig, []byte(``), nil)
+	require.NoError(t, err)
+	require.True(t, discoveryConfig.IsDiscovery())
+	assert.Equal(t, "wb-group-1", discoveryConfig.AgentWorkloadBalancingGroup)
+
+	deviceConfig := discoveryConfig.CopyWithNewIP("127.0.0.1")
+	assert.Equal(t, "wb-group-1", deviceConfig.AgentWorkloadBalancingGroup)
 }
 
 func TestCheckConfig_getResolvedSubnetName(t *testing.T) {

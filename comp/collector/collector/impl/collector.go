@@ -27,6 +27,7 @@ import (
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	workloadbalancing "github.com/DataDog/datadog-agent/comp/workloadbalancing/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -52,9 +53,10 @@ type dependencies struct {
 	Lc             compdef.Lifecycle
 	Config         config.Component
 	Log            log.Component
-	HaAgent        haagent.Component
-	HealthPlatform healthplatform.Component
-	Hostname       hostnameinterface.Component
+	HaAgent           haagent.Component
+	WorkloadBalancing workloadbalancing.Component
+	HealthPlatform    healthplatform.Component
+	Hostname          hostnameinterface.Component
 
 	SenderManager    sender.SenderManager
 	MetricSerializer option.Option[serializer.MetricSerializer]
@@ -64,9 +66,10 @@ type dependencies struct {
 type collectorImpl struct {
 	log            log.Component
 	config         config.Component
-	haAgent        haagent.Component
-	healthPlatform healthplatform.Component
-	hostname       hostnameinterface.Component
+	haAgent           haagent.Component
+	workloadBalancing workloadbalancing.Component
+	healthPlatform    healthplatform.Component
+	hostname          hostnameinterface.Component
 
 	senderManager    sender.SenderManager
 	metricSerializer option.Option[serializer.MetricSerializer]
@@ -126,6 +129,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		log:                    deps.Log,
 		config:                 deps.Config,
 		haAgent:                deps.HaAgent,
+		workloadBalancing:      deps.WorkloadBalancing,
 		healthPlatform:         deps.HealthPlatform,
 		hostname:               deps.Hostname,
 		senderManager:          deps.SenderManager,
@@ -175,7 +179,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager, c.haAgent)
+	run := runner.NewRunner(c.senderManager, c.haAgent, c.workloadBalancing)
 	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan())
 
 	// let the runner some visibility into the scheduler

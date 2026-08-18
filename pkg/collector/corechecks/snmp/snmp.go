@@ -213,6 +213,12 @@ func (c *Check) IsHASupported() bool {
 	return true
 }
 
+// WorkloadBalancingGroupID returns the workload balancing group this instance is assigned to,
+// or "" if it isn't assigned to one
+func (c *Check) WorkloadBalancingGroupID() string {
+	return c.config.AgentWorkloadBalancingGroup
+}
+
 // Factory creates a new check factory
 func Factory(agentConfig config.Component, rcClient rcclient.Component, scanManager snmpscanmanager.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {

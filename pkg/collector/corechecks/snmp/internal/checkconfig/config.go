@@ -127,6 +127,9 @@ type InstanceConfig struct {
 	Loader                string                              `yaml:"loader"`
 	UseRCProfiles         *Boolean                            `yaml:"use_remote_config_profiles"`
 
+	// AgentWorkloadBalancingGroup assigns this instance to a workload balancing group; empty means unmanaged
+	AgentWorkloadBalancingGroup string `yaml:"agent_workload_balancing_group"`
+
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
 	// TODO: deprecated extra tags in favour of using autodiscovery listener Service.GetTags()
@@ -195,6 +198,10 @@ type CheckConfig struct {
 	ResolvedSubnetName    string
 	Namespace             string
 	MinCollectionInterval time.Duration
+
+	// AgentWorkloadBalancingGroup is the workload balancing group this instance is assigned to;
+	// empty means unmanaged
+	AgentWorkloadBalancingGroup string
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -442,6 +449,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.Namespace = pkgconfigsetup.Datadog().GetString("network_devices.namespace")
 	}
 
+	c.AgentWorkloadBalancingGroup = instance.AgentWorkloadBalancingGroup
+
 	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
 	if err != nil {
 		return nil, err
@@ -651,6 +660,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.Namespace = c.Namespace
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
+	newConfig.AgentWorkloadBalancingGroup = c.AgentWorkloadBalancingGroup
 	newConfig.InterfaceConfigs = c.InterfaceConfigs
 
 	newConfig.PingEnabled = c.PingEnabled

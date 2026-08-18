@@ -59,6 +59,9 @@ type Check interface {
 	GetDiagnoses() ([]diagnose.Diagnosis, error)
 	// IsHASupported returns if the check is compatible with High Availability
 	IsHASupported() bool
+	// WorkloadBalancingGroupID returns the workload balancing group this check instance belongs to,
+	// or "" if it isn't assigned to one
+	WorkloadBalancingGroupID() string
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check

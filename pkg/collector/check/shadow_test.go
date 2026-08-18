@@ -274,6 +274,10 @@ func (c *recordingCheck) IsHASupported() bool {
 	return c.haSupported
 }
 
+func (c *recordingCheck) WorkloadBalancingGroupID() string {
+	return ""
+}
+
 type recordingIssueReporter struct {
 	healthplatformstore.Component
 }

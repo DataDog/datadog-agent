@@ -78,3 +78,6 @@ func (c *StubCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) { return nil, n
 
 // IsHASupported returns false
 func (c *StubCheck) IsHASupported() bool { return false }
+
+// WorkloadBalancingGroupID returns ""
+func (c *StubCheck) WorkloadBalancingGroupID() string { return "" }

@@ -160,6 +160,9 @@ type StatsCheck interface {
 	Loader() string
 	// IsHASupported returns if the check is HA enabled
 	IsHASupported() bool
+	// WorkloadBalancingGroupID returns the workload balancing group this check instance belongs to,
+	// or "" if it isn't assigned to one
+	WorkloadBalancingGroupID() string
 }
 
 // NewStats returns a new check stats instance

@@ -298,3 +298,8 @@ func (c *CheckBase) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckBase) IsHASupported() bool {
 	return false
 }
+
+// WorkloadBalancingGroupID returns "" by default; checks that support workload balancing override this
+func (c *CheckBase) WorkloadBalancingGroupID() string {
+	return ""
+}
