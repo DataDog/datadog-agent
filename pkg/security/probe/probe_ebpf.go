@@ -2875,7 +2875,14 @@ func (p *EBPFProbe) isNetworkIsolationTriggered(filter rawpacket.Filter) bool {
 
 	for _, key := range potentialKeys {
 		if remediation, ok := p.activeRemediations[key]; ok && remediation.triggered {
-			return true
+			// We found the remediation, now we need to check if the isolation was triggered on this ressource
+			if scope == "process" {
+				if slices.Contains(remediation.pidsIsolated, filter.Pid) {
+					return true
+				}
+			} else if scope == "cgroup" {
+				return slices.Contains(remediation.cgroupIsolated, filter.CGroupPathKey)
+			}
 		}
 	}
 	return false
