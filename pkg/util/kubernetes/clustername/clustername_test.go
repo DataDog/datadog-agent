@@ -18,6 +18,9 @@ import (
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := configmock.New(t)
+	// Disable cloud provider metadata detection to avoid real HTTP calls to
+	// EC2/GCE/Azure metadata endpoints.
+	mockConfig.SetInTest("cloud_provider_metadata", []string{})
 	env.SetFeatures(t, env.Kubernetes)
 	data := newClusterNameData()
 

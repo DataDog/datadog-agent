@@ -104,3 +104,45 @@ func TestConcurrentTailingModeAndStatusAccess(t *testing.T) {
 	close(stop)
 	wg.Wait()
 }
+
+// TestConcurrentPublicJSONAndSetTailingMode verifies that PublicJSON (which reads
+// Config.TailingMode) does not race with SetTailingMode (which writes it).
+// Before the fix, PublicJSON was called on Config directly without the LogSource
+// lock, racing with SetTailingMode on another goroutine.
+func TestConcurrentPublicJSONAndSetTailingMode(t *testing.T) {
+	t.Parallel()
+
+	source := NewLogSource("test", &config.LogsConfig{
+		Type:        "file",
+		Path:        "/var/log/test.log",
+		TailingMode: "end",
+	})
+
+	const iterations = 5000
+	var wg sync.WaitGroup
+	var start sync.WaitGroup
+	start.Add(1)
+
+	// writer: mimics (*Launcher).launchTailers mutating TailingMode concurrently.
+	wg.Go(func() {
+		start.Wait()
+		for i := range iterations {
+			if i%2 == 0 {
+				source.SetTailingMode("beginning")
+			} else {
+				source.SetTailingMode("end")
+			}
+		}
+	})
+
+	// reader: mimics inventorychecksImpl.getPayload calling PublicJSON concurrently.
+	wg.Go(func() {
+		start.Wait()
+		for range iterations {
+			_, _ = source.PublicJSON()
+		}
+	})
+
+	start.Done()
+	wg.Wait()
+}
