@@ -16,7 +16,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// team: credential-management
+// team: credential-management delegated-auth-login
 
 // InstanceParams configures a single API key instance.
 type InstanceParams struct {
