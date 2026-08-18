@@ -8,7 +8,7 @@ package collector
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender/sdcsender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sdceligibility"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -27,7 +27,7 @@ func (c *sdcIntervalOverrideCheck) Interval() time.Duration {
 }
 
 // wrapWithSDCIntervalOverride wraps ch to override its scheduling interval
-// when checkName is SDC-compressed (per sdcsender.CompressionEnabledFor) and
+// when checkName is SDC-compressed (per sdceligibility.EnabledFor) and
 // checks.sdc_compression_interval_override is set to a positive number of
 // seconds, taking precedence over the check's own min_collection_interval.
 // Otherwise ch is returned unchanged.
@@ -41,7 +41,7 @@ func (c *sdcIntervalOverrideCheck) Interval() time.Duration {
 // normal ticked check.
 func wrapWithSDCIntervalOverride(ch check.Check, checkName string) check.Check {
 	iv := setup.Datadog().GetInt("checks.sdc_compression_interval_override")
-	if iv <= 0 || ch.Interval() == 0 || !sdcsender.CompressionEnabledFor(checkName) {
+	if iv <= 0 || ch.Interval() == 0 || !sdceligibility.EnabledFor(checkName) {
 		return ch
 	}
 	return &sdcIntervalOverrideCheck{Check: ch, interval: time.Duration(iv) * time.Second}
