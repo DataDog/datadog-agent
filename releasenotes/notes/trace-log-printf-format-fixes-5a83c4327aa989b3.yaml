@@ -8,14 +8,5 @@
 ---
 fixes:
   - |
-    Fixed several trace-agent debug/error log messages that printed incorrect
-    or missing information due to format-string bugs: a few ``%s`` verbs were
-    given a Go method value instead of the result of calling it, printing a
-    function pointer instead of the span's resource or name, and a couple of
-    ``%v`` verbs for unknown OTEL attribute types had no corresponding
-    argument, printing ``%!v(MISSING)`` instead of the offending type. These
-    log lines now render the intended values (for example ``span.Resource()``
-    or the attribute's ``Type``) correctly. Also added
-    ``github.com/DataDog/datadog-agent/pkg/trace/log`` to the govet ``printf``
-    funcs allowlist in ``.golangci.yml`` so format-string mistakes in
-    ``pkg/trace``'s own logger are caught by CI going forward.
+    APM: Fix several trace-agent debug/error log messages that printed
+    incorrect info due to format-string bugs.
