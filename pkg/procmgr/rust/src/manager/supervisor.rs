@@ -58,7 +58,7 @@ async fn handle_command(manager: &ProcessManager, handles: &RuntimeHandles, cmd:
     }
 }
 
-/// Returns `true` when the loop exits due to shutdown, `false` when all channels close.
+/// Run until shutdown is signaled or all event channels close.
 pub(super) async fn run_manager_event_loop(
     manager: &ProcessManager,
     handles: &RuntimeHandles,
@@ -66,10 +66,10 @@ pub(super) async fn run_manager_event_loop(
     exit_rx: &mut mpsc::Receiver<ExitEvent>,
     restart_rx: &mut mpsc::Receiver<PendingRestart>,
     mut shutdown: Pin<&mut impl Future<Output = ()>>,
-) -> bool {
+) {
     loop {
         tokio::select! {
-            _ = shutdown.as_mut() => return true,
+            _ = shutdown.as_mut() => return,
             Some(cmd) = cmd_rx.recv() => {
                 handle_command(manager, handles, cmd).await;
             }
@@ -79,7 +79,10 @@ pub(super) async fn run_manager_event_loop(
             Some(pending) = restart_rx.recv() => {
                 manager.complete_restart(pending, handles).await;
             }
-            else => return false,
+            else => {
+                warn!("manager event loop exiting: all channels closed");
+                return;
+            }
         }
     }
 }
@@ -143,7 +146,7 @@ pub(crate) fn spawn_command_loop_for_tests(
     tokio::spawn(async move {
         let pending = std::future::pending::<()>();
         tokio::pin!(pending);
-        let _ = run_manager_event_loop(
+        run_manager_event_loop(
             &manager,
             &handles,
             &mut cmd_rx,
