@@ -162,18 +162,27 @@ func instanceMetricRenameTargets(inst integration.Data) []string {
 
 // filterTemplatesDiscovery drops configuration-discovery templates that are
 // redundant with another config source for the same integration, or with a
-// generic scraper (openmetrics/prometheus) config that's already claiming the
-// same metric namespace. Dropped when:
+// generic scraper (openmetrics/prometheus) config that's already covering
+// this service or host. Dropped when:
 //  1. another check template (Instances > 0) for the same integration Name has
 //     matched this same service (present in configs), or
-//  2. a sibling generic-scraper (openmetrics/prometheus) template matched to
-//     this same service configures a namespace whose root matches this
-//     integration's expected namespace root (see ExpectedNamespaceRoot), or
+//  2. any generic-scraper (openmetrics/prometheus) template has matched this
+//     same service at all — regardless of its own Name or namespace. Once a
+//     user has manually configured a generic scraper against a service, we
+//     assume they already know how to collect its metrics, rather than try
+//     to compare namespaces: comparing raw instance config can't reliably
+//     rule out a collision (metrics could be passthrough/wildcard), so a
+//     scoped comparison risks a false negative (failing to suppress a
+//     duplicate that really would collide), or
 //  3. a scheduled non-template (static) config exists for the same Name, or a
 //     scheduled non-template generic-scraper config anywhere on the host
 //     configures a namespace whose root matches this integration's expected
-//     namespace root (both tracked, by check name and by namespace root
-//     respectively, in the same staticIdx — see configmgr.go).
+//     namespace root (see ExpectedNamespaceRoot) (both tracked, by check name
+//     and by namespace root respectively, in the same staticIdx — see
+//     configmgr.go). Unlike case 2, this host-wide static path stays
+//     namespace-scoped: it isn't attached to any particular service, so a
+//     blanket version of it would suppress discovery everywhere on the host
+//     whenever a generic scraper happens to be configured anywhere.
 //
 // Logs-only sibling templates (no Instances) are ignored — discovery covers
 // metric-check configuration and shouldn't be suppressed by an integration's
@@ -183,16 +192,14 @@ func filterTemplatesDiscovery(staticIdx *StaticConfigIndex, configs map[string]i
 		return
 	}
 	nonDiscoveryNames := map[string]struct{}{}
-	siblingGenericNamespaceRoots := map[string]struct{}{}
+	hasGenericSibling := false
 	for _, cfg := range configs {
 		if cfg.IsDiscovery() || len(cfg.Instances) == 0 {
 			continue
 		}
 		nonDiscoveryNames[cfg.Name] = struct{}{}
 		if IsGenericIntegrationCheckName(cfg.Name) {
-			for _, root := range GenericIntegrationNamespaceRoots(cfg) {
-				siblingGenericNamespaceRoots[root] = struct{}{}
-			}
+			hasGenericSibling = true
 		}
 	}
 	for digest, cfg := range configs {
@@ -201,8 +208,7 @@ func filterTemplatesDiscovery(staticIdx *StaticConfigIndex, configs map[string]i
 		}
 		_, hasSibling := nonDiscoveryNames[cfg.Name]
 		expectedRoot := ExpectedNamespaceRoot(cfg)
-		_, hasNamespaceConflict := siblingGenericNamespaceRoots[expectedRoot]
-		if hasSibling || hasNamespaceConflict || staticIdx.Has(cfg.Name) || (expectedRoot != cfg.Name && staticIdx.Has(expectedRoot)) {
+		if hasGenericSibling || hasSibling || staticIdx.Has(cfg.Name) || (expectedRoot != cfg.Name && staticIdx.Has(expectedRoot)) {
 			log.Debugf("Ignoring discovery template %s from %s: another config source already covers this integration",
 				cfg.Name, cfg.Source)
 			delete(configs, digest)

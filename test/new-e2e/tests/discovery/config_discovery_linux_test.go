@@ -294,21 +294,25 @@ func (s *configDiscoverySuite) verifyKrakendCheckProvider(c *assert.CollectT) {
 
 // TestKrakendConfigDiscoverySuppressedByConflictingGenericIntegration verifies
 // that configuration discovery must not schedule a second, duplicate check on
-// a container that already has a manually-configured generic
-// openmetrics/prometheus check claiming the same (or a rooted-in) metric
-// namespace as the dedicated integration would use. Without this, both
-// krakend (via discovery) and the manual openmetrics config would run
-// concurrently against the fake-krakend-conflict container, double-collecting
-// (and, for counter metrics, doubling the reported value of) the same
-// metrics.
+// a container that already has any manually-configured generic
+// openmetrics/prometheus check matched to it, regardless of that check's own
+// namespace. Without this, both krakend (via discovery) and the manual
+// openmetrics config would run concurrently against the fake-krakend-conflict
+// container, double-collecting (and, for counter metrics, doubling the
+// reported value of) the same metrics.
 //
 // fake-krakend-conflict is a second, independent container from
 // fake-krakend (used by TestKrakendConfigDiscovery): it's also image-matched
 // to krakend's `ad_identifiers: [krakend]`, but additionally carries a
-// com.datadoghq.ad.checks label configuring a manual "openmetrics" check with
-// namespace "krakend.api" — rooted in krakend's own __NAMESPACE__ — against
-// the exact same :9091/metrics endpoint krakend's own discovery would resolve
-// to.
+// com.datadoghq.ad.checks label configuring a manual "openmetrics" check
+// against the exact same :9091/metrics endpoint krakend's own discovery would
+// resolve to. Its namespace ("krakend.api") happens to be rooted in krakend's
+// own __NAMESPACE__, but that's incidental: suppression here is name/namespace
+// -agnostic -- once a generic scraper is manually configured against a
+// service at all, we assume the user already knows how to collect its
+// metrics rather than try to compare namespaces (see
+// comp/core/autodiscovery/listeners/common_filter.go's
+// filterTemplatesDiscovery).
 //
 // This covers the "sibling" suppression path: the manual config is matched to
 // the exact same container/service as the discovery template (both resolved
@@ -349,7 +353,7 @@ func (s *configDiscoverySuite) verifyKrakendConfigDiscoverySuppressedByConflicti
 	// one discovered for the non-conflicting fake-krakend container (verified
 	// by TestKrakendConfigDiscovery). Discovery must not have ALSO scheduled a
 	// second krakend instance for fake-krakend-conflict, since a manual
-	// openmetrics config claiming a rooted-in namespace already covers it.
+	// openmetrics config matched to that same container already covers it.
 	krakendInstances := status.RunnerStats.Checks["krakend"]
 	if !assert.Len(c, krakendInstances, 1,
 		"exactly one krakend instance should be running (discovery must be suppressed on the conflicting container); found: %+v", krakendInstances) {
