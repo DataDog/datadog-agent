@@ -111,9 +111,9 @@ func parseDiscoveryResult(integrationName, resultJSON string) ([]integration.Con
 			IgnoreAutodiscoveryTags: raw.IgnoreAutodiscoveryTags,
 			CheckTagCardinality:     raw.CheckTagCardinality,
 		}
-		for _, inst := range raw.Instances {
+		for i, inst := range raw.Instances {
 			if !isJSONObject(inst) {
-				return nil, fmt.Errorf("decode discovery payload for %s: instance is not a JSON object: %s", integrationName, string(inst))
+				return nil, fmt.Errorf("decode discovery payload for %s: instance %d is not a JSON object", integrationName, i)
 			}
 			cfg.Instances = append(cfg.Instances, integration.Data(inst))
 		}
