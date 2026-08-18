@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	linuxInstallScriptURL     = "https://install.datadoghq.com/scripts/install_script_agent7.sh"
-	windowsInstallerLatestURL = "https://install.datadoghq.com/datadog-installer-x86_64.exe"
+	linuxInstallScriptURL     = "https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh"
+	windowsInstallerLatestURL = "https://s3.amazonaws.com/dd-agent/datadog-installer-x86_64.exe"
 )
 
 // InstallOption is an optional function parameter type for InstallParams options
