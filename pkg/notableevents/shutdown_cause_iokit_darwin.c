@@ -15,7 +15,7 @@
 
 // The IORegistry is machine-controlled, so every traversal bound is explicit
 // even though this runs as root inside system-probe.
-#define DD_PMU_MAX_SERVICES 64
+#define DD_PMU_MAX_SERVICES 16
 
 // DD_PMU_MAX_TOKENS_PER_SERVICE and DD_PMU_MAX_TOKEN_CHARS are sized from the
 // largest payload observed on real hardware (the 80-token dictionary in
@@ -92,7 +92,8 @@ static int dd_pkg_notableevents_append_tokens(
     CFArrayRef tokens,
     char *buffer,
     size_t size,
-    size_t *written) {
+    size_t *written,
+    size_t *token_count) {
     CFIndex count = CFArrayGetCount(tokens);
     if (count > DD_PMU_MAX_TOKENS_PER_SERVICE) {
         return -3;
@@ -160,6 +161,7 @@ static int dd_pkg_notableevents_append_tokens(
             free(heap_token);
             return -2;
         }
+        *token_count += 1;
         free(heap_token);
     }
 
@@ -167,7 +169,10 @@ static int dd_pkg_notableevents_append_tokens(
 }
 
 // dd_pkg_notableevents_read_pmu_boot_fault_info walks the IOService plane and
-// flattens every IOPMUBootFaultInfo array it finds.
+// flattens every IOPMUBootFaultInfo array it finds. The walk can end before
+// the plane or DD_PMU_MAX_SERVICES is exhausted: once DD_PMU_MAX_TOKENS_PER_SERVICE
+// distinct tokens have been collected, no remaining service can add one that
+// is not already present.
 int dd_pkg_notableevents_read_pmu_boot_fault_info(
     char *buffer,
     size_t size,
@@ -194,6 +199,7 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
     }
 
     size_t services = 0;
+    size_t distinct_tokens = 0;
     io_object_t entry = IO_OBJECT_NULL;
     while ((entry = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
         if (services >= DD_PMU_MAX_SERVICES) {
@@ -216,7 +222,8 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
         }
 
         size_t candidate = *written;
-        int status = dd_pkg_notableevents_append_tokens(property, buffer, size, &candidate);
+        size_t candidate_tokens = distinct_tokens;
+        int status = dd_pkg_notableevents_append_tokens(property, buffer, size, &candidate, &candidate_tokens);
         CFRelease(property);
         if (status != 0) {
             // A bound violation is scoped to this one service: drop its
@@ -229,7 +236,16 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
         }
 
         *written = candidate;
+        distinct_tokens = candidate_tokens;
         services += 1;
+
+        // DD_PMU_MAX_TOKENS_PER_SERVICE is sized with a margin over the full
+        // known real-world PMU fault dictionary, so once that many distinct
+        // tokens have been collected, no remaining service can contribute one
+        // that is not already in the buffer.
+        if (distinct_tokens >= DD_PMU_MAX_TOKENS_PER_SERVICE) {
+            break;
+        }
     }
 
     IOObjectRelease(iterator);
