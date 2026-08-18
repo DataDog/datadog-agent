@@ -3385,7 +3385,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 			}
 		}
 		return nil
-	}, p.Resolvers.CGroupResolver)
+	}, p.Resolvers.CGroupResolver, config.RuntimeSecurity.EnforcementCgroupKillEnabled)
 	processKiller, err := NewProcessKiller(config, pkos)
 	if err != nil {
 		return nil, err

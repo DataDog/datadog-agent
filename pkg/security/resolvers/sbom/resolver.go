@@ -79,8 +79,10 @@ const (
 )
 
 // Data use the keep the result of a scan of a same workload across multiple
-// container
+// container. A *Data is shared across SBOMs that run the same image (via the
+// dataCache), so it needs its own lock rather than relying on each SBOM's lock.
 type Data struct {
+	mu       sync.RWMutex
 	files    fileQuerier
 	packages []sbomtypes.Package // per-package metadata (without the plain-text installed-file lists) kept for forwarding
 }
@@ -435,8 +437,12 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 
 				// Snapshot the package metadata: the forwarded report outlives the
 				// lock and the backing slice keeps being mutated (LastAccess) at runtime.
+				// Take the Data lock because *Data is shared across SBOMs via the data
+				// cache, so the SBOM lock alone does not protect the packages slice.
+				sbom.data.mu.RLock()
 				packages := make([]sbomtypes.Package, len(sbom.data.packages))
 				copy(packages, sbom.data.packages)
+				sbom.data.mu.RUnlock()
 
 				// Create SBOM report and notify listeners
 				packagesReport := NewPackagesReport(packages, sbom.ContainerID)
@@ -776,6 +782,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	if pkg != nil {
 		seclog.Tracef("file '%s' found in sbom for container '%s'", file.PathnameStr, sbom.ContainerID)
 
+		sbom.data.mu.Lock()
 		oldLastAccess := pkg.LastAccess
 		oldSuidBit := pkg.SuidBit
 		oldAccessedByRoot := pkg.AccessedByRoot
@@ -787,10 +794,17 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		pkg.LastAccess = time.Now()
 		pkg.SuidBit = pkg.SuidBit || fs.FileMode(file.Mode)&04000 != 0
 		pkg.AccessedByRoot = pkg.AccessedByRoot || pc.UID == 0
+		// Snapshot the updated values before unlocking so the invalidation
+		// comparison below doesn't race with concurrent writers on the shared
+		// *Data (another container resolving a file from the same package).
+		newLastAccess := pkg.LastAccess
+		newSuidBit := pkg.SuidBit
+		newAccessedByRoot := pkg.AccessedByRoot
+		sbom.data.mu.Unlock()
 
 		// Trigger forwarding debouncer to send updated SBOM to remote collector
-		if pkg.LastAccess.Sub(oldLastAccess) > r.cfg.SBOMResolverEnrichmentInterval ||
-			pkg.SuidBit != oldSuidBit || pkg.AccessedByRoot != oldAccessedByRoot {
+		if newLastAccess.Sub(oldLastAccess) > r.cfg.SBOMResolverEnrichmentInterval ||
+			newSuidBit != oldSuidBit || newAccessedByRoot != oldAccessedByRoot {
 			sbom.invalidated = true
 		}
 	}
@@ -855,6 +869,8 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 	seclog.Debugf("processing %d pending file events for container '%s'", len(events), sbom.ContainerID)
 
 	now := time.Now()
+	sbom.data.mu.Lock()
+	defer sbom.data.mu.Unlock()
 	for filePath, event := range events {
 		pkg := sbom.data.files.queryFile(filePath)
 		if pkg == nil {

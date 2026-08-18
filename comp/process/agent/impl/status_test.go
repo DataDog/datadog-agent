@@ -48,6 +48,7 @@ func TestStatus(t *testing.T) {
 	defer server.Close()
 
 	configComponent := config.NewMock(t)
+	configComponent.SetInTest("cloud_provider_metadata", []string{})
 
 	headerProvider := StatusProvider{
 		testServerURL: server.URL,

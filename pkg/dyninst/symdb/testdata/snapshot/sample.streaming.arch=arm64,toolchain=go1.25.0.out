@@ -151,6 +151,7 @@ Package: main
 		Var: &v: *main.firstBehavior (declared at line 400, available: [391-449])
 		Var: &fortyTwo: *int (declared at line 403, available: [404-404])
 		Var: .autotmp_8: [0]int (declared at line 448, available: [391-449])
+	Function: executeServerFuncs (main.executeServerFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go [29:33] injectible: [29-33]
 	Function: executeSliceFuncs (main.executeSliceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [132:181] injectible: [132-135], [137-144], [146-150], [152-152], [154-156], [159-160], [162-173], [175-175], [177-177], [179-181]
 		Var: originalSlice: []int (declared at line 133, available: )
 		Var: s: []uint (declared at line 142, available: )
@@ -281,6 +282,16 @@ Package: main
 			Arg: x: <T> (declared at line 67, available: [68-70])
 			Arg: k: <T> (declared at line 67, available: [68-70])
 			Arg: v: <T> (declared at line 67, available: [68-70])
+	Type: main.Request
+		Field: ID: int
+		Field: Customer: string
+		Field: Total: float64
+	Type: main.Server
+		Field: name: string
+		Function: handleOrder (main.(*Server).handleOrder) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go [21:26] injectible: [21-23], [25-26]
+			Arg: s: *main.Server (declared at line 21, available: [21-23])
+			Arg: req: *main.Request (declared at line 21, available: [21-26])
+			Arg: ~r0: error (declared at line 21, available: )
 	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/option.go [986:989] injectible: [986-989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [988-989])
@@ -737,9 +748,9 @@ Package: main
 		Arg: ~r0: uint64 (declared at line 40, available: )
 		Var: n: uint64 (declared at line 45, available: [44-46])
 		Var: b: []uint8 (declared at line 41, available: [42-45])
-	Function: runAll (main.runAll) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [52:87] injectible: [52-65], [67-68], [70-72], [74-76], [79-87]
-		Var: it: main.iterExample (declared at line 69, available: [52-87])
-		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 66, available: [52-87])
+	Function: runAll (main.runAll) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [52:88] injectible: [52-66], [68-69], [71-73], [75-77], [80-88]
+		Var: it: main.iterExample (declared at line 70, available: [52-88])
+		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 67, available: [52-88])
 	Function: sprintSlice (main.sprintSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [16:17] injectible: [16-17]
 		Arg: x: []int (declared at line 16, available: [16-17])
 		Arg: ~r0: string (declared at line 16, available: )

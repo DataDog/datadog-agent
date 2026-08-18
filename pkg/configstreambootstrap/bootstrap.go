@@ -15,7 +15,6 @@ import (
 
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
-	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -80,9 +79,6 @@ func DisableLocalEnvLayer(clientName string) {
 		clearer.ClearEnvVars()
 		pkglog.Infof("configstreamconsumer[%s]: local env-var layer disabled", clientName)
 		return
-	}
-	if create.IsViperBacked(b) {
-		pkglog.Warnf("configstreamconsumer[%s]: viper-backed config cannot clear env vars; local DD_* may shadow streamed values", clientName)
 	}
 }
 

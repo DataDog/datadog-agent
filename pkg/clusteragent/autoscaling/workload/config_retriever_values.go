@@ -116,8 +116,8 @@ func (p *autoscalingValuesProcessor) postProcess() {
 }
 
 func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
-	// We only reconcile if we are the leader and we have a state
-	if !isLeader || p.state == nil {
+	// We only reconcile if we are the leader
+	if !isLeader {
 		return
 	}
 
@@ -127,6 +127,11 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 		return
 	}
 	defer p.updateLock.Unlock()
+
+	// Check state under the lock to avoid racing with postProcess which writes p.state
+	if p.state == nil {
+		return
+	}
 
 	// Update PodAutoscalers with buffered values
 	for paID, item := range p.state {

@@ -4,9 +4,23 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "thermal",
     srcs = [
+        "thermal_darwin.c",
+        "thermal_darwin.go",
+        "thermal_darwin.h",
+        "thermal_darwin_testhelpers.go",
         "thermal_stub.go",
         "thermal_windows.go",
     ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:darwin": [
+            "-framework IOKit -framework CoreFoundation",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-framework IOKit -framework CoreFoundation",
+        ],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/thermal",
     visibility = ["//visibility:public"],
     deps = select({
@@ -19,7 +33,11 @@ go_library(
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:darwin": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/sender",
             "//pkg/collector/check",
+            "//pkg/collector/corechecks",
+            "//pkg/util/log",
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -35,7 +53,11 @@ go_library(
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:ios": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/sender",
             "//pkg/collector/check",
+            "//pkg/collector/corechecks",
+            "//pkg/util/log",
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:js": [
@@ -86,9 +108,24 @@ go_library(
 
 dd_agent_go_test(
     name = "thermal_test",
-    srcs = ["thermal_windows_test.go"],
+    srcs = [
+        "thermal_darwin_test.go",
+        "thermal_windows_test.go",
+    ],
     embed = [":thermal"],
     deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/mocksender",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/mocksender",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:windows": [
             "//comp/core/autodiscovery/integration",
             "//pkg/aggregator/mocksender",

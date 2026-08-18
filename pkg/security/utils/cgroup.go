@@ -280,8 +280,11 @@ func (cfs *CGroupFS) GetCGroupPids(cgroupName string) ([]uint32, error) {
 	return []uint32{}, err
 }
 
-// GetCgroup2MountPoint checks if cgroup v2 is available and returns its mount point
-func GetCgroup2MountPoint() (string, error) {
+// GetHostCgroup2MountPoint checks if cgroup v2 is available and returns its mount point as it
+// appears in the host mount namespace, i.e. not rewritten to the agent's view of sysfs. Use
+// GetCgroup2MountPoint to get a path the agent can open directly. Returns an empty string if
+// cgroup v2 is not mounted.
+func GetHostCgroup2MountPoint() (string, error) {
 	file, err := os.Open(kernel.HostProc("/1/mountinfo"))
 	if err != nil {
 		return "", fmt.Errorf("couldn't resolve cgroup2 mount point: failed to open /proc/1/mountinfo: %w", err)
@@ -296,7 +299,7 @@ func GetCgroup2MountPoint() (string, error) {
 		// The cgroup2 mount entry will have "cgroup2" as the filesystem type
 		if len(fields) >= 10 && fields[len(fields)-3] == "cgroup2" {
 			// The 5th field is the mount point
-			return filepath.Join(kernel.SysFSRoot(), strings.TrimPrefix(fields[4], "/sys")), nil
+			return fields[4], nil
 		}
 	}
 
@@ -305,6 +308,15 @@ func GetCgroup2MountPoint() (string, error) {
 	}
 
 	return "", nil
+}
+
+// GetCgroup2MountPoint checks if cgroup v2 is available and returns its mount point
+func GetCgroup2MountPoint() (string, error) {
+	mountPoint, err := GetHostCgroup2MountPoint()
+	if err != nil || mountPoint == "" {
+		return "", err
+	}
+	return filepath.Join(kernel.SysFSRoot(), strings.TrimPrefix(mountPoint, "/sys")), nil
 }
 
 func isInCGroupNamespace(pid uint32) (bool, error) {
