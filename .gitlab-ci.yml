@@ -1411,11 +1411,16 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/agent/dist/conf.d/vdi.d/**/*
+        - cmd/system-probe/modules/vdi_windows*
+        - pkg/collector/corechecks/vdi/**/*
         - pkg/discovery/module/*
         - pkg/network/**/*
         - pkg/process/checks/**/*
         - pkg/process/monitor/*
+        - pkg/system-probe/config/config.go
         - pkg/util/kernel/**/*
+        - pkg/vdi/**/*
         - test/new-e2e/tests/sysprobe-functional/**/*
         - test/new-e2e/tests/usm/**/*
       compare_to: $COMPARE_TO_BRANCH
