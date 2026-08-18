@@ -66,7 +66,6 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
@@ -656,7 +655,7 @@ func run(
 }
 
 func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *stats.Stats {
-	s := stats.NewStats(c, healthplatformmock.Mock(nil))
+	s := stats.NewStats(c)
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
 	if cliParams.checkRate {

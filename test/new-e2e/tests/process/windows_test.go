@@ -184,7 +184,7 @@ func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, 
 		payloads, err = env.FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		assertProcessCollectedNew(c, payloads, withIOStats, processName)
+		assertProcessCollected(c, payloads, withIOStats, processName)
 
 		procs := FilterProcessPayloadsByName(payloads, processName)
 		require.NotEmpty(t, procs, "'%s' process not found in payloads: \n%+v", processName, payloads)

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -217,6 +218,64 @@ func TestUnmarshalTraceChunk(t *testing.T) {
 	})
 }
 
+// TestUnmarshalTracerPayloadUnknownField verifies InternalTracerPayload.UnmarshalMsg
+// skips an unknown field interleaved between known fields AND harvests the new
+// inline streaming string it carries, so a later known field that references
+// that string by index resolves correctly (forward compatibility). Layout:
+//
+//	field 2  (containerID):  inline "cidcid"    -> string index 1
+//	field 99 (unknown):      inline "harvested" -> string index 2 (must be harvested)
+//	field 3  (languageName): ref index 2        -> "harvested"
+func TestUnmarshalTracerPayloadUnknownField(t *testing.T) {
+	var bts []byte
+	bts = msgp.AppendMapHeader(bts, 3)
+	bts = msgp.AppendUint32(bts, 2)
+	bts = msgp.AppendString(bts, "cidcid")
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendString(bts, "harvested")
+	bts = msgp.AppendUint32(bts, 3)
+	bts = msgp.AppendUint32(bts, 2) // languageName: streaming-string ref to index 2
+
+	tp := &InternalTracerPayload{Strings: NewStringTable()}
+	o, err := tp.UnmarshalMsg(bts)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	assert.Equal(t, "cidcid", tp.Strings.Get(tp.containerIDRef))
+	assert.Equal(t, "harvested", tp.Strings.Get(2), "unknown field's inline string must be harvested into the table")
+	assert.Equal(t, "harvested", tp.Strings.Get(tp.languageNameRef), "later field's index reference must resolve to the harvested string")
+}
+
+// TestUnmarshalTraceChunkUnknownField verifies InternalTraceChunk.UnmarshalMsg
+// skips an unknown field and harvests its inline string so a later known
+// field's index reference resolves. Layout:
+//
+//	field 1  (priority):     int32 2
+//	field 99 (unknown):      inline "harvested" -> string index 1 (must be harvested)
+//	field 2  (origin):       ref index 1        -> "harvested"
+//	field 5  (droppedTrace): bool true
+func TestUnmarshalTraceChunkUnknownField(t *testing.T) {
+	strings := NewStringTable()
+	var bts []byte
+	bts = msgp.AppendMapHeader(bts, 4)
+	bts = msgp.AppendUint32(bts, 1)
+	bts = msgp.AppendInt32(bts, 2)
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendString(bts, "harvested")
+	bts = msgp.AppendUint32(bts, 2)
+	bts = msgp.AppendUint32(bts, 1) // origin: streaming-string ref to index 1
+	bts = msgp.AppendUint32(bts, 5)
+	bts = msgp.AppendBool(bts, true)
+
+	tc := &InternalTraceChunk{Strings: strings}
+	o, err := tc.UnmarshalMsg(bts)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	assert.Equal(t, int32(2), tc.Priority)
+	assert.Equal(t, "harvested", strings.Get(1))
+	assert.Equal(t, "harvested", strings.Get(tc.originRef))
+	assert.True(t, tc.DroppedTrace)
+}
+
 // FuzzUnmarshalTracerPayloadErrorHandling verifies that any error returned from
 // UnmarshalMsg does not panic when Error() is called on it. This makes sure we don't ever return a wrapped error with an internal nil error.
 func FuzzUnmarshalTracerPayloadErrorHandling(f *testing.F) {
@@ -242,5 +301,26 @@ func FuzzUnmarshalTracerPayloadErrorHandling(f *testing.F) {
 				_ = err.Error()
 			}()
 		}
+	})
+}
+
+// TestShortTraceIDSurvivesWireDecode confirms a short TraceID decoded from the
+// wire (InternalTraceChunk.UnmarshalMsg) flows into the sampler's LegacyTraceID
+// call without panicking.
+func TestShortTraceIDSurvivesWireDecode(t *testing.T) {
+	// Craft a minimal trace chunk msgpack: a 1-field map { field 6: TraceID }
+	// where TraceID is only 4 bytes long.
+	var b []byte
+	b = msgp.AppendMapHeader(b, 1)
+	b = msgp.AppendUint32(b, 6)                 // field 6 = TraceID
+	b = msgp.AppendBytes(b, []byte{1, 2, 3, 4}) // 4-byte (short) TraceID
+
+	c := &InternalTraceChunk{Strings: NewStringTable()}
+	_, err := c.UnmarshalMsg(b)
+	assert.NoError(t, err)
+
+	// The sampler calls LegacyTraceID() on this chunk; it must not panic.
+	assert.NotPanics(t, func() {
+		assert.Equal(t, uint64(0x01020304), c.LegacyTraceID())
 	})
 }

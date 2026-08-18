@@ -26,6 +26,18 @@ static __attribute__((always_inline)) struct inode* get_dentry_inode(struct dent
     return inode;
 }
 
+static void __attribute__((always_inline)) read_dentry_parent(struct dentry *dentry, struct dentry **parent) {
+    u64 dentry_d_parent_offset;
+    LOAD_CONSTANT("dentry_d_parent_offset", dentry_d_parent_offset);
+    bpf_probe_read(parent, sizeof(*parent), (void *)dentry + dentry_d_parent_offset);
+}
+
+static struct dentry *__attribute__((always_inline)) get_dentry_parent(struct dentry *dentry) {
+    struct dentry *parent;
+    read_dentry_parent(dentry, &parent);
+    return parent;
+}
+
 static dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
     u64 sb_dev_offset;
     LOAD_CONSTANT("sb_dev_offset", sb_dev_offset);
@@ -80,12 +92,6 @@ u32 __attribute__((always_inline)) get_mount_offset_of_mount_ns(void) {
     return offset; // offsetof(struct mount, mnt_ns)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_nscommon_inum(void) {
-    u64 offset;
-    LOAD_CONSTANT("ns_common_inum_offset", offset);
-    return offset; // offsetof(struct ns_common, inum)
-}
-
 u32 __attribute__((always_inline)) get_mount_offset_of_parent(void) {
     u64 offset;
     LOAD_CONSTANT("mount_parent_offset", offset);
@@ -102,6 +108,12 @@ u32 __attribute__((always_inline)) get_mnt_namespace_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mnt_namespace_ns", offset);
     return offset; // offsetof(struct mnt_namespace, ns)
+}
+
+u32 __attribute__((always_inline)) get_ns_common_inum_offset(void) {
+    u64 offset;
+    LOAD_CONSTANT("ns_common_inum_offset", offset);
+    return offset; // offsetof(struct ns_common, inum)
 }
 
 static int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
@@ -173,7 +185,7 @@ u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
         return 0;
     }
 
-    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_mount_offset_of_nscommon_inum());
+    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_ns_common_inum_offset());
     return inum;
 }
 

@@ -665,6 +665,121 @@ func TestComputeKueueResourceFlavorDiff(t *testing.T) {
 	}, diff)
 }
 
+func TestProcessKueueWorkloadEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesKueueWorkload{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueWorkload,
+					ID:   "team-a/job-sample",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "job-sample",
+					Namespace: "team-a",
+					Labels: map[string]string{
+						"team":  "eng",
+						"owner": "alice",
+					},
+					Annotations: map[string]string{
+						"cost-center": "1234",
+					},
+				},
+				QueueName:        "gpu",
+				ClusterQueueName: "team-a-gpu",
+				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+				},
+			},
+		},
+	})
+
+	snapshot := srv.buildKueueWorkloadsSnapshot()
+	entry := snapshot["team-a/job-sample"]
+	assert.Equal(t, "team-a", entry.namespace)
+	assert.Equal(t, "job-sample", entry.name)
+	assert.Equal(t, "gpu", entry.queueName)
+	assert.Equal(t, "team-a-gpu", entry.clusterQueueName)
+	assert.Equal(t, map[string]string{
+		"team":  "eng",
+		"owner": "alice",
+	}, entry.labels)
+	assert.Equal(t, map[string]string{
+		"cost-center": "1234",
+	}, entry.annotations)
+	assert.Equal(t, []kueuePodSetAssignmentEntry{
+		{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+	}, entry.podSetAssignments)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKueueWorkload{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueWorkload,
+					ID:   "team-a/job-sample",
+				},
+			},
+		},
+	})
+
+	assert.Empty(t, srv.buildKueueWorkloadsSnapshot())
+}
+
+func TestComputeKueueWorkloadDiff(t *testing.T) {
+	old := map[string]kueueWorkloadEntry{
+		"team-a/job-a": {
+			namespace:        "team-a",
+			name:             "job-a",
+			queueName:        "gpu",
+			clusterQueueName: "old-cq",
+			labels:           map[string]string{"team": "old"},
+			podSetAssignments: []kueuePodSetAssignmentEntry{
+				{name: "main", flavors: map[string]string{"nvidia.com/gpu": "old"}},
+			},
+		},
+		"team-a/job-b": {
+			namespace: "team-a",
+			name:      "job-b",
+		},
+	}
+	current := map[string]kueueWorkloadEntry{
+		"team-a/job-a": {
+			namespace:        "team-a",
+			name:             "job-a",
+			queueName:        "gpu",
+			clusterQueueName: "team-a-gpu",
+			labels:           map[string]string{"team": "new"},
+			podSetAssignments: []kueuePodSetAssignmentEntry{
+				{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+			},
+		},
+	}
+
+	diff := computeKueueWorkloadDiff(old, current)
+
+	assert.ElementsMatch(t, []*pb.KueueWorkload{
+		{
+			Namespace:    "team-a",
+			Name:         "job-a",
+			Queue:        "gpu",
+			ClusterQueue: "team-a-gpu",
+			Labels:       map[string]string{"team": "new"},
+			PodSetAssignments: []*pb.KueuePodSetAssignment{
+				{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+			},
+			Type: pb.KubeMetadataEventType_SET,
+		},
+		{
+			Namespace: "team-a",
+			Name:      "job-b",
+			Type:      pb.KubeMetadataEventType_UNSET,
+		},
+	}, diff)
+}
+
 func TestFullStateResponse(t *testing.T) {
 	pods := map[string]podServiceEntry{
 		"ns1/pod1": {
@@ -681,6 +796,16 @@ func TestFullStateResponse(t *testing.T) {
 	metadata.kueueResourceFlavors["a100"] = kueueResourceFlavorEntry{
 		name:               "a100",
 		nodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+	}
+	metadata.kueueWorkloads["team-a/job-sample"] = kueueWorkloadEntry{
+		namespace:        "team-a",
+		name:             "job-sample",
+		queueName:        "gpu",
+		clusterQueueName: "team-a-gpu",
+		labels:           map[string]string{"team": "eng"},
+		podSetAssignments: []kueuePodSetAssignmentEntry{
+			{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+		},
 	}
 
 	resp := fullStateResponse(pods, metadata)
@@ -708,6 +833,19 @@ func TestFullStateResponse(t *testing.T) {
 				Name:               "a100",
 				NodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
 				Type:               pb.KubeMetadataEventType_SET,
+			},
+		},
+		KueueWorkloads: []*pb.KueueWorkload{
+			{
+				Namespace:    "team-a",
+				Name:         "job-sample",
+				Queue:        "gpu",
+				ClusterQueue: "team-a-gpu",
+				Labels:       map[string]string{"team": "eng"},
+				PodSetAssignments: []*pb.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+				},
+				Type: pb.KubeMetadataEventType_SET,
 			},
 		},
 	}

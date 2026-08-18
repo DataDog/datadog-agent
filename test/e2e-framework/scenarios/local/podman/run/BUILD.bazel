@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "run",
+    srcs = ["vm_run.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/local/podman/run",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/resources/local",
+        "//test/e2e-framework/scenarios/local/podman",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

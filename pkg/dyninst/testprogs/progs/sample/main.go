@@ -57,6 +57,7 @@ func runAll() {
 	executeArrayFuncs()
 	executeSliceFuncs()
 	executeStructFuncs()
+	executeServerFuncs()
 	executeStack()
 	executeInlined()
 	executePointerFuncs()
@@ -83,4 +84,5 @@ func runAll() {
 	executeReturns()
 	executeContextFuncs()
 	go returnGoroutineId()
+	executeContextImplFuncs()
 }

@@ -40,9 +40,7 @@ func TestAddRuntimeTelemetryMetric_NoTags(t *testing.T) {
 
 	c.addRuntimeTelemetryMetric("", nil)
 
-	assert.Len(t, c.series, 1)
-	assert.Equal(t, "otel.datadog_exporter.metrics.running", c.series[0].Name)
-	assert.Equal(t, "", c.series[0].Host)
+	assert.Empty(t, c.series)
 }
 
 func TestAddRuntimeTelemetryMetric_HostSource(t *testing.T) {

@@ -27,7 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -96,7 +96,7 @@ func autoscalerList(_ log.Component, config config.Component, client ipc.HTTPCli
 }
 
 func getAutoscalerURL(config config.Component) (string, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return "", err
 	}
@@ -136,7 +136,7 @@ func getAutoscalerList(client ipc.HTTPClient, w io.Writer, url string) error {
 }
 
 func getLocalAutoscalingWorkloadCheck(w io.Writer, config config.Component, c ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return err
 	}

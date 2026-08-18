@@ -6,6 +6,7 @@
 package kubernetes
 
 import (
+	"github.com/pulumi/pulumi-eks/sdk/v4/go/eks"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -27,6 +28,10 @@ type Cluster struct {
 	components.Component
 
 	KubeProvider *kubernetes.Provider
+
+	// Cluster is the underlying pulumi-eks cluster. It is only populated for EKS
+	// clusters (nil otherwise) and lets scenarios attach extra managed node groups.
+	Cluster *eks.Cluster
 
 	ClusterName               pulumi.StringOutput `pulumi:"clusterName"`
 	KubeConfig                pulumi.StringOutput `pulumi:"kubeConfig"`

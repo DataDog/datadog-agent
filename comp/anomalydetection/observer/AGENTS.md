@@ -41,7 +41,7 @@ and the testbench use the same engine.
 | `impl/agent_logs.go` | Agent internal log tap (source: `agent_logs`) |
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
 | `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
-| `impl/anomaly_correlator_time_cluster.go` | Default time-proximity correlator |
+| `impl/anomaly_correlator_time_cluster.go` | Time-proximity correlator |
 | `impl/anomaly_correlator_passthrough.go` | Passthrough correlator (one ActiveCorrelation per anomaly) |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
@@ -58,8 +58,8 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `connection_error_extractor` | off |
 | Detector | `bocpd` | on |
 | Detector | `rrcf` | on |
-| Detector | `cusum`, `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
-| Correlator | `time_cluster` | on |
+| Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
+| Correlator | `time_cluster` | off |
 | Correlator | `cross_signal`, `passthrough` | off |
 | Correlator | `anomaly_scorer` | off |
 
@@ -72,16 +72,19 @@ anomaly_detection:
   anomaly_scorer:
     enabled: true
     alpha: 0.3
-    window_secs: 30
+    window: 30s
     low_threshold: 0.030
     high_threshold: 0.060
     output:
       logs: true
       correlation_events: false
-      cooldown_secs: 300
+      correlation_event_threshold: high # medium or high
+      cooldown: 300s
 ```
 
-The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/` for testbench replay.
+The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/`.
+Observer replay enables the scorer's internal transition watcher so configured
+correlation episodes are emitted through the normal correlator event path.
 
 ### Severity event subscriptions
 

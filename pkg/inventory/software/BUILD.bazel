@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "software",
@@ -42,8 +43,7 @@ go_library(
     }),
 )
 
-# TODO{agent-build}: re-enable once the DLL loading path under Bazel runfiles is fixed properly
-go_test(
+dd_agent_go_test(
     name = "software_test",
     srcs = [
         "collector_darwin_pkg_helper_test.go",
@@ -53,6 +53,7 @@ go_test(
         "collector_windows_test.go",
         "config_test.go",
         "integration_windows_test.go",
+        "main_windows_test.go",
         "wire_test.go",
     ],
     data = select({
@@ -68,8 +69,10 @@ go_test(
         },
         "//conditions:default": {},
     }),
-    gotags = ["test"],
-    tags = ["manual"],  # keep
+    # Windows MS Store / Appx collection needs an elevated token. Opt in:
+    #   bazel test //pkg/inventory/software:software_test
+    # from an elevated prompt.
+    tags = ["manual"],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({

@@ -14,12 +14,14 @@ go_library(
     deps = [
         "//comp/core/configfilesdiscovery/impl",
         "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//agentdiscovery",
     ],
 )
 
 dd_agent_go_test(
     name = "collectors_test",
     srcs = [
+        "helpers_test.go",
         "kafka_test.go",
         "redis_test.go",
     ],

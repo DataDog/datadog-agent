@@ -16,6 +16,7 @@ go_library(
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//pkg/aggregator",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/fxutil",
         "@com_github_datadog_zstd//:zstd",

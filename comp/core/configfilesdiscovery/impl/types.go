@@ -9,6 +9,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -32,12 +33,31 @@ type target struct {
 
 // ConfigFile is the content read from a runtime-specific config file path.
 type ConfigFile struct {
-	Path      string
-	Content   []byte
-	Truncated bool
+	Path          string
+	Content       []byte
+	Truncated     bool
+	PayloadFormat agentdiscovery.AgentDiscoveryConfigFilePayloadFormat
 }
 
-// TargetCommandline is the command line used to start the target service.
+// ConfigEnvVar is an environment variable relevant to a collected integration.
+type ConfigEnvVar struct {
+	Name  string
+	Value string
+}
+
+// ConfigEnvVarPredicate returns whether an environment variable should be read.
+type ConfigEnvVarPredicate func(name string) bool
+
+// CollectedConfig is the config data collected for one integration target.
+type CollectedConfig struct {
+	Integration string
+	Runtime     RuntimeType
+	RuntimeID   string
+	ConfigFiles []ConfigFile
+	EnvVars     []ConfigEnvVar
+}
+
+// TargetCommandline is a candidate process command line associated with the target.
 type TargetCommandline struct {
 	Args       []string
 	WorkingDir string
@@ -47,16 +67,19 @@ type TargetCommandline struct {
 type ConfigReader interface {
 	Runtime() RuntimeType
 	ReadFile(context.Context, string) (ConfigFile, error)
-	ReadEnvVars(context.Context, []string) (map[string]string, error)
-	ReadCommandline(context.Context) (TargetCommandline, error)
+	ReadEnvVars(context.Context, ConfigEnvVarPredicate) (map[string]string, error)
+	ReadRuntimeCommandline(context.Context) (TargetCommandline, error)
+	ReadLiveProcessCommandlines(context.Context) []TargetCommandline
 	Close()
 }
 
 type configReaderFactory func(target) (ConfigReader, error)
 
-// ConfigCollector reads integration-specific config files through a collector reader.
+// ConfigCollector reads integration-specific config data through a collector reader.
 type ConfigCollector interface {
-	Collect(context.Context, ConfigReader) ([]ConfigFile, error)
+	// CanCollectFromProcess returns whether the collector can use the process command line for collection.
+	CanCollectFromProcess(TargetCommandline) bool
+	Collect(context.Context, ConfigReader) (CollectedConfig, error)
 }
 
 type targetResolver struct {

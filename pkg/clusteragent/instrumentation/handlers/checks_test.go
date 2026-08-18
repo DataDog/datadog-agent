@@ -134,6 +134,7 @@ func TestSupportsTarget(t *testing.T) {
 		{"CronJob", true},
 		{"Job", true},
 		{"Service", true},
+		{"Rollout", true},
 		{"ReplicaSet", false},
 		{"Pod", false},
 		{"", false},

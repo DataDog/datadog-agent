@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/otelcollector.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/otelcollector.yaml
 node_type: section
 type: object
 properties:
@@ -22,6 +22,7 @@ properties:
         - health_check
         - ddflare
         - datadog
+        - cumulativetodelta
         items:
           type: string
         env_parser: comma_and_space_separated
@@ -29,7 +30,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: OTel Collector
   extension_timeout:
     node_type: setting
     type: integer

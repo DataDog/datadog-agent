@@ -17,7 +17,7 @@ import (
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 type logLevel int
@@ -46,6 +47,11 @@ const (
 	critical
 	off
 )
+
+// ddotZstdCompressionLevel is the default zstd compression level DDOT applies to
+// every signal that exposes a configurable level (metrics and logs). It stays
+// overridable via the DD_*_ZSTD_*_LEVEL env vars; this is only the default.
+const ddotZstdCompressionLevel = 3
 
 // datadog agent log levels: trace, debug, info, warn, error, critical, and off
 // otel log levels: disabled, debug, info, warn, error
@@ -179,6 +185,34 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
+	// Standalone mode runs without a core Datadog Agent on the same host, so
+	// every client that would otherwise contact it over IPC (trace-agent
+	// hostname acquisition, remote tagger, remote workloadmeta, configsync,
+	// ...) must be disabled. cmd_port=-1 is the conventional way to express
+	// "no core agent IPC" and is honored by those callers; forcing it here
+	// means users only have to set DD_OTEL_STANDALONE=true.
+	//
+	// All of these are set with SourceAgentRuntime, which outranks
+	// SourceEnvVar, so they can't be silently re-enabled by a deployment tool
+	// that colocates otel-agent with a core agent and injects that agent's
+	// env vars (e.g. DD_REMOTE_CONFIGURATION_ENABLED=true,
+	// DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL) into this container too.
+	//
+	// This must run before the getDDExporterConfig call below, since a
+	// standalone config without a Datadog exporter (a supported shape) makes
+	// that call return early via ErrNoDDExporter, which would otherwise skip
+	// these guards entirely.
+	if pkgconfig.GetBool("otel_standalone") {
+		pkgconfig.Set("cmd_port", -1, pkgconfigmodel.SourceAgentRuntime)
+		// There is no core agent to sync config from; disable configsync
+		// regardless of whether it's configured over agent_ipc.port or
+		// agent_ipc.use_socket.
+		pkgconfig.Set("agent_ipc.config_refresh_interval", 0, pkgconfigmodel.SourceAgentRuntime)
+	}
+	if pkgconfig.GetInt("cmd_port") <= 0 {
+		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
+
 	ddc, err := getDDExporterConfig(cfg)
 	if err == ErrNoDDExporter {
 		return pkgconfig, err
@@ -194,10 +228,15 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	}
 
-	// The otel-agent forces zlib compression, which is incompatible with the v3
-	// metrics intake.
+	// Compression: the otel-agent (DDOT) uses zstd for every signal (metrics, traces,
+	// logs) so the compression algorithm stays consistent across signals. The level
+	// defaults to 3 but stays overridable via DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL
+	// (SourceDefault < SourceEnvVar). DDOT deliberately stays on the v2 metrics intake:
+	// zstd is v3-compatible, but moving to v3 is a separate effort, so v3 is disabled
+	// here regardless of the compressor.
+	pkgconfig.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("serializer_zstd_compressor_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
-	pkgconfig.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
@@ -205,7 +244,21 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceFile)
+	// logs_config.compression_level carries the exporter's logs::compression_level
+	// (a gzip level, 0-9); it only applies when the active log compressor is gzip.
 	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceFile)
+	// DDOT logs use zstd to match metrics/traces. compression_kind is set at SourceFile
+	// (not SourceDefault) so config.IsConfigured() is true, which bypasses the logs
+	// pipeline's fallback to gzip when logs_config.additional_endpoints is set. That
+	// fallback is a conservative default for non-Datadog intakes (PR #35625), but
+	// additional_endpoints here are other Datadog endpoints (multi-region / dual-ship /
+	// MRF) that accept zstd, and the metrics forwarder already sends zstd to all of
+	// them. The logs pipeline shares one compressor across destinations, so this makes
+	// every log endpoint use zstd. Override with DD_LOGS_CONFIG_COMPRESSION_KIND=gzip
+	// if a non-Datadog log endpoint is ever added. The zstd level defaults to 3,
+	// overridable via DD_LOGS_CONFIG_ZSTD_COMPRESSION_LEVEL.
+	pkgconfig.Set("logs_config.compression_kind", constants.DefaultLogCompressionKind, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.zstd_compression_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
 	// APM & OTel trace configs
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceDefault)
@@ -225,24 +278,15 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if addr := ddc.Traces.Endpoint; addr != "" {
 		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
 	}
-	// Standalone mode runs without a core Datadog Agent on the same host, so
-	// every client that would otherwise contact it over IPC (trace-agent
-	// hostname acquisition, remote tagger, remote workloadmeta, ...) must be
-	// disabled. cmd_port=-1 is the conventional way to express "no core agent
-	// IPC" and is honored by those callers; forcing it here means users only
-	// have to set DD_OTEL_STANDALONE=true.
-	if pkgconfig.GetBool("otel_standalone") {
-		pkgconfig.Set("cmd_port", -1, pkgconfigmodel.SourceAgentRuntime)
-	}
-	if pkgconfig.GetInt("cmd_port") <= 0 {
-		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceFile)
-	}
 
 	if !pkgconfig.IsConfigured("apm_config.features") {
 		apmConfigFeatures := []string{}
 		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
+		// TODO: (OTEL-3079) Set disable_otel_scope_convention
+		// Agent feature based on feature gate after upgrading to Collector 0.155.0
+
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
 		}
@@ -250,9 +294,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// Proxy Setup from config
-	if ddc.ProxyURL != "" {
-		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
-		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+	if ddc.ClientConfig.ProxyURL != "" {
+		pkgconfig.Set("proxy.http", ddc.ClientConfig.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("proxy.https", ddc.ClientConfig.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
 
 	// Always load proxy env vars (DD_PROXY_HTTP, DD_PROXY_HTTPS, DD_PROXY_NO_PROXY,

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	scenarioeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	scenariogke "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/gke"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -135,7 +136,9 @@ func kindLocalProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner
 
 // kindProvisioner returns an AWS Kind VM provisioner
 func kindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
-	var runOpts []kindvm.RunOption
+	runOpts := []kindvm.RunOption{
+		kindvm.WithFakeintakeOptions(fakeintake.WithMemory(4096)),
+	}
 	if len(opts.AgentOptions) > 0 {
 		runOpts = append(runOpts, kindvm.WithAgentOptions(opts.AgentOptions...))
 	}

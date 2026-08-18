@@ -7,6 +7,5 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/healthplatform/egress/def",
-        "//pkg/util/fxutil",
     ],
 )

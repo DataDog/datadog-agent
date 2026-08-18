@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "packages",
@@ -8,6 +9,7 @@ go_library(
         "apm_library_dotnet_windows.go",
         "datadog_agent_ddot_linux.go",
         "datadog_agent_ddot_windows.go",
+        "datadog_agent_eudm_windows.go",
         "datadog_agent_extensions.go",
         "datadog_agent_linux.go",
         "datadog_agent_nix.go",
@@ -77,20 +79,25 @@ go_library(
             "@org_golang_x_sys//windows/registry",
             "@org_golang_x_sys//windows/svc",
             "@org_golang_x_sys//windows/svc/mgr",
+            "@org_golang_x_text//encoding/unicode",
         ],
         "//conditions:default": [],
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "packages_test",
     srcs = [
         "apm_inject_windows_test.go",
+        "datadog_agent_ddot_linux_test.go",
+        "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
+        "datadog_agent_linux_test.go",
+        "datadog_agent_par_linux_test.go",
+        "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
     ],
     embed = [":packages"],
-    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/packages/extensions",
         "@com_github_stretchr_testify//assert",
@@ -98,6 +105,7 @@ go_test(
         "@in_gopkg_yaml_v3//:yaml_v3",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/setup/config",
             "@in_yaml_go_yaml_v3//:yaml",
         ],

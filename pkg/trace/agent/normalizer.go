@@ -374,6 +374,11 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 		for _, span := range chunk.Spans {
 			// First span wins
 			if dm, ok := span.Meta[tagDecisionMaker]; ok {
+				// A v0.7 payload that omits the "tags" key decodes with a nil
+				// map; allocate before writing to avoid panicking on it.
+				if chunk.Tags == nil {
+					chunk.Tags = make(map[string]string, 1)
+				}
 				chunk.Tags[tagDecisionMaker] = dm
 				break
 			}
@@ -437,16 +442,22 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 		return errors.New("trace is empty (reason:empty_trace)")
 	}
 
-	spanIDs := make(map[uint64]struct{})
-	firstSpan := t.Spans[0]
+	// Normalize the TraceID to exactly 16 bytes once here so every downstream slice is
+	// bounds-safe. The TraceID is a big-endian 128-bit value, so a short ID is
+	// right-aligned (missing high-order bytes are zero) and an over-long ID keeps its
+	// low-order 16 bytes.
+	if len(t.TraceID) != 16 {
+		var buf [16]byte
+		if len(t.TraceID) > 16 {
+			copy(buf[:], t.TraceID[len(t.TraceID)-16:])
+		} else {
+			copy(buf[16-len(t.TraceID):], t.TraceID)
+		}
+		t.TraceID = buf[:]
+	}
 
+	spanIDs := make(map[uint64]struct{})
 	for _, span := range t.Spans {
-		if span == nil {
-			continue
-		}
-		if firstSpan == nil {
-			firstSpan = span
-		}
 		if err := a.normalizeV1(ts, span); err != nil {
 			return err
 		}

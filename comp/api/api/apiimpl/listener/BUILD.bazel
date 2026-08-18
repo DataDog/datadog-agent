@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/system/socket",
         "@com_github_mdlayher_vsock//:vsock",

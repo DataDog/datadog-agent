@@ -62,8 +62,8 @@ Create a `.env` file in `cmd/host-profiler` containing:
 
 ```
 DD_SITE=datad0g.com # optional, defaults to "datadoghq.com"
-UID=1234 # required on Datadog workspace, set to the output of `id -u` on the workspace
-GID=1234 # required on Datadog workspace, set to the output of `id -g` on the workspace
+UID=2000 # optional, defaults to 2000; set to the output of `id -u` if your uid differs
+GID=501 # optional, defaults to 501; set to the output of `id -g` if your gid differs
 DD_TAGS="key:value,key1:value2" # optional, defaults to workspace:${workspace-name} on a Datadog workspace
 DD_HOSTPROFILER_DEBUG='{"verbosity":"detailed"}' # optional, enable debug exporter (basic|normal|detailed|none)
 DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS='{"x-custom-header":"value"}' # optional, additional HTTP headers on OTLP exporter requests; defaults to workspace metadata on Datadog workspaces
@@ -104,7 +104,7 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 
 ### Key Configuration Sections
 
-- **`receivers.profiling`**: eBPF profiling parameters, tracers, symbol upload settings
+- **`receivers.profiling`**: eBPF profiling parameters, interpreter settings, symbol upload settings
 - **`processors.infraattributes`**: Infrastructure metadata enrichment (Agent mode only)
 - **`processors.k8s_attributes`**: Kubernetes metadata enrichment (standalone mode)
 - **`exporters.otlp_http`**: Datadog profiling intake endpoint configuration

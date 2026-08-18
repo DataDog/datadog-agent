@@ -9,8 +9,11 @@ package nvml
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -20,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,6 +45,8 @@ type collector struct {
 	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
+	gpuMonitoringEnabled               bool
+	lastCollectionTimestamp            time.Time
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -116,6 +121,23 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
 	}
 
+	pciInfo, err := physicalDevice.GetPciInfo()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+		}
+	} else {
+		gpuDeviceInfo.PCIBusID = pciBusIDFromNVMLInfo(pciInfo)
+	}
+
+	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
+	if err == nil {
+		if clusterUUID, cliqueID, ok := fabricInfoToTags(fabricInfo); ok {
+			gpuDeviceInfo.FabricClusterUUID = clusterUUID
+			gpuDeviceInfo.FabricCliqueID = cliqueID
+		}
+	}
+
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
 	if virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
 		maxSMClock, err := physicalDevice.GetMaxClockInfo(nvml.CLOCK_SM)
@@ -143,32 +165,80 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	}
 }
 
+func pciBusIDFromNVMLInfo(pciInfo nvml.PciInfo) string {
+	// NVML exposes domain, bus, and device as numeric fields, but not the PCI
+	// function. For NVIDIA GPUs, the GPU function is the .0 function; companion
+	// functions, when present, represent auxiliary devices such as audio.
+	return strings.ToLower(fmt.Sprintf("%04x:%02x:%02x.0", pciInfo.Domain, pciInfo.Bus, pciInfo.Device))
+}
+
+func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
+	return fmt.Sprintf("%x-%x-%x-%x-%x", clusterUUID[0:4], clusterUUID[4:6], clusterUUID[6:8], clusterUUID[8:10], clusterUUID[10:16])
+}
+
+func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
+	if fabricInfo.State != nvml.GPU_FABRIC_STATE_COMPLETED ||
+		nvml.Return(fabricInfo.Status) != nvml.SUCCESS ||
+		fabricInfo.ClusterUuid == [16]uint8{} {
+		return "", 0, false
+	}
+
+	return fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
+}
+
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
+	seenPIDs := make(map[int]struct{})
 	procs, err := device.GetComputeRunningProcesses()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
 		}
-		return
 	}
 
 	for _, proc := range procs {
-		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, int(proc.Pid))
+		seenPIDs[int(proc.Pid)] = struct{}{}
 	}
+
+	// GetProcessUtilization can show more processes than GetComputeRunningProcesses, but it might not be supported by all devices.
+	utilizationProcs, err := device.GetProcessUtilization(uint64(c.lastCollectionTimestamp.UnixMicro()))
+	if err != nil {
+		var nvmlErr *ddnvml.NvmlAPIError
+		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			utilizationProcs = nil // error not found occurs normally when no process is using the GPU, clear the array to avoid processing any data
+		} else {
+			// only logs
+			if logLimiter.ShouldLog() {
+				log.Debugf("%v for %d", err, gpuDeviceInfo.Index)
+			}
+		}
+	}
+
+	for _, proc := range utilizationProcs {
+		seenPIDs[int(proc.Pid)] = struct{}{}
+	}
+
+	gpuDeviceInfo.ActivePIDs = make([]int, 0, len(seenPIDs))
+	for pid := range seenPIDs {
+		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, pid)
+	}
+	slices.Sort(gpuDeviceInfo.ActivePIDs) // Sort to ensure the gpu device info doesn't change due to PID ordering changes
 }
 
 // newCollector creates a new collector with the default values, useful for testing.
 func newCollector(store workloadmeta.Component, config config.Component) *collector {
 	collector := &collector{
-		id:             collectorID,
-		catalog:        workloadmeta.NodeAgent,
-		seenUUIDs:      map[string]struct{}{},
-		seenPIDsToGPUs: make(map[int][]string),
-		store:          store,
+		id:                      collectorID,
+		catalog:                 workloadmeta.NodeAgent,
+		seenUUIDs:               map[string]struct{}{},
+		seenPIDsToGPUs:          make(map[int][]string),
+		store:                   store,
+		lastCollectionTimestamp: time.Now(),
+		gpuMonitoringEnabled:    true,
 	}
 
 	if config != nil {
 		collector.integrateWithWorkloadmetaProcesses = config.GetBool("gpu.integrate_with_workloadmeta_processes")
+		collector.gpuMonitoringEnabled = config.GetBool("gpu.enabled")
 	}
 
 	return collector
@@ -189,7 +259,11 @@ func GetFxOptions() fx.Option {
 // Start initializes the NVML library and sets the store
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.NVML) {
-		return errors.NewDisabled(componentName, "Agent does not have NVML library available")
+		return dderrors.NewDisabled(componentName, "Agent does not have NVML library available")
+	}
+
+	if !c.gpuMonitoringEnabled {
+		return dderrors.NewDisabled(componentName, "GPU monitoring is disabled")
 	}
 
 	c.store = store
@@ -245,6 +319,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	// add/update current devices
 	currentUUIDs := map[string]struct{}{}
 	pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
+	timestamp := time.Now()
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
@@ -297,6 +372,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	c.store.Notify(events)
+	c.lastCollectionTimestamp = timestamp
 
 	return nil
 }

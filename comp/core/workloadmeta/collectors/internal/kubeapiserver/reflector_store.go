@@ -153,6 +153,8 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 		uid = v.UID
 	case *appsv1.Deployment:
 		uid = v.UID
+	case *corev1.Node:
+		uid = v.UID
 	case *metav1.PartialObjectMetadata:
 		uid = v.UID
 	case *unstructured.Unstructured:
@@ -221,6 +223,11 @@ func entityFromEntityID(entityID workloadmeta.EntityID) (workloadmeta.Entity, er
 			EntityID: entityID,
 		}, nil
 
+	case workloadmeta.KindKubernetesNode:
+		return &workloadmeta.KubernetesNode{
+			EntityID: entityID,
+		}, nil
+
 	case workloadmeta.KindKubernetesPod:
 		return &workloadmeta.KubernetesPod{
 			EntityID: entityID,
@@ -238,6 +245,11 @@ func entityFromEntityID(entityID workloadmeta.EntityID) (workloadmeta.Entity, er
 
 	case workloadmeta.KindKubernetesKueueResourceFlavor:
 		return &workloadmeta.KubernetesKueueResourceFlavor{
+			EntityID: entityID,
+		}, nil
+
+	case workloadmeta.KindKubernetesKueueWorkload:
+		return &workloadmeta.KubernetesKueueWorkload{
 			EntityID: entityID,
 		}, nil
 	}

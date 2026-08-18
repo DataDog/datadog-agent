@@ -37,6 +37,12 @@
 #error "SYS_gettid unavailable on this system"
 #endif
 
+// DD_TRACER_MEMFD_SEALS mirrors the seal set libdatadog applies
+#ifndef DD_TRACER_MEMFD_SEALS
+#define DD_TRACER_MEMFD_SEALS (F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL)
+#endif
+
+
 pid_t gettid(void) {
     pid_t tid = syscall(SYS_gettid);
     return tid;
@@ -1277,13 +1283,55 @@ int test_tracer_memfd(int argc, char **argv) {
         err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data));
     }
 
-    // Seal the memfd (this triggers the eBPF event)
-    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
+    // Seal the memfd the same way a real tracer does
+    if (fcntl(fd, F_ADD_SEALS, DD_TRACER_MEMFD_SEALS) < 0) {
         err(1, "%s failed", "fcntl F_ADD_SEALS");
     }
 
     // Sleep briefly to allow userspace to read the metadata from /proc/PID/fd/FD
     // before the process exits and the fd is closed
+    sleep(3);
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
+int test_tracer_memfd_with_keys(int argc, char **argv) {
+    // TracerMetadata with threadlocal_attribute_keys=["http.method", "http.target", "http.user"]
+    const char tracer_data[] =
+        "\x89"                                    // fixmap with 9 entries
+        "\xae" "schema_version" "\x02"            // "schema_version": 2
+        "\xaf" "tracer_language" "\xa3" "cpp"     // "tracer_language": "cpp"
+        "\xae" "tracer_version" "\xa5" "0.0.1"   // "tracer_version": "0.0.1"
+        "\xa8" "hostname" "\xa4" "test"           // "hostname": "test"
+        "\xac" "service_name"
+        "\xac" "test-service"
+        "\xab" "service_env"
+        "\xa8" "test-env"
+        "\xaf" "service_version"
+        "\xa5" "1.0.0"
+        "\xac" "process_tags"
+        "\xb0" "custom.tag:value"
+        "\xba" "threadlocal_attribute_keys"       // key (26 chars)
+        "\x93"                                    // fixarray with 3 elements
+        "\xab" "http.method"                      // str (11 chars)
+        "\xab" "http.target"                      // str (11 chars)
+        "\xa9" "http.user";                       // str (9 chars)
+
+    int fd = memfd_create("datadog-tracer-info-keytest0", MFD_ALLOW_SEALING);
+    if (fd < 0) {
+        err(1, "%s failed", "memfd_create");
+    }
+
+    ssize_t written = write(fd, tracer_data, sizeof(tracer_data) - 1);
+    if (written != (ssize_t)(sizeof(tracer_data) - 1)) {
+        err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data) - 1);
+    }
+
+    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
+        err(1, "%s failed", "fcntl F_ADD_SEALS");
+    }
+
     sleep(3);
 
     close(fd);
@@ -2151,6 +2199,8 @@ int main(int argc, char **argv) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
         } else if (strcmp(cmd, "tracer-memfd") == 0) {
             exit_code = test_tracer_memfd(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "tracer-memfd-with-keys") == 0) {
+            exit_code = test_tracer_memfd_with_keys(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {

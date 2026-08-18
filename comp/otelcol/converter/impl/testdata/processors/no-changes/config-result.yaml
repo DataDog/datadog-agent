@@ -1,0 +1,49 @@
+exporters:
+    datadog:
+        api:
+            key: abcde12345
+extensions:
+    datadog/user-defined: null
+    ddflare/user-defined: null
+    health_check/user-defined: null
+    pprof/user-defined: null
+    zpages/user-defined:
+        endpoint: localhost:55679
+processors:
+    cumulativetodelta/dd-autoconfigured: null
+    infraattributes/user-defined: null
+receivers:
+    otlp: null
+service:
+    extensions:
+        - pprof/user-defined
+        - zpages/user-defined
+        - health_check/user-defined
+        - ddflare/user-defined
+        - datadog/user-defined
+    pipelines:
+        logs:
+            exporters:
+                - datadog
+            processors:
+                - infraattributes/user-defined
+            receivers:
+                - nop
+        metrics:
+            exporters:
+                - datadog
+            processors:
+                - infraattributes/user-defined
+                - cumulativetodelta/dd-autoconfigured
+            receivers:
+                - nop
+        traces:
+            exporters:
+                - datadog
+            processors:
+                - infraattributes/user-defined
+            receivers:
+                - nop
+    telemetry:
+        metrics:
+            level: none

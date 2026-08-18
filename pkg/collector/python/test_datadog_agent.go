@@ -177,7 +177,7 @@ func testObfuscaterConfig(t *testing.T) {
 }
 
 func testReportIssue(t *testing.T) {
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 	SetHealthPlatform(hp)
 	t.Cleanup(func() { SetHealthPlatform(nil) })
 

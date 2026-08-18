@@ -458,7 +458,7 @@ func TestOtelSpanToDDSpanTraceStatePreservation(t *testing.T) {
 			}
 
 			// Minimal conversion (APM stats path).
-			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil)
+			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 			// Full conversion.
 			fullSpan := OtelSpanToDDSpan(newSpan(), pcommon.NewResource(), lib, newCfg())
 
@@ -506,7 +506,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 					return span
 				}
 
-				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil)
+				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 				rate, ok := minSpan.Metrics["_sample_rate"]
 				require.True(t, ok, "minimal conversion must set _sample_rate")
 				assert.InDelta(t, tt.wantRate, rate, 1e-9)
@@ -522,7 +522,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 	t.Run("no tracestate leaves _sample_rate unset", func(t *testing.T) {
 		span := ptrace.NewSpan()
 		span.SetName("test-span")
-		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 		_, ok := minSpan.Metrics["_sample_rate"]
 		assert.False(t, ok)
 	})
@@ -534,6 +534,84 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 		fullSpan := OtelSpanToDDSpan(span, pcommon.NewResource(), lib, newCfg())
 		_, ok := fullSpan.Metrics["_sample_rate"]
 		assert.False(t, ok)
+	})
+}
+
+// TestOtelSpanToDDSpanMinimalPrimaryTags verifies that span-derived primary tag
+// keys are copied into the minimal span's Meta (so the APM stats Concentrator's
+// matchingAdditionalMetricTags can aggregate on them), that span attributes take
+// precedence over resource attributes, and that unlisted keys are not copied.
+func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+	lib := pcommon.NewInstrumentationScope()
+	lib.SetName("test-lib")
+
+	t.Run("copies configured keys from span and resource attrs", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "checkout")
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("region", "us-east-1")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team", "region"})
+
+		assert.Equal(t, "checkout", minSpan.Meta["team"])
+		assert.Equal(t, "us-east-1", minSpan.Meta["region"])
+	})
+
+	t.Run("span attribute takes precedence over resource attribute", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "span-team")
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("team", "resource-team")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+
+		assert.Equal(t, "span-team", minSpan.Meta["team"])
+	})
+
+	t.Run("unlisted keys are not copied and empty values are skipped", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "checkout")
+		span.Attributes().PutStr("not-a-primary-tag", "ignored")
+		span.Attributes().PutStr("empty", "")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, []string{"team", "empty", "missing"})
+
+		assert.Equal(t, "checkout", minSpan.Meta["team"])
+		assert.NotContains(t, minSpan.Meta, "not-a-primary-tag")
+		assert.NotContains(t, minSpan.Meta, "empty")
+		assert.NotContains(t, minSpan.Meta, "missing")
+	})
+
+	t.Run("empty span attribute falls back to resource attribute", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "")
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("team", "platform")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+
+		// An empty span value is treated as absent, so the resource value is used.
+		assert.Equal(t, "platform", minSpan.Meta["team"])
+	})
+
+	t.Run("nil primaryTagKeys copies nothing", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "checkout")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+
+		assert.NotContains(t, minSpan.Meta, "team")
 	})
 }
 
@@ -1331,6 +1409,64 @@ func TestFallbackInconsistency_Status2ErrorHTTPCodePrecedence(t *testing.T) {
 			}
 			Status2Error(status, events, metaCopy)
 			assert.Equal(t, tt.expectedMsg, metaCopy["error.msg"], "Note: %s", tt.note)
+		})
+	}
+}
+
+// TestScopeConvention verifies OtelSpanToDDSpan always reports the deprecated
+// otel.library.* aliases, and adds the otel.scope.* keys unless disable_otel_scope_convention is set.
+func TestScopeConvention(t *testing.T) {
+	tests := []struct {
+		name             string
+		disableScopeConv bool
+		expectScopeKeys  bool
+	}{
+		{
+			name:             "default: emits both otel.scope and otel.library conventions",
+			disableScopeConv: false,
+			expectScopeKeys:  true,
+		},
+		{
+			name:             "disable_otel_scope_convention: only emits otel.library convention",
+			disableScopeConv: true,
+			expectScopeKeys:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetTraceID([16]byte{1})
+			span.SetSpanID([8]byte{1})
+
+			res := pcommon.NewResource()
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("my-lib")
+			lib.SetVersion("1.2.3")
+
+			cfg := &config.AgentConfig{}
+			cfg.OTLPReceiver = &config.OTLP{}
+			cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+			cfg.Features = make(map[string]struct{})
+			if tt.disableScopeConv {
+				cfg.Features["disable_otel_scope_convention"] = struct{}{}
+			}
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			// The deprecated otel.library.* aliases must always be reported.
+			assert.Equal(t, "my-lib", ddspan.Meta[string(semconv117.OtelLibraryNameKey)])
+			assert.Equal(t, "1.2.3", ddspan.Meta[string(semconv117.OtelLibraryVersionKey)])
+
+			if tt.expectScopeKeys {
+				assert.Equal(t, "my-lib", ddspan.Meta[string(semconv117.OtelScopeNameKey)])
+				assert.Equal(t, "1.2.3", ddspan.Meta[string(semconv117.OtelScopeVersionKey)])
+			} else {
+				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelScopeNameKey))
+				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelScopeVersionKey))
+			}
 		})
 	}
 }

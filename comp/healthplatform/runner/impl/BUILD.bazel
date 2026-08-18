@@ -23,7 +23,7 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//comp/healthplatform/issueregistry/mock",
         "//comp/healthplatform/runner/def",
-        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/mock",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

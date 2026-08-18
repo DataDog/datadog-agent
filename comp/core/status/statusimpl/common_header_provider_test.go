@@ -8,7 +8,6 @@ package statusimpl
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -34,13 +33,11 @@ func TestCommonHeaderProviderIndex(t *testing.T) {
 func TestCommonHeaderProviderJSON(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	config := config.NewMock(t)
@@ -67,6 +64,7 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 func TestCommonHeaderProviderText(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
@@ -145,6 +143,7 @@ func TestCommonHeaderProviderConfig(t *testing.T) {
 func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
@@ -173,13 +172,11 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 func TestCommonHeaderProviderHTML(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	config := config.NewMock(t)
@@ -231,13 +228,11 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	overrides := map[string]interface{}{

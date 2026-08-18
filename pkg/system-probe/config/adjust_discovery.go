@@ -14,6 +14,7 @@ import (
 // mode forces on so the monitor never silently produces no data.
 var discoveryForceEnabledProtocols = []string{
 	smNS("http", "enabled"),
+	smNS("http2", "enabled"),
 	smNS("tls", "native", "enabled"),
 	smNS("tls", "go", "enabled"),
 	smNS("tls", "istio", "enabled"),
@@ -23,7 +24,6 @@ var discoveryForceEnabledProtocols = []string{
 // discoveryForceDisabledProtocols lists the USM protocol flags that discovery
 // mode forces off to keep the eBPF surface minimal.
 var discoveryForceDisabledProtocols = []string{
-	smNS("http2", "enabled"),
 	smNS("kafka", "enabled"),
 	smNS("postgres", "enabled"),
 	smNS("redis", "enabled"),
@@ -77,7 +77,7 @@ func adjustDiscovery(cfg model.Config) {
 		return
 	}
 
-	log.Info("discovery.service_map.enabled is set; booting USM monitor in restricted mode (HTTP and TLS only)")
+	log.Info("discovery.service_map.enabled is set; booting USM monitor in restricted mode (HTTP, HTTP/2 and TLS only)")
 
 	// Enable USM so that newUSMMonitor starts on Linux (gated on ServiceMonitoringEnabled).
 	// Windows bypasses this gate via NewWindowsMonitor, but Linux requires it.

@@ -67,6 +67,8 @@ var (
 		common.KubeletMetricsPrefix + "kubelet.pod.start.duration.count",
 		common.KubeletMetricsPrefix + "kubelet.pod.worker.start.duration.sum",
 		common.KubeletMetricsPrefix + "kubelet.pod.worker.start.duration.count",
+		common.KubeletMetricsPrefix + "kubelet.containers_per_pod.count",
+		common.KubeletMetricsPrefix + "kubelet.containers_per_pod.sum",
 		common.KubeletMetricsPrefix + "go_threads",
 		common.KubeletMetricsPrefix + "go_goroutines",
 	}
@@ -93,6 +95,8 @@ var (
 		common.KubeletMetricsPrefix + "go_goroutines",
 		common.KubeletMetricsPrefix + "go_threads",
 		common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes",
+		common.KubeletMetricsPrefix + "kubelet.containers_per_pod.count",
+		common.KubeletMetricsPrefix + "kubelet.containers_per_pod.sum",
 		common.KubeletMetricsPrefix + "kubelet.network_plugin.latency.count",
 		common.KubeletMetricsPrefix + "kubelet.network_plugin.latency.sum",
 		common.KubeletMetricsPrefix + "kubelet.pleg.discard_events",

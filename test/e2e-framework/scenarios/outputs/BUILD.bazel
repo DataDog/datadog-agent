@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "outputs",
+    srcs = [
+        "dockerhost.go",
+        "ecs.go",
+        "host.go",
+        "kubernetes.go",
+        "outputs.go",
+        "windowshost.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/components/activedirectory",
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/components/datadog/updater",
+        "//test/e2e-framework/components/docker",
+        "//test/e2e-framework/components/ecs",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/components/remote",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+    ],
+)

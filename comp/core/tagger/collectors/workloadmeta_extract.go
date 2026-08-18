@@ -22,6 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
+	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -130,14 +131,14 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		entity := ev.Entity
 		entityID := entity.GetID()
 
+		if entityID.Kind == workloadmeta.KindKubeletMetrics ||
+			entityID.Kind == workloadmeta.KindKubelet {
+			// No tags. Ignore
+			continue
+		}
+
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			if entityID.Kind == workloadmeta.KindKubeletMetrics ||
-				entityID.Kind == workloadmeta.KindKubelet {
-				// No tags. Ignore
-				continue
-			}
-
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous
@@ -162,6 +163,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
+			case workloadmeta.KindKubernetesNode:
+				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
 			case workloadmeta.KindProcess:
 				tagInfos = append(tagInfos, c.handleProcess(ev)...)
 			case workloadmeta.KindKubernetesDeployment:
@@ -170,6 +173,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeKueueQueue(ev)...)
 			case workloadmeta.KindKubernetesKueueResourceFlavor:
 				tagInfos = append(tagInfos, c.handleKubeKueueResourceFlavor(ev)...)
+			case workloadmeta.KindKubernetesKueueWorkload:
+				tagInfos = append(tagInfos, c.handleKubeKueueWorkload(ev)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			case workloadmeta.KindCRD:
@@ -362,7 +367,10 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 		repos[strings.SplitN(repoDigest, "@sha256:", 2)[0]] = struct{}{}
 	}
 	for _, repoTag := range image.RepoTags {
-		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
+		// Split on the last colon (after the last slash) so registries that
+		// include a port are parsed correctly.
+		repoName, _ := pkgimage.SplitRepoTag(repoTag)
+		repos[repoName] = struct{}{}
 	}
 	for repo := range repos {
 		repoSplitted := strings.Split(repo, "/")
@@ -371,9 +379,8 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 	}
 
 	for _, repoTag := range image.RepoTags {
-		repoTagSplitted := strings.SplitN(repoTag, ":", 2)
-		if len(repoTagSplitted) == 2 {
-			tagList.AddLow(tags.ImageTag, repoTagSplitted[1])
+		if _, tag := pkgimage.SplitRepoTag(repoTag); tag != "" {
+			tagList.AddLow(tags.ImageTag, tag)
 		}
 	}
 
@@ -724,6 +731,40 @@ func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*t
 	return tagInfos
 }
 
+func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.TagInfo {
+	node := ev.Entity.(*workloadmeta.KubernetesNode)
+
+	groupResource := "nodes"
+
+	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
+	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
+
+	if len(labelsAsTags)+len(annotationsAsTags) == 0 {
+		return nil
+	}
+
+	tagList := taglist.NewTagList()
+	c.addResourceLabelsAndAnnotationsAsTags(groupResource, node.Labels, node.Annotations, tagList)
+
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:               nodeSource,
+			EntityID:             common.BuildTaggerEntityID(node.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
+		},
+	}
+}
+
 func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*types.TagInfo {
 	kubeMetadata := ev.Entity.(*workloadmeta.KubernetesMetadata)
 
@@ -815,6 +856,30 @@ func (c *WorkloadMetaCollector) handleKubeKueueResourceFlavor(ev workloadmeta.Ev
 	}
 }
 
+func (c *WorkloadMetaCollector) handleKubeKueueWorkload(ev workloadmeta.Event) []*types.TagInfo {
+	workload := ev.Entity.(*workloadmeta.KubernetesKueueWorkload)
+
+	tagList := taglist.NewTagList()
+	c.extractKueueWorkloadAndRelatedTags(workload, "", tagList)
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:               kueueWorkloadSource,
+			EntityID:             common.BuildTaggerEntityID(workload.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
+		},
+	}
+}
+
 func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
@@ -852,6 +917,11 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
+	if gpu.FabricClusterUUID != "" {
+		tagList.AddLow(tags.GPUFabricClusterUUID, strings.ToLower(gpu.FabricClusterUUID))
+		tagList.AddLow(tags.GPUFabricCliqueID, strconv.FormatUint(uint64(gpu.FabricCliqueID), 10))
+	}
 	if gpu.GPUType != "" {
 		tagList.AddLow(tags.GPUType, strings.ToLower(gpu.GPUType))
 	}
@@ -941,6 +1011,24 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 	}
 }
 
+// addResourceLabelsAndAnnotationsAsTags applies the labels-as-tags and
+// annotations-as-tags configuration for the given group resource to the
+// provided labels and annotations.
+func (c *WorkloadMetaCollector) addResourceLabelsAndAnnotationsAsTags(groupResource string, labels, annotations map[string]string, tagList *taglist.TagList) {
+	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
+	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
+	globLabels := c.globK8sResourcesLabels[groupResource]
+	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
+
+	for name, value := range labels {
+		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+	}
+
+	for name, value := range annotations {
+		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	}
+}
+
 func (c *WorkloadMetaCollector) extractKueueQueueTags(queue *workloadmeta.KubernetesKueueQueue, tagList *taglist.TagList) {
 	switch queue.QueueType {
 	case workloadmeta.KueueLocalQueue:
@@ -952,18 +1040,7 @@ func (c *WorkloadMetaCollector) extractKueueQueueTags(queue *workloadmeta.Kubern
 	}
 
 	groupResource := kueueQueueGroupResource(queue.QueueType)
-	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
-	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
-	globLabels := c.globK8sResourcesLabels[groupResource]
-	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
-
-	for name, value := range queue.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
-	}
-
-	for name, value := range queue.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
-	}
+	c.addResourceLabelsAndAnnotationsAsTags(groupResource, queue.Labels, queue.Annotations, tagList)
 }
 
 func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadmeta.KubernetesKueueResourceFlavor, tagList *taglist.TagList) {
@@ -992,18 +1069,88 @@ func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadm
 	}
 
 	groupResource := kubernetes.KueueResourceFlavorResourceName + "." + kubernetes.KueueGroupName
-	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
-	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
-	globLabels := c.globK8sResourcesLabels[groupResource]
-	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
+	c.addResourceLabelsAndAnnotationsAsTags(groupResource, flavor.Labels, flavor.Annotations, tagList)
+}
 
-	for name, value := range flavor.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *workloadmeta.KubernetesKueueWorkload, podSetName string, tagList *taglist.TagList) {
+	// Add first the workload identification tags
+	tagList.AddOrchestrator(tags.KueueWorkload, workload.Name)
+	if workload.UID != "" {
+		tagList.AddOrchestrator(tags.KueueWorkloadUID, workload.UID)
 	}
 
-	for name, value := range flavor.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	// and the ones from the labels/annotations
+	groupResource := kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName
+	c.addResourceLabelsAndAnnotationsAsTags(groupResource, workload.Labels, workload.Annotations, tagList)
+
+	// now get the queue entities for more tags
+	localQueue := c.extractKueueQueueTagsFromQueueName(workload.Namespace, tagList, workloadmeta.KueueLocalQueue, workload.QueueName)
+
+	// The cluster queue name might not be present in the workload object. Local queues are always
+	// associated to a cluster queue, so if the local queue entity is available, use its cluster
+	// queue name as a fallback.
+	clusterQueueName := workload.ClusterQueueName
+	if clusterQueueName == "" && localQueue != nil {
+		clusterQueueName = localQueue.ClusterQueueName
 	}
+	_ = c.extractKueueQueueTagsFromQueueName(workload.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
+
+	// now parse the pod set assignments to get the flavor names and add the corresponding tags
+	flavorNames := make(map[string]struct{})
+	for _, assignment := range workload.PodSetAssignments {
+		if podSetName != "" && assignment.Name != podSetName {
+			continue
+		}
+		for _, flavorName := range assignment.Flavors {
+			if flavorName != "" {
+				flavorNames[flavorName] = struct{}{}
+			}
+		}
+	}
+
+	for flavorName := range flavorNames {
+		flavorID := workloadmeta.GenerateKueueResourceFlavorEntityID(flavorName)
+		flavor, err := c.store.GetKubernetesKueueResourceFlavor(flavorID)
+		if err != nil || flavor == nil {
+			// add just the flavor name to the tag list as a fallback
+			tagList.AddLow(tags.KueueResourceFlavor, flavorName)
+			continue
+		}
+
+		c.extractKueueResourceFlavorTags(flavor, tagList)
+	}
+}
+
+func (c *WorkloadMetaCollector) extractKueueQueueTagsFromQueueName(namespace string, tagList *taglist.TagList, queueType workloadmeta.KueueQueueType, queueName string) *workloadmeta.KubernetesKueueQueue {
+	if queueName == "" {
+		return nil
+	}
+
+	// add the queue name to the tag list as a fallback. If the queue entity is available, it will have the same
+	// name and the taglist handles the de-duplication. If the queue entity is not available, we will at least have
+	// the name in the tag list.
+	if queueType == workloadmeta.KueueLocalQueue {
+		tagList.AddLow(tags.KueueLocalQueue, queueName)
+	} else {
+		tagList.AddLow(tags.KueueClusterQueue, queueName)
+	}
+
+	// now get the queue entity for more tags
+	queueID, err := workloadmeta.GenerateKueueQueueEntityID(queueType, namespace, queueName)
+	if err != nil {
+		log.Debugf("Could not generate Kueue %s entity ID for namespace %s and name %s: %v", queueType, namespace, queueName, err)
+		return nil
+	}
+
+	queue, err := c.store.GetKubernetesKueueQueue(queueID)
+	if err != nil || queue == nil {
+		log.Debugf("Could not get Kueue %s entity for namespace %s and name %s: %v", queueType, namespace, queueName, err)
+		return nil
+	}
+
+	c.extractKueueQueueTags(queue, tagList)
+
+	return queue
 }
 
 func nvidiaResourceFlavorNodeLabelTagName(labelName string) (string, bool) {
@@ -1027,51 +1174,53 @@ func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
+	// The associated workload object is the main source of information for Kueue. If it is available, we use it to extract the tags
+	// If not, we fall back to the pod labels and annotations to get the queue names and their tags
+	workload := c.getKueueWorkloadForPod(pod)
+	if workload != nil {
+		c.extractKueueWorkloadAndRelatedTags(workload, pod.Labels[kubernetes.KueuePodSetLabelKey], tagList)
+		return
+	}
+
 	clusterQueueName := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]
 	localQueueName := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]
 	if localQueueName == "" {
-		// plain pods will not have the local-queue-name annotation but instead the queue-name one, so
+		// plain pods will not have the local-queue-name label but instead the queue-name one, so
 		// fall back to that one
 		localQueueName = pod.Labels[kubernetes.KueueQueueNameLabelKey]
 	}
 
-	if localQueueName != "" {
-		// Preserve tags from pod labels when queue entities are unavailable. If
-		// the queue entity is present, duplicate queue tags are de-duplicated and
-		// queue label/annotation tags are added below.
-		tagList.AddLow(tags.KueueLocalQueue, localQueueName)
+	localQueue := c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueLocalQueue, localQueueName)
 
-		localQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueLocalQueue, pod.Namespace, localQueueName)
-		if err != nil {
-			log.Debugf("Could not generate Kueue LocalQueue entity ID for pod %s/%s: %v", pod.Namespace, pod.Name, err)
-			return
-		}
+	if clusterQueueName == "" && localQueue != nil {
+		// Local queues are always associated to a cluster queue, so if we don't have a cluster queue name in the pod,
+		// use the one associated to the local queue
+		clusterQueueName = localQueue.ClusterQueueName
+	}
+	_ = c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
+}
 
-		queue, err := c.store.GetKubernetesKueueQueue(localQueueID)
-		if err == nil && queue != nil {
-			c.extractKueueQueueTags(queue, tagList)
-
-			if clusterQueueName == "" {
-				// fallback to the cluster queue associated to the local queue
-				clusterQueueName = queue.ClusterQueueName
-			}
-		}
+func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
+	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
+	if workloadName == "" {
+		// Known limitation: for plain-Pod groups the Kueue Workload object name
+		// is not guaranteed to equal the pod-group-name label value. When they
+		// diverge, the lookup below fails and we fall back to pod-label queue
+		// tags (fail-closed, no incorrect tags).
+		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
+	}
+	if workloadName == "" {
+		return nil
 	}
 
-	if clusterQueueName != "" {
-		tagList.AddLow(tags.KueueClusterQueue, clusterQueueName)
-
-		clusterQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueClusterQueue, "", clusterQueueName)
-		if err != nil {
-			log.Debugf("Could not generate Kueue ClusterQueue entity ID for pod %s/%s: %v", pod.Namespace, pod.Name, err)
-			return
-		}
-
-		queue, err := c.store.GetKubernetesKueueQueue(clusterQueueID)
-		if err == nil && queue != nil {
-			c.extractKueueQueueTags(queue, tagList)
-		}
+	workloadID := workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
+	workload, err := c.store.GetKubernetesKueueWorkload(workloadID)
+	if err != nil || workload == nil {
+		log.Debugf("Could not get Kueue workload entity for namespace %s and name %s: %v", pod.Namespace, workloadName, err)
+		return nil
 	}
+
+	return workload
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {

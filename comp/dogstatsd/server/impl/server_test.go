@@ -8,6 +8,7 @@
 package serverimpl
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -30,6 +31,30 @@ func TestNewServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	requireStart(t, deps.Server)
+}
+
+// noListenerConfig disables every listener (no UDP port, socket, or named pipe) so that
+// start() ends up with zero listeners.
+func noListenerConfig() map[string]interface{} {
+	return map[string]interface{}{
+		"dogstatsd_port":          0,
+		"dogstatsd_socket":        "",
+		"dogstatsd_pipe_name":     "",
+		"dogstatsd_stream_socket": "",
+	}
+}
+
+func TestStartHookNoListenerRequireListener(t *testing.T) {
+	cfg := noListenerConfig()
+	cfg["dogstatsd_require_listener"] = true
+
+	_, s := fulfillDepsWithInactiveServer(t, cfg)
+	require.ErrorIs(t, s.startHook(context.Background()), errNoListeners, "startHook should return errNoListeners when no listener could be created and dogstatsd_require_listener is set")
+}
+
+func TestStartHookNoListenerDefault(t *testing.T) {
+	_, s := fulfillDepsWithInactiveServer(t, noListenerConfig())
+	require.NoError(t, s.startHook(context.Background()), "startHook should swallow the no-listener error when dogstatsd_require_listener is not set")
 }
 
 func TestNewServerUseDogstatsdFalse(t *testing.T) {

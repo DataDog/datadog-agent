@@ -14,11 +14,13 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/tagger/def",
+        "//comp/core/telemetry/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/containers/agentperformance",
         "//pkg/collector/corechecks/containers/generic",
         "//pkg/util/containers/cri",
         "//pkg/util/containers/metrics",
@@ -35,10 +37,8 @@ dd_agent_go_test(
     name = "cri_test",
     srcs = ["check_test.go"],
     embed = [":cri"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [["cri"]],
+    include_default = False,
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/types",

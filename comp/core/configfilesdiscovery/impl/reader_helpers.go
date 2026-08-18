@@ -17,19 +17,17 @@ import (
 
 const maxConfigFileSize = 1024 * 1024 // 1MiB
 
-func filterEnvVars(envEntries []string, names []string) map[string]string {
-	wanted := make(map[string]struct{}, len(names))
-	for _, name := range names {
-		wanted[name] = struct{}{}
-	}
-
+func filterEnvVars(envEntries []string, predicate ConfigEnvVarPredicate) map[string]string {
 	env := make(map[string]string)
 	for _, entry := range envEntries {
 		name, value, ok := strings.Cut(entry, "=")
 		if !ok {
 			continue
 		}
-		if _, ok := wanted[name]; !ok {
+		if IsSecretEnvVarName(name) {
+			continue
+		}
+		if !predicate(name) {
 			continue
 		}
 		env[name] = value

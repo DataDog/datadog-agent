@@ -53,6 +53,14 @@ repos:
       require_serial: true
       files: \.py$
       pass_filenames: false
+    - id: docs-links
+      name: docs-links
+      description: checks that developer docs link to the repository through the `repo` macro
+      entry: 'dda inv linter.docs-links'
+      language: system
+      require_serial: true
+      files: ^docs/public/.*\.md$
+      pass_filenames: false
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
@@ -141,6 +149,14 @@ repos:
       language: system
       pass_filenames: false
       files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*\.proto|.*protobuf\.py)$
+    - id: cws-go-generate
+      name: validate-cws-generated-files
+      description: Validate that the generated CWS files (SECL accessors, BPF map names, docs, ...) are up to date
+      entry: 'dda inv security-agent.cws-go-generate'
+      language: system
+      pass_filenames: false
+      stages: [pre-push]
+      files: ^(pkg/security/.*|docs/cloud-workload-security/.*|bazel/rules/cws_codegen/.*)$
     - id: experiment-systemd-units
       name: validate-experiment-systemd-units
       description: Validate that the generated systemd experimrent units are up to date

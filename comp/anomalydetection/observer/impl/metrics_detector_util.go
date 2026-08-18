@@ -25,6 +25,23 @@ func parseAggregateConfig(names []string) []observer.Aggregate {
 	return aggregations
 }
 
+func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
+	switch s {
+	case "avg":
+		return observer.AggregateAverage, true
+	case "sum":
+		return observer.AggregateSum, true
+	case "count":
+		return observer.AggregateCount, true
+	case "min":
+		return observer.AggregateMin, true
+	case "max":
+		return observer.AggregateMax, true
+	default:
+		return 0, false
+	}
+}
+
 // seriesStatus holds point count and write generation for a single series.
 // Used by bulkSeriesStatus and scan-based detectors.
 type seriesStatus struct {
@@ -43,6 +60,19 @@ type bulkStatusReader interface {
 // full SeriesMeta values. The dst slice may be reused for the returned refs.
 type seriesRefLister interface {
 	ListSeriesRefsInto(filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef
+}
+
+// seriesAggregateSupport is an optional policy for series whose stored point
+// representation gives only some aggregations useful semantics.
+type seriesAggregateSupport interface {
+	SupportsAggregate(ref observer.SeriesRef, agg observer.Aggregate) bool
+}
+
+func supportsSeriesAggregate(storage observer.StorageReader, ref observer.SeriesRef, agg observer.Aggregate) bool {
+	if support, ok := storage.(seriesAggregateSupport); ok {
+		return support.SupportsAggregate(ref, agg)
+	}
+	return true
 }
 
 // workloadSeriesRefs returns the workload series refs used by detector hot

@@ -23,6 +23,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -190,7 +191,7 @@ func getConfigValue(deps dependencies, args []string) error {
 }
 
 func getClient(deps dependencies) (settings.Client, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 
 	port := deps.Config.GetInt("process_config.cmd_port")
 	if port <= 0 {

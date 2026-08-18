@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -372,7 +372,7 @@ func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
 	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
 	// Instead, enable full auto multiline on the source itself
 
-	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
 	defer mockConfig.SetInTest("logs_config.tag_multi_line_logs", false)
 
@@ -425,7 +425,7 @@ func (suite *TailerTestSuite) TestTruncatedTagSingleLineHandler() {
 	mockConfig.SetInTest("logs_config.max_message_size_bytes", 3)
 	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
 	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
-	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
 	defer mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", true)
 
@@ -515,10 +515,19 @@ func TestStructuredMessagePreserved(t *testing.T) {
 	defer f.Close()
 
 	outputChan := make(chan *message.Message, chanSize)
+	// attribute_parsing gates whether the syslog parser is installed at all
+	// (IsAttributeParsingEnabled); without it the decoder uses the noop parser
+	// and the message stays StateUnstructured. debug_attr_parsing gates the
+	// structured JSON envelope so the parser renders the "message"/"syslog"
+	// object this test asserts on.
+	attributeParsing := true
+	debugAttrParsing := true
 	source := sources.NewReplaceableSource(sources.NewLogSource("syslog-test", &config.LogsConfig{
-		Type:   config.FileType,
-		Path:   testPath,
-		Format: config.SyslogFormat,
+		Type:             config.FileType,
+		Path:             testPath,
+		Format:           config.SyslogFormat,
+		AttributeParsing: &attributeParsing,
+		DebugAttrParsing: &debugAttrParsing,
 	}))
 	info := status.NewInfoRegistry()
 

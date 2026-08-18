@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,7 +68,12 @@ func TestNewFlareBuilder(t *testing.T) {
 	require.FileExists(t, filepath.Join(fb.flareDir, "flare_creation.log"))
 
 	archive, err := fb.Save()
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		info, err := os.Lstat(archive)
+		return err == nil && !info.IsDir()
+	}, 3*time.Second, 10*time.Millisecond, "unable to find file %q", archive)
 	assert.FileExists(t, archive)
 	os.RemoveAll(archive)
 
@@ -85,6 +91,11 @@ func TestSave(t *testing.T) {
 	archivePath, err := fb.Save()
 	require.NoError(t, err)
 	assert.NoDirExists(t, fb.tmpDir)
+
+	require.Eventually(t, func() bool {
+		info, err := os.Lstat(archivePath)
+		return err == nil && !info.IsDir()
+	}, 3*time.Second, 10*time.Millisecond, "unable to find file %q", archivePath)
 	require.FileExists(t, archivePath)
 
 	defer os.RemoveAll(archivePath)
@@ -99,8 +110,29 @@ func TestSave(t *testing.T) {
 
 	err = archive.Unzip(archivePath, tmpDir)
 	assert.Nil(t, err)
-	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test.data"))
-	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test/depth1/depth2/test4"))
+
+	for _, extracted := range []string{
+		filepath.Join(tmpDir, hostname, "test.data"),
+		filepath.Join(tmpDir, hostname, "test/depth1/depth2/test4"),
+	} {
+		assert.Eventually(t, func() bool {
+			info, err := os.Lstat(extracted)
+			return err == nil && !info.IsDir()
+		}, 3*time.Second, 10*time.Millisecond, "unable to find file %q", extracted)
+	}
+}
+
+func TestGetArchiveNameIsUniqueWithinSameSecond(t *testing.T) {
+	timestamp := time.Date(2026, time.August, 14, 12, 0, 0, 0, time.UTC)
+	names := make(map[string]struct{})
+
+	for range 100 {
+		name := getArchiveNameForTime(timestamp, newArchiveNameID())
+		if _, found := names[name]; found {
+			t.Fatalf("archive name %q was generated more than once", name)
+		}
+		names[name] = struct{}{}
+	}
 }
 
 func TestAddFileFromFunc(t *testing.T) {

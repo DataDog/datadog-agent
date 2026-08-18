@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -29,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -158,10 +159,20 @@ func createTestFactory(t *testing.T, serverAddr string) exporter.Factory {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, implgzip.NewComponent())
 	go traceagent.Run()
 
-	return NewFactory(testComponent{traceagent, nil}, srlz, &mockLogsAgentPipeline{}, sourceProvider, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{})
+	return NewFactory(testComponent{traceagent, nil}, srlz, &mockLogsAgentPipeline{}, sourceProvider, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
 }
 
 func TestHostMetadata_FromTraces(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	c := make(chan payload.HostMetadata)
 	server := createTestServer(t, c)
 	defer server.Close()

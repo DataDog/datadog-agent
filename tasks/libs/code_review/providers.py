@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import io
-import shlex
 import sys
+from contextlib import chdir
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TextIO
 
 from tasks.libs.code_review.prompt import CodeReviewError, ReviewPrompt
-from tasks.libs.common.utils import is_installed
+from tasks.libs.common.utils import is_installed, join_command
 
 PROVIDERS = ("codex", "claude", "gemini")
 PROVIDER_CHOICES = (*PROVIDERS, "all")
@@ -18,7 +19,7 @@ PROVIDER_CHOICES = (*PROVIDERS, "all")
 class ProviderInvocation:
     provider: str
     executable: str
-    command: str
+    args: tuple[str, ...]
     stdin: str | None
     output_path: Path
 
@@ -35,15 +36,24 @@ def run_review(
     prompt_path.write_text(review_prompt.content, encoding="utf-8")
     print(f"Review prompt written to {prompt_path}", file=sys.stderr)
 
-    invocations = [
-        build_provider_invocation(
-            provider=provider_name,
-            review_prompt=review_prompt,
-            prompt_path=prompt_path,
-            artifact_dir=artifact_dir,
+    invocations = []
+    for provider_name in expand_providers(provider):
+        review_diff = None
+        if provider_name == "codex":
+            review_diff = collect_review_diff(ctx, repo_root, review_prompt.base)
+            diff_path = artifact_dir / "codex-diff.md"
+            diff_path.write_text(review_diff, encoding="utf-8")
+            print(f"Codex review diff written to {diff_path}", file=sys.stderr)
+
+        invocations.append(
+            build_provider_invocation(
+                provider=provider_name,
+                review_prompt=review_prompt,
+                prompt_path=prompt_path,
+                artifact_dir=artifact_dir,
+                review_diff=review_diff,
+            )
         )
-        for provider_name in expand_providers(provider)
-    ]
 
     for invocation in invocations:
         _ensure_command_exists(invocation.executable)
@@ -57,19 +67,22 @@ def run_review(
 def run_provider(ctx, invocation: ProviderInvocation, *, cwd: Path) -> None:
     _ensure_command_exists(invocation.executable)
     print(f"Running {invocation.provider} review...", file=sys.stderr)
-    kwargs = {"hide": True, "warn": True}
+    kwargs = {"hide": True, "warn": True, "encoding": "utf-8"}
     if invocation.stdin is not None:
         kwargs["in_stream"] = io.StringIO(invocation.stdin)
 
-    result = ctx.run(f"cd {shlex.quote(str(cwd))} && {invocation.command}", **kwargs)
+    # The provider inherits the working directory instead of being prefixed with a shell `cd`, which
+    # cmd.exe cannot chain across drives.
+    with chdir(cwd):
+        result = ctx.run(join_command(invocation.args), **kwargs)
 
     output = ""
     if result.stdout:
         output += result.stdout
-        print(result.stdout, end="")
+        _echo(result.stdout, sys.stdout)
     if result.stderr:
         output += result.stderr
-        print(result.stderr, end="", file=sys.stderr)
+        _echo(result.stderr, sys.stderr)
 
     invocation.output_path.write_text(output, encoding="utf-8")
 
@@ -86,22 +99,22 @@ def build_provider_invocation(
     review_prompt: ReviewPrompt,
     prompt_path: Path,
     artifact_dir: Path,
+    review_diff: str | None = None,
 ) -> ProviderInvocation:
     output_path = artifact_dir / f"{provider}.md"
 
     if provider == "codex":
-        # `codex review --base ... [PROMPT]` rejects combining a base ref and a prompt.
-        # Use `codex exec` instead and ask Codex to inspect the same diff explicitly.
         prompt = (
-            f"Review the current git changes against {review_prompt.base}.\n"
-            f"Use `git diff --find-renames {review_prompt.base}...HEAD` to inspect the patch.\n"
+            f"Review the current git changes against {review_prompt.base} using the precomputed diff below.\n"
             "Do not modify files. Return only review findings and an overall correctness verdict.\n\n"
-            f"{review_prompt.content}"
+            f"{review_prompt.content}\n"
+            "## Precomputed Diff\n\n"
+            f"{review_diff or 'No diff was provided.'}"
         )
         return ProviderInvocation(
             provider=provider,
             executable="codex",
-            command="codex exec --sandbox read-only -",
+            args=("codex", "exec", "--sandbox", "read-only", "-"),
             stdin=prompt,
             output_path=output_path,
         )
@@ -112,25 +125,32 @@ def build_provider_invocation(
         "Return actionable findings with exact file and line references."
     )
 
-    if provider == "claude":
+    if provider in ("claude", "gemini"):
         return ProviderInvocation(
             provider=provider,
-            executable="claude",
-            command=f"claude -p {shlex.quote(instruction)}",
-            stdin=None,
-            output_path=output_path,
-        )
-
-    if provider == "gemini":
-        return ProviderInvocation(
-            provider=provider,
-            executable="gemini",
-            command=f"gemini -p {shlex.quote(instruction)}",
+            executable=provider,
+            args=(provider, "-p", instruction),
             stdin=None,
             output_path=output_path,
         )
 
     raise CodeReviewError(f"Unknown provider {provider!r}")
+
+
+def collect_review_diff(ctx, repo_root: Path, base: str) -> str:
+    diff_range = f"{base}...HEAD"
+    sections = []
+    for title, diff_args in (
+        ("DIFF STAT", ["--stat", diff_range]),
+        ("PATCH", [diff_range]),
+    ):
+        command = join_command(["git", "-C", str(repo_root), "diff", "--find-renames", *diff_args])
+        result = ctx.run(command, hide=True, warn=True, encoding="utf-8")
+        if result.exited != 0:
+            raise CodeReviewError(result.stderr.strip() or f"{command} failed")
+        sections.extend([f"--- {title} ---", result.stdout.strip() or "(empty)", ""])
+
+    return "\n".join(sections).rstrip() + "\n"
 
 
 def expand_providers(provider: str) -> tuple[str, ...]:
@@ -154,3 +174,14 @@ def create_artifact_dir(repo_root: Path) -> Path:
 def _ensure_command_exists(command: str) -> None:
     if not is_installed(command):
         raise CodeReviewError(f"Cannot run review provider: `{command}` is not installed or is not on PATH")
+
+
+def _echo(text: str, stream: TextIO) -> None:
+    """
+    Print provider output, replacing whatever the destination stream cannot represent.
+
+    Providers emit UTF-8, while a redirected stream on Windows encodes as cp1252 and would otherwise
+    raise. The unaltered output is still saved to the artifact file.
+    """
+    encoding = getattr(stream, "encoding", None) or "utf-8"
+    stream.write(text.encode(encoding, errors="replace").decode(encoding, errors="replace"))

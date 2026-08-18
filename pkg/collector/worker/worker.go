@@ -14,7 +14,6 @@ import (
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -58,7 +57,6 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
-	healthPlatform          healthplatform.Component
 	watchdogWarningTimeout  time.Duration
 	isShadowWorker          bool
 }
@@ -67,7 +65,6 @@ type Worker struct {
 func NewWorker(
 	senderManager sender.SenderManager,
 	haAgent haagent.Component,
-	healthPlatform healthplatform.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -84,7 +81,6 @@ func NewWorker(
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
 		haAgent,
-		healthPlatform,
 		pollingInterval,
 		watchdogWarningTimeout,
 		false,
@@ -95,7 +91,6 @@ func NewWorker(
 func NewShadowWorker(
 	senderManager sender.SenderManager,
 	haAgent haagent.Component,
-	healthPlatform healthplatform.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -112,7 +107,6 @@ func NewShadowWorker(
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
 		haAgent,
-		healthPlatform,
 		pollingInterval,
 		watchdogWarningTimeout,
 		true,
@@ -127,7 +121,6 @@ func newWorkerWithOptions(
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	getDefaultSenderFunc func() (sender.Sender, error),
 	haAgent haagent.Component,
-	healthPlatform healthplatform.Component,
 	utilizationTickInterval time.Duration,
 	watchdogWarningTimeout time.Duration,
 	isShadowWorker bool,
@@ -162,7 +155,6 @@ func newWorkerWithOptions(
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
 		haAgent:                 haAgent,
-		healthPlatform:          healthPlatform,
 		utilizationTickInterval: utilizationTickInterval,
 		watchdogWarningTimeout:  watchdogWarningTimeout,
 		isShadowWorker:          isShadowWorker,
@@ -285,7 +277,7 @@ func (w *Worker) Run(ctx context.Context) {
 			// otherwise only do so if the check is in the scheduler
 			if w.shouldAddCheckStatsFunc(check.ID()) {
 				sStats, _ := check.GetSenderStats()
-				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent, w.healthPlatform)
+				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent)
 			}
 		}
 

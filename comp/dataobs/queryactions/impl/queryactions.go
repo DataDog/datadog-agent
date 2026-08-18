@@ -44,7 +44,7 @@ type component struct {
 	rcclient rcclient.Component
 	// activeConfigs maps a DO config_id to the DO check config currently scheduled for it.
 	activeConfigs map[string]activeConfigEntry
-	// managedBases maps a base postgres config Digest to the bookkeeping needed to restore it.
+	// managedBases maps a base integration config Digest to the bookkeeping needed to restore it.
 	// A base config has an entry here while at least one DO config targets one of its instances;
 	// the entry records the original config (for restoration) and the remainder config currently
 	// scheduled in its place. See reconcileBases.
@@ -156,7 +156,7 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 		}()
 
 		// Check immediately: the file config provider runs before this one in LoadAndRun,
-		// so postgres is typically already available when Stream() is called.
+		// so a supported integration is typically already available when Stream() is called.
 		if c.hasSupportedIntegration() {
 			subscribeAndWait()
 			return
@@ -184,6 +184,9 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 // data_observability.enabled: true is configured in autodiscovery.
 func (c *component) hasSupportedIntegration() bool {
 	for _, cfg := range c.ac.GetUnresolvedConfigs() {
+		if !isSupportedIntegration(cfg.Name) {
+			continue
+		}
 		for _, instanceData := range cfg.Instances {
 			var instance map[string]any
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {

@@ -12,6 +12,8 @@ import (
 )
 
 const (
+	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
+	defaultCommonRoot = "/opt/datadog-agent"
 	// defaultRunPath is the default runtime directory for the agent
 	defaultRunPath = "/opt/datadog-agent/run"
 	// defaultConfPath points to the folder containing datadog.yaml
@@ -224,4 +226,9 @@ func GetDefaultDDAgentBin() string {
 // GetDefaultDataPlaneLogFile returns the default log file used by the data-plane agent if not configured
 func GetDefaultDataPlaneLogFile() string {
 	return defaultDataPlaneLogFile
+}
+
+// GetDefaultDataPlaneBin returns the default path to the data-plane agent binary.
+func GetDefaultDataPlaneBin() string {
+	return filepath.Join(GetEmbeddedBinPath(), "agent-data-plane")
 }

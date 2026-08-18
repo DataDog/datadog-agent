@@ -805,7 +805,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "MetaStruct")
 				return
 			}
-			if zb0004 > zfb52131alimitMaps {
+			if zb0004 > 10485760 {
 				err = msgp.ErrLimitExceeded
 				return
 			}
@@ -829,7 +829,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					err = msgp.WrapError(err, "MetaStruct", za0005)
 					return
 				}
-				if zb0005 > zfb52131alimitArrays {
+				if zb0005 > 10485760 {
 					err = msgp.ErrLimitExceeded
 					return
 				}

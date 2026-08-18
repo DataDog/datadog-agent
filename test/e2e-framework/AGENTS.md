@@ -48,14 +48,19 @@ An environment defines what infrastructure a test needs:
 |------|-----------|-------------|----------|
 | `environments.Host` | VM + Agent + FakeIntake | `awshost.Provisioner()` | System checks, agent commands, file-based config |
 | `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
-| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `awskubernetes.Provisioner()` | K8s checks, DaemonSet, Cluster Agent |
-| `environments.ECS` | ECS cluster + Agent + FakeIntake | `awsecs.Provisioner()` | ECS-specific tests |
+| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `kindvm.Provisioner()` (kind; also `eks`, `kubeadm`) | K8s checks, DaemonSet, Cluster Agent |
+| `environments.ECS` | ECS cluster + Agent + FakeIntake | `ecs.Provisioner()` | ECS-specific tests |
 | custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners
 
 Provisioners create the environment's infrastructure. Built-in provisioners
 live in `testing/provisioners/` organized by cloud provider (aws, azure, gcp, local).
+The Kubernetes provisioners live one level deeper, in `aws/kubernetes/{kindvm,eks,kubeadm}`;
+tests commonly alias the kind one as `awskubernetes`, and the ECS one as `awsecs`, which are
+import aliases rather than package names. Azure, GCP and local provisioners take their options
+directly (`azurehost.WithAgentOptions(...)`) rather than nesting them inside `WithRunOptions`
+as the AWS example below does.
 
 ```go
 // Host on AWS EC2
@@ -181,6 +186,47 @@ dda inv new-e2e-tests.run --targets=./tests/<area>/...
 
 Use `e2e.WithDevMode()` to keep infrastructure alive after a failure so you can
 SSH in and inspect the agent directly.
+
+## macOS hosts
+
+`awshost.Provisioner` supports macOS (`ec2.WithOS(e2eos.MacOSDefault)`), but two
+constraints shape how a macOS suite must be wired into CI:
+
+- **Dedicated hosts.** `scenarios/aws/ec2/vm.go` allocates a `mac1.metal`
+  (amd64) or `mac2.metal` (arm64) dedicated host, which AWS bills with a 24-hour
+  minimum. Keep macOS jobs manual.
+- **The agent comes from a DMG in the macOS testing bucket.** `host_macos.go`
+  installs via the install script with `DD_REPO_URL` pointing at
+  `pipeline-<id>-<arch>`, which only exists once `deploy_dmg_testing-a7_<arch>`
+  has run. That job has its own rules, so a macOS e2e job must gate on
+  `.on_deploy` and mark the `needs` optional. Note the arch segment there is
+  `x64`, not the descriptor's `x86_64` — `macosPipelineArch` does the mapping.
+
+Existing macOS suites: `tests/agent-platform/tests/macos_install_test.go`
+(installs by hand, `ec2.WithoutAgent()`) and
+`tests/agent-data-plane/preflight-mode` (stock provisioner with agentparams).
+
+## Fakeintake image version
+
+Every fakeintake default (`scenarios/{aws,azure,gcp}/fakeintake/params.go`,
+`components/datadog/fakeintake/docker.go`) resolves through
+`components/datadog/fakeintake.ImageURL(...)`: it uses the
+`FakeintakeImageOverride` runner parameter (`E2E_FAKEINTAKE_IMAGE_OVERRIDE`) when
+set — read through the runner parameter store like any other `E2E_*` value, not
+`os.Getenv` — otherwise the pinned tag from `test/fakeintake/version.Tag`.
+`WithImageURL(...)` on any fakeintake provisioner still wins over both.
+
+CI wiring (`.gitlab-ci.yml`): the `.on_e2e_main_release_or_rc` rule — inherited
+by every e2e job through its team rule (`.on_<team>_or_e2e_changes`) — sets
+`E2E_FAKEINTAKE_IMAGE_OVERRIDE` to the PR-built `v<sha>` image on a fakeintake
+*server* change (`.fakeintake_server_paths`). So such a PR runs the **whole**
+e2e suite against the PR's image (including mixed PRs), and no e2e job can miss
+the override. `.needs_new_e2e_template` gains optional needs on `publish_fakeintake`
+(PR `v<sha>`) and `publish_fakeintake_pinned` (main pinned tag) so e2e waits for
+the image to exist. Plain `.on_fakeintake_changes` is for non-consuming
+build/publish/version-check jobs only. See `test/fakeintake/AGENTS.md`
+§ "Image version pinning" for the full workflow (bumping VERSION, the
+strictly-increasing CI check, publish jobs).
 
 ## Key files
 

@@ -49,8 +49,10 @@ const (
 	KindKubeletMetrics                Kind = "kubelet_metrics"
 	KindKubeCapabilities              Kind = "kubernetes_capabilities"
 	KindKubernetesDeployment          Kind = "kubernetes_deployment"
+	KindKubernetesNode                Kind = "kubernetes_node"
 	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
 	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
+	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
 	KindECSTask                       Kind = "ecs_task"
 	KindContainerImageMetadata        Kind = "container_image_metadata"
 	KindProcess                       Kind = "process"
@@ -1202,6 +1204,66 @@ func (m *KubernetesMetadata) Merge(e Entity) error {
 	return merge(m, mm)
 }
 
+// KubernetesNodeStatus contains status information for a Kubernetes node.
+// Field names mirror the json tags of corev1.NodeSystemInfo for wire compatibility.
+type KubernetesNodeStatus struct {
+	KubeletVersion          string `json:"kubeletVersion"`
+	KernelVersion           string `json:"kernelVersion"`
+	OSImage                 string `json:"osImage"`
+	ContainerRuntimeVersion string `json:"containerRuntimeVersion"`
+	Architecture            string `json:"architecture"`
+	OperatingSystem         string `json:"operatingSystem"`
+}
+
+// KubernetesNode is an Entity representing a Kubernetes Node.
+type KubernetesNode struct {
+	EntityID
+	EntityMeta
+	Status KubernetesNodeStatus
+}
+
+// GetID implements Entity#GetID.
+func (n *KubernetesNode) GetID() EntityID {
+	return n.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (n *KubernetesNode) Merge(e Entity) error {
+	nn, ok := e.(*KubernetesNode)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
+	}
+
+	return merge(n, nn)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (n KubernetesNode) DeepCopy() Entity {
+	cn := deepcopy.Copy(n).(KubernetesNode)
+	return &cn
+}
+
+// String implements Entity#String.
+func (n KubernetesNode) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Node Status -----------")
+		_, _ = fmt.Fprintln(&sb, "KubeletVersion:", n.Status.KubeletVersion)
+		_, _ = fmt.Fprintln(&sb, "KernelVersion:", n.Status.KernelVersion)
+		_, _ = fmt.Fprintln(&sb, "OSImage:", n.Status.OSImage)
+		_, _ = fmt.Fprintln(&sb, "ContainerRuntimeVersion:", n.Status.ContainerRuntimeVersion)
+		_, _ = fmt.Fprintln(&sb, "Architecture:", n.Status.Architecture)
+		_, _ = fmt.Fprintln(&sb, "OperatingSystem:", n.Status.OperatingSystem)
+	}
+	return sb.String()
+}
+
+var _ Entity = &KubernetesNode{}
+
 // KubeletMetrics contains collection-level metrics from the kubelet
 type KubeletMetrics struct {
 	EntityID
@@ -1266,6 +1328,8 @@ var _ Entity = &KubernetesMetadata{}
 // KubeletConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type KubeletConfigSpec struct {
+	APIVersion       string `json:"apiVersion,omitempty"`
+	Kind             string `json:"kind,omitempty"`
 	CPUManagerPolicy string `json:"cpuManagerPolicy"`
 }
 
@@ -1536,6 +1600,63 @@ func (rf KubernetesKueueResourceFlavor) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesKueueResourceFlavor{}
+
+// GenerateKueueWorkloadEntityID returns the workloadmeta entity ID for a Kueue Workload.
+func GenerateKueueWorkloadEntityID(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+// KueuePodSetAssignment is a Kueue Workload pod set assignment.
+type KueuePodSetAssignment struct {
+	Name    string
+	Flavors map[string]string
+}
+
+// KubernetesKueueWorkload is an Entity representing a Kueue Workload.
+type KubernetesKueueWorkload struct {
+	EntityID
+	EntityMeta
+	QueueName         string
+	ClusterQueueName  string
+	PodSetAssignments []KueuePodSetAssignment
+}
+
+// GetID implements Entity#GetID.
+func (w *KubernetesKueueWorkload) GetID() EntityID {
+	return w.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (w *KubernetesKueueWorkload) Merge(e Entity) error {
+	ww, ok := e.(*KubernetesKueueWorkload)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueWorkload with different kind %T", e)
+	}
+
+	return merge(w, ww)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (w KubernetesKueueWorkload) DeepCopy() Entity {
+	cw := deepcopy.Copy(w).(KubernetesKueueWorkload)
+	return &cw
+}
+
+// String implements Entity#String.
+func (w KubernetesKueueWorkload) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, w.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, w.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Workload -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
+	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
+	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueWorkload{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
@@ -2190,6 +2311,17 @@ type GPU struct {
 
 	// MemoryBusWidth is the width of the memory bus in bits.
 	MemoryBusWidth uint32
+
+	// PCIBusID is the PCI bus ID of the GPU in domain:bus:device.function format.
+	PCIBusID string
+
+	// FabricClusterUUID identifies the NVLink fabric cluster that contains the GPU.
+	// Empty when the GPU is not registered with a fabric cluster.
+	FabricClusterUUID string
+
+	// FabricCliqueID identifies the P2P clique within the NVLink fabric cluster.
+	// It is meaningful only when FabricClusterUUID is set.
+	FabricCliqueID uint32
 
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType

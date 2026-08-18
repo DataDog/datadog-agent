@@ -263,8 +263,16 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 }
 
 func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue) {
+	// The attribute may declare ARRAY_VALUE while carrying a nil ArrayValue,
+	// since Type and ArrayValue are independent fields rather than a real oneof.
+	if v.ArrayValue == nil {
+		return
+	}
 	var arrStrValue string
 	for _, vElement := range v.ArrayValue.Values {
+		if vElement == nil {
+			continue
+		}
 		switch vElement.Type {
 		case pb.AttributeArrayValue_STRING_VALUE:
 			arrStrValue = vElement.StringValue

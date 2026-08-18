@@ -1,10 +1,12 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
     srcs = [
         "analyzer.go",
         "autologger.go",
+        "grouppolicy.go",
         "impl.go",
         "impl_darwin.go",
         "impl_noop.go",
@@ -175,6 +177,7 @@ go_library(
             "//pkg/logs/message",
             "//pkg/persistentcache",
             "//pkg/util/log",
+            "//pkg/util/strings",
             "//pkg/util/winutil",
             "//pkg/util/winutil/etw",
             "@com_github_shirou_gopsutil_v4//host",
@@ -185,15 +188,15 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "analyzer_test.go",
+        "grouppolicy_test.go",
         "impl_darwin_test.go",
         "impl_windows_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:darwin": [
             "//comp/core/config",
@@ -204,8 +207,6 @@ go_test(
             "//comp/def",
             "//comp/forwarder/eventplatform/def",
             "//comp/forwarder/eventplatform/impl",
-            "//comp/serializer/logscompression/def",
-            "//comp/serializer/logscompression/fx-mock",
             "//pkg/logonduration",
             "//pkg/util/fxutil",
             "//pkg/util/option",
@@ -222,8 +223,6 @@ go_test(
             "//comp/def",
             "//comp/forwarder/eventplatform/def",
             "//comp/forwarder/eventplatform/impl",
-            "//comp/serializer/logscompression/def",
-            "//comp/serializer/logscompression/fx-mock",
             "//pkg/logonduration",
             "//pkg/util/fxutil",
             "//pkg/util/option",
@@ -236,8 +235,6 @@ go_test(
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/forwarder/eventplatform/def",
             "//comp/forwarder/eventplatform/impl",
-            "//comp/serializer/logscompression/def",
-            "//comp/serializer/logscompression/fx-mock",
             "//pkg/util/fxutil",
             "//pkg/util/winutil/etw",
             "@com_github_stretchr_testify//assert",

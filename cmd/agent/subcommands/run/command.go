@@ -36,13 +36,17 @@ import (
 	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datasecurity"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
+	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
+	networkdevicesfx "github.com/DataDog/datadog-agent/comp/networkdevices/fx"
+	networkpathrcproviderfx "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -65,6 +69,7 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
+	dogstatsdclienttelemetryfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
@@ -151,6 +156,7 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
+	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
@@ -205,8 +211,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	errortrackingpkg "github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
-	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -232,9 +236,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		configOpts := []func(*config.Params){
 			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
 			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
-		}
-		if globalParams.CommonRoot != "" {
-			configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
 		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
@@ -288,6 +289,7 @@ func run(log log.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
+	metricLookback metriclookbackdef.Component,
 	_ serializer.MetricSerializer,
 	_ option.Option[logsAgent.Component],
 	_ statsd.Component,
@@ -374,6 +376,7 @@ func run(log log.Component,
 		ac,
 		rcclient,
 		demultiplexer,
+		metricLookback,
 		invChecks,
 		logReceiver,
 		collector,
@@ -472,6 +475,8 @@ func getSharedFxOption() fx.Option {
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
 		filterlist.Module(),
+		metriclookbackModule(),
+		dogstatsdclienttelemetryfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
@@ -493,6 +498,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		networkpathrcproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -543,6 +549,7 @@ func getSharedFxOption() fx.Option {
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
 		networkconfigmanagementfx.Module(),
+		networkdevicesfx.Module(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
@@ -581,8 +588,6 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
-		// errortracking submitter wire — atel owns buffer/flush/recursion.
-		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
 		syntheticsTestsfx.Module(),
@@ -600,34 +605,8 @@ func getSharedFxOption() fx.Option {
 		logondurationfx.Module(),
 		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
+		dataplanepreflightmodefx.Module(),
 	)
-}
-
-// installErrortrackingHandler is a no-op when the feature is disabled
-// (agent_telemetry.errortracking.enabled or the parent agent_telemetry
-// gate). The OnStart hook installs the submitter into pkg/util/log/setup;
-// the matching clear runs synchronously inside atel.stop()
-// (deliberately not as a separate OnStop hook here) so it precedes the
-// final flush-goroutine drain.
-func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
-	if !configUtils.IsErrorTrackingEnabled(cfg) {
-		return
-	}
-
-	submitter := func(elog errortrackingpkg.ErrorLog) {
-		at.SubmitErrorLog(elog)
-	}
-
-	bouncerWindow := time.Duration(cfg.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
-	bouncer := errortrackingpkg.NewBouncer(bouncerWindow, 0)
-
-	lc.Append(fx.Hook{
-		OnStart: func(_ context.Context) error {
-			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
-			pkglogsetup.RegisterErrortrackingBouncer(bouncer)
-			return nil
-		},
-	})
 }
 
 // startAgent Initializes the agent process
@@ -642,6 +621,7 @@ func startAgent(
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	demultiplexer demultiplexer.Component,
+	metricLookback metriclookbackdef.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
 	collectorComponent collector.Component,
@@ -703,6 +683,11 @@ func startAgent(
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
 
+		if configUtils.IsDataSecurityEnabled(cfg) {
+			dataSecurityController := datasecurity.NewController(ac, rcclient)
+			ac.AddConfigProvider(dataSecurityController, false, 0)
+		}
+
 		if cfg.GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
 			rcProvider := providers.NewRemoteConfigProvider()
@@ -710,6 +695,7 @@ func startAgent(
 			// LoadAndRun is called later on
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
+
 	}
 
 	// start clc runner server
@@ -745,7 +731,9 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
+	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
+	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
+	ac.AddScheduler("check", checkScheduler, true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
