@@ -89,18 +89,28 @@ func TestBuildEnvironment_SessionEnvVarAppendsPath(t *testing.T) {
 	assert.Equal(t, defaultExecutablePath+string(os.PathListSeparator)+"/extra/bin", path)
 }
 
-func TestBuildEnvironment_SessionEnvVarOverridesHome(t *testing.T) {
+func TestBuildEnvironment_SessionEnvVarRejectsHomeOverride(t *testing.T) {
 	session := newTestSession(t)
 	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{
 		SetSessionEnvVars: []EnvironmentVariable{{Name: "HOME", Value: "/custom/home", Kind: environmentKindValue}},
 	}}}
 
-	environment, err := pkg.BuildEnvironment(session)
+	_, err := pkg.BuildEnvironment(session)
 
-	require.NoError(t, err)
-	home, ok := lookupEnv(t, environment, "HOME")
-	require.True(t, ok)
-	assert.Equal(t, "/custom/home", home)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot override the managed")
+}
+
+func TestBuildEnvironment_SessionEnvVarRejectsTmpdirOverride(t *testing.T) {
+	session := newTestSession(t)
+	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{
+		SetSessionEnvVars: []EnvironmentVariable{{Name: "TMPDIR", Value: "/custom/tmp", Kind: environmentKindValue}},
+	}}}
+
+	_, err := pkg.BuildEnvironment(session)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot override the managed")
 }
 
 func TestBuildEnvironment_SessionEnvVarFileIsCreatedUnderSessionRoot(t *testing.T) {
@@ -213,20 +223,4 @@ func TestMaterializeEnvironmentVariable_RejectsUnsupportedKind(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported kind")
-}
-
-func TestSetEnvironmentVariable_AppendsPath(t *testing.T) {
-	environment := map[string]string{"PATH": "/existing/bin"}
-
-	setEnvironmentVariable(environment, "PATH", "/extra/bin")
-
-	assert.Equal(t, "/existing/bin"+string(os.PathListSeparator)+"/extra/bin", environment["PATH"])
-}
-
-func TestSetEnvironmentVariable_ReplacesOtherNames(t *testing.T) {
-	environment := map[string]string{"HOME": "/old/home"}
-
-	setEnvironmentVariable(environment, "HOME", "/new/home")
-
-	assert.Equal(t, "/new/home", environment["HOME"])
 }
