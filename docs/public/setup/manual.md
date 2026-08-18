@@ -43,7 +43,7 @@ If you don't use one of the Python versions that are explicitly supported, you m
 To protect and isolate your system-wide python installation, a python virtual environment is _highly_ recommended (though optional). It will help keep a self-contained development environment and ensure a clean system Python.
 
 /// note
-Due to the [way some virtual environments handle executable paths](https://github.com/python/cpython/issues/66409) (e.g. `python -m venv`), not all virtual environment options will be able to run the built Agent correctly. At this time, the only confirmed virtual environment creator that is known for sure to work is `virtualenv`.
+Due to the [way some virtual environments handle executable paths](https://bugs.python.org/issue22213) (e.g. `python -m venv`), not all virtual environment options will be able to run the built Agent correctly. At this time, the only confirmed virtual environment creator that is known for sure to work is `virtualenv`.
 ///
 
 - Install the virtualenv module:
