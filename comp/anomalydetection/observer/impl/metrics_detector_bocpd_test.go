@@ -282,9 +282,9 @@ func TestBOCPDDetector_DefaultAggregations(t *testing.T) {
 	assert.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, cfg.Aggregations)
 }
 
-func TestBOCPDDetector_DefaultWarmup120(t *testing.T) {
+func TestBOCPDDetector_DefaultWarmup60(t *testing.T) {
 	cfg := DefaultBOCPDConfig()
-	assert.Equal(t, 120, cfg.WarmupPoints, "default warmup should be 120 points")
+	assert.Equal(t, 60, cfg.WarmupPoints, "default warmup should be 60 points")
 }
 
 func TestBOCPDConfig_DefaultMinVarianceIsPositive(t *testing.T) {
