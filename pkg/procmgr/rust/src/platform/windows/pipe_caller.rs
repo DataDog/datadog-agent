@@ -5,8 +5,8 @@
 
 use windows_sys::Win32::Foundation::{HANDLE, TRUE};
 use windows_sys::Win32::Security::{
-    AllocateAndInitializeSid, CheckTokenMembership, FreeSid, RevertToSelf, SECURITY_NT_AUTHORITY,
-    TOKEN_QUERY,
+    AllocateAndInitializeSid, CheckTokenMembership, FreeSid, GetTokenInformation, IsWellKnownSid,
+    RevertToSelf, SECURITY_NT_AUTHORITY, TOKEN_QUERY, TokenUser, WinLocalSystemSid,
 };
 use windows_sys::Win32::System::Pipes::ImpersonateNamedPipeClient;
 use windows_sys::Win32::System::SystemServices::{
