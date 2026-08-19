@@ -378,6 +378,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return deviceUUID, nvml.SUCCESS
 		},
+		GetGpuFabricInfoFunc: func() (nvml.GpuFabricInfo, nvml.Return) {
+			return nvml.GpuFabricInfo{}, nvml.ERROR_NOT_SUPPORTED
+		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
 				return DefaultGPUName + " MIG 3g.40gb", nvml.SUCCESS
@@ -584,6 +587,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return nvml.FEATURE_DISABLED, nvml.SUCCESS
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
+		},
+		GetNvLinkVersionFunc: func(link int) (uint32, nvml.Return) {
+			if isMIGUnsupported || !opts.nvlinkSupported() || link >= opts.nvlinkLinkCount {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return uint32(opts.nvlinkGeneration), nvml.SUCCESS
 		},
 		GetNvLinkUtilizationCounterFunc: func(_, _ int) (uint64, uint64, nvml.Return) {
 			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {

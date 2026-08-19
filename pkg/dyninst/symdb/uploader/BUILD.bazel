@@ -30,7 +30,7 @@ dd_agent_go_test(
     embed = [":uploader"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/dyninst/object",
         "//pkg/dyninst/symdb",

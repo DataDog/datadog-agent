@@ -404,6 +404,13 @@ for executing Kubernetes and Helm actions on behalf of the cluster agent.
 
 Package helmactions provides a component for executing Helm actions.
 
+### [comp/kubeactions/kubeactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions)
+
+Package kubeactions provides a component for executing Kubernetes actions
+(delete pod, restart/patch/rollback deployment, get resource) on behalf of
+the cluster agent, and for reporting their progress and results to the
+backend via the Event Platform.
+
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-log-pipelines
@@ -879,6 +886,12 @@ Package connectivitychecker is responsible for running connectivity checks that 
 
 Package queryactions provides the Data Observability query actions component
 
+### [comp/dataplane/preflightmode](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataplane/preflightmode)
+
+*Datadog Team*: agent-data-plane
+
+Package preflightmode pre-flights the Agent Data Plane (ADP).
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-products
@@ -929,6 +942,12 @@ Package metriclookback defines the metric lookback component.
 *Datadog Team*: ndm-integrations
 
 Package networkconfigmanagement provides the component for retrieving network device configurations.
+
+### [comp/networkdevices](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdevices)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package networkdevices provides the Agent-side component for NDM.
 
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 

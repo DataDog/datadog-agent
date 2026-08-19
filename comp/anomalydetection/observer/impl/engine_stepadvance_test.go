@@ -19,6 +19,7 @@ type fixedDetector struct {
 }
 
 func (d *fixedDetector) Name() string { return "fixed" }
+func (*fixedDetector) Ready() bool    { return true }
 
 func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64) observer.DetectionResult {
 	if d.fired {
@@ -79,6 +80,29 @@ func TestStepAdvance_SingleTimestampGroupFarBehindUpTo(t *testing.T) {
 	if len(accumulated) > 0 {
 		assert.Equal(t, 2, len(accumulated[0].Anomalies), "cluster should contain both anomalies")
 	}
+}
+
+func TestEngineRecordsDeduplicatedDetectorEmissionsBeforeCorrelation(t *testing.T) {
+	e, _ := makeEngine([]observer.Anomaly{
+		makeTestAnomaly("metric_a", 100),
+		makeTestAnomaly("metric_b", 100),
+	})
+
+	var got []struct{ detector, severity string }
+	e.onDetectorEmission = func(detector, severity string) {
+		got = append(got, struct{ detector, severity string }{detector, severity})
+	}
+
+	e.Advance(310)
+	// The fixture emits score-less ScanMW anomalies, which the scorer classifies
+	// as xlow using ScanMW's configured score thresholds.
+	assert.Equal(t, []struct{ detector, severity string }{{"scanmw", "xlow"}, {"scanmw", "xlow"}}, got)
+
+	// Re-emit the same raw output. It is still a detector result, but it is a
+	// duplicate and therefore must not inflate the scorer-facing metric.
+	e.detectors[0].(*fixedDetector).fired = false
+	e.Advance(311)
+	assert.Len(t, got, 2)
 }
 
 // TestStepAdvance_MultipleTimestampGroupsFarBehindUpTo tests that clusters from

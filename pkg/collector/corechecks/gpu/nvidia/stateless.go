@@ -23,9 +23,9 @@ import (
 
 // nvlinkSample handles NVLink metrics collection logic
 func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
-	totalNVLinks, err := GetNVLinkCount(device)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get nvlink count: %w", err)
+	totalNVLinks := device.GetDeviceInfo().NVLinkLinkCount
+	if totalNVLinks <= 0 {
+		return nil, 0, errUnsupportedDevice
 	}
 
 	// Collect NVLink states
@@ -490,6 +490,21 @@ func clockThrottleReasonMetrics(reasons uint64) []Metric {
 	return allMetrics
 }
 
+// vGPU environments may return an error other than ERROR_NOT_SUPPORTED from GetMaxClockInfo,
+// so check the cached device virtualization mode before calling it.
+func maxClockInfoSample(device ddnvml.Device, clockType nvml.ClockType, metricName string) ([]Metric, uint64, error) {
+	if device.GetDeviceInfo().VirtualizationMode == nvml.GPU_VIRTUALIZATION_MODE_VGPU {
+		return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMaxClockInfo", nvml.ERROR_NOT_SUPPORTED)
+	}
+
+	clock, err := device.GetMaxClockInfo(clockType)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return []Metric{{Name: metricName, Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
+}
+
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
 func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis := []apiCallInfo{
@@ -687,41 +702,25 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		{
 			Name: "max_clock_speed_sm",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				smClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
-				if err != nil {
-					return nil, 0, err
-				}
-				return []Metric{{Name: "clock.speed.sm.max", Value: float64(smClock), Type: metrics.GaugeType}}, 0, nil
+				return maxClockInfoSample(device, nvml.CLOCK_SM, "clock.speed.sm.max")
 			},
 		},
 		{
 			Name: "max_clock_speed_memory",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				memoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
-				if err != nil {
-					return nil, 0, err
-				}
-				return []Metric{{Name: "clock.speed.memory.max", Value: float64(memoryClock), Type: metrics.GaugeType}}, 0, nil
+				return maxClockInfoSample(device, nvml.CLOCK_MEM, "clock.speed.memory.max")
 			},
 		},
 		{
 			Name: "max_clock_speed_graphics",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				graphicsClock, err := device.GetMaxClockInfo(nvml.CLOCK_GRAPHICS)
-				if err != nil {
-					return nil, 0, err
-				}
-				return []Metric{{Name: "clock.speed.graphics.max", Value: float64(graphicsClock), Type: metrics.GaugeType}}, 0, nil
+				return maxClockInfoSample(device, nvml.CLOCK_GRAPHICS, "clock.speed.graphics.max")
 			},
 		},
 		{
 			Name: "max_clock_speed_video",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				videoClock, err := device.GetMaxClockInfo(nvml.CLOCK_VIDEO)
-				if err != nil {
-					return nil, 0, err
-				}
-				return []Metric{{Name: "clock.speed.video.max", Value: float64(videoClock), Type: metrics.GaugeType}}, 0, nil
+				return maxClockInfoSample(device, nvml.CLOCK_VIDEO, "clock.speed.video.max")
 			},
 		},
 		{

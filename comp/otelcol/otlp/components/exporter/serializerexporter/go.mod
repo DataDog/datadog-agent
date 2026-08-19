@@ -55,8 +55,10 @@ require (
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
+require github.com/DataDog/datadog-agent/pkg/config/helper v0.80.2 // indirect
+
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.207 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.209 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.80.2 // indirect
@@ -70,11 +72,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.80.2
@@ -106,7 +105,6 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
-	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -295,7 +293,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../../../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../../../../pkg/config/basic
-	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../../../../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../../../../pkg/config/helper
@@ -303,7 +300,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../../../../pkg/config/remote
-	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../../../../../pkg/config/render_config
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../../../../pkg/config/setup/constants

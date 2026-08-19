@@ -29,6 +29,7 @@ from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import generate_dummy_package
+from tasks.schema.generate import schema_codegen
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -292,6 +293,9 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             if mod.independent:
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
 
+        # TODO: remove once Bazel is used to build the Agent
+        schema_codegen(ctx)
+
         with ctx.cd(dummy_folder):
             ctx.run("go mod tidy")
             res = ctx.run("go build main.go", warn=True)
@@ -366,7 +370,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.5 linux/amd64"
+    # result is like "go version go1.26.6 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

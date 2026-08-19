@@ -20,7 +20,7 @@ dd_agent_go_test(
     embed = [":trietest"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],
+    tags = ["requires_ebpf"],
     deps = [
         "@com_github_stretchr_testify//require",
         "@net_pgregory_rapid//:rapid",
