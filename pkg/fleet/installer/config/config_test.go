@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 )
 
@@ -585,6 +586,68 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 
 	err = op.apply(context.Background(), root)
 	assert.Error(t, err)
+}
+
+func TestRemoveConfigFilesMissingFromSource(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	writeFile := func(root, path string) {
+		t.Helper()
+		fullPath := filepath.Join(root, filepath.FromSlash(path))
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
+		require.NoError(t, os.WriteFile(fullPath, []byte(path), 0644))
+	}
+
+	for _, path := range []string{
+		"datadog.yaml",
+		"conf.d/existing.d/config.yaml",
+	} {
+		writeFile(sourceDir, path)
+		writeFile(targetDir, path)
+	}
+	for _, path := range []string{
+		"security-agent.yaml",
+		"conf.d/new.d/config.yaml",
+		"files/conf.d/customer.yaml",
+		"conf.d/new.d/README.txt",
+		"managed/datadog-agent/stable/metadata.json",
+		"auth_token",
+	} {
+		writeFile(targetDir, path)
+	}
+
+	require.NoError(t, removeConfigFilesMissingFromSource(sourceDir, targetDir))
+
+	assert.FileExists(t, filepath.Join(targetDir, "datadog.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "conf.d", "existing.d", "config.yaml"))
+	assert.NoFileExists(t, filepath.Join(targetDir, "security-agent.yaml"))
+	assert.NoFileExists(t, filepath.Join(targetDir, "conf.d", "new.d", "config.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "files", "conf.d", "customer.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "conf.d", "new.d", "README.txt"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed", "datadog-agent", "stable", "metadata.json"))
+	assert.FileExists(t, filepath.Join(targetDir, "auth_token"))
+}
+
+func TestVerifyConfigFilesCopied(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	sourceConfigPath := filepath.Join(sourceDir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(sourceConfigPath, []byte("log_level: info\n"), 0644))
+	unmanagedPath := filepath.Join(sourceDir, "files", "conf.d", "customer.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(unmanagedPath), 0755))
+	require.NoError(t, os.WriteFile(unmanagedPath, []byte("customer: true\n"), 0644))
+	legacyMetadataPath := filepath.Join(sourceDir, "managed", "datadog-agent", "stable", "metadata.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(legacyMetadataPath), 0755))
+	require.NoError(t, os.WriteFile(legacyMetadataPath, []byte("{}"), 0644))
+
+	err := verifyConfigFilesCopied(sourceDir, targetDir)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "datadog.yaml")
+
+	require.NoError(t, os.WriteFile(filepath.Join(targetDir, "datadog.yaml"), []byte("log_level: info\n"), 0644))
+	require.NoError(t, verifyConfigFilesCopied(sourceDir, targetDir))
 }
 
 func TestConfig_SimpleStartPromote(t *testing.T) {

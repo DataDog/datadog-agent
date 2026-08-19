@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 )
 
@@ -317,6 +318,47 @@ func TestRemoveExperiment_RestoresApplicationMonitoringEveryoneRead(t *testing.T
 	assert.NoError(t, dirs.RemoveExperiment(context.Background()))
 	assert.FileExists(t, filePath)
 	assert.True(t, everyoneCanRead(t, filePath), "application_monitoring.yaml should regain Everyone read after rollback restore")
+}
+
+func TestRemoveExperimentPreservesUnmanagedFilesAndConfigACLs(t *testing.T) {
+	stablePath := t.TempDir()
+	experimentPath := filepath.Join(t.TempDir(), "experiment")
+	datadogPath := filepath.Join(stablePath, "datadog.yaml")
+
+	require.NoError(t, os.WriteFile(datadogPath, []byte("log_level: info\n"), 0600))
+	require.NoError(t, paths.SetFileReadableByEveryone(datadogPath))
+	require.True(t, everyoneCanRead(t, datadogPath))
+
+	dirs := &Directories{
+		StablePath:     stablePath,
+		ExperimentPath: experimentPath,
+	}
+	require.NoError(t, dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "delete-and-create-config",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationDelete, FilePath: "/datadog.yaml"},
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/conf.d/new.d/config.yaml",
+				Patch:             []byte(`{"enabled": true}`),
+			},
+		},
+	}))
+	require.NoFileExists(t, datadogPath)
+
+	unmanagedYAMLPath := filepath.Join(stablePath, "files", "conf.d", "customer.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(unmanagedYAMLPath), 0755))
+	require.NoError(t, os.WriteFile(unmanagedYAMLPath, []byte("customer: true\n"), 0600))
+	authTokenPath := filepath.Join(stablePath, "auth_token")
+	require.NoError(t, os.WriteFile(authTokenPath, []byte("token"), 0600))
+
+	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+
+	require.FileExists(t, datadogPath)
+	assert.True(t, everyoneCanRead(t, datadogPath), "rollback should restore the original config ACL")
+	assert.FileExists(t, unmanagedYAMLPath, "rollback should not purge unmanaged YAML")
+	assert.FileExists(t, authTokenPath, "rollback should not purge non-config files")
+	assert.NoFileExists(t, filepath.Join(stablePath, "conf.d", "new.d", "config.yaml"))
 }
 
 // TestDeploymentIDAfterRollback reproduces the bug where RemoveExperiment incorrectly

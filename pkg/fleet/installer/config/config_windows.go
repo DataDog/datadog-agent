@@ -113,8 +113,11 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error restoring stable directory: %w", err)
 	}
-	// robocopy does not carry ACLs, so re-grant Everyone read on application_monitoring.yaml
-	// (the only world-readable config file) after restoring the stable directory.
+	err = removeConfigFilesMissingFromSource(d.ExperimentPath, d.StablePath)
+	if err != nil {
+		return fmt.Errorf("error removing experiment config files: %w", err)
+	}
+	// Ensure application_monitoring.yaml retains its required Everyone-read access after restore.
 	if err := grantApplicationMonitoringReadAccess(d.StablePath); err != nil {
 		return fmt.Errorf("error applying application_monitoring.yaml permissions: %w", err)
 	}
@@ -127,7 +130,6 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 
 // backupOrRestoreDirectory copies YAML files from source to target.
 // It preserves the directory structure and file permissions.
-// If copyDeploymentID is true, also copies the .deployment-id file.
 func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string) error {
 	_, err := os.Stat(sourcePath)
 	if err != nil && !os.IsNotExist(err) {
@@ -148,11 +150,16 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	// robocopy exit codes 1-7 indicate successful copies with various informational statuses.
 	// Only codes >=8 indicate copy errors.
 	// https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/return-codes-used-robocopy-utility
+	//
+	// The target root is created with the source root's security descriptor before a backup,
+	// and the stable root is never removed before a restore. This prevents an unprivileged user
+	// from pre-creating the target between directory creation and robocopy applying /SEC.
 	cmd := telemetry.CommandContext(
 		ctx,
 		"robocopy",
-		"/MIR",
+		"/S",
 		"/SL",
+		"/SEC",
 		sourcePath,
 		targetPath,
 		"*.yaml",
@@ -169,7 +176,7 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	if exitErr != nil && exitErr.ExitCode() >= 8 {
 		return fmt.Errorf("error executing robocopy: %w\n%s\n%s", err, stdout.String(), stderr.String())
 	}
-	return nil
+	return verifyConfigFilesCopied(sourcePath, targetPath)
 }
 
 // secureCreateTargetDirectoryWithSourcePermissions creates targetPath with the same permissions as srcPath.
@@ -200,8 +207,7 @@ func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path strin
 
 // grantApplicationMonitoringReadAccess re-grants Everyone read on application_monitoring.yaml
 // under stablePath, if it exists. application_monitoring.yaml is the only world-readable config
-// file, and robocopy (used to restore the stable directory during a rollback) does not carry
-// ACLs, so the ACE must be reapplied afterward.
+// file, so keep this explicit even though the rollback copy also preserves its ACL.
 func grantApplicationMonitoringReadAccess(stablePath string) error {
 	appMonitoringPath := filepath.Join(stablePath, "application_monitoring.yaml")
 	_, err := os.Stat(appMonitoringPath)

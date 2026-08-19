@@ -449,6 +449,70 @@ func getConfigFileSpec(file string) *configFileSpec {
 	return nil
 }
 
+func isManagedConfigYAML(relativePath string) bool {
+	return strings.EqualFold(filepath.Ext(relativePath), ".yaml") &&
+		getConfigFileSpec("/"+filepath.ToSlash(relativePath)) != nil
+}
+
+func removeConfigFilesMissingFromSource(sourcePath, targetPath string) error {
+	return filepath.WalkDir(targetPath, func(targetFile string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+
+		relativePath, err := filepath.Rel(targetPath, targetFile)
+		if err != nil {
+			return fmt.Errorf("could not resolve config file path %q: %w", targetFile, err)
+		}
+		if !isManagedConfigYAML(relativePath) {
+			return nil
+		}
+
+		_, err = os.Lstat(filepath.Join(sourcePath, relativePath))
+		if err == nil {
+			return nil
+		}
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("could not check source config file %q: %w", relativePath, err)
+		}
+		if err := os.Remove(targetFile); err != nil {
+			return fmt.Errorf("could not remove config file %q during rollback: %w", relativePath, err)
+		}
+		return nil
+	})
+}
+
+func verifyConfigFilesCopied(sourcePath, targetPath string) error {
+	return filepath.WalkDir(sourcePath, func(sourceFile string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+
+		relativePath, err := filepath.Rel(sourcePath, sourceFile)
+		if err != nil {
+			return fmt.Errorf("could not resolve config file path %q: %w", sourceFile, err)
+		}
+		if !isManagedConfigYAML(relativePath) {
+			return nil
+		}
+
+		_, err = os.Lstat(filepath.Join(targetPath, relativePath))
+		if os.IsNotExist(err) {
+			return fmt.Errorf("config file %q was not copied", relativePath)
+		}
+		if err != nil {
+			return fmt.Errorf("could not check copied config file %q: %w", relativePath, err)
+		}
+		return nil
+	})
+}
+
 func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 	var allOps []FileOperation
 
