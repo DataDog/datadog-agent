@@ -27,7 +27,7 @@ VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
 GPU_BURNER_BRANCH = "main"
-GPU_BURNER_VERSION = "f05853f8"
+GPU_BURNER_VERSION = "9ded3e87"
 MASS_READ_URL = "https://mass-read.us1.ddbuild.io/internal/artifact"
 MASS_AUDIENCE = "rapid-dependency-management-mass"
 
