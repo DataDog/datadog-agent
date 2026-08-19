@@ -6,7 +6,6 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,14 +16,10 @@ import (
 	"github.com/bazelbuild/rules_go/go/tools/bzltestutil"
 )
 
-type manifestEntry struct {
-	pkg     string
-	logPath string
-}
-
 type options struct {
-	manifestPath string
-	outputPath   string
+	label      string
+	logPath    string
+	outputPath string
 }
 
 func main() {
@@ -40,15 +35,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	entries, err := readManifest(opts.manifestPath)
-	if err != nil {
-		return err
-	}
-
 	var out io.Writer = stdout
-	var outFile *os.File
 	if opts.outputPath != "" && opts.outputPath != "-" {
-		outFile, err = os.Create(opts.outputPath)
+		outFile, err := os.Create(opts.outputPath)
 		if err != nil {
 			return fmt.Errorf("create output %q: %w", opts.outputPath, err)
 		}
@@ -56,11 +45,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 		out = outFile
 	}
 
-	if err := convert(entries, out); err != nil {
+	if err := convert(opts.label, opts.logPath, out); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(stderr, "Converted %d Bazel test logs to test2json\n", len(entries))
+	fmt.Fprintf(stderr, "Converted %s to test2json\n", opts.logPath)
 	return nil
 }
 
@@ -68,68 +57,40 @@ func parseFlags(args []string) (options, error) {
 	var opts options
 	fs := flag.NewFlagSet("testlogs_to_json", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	fs.StringVar(&opts.manifestPath, "manifest", "", "Path to a tab-separated manifest: <go import path>\\t<test.log path>")
+	fs.StringVar(&opts.label, "label", "", "Bazel test label to record as the test2json package")
+	fs.StringVar(&opts.logPath, "log", "", "Path to the test.log to convert")
 	fs.StringVar(&opts.outputPath, "output", "-", "Path to write test2json JSONL output, or '-' for stdout")
 	if err := fs.Parse(args); err != nil {
 		return opts, err
 	}
-	if opts.manifestPath == "" {
-		return opts, errors.New("missing required -manifest")
-	}
 	if fs.NArg() != 0 {
 		return opts, fmt.Errorf("unexpected positional arguments: %s", strings.Join(fs.Args(), " "))
+	}
+	if opts.label == "" || opts.logPath == "" {
+		return opts, errors.New("both -label and -log are required")
 	}
 	return opts, nil
 }
 
-func readManifest(path string) ([]manifestEntry, error) {
-	f, err := os.Open(path)
+// convert streams a Bazel test.log through the rules_go test2json converter.
+//
+// The Bazel label, not the Go import path, is recorded as the test2json package:
+// dd_agent_go_test emits several configured go_test targets for the same Go
+// package under different build-tag sets, and collapsing them to one import path
+// would make UTOF report those distinct runs as retries of each other.
+func convert(label, logPath string, out io.Writer) error {
+	f, err := os.Open(logPath)
 	if err != nil {
-		return nil, fmt.Errorf("open manifest %q: %w", path, err)
+		return fmt.Errorf("open test log %q: %w", logPath, err)
 	}
 	defer f.Close()
 
-	var entries []manifestEntry
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		pkg, logPath, ok := strings.Cut(line, "\t")
-		if !ok || pkg == "" || logPath == "" {
-			return nil, fmt.Errorf("invalid manifest line: expected <go import path>\\t<test.log path>, got %q", line)
-		}
-		if strings.Contains(logPath, "\t") {
-			return nil, fmt.Errorf("invalid manifest line: too many tab-separated fields, got %q", line)
-		}
-		entries = append(entries, manifestEntry{pkg: pkg, logPath: logPath})
+	converter := bzltestutil.NewConverter(out, label, bzltestutil.Timestamp)
+	if _, err := io.Copy(converter, f); err != nil {
+		return fmt.Errorf("convert test log %q: %w", logPath, err)
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read manifest %q: %w", path, err)
-	}
-	return entries, nil
-}
-
-func convert(entries []manifestEntry, out io.Writer) error {
-	for _, entry := range entries {
-		f, err := os.Open(entry.logPath)
-		if err != nil {
-			return fmt.Errorf("open test log %q for package %s: %w", entry.logPath, entry.pkg, err)
-		}
-
-		converter := bzltestutil.NewConverter(out, entry.pkg, bzltestutil.Timestamp)
-		_, copyErr := io.Copy(converter, f)
-		closeErr := f.Close()
-		if copyErr != nil {
-			return fmt.Errorf("convert test log %q for package %s: %w", entry.logPath, entry.pkg, copyErr)
-		}
-		if closeErr != nil {
-			return fmt.Errorf("close test log %q for package %s: %w", entry.logPath, entry.pkg, closeErr)
-		}
-		if err := converter.Close(); err != nil {
-			return fmt.Errorf("close converter for test log %q package %s: %w", entry.logPath, entry.pkg, err)
-		}
+	if err := converter.Close(); err != nil {
+		return fmt.Errorf("close converter for test log %q: %w", logPath, err)
 	}
 	return nil
 }
