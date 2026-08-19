@@ -95,6 +95,31 @@ func runString(code string) (string, error) {
 	return string(output), err
 }
 
+// getClassBench calls get_class for the given module, exercising _findSubclassOf.
+// It discards the result and clears any error. Intended for BenchmarkXxx functions.
+func getClassBench(moduleName string) {
+	var pyModule *C.rtloader_pyobject_t
+	var pyClass *C.rtloader_pyobject_t
+
+	cModule := (*C.char)(helpers.TrackedCString(moduleName))
+	defer C.call_free(unsafe.Pointer(cModule))
+
+	runtime.LockOSThread()
+	state := C.ensure_gil(rtloader)
+
+	C.get_class(rtloader, cModule, &pyModule, &pyClass)
+	if pyModule != nil {
+		C.rtloader_decref(rtloader, pyModule)
+	}
+	if pyClass != nil {
+		C.rtloader_decref(rtloader, pyClass)
+	}
+	C.clear_error(rtloader)
+
+	C.release_gil(rtloader, state)
+	runtime.UnlockOSThread()
+}
+
 func fetchError() error {
 	if C.has_error(rtloader) == 1 {
 		return errors.New(C.GoString(C.get_error(rtloader)))
