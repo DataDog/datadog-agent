@@ -85,6 +85,7 @@ from tasks import (
     systray,
     testwasher,
     trace_agent,
+    utof,
     vim,
     virustotal,
     vscode,
@@ -281,6 +282,7 @@ ns.add_collection(schema)
 ns.add_collection(sbomgen)
 ns.add_collection(virustotal)
 ns.add_collection(files_inventory)
+ns.add_collection(utof)
 
 # e2e-framework collections (from test/e2e-framework)
 ns.add_collection(e2e_aws.collection, "aws")
