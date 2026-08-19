@@ -223,19 +223,43 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("api_key", string(ddc.API.Key), pkgconfigmodel.SourceFile)
 	pkgconfig.Set("site", ddc.API.Site, pkgconfigmodel.SourceFile)
 
-	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
+	ddURL := ddc.Metrics.Endpoint
+	pkgconfig.Set("dd_url", ddURL, pkgconfigmodel.SourceFile)
 	if ddc.ClientConfig.TLS.InsecureSkipVerify {
 		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
+	}
+
+	// V3 series metrics intake for DDOT. The global use_v3_api.series.enabled default
+	// ("datadog_only") gates v3 on IsDatadogURL, whose allowlist matches the core Agent's
+	// app.<site> infra host — but the Datadog exporter (and therefore dd_url above) targets
+	// api.<site>, which IsDatadogURL does not recognize, so a default DDOT deployment would
+	// silently stay on v2. Make datadog_only recognize DDOT's own default endpoint by pinning
+	// api.<site> to v3 with a per-endpoint override, keyed by the exact dd_url the forwarder
+	// resolver reports as its config name.
+	//
+	// This applies only on the datadog_only default: an explicit use_v3_api.series.enabled
+	// (true or false) is respected globally, so the usual kill-switch (…enabled=false /
+	// DD_USE_V3_API_SERIES_ENABLED=false) still works even though a per-endpoint entry would
+	// otherwise outrank it. A custom endpoint falls through to datadog_only (-> v2), and an
+	// explicit per-endpoint entry for this URL is left untouched.
+	if ddURL == "https://api."+ddc.API.Site &&
+		strings.ToLower(strings.TrimSpace(pkgconfig.GetString("use_v3_api.series.enabled"))) == "datadog_only" {
+		seriesEndpoints := pkgconfig.GetStringMapString("use_v3_api.series.endpoints")
+		if _, alreadySet := seriesEndpoints[ddURL]; !alreadySet {
+			merged := make(map[string]string, len(seriesEndpoints)+1)
+			for url, v3 := range seriesEndpoints {
+				merged[url] = v3
+			}
+			merged[ddURL] = "true"
+			pkgconfig.Set("use_v3_api.series.endpoints", merged, pkgconfigmodel.SourceAgentRuntime)
+		}
 	}
 
 	// Compression: the otel-agent (DDOT) uses zstd for every signal (metrics, traces,
 	// logs) so the compression algorithm stays consistent across signals. The level
 	// defaults to 3 but stays overridable via DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL
-	// (SourceDefault < SourceEnvVar). zstd is v3-compatible (unlike zlib), so DDOT no
-	// longer opts out of the v3 metrics intake: use_v3_api.series.enabled follows the
-	// global default (datadog_only) — series to Datadog domains use the v3 series intake,
-	// other destinations stay on v2. It is intentionally not set here so it remains
-	// overridable via DD_USE_V3_API_SERIES_ENABLED.
+	// (SourceDefault < SourceEnvVar). zstd also makes the v3 series intake viable for DDOT
+	// (v3 rejects zlib); the v3 series opt-in is handled above.
 	pkgconfig.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("serializer_zstd_compressor_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
