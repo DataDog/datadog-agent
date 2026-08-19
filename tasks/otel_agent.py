@@ -138,7 +138,9 @@ def integration_test(ctx):
     # //go:build zlib && zstd) resolves to a real compressor — matching the shipped
     # otel-agent tags (OTEL_AGENT_TAGS). Without them the selector links its noop
     # variant and metrics ship uncompressed ("identity") instead of zstd.
-    cmd = """go test -timeout 0s -tags otlp,test,zlib,zstd -run ^TestIntegration$ \
+    # Cap the timeout: with -timeout 0s a hang in the test becomes a 2h GitLab job
+    # timeout with no panic trace, instead of a test failure with a goroutine dump.
+    cmd = """go test -timeout 20m -tags otlp,test,zlib,zstd -run ^TestIntegration$ \
         github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest -v"""
 
     # TODO: remove once Bazel is used to build the Agent
