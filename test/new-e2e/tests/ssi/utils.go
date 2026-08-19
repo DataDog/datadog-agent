@@ -154,15 +154,6 @@ func hasInstallType(container, want string) func(*corev1.Pod) bool {
 	}
 }
 
-// noInjection is the deny-policy signal: MutatePod returns nil and writes no
-// APM annotations, so "webhook processed" cannot be used as a readiness check.
-func noInjection(container string) func(*corev1.Pod) bool {
-	return func(pod *corev1.Pod) bool {
-		_, hasPreload := containerEnv(pod, container, "LD_PRELOAD")
-		return !hasPreload
-	}
-}
-
 func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName string) []*trace.TracerPayload {
 	filtered := []*trace.TracerPayload{}
 	serviceNameTag := "service:" + serviceName
