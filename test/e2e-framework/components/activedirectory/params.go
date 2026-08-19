@@ -28,9 +28,11 @@ const (
 	maxADDomainPollAttempts = 60
 	adDomainPollRetryDelay  = 5 * stdtime.Second
 
-	// ~10 minute budget for ensure-rid-allocation-ready's onError retries.
-	maxRIDPollAttempts = 120
-	ridPollRetryDelay  = 5 * stdtime.Second
+	// ~10 minute budget for ensure-rid-allocation-ready's onError retries. Pulumi hard-caps
+	// onError hook retries at 100, so this uses a longer delay (rather than more attempts) to
+	// still cover the same budget the previous inline loop used.
+	maxRIDPollAttempts = 100
+	ridPollRetryDelay  = 6 * stdtime.Second
 )
 
 // Configuration is an object representing the desired Active Directory configuration.
