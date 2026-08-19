@@ -193,10 +193,12 @@ func (s *packageApmInjectSuite) TestAgentDowngradeAPMInjectService() {
 	require.NotEqual(s.T(), agentVersionWithoutAPMSystemdCommands, recentAgentVersion,
 		"test requires a recent Agent before exercising the downgrade")
 
-	// Do not repeat the SSI environment variables from the initial installation.
-	// The installed injector package is the durable signal that the install
-	// script must refresh its stable hook after changing Agent stable.
+	// Repeat the SSI installation while downgrading the Agent. Before the fix,
+	// the already-stable injector version was skipped and its post-install hook
+	// was not refreshed against the downgraded Agent.
 	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=install.datadoghq.com.internal.dda-testing.com",
 		envForceVersion("datadog-agent", agentVersionWithoutAPMSystemdCommands),
 	)
