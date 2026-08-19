@@ -1,0 +1,17 @@
+---
+fixes:
+  - |
+    On Windows, fixed an issue where upgrading the Agent without providing the
+    ``DDAGENTUSER_PASSWORD`` option could lock out the Agent user account. This affected
+    hosts that were first installed with Agent 7.65 or earlier using a domain account, and
+    that have since only been upgraded without re-providing the password. On such hosts the
+    ``dd-procmgr-service`` service was created without a usable password, repeatedly failed
+    to log on, and exhausted the domain account lockout threshold, which prevented the Agent
+    from starting on every host sharing that account.
+
+    The installer now leaves ``dd-procmgr-service`` disabled when the Agent user password is
+    not available, and enables it again once the password is provided. While the service is
+    disabled, components supervised by the process manager, such as OpenTelemetry Collector,
+    the Private Action Runner, and Agent Data Plane, do not run. Reinstall or upgrade the
+    Agent with the ``DDAGENTUSER_NAME`` and ``DDAGENTUSER_PASSWORD`` options provided to
+    restore them.

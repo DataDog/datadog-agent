@@ -1,0 +1,173 @@
+using Datadog.CustomActions;
+using Datadog.CustomActions.Interfaces;
+using FluentAssertions;
+using Moq;
+using System;
+using System.ComponentModel;
+using System.Security.Principal;
+using System.ServiceProcess;
+using Xunit;
+
+namespace CustomActions.Tests.Service
+{
+    /// <summary>
+    /// Unit tests for the dd-procmgr-service start type handling in ConfigureServiceUsers.
+    ///
+    /// dd-procmgr-service runs as ddagentuser. When no password is available the MSI creates it with an
+    /// empty password, it fails to log on, and the SCM retries the logon indefinitely, which locks out
+    /// domain accounts. ConfigureServiceUsers must disable the service in that case, and only in that
+    /// case.
+    /// </summary>
+    public class ProcmgrStartTypeTests
+    {
+        private const string DomainUserName = "TESTDOMAIN\\ddagentuser";
+        private const string ProcmgrServiceName = "dd-procmgr-service";
+
+        private static readonly SecurityIdentifier DomainUserSid =
+            new SecurityIdentifier("S-1-5-21-1-2-3-1001");
+
+        private static readonly SecurityIdentifier LocalSystemSid =
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+
+        public ServiceCustomActionsTestSetup Test { get; } = new();
+
+        private void GivenAgentUserPassword(string password)
+        {
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_PROCESSED_PASSWORD"])
+                .Returns(password);
+        }
+
+        private void GivenAccountType(bool isServiceAccount, bool isDomainAccount)
+        {
+            Test.NativeMethods
+                .Setup(n => n.IsServiceAccount(It.IsAny<SecurityIdentifier>()))
+                .Returns(isServiceAccount);
+            Test.NativeMethods
+                .Setup(n => n.IsDomainAccount(It.IsAny<SecurityIdentifier>()))
+                .Returns(isDomainAccount);
+        }
+
+        private void VerifyProcmgrStartType(ServiceStartMode expected)
+        {
+            Test.ServiceController.Verify(
+                c => c.SetStartType(ProcmgrServiceName, expected), Times.Once);
+            Test.ServiceController.Verify(
+                c => c.SetStartType(ProcmgrServiceName, It.IsNotIn(expected)), Times.Never);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_DisablesProcmgr_ForDomainAccountWithoutPassword()
+        {
+            GivenAccountType(isServiceAccount: false, isDomainAccount: true);
+            GivenAgentUserPassword(null);
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            VerifyProcmgrStartType(ServiceStartMode.Disabled);
+            // the empty password stored by InstallServices is left alone
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(ProcmgrServiceName, DomainUserName, null), Times.Once);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_EnablesProcmgr_ForDomainAccountWithPassword()
+        {
+            GivenAccountType(isServiceAccount: false, isDomainAccount: true);
+            GivenAgentUserPassword("a-real-password");
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            VerifyProcmgrStartType(ServiceStartMode.Manual);
+        }
+
+        /// <summary>
+        /// Local accounts never reach the disable path: ProcessDdAgentUserCredentials generates a random
+        /// password when none is supplied, so DDAGENTUSER_PROCESSED_PASSWORD is never empty for them.
+        /// This pins that behavior so the fix stays scoped to domain upgrades.
+        /// </summary>
+        [Fact]
+        public void ConfigureServiceUsers_EnablesProcmgr_ForLocalAccountWithoutPassword()
+        {
+            GivenAccountType(isServiceAccount: false, isDomainAccount: false);
+            GivenAgentUserPassword(null);
+
+            Test.Create().ConfigureServiceUsers("MACHINE\\ddagentuser", DomainUserSid);
+
+            VerifyProcmgrStartType(ServiceStartMode.Manual);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_EnablesProcmgr_ForServiceAccount()
+        {
+            // gMSA: no password is needed or expected
+            GivenAccountType(isServiceAccount: true, isDomainAccount: true);
+            GivenAgentUserPassword(null);
+
+            Test.Create().ConfigureServiceUsers("TESTDOMAIN\\ddagentuser$", DomainUserSid);
+
+            VerifyProcmgrStartType(ServiceStartMode.Manual);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_EnablesProcmgr_ForLocalSystem()
+        {
+            GivenAccountType(isServiceAccount: true, isDomainAccount: false);
+            GivenAgentUserPassword(null);
+
+            Test.Create().ConfigureServiceUsers("LocalSystem", LocalSystemSid);
+
+            VerifyProcmgrStartType(ServiceStartMode.Manual);
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(ProcmgrServiceName, "LocalSystem", ""), Times.Once);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_IgnoresProcmgrServiceDoesNotExist()
+        {
+            GivenAccountType(isServiceAccount: false, isDomainAccount: true);
+            GivenAgentUserPassword(null);
+            Test.ServiceController
+                .Setup(c => c.SetStartType(ProcmgrServiceName, It.IsAny<ServiceStartMode>()))
+                .Throws(new InvalidOperationException("nope", new Win32Exception(1060)));
+
+            var sut = Test.Create();
+
+            sut.Invoking(s => s.ConfigureServiceUsers(DomainUserName, DomainUserSid))
+                .Should().NotThrow();
+        }
+
+        /// <summary>
+        /// Any other failure must propagate so that ConfigureServices fails the install. Failing the
+        /// upgrade leaves the customer on their working previous version, which is preferable to
+        /// proceeding and locking out the domain account.
+        /// </summary>
+        [Fact]
+        public void ConfigureServiceUsers_PropagatesOtherStartTypeFailures()
+        {
+            GivenAccountType(isServiceAccount: false, isDomainAccount: true);
+            GivenAgentUserPassword(null);
+            Test.ServiceController
+                .Setup(c => c.SetStartType(ProcmgrServiceName, It.IsAny<ServiceStartMode>()))
+                .Throws(new Win32Exception(5)); // ERROR_ACCESS_DENIED
+
+            var sut = Test.Create();
+
+            sut.Invoking(s => s.ConfigureServiceUsers(DomainUserName, DomainUserSid))
+                .Should().Throw<Win32Exception>();
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_DoesNotChangeStartTypeOfOtherServices()
+        {
+            GivenAccountType(isServiceAccount: false, isDomainAccount: true);
+            GivenAgentUserPassword(null);
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            Test.ServiceController.Verify(
+                c => c.SetStartType(It.IsNotIn(ProcmgrServiceName), It.IsAny<ServiceStartMode>()),
+                Times.Never);
+        }
+    }
+}

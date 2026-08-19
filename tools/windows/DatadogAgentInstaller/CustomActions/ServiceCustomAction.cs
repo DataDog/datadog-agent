@@ -164,11 +164,19 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        private void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
+        internal void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
             var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
-            if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
+            var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
+            // Narrow to domain accounts, which are the only ones that can actually be left without a
+            // usable password: ProcessDdAgentUserCredentials generates a random password for local
+            // accounts, and IsServiceAccount already covers gMSA plus
+            // LocalSystem/LocalService/NetworkService, none of which need a password. Evaluated only when
+            // the password is missing so that IsDomainAccount is not called on the common path.
+            // See ConfigureProcmgrStartType.
+            var passwordUnavailable = passwordNotProvided && _nativeMethods.IsDomainAccount(ddAgentUserSID);
+            if (passwordNotProvided)
             {
                 _session.Log("Password not provided, will not change service user password");
                 // set to null so we don't modify the service config
@@ -214,6 +222,7 @@ namespace Datadog.CustomActions
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, ddAgentUserName, ddAgentUserPassword);
+            ConfigureProcmgrStartType(passwordUnavailable);
 
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
@@ -222,6 +231,52 @@ namespace Datadog.CustomActions
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
             _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+        }
+
+        /// <summary>
+        /// Sets the start type of the Datadog Process Manager service based on whether the Agent user
+        /// password is available.
+        ///
+        /// dd-procmgr-service runs as ddagentuser. The MSI creates it with whatever
+        /// DDAGENTUSER_PROCESSED_PASSWORD contains, and on an upgrade that does not re-provide the
+        /// password and has no password stored in the LSA secret store (hosts first installed with Agent
+        /// 7.65 or earlier) that is an empty password. The service then fails to log on, and the SCM
+        /// restart-on-failure actions retry the failing logon indefinitely, which locks out domain
+        /// accounts.
+        ///
+        /// Disable the service in that case so that it is never started and never attempts a logon. The
+        /// core Agent tolerates this: startDependentServices only logs a warning when a dependent service
+        /// fails to start. DDOT, the Private Action Runner and ADP will not run, but they could not have
+        /// run anyway, since they need the same unavailable password.
+        ///
+        /// When the password is available the start type is set back to demand start, so that a later
+        /// install that does provide the password re-enables the service.
+        /// </summary>
+        private void ConfigureProcmgrStartType(bool passwordUnavailable)
+        {
+            var startType = passwordUnavailable ? ServiceStartMode.Disabled : ServiceStartMode.Manual;
+            if (passwordUnavailable)
+            {
+                _session.Log(
+                    $"The Agent user password is not available, setting {Constants.ProcmgrServiceName} start type to " +
+                    "disabled so that it does not repeatedly fail to log on, which can lock out the account. " +
+                    "Reinstall the Agent with the DDAGENTUSER_NAME and DDAGENTUSER_PASSWORD options provided " +
+                    "to enable the Datadog Process Manager service.");
+            }
+            else
+            {
+                _session.Log($"Setting {Constants.ProcmgrServiceName} start type to {startType}");
+            }
+
+            try
+            {
+                _serviceController.SetStartType(Constants.ProcmgrServiceName, startType);
+            }
+            catch (Exception e) when (IsServiceDoesNotExistError(e))
+            {
+                // If the service does not exist there is nothing that can fail to log on.
+                _session.Log($"Service {Constants.ProcmgrServiceName} not found, not changing its start type");
+            }
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
