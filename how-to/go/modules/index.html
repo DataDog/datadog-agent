@@ -4040,6 +4040,12 @@ This will create the <code>go.mod</code> and <code>go.sum</code> files in the mo
 <div class="admonition info">
 <p class="admonition-title">Info</p>
 <p>For Agent version <code>7.X.Y</code> the module will have version <code>v0.X.Y</code>.</p>
+<p>Agent 6 release candidates do not receive nested module tags. Use the commit
+referenced by the global release candidate tag to derive a Go pseudo-version
+instead. During an Agent 6 release candidate, internal module requirements
+use pseudo-versions derived from the release branch commit so same-RC module
+changes remain available. Final Agent 6 releases continue to receive nested
+module tags.</p>
 </div>
 </li>
 <li>
