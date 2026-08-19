@@ -327,6 +327,8 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 
 	startTime := s.TimeNowFn()
 	if baselineMode {
+		// Close the previous window before observing this snapshot so boundary
+		// traffic belongs entirely to the new window.
 		s.flushBaselinePaths(startTime)
 	}
 	connCount := 0

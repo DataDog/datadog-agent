@@ -88,6 +88,8 @@ func (selector *baselineSelector) add(path common.Pathtest, bytes uint64, now ti
 
 	worst := selector.worstCandidateLocked()
 	delete(selector.candidates, worst.hash)
+	// Space-Saving carries the evicted estimate into the replacement so frequent
+	// paths can still emerge after the candidate set is full.
 	candidate.bytes = saturatingAdd(worst.bytes, bytes)
 	selector.candidates[hash] = candidate
 }
@@ -131,6 +133,7 @@ func (selector *baselineSelector) flush(now time.Time) []common.Pathtest {
 	}
 
 	clear(selector.candidates)
+	// Start a fresh window from this flush; missed windows are not replayed.
 	selector.deadline = now.Add(selector.interval)
 	return paths
 }

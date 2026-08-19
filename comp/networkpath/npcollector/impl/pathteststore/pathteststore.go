@@ -130,8 +130,9 @@ func NewPathtestStore(config Config, logger log.Component, statsdClient ddgostat
 	}
 }
 
-// Flush returns due Pathtest contexts. Recurring contexts advance to their next
-// run, while one-shot contexts are removed after their first flush attempt.
+// Flush will flush specific Pathtest context (distinct hash) if nextRun is reached
+// once a Pathtest context is flushed nextRun will be updated to the next flush time
+// except for one-shot contexts, which are removed after their first flush attempt.
 //
 // ttl:
 // ttl defines the duration we should keep a specific PathtestContext in `Store.contexts`
