@@ -56,6 +56,7 @@ func (n *noopTraceAgent) Flush()                 {}
 func (n *noopTraceAgent) Stop()                  {}
 
 const testImageARN = "arn:aws:lambda:us-east-1:123456789012:microvm-image:my-image"
+const testImageVersion = "v1.2.3"
 
 func TestIsMicroVM(t *testing.T) {
 	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
@@ -68,6 +69,7 @@ func TestIsMicroVMNotSet(t *testing.T) {
 
 func TestMicroVMGetTags(t *testing.T) {
 	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
+	t.Setenv(serverlessenv.MicroVMImageVersionEnvVar, testImageVersion)
 	m := &MicroVM{}
 	tags := m.GetTags()
 
@@ -79,6 +81,7 @@ func TestMicroVMGetTags(t *testing.T) {
 	assert.Equal(t, MicroVMResourceType, tags["resource_type"])
 	assert.Equal(t, "aws", tags["resource_provider"])
 	assert.Equal(t, testImageARN, tags["resource_id"])
+	assert.Equal(t, testImageVersion, tags["lambda_microvm_image_version"])
 	assert.NotContains(t, tags, "microvm_image_arn")
 }
 
@@ -89,8 +92,24 @@ func TestMicroVMGetTagsMissingARN(t *testing.T) {
 	assert.Equal(t, "unknown", tags["account_id"])
 	assert.Equal(t, "unknown", tags["image_name"])
 	assert.Equal(t, "unknown", tags["resource_id"])
+	assert.Equal(t, "unknown", tags["lambda_microvm_image_version"])
 	assert.Equal(t, MicroVMResourceType, tags["resource_type"])
 	assert.Equal(t, "aws", tags["resource_provider"])
+}
+
+// TestMicroVMGetTagsImageVersionIndependentOfARN proves the image version tag
+// is read independently of the ARN: it's populated even when the ARN env var
+// (and thus all ARN-derived tags) is unset.
+func TestMicroVMGetTagsImageVersionIndependentOfARN(t *testing.T) {
+	t.Setenv(serverlessenv.MicroVMImageVersionEnvVar, testImageVersion)
+	m := &MicroVM{}
+	tags := m.GetTags()
+
+	assert.Equal(t, testImageVersion, tags["lambda_microvm_image_version"])
+	assert.Equal(t, "unknown", tags["resource_id"])
+	assert.Equal(t, "unknown", tags["region"])
+	assert.Equal(t, "unknown", tags["account_id"])
+	assert.Equal(t, "unknown", tags["image_name"])
 }
 
 func TestMicroVMGetEnhancedMetricTags(t *testing.T) {
@@ -215,8 +234,9 @@ func TestMicroVM_LogsTagSetter_InvokedOnRun(t *testing.T) {
 		(&MicroVM{}).GetSource(),
 		time.Second,
 		lifecycle.NewNoopChildHandle(),
-		nil, // no forwarder
-		nil, // no heartbeat
+		nil,                     // no forwarder
+		lifecycle.HookToggles{}, // no hooks enabled
+		nil,                     // no heartbeat
 	)
 	// This is the call Init makes when lc.LogsTagSetter != nil.
 	srv.SetLogsTagSetter(setter, baseTags)
@@ -275,8 +295,9 @@ func TestMicroVM_TraceTagSetter_InvokedOnRun(t *testing.T) {
 		(&MicroVM{}).GetSource(),
 		time.Second,
 		lifecycle.NewNoopChildHandle(),
-		nil, // no forwarder
-		nil, // no heartbeat
+		nil,                     // no forwarder
+		lifecycle.HookToggles{}, // no hooks enabled
+		nil,                     // no heartbeat
 	)
 	// This is the call Init makes when lc.TraceTagSetter != nil.
 	srv.SetTraceTagSetter(setter, baseTraceTags)
@@ -352,8 +373,9 @@ func TestMicroVMShutdown_LiveServer_StopsCleanly(t *testing.T) {
 		(&MicroVM{}).GetSource(),
 		time.Second,
 		lifecycle.NewNoopChildHandle(),
-		nil, // no forwarder
-		nil, // no heartbeat
+		nil,                     // no forwarder
+		lifecycle.HookToggles{}, // no hooks enabled
+		nil,                     // no heartbeat
 	)
 	require.NoError(t, srv.ListenAndServe(nil))
 

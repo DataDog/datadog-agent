@@ -46,6 +46,16 @@ func (m *mockFlusher) Flush() {
 	}
 }
 
+// mockForceFlusher tracks Flush and FlushAll calls separately; it satisfies
+// both Flusher and ForceFlusher.
+type mockForceFlusher struct {
+	flushCount    atomic.Int32
+	flushAllCount atomic.Int32
+}
+
+func (m *mockForceFlusher) Flush()    { m.flushCount.Add(1) }
+func (m *mockForceFlusher) FlushAll() { m.flushAllCount.Add(1) }
+
 // mockLogsAgent counts how many times Flush was called and records when each
 // call returned. onFlush, if set, is invoked after each Flush.
 type mockLogsAgent struct {
@@ -74,6 +84,10 @@ type neverDrainer struct{}
 
 func (n *neverDrainer) WaitForPendingSamples() { select {} }
 
+type serverErrReader struct{}
+
+func (serverErrReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
 func newTestServer() (*Server, *mockFlusher, *mockFlusher, *mockLogsAgent, *mockMetricEmitter, *mockSampleDrainer) {
 	metric := &mockFlusher{}
 	trace := &mockFlusher{}
@@ -81,9 +95,9 @@ func newTestServer() (*Server, *mockFlusher, *mockFlusher, *mockLogsAgent, *mock
 	emitter := &mockMetricEmitter{}
 	drainer := &mockSampleDrainer{}
 	// port 0 — handler-level tests don't bind. Tests that need a childHandle,
-	// forwarder, or heartbeat assign srv.childHandle / srv.fwd / srv.heartbeat
-	// after construction.
-	srv := NewServer(0, metric, trace, logs, emitter, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, nil)
+	// forwarder, enabled hooks, or heartbeat assign srv.childHandle / srv.fwd /
+	// srv.enabledHooks / srv.heartbeat after construction.
+	srv := NewServer(0, metric, trace, logs, emitter, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
 	return srv, metric, trace, logs, emitter, drainer
 }
 
@@ -158,6 +172,26 @@ func TestHandleRun_OversizedBody_Returns500(t *testing.T) {
 	assert.NotContains(t, emitter.getEmitted(), runMetricName, "run metric must not be emitted when the body exceeds the cap")
 }
 
+// TestInstanceID_EmptyBeforeRun verifies that InstanceID returns "" before
+// /run fires, and the captured ID afterward — the accessor the enhanced
+// metrics collector uses to attach a per-instance tag to the usage metric.
+func TestInstanceID_EmptyBeforeRun(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	assert.Empty(t, srv.InstanceID(), "InstanceID must be empty before /run fires")
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	assert.Equal(t, "vm-abc123", srv.InstanceID())
+}
+
+// TestInstanceID_NilServer verifies InstanceID is safe to call on a nil
+// *Server, mirroring the existing nil-safety of Child().
+func TestInstanceID_NilServer(t *testing.T) {
+	var srv *Server
+	assert.Empty(t, srv.InstanceID())
+}
+
 // TestHandleRunWithForwarderParsesInstanceID verifies that when a forwarder is
 // configured, /run still decodes the MicroVM instance ID from the request body
 // before delegating to handleWithForwarder. Without the decode-then-restore fix, the
@@ -176,6 +210,7 @@ func TestHandleRunWithForwarderParsesInstanceID(t *testing.T) {
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Run = true
 
 	body := strings.NewReader(`{"microvmId":"vm-fwd123"}`)
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
@@ -194,6 +229,45 @@ func TestHandleRunEmptyBodyDoesNotSetInstanceID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	id := srv.instanceID.Load()
 	assert.Empty(t, id, "empty body must not set instance ID")
+}
+
+func TestHandleRunBodyReadErrorReturns500(t *testing.T) {
+	srv, _, _, _, emitter, _ := newTestServer()
+
+	req := httptest.NewRequest(http.MethodPost, pathRun, serverErrReader{})
+	rec := httptest.NewRecorder()
+	srv.handleRun(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Empty(t, srv.InstanceID(), "failed body read must not set instance ID")
+	assert.NotContains(t, emitter.getEmitted(), runMetricName, "failed body read must not emit run metric")
+}
+
+func TestHandleRunWithForwarderBodyReadErrorDoesNotForward(t *testing.T) {
+	var reached atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, emitter, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	srv.enabledHooks.Run = true
+
+	req := httptest.NewRequest(http.MethodPost, pathRun, serverErrReader{})
+	rec := httptest.NewRecorder()
+	srv.handleRun(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, int32(0), reached.Load(), "user app must not receive a partial runHookPayload")
+	assert.Empty(t, srv.InstanceID(), "failed body read must not set instance ID")
+	assert.NotContains(t, emitter.getEmitted(), runMetricName, "failed body read must not emit run metric")
 }
 
 func TestHandleSuspendFlushesBeforeResponding(t *testing.T) {
@@ -257,6 +331,30 @@ func TestHandleTerminate_NoForwarder_FlushesAndEmitsMetric_NoSigterm(t *testing.
 	}
 }
 
+// TestHandleSuspend_UsesFlushNotFlushAll pins that /suspend calls Flush, not
+// FlushAll (see ForceFlusher for why).
+func TestHandleSuspend_UsesFlushNotFlushAll(t *testing.T) {
+	metric := &mockForceFlusher{}
+	srv := NewServer(0, metric, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+
+	srv.handleSuspend(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathSuspend, nil))
+
+	assert.Equal(t, int32(1), metric.flushCount.Load(), "/suspend must call Flush")
+	assert.Equal(t, int32(0), metric.flushAllCount.Load(), "/suspend must not call FlushAll")
+}
+
+// TestHandleTerminate_UsesFlushAllNotFlush pins that /terminate calls
+// FlushAll, not Flush (see ForceFlusher for why).
+func TestHandleTerminate_UsesFlushAllNotFlush(t *testing.T) {
+	metric := &mockForceFlusher{}
+	srv := NewServer(0, metric, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+
+	srv.handleTerminate(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, int32(1), metric.flushAllCount.Load(), "/terminate must call FlushAll")
+	assert.Equal(t, int32(0), metric.flushCount.Load(), "/terminate must not call Flush")
+}
+
 // TestEmittedMetricsCarryCurrentTimestamp verifies the lifecycle handlers pass
 // a current Unix-seconds timestamp to AddEnhancedMetric rather than the `0`
 // sentinel that defers timestamp assignment to the metric agent. The window
@@ -294,6 +392,7 @@ func TestEmittedMetricsCarryCurrentTimestamp_ForwarderPath(t *testing.T) {
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Run = true
 
 	before := float64(time.Now().UnixNano()) / float64(time.Second)
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
@@ -380,6 +479,7 @@ func TestHandleReady_WithForwarder_PassesThrough(t *testing.T) {
 		readyTimeout:         200 * time.Millisecond,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Ready = true
 	rec := httptest.NewRecorder()
 	srv.handleReady(rec, httptest.NewRequest(http.MethodPost, pathReady, nil))
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
@@ -389,6 +489,93 @@ func TestHandleReady_WithForwarder_PassesThrough(t *testing.T) {
 	// hide that.
 	assert.Equal(t, "application/x-ready", rec.Header().Get("Content-Type"))
 	assert.Equal(t, `{"ready":false,"reason":"warming"}`, rec.Body.String())
+}
+
+// TestHandleReady_WithForwarderButHookDisabled_UsesBuiltInAliveCheck verifies
+// that a configured Forwarder alone is not enough to forward /ready — the
+// hook's own enabledHooks.Ready toggle (default false) must also be set.
+// With the toggle left false, /ready must use the built-in alive-check
+// instead of contacting the upstream user app.
+func TestHandleReady_WithForwarderButHookDisabled_UsesBuiltInAliveCheck(t *testing.T) {
+	var reached atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		readyTimeout:         200 * time.Millisecond,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	// srv.enabledHooks.Ready left false (the default).
+	h := newFakeChildHandle()
+	h.alive.Store(true)
+	srv.childHandle = h
+
+	rec := httptest.NewRecorder()
+	srv.handleReady(rec, httptest.NewRequest(http.MethodPost, pathReady, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code, "must use the built-in alive-check result")
+	assert.Equal(t, int32(0), reached.Load(), "user app must not be contacted when the /ready toggle is disabled")
+}
+
+// /validate shares passThroughReady's PassThroughWaiting code path (same
+// reachability-check-then-forward shape, just bounded by validateTimeout
+// instead of readyTimeout) but had no server-level pass-through coverage of
+// its own — this pins the mirror contract for /validate specifically.
+func TestHandleValidate_WithForwarder_PassesThrough(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/x-validate")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"valid":false,"reason":"warming"}`))
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		validateTimeout:      200 * time.Millisecond,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	srv.enabledHooks.Validate = true
+	rec := httptest.NewRecorder()
+	srv.handleValidate(rec, httptest.NewRequest(http.MethodPost, pathValidate, nil))
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.Equal(t, "application/x-validate", rec.Header().Get("Content-Type"))
+	assert.Equal(t, `{"valid":false,"reason":"warming"}`, rec.Body.String())
+}
+
+// TestHandleValidate_WithForwarderButHookDisabled_ReturnsBuiltIn200 mirrors
+// TestHandleReady_WithForwarderButHookDisabled_UsesBuiltInAliveCheck for
+// /validate: a configured Forwarder alone does not forward /validate without
+// enabledHooks.Validate also being true.
+func TestHandleValidate_WithForwarderButHookDisabled_ReturnsBuiltIn200(t *testing.T) {
+	var reached atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		validateTimeout:      200 * time.Millisecond,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	// srv.enabledHooks.Validate left false (the default).
+
+	rec := httptest.NewRecorder()
+	srv.handleValidate(rec, httptest.NewRequest(http.MethodPost, pathValidate, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code, "must return the built-in 200, not the upstream's 503")
+	assert.Equal(t, int32(0), reached.Load(), "user app must not be contacted when the /validate toggle is disabled")
 }
 
 // /run with a forwarder configured mirrors the user-app's status code,
@@ -409,6 +596,7 @@ func TestHandleRun_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Run = true
 
 	rec := httptest.NewRecorder()
 	srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, nil))
@@ -421,6 +609,36 @@ func TestHandleRun_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	assert.Equal(t, int32(0), metric.count.Load(), "run must not flush")
 	assert.Equal(t, int32(0), trace.count.Load())
 	assert.Equal(t, int32(0), logs.count.Load())
+}
+
+// TestHandleRun_WithForwarderButHookDisabled_DoesNotForward verifies dispatchHook's
+// enabled gate for the run/resume/suspend/terminate group: a configured
+// Forwarder alone is not enough to forward /run — enabledHooks.Run (default
+// false) must also be true. With it left false, /run must take the built-in
+// metric-only path and never contact the upstream user app.
+func TestHandleRun_WithForwarderButHookDisabled_DoesNotForward(t *testing.T) {
+	var reached atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, emitter, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	// srv.enabledHooks.Run left false (the default).
+
+	rec := httptest.NewRecorder()
+	srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code, "must return the built-in 200")
+	assert.Equal(t, int32(0), reached.Load(), "user app must not be contacted when the /run toggle is disabled")
+	assert.Contains(t, emitter.getEmitted(), runMetricName, "the run metric must still be emitted")
 }
 
 // /resume with a forwarder configured mirrors the user-app's response and
@@ -438,6 +656,7 @@ func TestHandleResume_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Resume = true
 
 	rec := httptest.NewRecorder()
 	srv.handleResume(rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
@@ -447,6 +666,38 @@ func TestHandleResume_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	assert.Equal(t, int32(0), metric.count.Load(), "resume must not flush")
 	assert.Equal(t, int32(0), trace.count.Load())
 	assert.Equal(t, int32(0), logs.count.Load())
+}
+
+// TestHandleResume_WithForwarderButHookDisabled_DoesNotForward mirrors
+// TestHandleRun_WithForwarderButHookDisabled_DoesNotForward for /resume: a
+// configured Forwarder alone does not forward /resume without
+// enabledHooks.Resume also being true. Also guards against a hardcoded
+// enabled=true regression in handleResume's dispatchHook call, which the
+// WithForwarder_MirrorsUserAppResponse test above would not catch since it
+// sets the toggle true anyway.
+func TestHandleResume_WithForwarderButHookDisabled_DoesNotForward(t *testing.T) {
+	var reached atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, emitter, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	// srv.enabledHooks.Resume left false (the default).
+
+	rec := httptest.NewRecorder()
+	srv.handleResume(rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code, "must return the built-in 200")
+	assert.Equal(t, int32(0), reached.Load(), "user app must not be contacted when the /resume toggle is disabled")
+	assert.Contains(t, emitter.getEmitted(), resumeMetricName, "the resume metric must still be emitted")
 }
 
 // /terminate with a forwarder configured mirrors the user-app's response,
@@ -465,6 +716,7 @@ func TestHandleTerminate_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Terminate = true
 
 	rec := httptest.NewRecorder()
 	srv.handleTerminate(rec, httptest.NewRequest(http.MethodPost, pathTerminate, nil))
@@ -472,6 +724,39 @@ func TestHandleTerminate_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	assert.Equal(t, 503, rec.Code, "must mirror user-app status, not hardcoded 200")
 	assert.Contains(t, emitter.getEmitted(), terminateMetricName)
 	assert.Equal(t, int32(1), metric.count.Load(), "terminate must flush")
+	assert.Equal(t, int32(1), trace.count.Load())
+	assert.Equal(t, int32(1), logs.count.Load())
+}
+
+// TestHandleTerminate_WithForwarderButHookDisabled_DoesNotForward mirrors
+// TestHandleRun_WithForwarderButHookDisabled_DoesNotForward for /terminate: a
+// configured Forwarder alone does not forward /terminate without
+// enabledHooks.Terminate also being true. The built-in path still flushes
+// telemetry — only the pass-through to the user app is skipped.
+func TestHandleTerminate_WithForwarderButHookDisabled_DoesNotForward(t *testing.T) {
+	var reached atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, metric, trace, logs, emitter, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	// srv.enabledHooks.Terminate left false (the default).
+
+	rec := httptest.NewRecorder()
+	srv.handleTerminate(rec, httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code, "must return the built-in 200")
+	assert.Equal(t, int32(0), reached.Load(), "user app must not be contacted when the /terminate toggle is disabled")
+	assert.Contains(t, emitter.getEmitted(), terminateMetricName, "the terminate metric must still be emitted")
+	assert.Equal(t, int32(1), metric.count.Load(), "the built-in path must still flush")
 	assert.Equal(t, int32(1), trace.count.Load())
 	assert.Equal(t, int32(1), logs.count.Load())
 }
@@ -495,6 +780,7 @@ func TestHandleSuspend_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Suspend = true
 
 	rec := httptest.NewRecorder()
 	srv.handleSuspend(rec, httptest.NewRequest(http.MethodPost, pathSuspend, nil))
@@ -508,6 +794,39 @@ func TestHandleSuspend_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	assert.Equal(t, int32(1), trace.count.Load(), "trace flush must still run")
 	assert.Equal(t, int32(1), logs.count.Load(), "logs flush must still run")
 	assert.Contains(t, emitter.getEmitted(), suspendMetricName, "metric must still be emitted")
+}
+
+// TestHandleSuspend_WithForwarderButHookDisabled_DoesNotForward mirrors
+// TestHandleRun_WithForwarderButHookDisabled_DoesNotForward for /suspend: a
+// configured Forwarder alone does not forward /suspend without
+// enabledHooks.Suspend also being true. The built-in path still flushes
+// telemetry — only the pass-through to the user app is skipped.
+func TestHandleSuspend_WithForwarderButHookDisabled_DoesNotForward(t *testing.T) {
+	var reached atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, metric, trace, logs, emitter, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	// srv.enabledHooks.Suspend left false (the default).
+
+	rec := httptest.NewRecorder()
+	srv.handleSuspend(rec, httptest.NewRequest(http.MethodPost, pathSuspend, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code, "must return the built-in 200")
+	assert.Equal(t, int32(0), reached.Load(), "user app must not be contacted when the /suspend toggle is disabled")
+	assert.Contains(t, emitter.getEmitted(), suspendMetricName, "the suspend metric must still be emitted")
+	assert.Equal(t, int32(1), metric.count.Load(), "the built-in path must still flush")
+	assert.Equal(t, int32(1), trace.count.Load())
+	assert.Equal(t, int32(1), logs.count.Load())
 }
 
 // Parallelism pin: the upstream handler blocks until all three flush mocks
@@ -546,6 +865,7 @@ func TestHandleSuspend_WithForwarder_FlushCompletesBeforeForwardReturns(t *testi
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Suspend = true
 
 	rec := httptest.NewRecorder()
 	srv.handleSuspend(rec, httptest.NewRequest(http.MethodPost, pathSuspend, nil))
@@ -568,6 +888,7 @@ func TestHandleSuspend_WithForwarder_DialErrorStillRunsFlush(t *testing.T) {
 		forwardTimeout:       200 * time.Millisecond,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Suspend = true
 
 	rec := httptest.NewRecorder()
 	srv.handleSuspend(rec, httptest.NewRequest(http.MethodPost, pathSuspend, nil))
@@ -590,6 +911,7 @@ func TestHandleSuspend_WithForwarder_WaitsForForwardBeforeResponse(t *testing.T)
 
 	srv, metric, trace, logs, _, _ := newTestServer()
 	srv.fwd = &Forwarder{target: upstream.URL, client: &http.Client{}, forwardTimeout: 5 * time.Second}
+	srv.enabledHooks.Suspend = true
 
 	handlerReturned := make(chan struct{})
 	rec := httptest.NewRecorder()
@@ -671,6 +993,7 @@ func TestHandleSuspend_WithForwarder_FlushTimeout_ReturnsPromptly(t *testing.T) 
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Suspend = true
 
 	start := time.Now()
 	rec := httptest.NewRecorder()
@@ -719,6 +1042,7 @@ func TestHandleSuspend_WithForwarder_BodyBufferedBeforeFlush(t *testing.T) {
 		forwardTimeout:       100 * time.Millisecond,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Suspend = true
 
 	rec := httptest.NewRecorder()
 	srv.handleSuspend(rec, httptest.NewRequest(http.MethodPost, pathSuspend, nil))
@@ -745,6 +1069,7 @@ func TestHandleTerminate_WithForwarder_FlushTimeout_ReturnsPromptly(t *testing.T
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Terminate = true
 
 	start := time.Now()
 	rec := httptest.NewRecorder()
@@ -787,6 +1112,7 @@ func TestHandleTerminate_WithForwarder_BodyBufferedBeforeFlush(t *testing.T) {
 		forwardTimeout:       100 * time.Millisecond,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Terminate = true
 
 	rec := httptest.NewRecorder()
 	srv.handleTerminate(rec, httptest.NewRequest(http.MethodPost, pathTerminate, nil))
@@ -817,6 +1143,7 @@ func TestHandleTerminate_WithForwarder_WaitsForSlowForward(t *testing.T) {
 		forwardTimeout:       5 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Terminate = true
 
 	handlerReturned := make(chan struct{})
 	rec := httptest.NewRecorder()
@@ -928,7 +1255,7 @@ func TestListenAndServe_BindFailureReturnsErrorDirectly(t *testing.T) {
 	defer occupied.Close()
 	port := occupied.Addr().(*net.TCPAddr).Port
 
-	srv := NewServer(port, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, nil)
+	srv := NewServer(port, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
 
 	called := false
 	err = srv.ListenAndServe(func(error) { called = true })
@@ -987,7 +1314,7 @@ func TestListenAndServe_StopDoesNotInvokeOnServeError(t *testing.T) {
 // TestNewServerWithForwarderWriteTimeoutCoversForwardBudget below.
 func TestNewServerConfiguresHTTPTimeouts(t *testing.T) {
 	flushTimeout := 5 * time.Second
-	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, nil, nil)
+	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, nil, HookToggles{}, nil)
 	assert.Equal(t, 30*time.Second, srv.httpServer.ReadTimeout)
 	assert.Equal(t, flushTimeout+writeTimeoutHeadroom, srv.httpServer.WriteTimeout)
 }
@@ -1004,9 +1331,27 @@ func TestNewServerWithForwarderWriteTimeoutCoversForwardBudget(t *testing.T) {
 		client:               &http.Client{},
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
-	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, fwd, nil)
+	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, fwd, HookToggles{}, nil)
 	assert.Equal(t, fwd.forwardTimeout+flushTimeout+writeTimeoutHeadroom, srv.httpServer.WriteTimeout,
 		"WriteTimeout must cover forwardTimeout+flushTimeout (terminate sequential-flush path)")
+}
+
+// TestNewServerWithForwarderWriteTimeoutCoversReadinessBudgets verifies that
+// WriteTimeout covers the fast reachability dial plus the forwarded /ready or
+// /validate request. Without the dial budget, the HTTP server can close the
+// platform-facing connection just before the handler mirrors a valid response.
+func TestNewServerWithForwarderWriteTimeoutCoversReadinessBudgets(t *testing.T) {
+	flushTimeout := 5 * time.Second
+	fwd := &Forwarder{
+		forwardTimeout:       time.Second,
+		readyTimeout:         2 * time.Second,
+		validateTimeout:      30 * time.Second,
+		client:               &http.Client{},
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, fwd, HookToggles{}, nil)
+	assert.Equal(t, dialCheckTimeout+fwd.validateTimeout+writeTimeoutHeadroom, srv.httpServer.WriteTimeout,
+		"WriteTimeout must cover dialCheckTimeout+validateTimeout for /validate")
 }
 
 // TestInstanceIDTagAppearsInMetricsAfterRun verifies that once /run stores a
@@ -1094,7 +1439,7 @@ func TestMirrorResponse_BodyReadError_DoesNotPanic(t *testing.T) {
 func TestDispatchHook_NoForwarder_WithFlushFalse_EmitsMetricReturns200NoFlush(t *testing.T) {
 	srv, metric, trace, logs, emitter, drainer := newTestServer()
 	rec := httptest.NewRecorder()
-	srv.dispatchHook("test.metric", "/test", noFlush, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
+	srv.dispatchHook("test.metric", "/test", noFlush, false, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, emitter.getEmitted(), "test.metric")
 	assert.Equal(t, int32(0), metric.count.Load(), "noFlush must not flush")
@@ -1108,7 +1453,7 @@ func TestDispatchHook_NoForwarder_WithFlushFalse_EmitsMetricReturns200NoFlush(t 
 func TestDispatchHook_NoForwarder_WithFlushTrue_EmitsMetricAndFlushes(t *testing.T) {
 	srv, metric, trace, logs, emitter, drainer := newTestServer()
 	rec := httptest.NewRecorder()
-	srv.dispatchHook("test.metric", "/test", flushParallel, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
+	srv.dispatchHook("test.metric", "/test", flushParallel, false, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, emitter.getEmitted(), "test.metric")
 	assert.Equal(t, int32(1), metric.count.Load(), "flushParallel must flush metric agent")
@@ -1136,7 +1481,7 @@ func TestDispatchHook_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	srv.dispatchHook("test.metric", pathResume, noFlush, rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
+	srv.dispatchHook("test.metric", pathResume, noFlush, true, rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
 	assert.Equal(t, 418, rec.Code, "must mirror user-app status, not hardcoded 200")
 	assert.Contains(t, emitter.getEmitted(), "test.metric")
 }
@@ -1146,12 +1491,12 @@ func TestDispatchHook_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 // lifecycle server stalling — and blocking the MicroVM platform's suspend/terminate
 // handshake — when the metric aggregator worker is deadlocked or slow.
 func TestFlushAllDrainTimeoutDoesNotBlock(t *testing.T) {
-	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &neverDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 50*time.Millisecond, nil, nil, nil)
+	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &neverDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 50*time.Millisecond, nil, nil, HookToggles{}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
 	defer cancel()
 	start := time.Now()
-	srv.flushAll(ctx)
+	srv.flushAll(ctx, false)
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must return within flushTimeout even when drainer blocks")
 }
 
@@ -1170,12 +1515,12 @@ func TestFlushAllNilLogsFlusherDoesNotPanic(t *testing.T) {
 	metric := &mockFlusher{}
 	trace := &mockFlusher{}
 	drainer := &mockSampleDrainer{}
-	srv := NewServer(0, metric, trace, nil, &mockMetricEmitter{}, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, nil)
+	srv := NewServer(0, metric, trace, nil, &mockMetricEmitter{}, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
 	defer cancel()
 	start := time.Now()
-	assert.NotPanics(t, func() { srv.flushAll(ctx) })
+	assert.NotPanics(t, func() { srv.flushAll(ctx, false) })
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must not fall back to the flushTimeout path when logsFlusher is nil")
 	assert.Equal(t, int32(1), metric.count.Load())
 	assert.Equal(t, int32(1), trace.count.Load())
@@ -1214,7 +1559,7 @@ func TestHandleRun_StartsHeartbeat(t *testing.T) {
 
 // /run must extract the MicroVM ID from the JSON body and apply it to the
 // heartbeat before Start so the very first emission carries the correct
-// microvm_id. The test calls handleRun then inspects the tags that the
+// lambda_microvm_id. The test calls handleRun then inspects the tags that the
 // heartbeat would emit on its next tick.
 func TestHandleRun_AppliesMicroVMIDFromBody(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
@@ -1224,7 +1569,7 @@ func TestHandleRun_AppliesMicroVMIDFromBody(t *testing.T) {
 	body := strings.NewReader(`{"microvmId":"vm-from-body"}`)
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
-	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:vm-from-body")
+	assert.Contains(t, srv.heartbeat.tagsForEmit(), "lambda_microvm_id:vm-from-body")
 	id := srv.instanceID.Load()
 	assert.Equal(t, "vm-from-body", id)
 }
@@ -1238,7 +1583,7 @@ func TestHandleRun_MissingBodyIDUsesUnknown(t *testing.T) {
 
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
 
-	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:unknown")
+	assert.Contains(t, srv.heartbeat.tagsForEmit(), "lambda_microvm_id:unknown")
 }
 
 // traced_invocations is emitted by the Heartbeat on each tick, not directly by
@@ -1476,6 +1821,7 @@ func TestHandleRun_WithForwarder_UpdatesLogTags(t *testing.T) {
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Run = true
 	setter := &mockLogsTagSetter{}
 	srv.SetLogsTagSetter(setter, []string{"env:staging"})
 
@@ -1637,6 +1983,7 @@ func TestHandleRun_WithForwarder_UpdatesTraceTags(t *testing.T) {
 		forwardTimeout:       2 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
+	srv.enabledHooks.Run = true
 	setter := &mockTraceTagSetter{}
 	srv.SetTraceTagSetter(setter, map[string]string{"env": "staging"})
 

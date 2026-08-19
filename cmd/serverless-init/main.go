@@ -488,6 +488,7 @@ func setup(
 				MetricFlusher: metricAgent,
 				LogsFlusher:   logsAgent,
 				MetricEmitter: metricAgent,
+				SampleDrainer: metricAgent,
 				FlushTimeout:  agentLogConfig.FlushTimeout,
 				SidecarMode:   modeConf.SidecarMode,
 				LogsTagSetter: lifecycle.LogsTagSetterFunc(func(tags []string) {
@@ -496,9 +497,13 @@ func setup(
 				}),
 				BaseTags: logTagsBase,
 				TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
-					traceAgent.SetTags(tags)
+					traceAgent.UpdateRuntimeTags(tags)
 				}),
 				BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
+				MetricTagSetter: lifecycle.MetricTagSetterFunc(func(tags []string) {
+					metricAgent.SetEnhancedUsageMetricTags(tags)
+				}),
+				BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -524,6 +529,7 @@ func setup(
 			MetricFlusher: metricAgent,
 			LogsFlusher:   logsAgent,
 			MetricEmitter: metricAgent,
+			SampleDrainer: metricAgent,
 			FlushTimeout:  agentLogConfig.FlushTimeout,
 			SidecarMode:   modeConf.SidecarMode,
 			LogsTagSetter: lifecycle.LogsTagSetterFunc(func(tags []string) {
@@ -532,9 +538,13 @@ func setup(
 			}),
 			BaseTags: logTagsBase,
 			TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
-				traceAgent.SetTags(tags)
+				traceAgent.UpdateRuntimeTags(tags)
 			}),
 			BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
+			MetricTagSetter: lifecycle.MetricTagSetterFunc(func(tags []string) {
+				metricAgent.SetEnhancedUsageMetricTags(tags)
+			}),
+			BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
 		},
 	}
 

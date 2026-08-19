@@ -44,16 +44,18 @@ const (
 // construct and start the lifecycle hook server. Populated by main.go before
 // calling CloudService.Init; nil (and ignored) for all non-MicroVM services.
 type LifecycleContext struct {
-	MetricFlusher  lifecycle.Flusher
-	LogsFlusher    lifecycle.LogsFlusher
-	MetricEmitter  lifecycle.MetricEmitter
-	SampleDrainer  lifecycle.SampleDrainer
-	FlushTimeout   time.Duration
-	SidecarMode    bool
-	LogsTagSetter  lifecycle.LogsTagSetter  // nil-safe; applied via server.SetLogsTagSetter after /run
-	BaseTags       []string                 // startup log tag snapshot passed alongside LogsTagSetter
-	TraceTagSetter lifecycle.TraceTagSetter // nil-safe; applied via server.SetTraceTagSetter after /run
-	BaseTraceTags  map[string]string        // startup trace tag snapshot passed alongside TraceTagSetter
+	MetricFlusher       lifecycle.Flusher
+	LogsFlusher         lifecycle.LogsFlusher
+	MetricEmitter       lifecycle.MetricEmitter
+	SampleDrainer       lifecycle.SampleDrainer
+	FlushTimeout        time.Duration
+	SidecarMode         bool
+	LogsTagSetter       lifecycle.LogsTagSetter   // nil-safe; applied via server.SetLogsTagSetter after /run
+	BaseTags            []string                  // startup log tag snapshot passed alongside LogsTagSetter
+	TraceTagSetter      lifecycle.TraceTagSetter  // nil-safe; applied via server.SetTraceTagSetter after /run
+	BaseTraceTags       map[string]string         // startup trace tag snapshot passed alongside TraceTagSetter
+	MetricTagSetter     lifecycle.MetricTagSetter // nil-safe; applied via server.SetMetricTagSetter after /run
+	BaseUsageMetricTags []string                  // startup enhanced usage metric tag snapshot passed alongside MetricTagSetter
 }
 
 // MicroVM implements CloudService for AWS Lambda MicroVMs.
@@ -63,13 +65,15 @@ type MicroVM struct {
 	flushTimeout time.Duration
 }
 
-// GetTags returns MicroVM-specific tags parsed from the image ARN env var.
+// GetTags returns MicroVM-specific tags parsed from the image ARN env var,
+// plus the image version read directly from its own env var.
 func (m *MicroVM) GetTags() map[string]string {
 	tags := map[string]string{
-		"origin":            MicroVMOrigin,
-		"_dd.origin":        MicroVMOrigin,
-		"resource_type":     MicroVMResourceType,
-		"resource_provider": MicroVMResourceProvider,
+		"origin":                       MicroVMOrigin,
+		"_dd.origin":                   MicroVMOrigin,
+		"resource_type":                MicroVMResourceType,
+		"resource_provider":            MicroVMResourceProvider,
+		"lambda_microvm_image_version": tagValueOrUnknown(os.Getenv(serverlessenv.MicroVMImageVersionEnvVar)),
 	}
 
 	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
@@ -168,6 +172,7 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 		lc.FlushTimeout,
 		components.Handle,
 		components.Forwarder,
+		components.EnabledHooks,
 		heartbeat,
 	)
 	if lc.LogsTagSetter != nil {
@@ -175,6 +180,9 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 	}
 	if lc.TraceTagSetter != nil {
 		m.server.SetTraceTagSetter(lc.TraceTagSetter, lc.BaseTraceTags)
+	}
+	if lc.MetricTagSetter != nil {
+		m.server.SetMetricTagSetter(lc.MetricTagSetter, lc.BaseUsageMetricTags)
 	}
 	if err := m.server.ListenAndServe(func(err error) {
 		log.Fatalf("MicroVM lifecycle server error: %v", err)
@@ -220,9 +228,6 @@ func (m *MicroVM) Shutdown(_ *serverlessMetrics.ServerlessMetricAgent, _ bool, _
 // AddStartMetric is a no-op for MicroVM. The lifecycle server emits the run
 // metric when the /run hook fires; emitting it here would double-count.
 func (m *MicroVM) AddStartMetric(_ *serverlessMetrics.ServerlessMetricAgent) {}
-
-// ShouldForceFlushAllOnForceFlushToSerializer returns false for MicroVM.
-func (m *MicroVM) ShouldForceFlushAllOnForceFlushToSerializer() bool { return false }
 
 // isMicroVM returns true when running inside an AWS Lambda MicroVM.
 func isMicroVM() bool {
