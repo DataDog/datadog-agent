@@ -227,6 +227,41 @@ func TestGlobMatches(t *testing.T) {
 		t.Error("should match the filename")
 	}
 
+	// a trailing "**" must also match the subtree root itself, since
+	// kernel-reported directory paths carry no trailing slash
+	if glob, _ := NewGlob("/sys/fs/cgroup/**", false, false); !glob.Matches("/sys/fs/cgroup") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("/etc/secret/**", false, false); !glob.Matches("/etc/secret") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("/etc/secret/**", false, false); !glob.Matches("/etc/secret/") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("/etc/secret/**", false, false); !glob.Matches("/etc/secret/f") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("/etc/secret/**", false, false); !glob.Matches("/etc/secret/sub/f") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("/etc/**", false, false); !glob.Matches("/etc") {
+		t.Error("should match the filename")
+	}
+
+	// the trailing "**" must not leak to ancestors or prefix-sharing siblings
+	if glob, _ := NewGlob("/etc/secret/**", false, false); glob.Matches("/etc") {
+		t.Error("shouldn't match the filename")
+	}
+
+	if glob, _ := NewGlob("/etc/secret/**", false, false); glob.Matches("/etc/secretary") {
+		t.Error("shouldn't match the filename")
+	}
+
 	if glob, _ := NewGlob("/sys/fs*", false, false); !glob.Matches("/sys/fsa") {
 		t.Error("should match the filename")
 	}
@@ -308,6 +343,9 @@ func FuzzGlob(f *testing.F) {
 	f.Add("/sys/*/cgr*", "/sys/fs/cgroup")
 	f.Add("/sys/fs/cgroup/*", "/sys/fs/cgroup/")
 	f.Add("/sys/fs/cgroup/**", "/sys/fs/cgroup/")
+	f.Add("/sys/fs/cgroup/**", "/sys/fs/cgroup")
+	f.Add("/etc/secret/**", "/etc/secret")
+	f.Add("/etc/**", "/etc")
 	f.Add("/sys/fs*", "/sys/fsa")
 	f.Add("*/*/http*/*b*/test/**", "/var/log/httpd/abc/test/123")
 	f.Add("**", "/var/log/httpd/abc/test/123")

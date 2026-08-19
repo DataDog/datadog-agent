@@ -104,7 +104,15 @@ func (g *Glob) matchesPrefix(filename string) bool {
 		return true
 	}
 
-	return PatternMatchesWithSegments(elp, elf, g.caseInsensitive) && i+1 == len(g.prefix)
+	if !PatternMatchesWithSegments(elp, elf, g.caseInsensitive) {
+		return false
+	}
+
+	// The concrete segment matched. Accept when it is the last prefix element,
+	// or when the only remaining element is a trailing "**", so that a pattern
+	// like "/a/b/**" also matches the subtree root "/a/b" itself (kernel-reported
+	// directory paths carry no trailing slash).
+	return i+1 == len(g.prefix) || (i+2 == len(g.prefix) && g.prefix[i+1].pattern == "**")
 }
 
 func (g *Glob) matchesSuffix(filename string) bool {
