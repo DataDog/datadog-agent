@@ -90,10 +90,18 @@ impl ProcessManager {
         handles: &RuntimeHandles,
     ) {
         let mut procs = self.processes.write().await;
-        let Some(proc) = procs.iter_mut().find(|p| p.uuid() == pending) else {
-            warn!("restart for unknown process '{pending}'");
+        let Some(proc) = procs.iter_mut().find(|p| p.uuid() == pending.uuid) else {
+            warn!("restart for unknown process '{}'", pending.uuid);
             return;
         };
+        if proc.config_generation() != pending.config_generation {
+            debug!(
+                "[{}] ignoring stale restart for config generation {}",
+                proc.name(),
+                pending.config_generation
+            );
+            return;
+        }
         let name = proc.name().to_owned();
         if proc.is_running() {
             info!("[{name}] already running, skipping queued restart");
@@ -164,6 +172,7 @@ impl ProcessManager {
         }
         proc.spawn_and_watch(handles.exit_tx.clone())
             .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
+        proc.record_config_gate_met();
         Ok(StartResult {
             uuid: proc.uuid().to_owned(),
             pid: proc.pid(),
