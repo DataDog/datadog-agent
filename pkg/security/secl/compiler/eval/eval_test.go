@@ -16,6 +16,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -1073,55 +1074,57 @@ func TestDuration(t *testing.T) {
 		t.Skip()
 	}
 
-	event := &testEvent{
-		process: testProcess{
-			createdAt: time.Now().UnixNano(),
-		},
-	}
-
-	tests := []struct {
-		Expr     string
-		Expected bool
-	}{
-		{Expr: `process.created_at < 2s`, Expected: true},
-		{Expr: `process.created_at > 2s`, Expected: false},
-	}
-
-	for _, test := range tests {
-		ctx := NewContext(event)
-
-		result, _, err := eval(ctx, test.Expr)
-		if err != nil {
-			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+	synctest.Test(t, func(t *testing.T) {
+		event := &testEvent{
+			process: testProcess{
+				createdAt: time.Now().UnixNano(),
+			},
 		}
 
-		if result != test.Expected {
-			t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
-		}
-	}
-
-	time.Sleep(4 * time.Second)
-
-	tests = []struct {
-		Expr     string
-		Expected bool
-	}{
-		{Expr: `process.created_at < 2s`, Expected: false},
-		{Expr: `process.created_at > 2s`, Expected: true},
-	}
-
-	for _, test := range tests {
-		ctx := NewContext(event)
-
-		result, _, err := eval(ctx, test.Expr)
-		if err != nil {
-			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		tests := []struct {
+			Expr     string
+			Expected bool
+		}{
+			{Expr: `process.created_at < 2s`, Expected: true},
+			{Expr: `process.created_at > 2s`, Expected: false},
 		}
 
-		if result != test.Expected {
-			t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
+		for _, test := range tests {
+			ctx := NewContext(event)
+
+			result, _, err := eval(ctx, test.Expr)
+			if err != nil {
+				t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			if result != test.Expected {
+				t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
+			}
 		}
-	}
+
+		time.Sleep(4 * time.Second)
+
+		tests = []struct {
+			Expr     string
+			Expected bool
+		}{
+			{Expr: `process.created_at < 2s`, Expected: false},
+			{Expr: `process.created_at > 2s`, Expected: true},
+		}
+
+		for _, test := range tests {
+			ctx := NewContext(event)
+
+			result, _, err := eval(ctx, test.Expr)
+			if err != nil {
+				t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			if result != test.Expected {
+				t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
+			}
+		}
+	})
 }
 
 func parseCIDR(t *testing.T, ip string) net.IPNet {

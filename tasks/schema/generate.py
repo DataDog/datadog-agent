@@ -45,7 +45,7 @@ def compress(ctx, output_dir=COMPRESS_DIR):
     if sys.platform == "aix":
         _compress_no_bazel(ctx, output_dir)
         return
-    bazel(ctx, "run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+    bazel("run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
 
 
 # Must match the ZSTD_ARGS in pkg/config/schema/BUILD.bazel: --no-check to
