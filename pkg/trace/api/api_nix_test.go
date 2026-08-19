@@ -47,19 +47,24 @@ func TestUDS(t *testing.T) {
 	}
 
 	t.Run("off", func(t *testing.T) {
-		// running the tests on different ports to prevent
-		// flaky panics related to the port being already taken
-		port := 8127
+		// The client's DialContext ignores the network/address it's given and
+		// always dials sockPath, so the TCP host:port below is decorative —
+		// only the receiver's own bind matters. Use a real listener rather
+		// than a hardcoded port so this can't collide with another process.
+		ln := testutil.TCPListener(t)
+		tcpAddr := ln.Addr().(*net.TCPAddr)
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
-		conf.ReceiverPort = port
+		conf.ReceiverHost = tcpAddr.IP.String()
+		conf.ReceiverPort = tcpAddr.Port
 		conf.ReceiverSocket = ""
 
 		r := newTestReceiverFromConfig(conf)
+		r.SetTCPListener(ln)
 		r.Start()
 		defer r.Stop()
 
-		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
+		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", tcpAddr.Port), "application/msgpack", bytes.NewReader(payload))
 		if err == nil {
 			resp.Body.Close()
 			t.Fatalf("expected to fail, got response %#v", resp)
@@ -67,19 +72,21 @@ func TestUDS(t *testing.T) {
 	})
 
 	t.Run("on", func(t *testing.T) {
-		// running the tests on different ports to prevent
-		// flaky panics related to the port being already taken
-		port := 8125
+		// See the "off" subtest above: the TCP host:port is decorative here too.
+		ln := testutil.TCPListener(t)
+		tcpAddr := ln.Addr().(*net.TCPAddr)
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
 		conf.ReceiverSocket = sockPath
-		conf.ReceiverPort = port
+		conf.ReceiverHost = tcpAddr.IP.String()
+		conf.ReceiverPort = tcpAddr.Port
 
 		r := newTestReceiverFromConfig(conf)
+		r.SetTCPListener(ln)
 		r.Start()
 		defer r.Stop()
 
-		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
+		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", tcpAddr.Port), "application/msgpack", bytes.NewReader(payload))
 		if err != nil {
 			t.Fatal(err)
 		}

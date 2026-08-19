@@ -141,10 +141,12 @@ func newTestReceiverConfigWithFeatures(features ...string) *config.AgentConfig {
 }
 
 func TestMain(m *testing.M) {
-	// We're about to os.Exit, no need to revert this value to original
+	// We're about to os.Exit, no need to revert this value to original.
+	// killProcess exits the process in production; panicking mirrors that
+	// (the test binary dies) instead of silently continuing as a bare print
+	// would, which previously let a failed bind masquerade as a protocol error.
 	killProcess = func(format string, args ...interface{}) {
-		fmt.Printf(format, args...)
-		fmt.Println()
+		panic(fmt.Sprintf("trace-agent would have exited: "+format, args...))
 	}
 	os.Exit(m.Run())
 }
@@ -288,6 +290,21 @@ func TestListenTCP(t *testing.T) {
 		_, ok := ln.(*rateLimitedListener)
 		assert.True(t, ok)
 	})
+}
+
+func TestStartBindFailurePanics(t *testing.T) {
+	// Squat on a port so Start's own bind attempt fails, then assert that
+	// failure is loud (TestMain's killProcess override panics) rather than
+	// silently leaving the receiver unbound - see api_test.go's TestMain.
+	squatter := testutil.TCPListener(t)
+	tcpAddr := squatter.Addr().(*net.TCPAddr)
+
+	conf := newTestReceiverConfigNoPort()
+	conf.ReceiverHost = tcpAddr.IP.String()
+	conf.ReceiverPort = tcpAddr.Port
+
+	r := newTestReceiverFromConfig(conf)
+	assert.Panics(t, r.Start)
 }
 
 func TestNoDuplicatePatterns(t *testing.T) {
