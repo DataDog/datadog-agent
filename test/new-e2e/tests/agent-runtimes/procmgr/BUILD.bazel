@@ -9,7 +9,6 @@ dd_agent_go_test(
         "procmgr_win_test.go",
     ],
     deps = [
-        "//pkg/fleet/installer/packages/embedded",
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",
