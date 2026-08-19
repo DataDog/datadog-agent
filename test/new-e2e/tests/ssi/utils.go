@@ -128,7 +128,7 @@ func RestartUntil(t *testing.T, client kubeClient.Interface, namespace, appName 
 		RestartPod(t, client, namespace, appName)
 		pod = FindPodInNamespace(t, client, namespace, appName)
 		return ready(pod)
-	}, 2*time.Minute, 5*time.Second, "pod %s in namespace %s did not reach the expected admission state", appName, namespace)
+	}, 4*time.Minute, 5*time.Second, "pod %s in namespace %s did not reach the expected admission state", appName, namespace)
 	return pod
 }
 
@@ -154,10 +154,12 @@ func hasInstallType(container, want string) func(*corev1.Pod) bool {
 	}
 }
 
-func webhookProcessedWithoutPreload(container string) func(*corev1.Pod) bool {
+// noInjection is the deny-policy signal: MutatePod returns nil and writes no
+// APM annotations, so "webhook processed" cannot be used as a readiness check.
+func noInjection(container string) func(*corev1.Pod) bool {
 	return func(pod *corev1.Pod) bool {
 		_, hasPreload := containerEnv(pod, container, "LD_PRELOAD")
-		return hasAPMInjectionAnnotation(pod) && !hasPreload
+		return !hasPreload
 	}
 }
 

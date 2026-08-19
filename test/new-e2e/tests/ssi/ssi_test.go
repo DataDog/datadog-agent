@@ -705,7 +705,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		cleanup := v.pushAPMPolicy(fi, rcDenyTargetedNamespaceConfigID, rcDenyTargetedNamespaceConfigName, rcDenyTargetedNamespacePolicyJSON)
 		defer cleanup()
 
-		helmPod := RestartUntil(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp, webhookProcessedWithoutPreload(rcHelmTargetApp))
+		helmPod := RestartUntil(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp, noInjection(rcHelmTargetApp))
 		helmValidator := testutils.NewPodValidator(helmPod, testutils.InjectionModeAuto)
 		helmValidator.RequireNoInjection(v.T())
 		helmValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
