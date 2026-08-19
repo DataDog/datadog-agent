@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -107,9 +108,13 @@ func isValidStatusCode(code int) bool {
 }
 
 // getMoreEntries gets all results from paginated endpoints
-func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInfo) ([]T, error) {
+func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInfo, params map[string]string) ([]T, error) {
 	var responses []T
 	currentPageInfo := pageInfo
+	newParams := maps.Clone(params)
+	if newParams == nil {
+		newParams = make(map[string]string)
+	}
 
 	// Loop while API response indicates there is more entries
 	for page := 0; currentPageInfo.MoreEntries || currentPageInfo.HasMoreData; page++ {
@@ -125,9 +130,9 @@ func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInf
 			return nil, err
 		}
 		log.Tracef("Pagination params for page %d from endpoint %s : %v", page+1+1, endpoint, nextParams)
-
+		maps.Copy(newParams, nextParams)
 		// Call the endpoint with the new params
-		data, err := get[T](client, endpoint, nextParams)
+		data, err := get[T](client, endpoint, newParams)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +168,7 @@ func getAllEntries[T Content](client *Client, endpoint string, params map[string
 	}
 
 	// If API response is paginated, get the rest
-	entries, err := getMoreEntries[T](client, endpoint, data.PageInfo)
+	entries, err := getMoreEntries[T](client, endpoint, data.PageInfo, params)
 	if err != nil {
 		return nil, err
 	}
