@@ -30,7 +30,7 @@
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 84
+            "lineNumber": 85
           },
           {
             "function": "main.main",

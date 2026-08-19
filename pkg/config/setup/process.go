@@ -66,17 +66,34 @@ func loadProcessTransforms(config pkgconfigmodel.Config) {
 		log.Warn("process_config.enabled is deprecated, use process_config.container_collection.enabled " +
 			"and process_config.process_collection.enabled instead, " +
 			"see https://docs.datadoghq.com/infrastructure/process#installation for more information")
+
+		// The deprecated setting only fills in the settings that replaced it: user configuration
+		// wins, while defaults and infra-mode values do not shadow it.
+		setCollection := func(key string, enabled bool) {
+			if config.GetSource(key).IsGreaterThan(pkgconfigmodel.SourceInfraMode) {
+				return
+			}
+			config.Set(key, enabled, pkgconfigmodel.SourceAgentRuntime)
+		}
+
 		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
 		if procConfigEnabled == "disabled" {
-			config.Set("process_config.process_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-			config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			setCollection("process_config.process_collection.enabled", false)
+			setCollection("process_config.container_collection.enabled", false)
 		} else if enabled, _ := strconv.ParseBool(procConfigEnabled); enabled { // "true"
-			config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
-			config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-			config.Set("process_config.enabled", "true", pkgconfigmodel.SourceAgentRuntime)
+			setCollection("process_config.process_collection.enabled", true)
+			setCollection("process_config.container_collection.enabled", false)
 		} else { // "false"
-			config.Set("process_config.process_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-			config.Set("process_config.container_collection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+			setCollection("process_config.process_collection.enabled", false)
+			setCollection("process_config.container_collection.enabled", true)
+		}
+
+		// Normalize the deprecated setting to the process collection value it ended up with. Consumers
+		// OR it with the two settings that replaced it, so leaving it enabled would keep process checks
+		// running after the user turned process collection off.
+		if config.GetBool("process_config.process_collection.enabled") {
+			config.Set("process_config.enabled", "true", pkgconfigmodel.SourceAgentRuntime)
+		} else {
 			config.Set("process_config.enabled", "disabled", pkgconfigmodel.SourceAgentRuntime)
 		}
 	}

@@ -150,7 +150,7 @@ func main() {
 			MuteNoisyMetrics: *muteNoisyMetrics,
 		}
 	}
-	componentSettings = observerimpl.ApplyTestbenchDetectorDefaults(componentSettings)
+	componentSettings = observerimpl.ApplyTestbenchDefaults(componentSettings)
 
 	if *headless == "" {
 		fmt.Printf("Observer Test Bench\n")
