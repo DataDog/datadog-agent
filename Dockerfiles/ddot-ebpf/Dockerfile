@@ -46,13 +46,14 @@ COPY logging-seccomp.json /etc/dd-host-profiler/logging-seccomp.json
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 # Prefer reliable Ubuntu mirrors in CI to reduce transient network failures
 RUN if [ "$CI" = "true" ]; then \
-  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
-  echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
-  for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
+  printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
+  for f in /etc/apt/sources.list.d/ubuntu.sources; do \
     if [ -f "$f" ]; then \
-      sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-             -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-             -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; \
+      sed -i -E \
+        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+        -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-west-2.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports#' \
+        "$f"; \
     fi; \
   done; \
   fi
