@@ -13,7 +13,7 @@ import (
 )
 
 func TestSyncThrottler(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
+	synctest.Test(t, func(_ *testing.T) {
 		throtler := NewSyncThrottler(3)
 
 		var wg sync.WaitGroup
