@@ -647,6 +647,27 @@ func TestGetConfigFileSpecLegacyManagedPaths(t *testing.T) {
 	assert.Nil(t, getConfigFileSpec("/managed/datadog-agent/stable-custom/customer.yaml"))
 }
 
+func TestGetConfigFileSpecExactDepthConfD(t *testing.T) {
+	assert.NotNil(t, getConfigFileSpec("/conf.d/check.yaml"))
+	assert.NotNil(t, getConfigFileSpec("/conf.d/check.d/config.yaml"))
+
+	assert.Nil(t, getConfigFileSpec("/conf.d/check.d/private/customer.yaml"))
+	assert.Nil(t, getConfigFileSpec("/conf.d/nested/check.yaml"))
+	assert.Nil(t, getConfigFileSpec("/files/conf.d/customer.yaml"))
+}
+
+func TestRemoveConfigFilesMissingFromSourcePreservesNestedUnmanagedYAML(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	nestedUnmanaged := filepath.Join(targetDir, "conf.d", "check.d", "private", "customer.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(nestedUnmanaged), 0755))
+	require.NoError(t, os.WriteFile(nestedUnmanaged, []byte("customer: true\n"), 0644))
+
+	require.NoError(t, removeConfigFilesMissingFromSource(sourceDir, targetDir))
+	assert.FileExists(t, nestedUnmanaged)
+}
+
 func TestVerifyConfigFilesCopied(t *testing.T) {
 	sourceDir := t.TempDir()
 	targetDir := t.TempDir()
@@ -665,7 +686,61 @@ func TestVerifyConfigFilesCopied(t *testing.T) {
 	assert.ErrorContains(t, err, "datadog.yaml")
 
 	require.NoError(t, os.WriteFile(filepath.Join(targetDir, "datadog.yaml"), []byte("log_level: info\n"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(targetDir, "files", "conf.d"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(targetDir, "files", "conf.d", "customer.yaml"), []byte("customer: true\n"), 0644))
 	require.NoError(t, verifyConfigFilesCopied(sourceDir, targetDir))
+}
+
+func TestReconcileLegacyManagedLinksBeforeCopy(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+	managedDir := filepath.Join(sourceDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(managedDir, "v2"), 0755))
+	require.NoError(t, os.Symlink(filepath.Join(managedDir, "v2"), filepath.Join(managedDir, "stable")))
+	require.NoError(t, os.Symlink(filepath.Join(managedDir, "v2"), filepath.Join(managedDir, "experiment")))
+
+	targetManagedDir := filepath.Join(targetDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(targetManagedDir, "stable"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(targetManagedDir, "experiment"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(targetManagedDir, "stable", "application_monitoring.yaml"), []byte("enabled: true\n"), 0644))
+
+	require.NoError(t, reconcileLegacyManagedLinksBeforeCopy(sourceDir, targetDir))
+	_, err := os.Lstat(filepath.Join(targetManagedDir, "stable"))
+	require.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+	_, err = os.Lstat(filepath.Join(targetManagedDir, "experiment"))
+	require.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestVerifyLegacyManagedLinksCopied(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+	managedDir := filepath.Join(sourceDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(managedDir, "v2"), 0755))
+	linkTarget := filepath.Join(managedDir, "v2")
+	require.NoError(t, os.Symlink(linkTarget, filepath.Join(managedDir, "stable")))
+	require.NoError(t, os.Symlink(linkTarget, filepath.Join(managedDir, "experiment")))
+
+	targetManagedDir := filepath.Join(targetDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(targetManagedDir, 0755))
+	require.NoError(t, os.Symlink(linkTarget, filepath.Join(targetManagedDir, "stable")))
+	require.NoError(t, os.Symlink(linkTarget, filepath.Join(targetManagedDir, "experiment")))
+
+	sourceRoot, err := os.OpenRoot(sourceDir)
+	require.NoError(t, err)
+	defer sourceRoot.Close()
+	targetRoot, err := os.OpenRoot(targetDir)
+	require.NoError(t, err)
+	defer targetRoot.Close()
+
+	require.NoError(t, verifyLegacyManagedLinksCopied(sourceRoot, targetRoot))
+
+	require.NoError(t, os.Remove(filepath.Join(targetManagedDir, "stable")))
+	require.NoError(t, os.MkdirAll(filepath.Join(targetManagedDir, "stable"), 0755))
+	err = verifyLegacyManagedLinksCopied(sourceRoot, targetRoot)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "not restored as a symlink")
 }
 
 func TestConfig_SimpleStartPromote(t *testing.T) {

@@ -10,6 +10,7 @@ package config
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"unsafe"
@@ -59,8 +60,21 @@ func assertConfigV2(t *testing.T, v2Dir string) {
 
 	_, err = os.Lstat(filepath.Join(managedDir, "stable"))
 	assert.NoError(t, err)
+	stableInfo, err := os.Lstat(filepath.Join(managedDir, "stable"))
+	assert.NoError(t, err)
+	assert.True(t, stableInfo.Mode()&os.ModeSymlink != 0, "stable should remain a symlink in v2 layout")
+	stableTarget, err := os.Readlink(filepath.Join(managedDir, "stable"))
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(managedDir, "v2"), stableTarget)
+
 	_, err = os.Lstat(filepath.Join(managedDir, "experiment"))
 	assert.NoError(t, err)
+	experimentInfo, err := os.Lstat(filepath.Join(managedDir, "experiment"))
+	assert.NoError(t, err)
+	assert.True(t, experimentInfo.Mode()&os.ModeSymlink != 0, "experiment should remain a symlink in v2 layout")
+	experimentTarget, err := os.Readlink(filepath.Join(managedDir, "experiment"))
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(managedDir, "v2"), experimentTarget)
 
 	// v2Dir/conf.d/mychecks.d/config.yaml does not exists
 	_, err = os.Lstat(filepath.Join(v2Dir, "conf.d", "mycheck.d", "config.yaml"))
@@ -359,6 +373,45 @@ func TestRemoveExperimentPreservesUnmanagedFilesAndConfigACLs(t *testing.T) {
 	assert.FileExists(t, unmanagedYAMLPath, "rollback should not purge unmanaged YAML")
 	assert.FileExists(t, authTokenPath, "rollback should not purge non-config files")
 	assert.NoFileExists(t, filepath.Join(stablePath, "conf.d", "new.d", "config.yaml"))
+}
+
+func TestRemoveConfigFileMissingFromSourceRejectsJunctionAncestor(t *testing.T) {
+	targetDir := t.TempDir()
+	victimDir := t.TempDir()
+	sourceDir := t.TempDir()
+
+	confDDir := filepath.Join(targetDir, "conf.d", "check.d")
+	require.NoError(t, os.MkdirAll(confDDir, 0755))
+	originalConfig := filepath.Join(confDDir, "config.yaml")
+	require.NoError(t, os.WriteFile(originalConfig, []byte("enabled: true\n"), 0644))
+
+	victimConfigDir := filepath.Join(victimDir, "check.d")
+	require.NoError(t, os.MkdirAll(victimConfigDir, 0755))
+	victimConfig := filepath.Join(victimConfigDir, "config.yaml")
+	require.NoError(t, os.WriteFile(victimConfig, []byte("victim: true\n"), 0644))
+
+	targetRoot, err := os.OpenRoot(targetDir)
+	require.NoError(t, err)
+	defer targetRoot.Close()
+
+	sourceRoot, err := os.OpenRoot(sourceDir)
+	require.NoError(t, err)
+	defer sourceRoot.Close()
+
+	relativePath := "conf.d/check.d/config.yaml"
+
+	require.NoError(t, os.Rename(filepath.Join(targetDir, "conf.d"), filepath.Join(targetDir, "conf.d-original")))
+	junctionPath := filepath.Join(targetDir, "conf.d")
+	cmd := exec.Command("cmd", "/c", "mklink", "/J", junctionPath, victimDir)
+	require.NoError(t, cmd.Run())
+	t.Cleanup(func() {
+		_ = os.Remove(junctionPath)
+	})
+
+	err = removeConfigFileMissingFromSource(sourceRoot, targetRoot, relativePath)
+	require.Error(t, err)
+	assert.FileExists(t, victimConfig)
+	assert.FileExists(t, originalConfig)
 }
 
 // TestDeploymentIDAfterRollback reproduces the bug where RemoveExperiment incorrectly
