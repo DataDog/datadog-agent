@@ -55,11 +55,14 @@ func DryRun() bool {
 	return setup.Datadog().GetBool("checks.sdc_compression_dry_run")
 }
 
-// KeepAliveCommits returns checks.sdc_compression_keepalive_commits: how
-// many consecutive real commits with a sample, but no natural breakpoint,
-// must pass before a compressed context force-ships a point anyway (so a
-// flat signal doesn't go silent forever). 0 or negative disables the
-// keep-alive entirely (pure compression).
-func KeepAliveCommits() int {
-	return setup.Datadog().GetInt("checks.sdc_compression_keepalive_commits")
+// MaxSilentFlushes returns checks.sdc_compression_max_silent_flushes: how
+// many consecutive aggregator flush cycles a compressed context can have a
+// pending sample with no natural breakpoint before it force-ships a point
+// anyway (so a flat signal doesn't go silent forever). Counted in flush
+// cycles rather than check-run commits so the same value means the same
+// real-world duration for every check regardless of its own
+// min_collection_interval. 0 or negative disables the heartbeat entirely
+// (pure compression).
+func MaxSilentFlushes() int {
+	return setup.Datadog().GetInt("checks.sdc_compression_max_silent_flushes")
 }
