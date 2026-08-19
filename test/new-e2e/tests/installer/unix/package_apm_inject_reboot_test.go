@@ -153,20 +153,19 @@ func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 	s.assertTraceReceived(traceID)
 }
 
-// TestAgentDowngradeAPMInjectService characterizes what happens to the
-// installer path baked into datadog-apm-inject.service when the Agent version
-// changes:
+// TestAgentDowngradeAPMInjectService verifies that changing the Agent version
+// refreshes an already-installed APM injector:
 //
 //  1. Install host SSI with the pipeline installer and verify the service.
-//  2. Downgrade the Agent to 7.80.4 without reinstalling apm-inject.
+//  2. Downgrade the Agent to 7.80.4 and refresh the stable injector hooks.
 //  3. Garbage-collect the recent Agent package.
-//  4. Reboot and verify the unchanged service fails to start, leaving a
-//     dangling ld.so.preload entry that produces loader errors.
+//  4. Reboot and verify host injection still uses a valid preload entry without
+//     producing loader errors.
 //
-// The service currently fails because the mutable Agent `stable` path resolves
-// to an installer that does not expose the unit's instrument-start/stop
-// commands. Its shutdown cleanup does not remove the preload entry, /run is
-// wiped by the reboot, and its boot command cannot recreate the tmpfs symlink.
+// The downgraded Agent's installer does not expose the commands needed by the
+// systemd unit. Refreshing the injector post-install hook removes the unusable
+// unit and falls back to the persistent injector path without replacing the
+// injector package repository.
 //
 // This is intentionally limited to one representative host. The contract is
 // the installer/package/systemd lifecycle, not distro- or architecture-specific
@@ -194,10 +193,12 @@ func (s *packageApmInjectSuite) TestAgentDowngradeAPMInjectService() {
 	require.NotEqual(s.T(), agentVersionWithoutAPMSystemdCommands, recentAgentVersion,
 		"test requires a recent Agent before exercising the downgrade")
 
-	// Do not repeat the SSI environment variables from the initial installation.
-	// The installed injector package is the durable signal that the install
-	// script must refresh its hooks after changing Agent stable.
+	// Repeat the SSI installation while downgrading the Agent. Before the fix,
+	// the already-stable injector version was skipped and its post-install hook
+	// was not refreshed against the downgraded Agent.
 	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=install.datadoghq.com.internal.dda-testing.com",
 		envForceVersion("datadog-agent", agentVersionWithoutAPMSystemdCommands),
 	)
@@ -207,7 +208,7 @@ func (s *packageApmInjectSuite) TestAgentDowngradeAPMInjectService() {
 	// recent Agent package is gone.
 	oldInstallerPath := "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer"
 	host.MustExecute("sudo " + oldInstallerPath + " garbage-collect")
-	_, err = host.Execute(fmt.Sprintf("test ! -e /opt/datadog-packages/datadog-agent/%s", recentAgentVersion))
+	_, err = host.Execute("test ! -e /opt/datadog-packages/datadog-agent/" + recentAgentVersion)
 	require.NoError(s.T(), err, "recent Agent version was not garbage-collected")
 
 	help, err := host.Execute("sudo " + oldInstallerPath + " apm --help")
@@ -215,33 +216,22 @@ func (s *packageApmInjectSuite) TestAgentDowngradeAPMInjectService() {
 	require.NotContains(s.T(), help, "instrument-start", "test precondition: 7.80.4 unexpectedly supports instrument-start")
 	require.NotContains(s.T(), help, "instrument-stop", "test precondition: 7.80.4 unexpectedly supports instrument-stop")
 
-	// FIXME: Changing and garbage-collecting Agent versions must not invalidate
-	// an existing apm-inject service. Once the lifecycle is fixed, assert that
-	// the service is active after reboot, the tmpfs symlink resolves, and host
-	// injection still works.
 	s.reboot()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
-	require.Eventually(s.T(), func() bool {
-		_, err := host.Execute("systemctl is-failed --quiet datadog-apm-inject.service")
-		return err == nil
-	}, 30*time.Second, time.Second, "apm-inject service did not enter failed state; unit logs:\n%s",
-		host.MustExecute("sudo journalctl -u datadog-apm-inject.service --no-pager || true"))
 
 	preload, err := s.host.ReadFile("/etc/ld.so.preload")
 	require.NoError(s.T(), err)
-	require.Contains(s.T(), string(preload), injectTmpfsLauncher,
-		"failed service did not leave the expected ld.so.preload entry")
-	_, err = host.Execute("test ! -e " + injectTmpfsLauncher)
-	require.NoError(s.T(), err, "ld.so.preload entry is not dangling")
+	require.Contains(s.T(), string(preload), launcherPreloadPath)
+	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	_, err = host.Execute("test -e " + launcherPreloadPath)
+	require.NoError(s.T(), err, "ld.so.preload entry is dangling")
+	_, err = host.Execute("test ! -e /etc/systemd/system/datadog-apm-inject.service")
+	require.NoError(s.T(), err, "unsupported apm-inject service was not removed")
+	s.assertDockerdNotInstrumented()
 
-	// Every dynamically linked process reports the dangling preload entry. Run
-	// enough processes to prove this is repeated stderr noise rather than a
-	// single systemd diagnostic.
 	stderr, err := host.Execute(`i=0; while [ "$i" -lt 10 ]; do /bin/true; i=$((i + 1)); done 2>&1`)
 	require.NoError(s.T(), err)
-	require.Contains(s.T(), stderr, "cannot be preloaded")
-	require.GreaterOrEqual(s.T(), strings.Count(stderr, injectTmpfsLauncher), 10,
-		"expected one dynamic-loader error per process, stderr:\n%s", stderr)
+	require.NotContains(s.T(), stderr, "cannot be preloaded")
 }
 
 // TestSystemdServiceRebootBrokenInjector verifies the safety property the
