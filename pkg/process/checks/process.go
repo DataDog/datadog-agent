@@ -46,6 +46,7 @@ const (
 	configStripProcArgs        = "process_config.strip_proc_arguments"
 	configDisallowList         = "process_config.blacklist_patterns"
 	configIgnoreZombies        = "process_config.ignore_zombie_processes"
+	emptyCmdlinePIDSampleSize  = 5
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
@@ -485,8 +486,23 @@ func fmtProcesses(
 	now time.Time,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
+	debugLoggingEnabled := log.ShouldLog(log.DebugLvl)
+	traceLoggingEnabled := log.ShouldLog(log.TraceLvl)
+	emptyCmdlineCount := 0
+	emptyCmdlinePIDs := make([]int32, 0, emptyCmdlinePIDSampleSize)
 
 	for _, fp := range procs {
+		if len(fp.Cmdline) == 0 {
+			if traceLoggingEnabled {
+				log.Tracef("Empty commandline for pid:%d using exe:[%s] to check if the process should be skipped", fp.Pid, []string{fp.Exe})
+			}
+			if debugLoggingEnabled {
+				emptyCmdlineCount++
+				if len(emptyCmdlinePIDs) < emptyCmdlinePIDSampleSize {
+					emptyCmdlinePIDs = append(emptyCmdlinePIDs, fp.Pid)
+				}
+			}
+		}
 		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
@@ -537,6 +553,9 @@ func fmtProcesses(
 			procsByCtr[proc.ContainerId] = make([]*model.Process, 0)
 		}
 		procsByCtr[proc.ContainerId] = append(procsByCtr[proc.ContainerId], proc)
+	}
+	if emptyCmdlineCount > 0 {
+		log.Debugf("Used executable paths to evaluate filters for %d processes with empty command lines; sample_pids=%v", emptyCmdlineCount, emptyCmdlinePIDs)
 	}
 
 	scrubber.IncrementCacheAge()
@@ -655,7 +674,6 @@ func skipProcess(
 	cl := fp.Cmdline
 	if len(cl) == 0 {
 		cl = []string{fp.Exe}
-		log.Debugf("Empty commandline for pid:%d using exe:[%s] to check if the process should be skipped", fp.Pid, cl)
 	}
 	if isDisallowListed(cl, disallowList) {
 		return true
