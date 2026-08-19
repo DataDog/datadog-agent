@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from io import StringIO
 
+from tasks.anomalydetection import _local_ddeval_command
 from tasks.libs.anomalydetection.ddeval import (
     ARTIFACT_PREFIX,
     RedactingWriter,
@@ -25,6 +26,14 @@ PRESIGNED_URL = (
 
 
 class TestLocalDDEvalArtifacts(unittest.TestCase):
+    def test_custom_ddeval_executable_is_not_shell_parsed(self):
+        executable = r"C:\Program Files\DDEval\ddeval.exe"
+
+        command, command_dir = _local_ddeval_command(executable, "")
+
+        self.assertEqual(command, [executable])
+        self.assertIsNone(command_dir)
+
     def test_sha256_file_streams_file(self):
         with tempfile.NamedTemporaryFile() as testbench:
             testbench.write(b"testbench")

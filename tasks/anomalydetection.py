@@ -220,7 +220,7 @@ def eval_ddeval(
     experiment_config: str = "",
     testbench_config: str = "",
     ddsource_dir: str = "",
-    ddeval_command: str = "",
+    ddeval_executable: str = "",
     aws_profile: str = "",
     expires_in: int = 21600,
     build: bool = True,
@@ -238,6 +238,7 @@ def eval_ddeval(
         dda inv anomalydetection.eval-ddeval
         dda inv anomalydetection.eval-ddeval --where-in=metadata.record_id=scenario-a,scenario-b
         dda inv anomalydetection.eval-ddeval --testbench-config=/tmp/observer-config.json
+        dda inv anomalydetection.eval-ddeval --ddeval-executable="C:\\Program Files\\DDEval\\ddeval.exe"
 
     Args:
         dataset: LLMObs dataset to evaluate.
@@ -252,7 +253,7 @@ def eval_ddeval(
         experiment_config: Optional base DDEval experiment-config JSON file.
         testbench_config: Optional Observer component-config JSON file.
         ddsource_dir: dd-source checkout used to run DDEval with Bazel.
-        ddeval_command: Installed DDEval command; bypasses dd-source/Bazel discovery.
+        ddeval_executable: Path or name of an installed DDEval executable; bypasses dd-source/Bazel discovery.
         aws_profile: AWS CLI profile with write access to qbranch-gensim-recordings.
         expires_in: Presigned URL lifetime in seconds (60-604800).
         build: Build the testbench before uploading it.
@@ -286,7 +287,7 @@ def eval_ddeval(
     try:
         base_config = _load_json_object(experiment_config, "experiment config") if experiment_config else {}
         component_config = _load_json_object(testbench_config, "testbench config") if testbench_config else None
-        command_prefix, command_dir = _local_ddeval_command(ddeval_command, ddsource_dir)
+        command_prefix, command_dir = _local_ddeval_command(ddeval_executable, ddsource_dir)
     except ValueError as error:
         raise Exit(str(error), code=2) from error
 
@@ -447,13 +448,10 @@ def _load_json_object(path: str, description: str) -> dict:
     return value
 
 
-def _local_ddeval_command(ddeval_command: str, ddsource_dir: str) -> tuple[list[str], Path | None]:
-    command = (ddeval_command or os.environ.get("DDEVAL_COMMAND", "")).strip()
-    if command:
-        command_parts = shlex.split(command)
-        if not command_parts:
-            raise ValueError("--ddeval-command must not be empty")
-        return command_parts, None
+def _local_ddeval_command(ddeval_executable: str, ddsource_dir: str) -> tuple[list[str], Path | None]:
+    executable = (ddeval_executable or os.environ.get("DDEVAL_EXECUTABLE", "")).strip()
+    if executable:
+        return [executable], None
 
     configured_dir = ddsource_dir or os.environ.get("DDSOURCE_DIR") or os.environ.get("DD_SOURCE_DIR")
     candidates = [Path(configured_dir).expanduser()] if configured_dir else [Path.home() / "dd" / "dd-source"]
@@ -466,7 +464,7 @@ def _local_ddeval_command(ddeval_command: str, ddsource_dir: str) -> tuple[list[
     if configured_dir:
         raise ValueError(f"dd-source checkout does not contain the DDEval target: {candidates[0].resolve()}")
     raise ValueError(
-        "could not find dd-source at ~/dd/dd-source; set --ddsource-dir, $DDSOURCE_DIR, or --ddeval-command"
+        "could not find dd-source at ~/dd/dd-source; set --ddsource-dir, $DDSOURCE_DIR, or --ddeval-executable"
     )
 
 
