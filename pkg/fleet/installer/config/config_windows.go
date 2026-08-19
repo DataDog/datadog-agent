@@ -147,7 +147,12 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("failed to open target directory: %w", err)
 	}
 
-	// robocopy exit codes 1-7 indicate successful copies with various informational statuses.
+	if err := reconcileLegacyManagedLinksBeforeCopy(sourcePath, targetPath); err != nil {
+		return fmt.Errorf("error reconciling legacy managed links: %w", err)
+	}
+
+	// robocopy exit codes 0-3 indicate successful copies with various informational statuses.
+	// Codes 4-7 indicate source/target mismatches that leave the destination incomplete.
 	// Only codes >=8 indicate copy errors.
 	// https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/return-codes-used-robocopy-utility
 	//
@@ -163,7 +168,7 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		sourcePath,
 		targetPath,
 		"*.yaml",
-	).WithExpectedExitCodes(1, 2, 3, 4, 5, 6, 7)
+	).WithExpectedExitCodes(1, 2, 3)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -173,7 +178,7 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	if err != nil && !errors.As(err, &exitErr) {
 		return fmt.Errorf("error executing robocopy: %w", err)
 	}
-	if exitErr != nil && exitErr.ExitCode() >= 8 {
+	if exitErr != nil && exitErr.ExitCode() >= 4 {
 		return fmt.Errorf("error executing robocopy: %w\n%s\n%s", err, stdout.String(), stderr.String())
 	}
 	return verifyConfigFilesCopied(sourcePath, targetPath)
