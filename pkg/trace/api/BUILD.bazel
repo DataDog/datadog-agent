@@ -136,6 +136,8 @@ dd_agent_go_test(
         "api_nix_test.go",
         "api_oom_test.go",
         "api_test.go",
+        "body_buffer_bench_test.go",
+        "body_buffer_test.go",
         "connection_type_nix_test.go",
         "connection_type_test.go",
         "container_linux_test.go",

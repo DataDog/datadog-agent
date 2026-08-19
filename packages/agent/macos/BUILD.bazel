@@ -1,0 +1,66 @@
+"""Agent package components specific to macOS."""
+
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_filegroup",
+)
+load("//bazel/rules/macos/pkg:pkg_mac_pkg.bzl", "pkg_mac_pkg")
+load("//compliance:package_licenses.bzl", "package_licenses")
+load("//packages/rules:package_naming.bzl", "package_name_variables")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+package_name_variables(
+    name = "variables",
+    product_name = "datadog-agent",
+)
+
+# This is everything in the distro. All the things that were explicit
+# in datadog-agent-dependencies.rb should show up here. Paths already
+# include the "/opt/datadog-agent" prefix, so pkg_mac_pkg's
+# install_location is "/", same as the deb/rpm whole_distro_tar below.
+pkg_filegroup(
+    name = "agent_components",
+    srcs = [
+        "//packages/agent/dependencies:all_files",
+        "//packages/agent/product:all_files",
+        "//packages/install_dir:embedded",
+        "//packages/install_dir:etc",
+    ],
+    prefix = "/opt/datadog-agent",
+)
+
+# Intermediate node so we have a place to collect all the dependencies so we
+# can walk the aspect to gather the OSS licenses. See packages/agent/linux.
+pkg_filegroup(
+    name = "everything",
+    srcs = [
+        ":agent_components",
+    ],
+)
+
+package_licenses(
+    name = "license_files",
+    src = ":everything",
+)
+
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [
+        ":everything",
+        ":license_files",
+    ],
+)
+
+# TODO(ABLD-395): version should come from :variables (PackageVariablesInfo)
+# once pkg_mac_pkg supports package_variables-style substitution, same as
+# pkg_deb/pkg_rpm's package_file_name. See ~/mac_package.md open questions.
+pkg_mac_pkg(
+    name = "datadog-agent",
+    srcs = [":whole_distro"],
+    identifier = "com.datadoghq.agent",
+    install_location = "/",
+    postinstall = "//omnibus:package-scripts/agent-dmg/postinst",
+    preinstall = "//omnibus:package-scripts/agent-dmg/preinst",
+    version = "7",
+)

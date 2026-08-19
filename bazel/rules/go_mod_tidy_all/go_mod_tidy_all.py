@@ -38,7 +38,7 @@ async def _tidy(max_workers, mod_path, args):
 
 async def main(args):
     mod_paths = await _exec("go", "list", "-f", "{{.Dir}}", "-m", stdout=PIPE)
-    max_workers = asyncio.Semaphore((os.cpu_count() or 1) + 4)  # TODO(regis): cpu_count -> Py 3.13's process_cpu_count
+    max_workers = asyncio.Semaphore(os.cpu_count() or 4)  # TODO(regis): cpu_count -> Py 3.13's process_cpu_count
     # global timeout: on cold cache, per-task timeouts were unfairly hit because early tasks download most modules
     async with asyncio.timeout(timedelta(minutes=15).total_seconds()), asyncio.TaskGroup() as tg:
         for mod_path in mod_paths.decode().splitlines():

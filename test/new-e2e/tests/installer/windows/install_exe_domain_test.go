@@ -20,13 +20,13 @@ import (
 	"testing"
 )
 
-type testInstallScriptOnDCSuite struct {
+type testInstallExeOnDCSuite struct {
 	BaseSuite
 }
 
-// TestInstallScriptWithAgentUserOnDC tests tests the Datadog Install script with a custom user and password on a Domain Controller.
-func TestInstallScriptWithAgentUserOnDC(t *testing.T) {
-	e2e.Run(t, &testInstallScriptOnDCSuite{},
+// TestInstallExeWithAgentUserOnDC tests the Datadog installer exe with a custom user and password on a Domain Controller.
+func TestInstallExeWithAgentUserOnDC(t *testing.T) {
+	e2e.Run(t, &testInstallExeOnDCSuite{},
 		// Keep the stack alive on failure so the team can investigate Active Directory
 		// provisioning failures (see WINA-1853). A Datadog log monitor on the
 		// "SkipDeleteOnFailure feature is enabled" line notifies #windows-products-ops.
@@ -42,10 +42,10 @@ func TestInstallScriptWithAgentUserOnDC(t *testing.T) {
 	)
 }
 
-// TestInstallScriptWithAgentUser tests the Datadog Install script with a custom user and password.
+// TestInstallExeWithAgentUser tests the Datadog installer exe with a custom user and password.
 //
 // Use a DC since this requires the password be set.
-func (s *testInstallScriptOnDCSuite) TestInstallScriptWithAgentUser() {
+func (s *testInstallExeOnDCSuite) TestInstallExeWithAgentUser() {
 	// Arrange
 
 	// Act
@@ -59,7 +59,7 @@ func (s *testInstallScriptOnDCSuite) TestInstallScriptWithAgentUser() {
 	if s.NoError(err) {
 		fmt.Printf("%s\n", out)
 	}
-	s.Require().NoErrorf(err, "install script failed")
+	s.Require().NoErrorf(err, "installer exe failed")
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
 		HasRegistryKey(consts.RegistryKeyPath).

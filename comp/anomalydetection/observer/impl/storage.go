@@ -33,6 +33,14 @@ type StorageConfig struct {
 	// on each Add. 0 disables trimming.
 	PointRetentionSecs int64
 
+	// InactiveSeriesTTLSeconds is how long a non-telemetry series may remain
+	// inactive before an engine advance evicts it. 0 disables inactivity eviction.
+	InactiveSeriesTTLSeconds int64
+
+	// InactiveSeriesCheckIntervalSeconds is the minimum advance-time interval
+	// between inactivity scans. 0 disables inactivity eviction.
+	InactiveSeriesCheckIntervalSeconds int64
+
 	// MaxCorrelations caps how many unique correlation patterns are retained in
 	// the engine's accumulated-correlations map. 0 uses the built-in default
 	// (500). -1 disables the cap entirely (suitable for testbench replay where
@@ -52,9 +60,11 @@ type StorageConfig struct {
 // DefaultStorageConfig returns the hard-coded production defaults.
 func DefaultStorageConfig() StorageConfig {
 	return StorageConfig{
-		MaxSeries:          storageMaxSeries,
-		EvictionFloorRatio: storageEvictionBandRatio,
-		PointRetentionSecs: storagePointRetentionSecs,
+		MaxSeries:                          storageMaxSeries,
+		EvictionFloorRatio:                 storageEvictionBandRatio,
+		PointRetentionSecs:                 storagePointRetentionSecs,
+		InactiveSeriesTTLSeconds:           storageInactiveSeriesTTLSeconds,
+		InactiveSeriesCheckIntervalSeconds: storageInactiveSeriesCheckIntervalSeconds,
 		// TrackCorrelationHistory defaults to false: live agent incurs no overhead.
 	}
 }
@@ -70,6 +80,14 @@ const (
 	// storagePointRetentionSecs is the default point retention window.
 	// Points older than (latest_ts - 120s) are trimmed on each Add.
 	storagePointRetentionSecs = 120
+
+	// storageInactiveSeriesTTLSeconds is the default inactivity lifetime for
+	// non-telemetry series. Inactivity is evaluated against advance timestamps.
+	storageInactiveSeriesTTLSeconds = 5 * 60
+
+	// storageInactiveSeriesCheckIntervalSeconds bounds the work done by
+	// inactivity scans while keeping eviction deterministic under replay.
+	storageInactiveSeriesCheckIntervalSeconds = 5 * 60
 )
 
 // timeSeriesStorage is an internal storage for time series data.
@@ -1240,6 +1258,28 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 		}
 		if s.removeSeries(st) {
 			freed = append(freed, candidates[i].ref)
+		}
+	}
+	if len(freed) > 0 {
+		s.seriesGen++
+	}
+	return freed
+}
+
+// EvictInactiveBefore removes non-telemetry series whose last activity is at
+// or before cutoff. The caller supplies a data-time cutoff so eviction is
+// deterministic in both live operation and replay.
+func (s *timeSeriesStorage) EvictInactiveBefore(cutoff int64) []observer.SeriesRef {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var freed []observer.SeriesRef
+	for _, stats := range s.seriesIDStats {
+		if stats == nil || stats.Namespace == observer.TelemetryNamespace || stats.lastActivityTimestamp > cutoff {
+			continue
+		}
+		if s.removeSeries(stats) {
+			freed = append(freed, stats.ref)
 		}
 	}
 	if len(freed) > 0 {

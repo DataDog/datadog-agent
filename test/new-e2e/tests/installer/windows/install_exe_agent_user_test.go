@@ -21,25 +21,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testInstallScriptWithAgentUserSuite struct {
+type testInstallExeWithAgentUserSuite struct {
 	BaseSuite
 	agentUser string
 }
 
-// TestInstallScriptWithAgentUser tests the Datadog Install script with a custom user
-func TestInstallScriptWithAgentUser(t *testing.T) {
+// TestInstallExeWithAgentUser tests the Datadog installer exe with a custom user
+func TestInstallExeWithAgentUser(t *testing.T) {
 	agentUser := "customuser"
 	require.NotEqual(t, windowsAgent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 
-	e2e.Run(t, &testInstallScriptWithAgentUserSuite{
+	e2e.Run(t, &testInstallExeWithAgentUserSuite{
 		agentUser: agentUser,
 	},
 		e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()),
 	)
 }
 
-// TestInstallScriptWithAgentUser tests the Datadog Install script with a custom user
-func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
+// TestInstallExeWithAgentUser tests the Datadog installer exe with a custom user
+func (s *testInstallExeWithAgentUserSuite) TestInstallExeWithAgentUser() {
 	// Arrange
 
 	// Act
@@ -52,7 +52,7 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 	if s.NoError(err) {
 		fmt.Printf("%s\n", out)
 	}
-	s.Require().NoErrorf(err, "install script failed")
+	s.Require().NoErrorf(err, "installer exe failed")
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
 		HasRegistryKey(consts.RegistryKeyPath).
@@ -67,7 +67,7 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 	// it should keep the same user (settings read from registry)
 	out, err = s.InstallScript().Run()
 	s.T().Log(out)
-	s.Require().NoErrorf(err, "install script failed")
+	s.Require().NoErrorf(err, "installer exe failed")
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
 		HasRegistryKey(consts.RegistryKeyPath).
@@ -75,9 +75,9 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 
 }
 
-// TestInstallScriptChangesAgentUser tests that the install script changes the agent user when the Agent is already installed
-func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptChangesAgentUser() {
-	s.TestInstallScriptWithAgentUser()
+// TestInstallExeChangesAgentUser tests that the installer exe changes the agent user when the Agent is already installed
+func (s *testInstallExeWithAgentUserSuite) TestInstallExeChangesAgentUser() {
+	s.TestInstallExeWithAgentUser()
 	s.agentUser = s.agentUser + "2"
-	s.TestInstallScriptWithAgentUser()
+	s.TestInstallExeWithAgentUser()
 }

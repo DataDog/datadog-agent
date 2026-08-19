@@ -21,8 +21,8 @@ def mingw_bin_dir(ctx: Context) -> str:
     """
     global _mingw_bin_dir
     if _mingw_bin_dir is None:
-        windmc = bazel(ctx, "cquery", "--output=files", WINDMC_TARGET, capture_output=True).strip()
-        execroot = bazel(ctx, "info", "execution_root", capture_output=True).strip()
+        windmc = bazel("cquery", "--output=files", WINDMC_TARGET, capture_output=True).strip()
+        execroot = bazel("info", "execution_root", capture_output=True).strip()
         _mingw_bin_dir = os.path.dirname(os.path.join(execroot, windmc))
     return _mingw_bin_dir
 

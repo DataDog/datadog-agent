@@ -90,8 +90,18 @@ class CodeGeneratorTarget:
                 continue
             print('Output %s' % filename)
             out_filename = os.path.join(out_dir, filename)
-            with open(out_filename, "w") as f:
-                f.write('\n'.join(self.filesystem[filename]) + '\n')
+            _write_uniform_lines(out_filename, self.filesystem[filename])
+
+
+def _write_uniform_lines(path, lines):
+    """
+    Write lines to path, one per line, so the bytes never depend on the host platform.
+
+    Text mode would otherwise translate newlines to os.linesep, yielding CRLF on Windows.
+    """
+    with open(path, "w", newline="\n") as f:
+        for line in lines:
+            print(line, file=f)
 
 
 def join_key(prefix, field):
@@ -512,7 +522,6 @@ var delegatedAuthKeys = []delegatedAuthConfig{""")
 		description:       "{parent_section_name}",
 	}},""")
         out.append("}")
-        out.append("")
 
     emit(outputs["core"], collect_delegated_auth_keys(core_schema))
 
@@ -575,7 +584,6 @@ def gen_generate_const(core_schema, system_probe_schema, outputs):
         pad_space = magic_value - len(name)
         out.append(f"\t{name}{' ' * pad_space} = {consts[name]['value']}")
     out.append(")")
-    out.append("")
 
 
 # The files produced by the constant generators, keyed by the output name generators use to
@@ -635,8 +643,7 @@ def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
         print('Output %s' % filename)
         out_filename = os.path.join(outsource_dir, filename)
         os.makedirs(os.path.dirname(out_filename), exist_ok=True)
-        with open(out_filename, "w") as f:
-            f.write('\n'.join(sourcecode))
+        _write_uniform_lines(out_filename, sourcecode)
 
 
 def run_codegen(schema, filename_filter, outsource_dir):

@@ -35,7 +35,7 @@
 '@datadog/network-path': NETPATH
 '@datadog/universal-service-monitoring': USMON
 '@datadog/windows-products': WINA
-'@datadog/opentelemetry': OTAGENT
+'@datadog/opentelemetry': OTEL
 '@datadog/opentelemetry-agent': OTAGENT
 '@datadog/sdlc-security': SINT
 '@datadog/sensitive-data-scanner': SDS

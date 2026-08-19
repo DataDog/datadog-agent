@@ -10,6 +10,7 @@ package logondurationimpl
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -226,40 +227,15 @@ func durationBetween(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
 
-// bootOffsetFunc returns the boot-relative offset in milliseconds of a timestamp. The idle time at the
-// login screen (LoginUIDone -> SessionLogon) is collapsed out of post-logon offsets so the timeline
-// renders contiguously; the per-milestone Timestamp retains wall-clock truth.
-func bootOffsetFunc(tl BootTimeline) func(time.Time) int64 {
-	boot := tl.BootStart
-	if boot.IsZero() {
-		return func(time.Time) int64 { return 0 }
-	}
-
-	gap := time.Duration(0)
-	if !tl.LoginUIDone.IsZero() && !tl.SessionLogon.IsZero() && tl.SessionLogon.After(tl.LoginUIDone) {
-		gap = tl.SessionLogon.Sub(tl.LoginUIDone)
-	}
-
-	return func(ts time.Time) int64 {
-		offset := ts.Sub(boot).Milliseconds()
-		if gap > 0 && !ts.Before(tl.SessionLogon) {
-			offset -= gap.Milliseconds()
-		}
-		return offset
-	}
+type milestoneCandidate struct {
+	id       string
+	name     string
+	ts       time.Time
+	duration time.Duration
 }
 
-// buildTimelineMilestones returns an ordered slice of boot milestones.
-// Only milestones with a non-zero timestamp are included.
-func buildTimelineMilestones(tl BootTimeline) []Milestone {
-	const tsFmt = "2006-01-02T15:04:05.000Z"
-
-	candidates := []struct {
-		id       string
-		name     string
-		ts       time.Time
-		duration time.Duration
-	}{
+func timelineCandidates(tl BootTimeline) []milestoneCandidate {
+	return []milestoneCandidate{
 		{"boot_duration", "Boot Duration", tl.BootStart, durationBetween(tl.BootStart, tl.LoginUIStart)},
 		{"login_ui_start", "Login UI Start", tl.LoginUIStart, durationBetween(tl.LoginUIStart, tl.LoginUIDone)},
 		{"computer_group_policy", "Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
@@ -272,11 +248,86 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		{"desktop_visible", "Desktop Visible", tl.DesktopCreateStart, durationBetween(tl.DesktopCreateStart, tl.DesktopVisibleEnd)},
 		{"desktop_startup_apps", "Desktop Startup Apps", tl.DesktopStartupAppsStart, durationBetween(tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd)},
 	}
+}
+
+type interval struct {
+	start time.Time
+	end   time.Time
+}
+
+// unobservedIntervals returns the sub-intervals of [start, end) that no milestone covers,
+// sorted and disjoint - bootOffsetFunc walks them in order and stops at the first one past ts.
+func unobservedIntervals(tl BootTimeline, start, end time.Time) []interval {
+	var busy []interval
+	for _, c := range timelineCandidates(tl) {
+		if c.ts.IsZero() || c.duration <= 0 {
+			continue
+		}
+		s, e := c.ts, c.ts.Add(c.duration)
+		if !e.After(start) || !s.Before(end) {
+			continue
+		}
+		busy = append(busy, interval{s, e})
+	}
+	sort.Slice(busy, func(i, j int) bool { return busy[i].start.Before(busy[j].start) })
+
+	var idle []interval
+	cursor := start
+	for _, b := range busy {
+		if b.start.After(cursor) {
+			idle = append(idle, interval{cursor, b.start})
+		}
+		if b.end.After(cursor) {
+			cursor = b.end
+		}
+	}
+	if end.After(cursor) {
+		idle = append(idle, interval{cursor, end})
+	}
+	return idle
+}
+
+// bootOffsetFunc returns the boot-relative offset in milliseconds of a timestamp. The stretches of
+// the login screen wait (LoginUIDone -> SessionLogon) where nothing was observed are elided so the
+// timeline renders contiguously; the per-milestone Timestamp retains wall-clock truth. Eliding only
+// the unobserved stretches, never an observed span, is what keeps the mapping order-preserving.
+func bootOffsetFunc(tl BootTimeline) func(time.Time) int64 {
+	boot := tl.BootStart
+	if boot.IsZero() {
+		return func(time.Time) int64 { return 0 }
+	}
+
+	if tl.LoginUIDone.IsZero() || tl.SessionLogon.IsZero() || !tl.SessionLogon.After(tl.LoginUIDone) {
+		return func(ts time.Time) int64 { return ts.Sub(boot).Milliseconds() }
+	}
+
+	elided := unobservedIntervals(tl, tl.LoginUIDone, tl.SessionLogon)
+
+	return func(ts time.Time) int64 {
+		offset := ts.Sub(boot)
+		for _, iv := range elided {
+			if !ts.After(iv.start) {
+				break
+			}
+			if ts.Before(iv.end) {
+				offset -= ts.Sub(iv.start)
+				break
+			}
+			offset -= iv.end.Sub(iv.start)
+		}
+		return offset.Milliseconds()
+	}
+}
+
+// buildTimelineMilestones returns an ordered slice of boot milestones.
+// Only milestones with a non-zero timestamp are included.
+func buildTimelineMilestones(tl BootTimeline) []Milestone {
+	const tsFmt = "2006-01-02T15:04:05.000Z"
 
 	offsetOf := bootOffsetFunc(tl)
 
 	var milestones []Milestone
-	for _, c := range candidates {
+	for _, c := range timelineCandidates(tl) {
 		if c.ts.IsZero() {
 			continue
 		}

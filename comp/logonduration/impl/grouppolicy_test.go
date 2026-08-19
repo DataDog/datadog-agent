@@ -479,6 +479,57 @@ func TestCSEOffsetsShareTheBootTimelineAxis(t *testing.T) {
 		"invocation ends at or before its pass")
 }
 
+func assertNested(t *testing.T, inv CSEInvocation, parent Milestone) {
+	t.Helper()
+	assert.GreaterOrEqualf(t, float64(inv.OffsetMs), parent.OffsetMs,
+		"%s starts at or after %s", inv.CSEName, parent.ID)
+	assert.LessOrEqualf(t, float64(inv.OffsetMs+inv.DurationMs), parent.OffsetMs+parent.DurationMs,
+		"%s ends at or before %s", inv.CSEName, parent.ID)
+}
+
+func TestCSEOffsetsKeepPassesInOrderAcrossTheLoginScreen(t *testing.T) {
+	f := newGPFixture(t)
+	f.coll.timeline.LoginUIDone = gpTestBoot.Add(10 * time.Second)
+	f.coll.timeline.SessionLogon = gpTestBoot.Add(30 * time.Second)
+
+	f.startComputerPass()
+	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
+	f.cseStart(gpTestActivity, 15*time.Second, cseFolderRedGUID, "Folder Redirection", false, "")
+	f.cseStop(gpTestActivity, 17*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection")
+	f.endComputerPass()
+
+	f.send(gpUserActivity, evtUserGPStart, 31*time.Second)
+	f.cseStart(gpUserActivity, 31500*time.Millisecond, cseRegistryGUID, "Registry", false, "")
+	f.cseStop(gpUserActivity, 32*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
+	f.send(gpUserActivity, evtUserGPEnd, 33*time.Second)
+
+	d := f.details()
+	require.Len(t, d.Computer, 2)
+	require.Len(t, d.User, 1)
+
+	milestones := make(map[string]Milestone)
+	for _, m := range buildTimelineMilestones(f.coll.timeline) {
+		milestones[m.ID] = m
+	}
+	computer, user := milestones["computer_group_policy"], milestones["user_group_policy"]
+
+	// 2000ms before the pass and 10000ms after it are elided; the pass itself is not.
+	assert.Equal(t, float64(10000), computer.OffsetMs)
+	assert.Equal(t, float64(19000), user.OffsetMs)
+
+	for _, inv := range d.Computer {
+		assertNested(t, inv, computer)
+	}
+	for _, inv := range d.User {
+		assertNested(t, inv, user)
+	}
+
+	lastComputer := d.Computer[len(d.Computer)-1]
+	assert.Less(t, lastComputer.OffsetMs+lastComputer.DurationMs, d.User[0].OffsetMs,
+		"the computer pass and its extensions finish before the user pass begins")
+}
+
 // --- Group Policy objects ---
 
 func TestGPOInlinedPerInvocation(t *testing.T) {
