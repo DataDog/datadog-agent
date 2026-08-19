@@ -35,10 +35,22 @@ const (
 	pmuTokenSeparator = "\x1f"
 
 	// pmuBootFaultInitialBufferSize is DD_PMU_MAX_TOKENS_PER_SERVICE *
-	// DD_PMU_MAX_TOKEN_CHARS from shutdown_cause_iokit_darwin.c: the largest
-	// single service the C reader hands back. Oversized services are dropped
-	// and logged there, so nothing to retry here.
-	pmuBootFaultInitialBufferSize = 88 * 53
+	// DD_PMU_MAX_TOKEN_CHARS: the largest single service the C reader hands
+	// back. Oversized services are dropped and logged there, so nothing to
+	// retry here.
+	pmuBootFaultInitialBufferSize = C.DD_PMU_MAX_TOKENS_PER_SERVICE * C.DD_PMU_MAX_TOKEN_CHARS
+
+	// maxShutdownTokens bounds the distinct token union, matching
+	// DD_PMU_MAX_TOKENS_PER_SERVICE: that constant already represents the
+	// largest possible known-dictionary size, so this is the true maximum
+	// rather than an independently chosen margin.
+	maxShutdownTokens = C.DD_PMU_MAX_TOKENS_PER_SERVICE
+
+	// maxShutdownTokenBytes bounds one token's content length. It mirrors the
+	// C reader's truncation bound (DD_PMU_MAX_TOKEN_CHARS minus the separator
+	// byte) so a token arriving here was never silently shortened by C
+	// without Go being able to reject it at the same size.
+	maxShutdownTokenBytes = C.DD_PMU_MAX_TOKEN_CHARS - 1
 )
 
 // errShutdownCauseUnsupported reports a platform where IOPMUBootFaultInfo

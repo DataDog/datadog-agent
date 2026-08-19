@@ -25,18 +25,6 @@ const (
 	shutdownClassHardware shutdownClass = "hardware"
 )
 
-const (
-	// maxShutdownTokens bounds the distinct token union. The PMU dictionary on
-	// the measured hardware holds 80 entries, but the property is
-	// machine-controlled and crosses into an event payload.
-	maxShutdownTokens = 128
-	// maxShutdownTokenBytes bounds one token; exceeding it rejects the payload
-	// rather than trimming it. The native reader mirrors this as
-	// DD_PMU_MAX_TOKEN_CHARS, so changing one means changing both. Longest
-	// token on the measured hardware is 35 bytes.
-	maxShutdownTokenBytes = 128
-)
-
 // shutdownClassPrecedence orders classes from most to least significant. A
 // collapsing machine drags multiple fault types together, and thermal must
 // win or the event titles as something else. A new class must be added here

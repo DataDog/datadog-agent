@@ -16,15 +16,6 @@
 // even though this runs as root inside system-probe.
 #define DD_PMU_MAX_SERVICES 16
 
-// DD_PMU_MAX_TOKENS_PER_SERVICE and DD_PMU_MAX_TOKEN_CHARS are sized from the
-// largest known real payload (80-token dictionary, longest token 35 bytes)
-// plus margin: 10% over token count, 50% over token length. A service
-// exceeding DD_PMU_MAX_TOKENS_PER_SERVICE is dropped, not failed (see the
-// caller); a token exceeding DD_PMU_MAX_TOKEN_CHARS (content plus its
-// trailing separator byte) is truncated rather than dropping its service.
-#define DD_PMU_MAX_TOKENS_PER_SERVICE 88
-#define DD_PMU_MAX_TOKEN_CHARS 53
-
 #define DD_PMU_TOKEN_SEPARATOR '\x1f'
 
 // dd_pkg_notableevents_append copies value into buffer, reporting whether the
@@ -221,9 +212,9 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
         distinct_tokens = candidate_tokens;
         services += 1;
 
-        // Margin already covers the full known dictionary, so once this many
-        // distinct tokens are collected, no remaining service can add a new
-        // one.
+        // DD_PMU_MAX_TOKENS_PER_SERVICE doubles as the known-dictionary size:
+        // once the cross-service union reaches it, every possible token has
+        // already been seen, so no remaining service can add a new one.
         if (distinct_tokens >= DD_PMU_MAX_TOKENS_PER_SERVICE) {
             break;
         }
