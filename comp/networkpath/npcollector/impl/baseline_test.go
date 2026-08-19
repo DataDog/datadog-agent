@@ -105,6 +105,27 @@ func TestBaselineSelectorBoundsHeavyHitterCandidates(t *testing.T) {
 	assert.Equal(t, "heavy", selected[0].Hostname)
 }
 
+func TestBaselineSelectorIgnoresZeroByteObservationsWhenFull(t *testing.T) {
+	now := MockTimeNow()
+	selector := newBaselineSelector(30 * time.Minute)
+	originalHashes := make([]uint64, 0, baselineCandidateLimit)
+	for i := 1; i <= baselineCandidateLimit; i++ {
+		path := baselinePath(netip.AddrFrom4([4]byte{10, 0, 0, byte(i)}).String())
+		selector.add(path, 1, now)
+		originalHashes = append(originalHashes, path.GetHash())
+	}
+
+	for i := 1; i <= baselineCandidateLimit*4; i++ {
+		path := baselinePath(netip.AddrFrom4([4]byte{10, 1, byte(i / 255), byte(i % 255)}).String())
+		selector.add(path, 0, now)
+	}
+
+	assert.Len(t, selector.candidates, baselineCandidateLimit)
+	for _, hash := range originalHashes {
+		assert.Contains(t, selector.candidates, hash)
+	}
+}
+
 func TestBaselineSelectorBreaksTiesByPathHash(t *testing.T) {
 	now := MockTimeNow()
 	selector := newBaselineSelector(30 * time.Minute)

@@ -69,6 +69,9 @@ func (selector *baselineSelector) add(path common.Pathtest, bytes uint64, now ti
 	defer selector.mu.Unlock()
 
 	selector.startLocked(now)
+	if bytes == 0 {
+		return
+	}
 	hash := path.GetHash()
 	if candidate, found := selector.candidates[hash]; found {
 		candidate.bytes = saturatingAdd(candidate.bytes, bytes)

@@ -31,7 +31,6 @@ dd_agent_go_test(
         "//test/e2e-framework/components/command",
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",
-        "//test/e2e-framework/components/datadog/apps",
         "//test/e2e-framework/components/datadog/dockeragentparams",
         "//test/e2e-framework/components/docker",
         "//test/e2e-framework/components/os",
