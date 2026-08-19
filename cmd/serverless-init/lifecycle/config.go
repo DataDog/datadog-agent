@@ -46,7 +46,7 @@ func parsePort(envVar, raw string, defaultVal int, forbidden ...int) (int, error
 	}
 	for _, f := range forbidden {
 		if port == f {
-			return 0, fmt.Errorf("%s: must not equal %d", envVar, f)
+			return 0, fmt.Errorf("%s: must not equal %d (collides with the lifecycle server)", envVar, f)
 		}
 	}
 	return port, nil
