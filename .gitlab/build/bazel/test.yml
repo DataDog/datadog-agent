@@ -45,12 +45,13 @@ bazel:coverage:linux-amd64:
     - cp "$(bazel info output_path)/_coverage/_coverage_report.dat" "$CI_PROJECT_DIR/coverage-bazel-$CI_JOB_NAME_SLUG.out"
   artifacts:
     paths:
-      - $RESULT_JSON
-      - test_output_unified.json
       - junit-*.tgz
       - bazel-bep.json
       - coverage-bazel-*.out
   variables:
+    # 1. `test2json` cannot replay `--instrumentation_filter` injected by `bazel coverage`
+    # 2. the sibling `bazel:test:linux-amd64` job already reports these very tests anyway
+    RESULT_JSON: ""
     KUBERNETES_CPU_REQUEST: 16
 
 bazel:test:linux-amd64:

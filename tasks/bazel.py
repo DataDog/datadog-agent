@@ -265,6 +265,7 @@ def _collect_test2json(ctx, test_artifacts, output_path):
             ctx,
             "run",
             "--config=gorace",  # to use same analysis cache across test & run commands
+            "--noallow_analysis_cache_discard",  # fail fast should configs diverge again
             "//bazel/tools/testlogs_to_json",
             "--",
             "-manifest",
@@ -277,7 +278,7 @@ def _collect_test2json(ctx, test_artifacts, output_path):
 @task(
     help={
         "bep_file": "Path to a Bazel BEP JSON file (--build_event_json_file) used to gather all necessary data.",
-        "result_json": "Path to write test2json JSONL output.",
+        "result_json": "Path to write test2json JSONL output (skipped when empty).",
         "junit_tar": "Path to write the JUnit tgz.",
     },
 )
@@ -294,13 +295,14 @@ def process_test_results(ctx, bep_file, result_json="test_output.json", junit_ta
     # with a different Bazel configuration.
     test_artifacts = _parse_bep(Path(bep_file))
 
-    # Produce the test2json result file
-    _collect_test2json(ctx, test_artifacts, result_json)
+    if result_json:  # empty in `bazel coverage` jobs
+        # Produce the test2json result file
+        _collect_test2json(ctx, test_artifacts, result_json)
 
-    # Produce UTOF and associated terminal output
-    from tasks.libs.testing.utof.go.generate import generate_unified_output
+        # Produce UTOF and associated terminal output
+        from tasks.libs.testing.utof.go.generate import generate_unified_output
 
-    generate_unified_output(ctx, result_json, "bazel", "")
+        generate_unified_output(ctx, result_json, "bazel", "")
 
     # Produce the junit tar
     if junit_tar:
