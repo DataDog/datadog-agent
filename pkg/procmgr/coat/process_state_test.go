@@ -101,7 +101,7 @@ func TestServiceProcessStateUnknownService(t *testing.T) {
 	snapshot := Snapshot{
 		Services: []ServiceSnapshot{{ID: ServiceIDDDOT, ManagementMode: ManagementModeProcmgr}},
 	}
-	assert.Equal(t, ProcessStateUnset, snapshot.ServiceProcessState("not-a-service"))
+	assert.Equal(t, ProcessStateUnknown, snapshot.ServiceProcessState("not-a-service"))
 }
 
 func TestCollectServiceProcessStateRunning(t *testing.T) {

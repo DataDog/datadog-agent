@@ -47,7 +47,7 @@ func ddotSnapshot(mode coat.ManagementMode, state pb.ProcessState) coat.Snapshot
 
 func TestDDOTProcessStateWithoutCollector(t *testing.T) {
 	d := &daemonImpl{}
-	assert.Equal(t, coat.ProcessStateUnset, d.ddotProcessState(context.Background()))
+	assert.Equal(t, coat.ProcessStateUnknown, d.ddotProcessState(context.Background()))
 }
 
 func TestDDOTProcessStateFromCollector(t *testing.T) {

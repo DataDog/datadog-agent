@@ -13,7 +13,6 @@ import (
 const ServiceIDDDOT = "ddot"
 
 const (
-	ProcessStateUnset        = ""
 	ProcessStateNotInstalled = "not_installed"
 	ProcessStateUnknown      = "unknown"
 	ProcessStateCreated      = "created"
@@ -46,7 +45,7 @@ func (s Snapshot) ServiceProcessState(id string) string {
 		}
 		return ProcessStateStopped
 	}
-	return ProcessStateUnset
+	return ProcessStateUnknown
 }
 
 func procmgrProcessState(state pb.ProcessState) string {

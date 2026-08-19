@@ -18,7 +18,7 @@ type procmgrSnapshotCollector interface {
 
 func (d *daemonImpl) ddotProcessState(ctx context.Context) string {
 	if d.procmgrCollector == nil {
-		return coat.ProcessStateUnset
+		return coat.ProcessStateUnknown
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
