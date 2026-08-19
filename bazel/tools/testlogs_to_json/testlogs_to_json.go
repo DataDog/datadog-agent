@@ -27,6 +27,9 @@ type options struct {
 	label        string
 	logPath      string
 	outputPath   string
+	concat       bool
+	mergeBEP     string
+	fragments    []string
 }
 
 func main() {
@@ -40,6 +43,21 @@ func run(args []string, stdout, stderr io.Writer) error {
 	opts, err := parseFlags(args)
 	if err != nil {
 		return err
+	}
+
+	if opts.concat {
+		if err := concatFragments(opts.fragments, opts.outputPath); err != nil {
+			return err
+		}
+		fmt.Fprintf(stderr, "Merged %d test2json fragments\n", len(opts.fragments))
+		return nil
+	}
+	if opts.mergeBEP != "" {
+		if err := mergeBEP(opts.mergeBEP, opts.outputPath); err != nil {
+			return err
+		}
+		fmt.Fprintf(stderr, "Merged test2json fragments from BEP %s\n", opts.mergeBEP)
+		return nil
 	}
 
 	entries, err := opts.entries()
@@ -74,13 +92,27 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&opts.label, "label", "", "Bazel test label for a single test.log conversion")
 	fs.StringVar(&opts.logPath, "log", "", "Path to a single test.log to convert")
 	fs.StringVar(&opts.outputPath, "output", "-", "Path to write test2json JSONL output, or '-' for stdout")
+	fs.BoolVar(&opts.concat, "concat", false, "Concatenate existing test2json JSONL fragments")
+	fs.StringVar(&opts.mergeBEP, "merge-bep", "", "Merge aspect fragments using test labels from a BEP JSONL file")
+	var fragments stringListFlag
+	fs.Var(&fragments, "fragment", "Test2json fragment path (repeatable, used with -concat)")
 	if err := fs.Parse(args); err != nil {
 		return opts, err
 	}
+	opts.fragments = []string(fragments)
 	if fs.NArg() != 0 {
 		return opts, fmt.Errorf("unexpected positional arguments: %s", strings.Join(fs.Args(), " "))
 	}
 	return opts, nil
+}
+
+type stringListFlag []string
+
+func (f *stringListFlag) String() string { return strings.Join(*f, ",") }
+
+func (f *stringListFlag) Set(value string) error {
+	*f = append(*f, value)
+	return nil
 }
 
 func (opts options) entries() ([]manifestEntry, error) {
@@ -93,7 +125,7 @@ func (opts options) entries() ([]manifestEntry, error) {
 	case opts.label != "" && opts.logPath != "":
 		return []manifestEntry{{pkg: opts.label, logPath: opts.logPath}}, nil
 	default:
-		return nil, errors.New("missing required -manifest or both -label and -log")
+		return nil, errors.New("missing required -manifest, -label/-log, -concat, or -merge-bep")
 	}
 }
 

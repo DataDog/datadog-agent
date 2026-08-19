@@ -1,5 +1,8 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_python//python:py_binary.bzl", "py_binary")
+load(":test2json_merge.bzl", "test2json_merge_from_bep")
+
+exports_files(glob(["bazel-bep.json"], allow_empty = True))
 
 py_binary(
     name = "generate_module_bazel",
@@ -22,5 +25,12 @@ alias(
         "@platforms//os:macos": "@llvm_toolchain_llvm//:install-name-tool",
         "//conditions:default": ":_empty_install_name_tool",
     }),
+    visibility = ["//visibility:public"],
+)
+
+# Merges aspect test2json fragments after bazel test using the CI BEP file at //:bazel-bep.json.
+test2json_merge_from_bep(
+    name = "test2json_merge",
+    bep = ":bazel-bep.json",
     visibility = ["//visibility:public"],
 )

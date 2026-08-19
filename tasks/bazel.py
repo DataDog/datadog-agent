@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -11,6 +12,7 @@ from invoke import task
 
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX
+from tasks.libs.common.utils import get_repo_root
 
 _IMPORT_PREFIX = AGENT_MODULE_PATH_PREFIX.rstrip("/")
 
@@ -248,36 +250,14 @@ def _collect_junit(test_artifacts, output_tgz):
     print(f"Packaged {collected} test suites → {output_tgz}")
 
 
-def _collect_test2json(ctx, test_artifacts, output_path):
-    """Merge in-graph aspect test2json fragments in BEP label order."""
-    output_base = Path(bazel(ctx, "info", "output_path", capture_output=True).strip())
-    with open(output_path, "wb") as out:
-        for label in sorted(test_artifacts.keys()):
-            for log_path in test_artifacts[label]["log_paths"]:
-                fragment = _test2json_fragment_path(output_base, label, log_path)
-                out.write(fragment.read_bytes())
+def _collect_test2json(ctx, bep_file, output_path):
+    """Build the in-graph merge target and copy its test2json output."""
+    tools_bep = get_repo_root() / "bazel/tools/bazel-bep.json"
+    shutil.copy2(Path(bep_file).resolve(), tools_bep)
 
-
-def _test2json_fragment_path(output_base: Path, label: str, log_path: Path) -> Path:
-    """Return the aspect-produced test2json fragment for one test.log."""
-    name = label.split(":")[1]
-    pkg = label.removeprefix("//").split(":")[0]
-    marker = name + "/"
-    log_str = str(log_path)
-    if marker in log_str:
-        suffix = log_str.split(marker, 1)[1].replace("/", "_").replace(":", "_")
-    else:
-        suffix = log_path.name
-    fname = f"{name}_{suffix}.test2json.jsonl"
-    hits = sorted(output_base.glob(f"bazel-out/*/bin/{pkg}/{fname}"))
-    if not hits:
-        hits = sorted(output_base.glob(f"**/bin/{pkg}/{fname}"))
-    if len(hits) != 1:
-        raise RuntimeError(
-            f"expected one test2json fragment for {label} log {log_path}, "
-            f"found {len(hits)}: {[str(p) for p in hits]}"
-        )
-    return hits[0]
+    bazel(ctx, "build", "--config=ci-test2json", "//bazel/tools:test2json_merge")
+    merged = Path(bazel(ctx, "info", "bazel-bin", capture_output=True).strip()) / "bazel/tools/test_output.jsonl"
+    shutil.copy2(merged, output_path)
 
 
 @task(
@@ -301,7 +281,7 @@ def process_test_results(ctx, bep_file, result_json="test_output.json", junit_ta
     test_artifacts = _parse_bep(Path(bep_file))
 
     # Produce the test2json result file
-    _collect_test2json(ctx, test_artifacts, result_json)
+    _collect_test2json(ctx, bep_file, result_json)
 
     # Produce UTOF and associated terminal output
     from tasks.libs.testing.utof.go.generate import generate_unified_output
