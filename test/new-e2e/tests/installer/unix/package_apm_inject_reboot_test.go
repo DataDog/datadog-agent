@@ -206,7 +206,7 @@ func (s *packageApmInjectSuite) TestAgentDowngradeAPMInjectService() {
 	// recent Agent package is gone.
 	oldInstallerPath := "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer"
 	host.MustExecute("sudo " + oldInstallerPath + " garbage-collect")
-	_, err = host.Execute(fmt.Sprintf("test ! -e /opt/datadog-packages/datadog-agent/%s", recentAgentVersion))
+	_, err = host.Execute("test ! -e /opt/datadog-packages/datadog-agent/" + recentAgentVersion)
 	require.NoError(s.T(), err, "recent Agent version was not garbage-collected")
 
 	help, err := host.Execute("sudo " + oldInstallerPath + " apm --help")
