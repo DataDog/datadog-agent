@@ -2,10 +2,7 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
     name = "testlogs_to_json_lib",
-    srcs = [
-        "merge.go",
-        "testlogs_to_json.go",
-    ],
+    srcs = ["testlogs_to_json.go"],
     importpath = "github.com/DataDog/datadog-agent/bazel/tools/testlogs_to_json",
     visibility = ["//visibility:private"],
     deps = ["@rules_go//go/tools/bzltestutil"],
@@ -20,10 +17,7 @@ go_binary(
 # gazelle:dd_agent_go_test off
 go_test(
     name = "testlogs_to_json_test",
-    srcs = [
-        "merge_test.go",
-        "testlogs_to_json_test.go",
-    ],
+    srcs = ["testlogs_to_json_test.go"],
     embed = [":testlogs_to_json_lib"],
     gotags = [],  # keep
 )
