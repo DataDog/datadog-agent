@@ -6890,18 +6890,6 @@ properties:
           \ every cycle under the previous, wall-clock-based\ndesign. 0 or negative\
           \ disables the keep-alive entirely (pure compression;\na flat signal\
           \ can go silent indefinitely)."
-      sdc_compression_telemetry_enabled:
-        node_type: setting
-        type: boolean
-        default: true
-        comment: |-
-          When false, SDC's own diagnostic telemetry (checksampler_sdc_samples_total,
-          checksampler_sdc_breakpoints_total, checksampler_sdc_contexts, etc.,
-          tagged by check_name/metric_name) never materializes a series for
-          any check/metric, so nothing ships under datadog.agent.checksampler_sdc_*.
-          Useful when measuring forwarder payload size, since that
-          telemetry can otherwise become a sizable, confounding share of
-          the payload on its own once SDC compression is enabled broadly.
       sdc_compression_warmup:
         node_type: setting
         type: integer

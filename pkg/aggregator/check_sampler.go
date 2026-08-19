@@ -88,7 +88,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 		// available here — the outgoing Serie.MType seen later in
 		// commitSeries conflates Gauge and Rate (both wire as
 		// APIGaugeType), so eligibility must be decided at this layer.
-		cs.sdcCompressor.noteSample(contextKey, metricSample.Name)
+		cs.sdcCompressor.noteSample(contextKey)
 	}
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)

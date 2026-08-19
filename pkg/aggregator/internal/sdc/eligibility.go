@@ -55,17 +55,6 @@ func DryRun() bool {
 	return setup.Datadog().GetBool("checks.sdc_compression_dry_run")
 }
 
-// TelemetryEnabled reports whether SDC's own diagnostic telemetry
-// (checksampler_sdc_samples_total, breakpoints_total, contexts, etc.) should
-// ever materialize a child series for any check/metric. When false, callers
-// should use no-op telemetry stand-ins instead of real ones, since with SDC
-// compression enabled broadly that telemetry (tagged by check_name/metric_name)
-// can itself become a sizable, confounding share of the payload it's meant
-// to shrink.
-func TelemetryEnabled() bool {
-	return setup.Datadog().GetBool("checks.sdc_compression_telemetry_enabled")
-}
-
 // KeepAliveCommits returns checks.sdc_compression_keepalive_commits: how
 // many consecutive real commits with a sample, but no natural breakpoint,
 // must pass before a compressed context force-ships a point anyway (so a
