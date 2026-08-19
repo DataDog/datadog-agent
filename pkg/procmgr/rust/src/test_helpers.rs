@@ -160,10 +160,6 @@ pub fn exit_cmd(code: i32) -> (&'static str, Vec<String>) {
     (sh, vec![flag.to_string(), format!("exit {code}")])
 }
 
-// ---------------------------------------------------------------------------
-// YAML config builders
-// ---------------------------------------------------------------------------
-
 /// Build a YAML config from a command, args, and extra options.
 pub fn cmd_yaml(cmd: &str, args: &[String], extra: &str) -> String {
     let mut yaml = format!("command: {cmd}\n");
@@ -211,10 +207,6 @@ pub fn sleep_args_display() -> String {
 pub fn temp_dir_str() -> String {
     std::env::temp_dir().display().to_string()
 }
-
-// ---------------------------------------------------------------------------
-// Misc
-// ---------------------------------------------------------------------------
 
 /// Fixed UUID for deterministic tests.
 pub fn test_uuid() -> String {

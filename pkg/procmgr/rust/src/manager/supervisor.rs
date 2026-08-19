@@ -8,7 +8,6 @@ use std::future::Future;
 use std::pin::Pin;
 use tokio::sync::{mpsc, oneshot};
 
-/// Cloneable senders passed to spawn/restart handlers during a supervisor run.
 #[derive(Clone)]
 pub(crate) struct RuntimeHandles {
     pub(in crate::manager) exit_tx: mpsc::Sender<ExitEvent>,
@@ -58,7 +57,6 @@ async fn handle_command(manager: &ProcessManager, handles: &RuntimeHandles, cmd:
     }
 }
 
-/// Run until shutdown is signaled or all event channels close.
 pub(super) async fn run_manager_event_loop(
     manager: &ProcessManager,
     handles: &RuntimeHandles,
@@ -87,7 +85,6 @@ pub(super) async fn run_manager_event_loop(
     }
 }
 
-/// Event loop wiring around a [`ProcessManager`] (gRPC, exit/restart channels, shutdown).
 pub struct Supervisor {
     manager: ProcessManager,
 }
@@ -97,7 +94,6 @@ impl Supervisor {
         Self { manager }
     }
 
-    /// Run the daemon until a platform shutdown signal is received.
     pub async fn run(self) -> Result<()> {
         info!("dd-procmgrd starting");
 

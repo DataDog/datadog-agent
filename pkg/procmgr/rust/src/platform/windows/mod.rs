@@ -391,8 +391,6 @@ pub async fn shutdown_signal() {
     }
 }
 
-// Spawn token environment (`CreateProcessAsUserW`)
-
 pub(crate) fn baseline_env_vars_from_token(token: HANDLE) -> Result<HashMap<String, String>> {
     if token.is_null() {
         anyhow::bail!("baseline_env_vars_from_token: null token handle");

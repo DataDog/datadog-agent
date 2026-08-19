@@ -17,35 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
-// platformConfig holds all platform-specific paths, commands, and config
-// snippets so that the shared test methods in baseProcmgrSuite work on both
-// Linux and Windows without branching.
 type platformConfig struct {
-	daemonBin    string // path to dd-procmgrd binary
-	cliBin       string // path to dd-procmgr CLI binary
-	configDir    string // processes.d directory for agent file provisioning
-	sleepCommand string // expected COMMAND column value in "list" output
+	daemonBin    string
+	cliBin       string
+	configDir    string
+	sleepCommand string // COMMAND column in `list` output
 
-	testProcessYAML   string // YAML config that starts a long-running sleep process
-	missingBinaryYAML string // YAML config whose condition_path_exists prevents start
+	testProcessYAML   string
+	missingBinaryYAML string
 
-	// checkFileExists returns a shell command that succeeds (exit 0) when the
-	// given path exists on the remote host.
-	checkFileExists func(path string) string
-
-	// checkSvcRunning is a shell command whose trimmed stdout indicates the
-	// service is running (compared against svcRunningOutput).
+	checkFileExists  func(path string) string
 	checkSvcRunning  string
 	svcRunningOutput string
 
-	// cliCmd returns the full shell command to invoke the procmgr CLI with
-	// the given arguments (handles quoting differences between bash and
-	// PowerShell).
-	cliCmd func(args string) string
-
-	// killPIDCmd returns a shell command that force-kills the given PID
-	// (simulates an external crash, not dd-procmgr stop).
-	killPIDCmd func(pid uint32) string
+	cliCmd     func(args string) string
+	killPIDCmd func(pid uint32) string // SIGKILL / Stop-Process, not `dd-procmgr stop`
 }
 
 type baseProcmgrSuite struct {
@@ -62,10 +48,6 @@ func (s *baseProcmgrSuite) SetupSuite() {
 		s.T().Skip("procmgr daemon not included in this agent package; skipping process manager tests")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Shared tests — run on both Linux and Windows
-// ---------------------------------------------------------------------------
 
 func (s *baseProcmgrSuite) TestBinariesExist() {
 	s.Env().RemoteHost.MustExecute(s.platform.checkFileExists(s.platform.daemonBin))
@@ -103,10 +85,6 @@ func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 		})
 	}, 30*time.Second, 2*time.Second)
 }
-
-// ---------------------------------------------------------------------------
-// CLI output parsing helpers
-// ---------------------------------------------------------------------------
 
 func fieldValue(output, label string) string {
 	needle := label + ":"
