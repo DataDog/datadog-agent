@@ -3,8 +3,6 @@ network_path:
     baseline_tests_enabled: true
   collector:
     flush_interval: 2s
-    pathtest_interval: 10m
-    pathtest_ttl: 1m
     filters:
       - match_domain: '*'
         type: exclude
