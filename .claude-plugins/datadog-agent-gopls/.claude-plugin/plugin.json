@@ -14,7 +14,7 @@
       },
       "initializationOptions": {
         "build.buildFlags": [
-          "-tags=cel,clusterchecks,consul,containerd,cri,crio,datadog.no_waf,docker,ec2,etcd,fargateprocess,grpcnotrace,jetson,jmx,kubeapiserver,kubelet,linux_bpf,ncm,netcgo,netgo,no_gogo,npm,nvml,oracle,orchestrator,osusergo,otlp,pcap,podman,python,remove_all_sd,retrynotrace,seclmax,serverless,sharedlibrarycheck,systemd,systemprobechecks,test,trivy,trivy_no_javadb,zk,zlib,zstd",
+          "-tags=cel,clusterchecks,consul,containerd,cri,crio,datadog.no_waf,docker,ec2,etcd,fargateprocess,grpcnotrace,jetson,jmx,kubeapiserver,kubelet,bpf,ncm,netcgo,netgo,no_gogo,npm,nvml,oracle,orchestrator,osusergo,otlp,pcap,podman,python,remove_all_sd,retrynotrace,seclmax,serverless,sharedlibrarycheck,systemd,systemprobechecks,test,trivy,trivy_no_javadb,zk,zlib,zstd",
           "-buildvcs=false"
         ],
         "formatting.local": "github.com/DataDog/datadog-agent"
