@@ -243,7 +243,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	if cfg == nil {
 		return Provides{Comp: &disabledObserver{}}, nil
 	}
-	logger := logging.Wrap(deps.Log)
+	logger := deps.Log
 
 	// Off-by-default fast path: when neither analysis nor recording is active the
 	// live observer noops every handle (see handleFunc below) and installs no log
@@ -384,7 +384,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			digestPath := filepath.Join(parquetDir, detectDigestFileName)
 			cleanup, err := enableDetectDigestRecordingToFile(eng, digestPath)
 			if err != nil {
-				logger.Warnf("detect digest recording disabled: %v", err)
+				logger.Warnf(logging.Format("detect digest recording disabled: %v"), err)
 			} else {
 				obs.digestCleanup = cleanup
 			}
@@ -392,7 +392,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			advPath := filepath.Join(parquetDir, advanceLogFileName)
 			advRec, err := newAdvanceLogRecorder(advPath)
 			if err != nil {
-				logger.Warnf("advance log recording disabled: %v", err)
+				logger.Warnf(logging.Format("advance log recording disabled: %v"), err)
 			} else {
 				eng.onAdvance = advRec.record
 				obs.advanceLogCleanup = func() {
@@ -415,7 +415,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
 	logsRules, err := logsfilter.LoadRules(cfg, logsProcessingRulesKey)
 	if err != nil {
-		logger.Warnf("%s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
+		logger.Warnf(logging.Format("%s: invalid rules, proceeding without log filtering: %v"), logsProcessingRulesKey, err)
 		logsRules = &logsfilter.Rules{}
 	}
 

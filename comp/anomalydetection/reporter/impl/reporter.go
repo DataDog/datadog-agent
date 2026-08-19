@@ -49,7 +49,7 @@ type Provides struct {
 // event-platform forwarder is available, also provides an EventReporter that
 // posts Datadog change events through the event-management intake pipeline.
 func NewComponent(req Requires) (Provides, error) {
-	logger := logging.Wrap(req.Log)
+	logger := req.Log
 	ongoingCounter := req.Telemetry.NewCounter(
 		"observer",
 		telemetryReportsOngoing,
@@ -74,11 +74,11 @@ func NewComponent(req Requires) (Provides, error) {
 	if req.Config.GetBool("anomaly_detection.reporting.events.enabled") {
 		forwarder, ok := req.EventPlatform.Get()
 		if !ok {
-			logger.Warnf("reporter event_reporter disabled: event-platform forwarder is not running")
+			logger.Warnf(logging.Format("reporter event_reporter disabled: event-platform forwarder is not running"))
 		} else {
 			sender, err := newEventSender(forwarder, logger, nil, req.Hostname)
 			if err != nil {
-				logger.Warnf("reporter event_reporter disabled: %v", err)
+				logger.Warnf(logging.Format("reporter event_reporter disabled: %v"), err)
 			} else {
 				reporters = append(reporters, &EventReporter{sender: sender, logger: logger, maxRetries: defaultMaxRetryAttempts})
 			}
@@ -125,15 +125,15 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 			if r.stdoutEnabled {
 				message := formatScorerContributorMessage(ce.Contributors, r.storage)
 				if message == "" {
-					r.logger.Infof("reporter scorer episode started: scorer=%s pattern=%s t=%d",
+					r.logger.Infof(logging.Format("reporter scorer episode started: scorer=%s pattern=%s t=%d"),
 						ce.CorrelatorName, ce.Correlation.Pattern, ce.Timestamp)
 				} else {
-					r.logger.Infof("reporter scorer episode started:\n%s", message)
+					r.logger.Infof(logging.Format("reporter scorer episode started:\n%s"), message)
 				}
 			}
 		case observerdef.CorrelatorEventEpisodeEnded:
 			if r.stdoutEnabled {
-				r.logger.Infof("reporter scorer episode ended: scorer=%s pattern=%s t=%d duration=%ds",
+				r.logger.Infof(logging.Format("reporter scorer episode ended: scorer=%s pattern=%s t=%d duration=%ds"),
 					ce.CorrelatorName, ce.Correlation.Pattern, ce.Timestamp,
 					ce.Correlation.LastUpdated-ce.Correlation.FirstSeen)
 			}
@@ -142,12 +142,12 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 			r.emittedCounter.Add(1)
 			emitted = true
 			if r.stdoutEnabled {
-				r.logger.Infof("reporter anomaly detection report: pattern=%s title=%q members=%d",
+				r.logger.Infof(logging.Format("reporter anomaly detection report: pattern=%s title=%q members=%d"),
 					ce.Correlation.Pattern, ce.Correlation.Title, len(ce.Correlation.Members))
 				if r.stdoutVerbose {
 					for _, a := range ce.Correlation.Anomalies {
 						ts := time.Unix(a.Timestamp, 0).UTC().Format(time.RFC3339)
-						r.logger.Infof("reporter anomaly: %s [%s] at %s",
+						r.logger.Infof(logging.Format("reporter anomaly: %s [%s] at %s"),
 							a.Source.DisplayName(), a.DetectorName, ts)
 					}
 				}
@@ -163,7 +163,7 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	for _, ac := range output.ActiveCorrelations {
 		if _, isNew := newlyDetected[ac.Pattern]; !isNew {
 			if r.stdoutEnabled {
-				r.logger.Debugf("reporter ongoing anomaly correlation: pattern=%s members=%d",
+				r.logger.Debugf(logging.Format("reporter ongoing anomaly correlation: pattern=%s members=%d"),
 					ac.Pattern, len(ac.Members))
 			}
 			hasOngoing = true
@@ -177,7 +177,7 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	if r.stdoutEnabled {
 		for _, a := range output.NewAnomalies {
 			ts := time.Unix(a.Timestamp, 0).UTC().Format(time.RFC3339)
-			r.logger.Debugf("reporter anomaly detected: source=%s detector=%s at=%s",
+			r.logger.Debugf(logging.Format("reporter anomaly detected: source=%s detector=%s at=%s"),
 				a.Source.DisplayName(), a.DetectorName, ts)
 		}
 	}

@@ -8,6 +8,7 @@
 package logssourceimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -25,7 +26,7 @@ func registerKubeletJournaldSource(logSources *sources.LogSources, logger log.Co
 		Tags:               logsconfig.StringSliceField{"source:kubelet"},
 	})
 	logSources.AddSource(src)
-	logger.Infof("logssource registered kubelet journald source: config_id=%q include_units=%v tags=%v",
+	logger.Infof(logging.Format("logssource registered kubelet journald source: config_id=%q include_units=%v tags=%v"),
 		src.Config.ConfigID, src.Config.IncludeSystemUnits, src.Config.Tags)
 	return src
 }

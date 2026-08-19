@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -271,7 +272,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 		host = s.hostname.GetSafe(context.TODO())
 	}
 
-	s.logger.Infof("reporter sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
+	s.logger.Infof(logging.Format("reporter sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n"), c.Pattern, c.Title, aggKey, ts, msg)
 
 	payload := buildChangeEventPayload(c, msg, ts, aggKey, host)
 	body, err := json.Marshal(payload)
@@ -310,7 +311,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 		host = s.hostname.GetSafe(context.TODO())
 	}
 
-	s.logger.Infof("reporter sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
+	s.logger.Infof(logging.Format("reporter sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s"),
 		evt.Correlation.Pattern, direction, aggKey, ts)
 
 	tags := []string{

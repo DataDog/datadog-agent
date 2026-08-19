@@ -6,6 +6,7 @@
 package reporterimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -81,11 +82,11 @@ func (r *EventReporter) Report(output reporterdef.ReportOutput) bool {
 		if err := r.sender.send(entry.correlation); err != nil {
 			entry.attempts++
 			if entry.attempts >= r.maxRetries {
-				r.logger.Warnf("reporter dropping correlation event pattern=%s after %d failed attempts: %v",
+				r.logger.Warnf(logging.Format("reporter dropping correlation event pattern=%s after %d failed attempts: %v"),
 					entry.correlation.Pattern, entry.attempts, err)
 				continue // evict
 			}
-			r.logger.Errorf("reporter retry %d/%d: failed to send correlation event pattern=%s: %v",
+			r.logger.Errorf(logging.Format("reporter retry %d/%d: failed to send correlation event pattern=%s: %v"),
 				entry.attempts, r.maxRetries, entry.correlation.Pattern, err)
 			stillPending = append(stillPending, entry)
 			continue
@@ -98,19 +99,19 @@ func (r *EventReporter) Report(output reporterdef.ReportOutput) bool {
 		switch ce.Kind {
 		case observerdef.CorrelatorEventEpisodeStarted, observerdef.CorrelatorEventEpisodeEnded:
 			if err := r.sender.sendEpisodeEvent(ce); err != nil {
-				r.logger.Errorf("reporter failed to send scorer episode event pattern=%s kind=%d: %v",
+				r.logger.Errorf(logging.Format("reporter failed to send scorer episode event pattern=%s kind=%d: %v"),
 					ce.Correlation.Pattern, ce.Kind, err)
 				continue
 			}
 		case observerdef.CorrelatorEventCorrelationDetected:
 			if err := r.sender.send(ce.Correlation); err != nil {
-				r.logger.Errorf("reporter failed to send correlation event pattern=%s: %v",
+				r.logger.Errorf(logging.Format("reporter failed to send correlation event pattern=%s: %v"),
 					ce.Correlation.Pattern, err)
 				r.retryPending = append(r.retryPending, retryEntry{correlation: ce.Correlation, attempts: 1})
 				continue
 			}
 		default:
-			r.logger.Warnf("reporter unknown correlator event kind %d, skipping", ce.Kind)
+			r.logger.Warnf(logging.Format("reporter unknown correlator event kind %d, skipping"), ce.Kind)
 			continue
 		}
 		emitted = true

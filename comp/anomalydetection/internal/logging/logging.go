@@ -6,78 +6,34 @@
 // Package logging provides the common anomaly-detection log prefix.
 package logging
 
-import (
-	"fmt"
-
-	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-)
+import pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 // Prefix identifies logs emitted by the anomaly-detection subsystem. It includes
 // the trailing separator so log producers and consumers share one exact marker.
 const Prefix = "[anomalydetection] "
 
-func prefixedFormat(format string) string { return Prefix + format }
+// Format returns a format string with the anomaly-detection prefix. Use it
+// when logging through an injected log.Component so the original caller
+// attribution is retained.
+func Format(format string) string { return Prefix + format }
 
-func prefixedMessage(args []interface{}) string { return Prefix + fmt.Sprint(args...) }
+func prefixedMessage(args []interface{}) string { return Prefix + pkglog.BuildLogEntry(args...) }
 
-// Wrap returns a logger that prefixes every message with Prefix.
-func Wrap(logger logdef.Component) logdef.Component {
-	if logger == nil {
-		return nil
-	}
-	return wrappedComponent{logger: logger}
-}
-
-type wrappedComponent struct{ logger logdef.Component }
-
-func (l wrappedComponent) Trace(args ...interface{}) { l.logger.Trace(prefixedMessage(args)) }
-func (l wrappedComponent) Tracef(format string, args ...interface{}) {
-	l.logger.Tracef(prefixedFormat(format), args...)
-}
-func (l wrappedComponent) Debug(args ...interface{}) { l.logger.Debug(prefixedMessage(args)) }
-func (l wrappedComponent) Debugf(format string, args ...interface{}) {
-	l.logger.Debugf(prefixedFormat(format), args...)
-}
-func (l wrappedComponent) Info(args ...interface{}) { l.logger.Info(prefixedMessage(args)) }
-func (l wrappedComponent) Infof(format string, args ...interface{}) {
-	l.logger.Infof(prefixedFormat(format), args...)
-}
-func (l wrappedComponent) Warn(args ...interface{}) error {
-	return l.logger.Warn(prefixedMessage(args))
-}
-func (l wrappedComponent) Warnf(format string, args ...interface{}) error {
-	return l.logger.Warnf(prefixedFormat(format), args...)
-}
-func (l wrappedComponent) Error(args ...interface{}) error {
-	return l.logger.Error(prefixedMessage(args))
-}
-func (l wrappedComponent) Errorf(format string, args ...interface{}) error {
-	return l.logger.Errorf(prefixedFormat(format), args...)
-}
-func (l wrappedComponent) Critical(args ...interface{}) error {
-	return l.logger.Critical(prefixedMessage(args))
-}
-func (l wrappedComponent) Criticalf(format string, args ...interface{}) error {
-	return l.logger.Criticalf(prefixedFormat(format), args...)
-}
-func (l wrappedComponent) Flush() { l.logger.Flush() }
-
-func Trace(args ...interface{})                 { pkglog.Trace(prefixedMessage(args)) }
-func Tracef(format string, args ...interface{}) { pkglog.Tracef(prefixedFormat(format), args...) }
-func Debug(args ...interface{})                 { pkglog.Debug(prefixedMessage(args)) }
-func Debugf(format string, args ...interface{}) { pkglog.Debugf(prefixedFormat(format), args...) }
-func Info(args ...interface{})                  { pkglog.Info(prefixedMessage(args)) }
-func Infof(format string, args ...interface{})  { pkglog.Infof(prefixedFormat(format), args...) }
-func Warn(args ...interface{}) error            { return pkglog.Warn(prefixedMessage(args)) }
+func Trace(args ...interface{})                 { pkglog.TraceStackDepth(1, prefixedMessage(args)) }
+func Tracef(format string, args ...interface{}) { pkglog.TracefStackDepth(1, Format(format), args...) }
+func Debug(args ...interface{})                 { pkglog.DebugStackDepth(1, prefixedMessage(args)) }
+func Debugf(format string, args ...interface{}) { pkglog.DebugfStackDepth(1, Format(format), args...) }
+func Info(args ...interface{})                  { pkglog.InfoStackDepth(1, prefixedMessage(args)) }
+func Infof(format string, args ...interface{})  { pkglog.InfofStackDepth(1, Format(format), args...) }
+func Warn(args ...interface{}) error            { return pkglog.WarnStackDepth(1, prefixedMessage(args)) }
 func Warnf(format string, args ...interface{}) error {
-	return pkglog.Warnf(prefixedFormat(format), args...)
+	return pkglog.WarnfStackDepth(1, Format(format), args...)
 }
-func Error(args ...interface{}) error { return pkglog.Error(prefixedMessage(args)) }
+func Error(args ...interface{}) error { return pkglog.ErrorStackDepth(1, prefixedMessage(args)) }
 func Errorf(format string, args ...interface{}) error {
-	return pkglog.Errorf(prefixedFormat(format), args...)
+	return pkglog.ErrorfStackDepth(1, Format(format), args...)
 }
-func Critical(args ...interface{}) error { return pkglog.Critical(prefixedMessage(args)) }
+func Critical(args ...interface{}) error { return pkglog.CriticalStackDepth(1, prefixedMessage(args)) }
 func Criticalf(format string, args ...interface{}) error {
-	return pkglog.Criticalf(prefixedFormat(format), args...)
+	return pkglog.CriticalfStackDepth(1, Format(format), args...)
 }

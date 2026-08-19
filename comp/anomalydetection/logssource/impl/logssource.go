@@ -93,7 +93,7 @@ type logssourceComponent struct{}
 //     build tag (no-op otherwise)
 //   - file logs are always supported
 func NewComponent(deps Requires) (Provides, error) {
-	logger := logging.Wrap(deps.Log)
+	logger := deps.Log
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()
 
@@ -113,13 +113,13 @@ func NewComponent(deps Requires) (Provides, error) {
 	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
 	logsRules, err := logsfilter.LoadRules(deps.Config, logsProcessingRulesKey)
 	if err != nil {
-		logger.Warnf("logssource %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
+		logger.Warnf(logging.Format("logssource %s: invalid rules, proceeding without log filtering: %v"), logsProcessingRulesKey, err)
 		logsRules = &logsfilter.Rules{}
 	}
 
 	processingRules, err := logsconfig.GlobalProcessingRules(deps.Config)
 	if err != nil {
-		logger.Warnf("logssource invalid global processing rules, proceeding without them: %v", err)
+		logger.Warnf(logging.Format("logssource invalid global processing rules, proceeding without them: %v"), err)
 		processingRules = nil
 	}
 
@@ -145,7 +145,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	if containerSourcesActive {
 		fingerprintCfg, err := logsconfig.GlobalFingerprintConfig(deps.Config)
 		if err != nil {
-			logger.Warnf("logssource invalid fingerprint config, proceeding with defaults: %v", err)
+			logger.Warnf(logging.Format("logssource invalid fingerprint config, proceeding with defaults: %v"), err)
 			fingerprintCfg = &types.FingerprintConfig{}
 		}
 		fileOpener := opener.NewFileOpener()
@@ -172,7 +172,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			adScheduler = logsadscheduler.NewNamed(deps.Autodiscovery, "observer-logssource AD scheduler")
 		}
 	} else if logSourceSettings.containerSourcesEnabled {
-		logger.Debugf("logssource container log sources not started: workloadmeta unavailable")
+		logger.Debugf(logging.Format("logssource container log sources not started: workloadmeta unavailable"))
 	}
 
 	if containerSourcesActive || logSourceSettings.kubeletSourceEnabled {
@@ -186,7 +186,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
-			logger.Infof("logssource starting log pipeline")
+			logger.Infof(logging.Format("logssource starting log pipeline"))
 			pipeline.start()
 			launchersMgr.Start()
 			if adScheduler != nil {
