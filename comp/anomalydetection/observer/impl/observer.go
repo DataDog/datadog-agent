@@ -274,6 +274,22 @@ func NewComponent(deps Requires) (Provides, error) {
 				storageCfg.PointRetentionSecs = int64(d.Seconds())
 			}
 		}
+		if cfg.IsConfigured("anomaly_detection.storage.inactive_series_ttl") {
+			d := cfg.GetDuration("anomaly_detection.storage.inactive_series_ttl")
+			if d < 0 {
+				pkglog.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
+			} else {
+				storageCfg.InactiveSeriesTTLSeconds = int64(d.Seconds())
+			}
+		}
+		if cfg.IsConfigured("anomaly_detection.storage.inactive_series_check_interval") {
+			d := cfg.GetDuration("anomaly_detection.storage.inactive_series_check_interval")
+			if d < 0 {
+				pkglog.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
+			} else {
+				storageCfg.InactiveSeriesCheckIntervalSeconds = int64(d.Seconds())
+			}
+		}
 	}
 
 	compiledMetricFilter, err := loadMetricFilter(cfg)
