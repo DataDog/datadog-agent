@@ -211,7 +211,7 @@ func TestGoSpan(t *testing.T) {
 	}
 	defer test.Close()
 
-	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	spanTester, err := loadSyscallTester(t, test, "span_go_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func TestGoSpan(t *testing.T) {
 			envs := []string{}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, envs)
+				cmd := cmdFunc(spanTester, args, envs)
 				out, err := cmd.CombinedOutput()
 
 				if err != nil {
@@ -286,7 +286,7 @@ func TestGoSpan(t *testing.T) {
 			}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, []string{})
+				cmd := cmdFunc(spanTester, args, []string{})
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
@@ -329,7 +329,7 @@ func TestGoSpan(t *testing.T) {
 			}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, []string{})
+				cmd := cmdFunc(spanTester, args, []string{})
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
@@ -360,7 +360,7 @@ func TestGoSpan(t *testing.T) {
 			}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, []string{})
+				cmd := cmdFunc(spanTester, args, []string{})
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
@@ -412,7 +412,7 @@ func TestGoSpan(t *testing.T) {
 			}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, []string{})
+				cmd := cmdFunc(spanTester, args, []string{})
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
@@ -498,7 +498,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 	}
 	defer test.Close()
 
-	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	spanTester, err := loadSyscallTester(t, test, "span_go_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -543,7 +543,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			var expectedSpanID, expectedLocalRootSpanID uint64
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, []string{})
+				cmd := cmdFunc(spanTester, args, []string{})
 				out, err := cmd.CombinedOutput()
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
@@ -586,7 +586,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			var expectedSpanID, expectedLocalRootSpanID uint64
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, []string{})
+				cmd := cmdFunc(spanTester, args, []string{})
 				out, err := cmd.CombinedOutput()
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
@@ -633,7 +633,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, []string{})
+				cmd := cmdFunc(spanTester, args, []string{})
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
@@ -664,7 +664,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, []string{})
+				cmd := cmdFunc(spanTester, args, []string{})
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
@@ -716,7 +716,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			var parentSpanID, parentLocalRootSpanID uint64
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, []string{})
+				cmd := cmdFunc(spanTester, args, []string{})
 				out, err := cmd.CombinedOutput()
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
