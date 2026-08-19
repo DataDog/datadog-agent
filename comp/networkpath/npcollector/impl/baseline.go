@@ -16,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
+// Baseline selection accumulates admitted CNM path byte volume over a
+// five-minute bootstrap window and subsequent configured intervals. It uses
+// bounded weighted Space-Saving to emit up to three one-shot paths per window.
+// Windows restart when flushed, and missed windows are not replayed.
 const (
 	baselineSelectionsPerWindow = 3
 	baselineCandidateLimit      = 32
