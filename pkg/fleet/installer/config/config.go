@@ -408,8 +408,12 @@ var (
 func getConfigFileSpec(file string) *configFileSpec {
 	normalizedFile := filepath.ToSlash(file)
 
-	// Fallback for legacy files under the /managed directory
-	if strings.HasPrefix(normalizedFile, "/managed") {
+	// Fallback for files in the legacy managed config tree. The exact root is
+	// allowed because legacy migration deletes it before recreating the config.
+	legacyConfigPath := "/" + filepath.ToSlash(legacyPathPrefix)
+	if normalizedFile == "/managed" ||
+		normalizedFile == legacyConfigPath ||
+		strings.HasPrefix(normalizedFile, legacyConfigPath+"/") {
 		filename := filepath.Base(normalizedFile)
 
 		for _, spec := range allowedConfigFiles {

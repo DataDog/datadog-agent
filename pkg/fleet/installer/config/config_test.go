@@ -612,6 +612,10 @@ func TestRemoveConfigFilesMissingFromSource(t *testing.T) {
 		"files/conf.d/customer.yaml",
 		"conf.d/new.d/README.txt",
 		"managed/datadog-agent/stable/metadata.json",
+		"managed-user.yaml",
+		"managed-custom/customer.yaml",
+		"managed/datadog-agent/other/customer.yaml",
+		"managed/datadog-agent/stable-custom/customer.yaml",
 		"auth_token",
 	} {
 		writeFile(targetDir, path)
@@ -626,7 +630,21 @@ func TestRemoveConfigFilesMissingFromSource(t *testing.T) {
 	assert.FileExists(t, filepath.Join(targetDir, "files", "conf.d", "customer.yaml"))
 	assert.FileExists(t, filepath.Join(targetDir, "conf.d", "new.d", "README.txt"))
 	assert.FileExists(t, filepath.Join(targetDir, "managed", "datadog-agent", "stable", "metadata.json"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed-user.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed-custom", "customer.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed", "datadog-agent", "other", "customer.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed", "datadog-agent", "stable-custom", "customer.yaml"))
 	assert.FileExists(t, filepath.Join(targetDir, "auth_token"))
+}
+
+func TestGetConfigFileSpecLegacyManagedPaths(t *testing.T) {
+	assert.NotNil(t, getConfigFileSpec("/managed"))
+	assert.NotNil(t, getConfigFileSpec("/managed/datadog-agent/stable/application_monitoring.yaml"))
+
+	assert.Nil(t, getConfigFileSpec("/managed-user.yaml"))
+	assert.Nil(t, getConfigFileSpec("/managed-custom/customer.yaml"))
+	assert.Nil(t, getConfigFileSpec("/managed/datadog-agent/other/customer.yaml"))
+	assert.Nil(t, getConfigFileSpec("/managed/datadog-agent/stable-custom/customer.yaml"))
 }
 
 func TestVerifyConfigFilesCopied(t *testing.T) {
