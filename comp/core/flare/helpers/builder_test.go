@@ -142,12 +142,12 @@ func TestGetArchiveNameIsUniqueWithinSameSecond(t *testing.T) {
 // goroutines through a shared barrier makes them call getArchiveName() as close to simultaneously as
 // the Go scheduler allows.
 func TestGetArchiveNameIsUniqueUnderConcurrency(t *testing.T) {
-	const n = 200
+	const totalConcurrentRuns = 200
 
 	start := make(chan struct{})
-	names := make(chan string, n)
+	names := make(chan string, totalConcurrentRuns)
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
+	for i := 0; i < totalConcurrentRuns; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -159,7 +159,7 @@ func TestGetArchiveNameIsUniqueUnderConcurrency(t *testing.T) {
 	wg.Wait()
 	close(names)
 
-	seen := make(map[string]struct{}, n)
+	seen := make(map[string]struct{}, totalConcurrentRuns)
 	for name := range names {
 		if _, dup := seen[name]; dup {
 			t.Fatalf("duplicate archive name: %s", name)
