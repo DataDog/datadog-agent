@@ -19,12 +19,23 @@ WORKDIR /workspace
 # It seems that this feature could use some improvement. If you just get mirrorlist
 # from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
 # cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
-# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
-# should be reliable enough in combination and also well maintained.
+# indefinitely. Therefore we create a mirrorlist with a handful of mirrors that we
+# know to be reliable and well maintained, and let apt load-balance and fail over
+# across them.
+#
+# We list the mirrors as peers (no `priority:1` pin): with `mirror+file`, apt spreads
+# requests across all peer entries and moves off a mirror that errors. Pinning one
+# mirror with `priority:1` sends *all* traffic there and only falls back when that
+# mirror is fully unreachable — which does NOT help when the primary is merely slow
+# (the failure mode behind the docker_image_build_otel timeouts). The Acquire timeout
+# and retry config below bounds each request so a slow mirror is abandoned in seconds
+# instead of stalling the whole build. This mirrors the pattern in
+# test/new-e2e/tests/installer/host/host.go (ConfigureAptMirrors).
 ARG CI
 RUN if [ "$CI" = "true" ]; then \
-  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
-  echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
+  printf 'Acquire::Retries "3";\nAcquire::http::Timeout "15";\nAcquire::https::Timeout "15";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
+  printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\nhttp://us-west-2.ec2.archive.ubuntu.com/ubuntu\nhttp://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' > /etc/apt/mirrorlist.main && \
+  printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\nhttp://us-west-2.ec2.ports.ubuntu.com/ubuntu-ports\nhttp://ports.ubuntu.com/ubuntu-ports\n' > /etc/apt/mirrorlist.ports && \
   for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
     if [ -f "$f" ]; then \
       sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
