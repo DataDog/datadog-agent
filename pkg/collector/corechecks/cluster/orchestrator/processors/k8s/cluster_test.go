@@ -31,9 +31,28 @@ import (
 )
 
 func TestClusterProcessor_fillClusterResourceVersion(t *testing.T) {
-	cluster := &model.Cluster{}
-	fillClusterResourceVersion(cluster)
+	cluster := &model.Cluster{NodesInfo: []*model.ClusterNodeInfo{
+		{Name: "node-b", KernelVersion: "6.1"},
+		{Name: "node-a", KernelVersion: "6.1"},
+	}}
+	reorderedCluster := &model.Cluster{NodesInfo: []*model.ClusterNodeInfo{
+		{Name: "node-a", KernelVersion: "6.1"},
+		{Name: "node-b", KernelVersion: "6.1"},
+	}}
+	changedCluster := &model.Cluster{NodesInfo: []*model.ClusterNodeInfo{
+		{Name: "node-a", KernelVersion: "6.2"},
+		{Name: "node-b", KernelVersion: "6.1"},
+	}}
+
+	require.NoError(t, fillClusterResourceVersion(cluster))
+	require.NoError(t, fillClusterResourceVersion(reorderedCluster))
+	require.NoError(t, fillClusterResourceVersion(changedCluster))
+
 	assert.NotEmpty(t, cluster.ResourceVersion)
+	assert.Equal(t, reorderedCluster.ResourceVersion, cluster.ResourceVersion)
+	assert.NotEqual(t, changedCluster.ResourceVersion, cluster.ResourceVersion)
+	assert.Equal(t, "node-a", cluster.NodesInfo[0].Name)
+	assert.Equal(t, "node-b", cluster.NodesInfo[1].Name)
 }
 
 func TestClusterProcessor_getKubeSystemCreationTimeStamp(t *testing.T) {
