@@ -458,6 +458,11 @@ func (c *Collector) run(ctx context.Context) {
 func (c *Collector) checkShutdownCauseOnce() {
 	bootUUID, err := c.readBootUUID()
 	if err != nil || bootUUID == "" {
+		if err != nil {
+			c.stateMu.Lock()
+			c.shutdownCauseDeferred = true
+			c.stateMu.Unlock()
+		}
 		// No boot identity means no dedup key, so skip rather than risk
 		// repeating on every restart.
 		log.Debugf("Skipping macOS shutdown-cause check: no boot session UUID: %v", err)
@@ -473,6 +478,11 @@ func (c *Collector) checkShutdownCauseOnce() {
 
 	info, err := c.readShutdownCause()
 	if err != nil {
+		if !errors.Is(err, errShutdownCauseUnsupported) {
+			c.stateMu.Lock()
+			c.shutdownCauseDeferred = true
+			c.stateMu.Unlock()
+		}
 		log.Debugf("Skipping macOS shutdown-cause check: %v", err)
 		return
 	}
