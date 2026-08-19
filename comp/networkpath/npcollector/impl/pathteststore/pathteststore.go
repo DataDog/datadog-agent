@@ -176,9 +176,7 @@ func (f *Store) Flush() []*PathtestContext {
 		}
 		ptConfigCtx.lastFlushTime = now
 		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx.snapshot())
-		if !ptConfigCtx.Pathtest.RunOnce {
-			ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
-		}
+		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
 	}
 
 	f.statsdClient.Gauge(networkPathStoreMetricPrefix+"ratelimiter_tokens", f.rateLimiter.Tokens(), []string{}, 1) //nolint:errcheck
