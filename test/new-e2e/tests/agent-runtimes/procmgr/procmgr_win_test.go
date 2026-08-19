@@ -147,12 +147,21 @@ func (s *procmgrWindowsSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	// dd-procmgr-service is DEMAND_START; start it explicitly before tests.
-	s.Env().RemoteHost.MustExecute(`powershell -Command "Start-Service dd-procmgr-service"`)
+	s.ensureWindowsProcmgrServiceRunning()
+}
 
+// TearDownTest restores dd-procmgr-service after tests that restart DatadogAgent.
+// Stopping DatadogAgent stops dependent services including dd-procmgr-service.
+func (s *procmgrWindowsSuite) TearDownTest() {
+	s.ensureWindowsProcmgrServiceRunning()
+}
+
+func (s *procmgrWindowsSuite) ensureWindowsProcmgrServiceRunning() {
+	host := s.Env().RemoteHost
+	host.MustExecute(`powershell -Command "Start-Service dd-procmgr-service"`)
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(t,
-			`powershell -Command "(Get-Service dd-procmgr-service).Status"`)
-		assert.Equal(t, "Running", strings.TrimSpace(out))
+		out := host.MustExecuteOn(t, s.platform.checkSvcRunning)
+		assert.Equal(t, s.platform.svcRunningOutput, strings.TrimSpace(out))
 	}, 60*time.Second, 2*time.Second)
 }
 
@@ -239,14 +248,12 @@ description: E2E userprofile env check
 	}()
 	defer func() {
 		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, yamlPath))
-		_ = windowsCommon.RestartService(host, "DatadogAgent")
+		require.NoError(s.T(), windowsCommon.RestartService(host, "DatadogAgent"))
+		s.ensureWindowsProcmgrServiceRunning()
 	}()
 
 	require.NoError(s.T(), windowsCommon.RestartService(host, "DatadogAgent"))
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := host.MustExecuteOn(ct, s.platform.checkSvcRunning)
-		assert.Contains(ct, strings.TrimSpace(out), s.platform.svcRunningOutput)
-	}, 60*time.Second, 2*time.Second)
+	s.ensureWindowsProcmgrServiceRunning()
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, markerPath))
