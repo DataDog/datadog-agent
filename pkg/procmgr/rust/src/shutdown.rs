@@ -4,16 +4,20 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::process::ManagedProcess;
+use std::time::Instant;
 
 /// Shut down processes in the given index order (typically reverse startup order).
-/// Sends graceful stop to all first, then waits for each in order so total shutdown
-/// time is bounded by the slowest process rather than the sum of per-process timeouts.
+///
+/// Sends graceful stop to all first so every child begins shutting down together, then
+/// waits sequentially. Each wait uses the remaining per-process graceful budget since
+/// the shared stop signal, so stubborn children do not each get a fresh full timeout.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();
     }
+    let signal_time = Instant::now();
     for &idx in order {
-        processes[idx].wait_for_stop().await;
+        processes[idx].wait_for_stop_since(signal_time).await;
     }
 }
 
@@ -28,6 +32,7 @@ mod tests {
     use super::*;
     use crate::state::ProcessState;
     use crate::test_helpers;
+    use std::time::{Duration, Instant};
 
     fn sleep_config() -> crate::config::ProcessConfig {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -116,5 +121,30 @@ mod tests {
     async fn test_shutdown_ordered_empty() {
         let mut procs: Vec<ManagedProcess> = vec![];
         shutdown_ordered(&mut procs, &[]).await;
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_ordered_shared_graceful_budget() {
+        let (cmd, args) = test_helpers::trap_term_sleep();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.stop_timeout = Some(2);
+
+        let mut p1 =
+            ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), cfg.clone());
+        let mut p2 = ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), cfg);
+        p1.spawn().unwrap();
+        p2.spawn().unwrap();
+
+        let mut procs = vec![p1, p2];
+        let started = Instant::now();
+        shutdown_ordered(&mut procs, &[0, 1]).await;
+
+        assert_eq!(procs[0].state(), ProcessState::Stopped);
+        assert_eq!(procs[1].state(), ProcessState::Stopped);
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "shared graceful budget should not apply two full stop timeouts sequentially, took {:?}",
+            started.elapsed()
+        );
     }
 }
