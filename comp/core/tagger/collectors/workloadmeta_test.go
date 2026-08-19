@@ -2909,12 +2909,16 @@ func TestHandleContainer(t *testing.T) {
 	taggerEntityID := types.NewEntityID(types.ContainerID, entityID.ID)
 
 	tests := []struct {
-		name         string
-		staticTags   map[string][]string
-		labelsAsTags map[string]string
-		envAsTags    map[string]string
-		container    workloadmeta.Container
-		expected     []*types.TagInfo
+		name                   string
+		staticTags             map[string][]string
+		labelsAsTags           map[string]string
+		envAsTags              map[string]string
+		imageAnnotationsAsTags map[string]string
+		// images seeds workloadmeta so the forward path (handleContainer
+		// looking up its image to inherit annotation tags) can be exercised.
+		images    []*workloadmeta.ContainerImageMetadata
+		container workloadmeta.Container
+		expected  []*types.TagInfo
 	}{
 		{
 			name: "fully formed container",
@@ -3508,15 +3512,84 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Forward path: a container inherits its image's OCI annotation
+			// tags (mapped via container_image_annotations_as_tags) so they
+			// land on container.* metrics.
+			name: "container inherits image annotation tags",
+			imageAnnotationsAsTags: map[string]string{
+				"containerd.io/snapshot/nydus-builder-version": "nydus_builder_version",
+			},
+			images: []*workloadmeta.ContainerImageMetadata{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   "sha256:imageconfigdigest",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Annotations: map[string]string{
+							"containerd.io/snapshot/nydus-builder-version": "v2.3.7",
+						},
+					},
+				},
+			},
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				Image: workloadmeta.ContainerImage{
+					ID: "sha256:imageconfigdigest",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"image_id:sha256:imageconfigdigest",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:               containerImageSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"nydus_builder_version:v2.3.7",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+			var store workloadmetamock.Mock
+			if len(tt.images) > 0 {
+				store = fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					fx.Provide(func() config.Component { return cfg }),
+					fx.Supply(context.Background()),
+					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				))
+				for _, image := range tt.images {
+					store.Set(image)
+				}
+			}
+
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 
-			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
+			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags, tt.imageAnnotationsAsTags)
 
 			actual := collector.handleContainer(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -3752,9 +3825,14 @@ func TestHandleContainerImage(t *testing.T) {
 	taggerEntityID := types.NewEntityID(types.ContainerImageMetadata, entityID.ID)
 
 	tests := []struct {
-		name     string
-		image    workloadmeta.ContainerImageMetadata
-		expected []*types.TagInfo
+		name         string
+		configValues map[string]interface{}
+		image        workloadmeta.ContainerImageMetadata
+		// containers are stored in workloadmeta so the reverse path
+		// (handleContainerImage re-tagging containers using the image) can be
+		// exercised.
+		containers []*workloadmeta.Container
+		expected   []*types.TagInfo
 	}{
 		{
 			name: "basic",
@@ -3848,12 +3926,101 @@ func TestHandleContainerImage(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Image OCI annotations are turned into tags when they match the
+			// container_image_annotations_as_tags mapping. Annotations that are
+			// not in the mapping are ignored.
+			name: "annotations as tags",
+			configValues: map[string]interface{}{
+				"container_image_annotations_as_tags": map[string]string{
+					"containerd.io/snapshot/nydus-builder-version": "nydus_builder_version",
+					"target": "+image_target",
+				},
+			},
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+					Annotations: map[string]string{
+						"containerd.io/snapshot/nydus-builder-version": "v2.3.7",
+						"target":                          "staging",
+						"org.opencontainers.image.source": "https://github.com/DataDog/images",
+					},
+				},
+				RepoTags: []string{
+					"datadog/agent:main-nydus",
+				},
+				OS:           "linux",
+				OSVersion:    "1",
+				Architecture: "amd64",
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "container-using-nydus-image",
+					},
+					Image: workloadmeta.ContainerImage{
+						ID: entityID.ID,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerImageSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						"image_target:staging",
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"architecture:amd64",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+						"image_tag:main-nydus",
+						"nydus_builder_version:v2.3.7",
+						"os_name:linux",
+						"os_version:1",
+						"short_image:agent",
+					},
+					StandardTags: []string{},
+				},
+				{
+					// Reverse path: the container using this image inherits the
+					// annotation tags under containerImageSource.
+					Source:   containerImageSource,
+					EntityID: types.NewEntityID(types.ContainerID, "container-using-nydus-image"),
+					HighCardTags: []string{
+						"image_target:staging",
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"nydus_builder_version:v2.3.7",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+			for k, v := range tt.configValues {
+				cfg.SetInTest(k, v)
+			}
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return cfg }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&tt.image)
+			for _, container := range tt.containers {
+				store.Set(container)
+			}
+
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			actual := collector.handleContainerImage(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -4134,6 +4301,46 @@ func TestHandleDelete(t *testing.T) {
 
 	assertTagInfoListEqual(t, expected, actual)
 	assert.Empty(t, collector.children)
+}
+
+// When container image annotations as tags is enabled, deleting a container
+// must also expire the tags published for it under containerImageSource,
+// otherwise image annotation tags would leak until the next image event.
+func TestHandleDeleteContainerImageAnnotations(t *testing.T) {
+	const containerID = "foobarquux"
+
+	containerEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindContainer,
+		ID:   containerID,
+	}
+	container := &workloadmeta.Container{
+		EntityID: containerEntityID,
+	}
+	containerTaggerEntityID := types.NewEntityID(types.ContainerID, containerID)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("container_image_annotations_as_tags", map[string]string{"foo": "bar"})
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+
+	expected := []*types.TagInfo{
+		{
+			Source:       containerSource,
+			EntityID:     containerTaggerEntityID,
+			DeleteEntity: true,
+		},
+		{
+			Source:       containerImageSource,
+			EntityID:     containerTaggerEntityID,
+			DeleteEntity: true,
+		},
+	}
+
+	actual := collector.handleDelete(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeUnset,
+		Entity: container,
+	})
+
+	assertTagInfoListEqual(t, expected, actual)
 }
 
 func TestHandleDeleteKubernetesNode(t *testing.T) {
