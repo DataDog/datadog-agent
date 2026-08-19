@@ -7,19 +7,17 @@ package workloadmeta
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // fakeStore reports itself as initialized after readyAfter calls to IsInitialized, or never if
-// neverReady is set. It is only ever polled from one goroutine, and calls is only read once that
-// goroutine has handed its result over a channel, so a plain counter is enough.
+// neverReady is set.
 type fakeStore struct {
 	workloadmeta.Component
 
@@ -33,69 +31,40 @@ func (f *fakeStore) IsInitialized() bool {
 	return !f.neverReady && f.calls > f.readyAfter
 }
 
-// runWithMockClock calls waitForInitialization on its own goroutine and steps a mock clock forward
-// one poll interval at a time until it returns, reporting the result and the mock time it took.
-// Stepping has to be incremental: that goroutine is what registers the timer and the ticker on the
-// mock clock, so time cannot be advanced in a single jump beforehand.
-func runWithMockClock(t *testing.T, wmeta workloadmeta.Component, timeout time.Duration) (bool, time.Duration) {
-	t.Helper()
-
-	clk := clock.NewMock()
-	start := clk.Now()
-	done := make(chan bool, 1)
-	go func() {
-		done <- waitForInitialization(wmeta, timeout, logmock.New(t), clk)
-	}()
-
-	// Only guards against a hang: no assertion depends on how long this takes in wall-clock time.
-	giveUp := time.After(30 * time.Second)
-	for {
-		select {
-		case result := <-done:
-			return result, clk.Now().Sub(start)
-		case <-giveUp:
-			require.FailNow(t, "waitForInitialization did not return")
-			return false, 0
-		default:
-			clk.Add(pollInterval)
-		}
-	}
-}
-
 func TestWaitForInitializationAlreadyInitialized(t *testing.T) {
 	wmeta := &fakeStore{}
 
-	// The fast path is synchronous, so the clock is never used.
-	assert.True(t, waitForInitialization(wmeta, time.Minute, logmock.New(t), clock.NewMock()))
+	assert.True(t, WaitForInitialization(wmeta, time.Minute, logmock.New(t)))
 	// A single call means the ticker was never involved.
 	assert.Equal(t, 1, wmeta.calls)
 }
 
 func TestWaitForInitializationWhilePolling(t *testing.T) {
-	wmeta := &fakeStore{readyAfter: 3}
+	synctest.Test(t, func(t *testing.T) {
+		wmeta := &fakeStore{readyAfter: 3}
 
-	ready, _ := runWithMockClock(t, wmeta, time.Minute)
-
-	assert.True(t, ready)
-	// One poll per tick, returning on the first one that reports ready.
-	assert.Equal(t, 4, wmeta.calls)
+		assert.True(t, WaitForInitialization(wmeta, time.Minute, logmock.New(t)))
+		// One poll per tick, returning on the first one that reports ready.
+		assert.Equal(t, 4, wmeta.calls)
+	})
 }
 
 func TestWaitForInitializationTimeout(t *testing.T) {
-	wmeta := &fakeStore{neverReady: true}
-	timeout := 5 * pollInterval
+	synctest.Test(t, func(t *testing.T) {
+		wmeta := &fakeStore{neverReady: true}
+		timeout := 5 * pollInterval
+		start := time.Now()
 
-	ready, elapsed := runWithMockClock(t, wmeta, timeout)
-
-	assert.False(t, ready)
-	// It gives up rather than polling forever, and not before the timeout has elapsed.
-	assert.GreaterOrEqual(t, elapsed, timeout)
+		assert.False(t, WaitForInitialization(wmeta, timeout, logmock.New(t)))
+		// It gives up on the deadline rather than polling forever.
+		assert.Equal(t, timeout, time.Since(start))
+	})
 }
 
 func TestWaitForInitializationDisabled(t *testing.T) {
 	wmeta := &fakeStore{neverReady: true}
 
-	assert.False(t, waitForInitialization(wmeta, 0, logmock.New(t), clock.NewMock()))
+	assert.False(t, WaitForInitialization(wmeta, 0, logmock.New(t)))
 	// Not even one probe: answering takes a lock that collector startup holds, so probing can
 	// block, which a disabled wait must not do.
 	assert.Zero(t, wmeta.calls)

@@ -9,7 +9,6 @@ go_library(
     deps = [
         "//comp/core/log/def",
         "//comp/core/workloadmeta/def",
-        "@com_github_benbjohnson_clock//:clock",
     ],
 )
 
@@ -20,8 +19,6 @@ dd_agent_go_test(
     deps = [
         "//comp/core/log/mock",
         "//comp/core/workloadmeta/def",
-        "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
     ],
 )

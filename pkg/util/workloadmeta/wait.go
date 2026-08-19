@@ -9,8 +9,6 @@ package workloadmeta
 import (
 	"time"
 
-	"github.com/benbjohnson/clock"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -40,19 +38,13 @@ const (
 // `agent check --json` expect to be valid JSON. Callers needing to surface a failed wait
 // regardless of the configured log level should do so from the returned value.
 func WaitForInitialization(wmeta workloadmeta.Component, timeout time.Duration, logger log.Component) bool {
-	return waitForInitialization(wmeta, timeout, logger, clock.New())
-}
-
-// waitForInitialization is WaitForInitialization with an injectable clock, so that tests do not
-// wait on wall-clock time.
-func waitForInitialization(wmeta workloadmeta.Component, timeout time.Duration, logger log.Component, clk clock.Clock) bool {
 	if timeout <= 0 {
 		return false
 	}
 
 	// Started before the first probe, so that the deadline covers it too.
-	start := clk.Now()
-	deadline := clk.Timer(timeout)
+	start := time.Now()
+	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
 
 	if wmeta.IsInitialized() {
@@ -61,7 +53,7 @@ func waitForInitialization(wmeta workloadmeta.Component, timeout time.Duration, 
 
 	logger.Info("Waiting for workloadmeta to be initialized...")
 
-	ticker := clk.Ticker(pollInterval)
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -71,7 +63,7 @@ func waitForInitialization(wmeta workloadmeta.Component, timeout time.Duration, 
 			return false
 		case <-ticker.C:
 			if wmeta.IsInitialized() {
-				logger.Infof("Workloadmeta is ready after %v, proceeding", clk.Since(start))
+				logger.Infof("Workloadmeta is ready after %v, proceeding", time.Since(start))
 				return true
 			}
 		}
