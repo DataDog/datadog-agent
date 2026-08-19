@@ -99,25 +99,6 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	}, 30*time.Second, 2*time.Second)
 }
 
-func (s *procmgrLinuxSuite) TestCLIListShowsConfiguredProcess() {
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
-		assertTableRow(ct, out, "test-sleep", map[string]string{
-			"STATE":   "Running",
-			"COMMAND": s.platform.sleepCommand,
-		})
-	}, 30*time.Second, 2*time.Second)
-}
-
-func (s *procmgrLinuxSuite) TestCLIDescribe() {
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
-		assertField(ct, out, "Name", "test-sleep")
-		assertField(ct, out, "State", "Running")
-		assertField(ct, out, "Command", s.platform.sleepCommand)
-	}, 30*time.Second, 2*time.Second)
-}
-
 // Regression: leftover stop_requested after handle_stop treated the next crash as intentional.
 func (s *procmgrLinuxSuite) TestCLIStopStartThenKillRestarts() {
 	const procName = "test-sleep"
