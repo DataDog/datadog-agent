@@ -430,14 +430,21 @@ impl ManagedProcess {
             let name = self.name().to_owned();
             let pid = self.pid().unwrap_or(0);
             let watcher_handle = tokio::spawn(async move {
+                let wait_control = proc_handle.wait_control();
                 let status = match proc_handle.wait().await {
                     Ok(status) => status,
                     Err(e) => {
+                        if wait_control.is_cancelled() {
+                            return None;
+                        }
                         warn!("[{name}] wait error: {e}, killing process");
                         let _ = proc_handle.kill().await;
                         match proc_handle.wait().await {
                             Ok(s) => s,
                             Err(e2) => {
+                                if wait_control.is_cancelled() {
+                                    return None;
+                                }
                                 warn!("[{name}] failed to reap after kill: {e2}");
                                 return None;
                             }
@@ -534,12 +541,11 @@ impl ManagedProcess {
 
     fn mark_stopped(&mut self) {
         #[cfg(windows)]
-        {
-            self.cancel_process_wait();
-            self.wait_control = None;
-        }
+        self.cancel_process_wait();
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
+        #[cfg(windows)]
+        self.wait_control = None;
     }
 
     pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
@@ -584,6 +590,11 @@ impl ManagedProcess {
                     }
                     Err(_) => {
                         warn!("[{}] still running after force-kill, giving up", self.name);
+                        #[cfg(windows)]
+                        {
+                            self.cancel_process_wait();
+                            let _ = time::timeout(Duration::from_secs(1), &mut **handle).await;
+                        }
                         None
                     }
                 }
@@ -597,6 +608,8 @@ impl ManagedProcess {
                     }
                     Err(_) => {
                         warn!("[{}] still running after force-kill, giving up", self.name);
+                        #[cfg(windows)]
+                        self.cancel_process_wait();
                         None
                     }
                 }

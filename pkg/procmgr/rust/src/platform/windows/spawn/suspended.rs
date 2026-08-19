@@ -66,7 +66,7 @@ impl SuspendedChild {
         }
 
         process.set_job_object(job);
-        Ok(proc_handle)
+        Ok(ProcessHandle::from_raw(self.pid, self.process.raw())?)
     }
 
     fn abort_before_supervision(self, process_name: &str, job: Option<&JobObject>) {
