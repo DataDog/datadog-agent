@@ -29,9 +29,9 @@ type platformConfig struct {
 	testProcessYAML   string // YAML config that starts a long-running sleep process
 	missingBinaryYAML string // YAML config whose condition_path_exists prevents start
 
-	// checkBinCmd returns a shell command that succeeds (exit 0) when the
-	// given binary path exists on the remote host.
-	checkBinCmd func(path string) string
+	// checkFileExists returns a shell command that succeeds (exit 0) when the
+	// given path exists on the remote host.
+	checkFileExists func(path string) string
 
 	// checkSvcRunning is a shell command whose trimmed stdout indicates the
 	// service is running (compared against svcRunningOutput).
@@ -51,26 +51,15 @@ type platformConfig struct {
 type baseProcmgrSuite struct {
 	e2e.BaseSuite[environments.Host]
 	platform platformConfig
-	hasCLI   bool
 }
 
 func (s *baseProcmgrSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
-	_, err := s.Env().RemoteHost.Execute(s.platform.checkBinCmd(s.platform.daemonBin))
+	_, err := s.Env().RemoteHost.Execute(s.platform.checkFileExists(s.platform.daemonBin))
 	if err != nil {
 		s.T().Skip("procmgr daemon not included in this agent package; skipping process manager tests")
-	}
-
-	_, err = s.Env().RemoteHost.Execute(s.platform.checkBinCmd(s.platform.cliBin))
-	s.hasCLI = err == nil
-}
-
-func (s *baseProcmgrSuite) requireCLI() {
-	s.T().Helper()
-	if !s.hasCLI {
-		s.T().Skip("dd-procmgr CLI not included in this agent package")
 	}
 }
 
@@ -79,12 +68,8 @@ func (s *baseProcmgrSuite) requireCLI() {
 // ---------------------------------------------------------------------------
 
 func (s *baseProcmgrSuite) TestBinariesExist() {
-	s.Env().RemoteHost.MustExecute(s.platform.checkBinCmd(s.platform.daemonBin))
-
-	if !s.hasCLI {
-		s.T().Skip("dd-procmgr CLI not included in this agent package")
-	}
-	s.Env().RemoteHost.MustExecute(s.platform.checkBinCmd(s.platform.cliBin))
+	s.Env().RemoteHost.MustExecute(s.platform.checkFileExists(s.platform.daemonBin))
+	s.Env().RemoteHost.MustExecute(s.platform.checkFileExists(s.platform.cliBin))
 }
 
 func (s *baseProcmgrSuite) TestServiceRunning() {
@@ -95,7 +80,6 @@ func (s *baseProcmgrSuite) TestServiceRunning() {
 }
 
 func (s *baseProcmgrSuite) TestCLIStatus() {
-	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("status"))
 		assertHasField(ct, out, "Version")
@@ -111,7 +95,6 @@ func (s *baseProcmgrSuite) TestCLIStatus() {
 }
 
 func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
-	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
 		assertTableRow(ct, out, "missing-binary", map[string]string{
