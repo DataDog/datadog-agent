@@ -583,7 +583,8 @@ func (v *ssiSuite) TestRegistryAllowList() {
 func (v *ssiSuite) TestRemoteConfig() {
 	// rc_policies.yaml: helm SSI target (namespace injection=yes, pod language=python) plus two
 	// workloads in namespace "other", outside that target: annotated lib-injection and unannotated.
-	// RC uptake is asserted by pod mutation (install type, env defaults), not fakeintake poll counters.
+	// RC uptake is asserted by pod mutation. RestartUntil re-admits until the
+	// expected outcome appears so we do not race the cluster-agent RC client.
 	agentOptions := []kubernetesagentparams.Option{
 		kubernetesagentparams.WithHelmValues(rcPoliciesHelmValues),
 		kubernetesagentparams.WithTimeout(600),
@@ -675,8 +676,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		cleanup := v.pushAPMPolicy(fi, rcNamespaceOtherConfigID, rcNamespaceOtherConfigName, rcNamespaceOtherPolicyJSON)
 		defer cleanup()
 
-		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
-		pod := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		pod := RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_single_step"))
 
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
@@ -705,8 +705,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		cleanup := v.pushAPMPolicy(fi, rcDenyTargetedNamespaceConfigID, rcDenyTargetedNamespaceConfigName, rcDenyTargetedNamespacePolicyJSON)
 		defer cleanup()
 
-		RestartPod(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp)
-		helmPod := FindPodInNamespace(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp)
+		helmPod := RestartUntil(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp, webhookProcessedWithoutPreload(rcHelmTargetApp))
 		helmValidator := testutils.NewPodValidator(helmPod, testutils.InjectionModeAuto)
 		helmValidator.RequireNoInjection(v.T())
 		helmValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
@@ -742,25 +741,7 @@ func (v *ssiSuite) requireHelmTargetStillSSI(k8s kubeClient.Interface) {
 
 func (v *ssiSuite) pushAPMPolicy(fi *fakeintake.Client, configID, configName string, payload []byte) func() {
 	v.T().Helper()
-
-	baselineStats, err := fi.RCStats()
-	require.NoError(v.T(), err)
-
 	require.NoError(v.T(), fi.RCAddConfig("", apmPoliciesRCProduct, configID, configName, payload))
-
-	require.Eventually(v.T(), func() bool {
-		stats, err := fi.RCStats()
-		return err == nil && stats.ConfigsCount >= 1 && stats.Version > baselineStats.Version
-	}, 2*time.Minute, 5*time.Second, "fakeintake did not store the APM_POLICIES RC payload")
-
-	// Poll snapshot after storage, not before RCAddConfig.
-	statsAfterPublish, err := fi.RCStats()
-	require.NoError(v.T(), err)
-	require.Eventually(v.T(), func() bool {
-		stats, err := fi.RCStats()
-		return err == nil && stats.Polls > statsAfterPublish.Polls
-	}, 2*time.Minute, 5*time.Second, "cluster agent did not poll fakeintake after APM_POLICIES was published")
-
 	return func() {
 		_ = fi.RCDeleteConfig(fmt.Sprintf("%s/%s/%s/%s", rcFakeIntakeDefaultOrgID, apmPoliciesRCProduct, configID, configName))
 	}
