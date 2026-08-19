@@ -5113,14 +5113,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-          cross_signal:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
           holt_residual:
             node_type: section
             type: object
@@ -5146,14 +5138,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-          passthrough:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
           rrcf:
             node_type: section
             type: object
@@ -5431,6 +5415,20 @@ properties:
             default: 0.5
             tags:
             - golang_type:float64
+          inactive_series_check_interval:
+            node_type: setting
+            type: string
+            default: 5m0s
+            format: duration
+            tags:
+            - golang_type:duration
+          inactive_series_ttl:
+            node_type: setting
+            type: string
+            default: 5m0s
+            format: duration
+            tags:
+            - golang_type:duration
           max_series:
             node_type: setting
             type: integer
@@ -6283,6 +6281,19 @@ properties:
           UDS or named pipe under run_path, and only runs when data_plane.enabled has not been set at all.
 
           See comp/dataplane/preflightmode for more details.
+      preflight_mode_duration:
+        node_type: setting
+        type: string
+        default: 90s
+        format: duration
+        comment: |-
+          How long the preflight process is left running. Clamped to a minimum of 90s, which is the window the
+          pre-flight was sized for: anything shorter stops ADP while startup is still in progress and turns a
+          healthy host into a finding.
+
+          The knob exists for benchmarking harnesses that need ADP resident for the whole of a fixed-length run
+          -- see test/regression/cases/quality_gate_* -- rather than for tuning on real hosts, where the only
+          knob that matters is data_plane.preflight_mode.
       remote_agent_enabled:
         node_type: setting
         type: boolean

@@ -4,3 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 pub mod config;
+pub mod platform;
+pub mod procmgr;
+
+#[cfg(all(test, unix))]
+pub mod test_support;
