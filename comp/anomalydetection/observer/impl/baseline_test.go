@@ -261,6 +261,26 @@ func TestBaseline_WaitingDetectorDoesNotMuteUntilReady(t *testing.T) {
 	assert.Len(t, e.baseline.mutedHashes, 1)
 }
 
+func TestBaseline_UsesContextKeyForStorageBackedAnomalies(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.AddWithKey("ns", "cpu", 1.0, 100, nil, 42).Ref
+	detector := &baselineTestDetector{
+		name:          "keyed",
+		readyAtSec:    100,
+		emitAfterSec:  100,
+		includeSource: true,
+		ref:           ref,
+		source:        observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage},
+	}
+	e := newEngine(engineConfig{storage: storage, detectors: []observerdef.Detector{detector}, baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true}})
+
+	e.Advance(100)
+	e.Advance(200)
+
+	_, muted := e.baseline.mutedHashes[42]
+	assert.True(t, muted)
+}
+
 func TestBaseline_FastCompletionRemovesSeriesFromSlowerDetector(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref

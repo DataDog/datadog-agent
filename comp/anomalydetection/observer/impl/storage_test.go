@@ -41,8 +41,8 @@ func TestTimeSeriesStorage_AddWithKeyMergesByContextKey(t *testing.T) {
 
 	require.False(t, second.IsNew)
 	require.Equal(t, first.Ref, second.Ref)
-	storedKey, isContextKey := s.StorageKey(first.Ref)
-	require.True(t, isContextKey)
+	storedKey, found := s.StorageKey(first.Ref)
+	require.True(t, found)
 	require.Equal(t, uint64(key), storedKey)
 
 	series := s.GetSeries("dogstatsd", "metric.a", []string{"env:prod"}, AggregateAverage)
@@ -72,6 +72,25 @@ func TestTimeSeriesStorage_AddWithKeyLegacyLookupAndRemoval(t *testing.T) {
 	require.Equal(t, []observer.SeriesRef{res.Ref}, s.RemoveSeriesByRefs([]observer.SeriesRef{res.Ref}))
 	assert.Nil(t, s.GetSeriesMeta(res.Ref))
 	assert.Empty(t, s.contextKeySeries)
+}
+
+func TestEngineIngestMetricUsesContextKey(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	engine := newEngine(engineConfig{storage: storage})
+	engine.IngestMetric("dogstatsd", &metricObs{
+		name:          "metric.a",
+		value:         10,
+		tags:          []string{"env:prod"},
+		timestamp:     1000,
+		contextKey:    42,
+		hasContextKey: true,
+	})
+
+	metas := storage.ListSeries(observer.SeriesFilter{})
+	require.Len(t, metas, 1)
+	key, found := storage.StorageKey(metas[0].Ref)
+	require.True(t, found)
+	assert.Equal(t, uint64(42), key)
 }
 
 func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {

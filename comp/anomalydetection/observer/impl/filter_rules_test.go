@@ -83,6 +83,15 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 	assert.True(t, filter.isAllowed("system.cpu.user", LogMetricsExtractorName, tags))
 }
 
+func TestMetricsFilterRulesMuteSetBlocksContextKeyedMetric(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
+	filter.publishMutedSnapshot(map[uint64]struct{}{42: {}})
+	assert.False(t, filter.isAllowedWithContextKey("system.cpu.user", "check", []string{"env:prod"}, 42, true))
+	assert.True(t, filter.isAllowedWithContextKey("system.cpu.user", "check", []string{"env:prod"}, 43, true))
+}
+
 func TestMetricsFilterRulesAllowWithoutRules(t *testing.T) {
 	filter, err := newMetricsFilterRules(nil)
 	require.NoError(t, err)

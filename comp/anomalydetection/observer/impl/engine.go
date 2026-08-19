@@ -292,7 +292,11 @@ func (e *engine) sourceTagForIngest(source string) string {
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
-	e.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+	if m.hasContextKey {
+		e.storage.AddWithKey(source, m.name, m.value, m.timestamp, m.tags, m.contextKey)
+	} else {
+		e.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+	}
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
@@ -600,12 +604,12 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
 				if anomaly.SourceRef != nil {
-					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
+					e.baseline.mark(detector.Name(), e.anomalyStorageKey(anomaly))
 				}
 				continue
 			}
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)
+				h := e.anomalyStorageKey(anomaly)
 				if _, muted := e.baseline.mutedHashes[h]; muted {
 					continue
 				}
@@ -669,6 +673,15 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		anomalies:        allAnomalies,
 		correlatorEvents: allCorrelatorEvents,
 	}
+}
+
+func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
+	if anomaly.SourceRef != nil {
+		if key, found := e.storage.StorageKey(anomaly.SourceRef.Ref); found {
+			return key
+		}
+	}
+	return seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)
 }
 
 // enrichAnomaly decorates an anomaly with context stored on the source series.

@@ -868,13 +868,12 @@ func (s *timeSeriesStorage) FindRefsByHashes(hashes map[uint64]struct{}) []obser
 	return refs
 }
 
-// StorageKey returns the actual key used to store ref and whether it is an
-// aggregation context key.
+// StorageKey returns the actual key used to store ref.
 func (s *timeSeriesStorage) StorageKey(ref observer.SeriesRef) (uint64, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if stats := s.resolveByID(ref); stats != nil {
-		return stats.storageKey, stats.contextKey
+		return stats.storageKey, true
 	}
 	return 0, false
 }
