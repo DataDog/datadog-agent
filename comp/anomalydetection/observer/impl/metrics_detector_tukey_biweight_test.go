@@ -459,6 +459,30 @@ func TestTukeyBiweight_ScoreEveryAmortization(t *testing.T) {
 		"amortization arithmetic: ScoreEvery=4 over 200 points caps scoring at 50 invocations")
 }
 
+// TestTukeyBiweight_FirstScoreAtMinimum verifies that a batch replay does not
+// consume score ticks before the storage tail reaches MinPoints. In particular,
+// MinPoints need not be divisible by ScoreEvery.
+func TestTukeyBiweight_FirstScoreAtMinimum(t *testing.T) {
+	d := testTukeyBiweightDetector()
+	d.MinPoints = 39
+	d.WindowSize = 39
+	d.ScoreEvery = 4
+	storage := newDetectorTestStorage()
+
+	for i := 0; i < d.MinPoints; i++ {
+		storage.Add("ns", "metric", 7, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, int64(d.MinPoints))
+	assert.Empty(t, result.Anomalies)
+
+	require.Len(t, d.series, 1)
+	for _, state := range d.series {
+		assert.True(t, d.ready, "the minimum full window must be scored")
+		assert.Zero(t, state.ticksSinceScore, "the first score must occur at MinPoints")
+	}
+}
+
 // TestTukeyBiweight_NoNewDataNoWork verifies the replay-skip cursor: a Detect
 // call with no new points returns no anomalies and does not double-process
 // the existing window.
