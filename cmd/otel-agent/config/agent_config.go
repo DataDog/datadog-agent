@@ -34,6 +34,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 type logLevel int
@@ -230,19 +231,26 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// V3 series metrics intake for DDOT. The global use_v3_api.series.enabled default
-	// ("datadog_only") gates v3 on IsDatadogURL, whose allowlist matches the core Agent's
-	// app.<site> infra host — but the Datadog exporter (and therefore dd_url above) targets
-	// api.<site>, which IsDatadogURL does not recognize, so a default DDOT deployment would
-	// silently stay on v2. Make datadog_only recognize DDOT's own default endpoint by pinning
-	// api.<site> to v3 with a per-endpoint override, keyed by the exact dd_url the forwarder
-	// resolver reports as its config name.
+	// ("datadog_only") gates v3 on IsDatadogURL, whose allowlist matches app.<site> for
+	// recognized Datadog sites — but the Datadog exporter (and therefore dd_url above)
+	// targets api.<site>, which IsDatadogURL never recognizes, so a default DDOT deployment
+	// to a Datadog site would silently stay on v2. Opt DDOT's own default endpoint in to v3
+	// with a per-endpoint override, keyed by the exact dd_url the forwarder resolver reports
+	// as its config name.
 	//
-	// This applies only on the datadog_only default: an explicit use_v3_api.series.enabled
-	// (true or false) is respected globally, so the usual kill-switch (…enabled=false /
-	// DD_USE_V3_API_SERIES_ENABLED=false) still works even though a per-endpoint entry would
-	// otherwise outrank it. A custom endpoint falls through to datadog_only (-> v2), and an
-	// explicit per-endpoint entry for this URL is left untouched.
+	// All three guards must hold:
+	//   - dd_url is the exporter's default derived endpoint (https://api.<site>), not a
+	//     custom/proxy endpoint the operator set explicitly;
+	//   - <site> is a recognized Datadog site (IsDatadogURL on its app.<site> form). A
+	//     private or proxy site derives the same https://api.<site> shape, but must NOT be
+	//     forced onto v3 — that intake may only accept v2. This preserves the datadog_only
+	//     safeguard instead of trusting any syntactically derived default endpoint;
+	//   - use_v3_api.series.enabled is still the datadog_only default, so an explicit
+	//     enabled=true/false (DD_USE_V3_API_SERIES_ENABLED) is respected globally even though
+	//     a per-endpoint entry would otherwise outrank it.
+	// An explicit per-endpoint entry for this URL is left untouched.
 	if ddURL == "https://api."+ddc.API.Site &&
+		configutils.IsDatadogURL("https://app."+ddc.API.Site) &&
 		strings.ToLower(strings.TrimSpace(pkgconfig.GetString("use_v3_api.series.enabled"))) == "datadog_only" {
 		seriesEndpoints := pkgconfig.GetStringMapString("use_v3_api.series.endpoints")
 		if _, alreadySet := seriesEndpoints[ddURL]; !alreadySet {

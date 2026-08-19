@@ -93,6 +93,26 @@ func TestDDOTSeriesV3NotForcedForCustomEndpoint(t *testing.T) {
 	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
 }
 
+// TestDDOTSeriesV3NotForcedForNonDatadogSite verifies a non-Datadog site (private or proxy)
+// is NOT force-opted into v3, even though its default derived endpoint has the same
+// https://api.<site> shape as a real Datadog default. IsDatadogURL only recognizes Datadog
+// domains, so the override is withheld and the destination stays on the datadog_only default
+// (v2) — guarding against shipping an unsupported v3 payload to a non-Datadog intake.
+func TestDDOTSeriesV3NotForcedForNonDatadogSite(t *testing.T) {
+	configmock.New(t)
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_non_datadog_site.yaml"})
+	require.NoError(t, err)
+
+	ddURL := c.GetString("dd_url")
+	require.Equal(t, "https://api.mycompany.internal", ddURL,
+		"exporter still derives api.<site> for a non-Datadog site")
+
+	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
+	_, present := endpoints[ddURL]
+	assert.False(t, present, "a non-Datadog site must not be force-opted into v3")
+	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
+}
+
 // TestDDOTSeriesV3RespectsExplicitOptOut verifies DD_USE_V3_API_SERIES_ENABLED=false keeps
 // the default api.<site> endpoint on v2: the per-endpoint opt-in is only injected on the
 // datadog_only default, so an explicit operator kill-switch is honored (a per-endpoint entry
