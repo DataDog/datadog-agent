@@ -6874,15 +6874,6 @@ properties:
           \ purely\nsdc_compression_epsilon*scale, however small that gets for a\n\
           near-zero-scale signal \u2014 see checksampler_sdc_floor_bound_samples_total\n\
           for visibility into how often the floor binds with a non-zero value."
-      sdc_compression_interval_override:
-        node_type: setting
-        type: integer
-        default: 0
-        comment: "When set to a positive number of seconds, overrides the scheduling\n\
-          cadence of every SDC-compressed check (per\nchecks.sdc_compression_all/checks.sdc_compression_checks),\
-          \ taking\nprecedence over each check's own min_collection_interval \u2014\
-          \ mirrors\ngpu.collection_interval_override, generalized to any SDC-compressed\n\
-          check instead of just the gpu check."
       sdc_compression_keepalive_commits:
         node_type: setting
         type: integer

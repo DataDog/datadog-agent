@@ -231,7 +231,6 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 		if result.check != nil {
 			log.Debugf("%v: successfully loaded check '%s'", result.loader, config.Name)
 			s.applyInfraTagger(s.senderManager, config.Name, result.check.ID())
-			result.check = wrapWithSDCIntervalOverride(result.check, config.Name)
 			checks = append(checks, result.check)
 			if includeShadowChecks {
 				if candidate, found := shadowCandidates[instanceIndex]; found {

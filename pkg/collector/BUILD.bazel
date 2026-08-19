@@ -8,7 +8,6 @@ go_library(
         "scheduler.go",
         "scheduler_metriclookback.go",
         "scheduler_metriclookback_nopython.go",
-        "scheduler_sdc_interval.go",
         "stats.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector",
@@ -19,7 +18,6 @@ go_library(
         "//comp/core/tagger/def",
         "//comp/core/workloadfilter/def",
         "//comp/logs/integrations/def",
-        "//pkg/aggregator/sdceligibility",
         "//pkg/aggregator/sender",
         "//pkg/collector/aggregator",
         "//pkg/collector/check",
@@ -42,7 +40,6 @@ dd_agent_go_test(
     name = "collector_test",
     srcs = [
         "infra_mode_test.go",
-        "scheduler_sdc_interval_test.go",
         "scheduler_test.go",
         "stats_test.go",
     ],
