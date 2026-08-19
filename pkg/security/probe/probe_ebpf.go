@@ -2535,7 +2535,14 @@ func (p *EBPFProbe) Walk(callback func(*model.ProcessCacheEntry)) {
 
 // Stop the probe
 func (p *EBPFProbe) Stop() {
+	defer seclog.StartPhase("EBPFProbe.Stop")()
+
+	stop := seclog.StartPhase("EBPFProbe.Stop/Manager.StopReaders")
 	_ = p.Manager.StopReaders(manager.CleanAll)
+	stop()
+
+	stop = seclog.StartPhase("EBPFProbe.Stop/cancel+wait")
+	defer stop()
 
 	// Cancel the context and wait for all goroutines to exit before proceeding.
 	// This must happen before event consumers are stopped
@@ -2552,6 +2559,9 @@ func (p *EBPFProbe) Stop() {
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
+	defer seclog.StartPhase("EBPFProbe.Close")()
+
+	stop := seclog.StartPhase("EBPFProbe.Close/rawPacketCollections")
 	if p.rawPacketFilterCollection != nil {
 		p.rawPacketFilterCollection.Close()
 	}
@@ -2559,19 +2569,42 @@ func (p *EBPFProbe) Close() error {
 	if p.rawPacketActionCollection != nil {
 		p.rawPacketActionCollection.Close()
 	}
+	stop()
 
+	stop = seclog.StartPhase("EBPFProbe.Close/nameMappings+telemetry")
 	ddebpf.RemoveNameMappings(p.Manager)
 	ebpftelemetry.UnregisterTelemetry(p.Manager)
-	// Stopping the manager will stop the perf map reader and unload eBPF programs
-	if err := p.Manager.Stop(manager.CleanAll); err != nil {
+	stop()
+
+	if seclog.PhaseProfilingEnabled() {
+		var running int
+		for _, probe := range p.Manager.Probes {
+			if probe.IsRunning() {
+				running++
+			}
+		}
+		seclog.Warnf("[phase-probes] running=%d total=%d", running, len(p.Manager.Probes))
+	}
+
+	// Stopping the manager will stop the perf map reader and unload eBPF programs. This is the
+	// phase that dominates a manager rebuild, so profile it rather than only timing it: cpu_ratio
+	// and wchan tell us whether it is CPU-bound patching kernel structures or blocked on a wait.
+	stop = seclog.StartPhaseProfile("EBPFProbe.Close/Manager.Stop")
+	err := p.Manager.Stop(manager.CleanAll)
+	stop()
+	if err != nil {
 		return err
 	}
 
-	if err := p.Erpc.Close(); err != nil {
+	stop = seclog.StartPhase("EBPFProbe.Close/Erpc.Close")
+	err = p.Erpc.Close()
+	stop()
+	if err != nil {
 		return err
 	}
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
+	defer seclog.StartPhase("EBPFProbe.Close/Resolvers.Close")()
 	return p.Resolvers.Close()
 }
 

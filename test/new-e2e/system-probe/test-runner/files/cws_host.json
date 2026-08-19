@@ -3,5 +3,8 @@
 		"*": {
 			"exclude": false
 		}
-	}
+	},
+	"additional_env_vars": [
+		"DD_CWS_PHASE_PROFILING=1"
+	]
 }
