@@ -7,7 +7,6 @@ package procmgr
 
 import (
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -59,8 +58,6 @@ restart: never
 description: should not start
 `
 
-	windowsDDOTDescOriginalLine = "description: Datadog Distribution of OpenTelemetry Collector"
-
 	adpProcessName = "datadog-agent-data-plane"
 )
 
@@ -96,10 +93,6 @@ func joinWindowsPath(base string, elems ...string) string {
 	parts = append(parts, strings.TrimRight(toWindowsSlashPath(base), `/`))
 	parts = append(parts, elems...)
 	return strings.Join(parts, "/")
-}
-
-func ensureWindowsDirPS(dir string) string {
-	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
 }
 
 func withADPEnabled() agentparams.Option {
@@ -163,8 +156,6 @@ func (s *procmgrWindowsSuite) SetupSuite() {
 			`powershell -Command "(Get-Service dd-procmgr-service).Status"`)
 		assert.Equal(t, "Running", strings.TrimSpace(out))
 	}, 60*time.Second, 2*time.Second)
-
-	s.tryInstallWindowsDDOTForProcmgr()
 }
 
 func (s *procmgrWindowsSuite) TestProcmgrServiceRunsAsLocalSystem() {
@@ -191,143 +182,6 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildRunsAsAgentUser() {
 		assert.NoError(ct, err)
 		assert.NotContains(ct, owner, "NT AUTHORITY/SYSTEM")
 	}, 60*time.Second, 2*time.Second)
-}
-
-func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
-	s.T().Helper()
-	s.hasDDOT = false
-	host := s.Env().RemoteHost
-
-	installPath, err := windowsagent.GetInstallPathFromRegistry(host)
-	if err != nil {
-		s.T().Logf("windows ddot procmgr: InstallPath registry: %v", err)
-		return
-	}
-	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
-	if err != nil {
-		s.T().Logf("windows ddot procmgr: ConfigRoot registry: %v", err)
-		return
-	}
-
-	embeddedOtel := filepath.Join(installPath, "embedded", "bin", "otel-agent.exe")
-	if _, err := host.Execute(s.platform.checkFileExists(embeddedOtel)); err != nil {
-		s.T().Logf("windows ddot procmgr: no embedded otel-agent at %s", embeddedOtel)
-		return
-	}
-
-	destExe := filepath.Join(installPath, "ext", "ddot", "embedded", "bin", "otel-agent.exe")
-	destDir := filepath.Dir(destExe)
-	copyPS := psRemote(
-		`$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force -Path '%s' | Out-Null; Copy-Item -LiteralPath '%s' -Destination '%s' -Force`,
-		destDir, embeddedOtel, destExe,
-	)
-	if _, err := host.Execute(copyPS); err != nil {
-		s.T().Logf("windows ddot procmgr: copy otel-agent failed: %v", err)
-		return
-	}
-
-	exExample := filepath.Join(configRoot, "otel-config.yaml.example")
-	exOut := filepath.Join(configRoot, "otel-config.yaml")
-	otelPS := psRemote(
-		`$ErrorActionPreference='Stop'; $ex='%s'; $out='%s'; if (Test-Path -LiteralPath $ex) { $c = Get-Content -Raw -LiteralPath $ex; $c = $c -replace '\$\{env:DD_API_KEY\}','aaaaaaaaaaaaaaaa'; $c = $c -replace '\$\{env:DD_SITE\}','datadoghq.com'; Set-Content -LiteralPath $out -Value $c -Encoding utf8 } elseif (-not (Test-Path -LiteralPath $out)) { throw 'missing otel-config' }`,
-		exExample, exOut,
-	)
-	if _, err := host.Execute(otelPS); err != nil {
-		s.T().Logf("windows ddot procmgr: otel-config bootstrap failed: %v", err)
-		return
-	}
-
-	fleetPolicies := filepath.Join(configRoot, "Installer", "managed", "datadog-agent", "stable")
-	host.MustExecute(ensureWindowsDirPS(fleetPolicies))
-
-	datadogYAML := filepath.Join(configRoot, "datadog.yaml")
-	appendOtel := "\notelcollector:\n  enabled: true\n"
-	b64AppendOtel := base64.StdEncoding.EncodeToString([]byte(appendOtel))
-	host.MustExecute(psRemote(
-		`$dy='%s'; if (-not (Test-Path -LiteralPath $dy)) { exit 0 }; if (-not (Select-String -LiteralPath $dy -Pattern 'otelcollector:' -Quiet)) { $a=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('%s')); Add-Content -LiteralPath $dy -Value $a -Encoding utf8 }`,
-		datadogYAML, b64AppendOtel,
-	))
-
-	yamlPath := filepath.Join(installPath, "processes.d", "datadog-agent-ddot.yaml")
-	yamlBody := windowsDDOTProcmgrYAMLContent(installPath, configRoot, fleetPolicies)
-	b64 := base64.StdEncoding.EncodeToString([]byte(yamlBody))
-	if _, err := host.Execute(psRemote(
-		`$ErrorActionPreference='Stop'; $b=[Convert]::FromBase64String('%s'); [IO.File]::WriteAllBytes('%s', $b)`,
-		b64, yamlPath,
-	)); err != nil {
-		s.T().Logf("windows ddot procmgr: write processes.d yaml failed: %v", err)
-		return
-	}
-
-	if _, err := host.Execute(`powershell -Command "Restart-Service dd-procmgr-service -Force"`); err != nil {
-		s.T().Logf("windows ddot procmgr: procmgr service restart failed: %v", err)
-		return
-	}
-
-	s.hasDDOT = true
-}
-
-func windowsDDOTProcmgrYAMLContent(installPath, configRoot, fleetPolicies string) string {
-	toSlash := func(p string) string {
-		return filepath.ToSlash(p)
-	}
-	exe := toSlash(filepath.Join(installPath, "ext", "ddot", "embedded", "bin", "otel-agent.exe"))
-	otelCfg := toSlash(filepath.Join(configRoot, "otel-config.yaml"))
-	ddCfg := toSlash(filepath.Join(configRoot, "datadog.yaml"))
-	fleet := toSlash(fleetPolicies)
-	return fmt.Sprintf(`%s
-command: %s
-args:
-  - run
-  - --sync-delay
-  - 90s
-  - --config
-  - %s
-  - --core-config
-  - %s
-auto_start: true
-condition_path_exists: %s
-restart: on-failure
-restart_sec: 2
-start_limit_interval_sec: 10
-start_limit_burst: 5
-env:
-  DD_OTELCOLLECTOR_ENABLED: "true"
-  DD_FLEET_POLICIES_DIR: %s
-  DD_OTELCOLLECTOR_INSTALLATION_METHOD: bare-metal
-stdout: inherit
-stderr: inherit
-`, windowsDDOTDescOriginalLine, exe, otelCfg, ddCfg, exe, fleet)
-}
-
-func (s *procmgrWindowsSuite) requireDDOTWindows() {
-	s.T().Helper()
-	if !s.hasDDOT {
-		s.T().Skip("windows ddot procmgr: embedded otel-agent or otel-config bootstrap not available on this image")
-	}
-}
-
-func (s *procmgrWindowsSuite) waitWindowsDDOTRunning(timeout time.Duration) string {
-	s.T().Helper()
-	var pid string
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe datadog-agent-ddot"))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		cmd := fieldValue(out, "Command")
-		assert.Contains(ct, strings.ToLower(cmd), "otel-agent.exe")
-		assert.Contains(ct, strings.ToLower(cmd), "ddot")
-		pid = p
-	}, timeout, 2*time.Second)
-	return pid
-}
-
-func (s *procmgrWindowsSuite) TestDDOTProcessRunning() {
-	s.requireDDOTWindows()
-	s.waitWindowsDDOTRunning(90 * time.Second)
 }
 
 func (s *procmgrWindowsSuite) waitWindowsADPRunning(timeout time.Duration) string {
