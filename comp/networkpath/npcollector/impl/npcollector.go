@@ -303,6 +303,8 @@ func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.Networ
 		return
 	}
 
+	// Standard Dynamic Tests take complete precedence when both modes are
+	// configured; baseline is a fallback and must not schedule duplicate paths.
 	baselineMode := !s.collectorConfigs.connectionsMonitoringEnabled
 	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, baselineMode)
 }
@@ -327,8 +329,10 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 
 	startTime := s.TimeNowFn()
 	if baselineMode {
-		// Close the previous window before observing this snapshot so boundary
-		// traffic belongs entirely to the new window.
+		// Close an already-expired window before accepting new observations.
+		// Candidate admission is intentionally streaming: a periodic flush may
+		// split a snapshot being processed across adjacent windows. This is a
+		// known and accepted limitation of the best-effort baseline selector.
 		s.flushBaselinePaths(startTime)
 	}
 	connCount := 0
@@ -346,6 +350,9 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		if evaluation.testConfigID != "" {
 			pathtest.TestConfigSource = payload.TestConfigSourceRemote
 		}
+		// Filtering and baseline ranking are separate steps: filtering determines
+		// eligibility and provenance, while baseline ranking independently chooses
+		// among admitted paths and never changes the filter outcome.
 		if baselineMode {
 			s.baselineSelector.add(pathtest, saturatingAdd(conn.SentBytes, conn.RecvBytes), startTime)
 			continue

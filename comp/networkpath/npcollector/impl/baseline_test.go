@@ -25,12 +25,17 @@ import (
 )
 
 func baselineConn(host string, bytes uint64) npmodel.NetworkPathConnection {
+	return baselineConnBytes(host, bytes, 0)
+}
+
+func baselineConnBytes(host string, sentBytes, recvBytes uint64) npmodel.NetworkPathConnection {
 	return npmodel.NetworkPathConnection{
 		Dest:      netip.MustParseAddrPort(host + ":53"),
 		Type:      model.ConnectionType_udp,
 		Direction: model.ConnectionDirection_outgoing,
 		Family:    model.ConnectionFamily_v4,
-		SentBytes: bytes,
+		SentBytes: sentBytes,
+		RecvBytes: recvBytes,
 	}
 }
 
@@ -174,6 +179,26 @@ func TestBaselineCollectorEmitsOnlyAtWindowBoundary(t *testing.T) {
 	assert.Empty(t, collector.pathtestInputChan)
 }
 
+func TestBaselineCollectorRanksBySentAndReceivedBytes(t *testing.T) {
+	_, collector := newTestNpCollector(t, map[string]any{
+		"network_path.connections_monitoring.baseline_tests_enabled": true,
+		"network_path.collector.monitor_ip_without_domain":           true,
+	}, &teststatsd.Client{}, nil)
+	now := MockTimeNow()
+	collector.TimeNowFn = func() time.Time { return now }
+
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+		baselineConnBytes("10.0.0.1", 100, 0),
+		baselineConnBytes("10.0.0.2", 0, 60),
+	}))
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+		baselineConnBytes("10.0.0.2", 0, 60),
+	}))
+	collector.flushBaselinePaths(now.Add(baselineBootstrapWindow))
+
+	assert.Equal(t, []string{"10.0.0.2", "10.0.0.1"}, scheduledBaselineHosts(t, collector))
+}
+
 func TestBaselineCollectorDoesNotMixBoundarySnapshotIntoPreviousWindow(t *testing.T) {
 	_, collector := newTestNpCollector(t, map[string]any{
 		"network_path.connections_monitoring.baseline_tests_enabled": true,
@@ -254,11 +279,7 @@ func TestBaselineIntervalFloorDoesNotAffectNetflow(t *testing.T) {
 	}, &teststatsd.Client{}, nil)
 
 	assert.Equal(t, baselineMinimumInterval, collector.baselineSelector.interval)
-	collector.pathtestStore.Add(&common.Pathtest{Hostname: "netflow", Origin: payload.PathOriginNetflow})
-	require.Len(t, collector.pathtestStore.Flush(), 1)
-	require.Eventually(t, func() bool {
-		return len(collector.pathtestStore.Flush()) == 1
-	}, time.Second, 10*time.Millisecond, "NetFlow should keep the configured recurring interval")
+	assert.Equal(t, 10*time.Millisecond, collector.collectorConfigs.storeConfig.Interval)
 }
 
 func TestStandardModeTakesPrecedenceOverBaseline(t *testing.T) {

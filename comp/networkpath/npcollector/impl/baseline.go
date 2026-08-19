@@ -41,7 +41,9 @@ func (candidate baselineCandidate) betterThan(other baselineCandidate) bool {
 }
 
 // baselineSelector approximates the highest-volume paths in each window using
-// weighted Space-Saving. Its memory is bounded independently of path count.
+// weighted Space-Saving. Exact top-N accuracy is unnecessary for this
+// best-effort baseline, while memory bounded independently of path count is a
+// critical safety property for the Agent on high-cardinality hosts.
 type baselineSelector struct {
 	mu         sync.Mutex
 	interval   time.Duration
@@ -76,6 +78,9 @@ func (selector *baselineSelector) add(path common.Pathtest, bytes uint64, now ti
 	if bytes == 0 {
 		return
 	}
+	// Reuse the existing path-test identity so baseline ranking and downstream
+	// scheduling deduplicate the same normalized path. Scores and attribution
+	// remain mutable metadata instead of splitting one path into candidates.
 	hash := path.GetHash()
 	if candidate, found := selector.candidates[hash]; found {
 		candidate.bytes = saturatingAdd(candidate.bytes, bytes)

@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add opt-in baseline Dynamic Tests for Cloud Network Monitoring, providing
-    network path visibility when full Dynamic Tests are disabled.
