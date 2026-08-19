@@ -7,45 +7,178 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
-type bepContext struct {
-	localExecRoot  string
-	configTestlogs map[string]string
-	configBindirs  map[string]string
+// test2jsonOutputGroup is the output group the test_log_to_json aspect publishes.
+const test2jsonOutputGroup = "test2json"
+
+// bepEvent is the subset of the Build Event Protocol needed to locate the
+// fragments produced by the test_log_to_json aspect.
+type bepEvent struct {
+	ID struct {
+		NamedSet        *bepSetID    `json:"namedSet"`
+		TargetCompleted *bepTargetID `json:"targetCompleted"`
+	} `json:"id"`
+	NamedSetOfFiles *bepNamedSet  `json:"namedSetOfFiles"`
+	Completed       *bepCompleted `json:"completed"`
+	WorkspaceInfo   *bepWorkspace `json:"workspaceInfo"`
 }
 
-type bepTestAction struct {
-	label  string
-	cfgID  string
-	logURI string
+type bepSetID struct {
+	ID string `json:"id"`
 }
 
+type bepTargetID struct {
+	Label string `json:"label"`
+}
+
+type bepNamedSet struct {
+	Files    []bepFile  `json:"files"`
+	FileSets []bepSetID `json:"fileSets"`
+}
+
+type bepFile struct {
+	Name       string   `json:"name"`
+	URI        string   `json:"uri"`
+	PathPrefix []string `json:"pathPrefix"`
+}
+
+type bepCompleted struct {
+	OutputGroup []struct {
+		Name     string     `json:"name"`
+		FileSets []bepSetID `json:"fileSets"`
+	} `json:"outputGroup"`
+}
+
+type bepWorkspace struct {
+	LocalExecRoot string `json:"localExecRoot"`
+}
+
+// mergeBEP concatenates the test2json fragments a Bazel invocation reported in
+// its BEP file.
 func mergeBEP(bepPath, outputPath string) error {
-	actions, ctx, err := parseBEPTestLogs(bepPath)
+	fragments, err := fragmentsFromBEP(bepPath)
 	if err != nil {
 		return err
-	}
-	var fragments []string
-	for _, action := range actions {
-		logPath, err := resolveBEPOutputPath(action.label, action.logURI, action.cfgID, &ctx, "test.log")
-		if err != nil {
-			return err
-		}
-		fragment, err := fragmentPathForLog(action.label, logPath)
-		if err != nil {
-			return err
-		}
-		fragments = append(fragments, fragment)
 	}
 	return concatFragments(fragments, outputPath)
 }
 
+// fragmentsFromBEP returns fragment paths ordered by test label, so that a
+// rerun of the same tests produces byte-identical output.
+func fragmentsFromBEP(bepPath string) ([]string, error) {
+	f, err := os.Open(bepPath)
+	if err != nil {
+		return nil, fmt.Errorf("open bep %q: %w", bepPath, err)
+	}
+	defer f.Close()
+
+	type outputGroup struct {
+		label   string
+		fileSet []bepSetID
+	}
+
+	sets := map[string]*bepNamedSet{}
+	execRoot := ""
+	var groups []outputGroup
+
+	dec := json.NewDecoder(f)
+	for {
+		var event bepEvent
+		if err := dec.Decode(&event); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("decode bep %q: %w", bepPath, err)
+		}
+		switch {
+		case event.ID.NamedSet != nil && event.NamedSetOfFiles != nil:
+			sets[event.ID.NamedSet.ID] = event.NamedSetOfFiles
+		case event.WorkspaceInfo != nil:
+			execRoot = event.WorkspaceInfo.LocalExecRoot
+		case event.ID.TargetCompleted != nil && event.Completed != nil:
+			for _, group := range event.Completed.OutputGroup {
+				if group.Name == test2jsonOutputGroup {
+					groups = append(groups, outputGroup{
+						label:   event.ID.TargetCompleted.Label,
+						fileSet: group.FileSets,
+					})
+				}
+			}
+		}
+	}
+
+	sort.SliceStable(groups, func(i, j int) bool { return groups[i].label < groups[j].label })
+
+	var fragments []string
+	for _, group := range groups {
+		files, err := flattenFileSets(sets, group.fileSet)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", group.label, err)
+		}
+		for _, file := range files {
+			path, err := file.localPath(execRoot)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", group.label, err)
+			}
+			fragments = append(fragments, path)
+		}
+	}
+	return fragments, nil
+}
+
+// flattenFileSets walks the depset an output group refers to. Bazel posts every
+// named set before the event referencing it, but sets may nest arbitrarily.
+func flattenFileSets(sets map[string]*bepNamedSet, roots []bepSetID) ([]bepFile, error) {
+	var files []bepFile
+	visited := map[string]bool{}
+	queue := append([]bepSetID(nil), roots...)
+	for len(queue) > 0 {
+		id := queue[0].ID
+		queue = queue[1:]
+		if visited[id] {
+			continue
+		}
+		visited[id] = true
+
+		set, ok := sets[id]
+		if !ok {
+			return nil, fmt.Errorf("bep references unknown fileSet %q", id)
+		}
+		files = append(files, set.Files...)
+		queue = append(queue, set.FileSets...)
+	}
+	return files, nil
+}
+
+// localPath resolves a BEP file entry to an on-disk path. Outputs kept in the
+// remote cache are reported as bytestream:// rather than file://, so fall back
+// to the exec-root-relative path Bazel reports alongside the uri.
+func (f bepFile) localPath(execRoot string) (string, error) {
+	if strings.HasPrefix(f.URI, "file://") {
+		parsed, err := url.Parse(f.URI)
+		if err != nil {
+			return "", fmt.Errorf("parse uri %q: %w", f.URI, err)
+		}
+		return filepath.FromSlash(parsed.Path), nil
+	}
+	if execRoot == "" {
+		return "", fmt.Errorf("cannot resolve %q: bep has no workspace event", f.Name)
+	}
+	parts := append([]string{execRoot}, f.PathPrefix...)
+	return filepath.Join(append(parts, f.Name)...), nil
+}
+
+// concatFragments copies fragments verbatim: bzltestutil terminates every event
+// with a newline, so the concatenation is already valid JSONL.
 func concatFragments(fragments []string, outputPath string) error {
 	out, err := os.Create(outputPath)
 	if err != nil {
@@ -54,167 +187,18 @@ func concatFragments(fragments []string, outputPath string) error {
 	defer out.Close()
 
 	for _, fragment := range fragments {
-		data, err := os.ReadFile(fragment)
+		in, err := os.Open(fragment)
 		if err != nil {
-			return fmt.Errorf("read fragment %q: %w", fragment, err)
+			return fmt.Errorf("open fragment %q: %w", fragment, err)
 		}
-		if len(data) == 0 {
-			continue
+		_, copyErr := io.Copy(out, in)
+		closeErr := in.Close()
+		if copyErr != nil {
+			return fmt.Errorf("copy fragment %q: %w", fragment, copyErr)
 		}
-		if _, err := out.Write(data); err != nil {
-			return fmt.Errorf("write fragment %q: %w", fragment, err)
-		}
-		if data[len(data)-1] != '\n' {
-			if _, err := out.Write([]byte("\n")); err != nil {
-				return err
-			}
+		if closeErr != nil {
+			return fmt.Errorf("close fragment %q: %w", fragment, closeErr)
 		}
 	}
 	return nil
-}
-
-func parseBEPTestLogs(bepPath string) ([]bepTestAction, bepContext, error) {
-	f, err := os.Open(bepPath)
-	if err != nil {
-		return nil, bepContext{}, fmt.Errorf("open bep %q: %w", bepPath, err)
-	}
-	defer f.Close()
-
-	ctx := bepContext{configTestlogs: map[string]string{}, configBindirs: map[string]string{}}
-	var actions []bepTestAction
-
-	dec := json.NewDecoder(f)
-	for {
-		var event map[string]any
-		if err := dec.Decode(&event); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, ctx, fmt.Errorf("decode bep %q: %w", bepPath, err)
-		}
-		if observeBEPEvent(&ctx, event) {
-			continue
-		}
-		id, _ := event["id"].(map[string]any)
-		testResult, _ := id["testResult"].(map[string]any)
-		label, _ := testResult["label"].(string)
-		if label == "" {
-			continue
-		}
-		tr, _ := event["testResult"].(map[string]any)
-		logURI, err := testActionOutputURI(tr, "test.log")
-		if err != nil {
-			return nil, ctx, fmt.Errorf("bep testResult for %s: %w", label, err)
-		}
-		cfg, _ := testResult["configuration"].(map[string]any)
-		cfgID, _ := cfg["id"].(string)
-		actions = append(actions, bepTestAction{label: label, cfgID: cfgID, logURI: logURI})
-	}
-	return actions, ctx, nil
-}
-
-func observeBEPEvent(ctx *bepContext, event map[string]any) bool {
-	id, _ := event["id"].(map[string]any)
-	if _, ok := id["workspace"]; ok {
-		wi, _ := event["workspaceInfo"].(map[string]any)
-		ctx.localExecRoot, _ = wi["localExecRoot"].(string)
-		return true
-	}
-	cfg, _ := id["configuration"].(map[string]any)
-	cfgID, _ := cfg["id"].(string)
-	if cfgID == "" {
-		return false
-	}
-	conf, _ := event["configuration"].(map[string]any)
-	mv, _ := conf["makeVariable"].(map[string]any)
-	bindir, _ := mv["BINDIR"].(string)
-	if bindir == "" {
-		return false
-	}
-	ctx.configBindirs[cfgID] = bindir
-	bindirPath := filepath.Clean(bindir)
-	if filepath.Base(bindirPath) == "bin" {
-		ctx.configTestlogs[cfgID] = filepath.Join(filepath.Dir(bindirPath), "testlogs")
-	}
-	return true
-}
-
-func testActionOutputURI(testResult map[string]any, name string) (string, error) {
-	outputs, _ := testResult["testActionOutput"].([]any)
-	for _, raw := range outputs {
-		output, _ := raw.(map[string]any)
-		if output["name"] == name {
-			uri, _ := output["uri"].(string)
-			if uri == "" {
-				return "", fmt.Errorf("missing uri for %s", name)
-			}
-			return uri, nil
-		}
-	}
-	return "", fmt.Errorf("missing %s in testActionOutput", name)
-}
-
-func resolveBEPOutputPath(label, uri, cfgID string, ctx *bepContext, outputName string) (string, error) {
-	if strings.HasPrefix(uri, "file://") {
-		path := strings.TrimPrefix(uri, "file://")
-		if _, err := os.Stat(path); err == nil {
-			return path, nil
-		}
-	}
-	testlogsDir := ctx.configTestlogs[cfgID]
-	if ctx.localExecRoot != "" && testlogsDir != "" {
-		labelRel := strings.TrimPrefix(label, "//")
-		labelRel = strings.ReplaceAll(labelRel, ":", "/")
-		candidate := filepath.Join(ctx.localExecRoot, testlogsDir, labelRel, outputName)
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
-		}
-	}
-	return "", fmt.Errorf("could not resolve %s for %s (uri=%q)", outputName, label, uri)
-}
-
-func fragmentPathForLog(label, logPath string) (string, error) {
-	name := label
-	if idx := strings.LastIndex(label, ":"); idx >= 0 {
-		name = label[idx+1:]
-	}
-	pkg := strings.TrimPrefix(label, "//")
-	if idx := strings.Index(pkg, ":"); idx >= 0 {
-		pkg = pkg[:idx]
-	}
-	fname := fragmentBasename(name, logPath)
-
-	// Prefer sibling bin/ next to the test.log config root.
-	if strings.Contains(logPath, "/testlogs/") {
-		prefix := logPath[:strings.Index(logPath, "/testlogs/")]
-		candidate := filepath.Join(prefix, "bin", filepath.FromSlash(pkg), fname)
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
-		}
-	}
-
-	matches, _ := filepath.Glob(filepath.Join("bazel-out", "*", "bin", filepath.FromSlash(pkg), fname))
-	if len(matches) == 1 {
-		return matches[0], nil
-	}
-	execRoot := os.Getenv("BUILD_WORKSPACE_DIRECTORY")
-	if execRoot != "" {
-		matches, _ = filepath.Glob(filepath.Join(execRoot, "bazel-out", "*", "bin", filepath.FromSlash(pkg), fname))
-		if len(matches) == 1 {
-			return matches[0], nil
-		}
-	}
-	return "", fmt.Errorf("expected one test2json fragment for %s log %s (tried %s)", label, logPath, fname)
-}
-
-func fragmentBasename(targetName, logPath string) string {
-	marker := targetName + "/"
-	if idx := strings.Index(logPath, marker); idx >= 0 {
-		suffix := logPath[idx+len(marker):]
-		suffix = strings.ReplaceAll(suffix, "/", "_")
-		suffix = strings.ReplaceAll(suffix, ":", "_")
-		return targetName + "_" + suffix + ".test2json.jsonl"
-	}
-	base := filepath.Base(logPath)
-	return targetName + "_" + base + ".test2json.jsonl"
 }
