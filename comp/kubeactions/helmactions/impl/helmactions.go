@@ -45,8 +45,9 @@ type helmactionsImpl struct {
 	params         helmactions.Params
 	watchCtxDone   chan struct{}
 	watchCtxCancel context.CancelFunc
-	store          *ActionStore
-	jobWatcher     *jobWatcher
+	// store might be not needed for helm related actions TODO
+	store      *ActionStore
+	jobWatcher *jobWatcher
 }
 
 // NewComponent creates a new helmactions component.
@@ -100,6 +101,8 @@ func (h *helmactionsImpl) start(context.Context) error {
 
 	go h.jobWatcher.run(watchCtx, h.watchCtxDone)
 
+	// TODO: mark start time and pick up jobs finsihed 3 minues ago. 3 chosen as averate agent settle time
+	// once those are grabbed, report their statuses back to EVP
 	return nil
 }
 
