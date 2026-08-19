@@ -183,6 +183,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | -------- | ------------- |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
+| [`event.is_pidfd`](#event-is_pidfd-doc) | True if the event originates from a pidfd syscall (e.g. pidfd_getfd, pidfd_send_signal) |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
@@ -4145,6 +4146,13 @@ Definition: True if the syscall was asynchronous
 Type: string
 
 Definition: Hostname associated with the event
+
+
+
+### `event.is_pidfd` {#event-is_pidfd-doc}
+Type: bool
+
+Definition: True if the event originates from a pidfd syscall (e.g. pidfd_getfd, pidfd_send_signal)
 
 
 

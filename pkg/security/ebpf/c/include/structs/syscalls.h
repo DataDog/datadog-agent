@@ -34,6 +34,7 @@ struct syscall_cache_t {
     u64 type;
     enum SYSCALL_STATE state;
     u8 async;
+    u8 from_pidfd;
     u32 ctx_id;
     struct dentry_resolver_input_t resolver;
     s64 retval;

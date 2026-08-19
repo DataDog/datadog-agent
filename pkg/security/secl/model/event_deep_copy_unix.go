@@ -42,6 +42,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.FailedDNS = deepCopyFailedDNSEvent(e.FailedDNS)
 	copied.IMDS = deepCopyIMDSEvent(e.IMDS)
 	copied.InvalidateDentry = deepCopyInvalidateDentryEvent(e.InvalidateDentry)
+	copied.IsPIDFD = e.IsPIDFD
 	copied.Link = deepCopyLinkEvent(e.Link)
 	copied.LoadModule = deepCopyLoadModuleEvent(e.LoadModule)
 	copied.LoginUIDWrite = deepCopyLoginUIDWriteEvent(e.LoginUIDWrite)

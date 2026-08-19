@@ -67,6 +67,9 @@ const (
 	// EventFlagsInternal true if the event is an internal event used to keep caches & internal resources up-to-date
 	EventFlagsInternal
 
+	// EventFlagsPIDFD true if the event originates from a pidfd syscall (e.g. pidfd_getfd, pidfd_send_signal)
+	EventFlagsPIDFD
+
 	// non kernel flags
 
 	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it

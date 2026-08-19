@@ -31,6 +31,7 @@ const (
 	OffsetNameKernelCloneArgsExitSignal = "kernel_clone_args_exit_signal_offset"
 	OffsetNameFileFinode                = "file_f_inode_offset"
 	OffsetNameFileFpath                 = "file_f_path_offset"
+	OffsetNameFileFflags                = "file_f_flags_offset"
 	OffsetNameDentryDSb                 = "dentry_d_sb_offset"
 	OffsetNameMountMntID                = "mount_id_offset"
 	OffsetNameMountMntIDUnique          = "mount_id_unique_offset"
