@@ -90,8 +90,11 @@ func TestIsEligible(t *testing.T) {
 		{
 			// The remaining cases pin the secrets gate: the pre-flight writes the resolved
 			// configuration to disk, so it must not run when a secret could be in it.
+			// Each setup resets data_plane.enabled to false via SourceDefault so that isEligible
+			// reaches the secrets check (data_plane.enabled defaults to true in this branch).
 			name: "secret_backend_command set",
 			setup: func(cfg pkgconfigmodel.Config) {
+				cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 				cfg.Set(secretBackendCommand, "/usr/local/bin/fetch-secrets", pkgconfigmodel.SourceFile)
 			},
 			want:       false,
@@ -100,6 +103,7 @@ func TestIsEligible(t *testing.T) {
 		{
 			name: "secret_backend_type set",
 			setup: func(cfg pkgconfigmodel.Config) {
+				cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 				cfg.Set(secretBackendType, "aws.secrets", pkgconfigmodel.SourceFile)
 			},
 			want:       false,
@@ -118,6 +122,7 @@ func TestIsEligible(t *testing.T) {
 		{
 			name: "multi_secret_backends set",
 			setup: func(cfg pkgconfigmodel.Config) {
+				cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 				cfg.Set(multiSecretBackends, map[string]interface{}{
 					"vault": map[string]interface{}{"type": "hashicorp.vault"},
 				}, pkgconfigmodel.SourceFile)
@@ -143,6 +148,7 @@ func TestIsEligible(t *testing.T) {
 			// would be what puts it on disk.
 			name: "a value in the secrets layer",
 			setup: func(cfg pkgconfigmodel.Config) {
+				cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 				cfg.Set("api_key", "resolved-api-key", pkgconfigmodel.SourceSecret)
 			},
 			want:       false,
@@ -154,6 +160,7 @@ func TestIsEligible(t *testing.T) {
 			// value is still sitting in the layer.
 			name: "a value in the secrets layer with no backend configured",
 			setup: func(cfg pkgconfigmodel.Config) {
+				cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 				cfg.Set("proxy.https", "https://user:resolved-password@proxy:3128", pkgconfigmodel.SourceSecret)
 			},
 			want:       false,
@@ -164,6 +171,7 @@ func TestIsEligible(t *testing.T) {
 			// key, so the walk has to see them there rather than at a nested path.
 			name: "a compound setting resolved from a secret",
 			setup: func(cfg pkgconfigmodel.Config) {
+				cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 				cfg.Set("additional_endpoints", map[string][]string{
 					"https://app.datadoghq.com": {"resolved-api-key"},
 				}, pkgconfigmodel.SourceSecret)
@@ -177,6 +185,7 @@ func TestIsEligible(t *testing.T) {
 			// AllSettings, which is what gets written out, still merges it.
 			name: "a shadowed value in the secrets layer",
 			setup: func(cfg pkgconfigmodel.Config) {
+				cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 				cfg.Set("api_key", "resolved-api-key", pkgconfigmodel.SourceSecret)
 				cfg.Set("api_key", "override", pkgconfigmodel.SourceCLI)
 			},

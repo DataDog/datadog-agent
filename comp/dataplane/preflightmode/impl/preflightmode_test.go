@@ -762,6 +762,9 @@ func TestPreflightModeReportsUnusableBinary(t *testing.T) {
 
 	cfg := configmock.New(t)
 	cfg.Set("run_path", t.TempDir(), pkgconfigmodel.SourceAgentRuntime)
+	// Reset data_plane.enabled to false via SourceDefault so isEligible passes
+	// (data_plane.enabled defaults to true in this branch).
+	cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 	lc := &testLifecycle{}
 	tlm := telemetrymock.New(t)
 
