@@ -32,14 +32,15 @@ type mockCheck struct {
 }
 
 // Mock Check interface implementation
-func (mc *mockCheck) ConfigSource() string    { return mc.cfgSource }
-func (mc *mockCheck) ConfigProvider() string  { return "" }
-func (mc *mockCheck) Loader() string          { return mc.loaderName }
-func (mc *mockCheck) ID() checkid.ID          { return mc.id }
-func (mc *mockCheck) String() string          { return mc.stringVal }
-func (mc *mockCheck) Version() string         { return mc.version }
-func (mc *mockCheck) Interval() time.Duration { return mc.interval }
-func (mc *mockCheck) IsHASupported() bool     { return mc.haSupported }
+func (mc *mockCheck) ConfigSource() string             { return mc.cfgSource }
+func (mc *mockCheck) ConfigProvider() string           { return "" }
+func (mc *mockCheck) Loader() string                   { return mc.loaderName }
+func (mc *mockCheck) ID() checkid.ID                   { return mc.id }
+func (mc *mockCheck) String() string                   { return mc.stringVal }
+func (mc *mockCheck) Version() string                  { return mc.version }
+func (mc *mockCheck) Interval() time.Duration          { return mc.interval }
+func (mc *mockCheck) IsHASupported() bool              { return mc.haSupported }
+func (mc *mockCheck) WorkloadBalancingGroupID() string { return "" }
 
 func newMockCheck() StatsCheck {
 	return &mockCheck{

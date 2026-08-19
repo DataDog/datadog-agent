@@ -178,3 +178,8 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckWrapper) IsHASupported() bool {
 	return c.inner.IsHASupported()
 }
+
+// WorkloadBalancingGroupID implements Check#WorkloadBalancingGroupID
+func (c *CheckWrapper) WorkloadBalancingGroupID() string {
+	return c.inner.WorkloadBalancingGroupID()
+}
