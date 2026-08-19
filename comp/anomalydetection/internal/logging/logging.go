@@ -20,15 +20,21 @@ func Debug(args ...interface{})                 { pkglog.DebugStackDepth(1, pref
 func Debugf(format string, args ...interface{}) { pkglog.DebugfStackDepth(1, Prefix+format, args...) }
 func Info(args ...interface{})                  { pkglog.InfoStackDepth(1, prefixedMessage(args)) }
 func Infof(format string, args ...interface{})  { pkglog.InfofStackDepth(1, Prefix+format, args...) }
-func Warn(args ...interface{}) error            { return pkglog.WarnStackDepth(1, prefixedMessage(args)) }
-func Warnf(format string, args ...interface{}) error {
-	return pkglog.WarnfStackDepth(1, Prefix+format, args...)
+func Warn(args ...interface{}) {
+	_ = pkglog.WarnStackDepth(1, prefixedMessage(args))
 }
-func Error(args ...interface{}) error { return pkglog.ErrorStackDepth(1, prefixedMessage(args)) }
-func Errorf(format string, args ...interface{}) error {
-	return pkglog.ErrorfStackDepth(1, Prefix+format, args...)
+func Warnf(format string, args ...interface{}) {
+	_ = pkglog.WarnfStackDepth(1, Prefix+format, args...)
 }
-func Critical(args ...interface{}) error { return pkglog.CriticalStackDepth(1, prefixedMessage(args)) }
-func Criticalf(format string, args ...interface{}) error {
-	return pkglog.CriticalfStackDepth(1, Prefix+format, args...)
+func Error(args ...interface{}) {
+	_ = pkglog.ErrorStackDepth(1, prefixedMessage(args))
+}
+func Errorf(format string, args ...interface{}) {
+	_ = pkglog.ErrorfStackDepth(1, Prefix+format, args...)
+}
+func Critical(args ...interface{}) {
+	_ = pkglog.CriticalStackDepth(1, prefixedMessage(args))
+}
+func Criticalf(format string, args ...interface{}) {
+	_ = pkglog.CriticalfStackDepth(1, Prefix+format, args...)
 }

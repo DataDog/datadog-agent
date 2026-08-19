@@ -50,7 +50,6 @@ go_library(
         "//pkg/logs/tailers/file",
         "//pkg/logs/types",
         "//pkg/logs/util/opener",
-        "//pkg/util/log",
         "//pkg/util/option",
     ],
 )
