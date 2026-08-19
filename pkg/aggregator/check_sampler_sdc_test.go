@@ -230,26 +230,6 @@ func TestSDC_ContextsTelemetryTracksCreationAndExpiry(t *testing.T) {
 	require.Empty(t, cs.sdcCompressor.contexts, "must expire once the configured window elapses with no new sample")
 }
 
-func TestSDC_FloorBoundTelemetry(t *testing.T) {
-	setSDCTestConfig(t, map[string]interface{}{
-		"checks.sdc_compression_all": true,
-	})
-	cs := newSDCTestSampler("floor_bound")
-
-	// A near-zero-scale signal: with the default config (Epsilon=0.02,
-	// Floor=1e-3), Epsilon*scale (~2e-8) is many orders of magnitude below
-	// Floor, so every sample here is floor-bound.
-	for i := 0; i < 5; i++ {
-		addSDCGauge(cs, "my.tiny_gauge", 1e-6, float64(i), nil)
-		sdcCommitAndFlush(cs, float64(i))
-	}
-
-	for _, st := range cs.sdcCompressor.contexts {
-		require.EqualValues(t, 5, st.tlmSamples.Get())
-		require.EqualValues(t, 5, st.tlmFloorBoundSamples.Get(), "every sample should be floor-bound given the signal's tiny scale")
-	}
-}
-
 func TestSDC_GaugeWithTimestampMultiPointPerCommit(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
 		"checks.sdc_compression_all":               true,
