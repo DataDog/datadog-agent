@@ -260,6 +260,7 @@ func run(
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)
 	if params.Headless != "" {
+		var stopCPUProfile func()
 		if params.CPUProfile != "" {
 			f, err := os.Create(params.CPUProfile)
 			if err != nil {
@@ -269,14 +270,23 @@ func run(
 				_ = f.Close()
 				return fmt.Errorf("could not start CPU profile: %w", err)
 			}
-			defer func() {
+			stopCPUProfile = func() {
 				pprof.StopCPUProfile()
 				_ = f.Close()
 				fmt.Printf("CPU profile written to %s\n", params.CPUProfile)
+			}
+			defer func() {
+				if stopCPUProfile != nil {
+					stopCPUProfile()
+				}
 			}()
 		}
 		if err := tb.RunHeadless(params.Headless, params.Output, params.Verbose); err != nil {
 			return err
+		}
+		if stopCPUProfile != nil {
+			stopCPUProfile()
+			stopCPUProfile = nil
 		}
 		if params.MemProfile != "" {
 			f, err := os.Create(params.MemProfile)
