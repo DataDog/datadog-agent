@@ -247,6 +247,7 @@ For internal PRs (from people in the Datadog organization), you have few extra l
 - `community/help-wanted`: for community PRs where help is needed to finish it.
 - `community`: for community PRs.
 - `changelog/no-changelog`: for PRs that don't require a reno releasenote (useful for PRs only changing documentation or tests).
+- `qa/rc-required`: for changes that can only be validated on the Release Candidate, such as those needing workloads we cannot emulate or validation on prod during RC deployment. Explain why in the PR description; these PRs generate a QA card at RC time.
 - `qa/done` or `qa/no-code-change`: used to skip the QA week:
     - `qa/done` label is recommended in case of code changes ***and*** manual / automated QA done before merge.
     - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.

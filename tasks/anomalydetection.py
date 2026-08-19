@@ -205,7 +205,8 @@ def eval_scenarios(
     source of truth for anomaly detection accuracy.
 
     Uses testbench --only to control which components are active.
-    Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
+    Default (no --only): uses testbench defaults (bocpd, rrcf, and
+      anomaly_scorer; time_cluster is disabled).
     With --only: enables ONLY listed components + extractors, disables everything else.
       time_cluster is auto-added if not specified.
     With --config: JSON params file for testbench; overrides --only when both are set.
@@ -1642,7 +1643,7 @@ def eval_pipeline(
         dda inv --dep optuna anomalydetection.eval-pipeline
         dda inv --dep optuna anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
         dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw
-        dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
+        dda inv --dep optuna anomalydetection.eval-pipeline --force-disable scanwelch
         dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval \
             --ddeval-command ddeval \
             --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
@@ -1939,7 +1940,7 @@ def eval_component(
     overwrite: bool = False,
     tune_evaluated_component: bool = False,
     enable: str = "",
-    disable: str = "cusum",
+    disable: str = "",
     lock: str = "",
     timeout: int = 300,
     scenarios: str = "",
@@ -1970,7 +1971,7 @@ def eval_component(
         build: Whether to build testbench and scorer first.
         tune_evaluated_component: If True, Optuna also tunes the target component's hyperparameters.
         enable: Comma-separated components to force-enable in every subset.
-        disable: Comma-separated components to force-disable from every subset (default: cusum).
+        disable: Comma-separated components to force-disable from every subset.
         lock: Comma-separated components to lock at Go defaults in every Bayesian run.
         timeout: Per-scenario time budget in seconds (default: 300).
         scenarios: Comma-separated scenario names (default: all SCENARIOS).
