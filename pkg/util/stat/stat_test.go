@@ -51,7 +51,21 @@ func TestStats(t *testing.T) {
 			}
 		}
 
+		// Capture the value before cleanup: unblocking Update (below)
+		// may overwrite myStat with a zero value.
+		val := myStat.Value()
+
+		// Unblock the Update goroutine in case it selected <-t.C and is
+		// now blocked on <-s.Aggregated (Process may have exited via
+		// <-s.stopped before sending a value). The zero Stat is
+		// harmless — Update will set myStat to 0, but we have already
+		// captured the real value above.
+		select {
+		case s.Aggregated <- Stat{}:
+		default:
+		}
+
 		synctest.Wait()
-		assert.NotEqual(t, myStat.Value(), 0)
+		assert.NotEqual(t, val, 0)
 	})
 }
