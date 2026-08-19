@@ -862,6 +862,9 @@ def run(
             result_junit=partial_result_junit,
             result_json=partial_result_json,
             recursive=recursive,
+            # A Bazel server outlives the canceled GitLab shell and may continue
+            # provisioning E2E resources while after_script tries to clean them.
+            bazel_batch=running_in_ci(),
         )
         if test_res is None:
             ctx.run("datadog-ci tag --level job --tags 'e2e.skipped_all_tests:true'")
@@ -937,6 +940,7 @@ def run(
             env=env_vars,
             result_junit="",  # No need to store JUnit results for teardown-only runs
             result_json="",  # No need to store results for teardown-only runs
+            bazel_batch=running_in_ci(),
         )
 
     # Merge all the partial result JSON files into the final result JSON
@@ -1151,19 +1155,26 @@ def cleanup_remote_stacks(ctx, stack_regex):
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
         destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
         res = pool.map(destroy_func, to_delete_stacks)
-        destroyed_stack = set()
+        successful_stack = set()
         failed_stack = set()
         for exit_code, stdout, stderr, stack in res:
             if exit_code != 0:
                 failed_stack.add(stack)
             else:
-                destroyed_stack.add(stack)
-            print(f"Stack {stack}: {stdout} {stderr}")
+                successful_stack.add(stack)
+            if stdout or stderr:
+                print(f"Stack {stack}: {stdout} {stderr}".rstrip())
 
-    for stack in destroyed_stack:
-        print(f"Stack {stack} destroyed successfully")
+    for stack in successful_stack:
+        if remote_stack_cleaning:
+            print(f"Stack {stack} cleanup request submitted successfully")
+        else:
+            print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
-        print(f"Failed to destroy stack {stack}")
+        if remote_stack_cleaning:
+            print(f"Failed to submit cleanup request for stack {stack}")
+        else:
+            print(f"Failed to destroy stack {stack}")
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:

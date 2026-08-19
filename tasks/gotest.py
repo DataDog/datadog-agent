@@ -404,6 +404,7 @@ def test_flavor(
     recursive: bool = True,
     exclude_packages: set[str] | None = None,
     skip_tests_covered_by_bazel: bool = False,
+    bazel_batch: bool = False,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -472,6 +473,7 @@ def test_flavor(
         with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
             res = bazel(
                 ctx,
+                *(["--batch"] if bazel_batch else []),
                 "run",
                 "//internal/tools:gotestsum",
                 "--",
