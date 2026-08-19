@@ -746,6 +746,33 @@ func TestLauncherTestSuite(t *testing.T) {
 	suite.Run(t, new(LauncherTestSuite))
 }
 
+// TestStopIsIdempotent ensures calling Stop multiple times does not panic or
+// block. This guards against a regression where Stop sent on an unbuffered
+// channel, causing the second call to block forever after the run loop had
+// already returned (a goroutine leak / shutdown deadlock).
+func TestStopIsIdempotent(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.run_path", t.TempDir())
+
+	integrationsComp := integrationsmock.Mock()
+	s := NewLauncher(afero.NewMemMapFs(), sources.NewLogSources(), integrationsComp)
+
+	s.Start(nil, nil, nil, nil)
+
+	done := make(chan struct{})
+	go func() {
+		s.Stop()
+		s.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop blocked when called multiple times")
+	}
+}
+
 // TestReadOnlyFileSystem ensures the launcher doesn't panic in a read-only
 // file system. There will be errors but it should handle them gracefully.
 func TestReadOnlyFileSystem(t *testing.T) {
