@@ -205,7 +205,7 @@ func parseText(text string, contentType string) (string, error) {
 	}
 	switch mediaType {
 	case "application/openmetrics-text":
-		parser = textparse.NewOpenMetricsParser(data, st, nil)
+		parser = textparse.NewOpenMetricsParser(data, st)
 	default:
 		parser = textparse.NewPromParser(data, st, false)
 	}
