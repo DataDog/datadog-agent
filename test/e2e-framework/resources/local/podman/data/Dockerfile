@@ -7,20 +7,25 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ARG CI
 # APT mirror resilience in CI (see Dockerfiles/agent/Dockerfile for the rationale):
-# rewrite the deb822 URIs: fields to an ordered multi-URI list so apt fails over
-# to the next mirror on error, with a short timeout + Retries 1 so a slow mirror
-# becomes a fast error. us-east-1 is dropped as the chronically-slow mirror.
+# handle both the deb822 ubuntu.sources (multi-URI failover) and the legacy
+# one-line sources.list (mirror+file), dropping the chronically-slow us-east-1,
+# with a short Acquire timeout + Retries 1.
 RUN if [ "$CI" = "true" ]; then \
   printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
-  for f in /etc/apt/sources.list.d/ubuntu.sources; do \
-    if [ -f "$f" ]; then \
-      sed -i -E \
-        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-        -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-west-2.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports#' \
-        "$f"; \
-    fi; \
-  done; \
+  printf 'http://us-west-2.ec2.archive.ubuntu.com/ubuntu\nhttp://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' > /etc/apt/mirrorlist.main && \
+  printf 'http://us-west-2.ec2.ports.ubuntu.com/ubuntu-ports\nhttp://ports.ubuntu.com/ubuntu-ports\n' > /etc/apt/mirrorlist.ports && \
+  if [ -f /etc/apt/sources.list ]; then \
+    sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+           -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+           -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
+  fi && \
+  if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+    sed -i -E \
+      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+      -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-west-2.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports#' \
+      /etc/apt/sources.list.d/ubuntu.sources; \
+  fi; \
   fi
 
 RUN set -eu && \

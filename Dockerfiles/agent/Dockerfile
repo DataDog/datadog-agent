@@ -15,22 +15,32 @@ ARG CI
 # Ubuntu EC2 AMIs point apt at a single regional mirror (us-east-1) with no real
 # failover. When that mirror is slow-but-reachable, apt would stall until the CI
 # job timeout: the `mirror` method only falls back on a fully-unreachable mirror,
-# and Acquire::Retries retries the SAME URI. Instead we rewrite the deb822 URIs:
-# fields to an ordered multi-URI list so apt fails over to the next mirror on
-# error, and set a short timeout + Retries 1 so a slow mirror becomes a fast
-# error (triggering that failover). us-east-1 is dropped as the chronically-slow
-# mirror. Related: test/new-e2e/tests/installer/host/host.go (ConfigureAptMirrors).
+# and Acquire::Retries retries the SAME URI. The base image version is
+# configurable (BASE_IMAGE_UBUNTU_VERSION), so we handle both source formats:
+#   - deb822 ubuntu.sources (>= 24.04): rewrite the URIs: fields to an ordered
+#     multi-URI list so apt fails over to the next mirror on error.
+#   - legacy one-line sources.list (< 24.04): the format can't list multiple URIs
+#     per entry, so use mirror+file with a peer mirrorlist (fallback on an
+#     unreachable mirror).
+# In both cases us-east-1 is dropped (chronically slow) and a short Acquire
+# timeout + Retries 1 turns a slow mirror into a fast error. Related:
+# test/new-e2e/tests/installer/host/host.go (ConfigureAptMirrors).
 RUN if [ "$CI" = "true" ]; then \
   printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
-  for f in /etc/apt/sources.list.d/ubuntu.sources; do \
-    if [ -f "$f" ]; then \
-      sed -i -E \
-        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-        -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-west-2.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports#' \
-        "$f"; \
-    fi; \
-  done; \
+  printf 'http://us-west-2.ec2.archive.ubuntu.com/ubuntu\nhttp://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' > /etc/apt/mirrorlist.main && \
+  printf 'http://us-west-2.ec2.ports.ubuntu.com/ubuntu-ports\nhttp://ports.ubuntu.com/ubuntu-ports\n' > /etc/apt/mirrorlist.ports && \
+  if [ -f /etc/apt/sources.list ]; then \
+    sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+           -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+           -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
+  fi && \
+  if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+    sed -i -E \
+      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+      -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-west-2.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports#' \
+      /etc/apt/sources.list.d/ubuntu.sources; \
+  fi; \
   fi
 
 ENV DEBIAN_FRONTEND=noninteractive
