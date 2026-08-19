@@ -6,6 +6,8 @@
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::expand_env_vars;
 use crate::handle::ProcessHandle;
+#[cfg(windows)]
+use crate::handle::ProcessWaitControl;
 use crate::platform;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
@@ -151,6 +153,8 @@ pub struct ManagedProcess {
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
     user_profile: Option<platform::UserProfileGuard>,
+    #[cfg(windows)]
+    wait_control: Option<std::sync::Arc<ProcessWaitControl>>,
 }
 
 impl ManagedProcess {
@@ -181,6 +185,8 @@ impl ManagedProcess {
             job_object: None,
             #[cfg(windows)]
             user_profile: None,
+            #[cfg(windows)]
+            wait_control: None,
         }
     }
 
@@ -222,6 +228,14 @@ impl ManagedProcess {
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
         self.user_profile = None;
+        self.wait_control = None;
+    }
+
+    #[cfg(windows)]
+    fn cancel_process_wait(&self) {
+        if let Some(wait_control) = &self.wait_control {
+            wait_control.cancel();
+        }
     }
 
     #[cfg(windows)]
@@ -383,14 +397,21 @@ impl ManagedProcess {
             let name = self.name().to_owned();
             let pid = self.pid().unwrap_or(0);
             let watcher_handle = tokio::spawn(async move {
+                let wait_control = proc_handle.wait_control();
                 let status = match proc_handle.wait().await {
                     Ok(status) => status,
                     Err(e) => {
+                        if wait_control.is_cancelled() {
+                            return None;
+                        }
                         warn!("[{name}] wait error: {e}, killing process");
                         let _ = proc_handle.kill().await;
                         match proc_handle.wait().await {
                             Ok(s) => s,
                             Err(e2) => {
+                                if wait_control.is_cancelled() {
+                                    return None;
+                                }
                                 warn!("[{name}] failed to reap after kill: {e2}");
                                 return None;
                             }
@@ -416,6 +437,10 @@ impl ManagedProcess {
         let handle = platform::spawn_child_handle(self)?;
 
         self.pid = handle.id();
+        #[cfg(windows)]
+        {
+            self.wait_control = Some(handle.wait_control());
+        }
         info!(
             "[{}] spawned (pid={}, cmd={})",
             self.name,
@@ -479,15 +504,22 @@ impl ManagedProcess {
     }
 
     fn mark_stopped(&mut self) {
+        #[cfg(windows)]
+        self.cancel_process_wait();
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
+        #[cfg(windows)]
+        self.wait_control = None;
     }
 
     pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
         self.last_exit_status = Some(status);
         self.pid = None;
         #[cfg(windows)]
-        self.prepare_windows_spawn_resource_release();
+        {
+            self.prepare_windows_spawn_resource_release();
+            self.wait_control = None;
+        }
         if self.state == ProcessState::Stopping {
             self.transition_to(ProcessState::Stopped);
         } else if status.success() {
@@ -522,6 +554,11 @@ impl ManagedProcess {
                     }
                     Err(_) => {
                         warn!("[{}] still running after force-kill, giving up", self.name);
+                        #[cfg(windows)]
+                        {
+                            self.cancel_process_wait();
+                            let _ = time::timeout(Duration::from_secs(1), &mut **handle).await;
+                        }
                         None
                     }
                 }
@@ -535,6 +572,8 @@ impl ManagedProcess {
                     }
                     Err(_) => {
                         warn!("[{}] still running after force-kill, giving up", self.name);
+                        #[cfg(windows)]
+                        self.cancel_process_wait();
                         None
                     }
                 }
