@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
 func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]Field) *Opts {
@@ -44,7 +45,7 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 }
 
 func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
-	pc := ast.NewParsingContext(false)
+	pc := parser.NewParsingContext(false)
 	rule, err := NewRule("id1", expr, pc, opts)
 	if err != nil {
 		return nil, fmt.Errorf("parsing error: %v", err)
@@ -113,6 +114,28 @@ func TestBoolError(t *testing.T) {
 	_, err = NewRuleEvaluator(rule.GetAst(), model, opts)
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
+	}
+}
+
+func TestCIDRArrayScalarComparisonError(t *testing.T) {
+	model := &testModel{}
+
+	opts := newOptsWithParams(nil, nil)
+	rule, err := parseRule(`network.cidrs < 10.0.0.0/8`, model, opts)
+	if rule == nil {
+		t.Fatal(err)
+	}
+
+	// an ordering operator on an array of CIDRs is not supported, it used to panic
+	if _, err = NewRuleEvaluator(rule.GetAst(), model, opts); err == nil {
+		t.Fatal("should report an unknown operator error")
+	}
+}
+
+func TestIdentArrayError(t *testing.T) {
+	_, err := parseRule(`process.uid in [process.gid]`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if err == nil || !strings.Contains(err.Error(), "`process.gid` is not a constant") {
+		t.Fatalf("should report a non constant identifier error, got `%v`", err)
 	}
 }
 
@@ -630,7 +653,7 @@ func TestConstants(t *testing.T) {
 
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
+	pc := parser.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
@@ -659,7 +682,7 @@ func TestMacroList(t *testing.T) {
 
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
+	pc := parser.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
@@ -698,7 +721,7 @@ func TestMacroExpression(t *testing.T) {
 
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
+	pc := parser.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
@@ -759,7 +782,7 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
+	pc := parser.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro1, err := NewMacro(
@@ -1719,6 +1742,7 @@ func TestMatchingSubExprs(t *testing.T) {
 		{Expr: `network.ips allin [192.168.0.0/16, 192.168.0.0/24]`, Expected: `<b>network.ips</b> allin [<b>192.168.0.0/16, 192.168.0.0/24</b>]`},
 		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
 		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
+		{Expr: `process.is_root || process.list.key == 10 || process.uid == 22`, Expected: `<b>process.is_root</b> || process.list.key == 10 || process.uid == 22`},
 
 		// need to add varname in the evaluators
 		//{Expr: `true && process.pid == ${pid}`, Expected: `true && <b>process.pid</b> == ${pid}`},

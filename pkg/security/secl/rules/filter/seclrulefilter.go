@@ -10,21 +10,21 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
 // SECLRuleFilter defines a SECL rule filter
 type SECLRuleFilter struct {
 	model          eval.Model
-	parsingContext *ast.ParsingContext
+	parsingContext *parser.ParsingContext
 }
 
 // NewSECLRuleFilter returns a new agent version based rule filter
 func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
 	return &SECLRuleFilter{
 		model:          model,
-		parsingContext: ast.NewParsingContext(true),
+		parsingContext: parser.NewParsingContext(true),
 	}
 }
 
@@ -64,7 +64,7 @@ func (r *SECLRuleFilter) IsAccepted(filters []string) (bool, error) {
 	}
 
 	expression := mergeFilterExpressions(filters)
-	astRule, err := r.parsingContext.ParseRule(expression)
+	astRule, err := r.parsingContext.BuildRule(expression)
 	if err != nil {
 		return false, err
 	}
