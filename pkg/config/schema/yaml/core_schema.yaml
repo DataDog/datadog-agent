@@ -6841,8 +6841,9 @@ properties:
         comment: |-
           Check names that should have their metrics streaming-compressed via
           Swinging Door Trending/Compression (SDC). Experimental; see
-          pkg/aggregator/check_sampler_sdc.go and pkg/aggregator/sdceligibility.
-          Ignored when checks.sdc_compression_all is true.
+          pkg/aggregator/check_sampler_sdc.go and
+          pkg/aggregator/internal/sdc/eligibility.go. Ignored when
+          checks.sdc_compression_all is true.
       sdc_compression_dry_run:
         node_type: setting
         type: boolean

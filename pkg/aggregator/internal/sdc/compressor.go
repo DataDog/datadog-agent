@@ -6,7 +6,10 @@
 // Package sdc implements a streaming, bounded-error Swinging Door
 // Trending/Compression (SDC) compressor for per-context metric point
 // streams, with an EWMA-smoothed adaptive tolerance: full granularity where
-// the signal moves, a handful of points where it doesn't.
+// the signal moves, a handful of points where it doesn't. It also holds
+// (eligibility.go) the single source of truth for whether a check should
+// get SDC applied and for the checks.sdc_compression_* tuning/behavior
+// knobs, used by pkg/aggregator's CheckSampler-level compression hook.
 //
 // This is the Swinging Door Trending algorithm, originally described by
 // Bristol in U.S. Patent 4,669,097 ("Data Compression for Display and

@@ -3,18 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package sdceligibility is the single source of truth for whether a check
-// should get SDC (Swinging Door Trending/Compression) applied, and for the
-// checks.sdc_compression_* tuning/behavior knobs. It's a standalone package
-// (not pkg/aggregator/internal/sdc, which is internal/-restricted to
-// pkg/aggregator) so that both pkg/aggregator's CheckSampler-level
-// compression hook and pkg/collector's checks.sdc_compression_interval_override
-// scheduling wiring can import it without risking the two independently
-// re-implementing the same eligibility decision and drifting out of sync.
-package sdceligibility
+package sdc
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/sdc"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -47,9 +38,9 @@ func EnabledFor(checkName string) bool {
 // compressed context). Setting checks.sdc_compression_floor to 0 disables
 // the floor entirely: Epsilon*scale (however small) always wins over a 0
 // Floor, since both factors are non-negative.
-func CompressorConfig() sdc.Config {
+func CompressorConfig() Config {
 	cfg := setup.Datadog()
-	return sdc.Config{
+	return Config{
 		Epsilon: cfg.GetFloat64("checks.sdc_compression_epsilon"),
 		Alpha:   cfg.GetFloat64("checks.sdc_compression_alpha"),
 		Floor:   cfg.GetFloat64("checks.sdc_compression_floor"),
