@@ -117,10 +117,7 @@ func (s *procmgrLinuxSuite) TestCLIDescribe() {
 	}, 30*time.Second, 2*time.Second)
 }
 
-// TestCLIStopStartThenKillRestarts verifies that after an explicit stop/start
-// cycle, an external kill still triggers the configured restart policy. A bug
-// in dd-procmgrd left stop_requested set after handle_stop, so the next crash
-// was treated as intentional and on-failure/always restart did not run.
+// Regression: leftover stop_requested after handle_stop treated the next crash as intentional.
 func (s *procmgrLinuxSuite) TestCLIStopStartThenKillRestarts() {
 	const procName = "test-sleep"
 
@@ -161,10 +158,6 @@ func (s *procmgrLinuxSuite) TestCLIStopStartThenKillRestarts() {
 		assert.GreaterOrEqual(ct, restartCount, uint64(1), "restart count should reflect crash restart")
 	}, 30*time.Second, 2*time.Second)
 }
-
-// ---------------------------------------------------------------------------
-// Linux-only: DDOT tests
-// ---------------------------------------------------------------------------
 
 func ddotPackageName() string {
 	if os.Getenv("E2E_FIPS") != "" {
@@ -251,10 +244,6 @@ func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 		assertHasField(t, out, "UUID")
 	}, 60*time.Second, 2*time.Second)
 }
-
-// ---------------------------------------------------------------------------
-// Linux-only helpers
-// ---------------------------------------------------------------------------
 
 func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
 	s.T().Helper()

@@ -33,7 +33,6 @@ impl ProcessManager {
         }
     }
 
-    /// Wrap this manager in a [`Supervisor`] for daemon execution.
     pub fn supervisor(self) -> Supervisor {
         Supervisor::new(self)
     }

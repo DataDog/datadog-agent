@@ -27,12 +27,7 @@ type platformConfig struct {
 	testProcessYAML   string
 	missingBinaryYAML string
 
-	// checkFileExists returns a shell command that succeeds (exit 0) when the
-	// given path exists on the remote host.
-	checkFileExists func(path string) string
-
-	// checkSvcRunning is a shell command whose trimmed stdout indicates the
-	// service is running (compared against svcRunningOutput).
+	checkFileExists  func(path string) string
 	checkSvcRunning  string
 	svcRunningOutput string
 
@@ -54,10 +49,6 @@ func (s *baseProcmgrSuite) SetupSuite() {
 		s.T().Skip("procmgr daemon not included in this agent package; skipping process manager tests")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Shared tests — run on both Linux and Windows
-// ---------------------------------------------------------------------------
 
 func (s *baseProcmgrSuite) TestBinariesExist() {
 	s.Env().RemoteHost.MustExecute(s.platform.checkFileExists(s.platform.daemonBin))
@@ -95,10 +86,6 @@ func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 		})
 	}, 30*time.Second, 2*time.Second)
 }
-
-// ---------------------------------------------------------------------------
-// CLI output parsing helpers
-// ---------------------------------------------------------------------------
 
 func fieldValue(output, label string) string {
 	needle := label + ":"

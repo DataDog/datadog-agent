@@ -37,7 +37,8 @@ pub(crate) fn pipe_client_may_mutate(pipe: HANDLE) -> bool {
     }
     let _revert = RevertGuard;
 
-    impersonated_client_may_mutate().unwrap_or(false)
+    // Unidentified clients (e.g. SecurityAnonymous) are denied Create; the pipe stays open.
+    impersonated_client_may_mutate().unwrap_or_default()
 }
 
 const ERROR_NO_TOKEN: i32 = 1008;

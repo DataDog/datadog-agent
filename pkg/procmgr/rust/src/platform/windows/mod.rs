@@ -408,47 +408,6 @@ pub async fn shutdown_signal() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Spawn token environment block (`CreateProcessAsUserW`)
-// ---------------------------------------------------------------------------
-
-/// Machine-wide keys copied from the supervisor when `CreateEnvironmentBlock` fails.
-/// Profile paths (`USERPROFILE`, `LOCALAPPDATA`, `APPDATA`) are derived from the
-/// child token instead so a LocalSystem supervisor does not leak systemprofile paths.
-const FALLBACK_ENV_KEYS: &[&str] = &[
-    "SystemRoot",
-    "WINDIR",
-    "SystemDrive",
-    "ProgramData",
-    "ProgramFiles",
-    "ProgramFiles(x86)",
-    "ProgramW6432",
-    "CommonProgramFiles",
-    "CommonProgramFiles(x86)",
-    "CommonProgramW6432",
-    "PUBLIC",
-    "TEMP",
-    "TMP",
-    "Path",
-    "PATHEXT",
-    "ComSpec",
-];
-
-pub(crate) fn baseline_env_vars_for_spawn(
-    process_name: &str,
-    token: HANDLE,
-) -> HashMap<String, String> {
-    match baseline_env_vars_from_token(token) {
-        Ok(vars) => vars,
-        Err(e) => {
-            log::warn!(
-                "[{process_name}] CreateEnvironmentBlock failed ({e:#}); using allowlisted process-env fallback"
-            );
-            fallback_env_vars_for_spawn(token)
-        }
-    }
-}
-
 pub(crate) fn baseline_env_vars_from_token(token: HANDLE) -> Result<HashMap<String, String>> {
     if token.is_null() {
         anyhow::bail!("baseline_env_vars_from_token: null token handle");
