@@ -80,7 +80,7 @@ type KubeUtil struct {
 
 	useAPIServer bool
 
-	// can be access concurently if we re-init the kubelet client
+	// can be accessed concurrently if we re-init the kubelet client
 	rawConnectionInfo      map[string]string // kept to pass to the python kubelet check
 	rawConnectionInfoMutex sync.RWMutex
 
@@ -99,12 +99,6 @@ func (ku *KubeUtil) getKubeletClient() *kubeletClient {
 	return ku.kubeletClient[ku.kubeletClientIdx.Load()%2].Load()
 }
 
-func (ku *KubeUtil) setRawConnectionInfo(rawConnectionInfo map[string]string) {
-	ku.rawConnectionInfoMutex.Lock()
-	defer ku.rawConnectionInfoMutex.Unlock()
-	ku.rawConnectionInfo = rawConnectionInfo
-}
-
 func (ku *KubeUtil) initKubeletClientHTTPS() error {
 	newKubeletClient, rawConnectionInfos, err := ku.initKubeletClient()
 	if err != nil {
@@ -120,21 +114,27 @@ func (ku *KubeUtil) initKubeletClientHTTPS() error {
 	// update all infos like during normal init
 	ku.kubeletClient[1].Store(newKubeletClient)
 
-	ku.setRawConnectionInfo(rawConnectionInfos)
-
 	if ku.useAPIServer {
 		// we need to lock the node name mutex here because:
 		// - The "initKubeletClientHTTPS" method can be called while others are accessing the "kubeUtil" global instance
-		// - The node name could be empty at start, and later calls to "getNodeNameFromStatsSummary" could set it and set it,
-		//   so we need to ensure we read the latest value and wait for anyone else to set the node name first.
+		// - The node name could be empty at start, we need to wait for anyone reading/setting the node name first.
+		//   this possibly double set the same value but at least it's safe.
 		ku.nodeNameMutex.RLock()
 		newKubeletClient.config.nodeName = ku.nodeName
 		ku.nodeNameMutex.RUnlock()
 	}
 
+	// lock the raw connection info mutex to update the raw connection info
+	ku.rawConnectionInfoMutex.Lock()
+	ku.rawConnectionInfo = rawConnectionInfos
+
 	// update the index so all new requests to `GetKubeUtil`
-	// will return the new http client with HTTPS.
+	// will return the new HTTPS kubelet client.
 	ku.kubeletClientIdx.Store(1)
+
+	// unlock the raw connection info mutex here to ensure all readers
+	// will access the raw connection infos matching the new client.
+	ku.rawConnectionInfoMutex.Unlock()
 
 	return nil
 }
@@ -177,7 +177,10 @@ func (ku *KubeUtil) init() error {
 
 	ku.kubeletClient[ku.kubeletClientIdx.Load()%2].Store(newKubeletClient)
 
-	ku.setRawConnectionInfo(newRawConnectionInfo)
+	// lock the raw connection info mutex to update the raw connection info
+	ku.rawConnectionInfoMutex.Lock()
+	ku.rawConnectionInfo = newRawConnectionInfo
+	ku.rawConnectionInfoMutex.Unlock()
 
 	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
 		ku.useAPIServer = true
@@ -582,7 +585,7 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 func (ku *KubeUtil) GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error) {
 	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
 	if err != nil {
-		return bytes, nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.getKubeletClient().kubeletURL, kubeletConfigPath, err)
+		return bytes, nil, fmt.Errorf("error performing kubelet query %s%s: %w", ku.getKubeletClient().kubeletURL, kubeletConfigPath, err)
 	}
 	if code != http.StatusOK {
 		return bytes, nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.getKubeletClient().kubeletURL, kubeletConfigPath, string(bytes))
