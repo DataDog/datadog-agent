@@ -36,39 +36,102 @@ func TestWorkloadTypeFromOrigin(t *testing.T) {
 	t.Run("cloud_run_service", func(t *testing.T) {
 		assert.Equal(t, "cloud_run_service", workloadTypeFromOrigin(cloudservice.CloudRunOrigin))
 	})
-	t.Run("cloud_run_function", func(t *testing.T) {
+	t.Run("cloud_function_gen2", func(t *testing.T) {
 		t.Setenv("FUNCTION_TARGET", "myHandler")
-		assert.Equal(t, "cloud_run_function", workloadTypeFromOrigin(cloudservice.CloudRunOrigin))
+		assert.Equal(t, "cloud_function_gen2", workloadTypeFromOrigin(cloudservice.CloudRunOrigin))
 	})
 	t.Run("cloud_run_job", func(t *testing.T) {
 		assert.Equal(t, "cloud_run_job", workloadTypeFromOrigin(cloudservice.CloudRunJobsOrigin))
 	})
+	t.Run("azure_container_app", func(t *testing.T) {
+		assert.Equal(t, "azure_container_app", workloadTypeFromOrigin(cloudservice.ContainerAppOrigin))
+	})
+	t.Run("azure_app_service", func(t *testing.T) {
+		assert.Equal(t, "azure_app_service", workloadTypeFromOrigin(cloudservice.AppServiceOrigin))
+	})
+}
+
+func TestRegionFromOriginAndTags(t *testing.T) {
+	t.Run("cloud_run", func(t *testing.T) {
+		tags := map[string]string{"location": "us-central1"}
+		assert.Equal(t, "us-central1", regionFromOriginAndTags(cloudservice.CloudRunOrigin, tags))
+	})
+	t.Run("cloud_run_job", func(t *testing.T) {
+		tags := map[string]string{"location": "europe-west1"}
+		assert.Equal(t, "europe-west1", regionFromOriginAndTags(cloudservice.CloudRunJobsOrigin, tags))
+	})
 	t.Run("container_app", func(t *testing.T) {
-		assert.Equal(t, "container_app", workloadTypeFromOrigin(cloudservice.ContainerAppOrigin))
+		tags := map[string]string{"region": "eastus"}
+		assert.Equal(t, "eastus", regionFromOriginAndTags(cloudservice.ContainerAppOrigin, tags))
 	})
 	t.Run("app_service", func(t *testing.T) {
-		assert.Equal(t, "app_service", workloadTypeFromOrigin(cloudservice.AppServiceOrigin))
+		tags := map[string]string{"region": "westeurope"}
+		assert.Equal(t, "westeurope", regionFromOriginAndTags(cloudservice.AppServiceOrigin, tags))
+	})
+	t.Run("missing", func(t *testing.T) {
+		assert.Equal(t, "", regionFromOriginAndTags(cloudservice.CloudRunOrigin, map[string]string{}))
 	})
 }
 
 func TestResourceNameFromOrigin(t *testing.T) {
-	t.Run("cloud_run", func(t *testing.T) {
+	t.Run("cloud_run_service", func(t *testing.T) {
 		t.Setenv(cloudservice.ServiceNameEnvVar, "my-service")
-		assert.Equal(t, "my-service", resourceNameFromOrigin(cloudservice.CloudRunOrigin))
+		tags := map[string]string{"gcr.resource_name": "projects/p/locations/l/services/my-service"}
+		assert.Equal(t, "projects/p/locations/l/services/my-service", resourceNameFromOrigin(cloudservice.CloudRunOrigin, tags))
+	})
+	t.Run("cloud_run_function", func(t *testing.T) {
+		t.Setenv("FUNCTION_TARGET", "myHandler")
+		tags := map[string]string{"gcrfx.resource_name": "projects/p/locations/l/services/s/functions/myHandler"}
+		assert.Equal(t, "projects/p/locations/l/services/s/functions/myHandler", resourceNameFromOrigin(cloudservice.CloudRunOrigin, tags))
 	})
 	t.Run("container_app", func(t *testing.T) {
 		t.Setenv(cloudservice.ContainerAppNameEnvVar, "my-app")
-		assert.Equal(t, "my-app", resourceNameFromOrigin(cloudservice.ContainerAppOrigin))
+		assert.Equal(t, "my-app", resourceNameFromOrigin(cloudservice.ContainerAppOrigin, nil))
 	})
 	t.Run("app_service", func(t *testing.T) {
 		t.Setenv(cloudservice.WebsiteName, "my-webapp")
-		assert.Equal(t, "my-webapp", resourceNameFromOrigin(cloudservice.AppServiceOrigin))
+		assert.Equal(t, "my-webapp", resourceNameFromOrigin(cloudservice.AppServiceOrigin, nil))
+	})
+}
+
+func TestResourceIDFromTags(t *testing.T) {
+	t.Run("cloud_run_service", func(t *testing.T) {
+		tags := map[string]string{"gcr.resource_name": "projects/p/locations/l/services/my-service"}
+		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/services/my-service", resourceIDFromTags(cloudservice.CloudRunOrigin, tags))
+	})
+	t.Run("cloud_run_function", func(t *testing.T) {
+		t.Setenv("FUNCTION_TARGET", "myHandler")
+		tags := map[string]string{"gcrfx.resource_name": "projects/p/locations/l/services/s/functions/myHandler"}
+		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/services/s/functions/myHandler", resourceIDFromTags(cloudservice.CloudRunOrigin, tags))
+	})
+	t.Run("cloud_run_job", func(t *testing.T) {
+		tags := map[string]string{"gcrj.resource_name": "projects/p/locations/l/jobs/my-job"}
+		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/jobs/my-job", resourceIDFromTags(cloudservice.CloudRunJobsOrigin, tags))
+	})
+	t.Run("container_app", func(t *testing.T) {
+		tags := map[string]string{"resource_id": "/subscriptions/sub-1/resourcegroups/rg-1/providers/microsoft.app/containerapps/My-App"}
+		assert.Equal(t, "//microsoft.azure/containerApps/sub-1/rg-1/my-app", resourceIDFromTags(cloudservice.ContainerAppOrigin, tags))
+	})
+	t.Run("app_service_full", func(t *testing.T) {
+		t.Setenv(cloudservice.AzureSubscriptionIdEnvVar, "sub-1")
+		t.Setenv(cloudservice.AzureResourceGroupEnvVar, "rg-1")
+		t.Setenv(cloudservice.WebsiteName, "My-Webapp")
+		assert.Equal(t, "//microsoft.azure/appServices/sub-1/rg-1/my-webapp", resourceIDFromTags(cloudservice.AppServiceOrigin, nil))
+	})
+	t.Run("app_service_missing", func(t *testing.T) {
+		os.Unsetenv(cloudservice.AzureSubscriptionIdEnvVar)
+		os.Unsetenv(cloudservice.AzureResourceGroupEnvVar)
+		os.Unsetenv(cloudservice.WebsiteName)
+		assert.Equal(t, "", resourceIDFromTags(cloudservice.AppServiceOrigin, nil))
+	})
+	t.Run("empty_path", func(t *testing.T) {
+		assert.Equal(t, "", resourceIDFromTags(cloudservice.CloudRunOrigin, map[string]string{}))
 	})
 }
 
 func TestDeploymentModelFromConf(t *testing.T) {
 	assert.Equal(t, "sidecar", deploymentModelFromConf(mode.Conf{SidecarMode: true}))
-	assert.Equal(t, "init-container", deploymentModelFromConf(mode.Conf{SidecarMode: false}))
+	assert.Equal(t, "in-container", deploymentModelFromConf(mode.Conf{SidecarMode: false}))
 }
 
 func TestDetectRuntime(t *testing.T) {
