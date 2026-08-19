@@ -158,6 +158,15 @@ func feedPrometheusParser(id int64, chunk string) (string, error) {
 	return parseText(complete, state.contentType)
 }
 
+// sampleMetricName extracts the metric name from a Prometheus sample line.
+func sampleMetricName(line string) string {
+	end := strings.IndexAny(line, "{ \t")
+	if end < 0 {
+		return line
+	}
+	return line[:end]
+}
+
 // finishPrometheusParser parses any remaining buffered data and removes the parser.
 func finishPrometheusParser(id int64) (string, error) {
 	val, ok := parserRegistry.LoadAndDelete(id)
