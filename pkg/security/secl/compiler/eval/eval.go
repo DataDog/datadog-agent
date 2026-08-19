@@ -760,6 +760,22 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			return nil, pos, err
 		}
 
+		// Unary records the value of a bare boolean field. It runs here, ahead of the operator
+		// branch, so that it runs for every operand of a logical chain.
+		//
+		// The grammar nests those chains to the right, so only the last operand of one reaches
+		// an Expression carrying no operator. Recording from there alone would tie the value
+		// to where the field sits in the expression, and approvers are derived from the
+		// recorded values, so the position of an operand would decide whether the event type
+		// is filtered in kernel space.
+		//
+		// It is a no-op for anything but a bare field: a comparison evaluator carries no Field.
+		if cmpBool, ok := cmp.(*BoolEvaluator); ok {
+			if cmp, err = Unary(cmpBool, state); err != nil {
+				return nil, obj.Pos, err
+			}
+		}
+
 		if obj.Op != nil {
 			cmpBool, ok := cmp.(*BoolEvaluator)
 			if !ok {
@@ -791,13 +807,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return boolEvaluator, obj.Pos, nil
 			}
 			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
-		}
-
-		if cmpBool, ok := cmp.(*BoolEvaluator); ok {
-			cmp, err = Unary(cmpBool, state)
-			if err != nil {
-				return nil, obj.Pos, err
-			}
 		}
 
 		return cmp, obj.Pos, nil
@@ -1587,6 +1596,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			unaryBool, ok := unary.(*BoolEvaluator)
 			if !ok {
 				return nil, pos, NewTypeError(pos, reflect.Bool)
+			}
+
+			// Not returns a fresh evaluator carrying no Field, so record the value of a bare
+			// boolean field first. A negated field is then recorded like any other occurrence
+			// of it, whether or not it is parenthesised.
+			if _, err := Unary(unaryBool, state); err != nil {
+				return nil, obj.Pos, err
 			}
 
 			return Not(unaryBool, state), obj.Pos, nil

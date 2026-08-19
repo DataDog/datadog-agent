@@ -74,6 +74,7 @@ operators(
 dd_agent_go_test(
     name = "eval_test",
     srcs = [
+        "bare_bool_test.go",
         "eval_test.go",
         "glob_test.go",
         "model_test.go",
