@@ -35,7 +35,7 @@ dd_agent_go_test(
     name = "monitor_test",
     srcs = ["process_monitor_test.go"],
     embed = [":monitor"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
