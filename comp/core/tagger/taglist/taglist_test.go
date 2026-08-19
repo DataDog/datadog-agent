@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestNewTagList(t *testing.T) {
@@ -121,6 +123,62 @@ func TestAddStandard(t *testing.T) {
 	require.Contains(t, list.standardTags, "values:1")
 	require.Contains(t, list.standardTags, "values:2")
 	require.Contains(t, list.standardTags, "values:3")
+}
+
+func TestAddFromWorkload(t *testing.T) {
+	// host and pod_name are the default denylist
+	list := NewTagList()
+	list.AddLowFromWorkload("host", "forged")
+	list.AddHighFromWorkload("pod_name", "forged")
+	list.AddAutoFromWorkload("+POD_NAME", "forged")
+	list.AddAutoFromWorkload(" host ", "forged")
+	// tags are serialized as "name:value" and split on their first ':', so a
+	// name holding a ':' must not be a way around the denylist
+	list.AddAutoFromWorkload("host:forged", "1")
+	list.AddAutoFromWorkload("team", "backend")
+	list.AddLowFromWorkload("kube_namespace", "kube-system")
+
+	require.Empty(t, list.highCardTags)
+	require.Len(t, list.lowCardTags, 2)
+	require.True(t, list.lowCardTags["team:backend"])
+	require.True(t, list.lowCardTags["kube_namespace:kube-system"])
+
+	// the Agent's own tags are never filtered out
+	list.AddLow("host", "node-1")
+	list.AddOrchestrator("pod_name", "redis-0")
+	require.True(t, list.lowCardTags["host:node-1"])
+	require.True(t, list.orchestratorCardTags["pod_name:redis-0"])
+}
+
+func TestAddFromWorkloadCustomDenylist(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("workload_tags_denylist", []string{"Team", " kube_namespace "})
+
+	list := NewTagList()
+	list.AddAutoFromWorkload("team", "forged")
+	list.AddAutoFromWorkload("kube_namespace", "forged")
+	// no longer denied now that the default has been overridden
+	list.AddAutoFromWorkload("host", "10.0.0.1")
+
+	require.Len(t, list.lowCardTags, 1)
+	require.True(t, list.lowCardTags["host:10.0.0.1"])
+}
+
+func TestAddFromWorkloadEmptyDenylist(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("workload_tags_denylist", []string{})
+
+	list := NewTagList()
+	require.False(t, list.IsDenied("host"))
+
+	list.AddAutoFromWorkload("host", "forged")
+	require.True(t, list.lowCardTags["host:forged"])
+}
+
+func TestCopyKeepsDenylist(t *testing.T) {
+	list := NewTagList().Copy()
+	list.AddAutoFromWorkload("host", "forged")
+	require.Empty(t, list.lowCardTags)
 }
 
 func TestCompute(t *testing.T) {

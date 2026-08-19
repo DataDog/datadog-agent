@@ -1,0 +1,27 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    The tagger no longer lets a workload name its own tags ``host`` or ``pod_name``.
+    Previously any tag name found in the ``ad.datadoghq.com/tags`` pod annotation, the
+    ``com.datadoghq.ad.tags`` container label, the tracer process tags, or a
+    ``%%label%%``/``%%annotation%%``/``%%env%%`` tag template applied to pod or container
+    metadata was accepted as-is, so a workload could override tags the Agent assigns
+    itself. The new ``workload_tags_denylist`` setting lists the tag names refused from
+    those sources, and defaults to ``["host", "pod_name"]``. Node and namespace metadata,
+    tag names hardcoded in a ``*_labels_as_tags`` mapping, and the tags the Agent computes
+    itself are unaffected.
+upgrade:
+  - |
+    Tags named ``host`` or ``pod_name`` coming from a pod annotation, a container label, or
+    a tag template are now dropped by the new ``workload_tags_denylist`` setting. This
+    notably affects the ``ad.datadoghq.com/tags`` annotation used to add a low cardinality
+    ``pod_name`` tag, for example ``{"pod_name":"%%kube_pod_name%%"}``. Remove ``pod_name``
+    from ``workload_tags_denylist``, or set it to an empty list, to keep the previous
+    behavior.

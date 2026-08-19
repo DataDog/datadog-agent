@@ -3477,6 +3477,33 @@ properties:
         <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
+  workload_tags_denylist:
+    node_type: setting
+    type: array
+    default:
+    - host
+    - pod_name
+    items:
+      type: string
+    env_parser: comma_separated
+    visibility: public
+    description: |-
+      List of tag names the Agent never accepts from workload-controlled metadata, so that a
+      workload cannot override a tag the Agent computes itself. It applies to the tag names read
+      from the `ad.datadoghq.com/tags` (and `ad.datadoghq.com/<CONTAINER_NAME>.tags`) pod
+      annotations, the `com.datadoghq.ad.tags` container label, the tracer process tags, and the
+      pod labels, pod annotations, container labels or container environment variables mapped to a
+      tag name with a `%%label%%`, `%%annotation%%` or `%%env%%` template.
+      Node and namespace metadata, tag names hardcoded in a `*_labels_as_tags` mapping, and the
+      tags the Agent computes itself are not affected.
+      Matching is case-insensitive and ignores the `+` high cardinality prefix. Set it to an empty
+      list to accept every tag name.
+    example: |2-
+
+        - host
+        - pod_name
+    tags:
+    - template_section:KubernetesTagging
   ecs_agent_container_name:
     node_type: setting
     title: ECS integration Configuration

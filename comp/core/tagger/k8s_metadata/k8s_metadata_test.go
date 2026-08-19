@@ -132,6 +132,60 @@ func TestMetadataAsTags(t *testing.T) {
 	}
 }
 
+func TestWorkloadMetadataAsTags(t *testing.T) {
+	tests := []struct {
+		name           string
+		k              string
+		v              string
+		metadataAsTags map[string]string
+		want           []string
+	}{
+		{
+			// the workload names the tag through the template, so the denylist applies
+			name:           "denied tpl var",
+			k:              "pod_name",
+			v:              "forged",
+			metadataAsTags: map[string]string{"*": "%%label%%"},
+			want:           []string{},
+		},
+		{
+			// the administrator names the tag, so it is kept as-is
+			name:           "denied name hardcoded in the mapping",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"foo": "pod_name"},
+			want:           []string{"pod_name:bar"},
+		},
+		{
+			name:           "allowed tpl var",
+			k:              "team",
+			v:              "backend",
+			metadataAsTags: map[string]string{"*": "%%label%%"},
+			want:           []string{"team:backend"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tagList := taglist.NewTagList()
+			m, g := InitMetadataAsTags(tt.metadataAsTags)
+			AddWorkloadMetadataAsTags(tt.k, tt.v, m, g, tagList)
+			tags, _, _, _ := tagList.Compute()
+			assert.ElementsMatch(t, tt.want, tags)
+		})
+	}
+}
+
+// TestMetadataAsTagsIgnoresDenylist checks that administrator-controlled
+// metadata, such as node or namespace labels, is not filtered.
+func TestMetadataAsTagsIgnoresDenylist(t *testing.T) {
+	tagList := taglist.NewTagList()
+	m, g := InitMetadataAsTags(map[string]string{"*": "%%label%%"})
+	AddMetadataAsTags("host", "node-1", m, g, tagList)
+
+	tags, _, _, _ := tagList.Compute()
+	assert.ElementsMatch(t, []string{"host:node-1"}, tags)
+}
+
 func TestResolveTag(t *testing.T) {
 	testCases := []struct {
 		tmpl, label, expected string
@@ -164,7 +218,7 @@ func TestResolveTag(t *testing.T) {
 
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
-			tagName := resolveTag(testCase.tmpl, testCase.label)
+			tagName, _ := resolveTag(testCase.tmpl, testCase.label)
 			assert.Equal(t, testCase.expected, tagName)
 		})
 	}

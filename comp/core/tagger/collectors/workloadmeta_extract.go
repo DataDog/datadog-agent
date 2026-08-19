@@ -255,7 +255,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 
 	// extract env as tags
 	for envName, envValue := range container.EnvVars {
-		k8smetadata.AddMetadataAsTags(envName, envValue, c.containerEnvAsTags, c.globContainerEnvLabels, tagList)
+		k8smetadata.AddWorkloadMetadataAsTags(envName, envValue, c.containerEnvAsTags, c.globContainerEnvLabels, tagList)
 	}
 
 	// static tags for ECS and EKS Fargate containers
@@ -315,8 +315,9 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 				}
 
 				// Add as low cardinality tag since these are application-level
-				// metadata
-				tagList.AddLow(key, value)
+				// metadata. The tracer names them, so they go through the
+				// denylist.
+				tagList.AddLowFromWorkload(key, value)
 			}
 		}
 	}
@@ -410,7 +411,7 @@ func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *tag
 
 	// container labels as tags
 	for labelName, labelValue := range labels {
-		k8smetadata.AddMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
+		k8smetadata.AddWorkloadMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
 	}
 
 	// orchestrator tags from labels
@@ -438,12 +439,12 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 
 	// pod labels as tags
 	for name, value := range pod.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
+		k8smetadata.AddWorkloadMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
 	}
 
 	// pod annotations as tags
 	for name, value := range pod.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesAnnotationsAsTags["pods"], c.globK8sResourcesAnnotations["pods"], tagList)
+		k8smetadata.AddWorkloadMetadataAsTags(name, value, c.k8sResourcesAnnotationsAsTags["pods"], c.globK8sResourcesAnnotations["pods"], tagList)
 	}
 
 	// namespace labels as tags
@@ -1009,7 +1010,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 			tagList.AddLow(tags.KubeAppManagedBy, value)
 		}
 
-		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
+		k8smetadata.AddWorkloadMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
 	}
 }
 
@@ -1487,19 +1488,21 @@ func parseJSONValue(value string, tags *taglist.TagList) error {
 		return fmt.Errorf("failed to unmarshal JSON: %s", err)
 	}
 
+	// The tag names come from an annotation or a label set on the workload
+	// itself, so they go through the denylist.
 	for key, value := range result {
 		switch v := value.(type) {
 		case string:
-			tags.AddAuto(key, v)
+			tags.AddAutoFromWorkload(key, v)
 		case float64:
-			tags.AddAuto(key, fmt.Sprint(v))
+			tags.AddAutoFromWorkload(key, fmt.Sprint(v))
 		case int64:
-			tags.AddAuto(key, strconv.FormatInt(v, 10))
+			tags.AddAutoFromWorkload(key, strconv.FormatInt(v, 10))
 		case bool:
-			tags.AddAuto(key, strconv.FormatBool(v))
+			tags.AddAutoFromWorkload(key, strconv.FormatBool(v))
 		case []interface{}:
 			for _, tag := range v {
-				tags.AddAuto(key, fmt.Sprint(tag))
+				tags.AddAutoFromWorkload(key, fmt.Sprint(tag))
 			}
 		default:
 			log.Debugf("Tag value %s is not valid, must be a string, int, float, bool or an array, skipping", v)
@@ -1543,6 +1546,6 @@ func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {
 			log.Debugf("Tag '%s' is not in k:v format", tag)
 			continue
 		}
-		tags.AddHigh(tagParts[0], tagParts[1])
+		tags.AddHighFromWorkload(tagParts[0], tagParts[1])
 	}
 }
