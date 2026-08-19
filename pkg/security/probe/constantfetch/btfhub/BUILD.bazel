@@ -25,5 +25,6 @@ go_binary(
     embed = [":btfhub_lib"],
     gotags = ["bpf"],
     tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )

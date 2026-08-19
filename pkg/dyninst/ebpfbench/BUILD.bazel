@@ -39,5 +39,6 @@ go_binary(
     name = "ebpfbench",
     embed = [":ebpfbench_lib"],
     gotags = ["bpf"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )
