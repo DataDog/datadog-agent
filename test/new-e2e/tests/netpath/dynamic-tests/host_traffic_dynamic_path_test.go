@@ -340,7 +340,9 @@ func (s *hostTrafficDynamicPathSuite) assertHostTrafficDomainResolves() {
 	output := s.Env().RemoteHost.MustExecute("getent ahostsv4 " + shellQuote(hostTrafficRemoteConfigDomain))
 	require.Contains(s.T(), output, s.Env().HTTPBinHost.Address)
 
-	s.Env().RemoteHost.MustExecute(hostTrafficRequestCommand(hostTrafficRemoteConfigDomain))
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		s.Env().RemoteHost.MustExecuteOn(c, hostTrafficRequestCommand(hostTrafficRemoteConfigDomain))
+	}, 20*time.Second, 2*time.Second, "host traffic endpoint did not become ready")
 }
 
 func (s *hostTrafficDynamicPathSuite) startHostTrafficGenerator(duration time.Duration) {

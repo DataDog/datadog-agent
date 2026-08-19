@@ -26,13 +26,11 @@ type baselineHostTrafficDynamicPathSuite struct {
 
 // TestBaselineHostTrafficDynamicPathSuite verifies baseline tests from packaged Agent configuration through fakeintake.
 func TestBaselineHostTrafficDynamicPathSuite(t *testing.T) {
-	t.Parallel()
 	e2e.Run(t, &baselineHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("baselineHostTrafficDynamicPath", baselineHostTrafficDynamicPathAgentConfig)))
 }
 
 func (s *baselineHostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
