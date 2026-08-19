@@ -10,9 +10,9 @@ use std::process::ExitStatus;
 use tokio::process::Child;
 
 #[cfg(windows)]
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 #[cfg(windows)]
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::{CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE};
 #[cfg(windows)]
@@ -52,12 +52,13 @@ impl Drop for OwnedProcessHandle {
     }
 }
 
-/// Shared duplicate process handle used for exit waits. Closing it unblocks an
-/// in-flight `WaitForSingleObject` so shutdown can proceed without waiting for
-/// a stuck child.
+/// Cancellation flag plus a duplicate process handle used for exit waits.
+///
+/// Waits poll in finite slices and observe `cancelled` between slices so shutdown
+/// can abandon a stuck child without closing a handle another thread is waiting on.
 #[cfg(windows)]
 pub(crate) struct ProcessWaitControl {
-    wait_handle: Mutex<OwnedProcessHandle>,
+    wait_handle: OwnedProcessHandle,
     cancelled: AtomicBool,
 }
 
@@ -65,34 +66,23 @@ pub(crate) struct ProcessWaitControl {
 impl ProcessWaitControl {
     fn new(process_handle: HANDLE) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
-            wait_handle: Mutex::new(OwnedProcessHandle {
+            wait_handle: OwnedProcessHandle {
                 handle: duplicate_process_handle(process_handle)?,
-            }),
+            },
             cancelled: AtomicBool::new(false),
         }))
     }
 
     pub(crate) fn cancel(&self) {
         self.cancelled.store(true, Ordering::Release);
-        if let Ok(mut guard) = self.wait_handle.lock() {
-            guard.close();
-        }
     }
 
     pub(crate) fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Acquire)
     }
 
-    fn wait_handle_for_blocking(&self) -> Result<HANDLE> {
-        let guard = self
-            .wait_handle
-            .lock()
-            .map_err(|_| std::io::Error::other("process wait handle lock poisoned"))?;
-        let handle = guard.get();
-        if handle.is_null() {
-            return Err(std::io::Error::other("process wait cancelled").into());
-        }
-        Ok(handle)
+    fn wait_handle(&self) -> HANDLE {
+        self.wait_handle.get()
     }
 }
 
@@ -257,15 +247,30 @@ async fn raw_wait_exit_code(wait_control: Arc<ProcessWaitControl>) -> Result<Exi
 
     let wc = Arc::clone(&wait_control);
     let exit_code = tokio::task::spawn_blocking(move || -> Result<u32> {
-        let process_handle = wc.wait_handle_for_blocking()?;
-        let wait_result = unsafe { WaitForSingleObject(process_handle, INFINITE) };
-        if wait_result == WAIT_FAILED {
+        let process_handle = wc.wait_handle();
+        loop {
             if wc.is_cancelled() {
                 return Err(std::io::Error::other("process wait cancelled").into());
             }
-            return Err(std::io::Error::last_os_error().into());
-        }
-        if wait_result != WAIT_OBJECT_0 {
+
+            let wait_result = unsafe { WaitForSingleObject(process_handle, WAIT_SLICE_MS) };
+            if wait_result == WAIT_OBJECT_0 {
+                let mut exit_code: u32 = 0;
+                let ok = unsafe { GetExitCodeProcess(process_handle, &mut exit_code) };
+                if ok == 0 {
+                    return Err(std::io::Error::last_os_error().into());
+                }
+                return Ok(exit_code);
+            }
+            if wait_result == WAIT_TIMEOUT {
+                continue;
+            }
+            if wait_result == WAIT_FAILED {
+                if wc.is_cancelled() {
+                    return Err(std::io::Error::other("process wait cancelled").into());
+                }
+                return Err(std::io::Error::last_os_error().into());
+            }
             return Err(std::io::Error::other(format!(
                 "WaitForSingleObject returned unexpected status: {wait_result}"
             ))
