@@ -71,67 +71,72 @@ func resolveConfigPath(configPath string, workingDir string) (string, bool) {
 	return path.Clean(path.Join(workingDir, configPath)), true
 }
 
-// findConfigPath tries the runtime-native command first, then falls back to
-// command lines discovered from live processes. Returns the resolved path and
-// whether a command line for the service was found.
-func findConfigPath(
-	ctx context.Context,
-	reader configfilesdiscoveryimpl.ConfigReader,
-	findConfigArg func([]string) (string, bool),
-	matchesCommandline func([]string) bool,
-) (string, bool, error) {
-	commandline, runtimeErr := reader.ReadRuntimeCommandline(ctx)
-	runtimeCommandMatched := false
-	if runtimeErr == nil {
-		runtimeCommandMatched = matchesCommandline(commandline.Args)
-		if configArg, found := findConfigArg(commandline.Args); found {
-			runtimeCommandMatched = true
-			if configPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir); resolved {
-				return configPath, true, nil
-			}
-		}
-	}
-
-	var configPath string
-	liveCommandMatched := false
-	for _, commandline := range reader.ReadLiveProcessCommandlines(ctx) {
-		if matchesCommandline(commandline.Args) {
-			liveCommandMatched = true
-		}
-		configArg, found := findConfigArg(commandline.Args)
-		if !found {
-			continue
-		}
-		resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
-		if !resolved {
-			return "", true, runtimeErr
-		}
-		if configPath != "" && configPath != resolvedPath {
-			return "", true, runtimeErr
-		}
-		configPath = resolvedPath
-	}
-	if configPath != "" {
-		return configPath, true, nil
-	}
-	if liveCommandMatched {
-		return "", true, nil
-	}
-	return "", runtimeCommandMatched, runtimeErr
-}
-
-// readConfigFile discovers and reads an explicit config file, or falls back to
-// ordered groups of default paths when no command line for the service is
-// found. The first group with readable files wins, and exactly one file must be
-// readable within that group. Returns the file and whether one was selected.
+// readConfigFile discovers and reads a command-line config file, then considers
+// fallbackConfigArg before ordered groups of default paths. The first group with
+// readable files wins, and exactly one file must be readable within that group.
+// Returns the file and whether one was selected.
 func readConfigFile(
 	ctx context.Context,
 	reader configfilesdiscoveryimpl.ConfigReader,
 	findConfigArg func([]string) (string, bool),
 	matchesCommandline func([]string) bool,
+	fallbackConfigArg string,
 	defaultPathGroups ...[]string,
 ) (configfilesdiscoveryimpl.ConfigFile, bool, error) {
-	configPath, commandMatched, commandlineErr := findConfigPath(ctx, reader, findConfigArg, matchesCommandline)
+	// Runtime metadata has highest precedence and provides the working directory
+	// needed to resolve a relative config argument or fallbackConfigArg.
+	commandline, commandlineErr := reader.ReadRuntimeCommandline(ctx)
+	runtimeWorkingDir := ""
+	commandMatched := false
+	configArgFound := false
+	configPath := ""
+	if commandlineErr == nil {
+		runtimeWorkingDir = commandline.WorkingDir
+		commandMatched = matchesCommandline(commandline.Args)
+		if configArg, found := findConfigArg(commandline.Args); found {
+			commandMatched = true
+			configArgFound = true
+			if resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir); resolved {
+				configPath = resolvedPath
+			}
+		}
+	}
+
+	// If runtime metadata has no resolvable path, inspect live process command
+	// lines. Every discovered path must resolve, and multiple paths must agree.
+	if configPath == "" {
+		for _, commandline := range reader.ReadLiveProcessCommandlines(ctx) {
+			if matchesCommandline(commandline.Args) {
+				commandMatched = true
+			}
+			configArg, found := findConfigArg(commandline.Args)
+			if !found {
+				continue
+			}
+			configArgFound = true
+			resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
+			if !resolved {
+				return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
+			}
+			if configPath != "" && configPath != resolvedPath {
+				return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
+			}
+			configPath = resolvedPath
+		}
+	}
+
+	// Only use the caller-provided fallback when argv did not explicitly name a
+	// config file. An unresolved argv path is authoritative and blocks guessing.
+	if configPath == "" && !configArgFound && fallbackConfigArg != "" {
+		var resolved bool
+		configPath, resolved = resolveConfigPath(fallbackConfigArg, runtimeWorkingDir)
+		if !resolved {
+			return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
+		}
+	}
+
+	// Explicit paths are authoritative. A read failure must not fall through to
+	// conventional defaults that the process might not have loaded.
 	if configPath != "" {
 		file, err := reader.ReadFile(ctx, configPath)
 		if err != nil {
@@ -139,10 +144,15 @@ func readConfigFile(
 		}
 		return file, true, nil
 	}
-	if commandMatched {
-		return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
+
+	// A matching command line or an explicit but unusable source also blocks
+	// defaults, since selecting one would only be a guess.
+	if configArgFound || fallbackConfigArg != "" || commandMatched {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 	}
 
+	// Default groups are ordered by priority. The first group with readable files
+	// wins, but collection is suppressed when that group is ambiguous.
 	for _, defaultPaths := range defaultPathGroups {
 		files := make([]configfilesdiscoveryimpl.ConfigFile, 0, len(defaultPaths))
 		for _, path := range defaultPaths {

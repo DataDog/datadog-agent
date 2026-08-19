@@ -101,6 +101,7 @@ func ddEtwEventCallback(eventRecord C.PEVENT_RECORD) {
 	event := &Event{
 		ProviderID:  providerID,
 		EventID:     eventID,
+		ActivityID:  guidFromC(eventRecord.EventHeader.ActivityId),
 		Timestamp:   fileTimeToGo(C.LONGLONG(*(*int64)(unsafe.Pointer(&eventRecord.EventHeader.TimeStamp)))),
 		eventRecord: eventRecord,
 	}

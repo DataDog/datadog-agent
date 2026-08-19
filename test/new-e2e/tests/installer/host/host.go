@@ -101,6 +101,26 @@ func (h *Host) ConfigureAptMirrors() {
 	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
 }
 
+// ConfigureYumMirrors is the yum counterpart to ConfigureAptMirrors. CentOS 7 is EOL and its
+// stock /centos/7/ path on vault.centos.org now returns HTTP 403, breaking any "yum install".
+// It repoints base/updates/extras at the versioned vault archive (7.9.2009), with the CERN and
+// kernel.org vault mirrors as ordered fallbacks (failovermethod=priority) plus skip_if_unavailable
+// and a bounded timeout to fail fast. vault's http path matches the agent's production
+// kernel-header downloader (pkg/util/kernel/headers/download/rpm/centos.go). See incident 58780.
+func (h *Host) ConfigureYumMirrors() {
+	if h.pkgManager != "yum" {
+		return
+	}
+	// Only CentOS 7 needs this — its EOL content lives at vault.centos.org/7.9.2009. Other yum
+	// distros (RHEL, Amazon Linux) and CentOS 6 (different vault tree) are left untouched.
+	if h.os.Flavor != e2eos.CentOS || !strings.HasPrefix(h.os.Version, "7") {
+		return
+	}
+	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base\nbaseurl=http://vault.centos.org/7.9.2009/os/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/os/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/os/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[updates]\nname=CentOS-7 - Updates\nbaseurl=http://vault.centos.org/7.9.2009/updates/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/updates/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/updates/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[extras]\nname=CentOS-7 - Extras\nbaseurl=http://vault.centos.org/7.9.2009/extras/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/extras/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/extras/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
+	// Drop metadata cached against the previous (403ing) repo config so the next yum call uses the new mirror.
+	h.remote.MustExecute("sudo yum clean all")
+}
+
 // dockerImage returns the ECR pull-through URL for ecrPath when a registry is configured,
 // or publicFallback otherwise.
 func (h *Host) dockerImage(ecrPath, publicFallback string) string {
