@@ -1733,7 +1733,6 @@ properties:
               In baseline mode, the minimum effective network_path.collector.pathtest_interval is
               ten minutes. Requires Cloud Network Monitoring (network_config.enabled) and
               traceroute.enabled in the system-probe configuration.
-            example: 'true'
       collector:
         node_type: section
         type: object
