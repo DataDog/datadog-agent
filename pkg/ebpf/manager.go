@@ -47,7 +47,7 @@ func NewManager(mgr *manager.Manager, name string, modifiers ...Modifier) *Manag
 // NewManagerWithDefault creates a manager wrapper with default modifiers.
 func NewManagerWithDefault(mgr *manager.Manager, name string, modifiers ...Modifier) *Manager {
 	modifiersSync.Do(func() {
-		defaultModifiers = []Modifier{&PrintkPatcherModifier{}}
+		defaultModifiers = []Modifier{&PrintkPatcherModifier{}, &HashMapNoPreallocModifier{}}
 	})
 	return NewManager(mgr, name, append(defaultModifiers, modifiers...)...)
 }
