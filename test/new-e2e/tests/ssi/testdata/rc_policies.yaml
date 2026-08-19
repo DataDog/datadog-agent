@@ -6,15 +6,20 @@ clusterChecksRunner:
 clusterAgent:
   admissionController:
     configMode: "hostip"
+    # Temporary RC gate on the published chart (clusterAgent-remoteConfiguration-enabled
+    # does not yet treat onDemand as a trigger). Drop once
+    # https://github.com/DataDog/helm-charts/pull/2868 is released.
+    remoteInstrumentation:
+      enabled: true
   image:
     pullPolicy: IfNotPresent
-  env:
+  # Use envDict, not env: Helm replaces clusterAgent.env wholesale across values files,
+  # which drops fakeintake RC settings from the E2E framework (DD_REMOTE_CONFIGURATION_RC_DD_URL, …).
+  envDict:
     # Disable gradual rollout so injected images keep their human-readable tag
     # instead of being resolved to a digest.
-    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED
-      value: "false"
-    - name: DD_APM_INSTRUMENTATION_ON_DEMAND
-      value: "true"
+    DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED: "false"
+    DD_APM_INSTRUMENTATION_ON_DEMAND: "true"
 datadog:
   kubeStateMetricsCore:
     useClusterCheckRunners: false
