@@ -26,7 +26,6 @@ import (
 const (
 	linuxDaemonBin = "/opt/datadog-agent/embedded/bin/dd-procmgrd"
 	linuxCLIBin    = "/opt/datadog-agent/embedded/bin/dd-procmgr"
-	linuxSocket    = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 	linuxConfigDir = "/opt/datadog-agent/processes.d"
 
 	ddotPkgBinaryPath = "/opt/datadog-agent/embedded/bin/otel-agent"
@@ -58,7 +57,7 @@ var linuxPlatform = platformConfig{
 	checkFileExists:   func(path string) string { return "test -f " + path },
 	checkSvcRunning:   "systemctl is-active datadog-agent-procmgr",
 	svcRunningOutput:  "active",
-	cliCmd:            func(args string) string { return linuxCLIBin + " " + args },
+	cliCmd:            func(args string) string { return "sudo " + linuxCLIBin + " " + args },
 	killPIDCmd: func(pid uint32) string {
 		return fmt.Sprintf("sudo kill -9 %d", pid)
 	},
@@ -93,10 +92,6 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.hasDDOT = s.installRealDDOT()
-
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		s.Env().RemoteHost.MustExecuteOn(t, "sudo chmod 0777 "+linuxSocket)
-	}, 30*time.Second, 2*time.Second)
 }
 
 func ddotPackageName() string {
