@@ -8,6 +8,8 @@
 package model
 
 import (
+	"fmt"
+	"regexp"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,6 +17,19 @@ import (
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 )
+
+// goMemLimitPattern matches the GOMEMLIMIT format accepted by the Go runtime:
+// a non-negative integer with an optional IEC binary suffix (B, KiB, MiB, GiB, TiB, PiB, EiB)
+// or the special value "off".
+var goMemLimitPattern = regexp.MustCompile(`^([0-9]+(B|KiB|MiB|GiB|TiB|PiB|EiB)?|off)$`)
+
+// ValidateGoMemLimit returns an error if value is not a valid GOMEMLIMIT string.
+func ValidateGoMemLimit(value string) error {
+	if !goMemLimitPattern.MatchString(value) {
+		return fmt.Errorf("invalid GOMEMLIMIT value %q: must be a non-negative integer with optional IEC suffix (B, KiB, MiB, GiB, TiB, PiB, EiB) or \"off\"", value)
+	}
+	return nil
+}
 
 // ScalingValues represents the scaling values (horizontal and vertical) for a target
 type ScalingValues struct {

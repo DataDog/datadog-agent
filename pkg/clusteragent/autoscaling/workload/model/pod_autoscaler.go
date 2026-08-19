@@ -606,6 +606,13 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 			}
 			for _, cr := range status.Vertical.Target.DesiredResources {
 				if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+					// Defense-in-depth: skip values that do not match the GOMEMLIMIT format
+					// accepted by the Go runtime. The primary validation happens at backend
+					// parse time (config_retriever_values.go), so this should never trigger
+					// in practice.
+					if ValidateGoMemLimit(cr.Runtime.Gomemlimit) != nil {
+						continue
+					}
 					if vsv.RuntimeValues == nil {
 						vsv.RuntimeValues = make(map[string]ContainerRuntimeValues)
 					}

@@ -294,6 +294,9 @@ func parseAutoscalingVerticalData(timestamp time.Time, data *kubeAutoscaling.Wor
 			verticalValues.ContainerResources = append(verticalValues.ContainerResources, convertedResources)
 
 			if containerResources.Runtime != nil && containerResources.Runtime.Gomemlimit != "" {
+				if err := model.ValidateGoMemLimit(containerResources.Runtime.Gomemlimit); err != nil {
+					return nil, fmt.Errorf("container %s: %w", containerResources.ContainerName, err)
+				}
 				if verticalValues.RuntimeValues == nil {
 					verticalValues.RuntimeValues = make(map[string]model.ContainerRuntimeValues)
 				}
