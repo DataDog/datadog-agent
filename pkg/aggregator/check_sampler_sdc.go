@@ -12,7 +12,6 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/sdc"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sdceligibility"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -149,7 +148,7 @@ func (st *sdcContextState) floorBound() bool {
 
 // checkSDCCompressor holds all SDC compression state for one CheckSampler
 // (one check instance). Only ever non-nil on a CheckSampler whose check is
-// eligible per sdceligibility.EnabledFor — see newCheckSDCCompressor.
+// eligible per sdc.EnabledFor — see newCheckSDCCompressor.
 type checkSDCCompressor struct {
 	checkName        string
 	dryRun           bool
@@ -166,19 +165,19 @@ type checkSDCCompressor struct {
 // the earlier sender-level sdcsender implementation made in GetSender.
 func newCheckSDCCompressor(id checkid.ID) *checkSDCCompressor {
 	checkName := checkid.IDToCheckName(id)
-	if !sdceligibility.EnabledFor(checkName) {
+	if !sdc.EnabledFor(checkName) {
 		return nil
 	}
-	telemetryEnabled := sdceligibility.TelemetryEnabled()
+	telemetryEnabled := sdc.TelemetryEnabled()
 	tlmCtx := noopSDCSimpleGauge
 	if telemetryEnabled {
 		tlmCtx = tlmSDCContexts.WithValues(checkName)
 	}
 	return &checkSDCCompressor{
 		checkName:        checkName,
-		dryRun:           sdceligibility.DryRun(),
-		cfg:              sdceligibility.CompressorConfig(),
-		keepAliveCommits: sdceligibility.KeepAliveCommits(),
+		dryRun:           sdc.DryRun(),
+		cfg:              sdc.CompressorConfig(),
+		keepAliveCommits: sdc.KeepAliveCommits(),
 		telemetryEnabled: telemetryEnabled,
 		tlmContexts:      tlmCtx,
 		contexts:         make(map[ckey.ContextKey]*sdcContextState),

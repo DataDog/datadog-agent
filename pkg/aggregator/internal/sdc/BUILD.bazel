@@ -5,9 +5,13 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "sdc",
-    srcs = ["compressor.go"],
+    srcs = [
+        "compressor.go",
+        "eligibility.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/internal/sdc",
     visibility = ["//pkg/aggregator:__subpackages__"],
+    deps = ["//pkg/config/setup"],
 )
 
 dd_agent_go_test(
