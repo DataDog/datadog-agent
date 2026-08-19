@@ -6,12 +6,15 @@ go_library(
     srcs = [
         "remote_query_execute.go",
         "remote_query_match.go",
+        "remote_query_par_poc.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remotequeries/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//pkg/collector/check",
         "@in_gopkg_yaml_v3//:yaml_v3",
         "@org_uber_go_fx//:fx",
@@ -21,6 +24,7 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
+        "remote_query_par_poc_test.go",
         "remote_query_test.go",
     ],
     embed = [":impl"],
@@ -28,6 +32,8 @@ dd_agent_go_test(
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
         "//comp/core/diagnose/def",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
