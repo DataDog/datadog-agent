@@ -397,10 +397,12 @@ impl ManagedProcess {
             let name = self.name().to_owned();
             let pid = self.pid().unwrap_or(0);
             let watcher_handle = tokio::spawn(async move {
+                #[cfg(windows)]
                 let wait_control = proc_handle.wait_control();
                 let status = match proc_handle.wait().await {
                     Ok(status) => status,
                     Err(e) => {
+                        #[cfg(windows)]
                         if wait_control.is_cancelled() {
                             return None;
                         }
@@ -409,6 +411,7 @@ impl ManagedProcess {
                         match proc_handle.wait().await {
                             Ok(s) => s,
                             Err(e2) => {
+                                #[cfg(windows)]
                                 if wait_control.is_cancelled() {
                                     return None;
                                 }
@@ -505,11 +508,12 @@ impl ManagedProcess {
 
     fn mark_stopped(&mut self) {
         #[cfg(windows)]
-        self.cancel_process_wait();
+        {
+            self.cancel_process_wait();
+            self.wait_control = None;
+        }
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
-        #[cfg(windows)]
-        self.wait_control = None;
     }
 
     pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
@@ -573,7 +577,9 @@ impl ManagedProcess {
                     Err(_) => {
                         warn!("[{}] still running after force-kill, giving up", self.name);
                         #[cfg(windows)]
-                        self.cancel_process_wait();
+                        {
+                            self.cancel_process_wait();
+                        }
                         None
                     }
                 }
