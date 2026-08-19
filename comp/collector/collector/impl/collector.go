@@ -50,9 +50,9 @@ const (
 type dependencies struct {
 	compdef.In
 
-	Lc             compdef.Lifecycle
-	Config         config.Component
-	Log            log.Component
+	Lc                compdef.Lifecycle
+	Config            config.Component
+	Log               log.Component
 	HaAgent           haagent.Component
 	WorkloadBalancing workloadbalancing.Component
 	HealthPlatform    healthplatform.Component
@@ -64,8 +64,8 @@ type dependencies struct {
 }
 
 type collectorImpl struct {
-	log            log.Component
-	config         config.Component
+	log               log.Component
+	config            config.Component
 	haAgent           haagent.Component
 	workloadBalancing workloadbalancing.Component
 	healthPlatform    healthplatform.Component
