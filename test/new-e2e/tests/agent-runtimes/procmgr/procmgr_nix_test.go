@@ -92,10 +92,13 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.hasDDOT = s.installRealDDOT()
+
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		s.Env().RemoteHost.MustExecuteOn(t, "sudo chmod 0777 "+linuxSocket)
+	}, 30*time.Second, 2*time.Second)
 }
 
 func (s *procmgrLinuxSuite) TestCLIListShowsConfiguredProcess() {
-	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
 		assertTableRow(ct, out, "test-sleep", map[string]string{
@@ -106,7 +109,6 @@ func (s *procmgrLinuxSuite) TestCLIListShowsConfiguredProcess() {
 }
 
 func (s *procmgrLinuxSuite) TestCLIDescribe() {
-	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
 		assertField(ct, out, "Name", "test-sleep")
@@ -120,7 +122,6 @@ func (s *procmgrLinuxSuite) TestCLIDescribe() {
 // in dd-procmgrd left stop_requested set after handle_stop, so the next crash
 // was treated as intentional and on-failure/always restart did not run.
 func (s *procmgrLinuxSuite) TestCLIStopStartThenKillRestarts() {
-	s.requireCLI()
 	const procName = "test-sleep"
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {

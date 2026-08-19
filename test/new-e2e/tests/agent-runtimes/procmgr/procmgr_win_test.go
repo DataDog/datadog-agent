@@ -162,11 +162,18 @@ func (s *procmgrWindowsSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	// dd-procmgr-service is DEMAND_START; start it explicitly before tests.
-	s.ensureWindowsProcmgrServiceRunning()
+	s.Env().RemoteHost.MustExecute(`powershell -Command "Start-Service dd-procmgr-service"`)
+
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(t,
+			`powershell -Command "(Get-Service dd-procmgr-service).Status"`)
+		assert.Equal(t, "Running", strings.TrimSpace(out))
+	}, 60*time.Second, 2*time.Second)
+
+	s.tryInstallWindowsDDOTForProcmgr()
 }
 
 func (s *procmgrWindowsSuite) TestProcmgrServiceRunsAsLocalSystem() {
-	s.requireCLI()
 	host := s.Env().RemoteHost
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
@@ -177,7 +184,6 @@ func (s *procmgrWindowsSuite) TestProcmgrServiceRunsAsLocalSystem() {
 }
 
 func (s *procmgrWindowsSuite) TestAgentProfileChildRunsAsAgentUser() {
-	s.requireCLI()
 	host := s.Env().RemoteHost
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
@@ -211,7 +217,7 @@ func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
 	}
 
 	embeddedOtel := filepath.Join(installPath, "embedded", "bin", "otel-agent.exe")
-	if _, err := host.Execute(s.platform.checkBinCmd(embeddedOtel)); err != nil {
+	if _, err := host.Execute(s.platform.checkFileExists(embeddedOtel)); err != nil {
 		s.T().Logf("windows ddot procmgr: no embedded otel-agent at %s", embeddedOtel)
 		return
 	}
@@ -306,7 +312,6 @@ func (s *procmgrWindowsSuite) requireDDOTWindows() {
 	if !s.hasDDOT {
 		s.T().Skip("windows ddot procmgr: embedded otel-agent or otel-config bootstrap not available on this image")
 	}
-	s.requireCLI()
 }
 
 func (s *procmgrWindowsSuite) waitWindowsDDOTRunning(timeout time.Duration) string {
@@ -362,7 +367,6 @@ func (s *procmgrWindowsSuite) getWindowsRestartCount(name string) int {
 }
 
 func (s *procmgrWindowsSuite) TestADPProcessRunning() {
-	s.requireCLI()
 	pid := s.waitWindowsADPRunning(90 * time.Second)
 
 	configRoot, err := windowsagent.GetConfigRootFromRegistry(s.Env().RemoteHost)
@@ -373,13 +377,12 @@ func (s *procmgrWindowsSuite) TestADPProcessRunning() {
 
 	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	require.NoError(s.T(), err)
-	s.Env().RemoteHost.MustExecute(s.platform.checkBinCmd(
+	s.Env().RemoteHost.MustExecute(s.platform.checkFileExists(
 		joinWindowsPath(installPath, "bin", "agent", "agent-data-plane.exe"),
 	))
 }
 
 func (s *procmgrWindowsSuite) TestADPCOATTelemetry() {
-	s.requireCLI()
 	s.waitWindowsADPRunning(90 * time.Second)
 
 	// The COAT reporter refreshes periodically, so wait for its snapshot to include
@@ -429,7 +432,6 @@ func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool 
 }
 
 func (s *procmgrWindowsSuite) TestADPRestartAfterKill() {
-	s.requireCLI()
 	originalPID := s.waitWindowsADPRunning(90 * time.Second)
 	baselineRestarts := s.getWindowsRestartCount(adpProcessName)
 
@@ -444,7 +446,6 @@ func (s *procmgrWindowsSuite) TestADPRestartAfterKill() {
 }
 
 func (s *procmgrWindowsSuite) TestADPProcessDescribe() {
-	s.requireCLI()
 	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	require.NoError(s.T(), err)
 
