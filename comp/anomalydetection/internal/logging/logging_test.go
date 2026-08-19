@@ -6,6 +6,7 @@
 package logging
 
 import (
+	"bytes"
 	"testing"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,4 +28,26 @@ func TestGlobalLoggerPrefixesFormattedAndUnformattedMessages(t *testing.T) {
 		"[anomalydetection] configured 2 detectors",
 		"[anomalydetection] logssource unavailable",
 	}, messages)
+}
+
+func TestGlobalLoggerPreservesCallerAttribution(t *testing.T) {
+	var output bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&output, pkglog.InfoLvl)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		pkglog.SetupLogger(pkglog.Default(), pkglog.InfoStr)
+		logger.Close()
+	})
+	pkglog.SetupLogger(logger, pkglog.InfoStr)
+
+	emitAttributionProbe()
+	logger.Flush()
+
+	logs := output.String()
+	require.Contains(t, logs, "emitAttributionProbe")
+	require.NotContains(t, logs, "logging.go")
+}
+
+func emitAttributionProbe() {
+	Infof("caller attribution probe")
 }
