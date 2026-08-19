@@ -8,18 +8,23 @@ package observerimpl
 import (
 	"testing"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel := newObserverTelemetry(noopsimpl.GetCompatComponent())
-	tel.recordChannelDropped("logs")
+	tel.recordObservationAccepted("logs", "containers")
+	tel.recordObservationDropped("logs", "containers")
 	tel.recordRRCFScore("rrcf", 0.7)
 	tel.recordRRCFThreshold("rrcf", 0.9)
-	tel.recordLogPatternCountDelta("log_pattern_extractor", 1)
-	tel.recordLogIngested("internal", 256)
-	tel.recordDroppedLog("logs", []string{"source:kubelet"})
+	tel.setLogPatternCount(1)
+	tel.recordLogAccepted("internal", 256)
+	tel.recordMetricAccepted("dogstatsd")
 	tel.recordFilteredMetric("dogstatsd")
 	tel.incrementLogsInFlight("internal")
 	tel.decrementLogsInFlight("internal")
@@ -28,6 +33,70 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordStorageSeriesEvicted("capacity", 3)
 	tel.recordStorageCapacityHit()
 	tel.recordAdvanceSkipped("input")
+	tel.recordInputRateLimiterDropped("internal", "high")
+	tel.recordDetectorEmission("bocpd", "medium")
+	tel.scorerSeverity.Set(2, "anomaly_scorer")
+}
+
+func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
+	tel := newObserverTelemetry(telComp)
+	tel.recordLogAccepted("kubelet", 128)
+	tel.recordMetricAccepted("dogstatsd")
+	tel.recordObservationDropped("logs", "containers")
+	tel.recordInputRateLimiterDropped("internal", "high")
+	tel.recordDetectorEmission("bocpd", "medium")
+	tel.recordDetectorEmission("bocpd", "medium")
+	tel.setLogPatternCount(3)
+	tel.scorerSeverity.Set(2, "anomaly_scorer")
+
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "kubelet"}).GetCounter().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsDropped, map[string]string{"kind": "logs", "source": "containers"}).GetCounter().GetValue())
+	assert.Equal(t, 128.0, observerMetric(t, telComp, telemetryLogsAcceptedBytes, map[string]string{"source": "kubelet"}).GetCounter().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryLogsInputRateLimiterDropped, map[string]string{"source": "internal", "priority": "high"}).GetCounter().GetValue())
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryDetectorEmissions, map[string]string{"detector": "bocpd", "severity": "medium"}).GetCounter().GetValue())
+	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
+}
+
+func observerMetric(t *testing.T, telemetryComp telemetry.Component, metricName string, wantLabels map[string]string) *dto.Metric {
+	t.Helper()
+
+	metricFamilies, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+
+	fullMetricName := "observer__" + metricName
+	for _, family := range metricFamilies {
+		if family.GetName() != fullMetricName {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			labels := make(map[string]string, len(metric.GetLabel()))
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+			if len(labels) != len(wantLabels) {
+				continue
+			}
+			matches := true
+			for name, value := range wantLabels {
+				if labels[name] != value {
+					matches = false
+					break
+				}
+			}
+			if matches {
+				return metric
+			}
+		}
+	}
+
+	t.Fatalf("metric %q with labels %v not found", fullMetricName, wantLabels)
+	return nil
 }
 
 func TestClassifyLogSource(t *testing.T) {
