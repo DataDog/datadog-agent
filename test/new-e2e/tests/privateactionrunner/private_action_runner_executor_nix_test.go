@@ -28,7 +28,7 @@ const (
 	executorSocketPath            = "/opt/datadog-agent/run/par-executor.sock"
 
 	executorListeningLogLine = "Private action runner executor listening on"
-	executorReadyLogLine     = "Private action runner executor ready to accept actions"
+	executorReadyLogLine     = "Initial signing-key synchronization completed"
 )
 
 type linuxPrivateActionRunnerExecutorSuite struct {
@@ -117,5 +117,5 @@ func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorReadyLogLine, privateActionRunnerLogFile))
-	}, 5*time.Minute, 5*time.Second, "executor log should report ready")
+	}, 5*time.Minute, 5*time.Second, "executor log should report initial signing-key synchronization")
 }
