@@ -22,8 +22,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
@@ -85,7 +85,7 @@ type RuleSet struct {
 	listeners        []RuleSetListener
 	globalVariables  *eval.Variables
 	scopedVariables  map[Scope]VariableProvider
-	parsingContext   *ast.ParsingContext
+	parsingContext   *parser.ParsingContext
 
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []eval.Field
@@ -825,7 +825,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					rs.fieldEvaluators[field] = evaluator
 				}
 			} else if expression := action.Def.Set.Expression; expression != "" {
-				astRule, err := rs.parsingContext.ParseExpression(expression)
+				astExpr, err := rs.parsingContext.BuildExpression(expression)
 				if err != nil {
 					return model.UnknownCategory, fmt.Errorf("failed to parse action expression: %w", err)
 				}
@@ -837,7 +837,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 
 				state := eval.NewState(rs.model, "", rs.evalOpts.MacroStore)
 
-				evaluator, _, err := eval.NodeToEvaluator(astRule, rs.evalOpts, state)
+				evaluator, _, err := eval.Compile(astExpr, rs.evalOpts, state)
 				if err != nil {
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
@@ -1492,7 +1492,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		fieldEvaluators:  make(map[string]eval.Evaluator),
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
-		parsingContext:   ast.NewParsingContext(opts.RuleCacheEnabled),
+		parsingContext:   parser.NewParsingContext(opts.RuleCacheEnabled),
 	}
 }
 

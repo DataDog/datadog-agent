@@ -3,34 +3,30 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ast holds ast related files
-package ast
+// Package parser holds a hand written parser of the SECL language.
+package parser
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
-func parseRule(rule string) (*Rule, error) {
+func parseRule(rule string) (*ast.Rule, error) {
 	pc := NewParsingContext(false)
-	return pc.ParseRule(rule)
+	return pc.BuildRule(rule)
 }
 
-func parseMacro(macro string) (*Macro, error) {
+func parseMacro(macro string) (*ast.Macro, error) {
 	pc := NewParsingContext(false)
-	return pc.ParseMacro(macro)
+	return pc.BuildMacro(macro)
 }
 
-func printJSON(t *testing.T, i interface{}) {
-	b, err := json.MarshalIndent(i, "", "  ")
-	if err != nil {
-		t.Error(err)
-	}
-
-	t.Log(string(b))
+func printTree(t *testing.T, node ast.Node) {
+	t.Log(ast.Sprint(node))
 }
 
 func TestEmptyRule(t *testing.T) {
@@ -46,7 +42,7 @@ func TestCompareNumbers(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestCompareSimpleIdent(t *testing.T) {
@@ -55,7 +51,7 @@ func TestCompareSimpleIdent(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestCompareCompositeIdent(t *testing.T) {
@@ -64,7 +60,7 @@ func TestCompareCompositeIdent(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestCompareString(t *testing.T) {
@@ -73,19 +69,18 @@ func TestCompareString(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestEscapedQuoteInString(t *testing.T) {
 	rule, err := parseRule(`process.name == "a\"b"`)
 	require.NoError(t, err)
 
-	sc := rule.BooleanExpression.Expression.Comparison.ScalarComparison
-	require.NotNil(t, sc)
-	require.NotNil(t, sc.Next)
-	primary := sc.Next.ArithmeticOperation.First.Unary.Primary
-	require.NotNil(t, primary.String)
-	require.Equal(t, `a\"b`, *primary.String)
+	sc, ok := rule.Root.(*ast.ScalarCompareExpr)
+	require.True(t, ok)
+	str, ok := sc.Right.(*ast.StringLiteral)
+	require.True(t, ok)
+	require.Equal(t, `a\"b`, str.Value)
 }
 
 func TestEscapedNewlineInString(t *testing.T) {
@@ -93,13 +88,12 @@ func TestEscapedNewlineInString(t *testing.T) {
 b"`)
 	require.NoError(t, err)
 
-	sc := rule.BooleanExpression.Expression.Comparison.ScalarComparison
-	require.NotNil(t, sc)
-	require.NotNil(t, sc.Next)
-	primary := sc.Next.ArithmeticOperation.First.Unary.Primary
-	require.NotNil(t, primary.String)
+	sc, ok := rule.Root.(*ast.ScalarCompareExpr)
+	require.True(t, ok)
+	str, ok := sc.Right.(*ast.StringLiteral)
+	require.True(t, ok)
 	require.Equal(t, `a\
-b`, *primary.String)
+b`, str.Value)
 }
 
 func TestCompareComplex(t *testing.T) {
@@ -108,7 +102,7 @@ func TestCompareComplex(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestRegister(t *testing.T) {
@@ -117,7 +111,7 @@ func TestRegister(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIntAnd(t *testing.T) {
@@ -126,16 +120,18 @@ func TestIntAnd(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestBitwiseXor(t *testing.T) {
 	rule, err := parseRule(`open.flags ^ 1 == 0`)
 	require.NoError(t, err)
 
-	bitOp := rule.BooleanExpression.Expression.Comparison.ArithmeticOperation.First
-	require.NotNil(t, bitOp.Op)
-	require.Equal(t, "^", *bitOp.Op)
+	sc, ok := rule.Root.(*ast.ScalarCompareExpr)
+	require.True(t, ok)
+	bitOp, ok := sc.Left.(*ast.BitExpr)
+	require.True(t, ok)
+	require.Equal(t, ast.BitXor, bitOp.Op)
 }
 
 func TestBoolAnd(t *testing.T) {
@@ -144,7 +140,7 @@ func TestBoolAnd(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestInArrayString(t *testing.T) {
@@ -153,7 +149,7 @@ func TestInArrayString(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestInArrayInteger(t *testing.T) {
@@ -162,7 +158,7 @@ func TestInArrayInteger(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestMacroList(t *testing.T) {
@@ -171,7 +167,7 @@ func TestMacroList(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, macro)
+	printTree(t, macro)
 }
 
 func TestMacroPrimary(t *testing.T) {
@@ -180,7 +176,7 @@ func TestMacroPrimary(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, macro)
+	printTree(t, macro)
 }
 
 func TestMacroExpression(t *testing.T) {
@@ -189,7 +185,7 @@ func TestMacroExpression(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, macro)
+	printTree(t, macro)
 }
 
 func TestMultiline(t *testing.T) {
@@ -230,7 +226,7 @@ func TestPattern(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestArrayPattern(t *testing.T) {
@@ -239,7 +235,7 @@ func TestArrayPattern(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestRegexp(t *testing.T) {
@@ -248,14 +244,14 @@ func TestRegexp(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 
 	rule, err = parseRule(`process.name == r"^((?:[A-Za-z\d+]{4})*(?:[A-Za-z\d+]{3}=|[A-Za-z\d+]{2}==)\.)*(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z1-9])$" `)
 	if err != nil {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestArrayRegexp(t *testing.T) {
@@ -264,17 +260,16 @@ func TestArrayRegexp(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestPatternMismatchOperator(t *testing.T) {
 	rule, err := parseRule(`process.name !~ r"a"`)
 	require.NoError(t, err)
 
-	sc := rule.BooleanExpression.Expression.Comparison.ScalarComparison
-	require.NotNil(t, sc)
-	require.NotNil(t, sc.Op)
-	require.Equal(t, "!~", *sc.Op)
+	sc, ok := rule.Root.(*ast.ScalarCompareExpr)
+	require.True(t, ok)
+	require.Equal(t, ast.ScalarNotMatch, sc.Op)
 }
 
 func TestDuration(t *testing.T) {
@@ -283,19 +278,18 @@ func TestDuration(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestDurationHours(t *testing.T) {
 	rule, err := parseRule(`process.start > 2h`)
 	require.NoError(t, err)
 
-	sc := rule.BooleanExpression.Expression.Comparison.ScalarComparison
-	require.NotNil(t, sc)
-	require.NotNil(t, sc.Next)
-	primary := sc.Next.ArithmeticOperation.First.Unary.Primary
-	require.NotNil(t, primary.Duration)
-	require.Equal(t, int((2 * time.Hour).Nanoseconds()), *primary.Duration)
+	sc, ok := rule.Root.(*ast.ScalarCompareExpr)
+	require.True(t, ok)
+	duration, ok := sc.Right.(*ast.DurationLiteral)
+	require.True(t, ok)
+	require.Equal(t, int((2 * time.Hour).Nanoseconds()), duration.Value)
 }
 
 func TestNumberVariable(t *testing.T) {
@@ -304,7 +298,7 @@ func TestNumberVariable(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIPv4(t *testing.T) {
@@ -313,7 +307,7 @@ func TestIPv4(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIPv4Raw(t *testing.T) {
@@ -322,7 +316,7 @@ func TestIPv4Raw(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIPv6Localhost(t *testing.T) {
@@ -331,7 +325,7 @@ func TestIPv6Localhost(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIPv6(t *testing.T) {
@@ -340,7 +334,7 @@ func TestIPv6(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIPv6Short(t *testing.T) {
@@ -349,7 +343,7 @@ func TestIPv6Short(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIPArray(t *testing.T) {
@@ -358,7 +352,7 @@ func TestIPArray(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIPv4CIDR(t *testing.T) {
@@ -367,7 +361,7 @@ func TestIPv4CIDR(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIPv6CIDR(t *testing.T) {
@@ -376,7 +370,7 @@ func TestIPv6CIDR(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestCIDRArray(t *testing.T) {
@@ -385,7 +379,7 @@ func TestCIDRArray(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestIPAndCIDRArray(t *testing.T) {
@@ -394,7 +388,7 @@ func TestIPAndCIDRArray(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestCIDRMatches(t *testing.T) {
@@ -403,7 +397,7 @@ func TestCIDRMatches(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
 }
 
 func TestCIDRArrayMatches(t *testing.T) {
@@ -412,5 +406,88 @@ func TestCIDRArrayMatches(t *testing.T) {
 		t.Error(err)
 	}
 
-	printJSON(t, rule)
+	printTree(t, rule)
+}
+
+func TestPrecedence(t *testing.T) {
+	tests := []struct {
+		expr     string
+		expected string
+	}{
+		{
+			// `&&` binds tighter than `||`
+			expr:     `process.uid == 1 && process.gid == 2 || process.pid == 3`,
+			expected: `(|| (&& (== process.uid 1) (== process.gid 2)) (== process.pid 3))`,
+		},
+		{
+			expr:     `process.uid == 1 || process.gid == 2 && process.pid == 3`,
+			expected: `(|| (== process.uid 1) (&& (== process.gid 2) (== process.pid 3)))`,
+		},
+		{
+			expr:     `(process.uid == 1 || process.gid == 2) && process.pid == 3`,
+			expected: `(&& (|| (== process.uid 1) (== process.gid 2)) (== process.pid 3))`,
+		},
+		{
+			// `&` binds tighter than `|`
+			expr:     `open.flags | O_CREAT & O_TRUNC > 0`,
+			expected: `(> (| open.flags (& O_CREAT O_TRUNC)) 0)`,
+		},
+		{
+			// a unary operator binds tighter than any binary one
+			expr:     `^open.flags == 0`,
+			expected: `(== (^ open.flags) 0)`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.expr, func(t *testing.T) {
+			rule, err := parseRule(test.expr)
+			require.NoError(t, err)
+			require.Equal(t, test.expected, ast.Sprint(rule))
+		})
+	}
+}
+
+func TestSyntaxErrors(t *testing.T) {
+	tests := []struct {
+		expr     string
+		expected string
+	}{
+		{
+			expr: `open.file.path ==`,
+			expected: "1:18: expected operand after `==`, found end of expression\n" +
+				"open.file.path ==\n" +
+				"                 ^",
+		},
+		{
+			expr: `open.file.path = "/etc/passwd"`,
+			expected: "1:16: unexpected `=`, did you mean `==`?\n" +
+				"open.file.path = \"/etc/passwd\"\n" +
+				"               ^",
+		},
+		{
+			// the error points to the opening quote
+			expr: `open.file.path == "/etc/passwd && process.uid == 0`,
+			expected: "1:19: unterminated string\n" +
+				"open.file.path == \"/etc/passwd && process.uid == 0\n" +
+				"                  ^",
+		},
+		{
+			// columns count characters, not bytes: `é` is two bytes
+			expr: `open.file.name == "é" process.uid == 0`,
+			expected: "1:23: expected `&&`, `||` or end of expression, found identifier `process.uid`, missing `&&` or `||`?\n" +
+				"open.file.name == \"é\" process.uid == 0\n" +
+				"                      ^^^^^^^^^^^",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.expr, func(t *testing.T) {
+			_, err := parseRule(test.expr)
+
+			var errs ErrorList
+			require.ErrorAs(t, err, &errs)
+			require.Equal(t, test.expected, errs.Format(test.expr))
+		})
+	}
 }
