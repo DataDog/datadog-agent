@@ -99,7 +99,14 @@ func (s *baseProcmgrSuite) TestCLIStatus() {
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("status"))
 		assertHasField(ct, out, "Version")
+		assertField(ct, out, "Ready", "true")
 		assertHasField(ct, out, "Uptime")
+		assertHasField(ct, out, "Total Processes")
+		assertHasField(ct, out, "Running")
+		assertHasField(ct, out, "Stopped")
+		assertHasField(ct, out, "Created")
+		assertHasField(ct, out, "Failed")
+		assertHasField(ct, out, "Exited")
 	}, 30*time.Second, 2*time.Second)
 }
 
