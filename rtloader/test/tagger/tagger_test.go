@@ -14,6 +14,18 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
+// BenchmarkGetTags measures the cost of buildTagsList for a 3-tag result.
+// Run with:
+//
+//	go test -bench=BenchmarkGetTags -benchtime=5s ./rtloader/test/tagger/
+func BenchmarkGetTags(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		runBench(`tagger.tag('base', tagger.LOW)`)
+	}
+}
+
 func TestMain(m *testing.M) {
 	err := setUp()
 	if err != nil {
