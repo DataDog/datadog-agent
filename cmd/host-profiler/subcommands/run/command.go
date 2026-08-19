@@ -13,6 +13,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -23,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -144,15 +147,35 @@ func initStandaloneConfig() {
 
 func getRemoteTaggerOptions() []fx.Option {
 	return []fx.Option{
-		ipcfx.ModuleReadWrite(),
+		ipcfx.ModuleReadOnly(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 	}
 }
 
+const configStreamConsumerEnabledEnv = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
+
 func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
+	// configstream needs to be manually enabled; use it when enabled, temporarily fallback on configsync if not
+	if isConfigStreamEnabled() {
+		return []fx.Option{
+			fx.Supply(configstreamconsumer.NewParams(
+				"host-profiler",
+				params.CoreConfPath,
+				configstreamconsumer.WithReadyTimeout(params.SyncOnInitTimeout),
+			)),
+			configstreamconsumerfx.Module(),
+		}
+	}
+
+	// TODO: remove configsync fallback when configstream is enabled by default
 	return []fx.Option{
 		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 	}
+}
+
+func isConfigStreamEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv(configStreamConsumerEnabledEnv))
+	return err == nil && enabled
 }
 
 func getTraceAgentOptions(ctx context.Context) []fx.Option {

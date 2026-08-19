@@ -32,3 +32,25 @@ func TestFxRunWithAgentCore(t *testing.T) {
 		runHostProfilerCommand(context.Background(), &cliParams{GlobalParams: &globalparams.GlobalParams{CoreConfPath: "config_path"}})
 	})
 }
+
+func TestConfigStreamEnabled(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		enabled bool
+	}{
+		{name: "unset or empty", value: "", enabled: false},
+		{name: "true", value: "true", enabled: true},
+		{name: "false", value: "false", enabled: false},
+		{name: "invalid", value: "not-a-bool", enabled: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv(configStreamConsumerEnabledEnv, test.value)
+			if enabled := configStreamEnabled(); enabled != test.enabled {
+				t.Fatalf("configStreamEnabled() = %t, want %t", enabled, test.enabled)
+			}
+		})
+	}
+}
