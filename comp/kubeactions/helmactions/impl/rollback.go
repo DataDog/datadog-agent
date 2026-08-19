@@ -138,6 +138,13 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 							Command: []string{"helm"},
 							Args:    args,
 							Env:     env,
+							// FallbackToLogsOnError lets the kubelet copy the tail of
+							// the container's stdout/stderr into
+							// ContainerStatus.State.Terminated.Message on non-zero
+							// exit. The Pod watcher reads that field directly, so
+							// diagnosing a failed rollback needs no "pods/log" RBAC
+							// grant — only the "pods" get/list/watch it already has.
+							TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 						},
 					},
 				},
