@@ -33,6 +33,47 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_AddWithKeyMergesByContextKey(t *testing.T) {
+	s := newTimeSeriesStorage()
+	key := observer.MetricContextKey(42)
+	first := s.AddWithKey("dogstatsd", "metric.a", 10, 1000, []string{"env:prod"}, key)
+	second := s.AddWithKey("check", "metric.b", 20, 1000, []string{"env:staging"}, key)
+
+	require.False(t, second.IsNew)
+	require.Equal(t, first.Ref, second.Ref)
+	storedKey, isContextKey := s.StorageKey(first.Ref)
+	require.True(t, isContextKey)
+	require.Equal(t, uint64(key), storedKey)
+
+	series := s.GetSeries("dogstatsd", "metric.a", []string{"env:prod"}, AggregateAverage)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	assert.Equal(t, 15.0, series.Points[0].Value)
+}
+
+func TestTimeSeriesStorage_AddWithKeySeparatesDistinctContextKeys(t *testing.T) {
+	s := newTimeSeriesStorage()
+	first := s.AddWithKey("dogstatsd", "metric.a", 10, 1000, []string{"env:prod"}, 1)
+	second := s.AddWithKey("dogstatsd", "metric.a", 20, 1000, []string{"env:prod"}, 2)
+
+	require.True(t, first.IsNew)
+	require.True(t, second.IsNew)
+	assert.NotEqual(t, first.Ref, second.Ref)
+	assert.Len(t, s.ListSeries(observer.SeriesFilter{}), 2)
+}
+
+func TestTimeSeriesStorage_AddWithKeyLegacyLookupAndRemoval(t *testing.T) {
+	s := newTimeSeriesStorage()
+	res := s.AddWithKey("dogstatsd", "metric.a", 10, 1000, []string{"env:prod"}, 42)
+
+	series := s.GetSeriesSince("dogstatsd", "metric.a", []string{"env:prod"}, AggregateAverage, 0)
+	require.NotNil(t, series)
+	assert.Equal(t, ""+fmt.Sprint(res.Ref)+":avg", s.CompactSeriesID("dogstatsd|metric.a:avg|env:prod"))
+	require.Equal(t, []observer.SeriesRef{res.Ref}, s.RemoveSeriesByRefs([]observer.SeriesRef{res.Ref}))
+	assert.Nil(t, s.GetSeriesMeta(res.Ref))
+	assert.Empty(t, s.contextKeySeries)
+}
+
 func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {
 	s := newTimeSeriesStorage()
 
@@ -712,6 +753,14 @@ func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 
 	require.Len(t, refs, 2)
 	require.ElementsMatch(t, []observer.SeriesRef{resA.Ref, resB.Ref}, refs)
+}
+
+func TestTimeSeriesStorage_FindRefsByContextKeys(t *testing.T) {
+	s := newTimeSeriesStorage()
+	res := s.AddWithKey("ns", "a", 1.0, 1000, []string{"k:1"}, 42)
+
+	refs := s.FindRefsByHashes(map[uint64]struct{}{42: {}})
+	require.Equal(t, []observer.SeriesRef{res.Ref}, refs)
 }
 
 func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {

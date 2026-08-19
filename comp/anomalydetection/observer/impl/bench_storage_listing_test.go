@@ -46,6 +46,33 @@ func BenchmarkTimeSeriesStorage_ListWorkloadSeries(b *testing.B) {
 	}
 }
 
+func BenchmarkTimeSeriesStorageAddWithKey(b *testing.B) {
+	tags := []string{"container_id:container-1", "env:bench", "pod_name:pod-1"}
+	for _, keyed := range []bool{false, true} {
+		name := "legacy"
+		if keyed {
+			name = "context-key"
+		}
+		b.Run(name, func(b *testing.B) {
+			storage := newTimeSeriesStorage()
+			if keyed {
+				storage.AddWithKey("bench", "metric", 0, 1, tags, 42)
+			} else {
+				storage.Add("bench", "metric", 0, 1, tags)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if keyed {
+					storage.AddWithKey("bench", "metric", float64(i), 1, tags, 42)
+				} else {
+					storage.Add("bench", "metric", float64(i), 1, tags)
+				}
+			}
+		})
+	}
+}
+
 func buildSeriesListingBenchmarkStorage(numSeries int) *timeSeriesStorage {
 	storage := newTimeSeriesStorage()
 	for i := 0; i < numSeries; i++ {
