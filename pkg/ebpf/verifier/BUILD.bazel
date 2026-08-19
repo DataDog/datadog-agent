@@ -122,5 +122,6 @@ dd_agent_go_test(
     name = "verifier_log_parser_test",
     srcs = ["verifier_log_parser_test.go"],
     embed = [":verifier"],
+    gotags_sets = [["bpf"]],
     deps = ["@com_github_stretchr_testify//require"],
 )
