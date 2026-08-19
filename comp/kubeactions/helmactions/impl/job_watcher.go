@@ -20,8 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// const jobStuckLimitDuration = 5 * time.Minute
-const jobStuckLimitDuration = 60 * time.Second
+const (
+	jobStuckDurationLimit     = 5 * time.Minute
+	jobStuckLimitDurationTest = 60 * time.Second
+)
 
 func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 	switch ev.Type {
@@ -42,7 +44,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 				rec.Namespace, rec.Name, rec.Phase, rec.Succeeded, rec.Failed, rec.Message)
 		}
 
-		if !isStuck(job, jobStuckLimitDuration) {
+		if !isStuck(job, jobStuckLimitDurationTest) {
 			return
 		}
 

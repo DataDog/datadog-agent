@@ -79,20 +79,17 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 		image = DefaultHelmImage
 	}
 
-	var backoffLimit *int32
-	if opts.BackoffLimit != nil {
-		backoffLimit = opts.BackoffLimit
+	backoffLimit := opts.BackoffLimit
+
+	ttl := opts.TTLSecondsAfterFinished
+	if ttl == nil {
+		ttl = ptr.To(defaultTTLSecondsAfterFinished)
 	}
 
-	ttl := defaultTTLSecondsAfterFinished
-	if opts.TTLSecondsAfterFinished != nil {
-		ttl = *opts.TTLSecondsAfterFinished
+	deadline := opts.ActiveDeadlineSeconds
+	if deadline == nil {
+		deadline = ptr.To(int64(jobStuckDurationLimit.Seconds()))
 	}
-
-	var deadline *int64 = ptr.To[int64](30)
-	// TODO: fix it to
-	// Use helm 5 min timeout
-	// deadline = func() *int64 { x := int64(30); return &x }()
 
 	args := []string{"rollback", opts.Release}
 	if opts.Revision > 0 {
@@ -126,7 +123,7 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 			// backoff only count failed pods
 			BackoffLimit:            backoffLimit,
 			ActiveDeadlineSeconds:   deadline,
-			TTLSecondsAfterFinished: &ttl,
+			TTLSecondsAfterFinished: ttl,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
