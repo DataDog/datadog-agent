@@ -779,12 +779,6 @@ namespace Datadog.CustomActions
                 }
             }
 
-            // LocalSystem never gets any extra ACEs added, so there's nothing to remove.
-            if (validUser && securityIdentifier == new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
-            {
-                return;
-            }
-
             // Remove explicit ACE for ddagentuser
             {
                 using var actionRecord = new Record(
@@ -795,7 +789,10 @@ namespace Datadog.CustomActions
                 _session.Message(InstallMessage.ActionStart, actionRecord);
             }
 
-            if (validUser)
+            // LocalSystem never gets any extra per-file ACEs added during install, so there's
+            // nothing user-specific to remove, but base permissions are still reset below.
+            var isLocalSystem = securityIdentifier == new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+            if (validUser && !isLocalSystem)
             {
                 _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
                 foreach (var filePath in _session.PathsWithAgentAccess().Where(_fileSystemServices.Exists))
