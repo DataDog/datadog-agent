@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/procmgr/coat"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
 
 type fakeProcmgrCollector struct {
@@ -32,7 +31,7 @@ func (f *fakeProcmgrCollector) Collect(context.Context) coat.Snapshot {
 	return f.snapshot
 }
 
-func ddotSnapshot(mode coat.ManagementMode, state pb.ProcessState) coat.Snapshot {
+func ddotSnapshot(mode coat.ManagementMode, state string) coat.Snapshot {
 	return coat.Snapshot{
 		Daemon: coat.DaemonSnapshot{Reachable: true, Ready: true},
 		Services: []coat.ServiceSnapshot{{
@@ -58,22 +57,22 @@ func TestDDOTProcessStateFromCollector(t *testing.T) {
 	}{
 		{
 			name:     "procmgr running",
-			snapshot: ddotSnapshot(coat.ManagementModeProcmgr, pb.ProcessState_RUNNING),
+			snapshot: ddotSnapshot(coat.ManagementModeProcmgr, coat.ProcessStateRunning),
 			expected: coat.ProcessStateRunning,
 		},
 		{
 			name:     "procmgr failed",
-			snapshot: ddotSnapshot(coat.ManagementModeProcmgr, pb.ProcessState_FAILED),
+			snapshot: ddotSnapshot(coat.ManagementModeProcmgr, coat.ProcessStateFailed),
 			expected: coat.ProcessStateFailed,
 		},
 		{
 			name:     "systemd managed",
-			snapshot: ddotSnapshot(coat.ManagementModeSystemd, pb.ProcessState_UNKNOWN),
+			snapshot: ddotSnapshot(coat.ManagementModeSystemd, coat.ProcessStateUnknown),
 			expected: coat.ProcessStateRunning,
 		},
 		{
 			name:     "not installed",
-			snapshot: ddotSnapshot(coat.ManagementModeNone, pb.ProcessState_UNKNOWN),
+			snapshot: ddotSnapshot(coat.ManagementModeNone, coat.ProcessStateUnknown),
 			expected: coat.ProcessStateNotInstalled,
 		},
 	}
@@ -113,7 +112,7 @@ func TestRefreshStateReportsDDOTProcessState(t *testing.T) {
 		secretsPrivKey,
 	)
 	daemon.procmgrCollector = &fakeProcmgrCollector{
-		snapshot: ddotSnapshot(coat.ManagementModeProcmgr, pb.ProcessState_RUNNING),
+		snapshot: ddotSnapshot(coat.ManagementModeProcmgr, coat.ProcessStateRunning),
 	}
 	daemon.refreshState(context.Background())
 

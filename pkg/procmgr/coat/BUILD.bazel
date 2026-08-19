@@ -5,6 +5,9 @@ go_library(
     name = "coat",
     srcs = [
         "client.go",
+        "client_cli.go",
+        "client_cli_unix.go",
+        "client_cli_windows.go",
         "client_grpc.go",
         "client_grpc_unix.go",
         "client_grpc_windows.go",
@@ -122,7 +125,6 @@ dd_agent_go_test(
     ],
     embed = [":coat"],
     deps = [
-        "//pkg/proto/pbgo/procmgr",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

@@ -11,36 +11,61 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
 
 func TestServiceProcessStateProcmgrManaged(t *testing.T) {
-	states := map[pb.ProcessState]string{
-		pb.ProcessState_UNKNOWN:  ProcessStateUnknown,
-		pb.ProcessState_CREATED:  ProcessStateCreated,
-		pb.ProcessState_STARTING: ProcessStateStarting,
-		pb.ProcessState_RUNNING:  ProcessStateRunning,
-		pb.ProcessState_STOPPING: ProcessStateStopping,
-		pb.ProcessState_STOPPED:  ProcessStateStopped,
-		pb.ProcessState_CRASHED:  ProcessStateCrashed,
-		pb.ProcessState_EXITED:   ProcessStateExited,
-		pb.ProcessState_FAILED:   ProcessStateFailed,
+	states := []string{
+		ProcessStateUnknown,
+		ProcessStateCreated,
+		ProcessStateStarting,
+		ProcessStateRunning,
+		ProcessStateStopping,
+		ProcessStateStopped,
+		ProcessStateCrashed,
+		ProcessStateExited,
+		ProcessStateFailed,
 	}
 
-	for state, expected := range states {
-		t.Run(state.String(), func(t *testing.T) {
+	for _, expected := range states {
+		t.Run(expected, func(t *testing.T) {
 			snapshot := Snapshot{
 				Daemon: DaemonSnapshot{Reachable: true, Ready: true},
 				Services: []ServiceSnapshot{{
 					ID:                ServiceIDDDOT,
 					Installed:         true,
 					ProcmgrConfigured: true,
-					ProcmgrState:      state,
+					ProcmgrState:      expected,
 					ManagementMode:    ManagementModeProcmgr,
 				}},
 			}
 			assert.Equal(t, expected, snapshot.ServiceProcessState(ServiceIDDDOT))
+		})
+	}
+}
+
+func TestParseProcmgrState(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected string
+	}{
+		{"RUNNING", ProcessStateRunning},
+		{"Running", ProcessStateRunning},
+		{"FAILED", ProcessStateFailed},
+		{"Failed", ProcessStateFailed},
+		{"CREATED", ProcessStateCreated},
+		{"STARTING", ProcessStateStarting},
+		{"STOPPING", ProcessStateStopping},
+		{"STOPPED", ProcessStateStopped},
+		{"CRASHED", ProcessStateCrashed},
+		{"EXITED", ProcessStateExited},
+		{"UNKNOWN", ProcessStateUnknown},
+		{"garbage", ProcessStateUnknown},
+		{"", ProcessStateUnknown},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, parseProcmgrState(test.name))
 		})
 	}
 }
@@ -110,7 +135,7 @@ func TestCollectServiceProcessStateRunning(t *testing.T) {
 	collector := NewCollectorWithClient(root, &mockClient{
 		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
 		processes: map[string]ProcessSnapshot{
-			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: pb.ProcessState_RUNNING},
+			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: ProcessStateRunning},
 		},
 	})
 

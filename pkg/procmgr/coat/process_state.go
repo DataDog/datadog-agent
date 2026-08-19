@@ -5,9 +5,7 @@
 
 package coat
 
-import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
-)
+import "strings"
 
 // ServiceIDDDOT is the service ID of the DDOT extension in the migratable service catalog.
 const ServiceIDDDOT = "ddot"
@@ -32,7 +30,7 @@ func (s Snapshot) ServiceProcessState(id string) string {
 		}
 		switch service.ManagementMode {
 		case ManagementModeProcmgr:
-			return procmgrProcessState(service.ProcmgrState)
+			return service.ProcmgrState
 		case ManagementModeSystemd, ManagementModeWindowsService:
 			// These modes are only set when the unit or service is active.
 			return ProcessStateRunning
@@ -48,23 +46,26 @@ func (s Snapshot) ServiceProcessState(id string) string {
 	return ProcessStateUnknown
 }
 
-func procmgrProcessState(state pb.ProcessState) string {
-	switch state {
-	case pb.ProcessState_CREATED:
+// parseProcmgrState normalizes a process state name reported by either transport into a
+// ProcessState* constant: the gRPC client reports pb.ProcessState.String() (e.g. "RUNNING"),
+// while the dd-procmgr CLI reports state_name() (e.g. "Running").
+func parseProcmgrState(name string) string {
+	switch strings.ToUpper(name) {
+	case "CREATED":
 		return ProcessStateCreated
-	case pb.ProcessState_STARTING:
+	case "STARTING":
 		return ProcessStateStarting
-	case pb.ProcessState_RUNNING:
+	case "RUNNING":
 		return ProcessStateRunning
-	case pb.ProcessState_STOPPING:
+	case "STOPPING":
 		return ProcessStateStopping
-	case pb.ProcessState_STOPPED:
+	case "STOPPED":
 		return ProcessStateStopped
-	case pb.ProcessState_CRASHED:
+	case "CRASHED":
 		return ProcessStateCrashed
-	case pb.ProcessState_EXITED:
+	case "EXITED":
 		return ProcessStateExited
-	case pb.ProcessState_FAILED:
+	case "FAILED":
 		return ProcessStateFailed
 	default:
 		return ProcessStateUnknown

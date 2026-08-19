@@ -170,7 +170,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	}
 
 	d := newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval, secretsPubKey, secretsPrivKey)
-	d.procmgrCollector = coat.NewCollector()
+	d.procmgrCollector = coat.NewCLICollector()
 	return d, nil
 }
 
