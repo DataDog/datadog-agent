@@ -6875,21 +6875,24 @@ properties:
           \ purely\nsdc_compression_epsilon*scale, however small that gets for a\n\
           near-zero-scale signal \u2014 see checksampler_sdc_floor_bound_samples_total\n\
           for visibility into how often the floor binds with a non-zero value."
-      sdc_compression_keepalive_commits:
+      sdc_compression_max_silent_flushes:
         node_type: setting
         type: integer
         default: 1
-        comment: "How many consecutive real check-flush commits with a sample,\
-          \ but no\nnatural breakpoint, a compressed context tolerates before\
-          \ force-shipping\na point anyway (so a flat signal doesn't go silent\
-          \ forever). Counted in\nreal commits, not wall-clock time, since\
-          \ pkg/aggregator's CheckSampler\nhas direct access to the real per-check\
-          \ flush tick. 1 (the default) ships\na keep-alive on every commit that\
-          \ has no natural breakpoint — the\nbehavior-preserving choice,\
-          \ since a typical once-per-flush check already\nforce-shipped almost\
-          \ every cycle under the previous, wall-clock-based\ndesign. 0 or negative\
-          \ disables the keep-alive entirely (pure compression;\na flat signal\
-          \ can go silent indefinitely)."
+        comment: |-
+          How many consecutive aggregator flush cycles a compressed context
+          can have a pending sample with no natural breakpoint before it
+          force-ships a point anyway (so a flat signal doesn't go silent
+          forever). Counted in flush cycles, not check-run commits, so the
+          same value means the same real-world duration for every check
+          regardless of its own min_collection_interval. 1 (the default)
+          ships a heartbeat on every flush that has no natural breakpoint
+          pending — the behavior-preserving choice for checks whose
+          min_collection_interval matches the flush interval; for checks
+          running faster than the flush interval, this means compression
+          now engages starting at the default instead of not at all. 0 or
+          negative disables the heartbeat entirely (pure compression; a
+          flat signal can go silent indefinitely).
       sdc_compression_warmup:
         node_type: setting
         type: integer

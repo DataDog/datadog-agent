@@ -94,8 +94,8 @@ func TestSDC_NotEligibleCheckHasNilCompressor(t *testing.T) {
 
 func TestSDC_FlatSignalCompressesAcrossCommits(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
-		"checks.sdc_compression_all":               true,
-		"checks.sdc_compression_keepalive_commits": 0, // disable the keep-alive so this test observes pure compression
+		"checks.sdc_compression_all":                true,
+		"checks.sdc_compression_max_silent_flushes": 0, // disable the keep-alive so this test observes pure compression
 	})
 	cs := newSDCTestSampler("flat_signal")
 	require.NotNil(t, cs.sdcCompressor)
@@ -130,8 +130,8 @@ func TestSDC_FlatSignalCompressesAcrossCommits(t *testing.T) {
 
 func TestSDC_KeepAliveFiresAfterNCommits(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
-		"checks.sdc_compression_all":               true,
-		"checks.sdc_compression_keepalive_commits": 3,
+		"checks.sdc_compression_all":                true,
+		"checks.sdc_compression_max_silent_flushes": 3,
 	})
 	cs := newSDCTestSampler("keepalive")
 
@@ -158,8 +158,8 @@ func TestSDC_KeepAliveFiresAfterNCommits(t *testing.T) {
 
 func TestSDC_KeepAliveDisabledMeansPureCompression(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
-		"checks.sdc_compression_all":               true,
-		"checks.sdc_compression_keepalive_commits": 0,
+		"checks.sdc_compression_all":                true,
+		"checks.sdc_compression_max_silent_flushes": 0,
 	})
 	cs := newSDCTestSampler("no_keepalive")
 
@@ -192,9 +192,9 @@ func TestSDC_WarmupShipsVerbatim(t *testing.T) {
 
 func TestSDC_DryRunShipsUnmodifiedButTelemetryReflectsCompression(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
-		"checks.sdc_compression_all":               true,
-		"checks.sdc_compression_dry_run":           true,
-		"checks.sdc_compression_keepalive_commits": 0,
+		"checks.sdc_compression_all":                true,
+		"checks.sdc_compression_dry_run":            true,
+		"checks.sdc_compression_max_silent_flushes": 0,
 	})
 	cs := newSDCTestSampler("dryrun")
 
@@ -232,8 +232,8 @@ func TestSDC_ContextsTelemetryTracksCreationAndExpiry(t *testing.T) {
 
 func TestSDC_GaugeWithTimestampMultiPointPerCommit(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
-		"checks.sdc_compression_all":               true,
-		"checks.sdc_compression_keepalive_commits": 0,
+		"checks.sdc_compression_all":                true,
+		"checks.sdc_compression_max_silent_flushes": 0,
 	})
 	cs := newSDCTestSampler("gauge_with_ts")
 
@@ -283,8 +283,8 @@ func TestSDC_NonGaugeFamilySeriesPassThroughUnmodified(t *testing.T) {
 
 func TestSDC_NoSampleThisCommitProducesNoSerieAndNoSpuriousKeepAlive(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
-		"checks.sdc_compression_all":               true,
-		"checks.sdc_compression_keepalive_commits": 2,
+		"checks.sdc_compression_all":                true,
+		"checks.sdc_compression_max_silent_flushes": 2,
 	})
 	cs := newSDCTestSampler("gap")
 
@@ -294,7 +294,7 @@ func TestSDC_NoSampleThisCommitProducesNoSerieAndNoSpuriousKeepAlive(t *testing.
 	sdcCommitAndFlush(cs, 1)
 
 	// A real gap: no sample at all for this commit. If this incorrectly
-	// counted toward commitsSinceShip, the keep-alive (threshold 2) would
+	// counted toward silentFlushes, the keep-alive (threshold 2) would
 	// fire one commit earlier than it should below.
 	require.Nil(t, findSDCSerie(sdcCommitAndFlush(cs, 2), "my.gauge"), "a commit with no sample must produce no serie, not a synthetic keep-alive point")
 
@@ -309,4 +309,101 @@ func TestSDC_NoSampleThisCommitProducesNoSerieAndNoSpuriousKeepAlive(t *testing.
 	s := findSDCSerie(sdcCommitAndFlush(cs, 4), "my.gauge")
 	require.NotNil(t, s, "the keep-alive must still fire correctly once 2 REAL sampled commits have elapsed")
 	require.Equal(t, []metrics.Point{{Ts: 4, Value: 1}}, s.Points)
+}
+
+func TestSDC_MultipleCommitsBatchedIntoOneFlush_NaturalBreakpoint(t *testing.T) {
+	setSDCTestConfig(t, map[string]interface{}{
+		"checks.sdc_compression_all":                true,
+		"checks.sdc_compression_max_silent_flushes": 0,
+	})
+	cs := newSDCTestSampler("batched_breakpoint")
+	matcher := strings.NewMatcher([]string{}, false)
+
+	addSDCGauge(cs, "my.gauge", 42, 0, nil) // warmup 1
+	sdcCommitAndFlush(cs, 0)
+	addSDCGauge(cs, "my.gauge", 42, 1, nil) // warmup 2
+	sdcCommitAndFlush(cs, 1)
+
+	// Two commits with no flush() in between: a flat sample, then a spike.
+	// Both must reach the compressor in the SAME flush-time apply() call
+	// (checkSDCCompressor.stash accumulates both commits' points), and
+	// still produce exactly the breakpoint a per-commit evaluation would
+	// have produced.
+	addSDCGauge(cs, "my.gauge", 42, 2, nil)
+	cs.commit(2, &matcher)
+	addSDCGauge(cs, "my.gauge", 5000, 3, nil)
+	cs.commit(3, &matcher)
+
+	series, _ := cs.flush()
+	s := findSDCSerie(series, "my.gauge")
+	require.NotNil(t, s, "a spike batched into the same flush as the flat sample before it must still force a breakpoint")
+	require.Equal(t, []metrics.Point{{Ts: 2, Value: 42}}, s.Points,
+		"the shipped point must be the closed segment's lastInBounds (Ts=2), exactly as it would be evaluated per-commit")
+}
+
+func TestSDC_MultipleCommitsBatchedIntoOneFlush_SilentFlushCountsOnce(t *testing.T) {
+	setSDCTestConfig(t, map[string]interface{}{
+		"checks.sdc_compression_all":                true,
+		"checks.sdc_compression_max_silent_flushes": 1,
+	})
+	cs := newSDCTestSampler("batched_silent")
+	matcher := strings.NewMatcher([]string{}, false)
+
+	addSDCGauge(cs, "my.gauge", 1, 0, nil) // warmup 1
+	sdcCommitAndFlush(cs, 0)
+	addSDCGauge(cs, "my.gauge", 1, 1, nil) // warmup 2
+	sdcCommitAndFlush(cs, 1)
+
+	// Three flat commits with no flush() in between: with
+	// max_silent_flushes=1, this must still force-ship exactly ONE point
+	// for the whole flush — not one per underlying commit — since the
+	// heartbeat is now evaluated once per flush, not once per commit.
+	addSDCGauge(cs, "my.gauge", 1, 2, nil)
+	cs.commit(2, &matcher)
+	addSDCGauge(cs, "my.gauge", 1, 3, nil)
+	cs.commit(3, &matcher)
+	addSDCGauge(cs, "my.gauge", 1, 4, nil)
+	cs.commit(4, &matcher)
+
+	series, _ := cs.flush()
+	s := findSDCSerie(series, "my.gauge")
+	require.NotNil(t, s, "a flush with no natural breakpoint must still force a single heartbeat point")
+	require.Len(t, s.Points, 1, "exactly one point must ship for the whole flush, not one per underlying commit")
+	require.Equal(t, []metrics.Point{{Ts: 4, Value: 1}}, s.Points)
+}
+
+func TestSDC_ExpireDrainsPendingWithoutLoss(t *testing.T) {
+	setSDCTestConfig(t, map[string]interface{}{
+		"checks.sdc_compression_all":                true,
+		"checks.sdc_compression_max_silent_flushes": 1,
+	})
+	cs := newSDCTestSampler("expire_drain")
+	matcher := strings.NewMatcher([]string{}, false)
+
+	addSDCGauge(cs, "my.gauge", 1, 0, nil) // warmup 1
+	sdcCommitAndFlush(cs, 0)
+	addSDCGauge(cs, "my.gauge", 1, 1, nil) // warmup 2
+	sdcCommitAndFlush(cs, 1)
+
+	// One more real, post-warmup sample, deliberately left unflushed.
+	addSDCGauge(cs, "my.gauge", 1, 2, nil)
+	cs.commit(2, &matcher)
+	require.Len(t, cs.sdcCompressor.pendingSeries, 1, "the sample must be waiting, unflushed, when the idle countdown below starts")
+
+	// One idle commit (ts=3): keeps the context alive (expirationCount=2,
+	// see newSDCTestSampler), must not disturb the still-pending sample.
+	cs.commit(3, &matcher)
+	require.Len(t, cs.sdcCompressor.pendingSeries, 1, "an idle commit must not touch an unrelated, not-yet-expiring context's pending sample")
+
+	// Second idle commit (ts=4): the context resolver now expires this
+	// context, BEFORE any flush() call has ever run. Without expire()
+	// draining pendingSeries first, the ts=2 sample would be silently
+	// discarded right here instead of surfacing below.
+	cs.commit(4, &matcher)
+	require.Empty(t, cs.sdcCompressor.contexts, "the context's compressor state must be gone once truly expired")
+
+	series, _ := cs.flush()
+	s := findSDCSerie(series, "my.gauge")
+	require.NotNil(t, s, "the pending sample from before expiry must still ship, not be silently dropped")
+	require.Equal(t, []metrics.Point{{Ts: 2, Value: 1}}, s.Points)
 }

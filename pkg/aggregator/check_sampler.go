@@ -237,12 +237,6 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.
 			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
-		if cs.sdcCompressor != nil && !cs.sdcCompressor.apply(serie.ContextKey, serie) {
-			// SDC compression swallowed every point in this serie for this
-			// commit — no data point ships, exactly like an uncompressed
-			// gauge that wasn't sampled this cycle.
-			continue
-		}
 		serie.Name = name
 		serie.Tags = context.Tags()
 		serie.Host = context.Host
@@ -250,6 +244,15 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
 
+		if cs.sdcCompressor != nil && cs.sdcCompressor.tracks(serie.ContextKey) {
+			// Defer the compression decision to the next flush (or to this
+			// context's expiry, if it goes idle before then) — see
+			// checkSDCCompressor.flushPending — so it's evaluated at the
+			// same globally-shared cadence for every check, regardless of
+			// this check's own min_collection_interval.
+			cs.sdcCompressor.stash(serie)
+			continue
+		}
 		cs.series = append(cs.series, serie)
 	}
 }
@@ -290,7 +293,9 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matche
 		delete(cs.lastBucketValue, ctxKey)
 		delete(cs.lastBucketValueByBound, ctxKey)
 		if cs.sdcCompressor != nil {
-			cs.sdcCompressor.expire(ctxKey)
+			if final := cs.sdcCompressor.expire(ctxKey); final != nil {
+				cs.series = append(cs.series, final)
+			}
 		}
 	}
 
@@ -299,6 +304,9 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matche
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	// series
+	if cs.sdcCompressor != nil {
+		cs.series = append(cs.series, cs.sdcCompressor.flushPending()...)
+	}
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)
 
