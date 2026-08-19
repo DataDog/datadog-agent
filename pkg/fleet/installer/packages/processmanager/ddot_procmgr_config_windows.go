@@ -22,8 +22,7 @@ import (
 
 const ddotProcmgrConfigFileName = "datadog-agent-ddot.yaml"
 
-// WriteDDOTProcmgrConfig writes datadog-agent-ddot.yaml next to the MSI install layout so
-// dd-procmgrd picks it up (default_config_dir is InstallPath\processes.d on Windows).
+// WriteDDOTProcmgrConfig writes datadog-agent-ddot.yaml under the MSI install-root processes.d.
 func WriteDDOTProcmgrConfig(installRootResolved string) error {
 	otelExe := filepath.Join(installRootResolved, "ext", "ddot", "embedded", "bin", "otel-agent.exe")
 	if _, err := os.Stat(otelExe); err != nil {

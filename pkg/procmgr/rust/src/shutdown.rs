@@ -17,7 +17,6 @@ pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize])
     }
 }
 
-/// Convenience wrapper: shut down all processes in forward index order.
 #[cfg(test)]
 pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
     let order: Vec<usize> = (0..processes.len()).collect();

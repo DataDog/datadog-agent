@@ -19,8 +19,7 @@ var adpInstallRootProcmgrSpec = installRootProcmgrSpec{
 	placeholderPrefix: "ADP",
 }
 
-// WriteADPProcmgrConfig writes datadog-agent-data-plane.yaml under installRootResolved\processes.d so
-// dd-procmgrd picks it up. installRootResolved is the resolved MSI Program Files install root.
+// WriteADPProcmgrConfig writes datadog-agent-data-plane.yaml under installRootResolved\processes.d.
 func WriteADPProcmgrConfig(installRootResolved string) error {
 	return writeInstallRootProcmgrConfig(installRootResolved, adpInstallRootProcmgrSpec)
 }

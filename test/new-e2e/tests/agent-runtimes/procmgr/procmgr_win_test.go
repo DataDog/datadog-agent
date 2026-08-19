@@ -31,8 +31,7 @@ import (
 const (
 	winDaemonBin = `C:\Program Files\Datadog\Datadog Agent\bin\agent\dd-procmgrd.exe`
 	winCLIBin    = `C:\Program Files\Datadog\Datadog Agent\bin\agent\dd-procmgr.exe`
-	// Must match dd-procmgrd default on Windows: install root + processes.d
-	// (see pkg/procmgr/rust/src/platform/windows.rs default_config_dir).
+	// Must match dd-procmgrd default_config_dir (install root + processes.d).
 	winConfigDir = `C:/Program Files/Datadog/Datadog Agent/processes.d`
 
 	winSleepCommand = `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`
@@ -58,13 +57,11 @@ restart: never
 description: should not start
 `
 
-	// Description line from fleet/embedded DDOT template.
 	windowsDDOTDescOriginalLine = "description: Datadog Distribution of OpenTelemetry Collector"
 
 	adpProcessName = "datadog-agent-data-plane"
 )
 
-// psRemote builds a PowerShell script for RemoteHost.Execute; string args are escaped for single-quoted literals.
 func psRemote(format string, args ...any) string {
 	for i, a := range args {
 		if s, ok := a.(string); ok {
@@ -83,8 +80,7 @@ func escapePSSingleQuotedLiteral(s string) string {
 	return s
 }
 
-// Path helpers for remote PowerShell: the e2e runner is Linux/macOS, so registry paths
-// need explicit slash normalization instead of filepath.Join.
+// The e2e runner is Linux/macOS; do not use filepath.Join for Windows remote paths.
 func toWindowsSlashPath(p string) string {
 	p = strings.ReplaceAll(strings.TrimSpace(p), `\`, `/`)
 	for strings.Contains(p, "//") {
@@ -104,8 +100,6 @@ func ensureWindowsDirPS(dir string) string {
 	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
 }
 
-// withADPEnabled enables ADP via datadog.yaml during provisioning; the provisioner restarts
-// DatadogAgent afterward, which also starts dd-procmgr-service when process_manager is enabled.
 func withADPEnabled() agentparams.Option {
 	return func(p *agentparams.Params) error {
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String("data_plane.enabled: true"))
@@ -198,7 +192,6 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildRunsAsAgentUser() {
 	}, 60*time.Second, 2*time.Second)
 }
 
-// tryInstallWindowsDDOTForProcmgr bootstraps DDOT under procmgr when embedded otel-agent is on the image.
 func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
 	s.T().Helper()
 	s.hasDDOT = false
@@ -335,10 +328,6 @@ func (s *procmgrWindowsSuite) TestDDOTProcessRunning() {
 	s.requireDDOTWindows()
 	s.waitWindowsDDOTRunning(90 * time.Second)
 }
-
-// ---------------------------------------------------------------------------
-// Windows-only: ADP tests
-// ---------------------------------------------------------------------------
 
 func (s *procmgrWindowsSuite) waitWindowsADPRunning(timeout time.Duration) string {
 	s.T().Helper()

@@ -37,8 +37,7 @@ pub(crate) fn pipe_client_may_mutate(pipe: HANDLE) -> bool {
     }
     let _revert = RevertGuard;
 
-    // Unidentified clients (e.g. SecurityAnonymous) are denied Create, same as a known
-    // non-privileged identity — but the pipe connection itself stays open.
+    // Unidentified clients (e.g. SecurityAnonymous) are denied Create; the pipe stays open.
     impersonated_client_may_mutate().unwrap_or_default()
 }
 

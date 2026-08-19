@@ -19,8 +19,7 @@ var parInstallRootProcmgrSpec = installRootProcmgrSpec{
 	placeholderPrefix: "PAR",
 }
 
-// WritePARProcmgrConfig writes datadog-agent-action.yaml under installRootResolved\processes.d so
-// dd-procmgrd picks it up. installRootResolved is the resolved MSI Program Files install root.
+// WritePARProcmgrConfig writes datadog-agent-action.yaml under installRootResolved\processes.d.
 func WritePARProcmgrConfig(installRootResolved string) error {
 	return writeInstallRootProcmgrConfig(installRootResolved, parInstallRootProcmgrSpec)
 }
@@ -38,14 +37,12 @@ var parExecutorInstallRootProcmgrSpec = installRootProcmgrSpec{
 	placeholderPrefix: "PAR",
 }
 
-// WritePARExecutorProcmgrConfig writes datadog-agent-action-executor.yaml under
-// installRootResolved\processes.d so dd-procmgrd knows about the PAR on-demand executor.
+// WritePARExecutorProcmgrConfig writes datadog-agent-action-executor.yaml under installRootResolved\processes.d.
 func WritePARExecutorProcmgrConfig(installRootResolved string) error {
 	return writeInstallRootProcmgrConfig(installRootResolved, parExecutorInstallRootProcmgrSpec)
 }
 
-// RemovePARExecutorProcmgrConfig removes the PAR executor processes.d YAML from
-// installRootResolved\processes.d.
+// RemovePARExecutorProcmgrConfig removes the PAR executor processes.d YAML.
 func RemovePARExecutorProcmgrConfig(installRootResolved string) error {
 	return removeInstallRootProcmgrConfig(installRootResolved, parExecutorInstallRootProcmgrSpec)
 }

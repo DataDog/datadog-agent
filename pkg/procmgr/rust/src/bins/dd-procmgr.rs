@@ -218,10 +218,6 @@ fn format_last_exit(exit_code: Option<i32>, signal: Option<i32>) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// list
-// ---------------------------------------------------------------------------
-
 async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
         .list(proto::ListRequest {})
@@ -332,10 +328,6 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// describe
-// ---------------------------------------------------------------------------
-
 async fn cmd_describe(
     client: &mut ProcessManagerClient<Channel>,
     name_or_uuid: &str,
@@ -429,10 +421,6 @@ async fn cmd_describe(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// status
-// ---------------------------------------------------------------------------
-
 async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
         .get_status(proto::GetStatusRequest {})
@@ -490,10 +478,6 @@ fn format_duration(secs: u64) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// config
-// ---------------------------------------------------------------------------
-
 async fn cmd_config(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
         .get_config(proto::GetConfigRequest {})
@@ -518,10 +502,6 @@ async fn cmd_config(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
     println!("Runtime Processes:   {}", resp.runtime_processes);
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// start
-// ---------------------------------------------------------------------------
 
 async fn cmd_start(
     client: &mut ProcessManagerClient<Channel>,
@@ -555,10 +535,6 @@ async fn cmd_start(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// stop
-// ---------------------------------------------------------------------------
-
 async fn cmd_stop(
     client: &mut ProcessManagerClient<Channel>,
     name_or_uuid: &str,
@@ -586,10 +562,6 @@ async fn cmd_stop(
     println!("  State:  {}", state_name(resp.state));
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// create
-// ---------------------------------------------------------------------------
 
 #[allow(clippy::too_many_arguments)]
 async fn cmd_create(
