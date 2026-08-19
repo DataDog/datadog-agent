@@ -300,6 +300,13 @@ func (ad *ADConfig) setContainersRegex() error {
 	return nil
 }
 
+// HasContainerNamesFilter returns whether the AD configuration filters by container name.
+// Container name filtering is pod-level only; cluster-level prometheus service providers
+// should skip checks that specify kubernetes_container_names.
+func (ad *ADConfig) HasContainerNamesFilter() bool {
+	return ad.ContainersRe != nil
+}
+
 // MatchContainer returns whether a container name matches the 'kubernetes_container_names' configuration
 func (ad *ADConfig) MatchContainer(name string) bool {
 	if ad.ContainersRe == nil {
