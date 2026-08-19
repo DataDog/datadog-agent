@@ -8,6 +8,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -35,10 +37,12 @@ const (
 	parDefaultAllowlistWindows = "com.datadoghq.script.runPredefinedPowershellScript"
 )
 
+var getAPMInstrumentationStatus = ssi.GetInstrumentationStatus
+
 // Setup allows setup scripts to define packages and configurations to install.
 type Setup struct {
 	configDir string
-	installer installer.Installer
+	installer installer.PackageHookInstaller
 	start     time.Time
 	flavor    string
 
@@ -222,7 +226,9 @@ func (s *Setup) Run() (err error) {
 // injector package hooks when the injector is already present. The current
 // invocation may omit the SSI environment variables used during the original
 // install, so the installed package is the durable signal. The hooks may depend
-// on the installer shipped by the new Agent stable version.
+// on the installer shipped by the new Agent stable version. When the current
+// invocation does not request an injector version, the existing stable version
+// is reused so a refresh cannot silently update a previously pinned injector.
 func (s *Setup) reinstallAPMInjectorIfInstalled(ctx context.Context) error {
 	if _, installingAgent := s.Packages.install[DatadogAgentPackage]; !installingAgent {
 		return nil
@@ -237,12 +243,61 @@ func (s *Setup) reinstallAPMInjectorIfInstalled(ctx context.Context) error {
 	}
 
 	injector, requested := s.Packages.install[DatadogAPMInjectPackage]
-	if !requested {
-		injector = packageWithVersion{name: DatadogAPMInjectPackage, version: "latest"}
+	versionOverride := s.Env.DefaultPackagesVersionOverride[DatadogAPMInjectPackage]
+	explicitInjectorUpdate := requested || versionOverride != ""
+	state, err := s.installer.State(ctx, DatadogAPMInjectPackage)
+	if err != nil {
+		return fmt.Errorf("could not determine the installed %s state: %w", DatadogAPMInjectPackage, err)
+	}
+	if state.Stable == "" {
+		return fmt.Errorf("could not determine the installed %s version: stable version is empty", DatadogAPMInjectPackage)
+	}
+	if !explicitInjectorUpdate && state.HasExperiment() {
+		// The stable hook is not necessarily safe while the experiment is active:
+		// on Windows it would replace the experiment driver with the stable one.
+		// Leave both repository and runtime experiment state untouched.
+		return nil
 	}
 
-	s.Packages.reinstall(injector.name, injector.version)
+	if s.Env.InstallScript.APMInstrumentationEnabled == "" || s.Env.InstallScript.APMInstrumentationEnabled == env.APMInstrumentationNotSet {
+		status, err := getAPMInstrumentationStatus()
+		if err != nil {
+			return fmt.Errorf("could not determine the installed APM instrumentation mode: %w", err)
+		}
+		mode, err := apmInstrumentationMode(status)
+		if err != nil {
+			return err
+		}
+		s.Env.InstallScript.APMInstrumentationEnabled = mode
+	}
+
+	if !requested {
+		injector = packageWithVersion{name: DatadogAPMInjectPackage, version: state.Stable}
+	}
+
+	if explicitInjectorUpdate {
+		s.Packages.reinstall(injector.name, injector.version)
+	} else {
+		s.Packages.refresh(injector.name, injector.version)
+	}
 	return nil
+}
+
+func apmInstrumentationMode(status ssi.APMInstrumentationStatus) (string, error) {
+	switch {
+	case status.IISInstrumented && (status.HostInstrumented || status.DockerInstrumented):
+		return "", errors.New("could not preserve APM instrumentation mode: IIS and another mode are both instrumented")
+	case status.HostInstrumented && status.DockerInstrumented:
+		return env.APMInstrumentationEnabledAll, nil
+	case status.HostInstrumented:
+		return env.APMInstrumentationEnabledHost, nil
+	case status.DockerInstrumented:
+		return env.APMInstrumentationEnabledDocker, nil
+	case status.IISInstrumented:
+		return env.APMInstrumentationEnabledIIS, nil
+	default:
+		return "", errors.New("could not preserve APM instrumentation mode: no active instrumentation was detected")
+	}
 }
 
 // configTemplates maps config files to their .example template counterparts.
@@ -294,8 +349,16 @@ func (s *Setup) installPackage(pkg packageWithVersion, url string) (err error) {
 	span.SetTag("url", url)
 	span.SetTopLevel()
 
-	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", pkg.name))
-	if pkg.forceInstall || runtime.GOOS == "windows" && pkg.name == DatadogAgentPackage {
+	action := "Installing"
+	completedAction := "installed"
+	if pkg.refreshHooks {
+		action = "Refreshing"
+		completedAction = "refreshed"
+	}
+	s.Out.WriteString(fmt.Sprintf("%s %s...\n", action, pkg.name))
+	if pkg.refreshHooks {
+		err = s.installer.RunPostInstallHook(ctx, pkg.name)
+	} else if pkg.forceInstall || runtime.GOOS == "windows" && pkg.name == DatadogAgentPackage {
 		// TODO(WINA-2018): Add support for skipping the installation of the core Agent if it is already installed
 		err = s.installer.ForceInstall(ctx, url, nil)
 	} else {
@@ -304,7 +367,7 @@ func (s *Setup) installPackage(pkg packageWithVersion, url string) (err error) {
 	if err != nil {
 		return err
 	}
-	s.Out.WriteString(fmt.Sprintf("Successfully installed %s\n", pkg.name))
+	s.Out.WriteString(fmt.Sprintf("Successfully %s %s\n", completedAction, pkg.name))
 	return nil
 }
 

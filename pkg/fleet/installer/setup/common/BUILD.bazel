@@ -19,6 +19,7 @@ go_library(
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/installinfo",
         "//pkg/fleet/installer/oci",
+        "//pkg/fleet/installer/packages/ssi",
         "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/setup/config",
         "//pkg/fleet/installer/telemetry",
@@ -125,5 +126,12 @@ dd_agent_go_test(
     name = "common_test",
     srcs = ["setup_test.go"],
     embed = [":common"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//pkg/fleet/installer",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/packages/ssi",
+        "//pkg/fleet/installer/repository",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

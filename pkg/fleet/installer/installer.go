@@ -75,6 +75,14 @@ type Installer interface {
 	Close() error
 }
 
+// PackageHookInstaller extends Installer with package-hook operations used by
+// the installation scripts. These operations are intentionally not part of the
+// installer CLI or the Fleet package-management interface.
+type PackageHookInstaller interface {
+	Installer
+	RunPostInstallHook(ctx context.Context, pkg string) error
+}
+
 // installerImpl is the implementation of the package manager.
 type installerImpl struct {
 	m sync.Mutex
@@ -91,7 +99,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
+func NewInstaller(ctx context.Context, env *env.Env) (PackageHookInstaller, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -214,6 +222,22 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		}
 		return true
 	})
+}
+
+// RunPostInstallHook reruns an installed package's stable post-install hook
+// without modifying its repository or database state.
+func (i *installerImpl) RunPostInstallHook(ctx context.Context, pkg string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	state, err := i.packages.Get(pkg).GetState()
+	if err != nil {
+		return fmt.Errorf("could not get package state: %w", err)
+	}
+	if state.Stable == "" {
+		return fmt.Errorf("cannot run post-install hook for %s: stable package is not installed", pkg)
+	}
+	return i.hooks.PostInstall(ctx, pkg, packages.PackageTypeOCI, false, nil)
 }
 
 // SetupInstaller with given path sets up the installer/agent package.
