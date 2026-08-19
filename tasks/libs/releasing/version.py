@@ -261,6 +261,36 @@ def _get_release_version_from_release_json(release_json, version_re, release_jso
     return release_component_version
 
 
+def _load_agent_version_cache(ctx, pipeline_id=None, project_name=None):
+    """Return parsed agent-version.cache contents, or None if unavailable.
+
+    A local cache file is used whenever it exists. S3 is only contacted when the
+    file is missing and CI coordinates are present. This matters for Omnibus:
+    its sanitized environment omits CI_PIPELINE_ID, so Windows package builds
+    cannot re-fetch the cache, but they do copy the file into the source tree.
+    """
+    if project_name is None:
+        project_name = os.getenv("CI_PROJECT_NAME")
+    try:
+        cache_exists = os.path.exists(AGENT_VERSION_CACHE_NAME)
+        if not cache_exists and pipeline_id and str(pipeline_id).isdigit() and project_name == REPO_NAME:
+            result = ctx.run(
+                f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
+                hide="stdout",
+            )
+            if "unable to locate credentials" in result.stderr.casefold():
+                raise Exit("Permanent error: unable to locate credentials, retry the job", 42)
+            cache_exists = True
+        if not cache_exists:
+            return None
+        with open(AGENT_VERSION_CACHE_NAME) as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError) as e:
+        # If a cache file is found but corrupted we ignore it.
+        print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
+        return None
+
+
 def get_version(
     ctx,
     url_safe=False,
@@ -280,28 +310,15 @@ def get_version(
 
     project_name = os.getenv("CI_PROJECT_NAME")
     try:
-        agent_version_cache_file_exist = os.path.exists(AGENT_VERSION_CACHE_NAME)
-        if not agent_version_cache_file_exist:
-            if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
-                result = ctx.run(
-                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
-                    hide="stdout",
-                )
-                if "unable to locate credentials" in result.stderr.casefold():
-                    raise Exit("Permanent error: unable to locate credentials, retry the job", 42)
-                agent_version_cache_file_exist = True
-
-        if agent_version_cache_file_exist:
-            with open(AGENT_VERSION_CACHE_NAME) as file:
-                cache_data = json.load(file)
-
+        cache_data = _load_agent_version_cache(ctx, pipeline_id=pipeline_id, project_name=project_name)
+        if cache_data:
             version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
             # Dev's versions behave the same as nightly
             is_nightly = cache_data["nightly"] or cache_data["dev"]
 
             if pre and include_pre:
                 version = f"{version}-{pre}"
-    except (OSError, json.JSONDecodeError, IndexError) as e:
+    except (IndexError, KeyError, TypeError, ValueError) as e:
         # If a cache file is found but corrupted we ignore it.
         print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
         version = ""
@@ -344,24 +361,14 @@ def get_version_numeric_only(ctx, major_version='7'):
     version = ""
     pipeline_id = os.getenv("CI_PIPELINE_ID")
     project_name = os.getenv("CI_PROJECT_NAME")
-    if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
-        try:
-            if not os.path.exists(AGENT_VERSION_CACHE_NAME):
-                result = ctx.run(
-                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
-                    hide="stdout",
-                )
-                if "unable to locate credentials" in result.stderr.casefold():
-                    raise Exit("Permanent error: unable to locate credentials, retry the job", 42)
-
-            with open(AGENT_VERSION_CACHE_NAME) as file:
-                cache_data = json.load(file)
-
+    try:
+        cache_data = _load_agent_version_cache(ctx, pipeline_id=pipeline_id, project_name=project_name)
+        if cache_data:
             version, *_ = cache_data[major_version]
-        except (OSError, json.JSONDecodeError, IndexError) as e:
-            # If a cache file is found but corrupted we ignore it.
-            print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
-            version = ""
+    except (IndexError, KeyError, TypeError, ValueError) as e:
+        # If a cache file is found but corrupted we ignore it.
+        print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
+        version = ""
     if not version:
         version, *_ = query_version(ctx, major_version)
     return version

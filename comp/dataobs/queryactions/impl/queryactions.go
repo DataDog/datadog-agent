@@ -156,7 +156,7 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 		}()
 
 		// Check immediately: the file config provider runs before this one in LoadAndRun,
-		// so postgres is typically already available when Stream() is called.
+		// so a supported integration is typically already available when Stream() is called.
 		if c.hasSupportedIntegration() {
 			subscribeAndWait()
 			return
