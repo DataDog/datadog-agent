@@ -754,24 +754,34 @@ namespace Datadog.CustomActions
         {
             // lookup sid for ddagentuser
             var ddAgentUserName = $"{_session.Property("DDAGENTUSER_NAME")}";
+            SecurityIdentifier securityIdentifier = null;
+            var validUser = false;
+
             if (string.IsNullOrEmpty(ddAgentUserName))
             {
                 // LookupAccountName("") succeeds and resolves to a domain SID (e.g. BUILTIN), not a user.
-                _session.Log("DDAGENTUSER_NAME is not set, skipping file access removal");
-                return;
+                _session.Log("DDAGENTUSER_NAME is not set, skipping per-user file access removal");
+            }
+            else
+            {
+                var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
+                    out _,
+                    out _,
+                    out securityIdentifier,
+                    out var sidNameUse);
+                // Defense in depth against operating on a non-user SID, matching the check in
+                // ProcessDdAgentUserCredentials (ProcessUserCustomActions.cs).
+                validUser = userFound && securityIdentifier != null &&
+                    (sidNameUse == SID_NAME_USE.SidTypeUser || sidNameUse == SID_NAME_USE.SidTypeWellKnownGroup);
+                if (!validUser)
+                {
+                    _session.Log($"Could not find user {ddAgentUserName}");
+                }
             }
 
-            var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
-                out _,
-                out _,
-                out var securityIdentifier,
-                out var sidNameUse);
-            // Defense in depth against operating on a non-user SID, matching the check in
-            // ProcessDdAgentUserCredentials (ProcessUserCustomActions.cs).
-            if (!userFound || securityIdentifier == null ||
-                (sidNameUse != SID_NAME_USE.SidTypeUser && sidNameUse != SID_NAME_USE.SidTypeWellKnownGroup))
+            // LocalSystem never gets any extra ACEs added, so there's nothing to remove.
+            if (validUser && securityIdentifier == new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
             {
-                _session.Log($"Could not find user {ddAgentUserName}");
                 return;
             }
 
@@ -784,23 +794,23 @@ namespace Datadog.CustomActions
                 );
                 _session.Message(InstallMessage.ActionStart, actionRecord);
             }
-            if (securityIdentifier == new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
+
+            if (validUser)
             {
-                return;
+                _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
+                foreach (var filePath in _session.PathsWithAgentAccess().Where(_fileSystemServices.Exists))
+                {
+                    try
+                    {
+                        RemoveAgentAccess(securityIdentifier, filePath);
+                    }
+                    catch (Exception e)
+                    {
+                        _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
+                    }
+                }
             }
 
-            _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
-            foreach (var filePath in _session.PathsWithAgentAccess().Where(_fileSystemServices.Exists))
-            {
-                try
-                {
-                    RemoveAgentAccess(securityIdentifier, filePath);
-                }
-                catch (Exception e)
-                {
-                    _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
-                }
-            }
             //remove datadog access to root folder and restore to base permissions
             var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
             if (_fileSystemServices.Exists(dataDirectory))
