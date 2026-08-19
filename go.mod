@@ -120,7 +120,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/api v0.81.0-devel
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.81.0
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.81.0
-	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.81.0
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/config/env v0.81.0
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.81.0
@@ -203,7 +202,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.81.0
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-api-client-go/v2 v2.62.0
-	github.com/DataDog/datadog-go/v5 v5.9.0
+	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20260807013103-1518bb55e423
 	github.com/DataDog/datadog-traceroute v1.0.19
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
@@ -238,7 +237,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.3
 	github.com/aws/karpenter-provider-aws v1.9.0
 	github.com/aymerick/raymond v2.0.2+incompatible
-	github.com/bazelbuild/rules_go v0.61.1
+	github.com/bazelbuild/rules_go v0.63.0
 	github.com/beevik/ntp v1.5.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v1.1.3
@@ -1304,7 +1303,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ./pkg/config/basic
-	github.com/DataDog/datadog-agent/pkg/config/buildschema => ./pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ./pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ./pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ./pkg/config/helper

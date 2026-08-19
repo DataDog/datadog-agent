@@ -2,6 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:go_test default
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
 exports_files([
@@ -70,6 +71,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":telemetry"],
     gotags_sets = [["linux_bpf"]],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",

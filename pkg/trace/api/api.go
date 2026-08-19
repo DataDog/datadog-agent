@@ -92,7 +92,14 @@ func (r *HTTPReceiver) reserveBodySize(buf *bytes.Buffer, req *http.Request) err
 	if bufferSize == 0 {
 		bufferSize = defaultReceiverBufferSize
 	}
-	buf.Grow(bufferSize)
+	// Reserve bytes.MinRead beyond the body itself: io.Copy ends in
+	// bytes.Buffer.ReadFrom, which needs MinRead spare capacity for the read that
+	// reports EOF, so reserving exactly bufferSize forces a realloc. The limit
+	// check above deliberately uses the unpadded size so MaxRequestBytes semantics
+	// are unchanged.
+	if need := bufferSize + bytes.MinRead; buf.Available() < need {
+		buf.Grow(need)
+	}
 	return nil
 }
 

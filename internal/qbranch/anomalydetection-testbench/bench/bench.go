@@ -666,21 +666,25 @@ func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 
 // unboundedStorageCfg returns a StorageConfig for testbench replay:
-// no point-retention window (pre-loaded data stays in memory) and full
+// no point-retention or inactivity-eviction window (pre-loaded data stays in memory) and full
 // correlation history accumulation enabled (disabled in live mode to avoid
 // per-Advance overhead that production reporters never read).
 func unboundedStorageCfg() observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
+	cfg.InactiveSeriesTTLSeconds = 0
+	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1           // unlimited — testbench must show all patterns
 	cfg.TrackCorrelationHistory = true // accumulate history for replay UI / output
 	return cfg
 }
 
 // streamingStorageCfg uses the production point-retention and series limits,
-// while retaining complete correlation history required by headless output.
+// but disables inactivity eviction so headless output retains complete scenario state.
 func streamingStorageCfg() observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
+	cfg.InactiveSeriesTTLSeconds = 0
+	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1
 	cfg.TrackCorrelationHistory = true
 	return cfg
@@ -700,6 +704,22 @@ func (tb *Bench) resetAllState() {
 	tb.debug.Reset(tb.settings, storageCfg)
 }
 
+// catalogEntries includes testbench-only adapters in addition to production
+// observer components.
+func (tb *Bench) catalogEntries() []observerimpl.CatalogEntry {
+	return observerimpl.TestbenchCatalogEntries()
+}
+
+// correlationsLocked returns production correlations plus testbench-only
+// passthrough periods when requested. Caller must hold tb.mu.
+func (tb *Bench) correlationsLocked(sv observerimpl.StateView) []observerdef.ActiveCorrelation {
+	correlations := append([]observerdef.ActiveCorrelation(nil), sv.CorrelationHistory()...)
+	if tb.isComponentEnabled(observerimpl.TestbenchPassthroughComponentName) {
+		correlations = append(correlations, passthroughCorrelations(sv.Anomalies())...)
+	}
+	return correlations
+}
+
 // GetStatus returns the current status.
 func (tb *Bench) GetStatus() StatusResponse {
 	tb.mu.RLock()
@@ -708,7 +728,7 @@ func (tb *Bench) GetStatus() StatusResponse {
 	sv := tb.debug.StateView()
 
 	compMap := make(map[string]bool)
-	for _, e := range tb.debug.CatalogEntries() {
+	for _, e := range tb.catalogEntries() {
 		compMap[e.Name] = tb.isComponentEnabled(e.Name)
 	}
 
@@ -740,7 +760,7 @@ func (tb *Bench) GetStatus() StatusResponse {
 		scenarioEndPtr = &scenarioEnd
 	}
 
-	componentCount := tb.debug.ExtractorCount() + len(tb.debug.CatalogEntries())
+	componentCount := tb.debug.ExtractorCount() + len(tb.catalogEntries())
 
 	var baselineInfo *BaselineInfo
 	if tb.settings.Baseline.Enabled {
@@ -797,7 +817,7 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 		return v
 	}
 	// Fall back to catalog default.
-	for _, e := range tb.debug.CatalogEntries() {
+	for _, e := range tb.catalogEntries() {
 		if e.Name == name {
 			return e.DefaultEnabled
 		}
@@ -867,11 +887,11 @@ func (tb *Bench) collectReplayResultsLocked() {
 		// context-based fallback when storage is nil.
 		storage = nil
 	}
-	tb.reportedEvents = buildReportedEvents(sv.CorrelationHistory(), storage)
+	tb.reportedEvents = buildReportedEvents(tb.correlationsLocked(sv), storage)
 
 	// Compute replay stats.
 	detectorStats := computeDetectorProcessingStatsFromStateView(sv)
-	enrichDetectorStatsKind(detectorStats, tb.debug.CatalogEntries())
+	enrichDetectorStatsKind(detectorStats, tb.catalogEntries())
 	inputMetricSeries := make(map[uint64]struct{})
 	for _, metric := range tb.rawMetrics {
 		tags := append([]string(nil), metric.tags...)
@@ -900,7 +920,7 @@ func (tb *Bench) GetComponents() []ComponentInfo {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	entries := tb.debug.CatalogEntries()
+	entries := tb.catalogEntries()
 	components := make([]ComponentInfo, 0, len(entries))
 	for _, e := range entries {
 		enabled := tb.isComponentEnabled(e.Name)
@@ -923,7 +943,7 @@ func (tb *Bench) extractorNamespaces() map[string]struct{} {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 	out := make(map[string]struct{})
-	for _, e := range tb.debug.CatalogEntries() {
+	for _, e := range tb.catalogEntries() {
 		if e.Kind == "extractor" {
 			out[e.Name] = struct{}{}
 		}
@@ -1052,7 +1072,7 @@ func (tb *Bench) GetReplayStats() *ReplayStats {
 func (tb *Bench) GetCorrelations() []observerdef.ActiveCorrelation {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
-	return tb.debug.StateView().CorrelationHistory()
+	return tb.correlationsLocked(tb.debug.StateView())
 }
 
 // GetCompressedCorrelations returns compressed group descriptions for all correlations.
@@ -1074,7 +1094,7 @@ func (tb *Bench) GetCompressedCorrelations(threshold float64) []observerimpl.Com
 	}
 
 	sv := tb.debug.StateView()
-	correlations := sv.CorrelationHistory()
+	correlations := tb.correlationsLocked(sv)
 
 	if len(correlations) == 0 {
 		tb.compCorrCache = []observerimpl.CompressedGroup{}
@@ -1284,7 +1304,7 @@ func (tb *Bench) ToggleComponent(name string) error {
 	tb.mu.Lock()
 
 	found := false
-	for _, e := range tb.debug.CatalogEntries() {
+	for _, e := range tb.catalogEntries() {
 		if e.Name == name {
 			found = true
 			break
