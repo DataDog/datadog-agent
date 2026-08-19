@@ -24,6 +24,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/go-tuf/data"
@@ -78,34 +79,195 @@ var (
 	exportedLastUpdateErr       = expvar.String{}
 )
 
-func getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
-	var roots [][]byte
-	for i := currentVersion + 1; i <= newVersion; i++ {
-		root, err := uptane.DirectorRoot(i)
+// readSnapshot is an immutable, fully-formed view of everything
+// ClientGetConfigs needs to serve a poll, built and published by the single
+// refresh-loop writer (refresh, ConfigResetState) after every refresh
+// attempt. Reads via CoreAgentService.snapshot.Load() are lock-free and never
+// touch CoreAgentService.mu or the uptane client directly -- only the writer
+// ever calls into go-tuf/the uptane client, since go-tuf itself has no
+// internal thread-safety.
+//
+// Once published (via CoreAgentService.snapshot.Store), a *readSnapshot must
+// never be mutated in place: every refresh builds an entirely new value,
+// including fresh maps, so that a single ClientGetConfigs response is always
+// built from exactly one refresh generation's data, even while concurrent
+// refreshes are publishing newer generations.
+type readSnapshot struct {
+	// generation increases by one on every publish. It has no effect on
+	// ClientGetConfigs' behavior -- it exists purely so tests can confirm
+	// that every field used to build a single response came from the same
+	// refresh generation.
+	generation int64
+
+	firstUpdate   bool
+	lastUpdateErr error
+
+	tufVersions      uptane.TUFVersions
+	timestampExpires time.Time
+
+	// directorRoots holds the raw bytes of every director root version
+	// currently retained in the local store, keyed by version, so that
+	// clients trailing behind on an old root version can be served without
+	// going back to the uptane client.
+	directorRoots map[uint64][]byte
+
+	// directorTargets is the verified director targets.json's TargetFiles as
+	// of this snapshot's generation.
+	directorTargets data.TargetFiles
+
+	// targetFiles holds the raw content of every target file present in
+	// directorTargets as of this snapshot's generation.
+	targetFiles map[string][]byte
+
+	// targetsMetaRaw is the verified, raw targets.json bytes as returned by
+	// uptane.TargetsMeta(). It is nil until the first successful refresh.
+	targetsMetaRaw []byte
+
+	// flushTargetsMetaRaw is the raw (unverified) targets.json bytes as
+	// returned by uptane.UnsafeTargetsMeta(), used only by the
+	// expired-timestamp flush path.
+	flushTargetsMetaRaw []byte
+}
+
+// newEmptySnapshot returns the snapshot published before any refresh has ever
+// completed (e.g. at service construction, or right after ConfigResetState
+// wipes local state). It mirrors the "not initialized yet" behavior that
+// firstUpdate previously provided on its own.
+func newEmptySnapshot() *readSnapshot {
+	return &readSnapshot{
+		firstUpdate:     true,
+		directorRoots:   map[uint64][]byte{},
+		directorTargets: data.TargetFiles{},
+		targetFiles:     map[string][]byte{},
+	}
+}
+
+// buildSnapshotLocked builds a fresh, fully-populated readSnapshot from the
+// current uptane client. Must be called with s.mu held, and only from the
+// single refresh-loop writer (refresh, ConfigResetState) immediately after a
+// successful uptane Update() -- concurrent calls into the uptane client from
+// elsewhere are not safe.
+func (s *CoreAgentService) buildSnapshotLocked(lastUpdateErr error) (*readSnapshot, error) {
+	tufVersions, err := s.mu.uptane.TUFVersionState()
+	if err != nil {
+		return nil, fmt.Errorf("could not get TUF version state: %w", err)
+	}
+
+	// Fetch every currently retained root version once, rather than looking
+	// them up lazily per-request: clients may be trailing on any old root
+	// version, and roots are never mutated once written, so this is safe to
+	// do unconditionally.
+	directorRoots := make(map[uint64][]byte, tufVersions.DirectorRoot)
+	for v := uint64(1); v <= tufVersions.DirectorRoot; v++ {
+		root, err := s.mu.uptane.DirectorRoot(v)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("could not get director root %d: %w", v, err)
+		}
+		directorRoots[v] = root
+	}
+
+	targets, err := s.mu.uptane.Targets()
+	if err != nil {
+		return nil, fmt.Errorf("could not get director targets: %w", err)
+	}
+	// Always allocate a fresh map: the snapshot must never share mutable
+	// storage with anything that could be reused or mutated later.
+	directorTargets := make(data.TargetFiles, len(targets))
+	paths := make([]string, 0, len(targets))
+	for path, meta := range targets {
+		directorTargets[path] = meta
+		paths = append(paths, path)
+	}
+
+	targetFiles := make(map[string][]byte, len(paths))
+	if len(paths) > 0 {
+		slices.Sort(paths)
+		// This reuses the read-state cache warmed by uptane.Client's verify
+		// pass during Update() (see client.go's cachedDirectorTargets /
+		// cachedTargetFiles), so this is a map lookup rather than a
+		// re-download in the common case.
+		files, err := s.mu.uptane.TargetFiles(paths)
+		if err != nil {
+			return nil, fmt.Errorf("could not get target files: %w", err)
+		}
+		for path, content := range files {
+			targetFiles[path] = content
+		}
+	}
+
+	targetsMetaRaw, err := s.mu.uptane.TargetsMeta()
+	if err != nil {
+		return nil, fmt.Errorf("could not get targets meta: %w", err)
+	}
+	flushTargetsMetaRaw, err := s.mu.uptane.UnsafeTargetsMeta()
+	if err != nil {
+		return nil, fmt.Errorf("could not get unsafe targets meta: %w", err)
+	}
+	timestampExpires, err := s.mu.uptane.TimestampExpires()
+	if err != nil {
+		return nil, fmt.Errorf("could not get timestamp expiry: %w", err)
+	}
+
+	return &readSnapshot{
+		generation:          s.snapshotGen.Add(1),
+		firstUpdate:         false,
+		lastUpdateErr:       lastUpdateErr,
+		tufVersions:         tufVersions,
+		timestampExpires:    timestampExpires,
+		directorRoots:       directorRoots,
+		directorTargets:     directorTargets,
+		targetFiles:         targetFiles,
+		targetsMetaRaw:      targetsMetaRaw,
+		flushTargetsMetaRaw: flushTargetsMetaRaw,
+	}, nil
+}
+
+// publishErrorLocked republishes the current snapshot with only
+// lastUpdateErr (and firstUpdate) refreshed, without touching the uptane
+// client. This is used on refresh() failure paths where no new verified TUF
+// data is available, so that a failing refresh loop is still observed
+// promptly by ClientGetConfigs (see disableConfigPollLoop) instead of only
+// becoming visible on the next successful update. Must be called with s.mu
+// held.
+//
+// The previous snapshot's maps are reused by reference (never mutated), so
+// this does not violate the "never mutate a published snapshot" invariant --
+// it just builds a new snapshot value that happens to point at the same
+// already-immutable underlying data.
+func (s *CoreAgentService) publishErrorLocked(err error) {
+	prev := s.snapshot.Load()
+	next := *prev
+	next.generation = s.snapshotGen.Add(1)
+	next.lastUpdateErr = err
+	next.firstUpdate = s.mu.firstUpdate
+	s.snapshot.Store(&next)
+}
+
+// newDirectorRootsFromSnapshot returns the raw root bytes for every version
+// in (currentVersion, newVersion], reading only from the snapshot.
+func newDirectorRootsFromSnapshot(snap *readSnapshot, currentVersion, newVersion uint64) ([][]byte, error) {
+	var roots [][]byte
+	for v := currentVersion + 1; v <= newVersion; v++ {
+		root, ok := snap.directorRoots[v]
+		if !ok {
+			return nil, fmt.Errorf("director root version %d was not found in the current snapshot", v)
 		}
 		roots = append(roots, root)
 	}
 	return roots, nil
 }
 
-func getTargetFiles(uptaneClient uptaneClient, targetFilePaths []string) ([]*pbgo.File, error) {
-	files, err := uptaneClient.TargetFiles(targetFilePaths)
-	if err != nil {
-		return nil, err
-	}
-
-	var configFiles []*pbgo.File
-	for path, contents := range files {
-		// Note: This unconditionally succeeds as long as we don't change bufferDestination earlier
-		configFiles = append(configFiles, &pbgo.File{
+// filesForPaths builds the []*pbgo.File response slice for paths, reading
+// file content only from the snapshot's pre-fetched targetFiles map.
+func filesForPaths(snap *readSnapshot, paths []string) []*pbgo.File {
+	files := make([]*pbgo.File, 0, len(paths))
+	for _, path := range paths {
+		files = append(files, &pbgo.File{
 			Path: path,
-			Raw:  contents,
+			Raw:  snap.targetFiles[path],
 		})
 	}
-
-	return configFiles, nil
+	return files
 }
 
 // CoreAgentService implements rcservice.Component.
@@ -148,6 +310,23 @@ type CoreAgentService struct {
 	clients         *clients
 	orgStatusPoller *orgStatusPoller
 
+	// subscriptions manages all active config subscriptions. It has its own
+	// internal locking (see subscriptions.mu) independent of
+	// CoreAgentService.mu, so it is never guarded by mu.
+	subscriptions *subscriptions
+
+	// snapshot holds the latest immutable, fully-formed view of everything
+	// ClientGetConfigs needs to serve a poll. It is published by the single
+	// refresh-loop writer (refresh, ConfigResetState) and read lock-free by
+	// every ClientGetConfigs call -- see readSnapshot's doc comment. It is
+	// never nil: NewService stores an initial empty snapshot before the
+	// service can receive any requests.
+	snapshot atomic.Pointer[readSnapshot]
+	// snapshotGen assigns a monotonically increasing generation number to
+	// every published snapshot. It has no effect on behavior; it exists so
+	// tests can confirm internal consistency of a single response.
+	snapshotGen atomic.Int64
+
 	// Channels to stop the services main goroutines
 	stopConfigPoller chan struct{}
 	stopOnce         sync.Once
@@ -162,10 +341,15 @@ type CoreAgentService struct {
 	// The maximum number of runtime IDs that may be tracked per subscription.
 	maxTrackedRuntimeIDsPerSubscription int
 
+	// mu guards only the write side of the service's state: refresh(),
+	// ConfigResetState, and Stop() (plus a couple of bookkeeping fields read
+	// by calculateRefreshInterval/apiKeyUpdateCallback). The read path
+	// (ClientGetConfigs) never takes mu -- it reads exclusively from the
+	// lock-free snapshot above and from subscriptions' own lock.
+	// CreateConfigSubscription also never takes mu: registration/limits are
+	// handled entirely by subscriptions' own lock.
 	mu struct {
 		sync.Mutex
-
-		subscriptions *subscriptions
 
 		uptane coreAgentUptaneClient
 
@@ -659,10 +843,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
 		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
 	}
-	cas.mu.subscriptions = newSubscriptions(
+	cas.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
 		options.maxSubscriptionQueueSize,
 	)
+	cas.snapshot.Store(newEmptySnapshot())
 	cas.mu.firstUpdate = true
 	cas.mu.defaultRefreshInterval = options.refresh
 	cas.mu.refreshIntervalOverrideAllowed = options.refreshIntervalOverrideAllowed
@@ -861,18 +1046,21 @@ func (s *CoreAgentService) refresh() error {
 		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
 			if s.mu.fetchErrorCount < initialFetchErrorLog {
 				s.mu.fetchErrorCount++
+				s.publishErrorLocked(s.mu.lastUpdateErr)
 				return err
 			}
 			// If we saw the error enough time, we consider that RC not working is a normal behavior
 			// And we only log as DEBUG
 			// The agent will eventually log this error as DEBUG every maximalMaxBackoffTime
 			log.Debugf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+			s.publishErrorLocked(s.mu.lastUpdateErr)
 			return nil
 		}
 
 		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
 			s.mu.fetchConfigs503And504ErrCount++
 		}
+		s.publishErrorLocked(s.mu.lastUpdateErr)
 		return err
 	}
 	s.mu.fetchErrorCount = 0
@@ -881,6 +1069,7 @@ func (s *CoreAgentService) refresh() error {
 	if err != nil {
 		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
 		s.mu.lastUpdateErr = fmt.Errorf("tuf: %v", err)
+		s.publishErrorLocked(s.mu.lastUpdateErr)
 		return err
 	}
 	// If a user hasn't explicitly set the refresh interval, allow the backend to override it based
@@ -905,6 +1094,19 @@ func (s *CoreAgentService) refresh() error {
 	s.mu.backoffErrorCount = s.backoffPolicy.DecError(s.mu.backoffErrorCount)
 
 	exportedLastUpdateErr.Set("")
+
+	snap, err := s.buildSnapshotLocked(nil)
+	if err != nil {
+		// We just successfully verified and committed a TUF update, so this
+		// would be very surprising -- but if it happens, don't leave clients
+		// stuck being served a stale snapshot silently. Surface it as this
+		// refresh's error without touching s.mu.firstUpdate/lastUpdateErr
+		// (the TUF update itself did succeed).
+		log.Errorf("[%s] could not build snapshot after a successful update: %v", s.rcType, err)
+		s.publishErrorLocked(fmt.Errorf("snapshot: %v", err))
+		return err
+	}
+	s.snapshot.Store(snap)
 
 	return nil
 }
@@ -938,26 +1140,33 @@ func (s *CoreAgentService) getRefreshIntervalLocked() (time.Duration, error) {
 	return value, nil
 }
 
-func (s *CoreAgentService) flushCacheResponseLocked() (*pbgo.ClientGetConfigsResponse, error) {
-	targets, err := s.mu.uptane.UnsafeTargetsMeta()
-	if err != nil {
-		return nil, err
-	}
+// flushCacheResponseFromSnapshot builds the "config expired" response served
+// when timestamp.json has expired, reading only from the pre-fetched
+// snapshot.
+func flushCacheResponseFromSnapshot(snap *readSnapshot) *pbgo.ClientGetConfigsResponse {
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         nil,
-		Targets:       targets,
+		Targets:       snap.flushTargetsMetaRaw,
 		TargetFiles:   nil,
 		ClientConfigs: nil,
 		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED,
-	}, nil
+	}
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 //
+// The read path below never takes s.mu and never calls into the uptane
+// client directly: it reads exclusively from the lock-free snapshot
+// published by the single refresh-loop writer (see readSnapshot's doc
+// comment), plus subscriptions' own internal lock and clients' own internal
+// lock. This keeps every poll lock-free and non-blocking, regardless of how
+// many clients are polling concurrently or how long a refresh takes.
+//
 //nolint:revive // TODO(RC) Fix revive linter
-func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *CoreAgentService) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	err := validateRequest(request)
 	if err != nil {
@@ -971,7 +1180,6 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		// - The triggered request takes too long
 
 		s.clients.seen(request.Client)
-		s.mu.Unlock()
 
 		response := make(chan struct{})
 		bypassStart := s.clock.Now()
@@ -996,32 +1204,32 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 			log.Debugf("Bypass request timed out for client %s", request.Client.GetId())
 			s.telemetryReporter.IncTimeout()
 		}
-
-		s.mu.Lock()
-	}
-	if s.disableConfigPollLoop && s.mu.lastUpdateErr != nil {
-		return nil, s.mu.lastUpdateErr
 	}
 
-	s.clients.seen(request.Client)
-	tufVersions, err := s.mu.uptane.TUFVersionState()
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	// We only want to check for this if we have successfully initialized the TUF database
-	if !s.mu.firstUpdate {
+	// Load the snapshot once and read everything from it for the rest of the
+	// request, so the whole response is built from a single refresh
+	// generation. If the bypass above triggered a refresh, this picks up
+	// whatever it just published.
+	snap := s.snapshot.Load()
 
-		// get the expiration time of timestamp.json
-		expires, err := s.mu.uptane.TimestampExpires()
-		if err != nil {
-			return nil, err
-		}
+	if s.disableConfigPollLoop && snap.lastUpdateErr != nil {
+		return nil, snap.lastUpdateErr
+	}
+
+	s.clients.seen(request.Client)
+	tufVersions := snap.tufVersions
+
+	// We only want to check for this if we have successfully initialized the TUF database
+	if !snap.firstUpdate {
 		// If timestamp.json has expired and we've waited to ensure connection to the backend,
 		// all clients must flush their configuration state.
-		if expires.Before(s.clock.Now()) {
-			log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
-			return s.flushCacheResponseLocked()
+		if snap.timestampExpires.Before(s.clock.Now()) {
+			log.Warnf("Timestamp expired at %s, flushing cache", snap.timestampExpires.Format(time.RFC3339))
+			return flushCacheResponseFromSnapshot(snap), nil
 		}
 	}
 
@@ -1049,7 +1257,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 
 	// (1) Check if either the client or any subscriptions need anything.
 	hasUpdate := tufVersions.DirectorTargets != request.Client.State.TargetsVersion
-	interestedSubs, productsNeededForSubs := s.mu.subscriptions.interestedSubscriptions(
+	interestedSubs, productsNeededForSubs := s.subscriptions.interestedSubscriptions(
 		request.Client,
 	)
 
@@ -1059,15 +1267,12 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	}
 
 	// (2) Build responseConfigs and subscriptionOnlyConfigs.
-	roots, err := getNewDirectorRoots(s.mu.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
+	roots, err := newDirectorRootsFromSnapshot(snap, request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
 
-	directorTargets, err := s.mu.uptane.Targets()
-	if err != nil {
-		return nil, err
-	}
+	directorTargets := snap.directorTargets
 	matchedClientConfigs, err := executeTracerPredicates(request.Client, directorTargets)
 	if err != nil {
 		return nil, err
@@ -1095,13 +1300,11 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		delete(subscriptionOnlyConfigs, config)
 	}
 
-	// (3) Fetch all the files needed for both sets from the uptane client.
+	// (3) Fetch all the files needed for both sets, reading only from the
+	// snapshot's pre-fetched target file contents.
 	allConfigs := slices.AppendSeq(responseConfigs, maps.Keys(subscriptionOnlyConfigs))
 	slices.Sort(allConfigs)
-	allFiles, err := getTargetFiles(s.mu.uptane, allConfigs)
-	if err != nil {
-		return nil, err
-	}
+	allFiles := filesForPaths(snap, allConfigs)
 
 	// (4) Move the extra files needed just for subscriptions to the end.
 	slices.SortStableFunc(allFiles, func(a, b *pbgo.File) int {
@@ -1114,7 +1317,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	// (5) Notify subscriptions with the relevant files.
 	responseFiles := allFiles[:len(responseConfigs)]
 	if len(interestedSubs) > 0 {
-		s.mu.subscriptions.notify(
+		s.subscriptions.notify(
 			interestedSubs,
 			request.Client,
 			matchedClientConfigs,
@@ -1129,13 +1332,9 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	}
 
 	// (6.b) Fill out and return the client's response.
-	targetsRaw, err := s.mu.uptane.TargetsMeta()
-	if err != nil {
-		return nil, err
-	}
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
-		Targets:       targetsRaw,
+		Targets:       snap.targetsMetaRaw,
 		TargetFiles:   responseFiles,
 		ClientConfigs: matchedClientConfigs,
 		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_OK,
@@ -1233,22 +1432,7 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 
 	maps.Copy(response.TargetFilenames, state.TargetFilenames)
 
-	for _, subscription := range s.mu.subscriptions.subs {
-		trackedClients := make([]*pbgo.ConfigSubscriptionState_TrackedClient, 0, len(subscription.trackedClients))
-		for runtimeID, trackedClient := range subscription.trackedClients {
-			trackedClients = append(trackedClients, &pbgo.ConfigSubscriptionState_TrackedClient{
-				RuntimeId: runtimeID,
-				SeenAny:   trackedClient.seenAny,
-				Products:  trackedClient.products,
-			})
-		}
-		slices.SortFunc(trackedClients, func(a, b *pbgo.ConfigSubscriptionState_TrackedClient) int {
-			return cmp.Compare(a.RuntimeId, b.RuntimeId)
-		})
-		response.ConfigSubscriptionStates = append(response.ConfigSubscriptionStates, &pbgo.ConfigSubscriptionState{
-			TrackedClients: trackedClients,
-		})
-	}
+	response.ConfigSubscriptionStates = s.subscriptions.states()
 
 	return response, nil
 }
@@ -1278,6 +1462,16 @@ func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, e
 	}
 	s.mu.uptane = uptaneClient
 
+	// The local store was just wiped and replaced with a brand new,
+	// un-updated uptane client, so there's no verified TUF data to build a
+	// real snapshot from -- republish the same "not initialized yet"
+	// snapshot served before the very first refresh, and reset firstUpdate
+	// to match.
+	s.mu.firstUpdate = true
+	resetSnapshot := newEmptySnapshot()
+	resetSnapshot.generation = s.snapshotGen.Add(1) // keep generations strictly increasing across the reset
+	s.snapshot.Store(resetSnapshot)
+
 	return &pbgo.ResetStateConfigResponse{}, err
 }
 
@@ -1291,30 +1485,23 @@ func (s *CoreAgentService) CreateConfigSubscription(
 	stream pbgo.AgentSecure_CreateConfigSubscriptionServer,
 ) error {
 	// Register this subscription, checking for limits on total subscriptions.
-	subID, updateSignal, err := func() (subscriptionID, <-chan struct{}, error) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if len(s.mu.subscriptions.subs) >= s.maxConcurrentSubscriptions {
-			return 0, nil, status.Errorf(
-				codes.ResourceExhausted,
-				"maximum number of subscriptions reached (%d)",
-				s.maxConcurrentSubscriptions,
-			)
-		}
-		subID, updateSignal := s.mu.subscriptions.newSubscription()
-		s.telemetryReporter.SetConfigSubscriptionsActive(len(s.mu.subscriptions.subs))
-		return subID, updateSignal, nil
-	}()
+	// subscriptions has its own internal locking, so this never touches
+	// s.mu.
+	subID, updateSignal, err := s.subscriptions.newSubscription(s.maxConcurrentSubscriptions)
 	if err != nil {
+		err = status.Errorf(
+			codes.ResourceExhausted,
+			"maximum number of subscriptions reached (%d)",
+			s.maxConcurrentSubscriptions,
+		)
 		log.Warnf("failed to create subscription: %v", err)
 		return err
 	}
+	s.telemetryReporter.SetConfigSubscriptionsActive(s.subscriptions.count())
 	defer func() {
 		s.telemetryReporter.IncConfigSubscriptionsDisconnectedCounter()
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.mu.subscriptions.remove(subID)
-		s.telemetryReporter.SetConfigSubscriptionsActive(len(s.mu.subscriptions.subs))
+		s.subscriptions.remove(subID)
+		s.telemetryReporter.SetConfigSubscriptionsActive(s.subscriptions.count())
 	}()
 	s.telemetryReporter.IncConfigSubscriptionsConnectedCounter()
 	// Send a header to synchronize with the client and prevent client-side
@@ -1332,9 +1519,7 @@ func (s *CoreAgentService) CreateConfigSubscription(
 	go func() {
 		defer wg.Done()
 		popUpdate := func() *pbgo.ConfigSubscriptionResponse {
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			return s.mu.subscriptions.popUpdate(subID)
+			return s.subscriptions.popUpdate(subID)
 		}
 		for {
 			if ctx.Err() != nil {
@@ -1356,34 +1541,23 @@ func (s *CoreAgentService) CreateConfigSubscription(
 	}()
 
 	// Process incoming TRACK/UNTRACK requests from the client (receiver
-	// goroutine). This is the current goroutine (gRPC handler).
-	setTrackedClientsLocked := func() {
-		n := 0
-		for _, s := range s.mu.subscriptions.subs {
-			n += len(s.trackedClients)
-		}
-		s.telemetryReporter.SetConfigSubscriptionClientsTracked(n)
-	}
+	// goroutine). This is the current goroutine (gRPC handler). Neither of
+	// these touches s.mu: subscriptions has its own internal locking.
 	track := func(runtimeID string, products pbgo.ConfigSubscriptionProducts) error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		sub := s.mu.subscriptions.subs[subID]
-		if len(sub.trackedClients) >= s.maxTrackedRuntimeIDsPerSubscription {
+		n, err := s.subscriptions.track(subID, runtimeID, products, s.maxTrackedRuntimeIDsPerSubscription)
+		if err != nil {
 			return status.Errorf(
 				codes.ResourceExhausted,
 				"maximum number of runtime IDs per subscription reached (%d)",
 				s.maxTrackedRuntimeIDsPerSubscription,
 			)
 		}
-		sub.track(runtimeID, products)
-		setTrackedClientsLocked()
+		s.telemetryReporter.SetConfigSubscriptionClientsTracked(n)
 		return nil
 	}
 	untrack := func(runtimeID string) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.mu.subscriptions.subs[subID].untrack(runtimeID)
-		setTrackedClientsLocked()
+		n := s.subscriptions.untrack(subID, runtimeID)
+		s.telemetryReporter.SetConfigSubscriptionClientsTracked(n)
 	}
 	for {
 		req, err := stream.Recv()

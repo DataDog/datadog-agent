@@ -193,13 +193,39 @@ var testRCKey = msgpgo.RemoteConfigKey{
 	Datacenter: "dd.com",
 }
 
-func uptaneFactoryOption(coreAgentUptane *mockCoreAgentUptane) Option {
+// mockSnapshotBuildDefaults registers default mock expectations for the
+// uptane calls that refresh() makes to build/publish a readSnapshot after a
+// successful Update() (see CoreAgentService.buildSnapshotLocked): Targets,
+// TargetsMeta, UnsafeTargetsMeta, and TimestampExpires. It assumes an empty
+// director target set (so no TargetFiles/DirectorRoot calls are made -- see
+// buildSnapshotLocked's early-outs), which is the common case for tests that
+// only care about refresh()'s error/backoff bookkeeping and don't exercise
+// ClientGetConfigs against the resulting snapshot. Tests that need specific
+// snapshot content should set up their own mocks instead (these use
+// mock.Anything-free `.On` calls, so any explicit expectation set up by the
+// test before calling refresh() will be preferred by testify's matching).
+func mockSnapshotBuildDefaults(uptaneClient *mockCoreAgentUptane) {
+	uptaneClient.On("Targets").Return(data.TargetFiles{}, nil).Maybe()
+	uptaneClient.On("TargetsMeta").Return([]byte{}, nil).Maybe()
+	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil).Maybe()
+	uptaneClient.On("TimestampExpires").Return(time.Now().Add(time.Hour), nil).Maybe()
+}
+
+func uptaneFactoryOption(coreAgentUptane coreAgentUptaneClient) Option {
 	return withUptaneFactory(func(_ *uptane.Metadata) (coreAgentUptaneClient, error) {
 		return coreAgentUptane, nil // no DB opened in tests
 	})
 }
 
-func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUptane, clock clock.Clock, opts ...Option) *CoreAgentService {
+// newTestService builds a service wired up to the given api/uptane
+// implementations. These parameters take the production interfaces
+// (httpapi.API / coreAgentUptaneClient) rather than the concrete testify
+// mock types, so callers can pass either the *mockAPI/*mockCoreAgentUptane
+// mocks used throughout this package, or hand-written fakes (e.g. for the
+// concurrency test in snapshot_race_test.go, where testify's per-call `.On`
+// expectations aren't a good fit for "return a new, valid value on every
+// concurrent call").
+func newTestService(t *testing.T, api httpapi.API, coreAgentUptane coreAgentUptaneClient, clock clock.Clock, opts ...Option) *CoreAgentService {
 	cfg := configmock.New(t)
 	cfg.SetInTest("hostname", "test-hostname")
 
@@ -232,6 +258,7 @@ func TestFetchConfigs503And504IncrementsErrCountAndResets(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	mockSnapshotBuildDefaults(uptaneClient)
 
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
@@ -356,11 +383,76 @@ func TestFetchOrgStatusSuccessResetsErrorCount(t *testing.T) {
 	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(0))
 }
 
+// TestLastUpdateErrFreshness verifies that a failing refresh -- even one
+// that produces no new verified TUF data -- is surfaced to ClientGetConfigs
+// promptly (via disableConfigPollLoop's lastUpdateErr check), and that
+// recovery clears it just as promptly. This specifically exercises
+// CoreAgentService.publishErrorLocked, since a naive implementation that
+// only republishes the snapshot on successful updates would leave
+// ClientGetConfigs unaware that the refresh loop started failing (or
+// recovered) until the next unrelated TUF change, if any.
+func TestLastUpdateErrFreshness(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockCoreAgentUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock, WithAgentPollLoopDisabled())
+	mockSnapshotBuildDefaults(uptaneClient)
+
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
+
+	client := &pbgo.Client{
+		Id:          "testid",
+		State:       &pbgo.ClientState{RootVersion: 1},
+		IsAgent:     true,
+		ClientAgent: &pbgo.ClientAgent{},
+	}
+	service.clients.seen(client) // avoid the new-client bypass path
+
+	lastConfigResponse := &pbgo.LatestConfigsResponse{}
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+
+	// A long streak of successful refreshes.
+	api.On("Fetch", mock.Anything, mock.Anything).Return(lastConfigResponse, nil)
+	for range 5 {
+		clock.Add(time.Second)
+		require.NoError(t, service.refresh())
+	}
+
+	// No error yet: ClientGetConfigs should serve normally.
+	_, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	require.NoError(t, err)
+
+	// One refresh fails, producing no new TUF data.
+	*api = mockAPI{}
+	failErr := errors.New("simulated failure")
+	api.On("Fetch", mock.Anything, mock.Anything).Return(lastConfigResponse, failErr)
+	clock.Add(time.Second)
+	err = service.refresh()
+	require.Error(t, err)
+
+	// The very next ClientGetConfigs call must surface it immediately.
+	_, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "simulated failure")
+
+	// Recovery: the next successful refresh must clear it immediately too.
+	*api = mockAPI{}
+	api.On("Fetch", mock.Anything, mock.Anything).Return(lastConfigResponse, nil)
+	clock.Add(time.Second)
+	require.NoError(t, service.refresh())
+
+	_, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	require.NoError(t, err)
+}
+
 func TestServiceBackoffFailure(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	mockSnapshotBuildDefaults(uptaneClient)
 
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
@@ -445,6 +537,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	mockSnapshotBuildDefaults(uptaneClient)
 
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
@@ -606,15 +699,15 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 			string(rdata.ProductAPMSampling),
 		},
 	}
-	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
-	uptaneClient.On("TimestampExpires").Return(clock.Now().Add(-1*time.Hour), nil)
-	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
-
-	// The key here is that if we've never initialized the TUF repository, we shouldn't be sending any sort of expired message
-	// because the expired message check requires the TUF repository have Director Meta data.
+	// The key here is that if we've never had a refresh complete (the initial
+	// snapshot published by NewService before any refresh, which has
+	// firstUpdate: true), we shouldn't be sending any sort of expired
+	// message because the expired message check requires the TUF repository
+	// to have Director Meta data.
 	//
-	// Checks in this state should look like the version of the client is unchanged (both will report 0 as the director targets meta, because
-	// no such file exists).
+	// Checks in this state should look like the version of the client is
+	// unchanged (both will report 0 as the director targets meta, because no
+	// such file exists).
 	service.clients.seen(client)
 	response, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
@@ -624,8 +717,19 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 	assert.Len(t, response.Targets, 0)
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_OK, response.ConfigStatus)
 
-	// If the repository is initialized, we should now return the expired message
-	service.mu.firstUpdate = false
+	// If the repository is initialized (a real snapshot has been published)
+	// and its timestamp has expired, we should now return the expired
+	// message. Publish the snapshot directly (rather than mocking uptane and
+	// calling refresh()) since this test is specifically about
+	// ClientGetConfigs' read-path branching, not refresh()'s behavior.
+	service.snapshot.Store(&readSnapshot{
+		firstUpdate:         false,
+		timestampExpires:    clock.Now().Add(-1 * time.Hour),
+		directorRoots:       map[uint64][]byte{},
+		directorTargets:     data.TargetFiles{},
+		targetFiles:         map[string][]byte{},
+		flushTargetsMetaRaw: []byte{},
+	})
 	response, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, response.ConfigStatus)
@@ -657,6 +761,7 @@ func TestService(t *testing.T) {
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
+	mockSnapshotBuildDefaults(uptaneClient)
 
 	err := service.refresh()
 	assert.NoError(t, err)
@@ -691,6 +796,13 @@ func TestService(t *testing.T) {
 	uptaneClient.On("TargetsMeta").Return(targets, nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustom, nil)
 	uptaneClient.On("TimestampExpires").Return(time.Now().Add(1*time.Hour), nil)
+	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
+	// buildSnapshotLocked fetches every currently retained root version
+	// (1..DirectorRoot), not just the ones a specific client's request would
+	// need -- versions 1 and 2 are never surfaced in this test's assertions,
+	// but must still be fetchable.
+	uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte("root1"), nil)
+	uptaneClient.On("DirectorRoot", uint64(2)).Return([]byte("root2"), nil)
 
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		"datadog/2/APM_SAMPLING/id/1": {},
@@ -722,7 +834,20 @@ func TestService(t *testing.T) {
 	uptaneClient.On("DirectorRoot", uint64(3)).Return(root3, nil)
 	uptaneClient.On("DirectorRoot", uint64(4)).Return(root4, nil)
 
-	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}))).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": fileAPM1, "datadog/2/APM_SAMPLING/id/2": fileAPM2}, nil)
+	// buildSnapshotLocked fetches the content of every path in the director
+	// targets (not just the paths a specific client's request needs), so the
+	// mock must cover all 4 paths returned by Targets() above.
+	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{
+		"datadog/2/APM_SAMPLING/id/1",
+		"datadog/2/APM_SAMPLING/id/2",
+		"datadog/2/TESTING1/id/1",
+		"datadog/2/APPSEC/id/1",
+	}))).Return(map[string][]byte{
+		"datadog/2/APM_SAMPLING/id/1": fileAPM1,
+		"datadog/2/APM_SAMPLING/id/2": fileAPM2,
+		"datadog/2/TESTING1/id/1":     []byte("testing1"),
+		"datadog/2/APPSEC/id/1":       []byte("appsec1"),
+	}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -745,6 +870,16 @@ func TestService(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
+
+	// Advance the clock by 1 second to ensure we don't block waiting for
+	// the minimum refresh interval. refresh() (the single writer) must run
+	// before ClientGetConfigs so it publishes the snapshot ClientGetConfigs
+	// will read from -- unlike the old locked design, ClientGetConfigs no
+	// longer queries the uptane client directly.
+	clock.Add(1 * time.Second)
+	err = service.refresh()
+	assert.NoError(t, err)
+
 	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, [][]byte{canonicalRoot3, canonicalRoot4}, configResponse.Roots)
@@ -761,12 +896,6 @@ func TestService(t *testing.T) {
 		configResponse.ConfigStatus,
 		pbgo.ConfigStatus_CONFIG_STATUS_OK,
 	)
-
-	// Advance the clock by 1 second to ensure we don't block waiting for
-	// the minimum refresh interval.
-	clock.Add(1 * time.Second)
-	err = service.refresh()
-	assert.NoError(t, err)
 
 	stateResponse, err := service.ConfigGetState()
 	assert.NoError(t, err)
@@ -856,7 +985,22 @@ func TestServiceClientPredicates(t *testing.T) {
 		DirectorRoot:    1,
 		DirectorTargets: 5,
 	}, nil)
-	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}))).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
+	uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte("root1"), nil)
+	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
+	uptaneClient.On("TimestampExpires").Return(time.Now().Add(1*time.Hour), nil)
+	// buildSnapshotLocked fetches the content of every path in the director
+	// targets, not just the two the client's predicates end up matching.
+	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{
+		"datadog/2/APM_SAMPLING/id/1",
+		"datadog/2/APM_SAMPLING/id/2",
+		"datadog/2/TESTING1/id/1",
+		"datadog/2/APPSEC/id/1",
+	}))).Return(map[string][]byte{
+		"datadog/2/APM_SAMPLING/id/1": []byte(``),
+		"datadog/2/APM_SAMPLING/id/2": []byte(``),
+		"datadog/2/TESTING1/id/1":     []byte(``),
+		"datadog/2/APPSEC/id/1":       []byte(``),
+	}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -879,6 +1023,12 @@ func TestServiceClientPredicates(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
+
+	// refresh() (the single writer) must run before ClientGetConfigs so it
+	// publishes the snapshot ClientGetConfigs reads from.
+	err := service.refresh()
+	assert.NoError(err)
+
 	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(
@@ -888,8 +1038,6 @@ func TestServiceClientPredicates(t *testing.T) {
 			"datadog/2/APM_SAMPLING/id/2",
 		},
 	)
-	err = service.refresh()
-	assert.NoError(err)
 
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
@@ -900,6 +1048,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	mockSnapshotBuildDefaults(uptaneClient)
 
 	// For this test we'll just send an empty update to save us some work mocking everything.
 	// What matters is the data reported by the uptane module for the top targets custom
@@ -940,6 +1089,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	mockSnapshotBuildDefaults(uptaneClient)
 
 	// For this test we'll just send an empty update to save us some work mocking everything.
 	// What matters is the data reported by the uptane module for the top targets custom
@@ -1024,6 +1174,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	mockSnapshotBuildDefaults(uptaneClient)
 
 	// For this test we'll just send an empty update to save us some work mocking everything.
 	// What matters is the data reported by the uptane module for the top targets custom
@@ -1064,6 +1215,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	mockSnapshotBuildDefaults(uptaneClient)
 
 	// For this test we'll just send an empty update to save us some work mocking everything.
 	// What matters is the data reported by the uptane module for the top targets custom
@@ -1104,6 +1256,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	mockSnapshotBuildDefaults(uptaneClient)
 
 	// Mock that customers set the value, making overrides not allowed
 	service.mu.refreshIntervalOverrideAllowed = false
@@ -1189,7 +1342,12 @@ func TestConfigExpiration(t *testing.T) {
 		DirectorRoot:    1,
 		DirectorTargets: 5,
 	}, nil)
-	uptaneClient.On("TargetFiles", []string{"datadog/2/APM_SAMPLING/id/1"}).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
+	uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte("root1"), nil)
+	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
+	uptaneClient.On("TimestampExpires").Return(time.Now().Add(1*time.Hour), nil)
+	// buildSnapshotLocked fetches the content of every path in the director
+	// targets, not just the one the client's response ends up matching.
+	uptaneClient.On("TargetFiles", []string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -1212,6 +1370,12 @@ func TestConfigExpiration(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
+
+	// refresh() (the single writer) must run before ClientGetConfigs so it
+	// publishes the snapshot ClientGetConfigs reads from.
+	err := service.refresh()
+	assert.NoError(err)
+
 	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(
@@ -1220,8 +1384,6 @@ func TestConfigExpiration(t *testing.T) {
 			"datadog/2/APM_SAMPLING/id/1",
 		},
 	)
-	err = service.refresh()
-	assert.NoError(err)
 
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)

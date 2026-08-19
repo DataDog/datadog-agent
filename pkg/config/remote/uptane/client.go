@@ -44,6 +44,15 @@ type Client struct {
 	cachedVerify     bool
 	cachedVerifyTime time.Time
 
+	// cachedDirectorTargets and cachedTargetFiles hold the verified read-state
+	// produced by the most recent successful verifyUptane() pass. They let
+	// reads (Targets/TargetFile/TargetFiles) avoid re-downloading and
+	// re-verifying target files that were already verified moments earlier.
+	// They are only valid when cachedVerify is true; they must be rebuilt
+	// (or invalidated) any time verifyUptane runs or the client is updated.
+	cachedDirectorTargets data.TargetFiles
+	cachedTargetFiles     map[string][]byte
+
 	// TUF transaction tracker
 	transactionalStore *transactionalStore
 
@@ -145,6 +154,7 @@ func (c *CoreAgentClient) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
 	defer c.Unlock()
 	c.cachedVerify = false
+	c.invalidateReadCache()
 
 	// in case the commit is successful it is a no-op.
 	// the defer is present to be sure a transaction is never left behind.
@@ -156,9 +166,23 @@ func (c *CoreAgentClient) Update(response *pbgo.LatestConfigsResponse) error {
 		c.directorRemoteStore = newRemoteStoreDirector(c.targetStore)
 		c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 		c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
+		// Rebuilt TUF clients invalidate any previously cached read-state a
+		// second time, in case verifyUptane had somehow already re-populated
+		// it before the failure was detected.
+		c.invalidateReadCache()
 		return err
 	}
 	return c.transactionalStore.commit()
+}
+
+// invalidateReadCache clears the cached verified read-state (director
+// targets and target file contents). Must be called with the Client's lock
+// held. It must run on every Update() call, on both the success and failure
+// path, so the cache can never be served against TUF clients that have since
+// been rebuilt.
+func (c *Client) invalidateReadCache() {
+	c.cachedDirectorTargets = nil
+	c.cachedTargetFiles = nil
 }
 
 // update updates the uptane client
@@ -234,6 +258,15 @@ func (c *Client) unsafeTargets() (data.TargetFiles, error) {
 	if err != nil {
 		return nil, err
 	}
+	// cachedDirectorTargets is only nil when the read cache has not been
+	// (re)populated since the last invalidation (e.g. an Update() call).
+	// verify() only reports success after verifyUptane has run and
+	// populated the cache (even to an empty-but-non-nil map when there are
+	// no director targets), so this should always hit in the common case;
+	// falling back to a direct fetch here is just a defensive cache-miss path.
+	if c.cachedDirectorTargets != nil {
+		return c.cachedDirectorTargets, nil
+	}
 	return c.directorTUFClient.Targets()
 }
 
@@ -249,6 +282,12 @@ func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if content, found := c.cachedTargetFiles[path]; found {
+		return content, nil
+	}
+	// Cache miss (e.g. the path isn't part of the currently verified target
+	// set, or the cache hasn't been populated yet): fall back to the direct
+	// download exactly as before.
 	buffer := &bufferDestination{}
 	err = c.directorTUFClient.Download(path, buffer)
 	if err != nil {
@@ -275,9 +314,22 @@ func (c *Client) TargetFiles(targetFiles []string) (map[string][]byte, error) {
 		return nil, err
 	}
 
-	// Build the storage space
-	destinations := make(map[string]client.Destination)
+	files := make(map[string][]byte, len(targetFiles))
+	var missing []string
 	for _, path := range targetFiles {
+		if content, found := c.cachedTargetFiles[path]; found {
+			files[path] = content
+			continue
+		}
+		missing = append(missing, path)
+	}
+	if len(missing) == 0 {
+		return files, nil
+	}
+
+	// Build the storage space for the cache-miss paths only.
+	destinations := make(map[string]client.Destination, len(missing))
+	for _, path := range missing {
 		destinations[path] = &bufferDestination{}
 	}
 
@@ -287,7 +339,6 @@ func (c *Client) TargetFiles(targetFiles []string) (map[string][]byte, error) {
 	}
 
 	// Build the return type
-	files := make(map[string][]byte)
 	for path, contents := range destinations {
 		files[path] = contents.(*bufferDestination).Bytes()
 	}
@@ -436,14 +487,32 @@ func (c *Client) verifyUptane() error {
 		return err
 	}
 	if len(directorTargets) == 0 {
+		// Nothing to verify. Reset the read cache to a populated-but-empty
+		// state rather than leaving it untouched: leaving it untouched could
+		// mean serving a half-populated or stale cache left over from a
+		// previous verifyUptane call (e.g. targets that have since been
+		// removed).
+		c.cachedDirectorTargets = data.TargetFiles{}
+		c.cachedTargetFiles = map[string][]byte{}
 		return nil
 	}
 
-	targetPathsDestinations := make(map[string]client.Destination)
+	// NOTE: the config-repo and director-repo downloads below must use
+	// separate destination maps. bufferDestination embeds bytes.Buffer,
+	// whose Write appends rather than overwrites; reusing one map for both
+	// DownloadBatch calls would silently double the cached content (the
+	// second repo's bytes get appended onto the first repo's bytes for the
+	// same path). The two repos' downloads are only used to cross-validate
+	// hash/length below and, now, to populate the read cache from the
+	// director-repo copy specifically -- the same copy Targets()/
+	// TargetFile()/TargetFiles() serve today via the director TUF client.
+	configPathsDestinations := make(map[string]client.Destination, len(directorTargets))
+	directorPathsDestinations := make(map[string]client.Destination, len(directorTargets))
 	targetPaths := make([]string, 0, len(directorTargets))
 	for targetPath := range directorTargets {
 		targetPaths = append(targetPaths, targetPath)
-		targetPathsDestinations[targetPath] = &bufferDestination{}
+		configPathsDestinations[targetPath] = &bufferDestination{}
+		directorPathsDestinations[targetPath] = &bufferDestination{}
 	}
 	configTargetMetas, err := c.configTUFClient.TargetBatch(targetPaths)
 	if err != nil {
@@ -476,14 +545,27 @@ func (c *Client) verifyUptane() error {
 		}
 	}
 	// Check that the files are valid in the context of the TUF repository (path in targets, hash matching)
-	err = c.configTUFClient.DownloadBatch(targetPathsDestinations)
+	err = c.configTUFClient.DownloadBatch(configPathsDestinations)
 	if err != nil {
 		return err
 	}
-	err = c.directorTUFClient.DownloadBatch(targetPathsDestinations)
+	err = c.directorTUFClient.DownloadBatch(directorPathsDestinations)
 	if err != nil {
 		return err
 	}
+
+	// Both repos' downloads succeeded and were cross-validated above:
+	// materialize the verified director-repo bytes into a fresh cache map
+	// (never mutate the existing cache in place -- callers under the same
+	// lock could be iterating it) and swap it in wholesale so subsequent
+	// reads within the verify cache window are map lookups instead of
+	// re-downloads.
+	cachedTargetFiles := make(map[string][]byte, len(directorPathsDestinations))
+	for targetPath, destination := range directorPathsDestinations {
+		cachedTargetFiles[targetPath] = destination.(*bufferDestination).Bytes()
+	}
+	c.cachedDirectorTargets = directorTargets
+	c.cachedTargetFiles = cachedTargetFiles
 	return nil
 }
 

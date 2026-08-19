@@ -84,6 +84,8 @@ func (c *clients) seen(pbClient *pbgo.Client) {
 
 // active checks whether a certain client is active
 func (c *clients) active(pbClient *pbgo.Client) bool {
+	c.m.Lock()
+	defer c.m.Unlock()
 	client, ok := c.clients[pbClient.Id]
 	if !ok {
 		return false

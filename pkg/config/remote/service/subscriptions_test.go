@@ -87,30 +87,17 @@ func TestSubscriptionGetsInitialUpdate(t *testing.T) {
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock,
 		withSubscriptionProductMappings(productMappingsWithApmTracingProducts))
-	uptaneClient.On("TUFVersionState").
-		Return(uptane.TUFVersions{
-			DirectorRoot:    1,
-			DirectorTargets: 1,
-		}, nil)
-	uptaneClient.On("DirectorRoot", uint64(1)).
-		Return([]byte("root1"), nil)
-	uptaneClient.On("Targets").
-		Return(files, nil)
-	uptaneClient.On("TargetsMeta").
-		Return([]byte("targets-meta"), nil)
-	mock.InOrder(
-		uptaneClient.On("TargetFiles", []string{apmConfigPath, apmCachedPath}).
-			Return(map[string][]byte{
-				apmCachedPath: []byte("cached"),
-				apmConfigPath: []byte("config"),
-			}, nil),
-		uptaneClient.On("TargetFiles", []string{apmConfigPath}).
-			Return(map[string][]byte{
-				apmConfigPath: []byte("config"),
-			}, nil),
-	)
-	uptaneClient.On("TimestampExpires").
-		Return(time.Now().Add(1*time.Hour), nil)
+	// The read path (ClientGetConfigs) reads exclusively from the published
+	// snapshot, never from the uptane client directly, so tests publish the
+	// exact snapshot they want served rather than mocking uptane calls that
+	// ClientGetConfigs no longer makes.
+	publishTestSnapshot(service, testSnapshot{
+		tufVersions:     uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: 1},
+		directorRoots:   map[uint64][]byte{1: []byte("root1")},
+		directorTargets: files,
+		targetFiles:     targetFileData,
+		targetsMetaRaw:  []byte("targets-meta"),
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -295,45 +282,15 @@ func TestSubscriptionGetsConfigRemovalUpdate(t *testing.T) {
 	})
 	emptyTargets := newTargetFiles(map[string][]byte{})
 
-	uptaneClient.On("TUFVersionState").
-		Return(uptane.TUFVersions{
-			DirectorRoot:    1,
-			DirectorTargets: 1,
-		}, nil).Once()
-	uptaneClient.On("TUFVersionState").
-		Return(uptane.TUFVersions{
-			DirectorRoot:    1,
-			DirectorTargets: 2,
-		}, nil).Once()
-
-	uptaneClient.On("TargetsMeta").
-		Return([]byte("targets-meta"), nil).
-		Twice()
-	uptaneClient.On("TimestampExpires").
-		Return(time.Now().Add(1*time.Hour), nil).
-		Twice()
-
-	mock.InOrder(
-		uptaneClient.On("Targets").
-			Return(initialTargets, nil).
-			Once(),
-		uptaneClient.On("Targets").
-			Return(emptyTargets, nil).
-			Once(),
-	)
-
-	mock.InOrder(
-		uptaneClient.
-			On("TargetFiles", []string{configPath}).
-			Return(map[string][]byte{
-				configPath: []byte("config"),
-			}, nil).
-			Once(),
-		uptaneClient.
-			On("TargetFiles", []string(nil)).
-			Return(map[string][]byte(nil), nil).
-			Once(),
-	)
+	// Publish the first generation's snapshot directly -- see
+	// publishTestSnapshot's doc comment for why these tests don't mock
+	// uptane and call refresh() instead.
+	publishTestSnapshot(service, testSnapshot{
+		tufVersions:     uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: 1},
+		directorTargets: initialTargets,
+		targetFiles:     map[string][]byte{configPath: []byte("config")},
+		targetsMetaRaw:  []byte("targets-meta"),
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -381,8 +338,14 @@ func TestSubscriptionGetsConfigRemovalUpdate(t *testing.T) {
 	require.ElementsMatch(t, firstUpdate.MatchedConfigs, []string{configPath})
 	require.ElementsMatch(t, fileNames(firstUpdate.TargetFiles), []string{configPath})
 
-	// Simulate the client updating to the latest targets version.
+	// Simulate the client updating to the latest targets version, and a
+	// second refresh generation in which the config was removed.
 	tracerClient.State.TargetsVersion = 1
+	publishTestSnapshot(service, testSnapshot{
+		tufVersions:     uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: 2},
+		directorTargets: emptyTargets,
+		targetsMetaRaw:  []byte("targets-meta"),
+	})
 
 	_, err = service.ClientGetConfigs(
 		context.Background(),
@@ -415,17 +378,11 @@ func TestSubscriptionReceivesCachedFilesWhenClientUpToDate(t *testing.T) {
 	}
 	files := newTargetFiles(targetFileData)
 
-	uptaneClient.On("TUFVersionState").
-		Return(uptane.TUFVersions{
-			DirectorRoot:    1,
-			DirectorTargets: 1,
-		}, nil)
-	uptaneClient.On("Targets").
-		Return(files, nil)
-	uptaneClient.On("TargetFiles", []string{configPath}).
-		Return(map[string][]byte{
-			configPath: []byte("config"),
-		}, nil)
+	publishTestSnapshot(service, testSnapshot{
+		tufVersions:     uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: 1},
+		directorTargets: files,
+		targetFiles:     targetFileData,
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -504,23 +461,12 @@ func TestSubscriptionNoUpdateDoesNotNotify(t *testing.T) {
 	}
 	files := newTargetFiles(targetFileData)
 
-	uptaneClient.On("TUFVersionState").
-		Return(uptane.TUFVersions{
-			DirectorRoot:    1,
-			DirectorTargets: 1,
-		}, nil).
-		Twice()
-	uptaneClient.On("Targets").
-		Return(files, nil).
-		Once()
-	uptaneClient.On("TargetsMeta").
-		Return([]byte("targets-meta"), nil).
-		Once()
-	uptaneClient.On("TargetFiles", []string{configPath}).
-		Return(map[string][]byte{
-			configPath: []byte("config"),
-		}, nil).
-		Once()
+	publishTestSnapshot(service, testSnapshot{
+		tufVersions:     uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: 1},
+		directorTargets: files,
+		targetFiles:     targetFileData,
+		targetsMetaRaw:  []byte("targets-meta"),
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -619,19 +565,13 @@ func TestSubscriptionCanTrackSameRuntimeIDWithDifferentProducts(t *testing.T) {
 		liveDebuggingPath: []byte("debugging"),
 	}
 	files := newTargetFiles(targetFileData)
-	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
-		DirectorRoot:    1,
-		DirectorTargets: 1,
-	}, nil)
-	uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte("root1"), nil)
-	uptaneClient.On("Targets").Return(files, nil)
-	uptaneClient.On("TargetsMeta").Return([]byte("targets-meta"), nil)
-	targetFiles := map[string][]byte{
-		apmPath:           []byte(targetFileData[apmPath]),
-		liveDebuggingPath: []byte(targetFileData[liveDebuggingPath]),
-	}
-	uptaneClient.On("TargetFiles", mock.Anything).Return(targetFiles, nil)
-	uptaneClient.On("TimestampExpires").Return(time.Now().Add(1*time.Hour), nil)
+	publishTestSnapshot(service, testSnapshot{
+		tufVersions:     uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: 1},
+		directorRoots:   map[uint64][]byte{1: []byte("root1")},
+		directorTargets: files,
+		targetFiles:     targetFileData,
+		targetsMetaRaw:  []byte("targets-meta"),
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -988,39 +928,24 @@ func TestSlowReceiver(t *testing.T) {
 	service := newTestService(t, api, uptaneClient, clock, func(o *options) {
 		o.maxSubscriptionQueueSize = 1
 	})
-	tufVersions := func(v int) uptane.TUFVersions {
-		return uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: uint64(v)}
+	// Publish a fresh generation directly before each ClientGetConfigs call
+	// below, mirroring what refresh() would publish for that generation --
+	// see publishTestSnapshot's doc comment for why these tests don't mock
+	// uptane and call refresh() instead. Unlike the old per-request selective
+	// uptane.TargetFiles() fetch, each generation's snapshot already holds
+	// every director target's content up front, so there's no equivalent of
+	// the old test's final "re-fetch everything" mock: the already-fetched
+	// snap.targetFiles covers it regardless of subscription seenAny state.
+	snapshotGen := func(v int, targets data.TargetFiles) {
+		publishTestSnapshot(service, testSnapshot{
+			tufVersions:     uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: uint64(v)},
+			directorRoots:   map[uint64][]byte{1: []byte("root1")},
+			directorTargets: targets,
+			targetFiles:     targetFileData,
+			targetsMetaRaw:  []byte("targets-meta"),
+		})
 	}
-	mock.InOrder(
-		uptaneClient.On("TUFVersionState").Return(tufVersions(1), nil).Once(),
-		uptaneClient.On("TUFVersionState").Return(tufVersions(2), nil).Once(),
-		uptaneClient.On("TUFVersionState").Return(tufVersions(3), nil).Once(),
-		uptaneClient.On("TUFVersionState").Return(tufVersions(4), nil).Twice(),
-	)
-	uptaneClient.On("DirectorRoot", uint64(1)).
-		Return([]byte("root1"), nil)
-	mock.InOrder(
-		uptaneClient.On("Targets").Return(files1, nil).Once(),
-		uptaneClient.On("Targets").Return(files2, nil).Once(),
-		uptaneClient.On("Targets").Return(files3, nil).Once(),
-		uptaneClient.On("Targets").Return(files4, nil).Twice(),
-	)
-	uptaneClient.On("TargetsMeta").
-		Return([]byte("targets-meta"), nil)
-	mock.InOrder(
-		uptaneClient.On("TargetFiles", []string{config1Path}).
-			Return(filesData(config1Path), nil),
-		uptaneClient.On("TargetFiles", []string{config2Path}).
-			Return(filesData(config2Path), nil),
-		uptaneClient.On("TargetFiles", []string{config3Path}).
-			Return(filesData(config3Path), nil),
-		uptaneClient.On("TargetFiles", []string{config4Path}).
-			Return(filesData(config4Path), nil),
-		uptaneClient.On("TargetFiles", []string{config1Path, config2Path, config3Path, config4Path}).
-			Return(filesData(config1Path, config2Path, config3Path, config4Path), nil),
-	)
-	uptaneClient.On("TimestampExpires").
-		Return(time.Now().Add(1*time.Hour), nil)
+	snapshotGen(1, files1)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1090,6 +1015,7 @@ func TestSlowReceiver(t *testing.T) {
 	}, 1*time.Second, 10*time.Millisecond)
 
 	// Client intentionally doesn't call Recv.
+	snapshotGen(2, files2)
 	resp2, err := client.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
 		Client: tracerClient,
 		CachedTargetFiles: []*pbgo.TargetFileMeta{
@@ -1103,12 +1029,13 @@ func TestSlowReceiver(t *testing.T) {
 	// is no longer in the pending queue (it would have been added before resp2
 	// was sent).
 	require.Eventually(t, func() bool {
-		service.mu.Lock()
-		defer service.mu.Unlock()
-		return len(service.mu.subscriptions.subs[1].pendingQueue) == 0
+		service.subscriptions.mu.RLock()
+		defer service.subscriptions.mu.RUnlock()
+		return len(service.subscriptions.subs[1].pendingQueue) == 0
 	}, 1*time.Second, 10*time.Millisecond)
 
 	tracerClient.State.TargetsVersion = 2
+	snapshotGen(3, files3)
 	resp3, err := client.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
 		Client: tracerClient,
 		CachedTargetFiles: []*pbgo.TargetFileMeta{
@@ -1120,6 +1047,7 @@ func TestSlowReceiver(t *testing.T) {
 	require.ElementsMatch(t, fileNames(resp3.TargetFiles), []string{config3Path})
 
 	tracerClient.State.TargetsVersion = 3
+	snapshotGen(4, files4)
 	resp4, err := client.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
 		Client: tracerClient,
 		CachedTargetFiles: []*pbgo.TargetFileMeta{
@@ -1211,6 +1139,57 @@ func newTargetFiles(tf map[string][]byte) data.TargetFiles {
 	return targets
 }
 
+// testSnapshot describes the fields of a readSnapshot that tests commonly
+// want to control explicitly; zero-valued fields get a sensible default (see
+// publishTestSnapshot) rather than nil, since ClientGetConfigs never expects
+// a nil map/slice out of the snapshot.
+type testSnapshot struct {
+	firstUpdate         bool
+	lastUpdateErr       error
+	tufVersions         uptane.TUFVersions
+	timestampExpires    time.Time
+	directorRoots       map[uint64][]byte
+	directorTargets     data.TargetFiles
+	targetFiles         map[string][]byte
+	targetsMetaRaw      []byte
+	flushTargetsMetaRaw []byte
+}
+
+// publishTestSnapshot builds a readSnapshot from ts and stores it directly on
+// service, bypassing refresh() and the uptane client entirely. Tests whose
+// subject is ClientGetConfigs' read-path behavior (subscription fan-out,
+// cache diffing, the expired-timestamp flush path, etc.) use this instead of
+// mocking every uptane call refresh() would otherwise make to build an
+// equivalent snapshot -- ClientGetConfigs itself never touches the uptane
+// client, so there is nothing gained by going through refresh() for these
+// tests, only boilerplate.
+func publishTestSnapshot(service *CoreAgentService, ts testSnapshot) {
+	if ts.directorRoots == nil {
+		ts.directorRoots = map[uint64][]byte{}
+	}
+	if ts.directorTargets == nil {
+		ts.directorTargets = data.TargetFiles{}
+	}
+	if ts.targetFiles == nil {
+		ts.targetFiles = map[string][]byte{}
+	}
+	if ts.timestampExpires.IsZero() {
+		ts.timestampExpires = time.Now().Add(time.Hour)
+	}
+	service.snapshot.Store(&readSnapshot{
+		generation:          service.snapshotGen.Add(1),
+		firstUpdate:         ts.firstUpdate,
+		lastUpdateErr:       ts.lastUpdateErr,
+		tufVersions:         ts.tufVersions,
+		timestampExpires:    ts.timestampExpires,
+		directorRoots:       ts.directorRoots,
+		directorTargets:     ts.directorTargets,
+		targetFiles:         ts.targetFiles,
+		targetsMetaRaw:      ts.targetsMetaRaw,
+		flushTargetsMetaRaw: ts.flushTargetsMetaRaw,
+	})
+}
+
 func withSubscriptionProductMappings(productsMappings productsMappings) Option {
 	return func(o *options) {
 		o.subscriptionProductMappings = productsMappings
@@ -1250,10 +1229,10 @@ func subscriptionIsRegistered(service *CoreAgentService, runtimeID string) bool 
 }
 
 func numSubscriptionsRegisteredForRuntimeID(service *CoreAgentService, runtimeID string) int {
-	service.mu.Lock()
-	defer service.mu.Unlock()
+	service.subscriptions.mu.RLock()
+	defer service.subscriptions.mu.RUnlock()
 	count := 0
-	for _, sub := range service.mu.subscriptions.subs {
+	for _, sub := range service.subscriptions.subs {
 		if _, ok := sub.trackedClients[runtimeID]; ok {
 			count++
 		}

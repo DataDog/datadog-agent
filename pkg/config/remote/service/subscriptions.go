@@ -6,7 +6,10 @@
 package service
 
 import (
+	"cmp"
+	"errors"
 	"slices"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -15,6 +18,14 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// errMaxSubscriptionsReached is returned by newSubscription when the maximum
+// number of concurrent subscriptions has already been reached.
+var errMaxSubscriptionsReached = errors.New("maximum number of subscriptions reached")
+
+// errMaxTrackedRuntimeIDsReached is returned by track when a subscription has
+// already reached the maximum number of tracked runtime IDs.
+var errMaxTrackedRuntimeIDsReached = errors.New("maximum number of runtime IDs per subscription reached")
 
 const (
 	// Maximum number of responses that can be queued per subscription.
@@ -56,7 +67,9 @@ type trackedClient struct {
 type subscriptionID int
 
 // subscription represents a single active config subscription stream.
-// All methods must be called while holding CoreAgentService.mu.
+// It has no locking of its own: all of its methods are internal helpers only
+// ever called from subscriptions methods, which take the subscriptions'
+// mutex before touching any subscription value.
 type subscription struct {
 	id subscriptionID
 
@@ -91,7 +104,7 @@ func newSubscription(id subscriptionID, maxQueueSize int) (*subscription, <-chan
 }
 
 // track adds a client to the subscription's tracked clients.
-// Must be called while holding CoreAgentService.mu.
+// Must be called while holding the owning subscriptions' mu.
 func (s *subscription) track(runtimeID string, products pbgo.ConfigSubscriptionProducts) {
 	s.trackedClients[runtimeID] = trackedClient{
 		seenAny:  false,
@@ -101,7 +114,7 @@ func (s *subscription) track(runtimeID string, products pbgo.ConfigSubscriptionP
 
 // untrack removes a client from the subscription's tracked clients and
 // removes any pending updates for that client from the queue.
-// Must be called while holding CoreAgentService.mu.
+// Must be called while holding the owning subscriptions' mu.
 func (s *subscription) untrack(runtimeID string) {
 	delete(s.trackedClients, runtimeID)
 
@@ -111,7 +124,7 @@ func (s *subscription) untrack(runtimeID string) {
 
 // removeFromQueue removes all responses for the given runtime_id from the
 // pending queue.
-// Must be called while holding CoreAgentService.mu.
+// Must be called while holding the owning subscriptions' mu.
 func (s *subscription) removeFromQueue(runtimeID string) {
 	s.pendingQueue = slices.DeleteFunc(s.pendingQueue, func(
 		response *pbgo.ConfigSubscriptionResponse,
@@ -128,6 +141,7 @@ var queueFullLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 // files. If the runtime_id is not tracked, this is a no-op.  If the queue is
 // full, the update, and all pending updates for this runtime_id will be
 // dropped. Subsequent polls for this runtime_id will resend all the files.
+// Must be called while holding the owning subscriptions' mu.
 func (s *subscription) enqueueUpdate(
 	client *pbgo.Client,
 	matchedConfigs []string,
@@ -182,8 +196,17 @@ func (s *subscription) enqueueUpdate(
 }
 
 // subscriptions manages all active config subscriptions.
-// All methods must be called while holding CoreAgentService.mu.
+//
+// It has its own internal locking (mu) independent of CoreAgentService.mu, so
+// that ClientGetConfigs's read path -- which calls interestedSubscriptions and
+// notify on every single poll -- never needs to take CoreAgentService.mu.
+// interestedSubscriptions takes a read lock, since it runs on every poll and
+// must not serialize concurrent pollers against each other; every method that
+// mutates subscription state (track, untrack, newSubscription, remove,
+// notify, popUpdate) takes the write lock.
 type subscriptions struct {
+	mu sync.RWMutex
+
 	idAlloc                  subscriptionID
 	subs                     map[subscriptionID]*subscription
 	productsMappings         productsMappings
@@ -204,28 +227,46 @@ func newSubscriptions(pm productsMappings, maxSubscriptionQueueSize int) *subscr
 	}
 }
 
-// add adds a subscription to the manager and returns it.
-// Must be called while holding CoreAgentService.mu.
-func (s *subscriptions) newSubscription() (
-	_ subscriptionID, updateSignal <-chan struct{},
+// newSubscription creates and registers a new subscription, returning its ID
+// and update channel. It returns errMaxSubscriptionsReached if the manager
+// already has maxConcurrent subscriptions registered. Safe for concurrent
+// use.
+func (s *subscriptions) newSubscription(maxConcurrent int) (
+	_ subscriptionID, updateSignal <-chan struct{}, err error,
 ) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.subs) >= maxConcurrent {
+		return 0, nil, errMaxSubscriptionsReached
+	}
 	s.idAlloc++
 	id := s.idAlloc
 	sub, updateSignal := newSubscription(id, s.maxSubscriptionQueueSize)
 	s.subs[id] = sub
-	return id, updateSignal
+	return id, updateSignal, nil
 }
 
-// remove removes a subscription from the manager.
-// Must be called while holding CoreAgentService.mu.
+// remove removes a subscription from the manager. Safe for concurrent use.
 func (s *subscriptions) remove(id subscriptionID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.subs, id)
+}
+
+// count returns the number of currently registered subscriptions. Safe for
+// concurrent use.
+func (s *subscriptions) count() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.subs)
 }
 
 // interestedSubscriptions returns the IDs of subscriptions tracking the given
 // runtime_id along with the set of products that still require a full payload
 // (i.e. the subscriptions have never seen this client and need all files for
-// those products). Must be called while holding CoreAgentService.mu.
+// those products). Safe for concurrent use; takes only a read lock since this
+// runs on every single ClientGetConfigs poll and must not serialize pollers
+// against each other.
 func (s *subscriptions) interestedSubscriptions(
 	client *pbgo.Client,
 ) (interestedSubs []subscriptionID, needCompleteProducts productSet) {
@@ -233,6 +274,9 @@ func (s *subscriptions) interestedSubscriptions(
 	if runtimeID == "" {
 		return nil, nil
 	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	var needProducts productSet
 	for subID, sub := range s.subs {
@@ -261,8 +305,9 @@ func (s *subscriptions) interestedSubscriptions(
 	return interestedSubs, needProducts
 }
 
+// notify enqueues updates for the subscriptions in toNotify that are tracking
 // client. Each subscription receives only the configs and files matching its
-// tracked products.
+// tracked products. Safe for concurrent use.
 func (s *subscriptions) notify(
 	toNotify []subscriptionID,
 	client *pbgo.Client,
@@ -273,6 +318,9 @@ func (s *subscriptions) notify(
 	if runtimeID == "" {
 		return
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	for _, id := range toNotify {
 		sub := s.subs[id]
@@ -304,10 +352,13 @@ func (s *subscriptions) notify(
 	}
 }
 
-// popUpdate pops one update from the subscription's queue.
+// popUpdate pops one update from the subscription's queue. Safe for
+// concurrent use.
 func (s *subscriptions) popUpdate(
 	id subscriptionID,
 ) *pbgo.ConfigSubscriptionResponse {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	sub := s.subs[id]
 	if sub == nil || len(sub.pendingQueue) == 0 {
 		return nil
@@ -321,6 +372,79 @@ func (s *subscriptions) popUpdate(
 		}
 	}
 	return nil
+}
+
+// track adds runtimeID to the tracked clients of subscription id, returning
+// the new total number of tracked clients across all subscriptions (for
+// telemetry). It returns errMaxTrackedRuntimeIDsReached if the subscription
+// has already reached maxTrackedPerSub tracked runtime IDs. If the
+// subscription no longer exists (e.g. concurrently removed), this is a no-op.
+// Safe for concurrent use.
+func (s *subscriptions) track(
+	id subscriptionID, runtimeID string, products pbgo.ConfigSubscriptionProducts, maxTrackedPerSub int,
+) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sub := s.subs[id]
+	if sub == nil {
+		return s.totalTrackedClientsLocked(), nil
+	}
+	if len(sub.trackedClients) >= maxTrackedPerSub {
+		return 0, errMaxTrackedRuntimeIDsReached
+	}
+	sub.track(runtimeID, products)
+	return s.totalTrackedClientsLocked(), nil
+}
+
+// untrack removes runtimeID from the tracked clients of subscription id,
+// returning the new total number of tracked clients across all subscriptions
+// (for telemetry). If the subscription no longer exists, this is a no-op.
+// Safe for concurrent use.
+func (s *subscriptions) untrack(id subscriptionID, runtimeID string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if sub := s.subs[id]; sub != nil {
+		sub.untrack(runtimeID)
+	}
+	return s.totalTrackedClientsLocked()
+}
+
+// totalTrackedClientsLocked returns the total number of tracked clients
+// across all subscriptions. Must be called while holding s.mu (read or
+// write).
+func (s *subscriptions) totalTrackedClientsLocked() int {
+	n := 0
+	for _, sub := range s.subs {
+		n += len(sub.trackedClients)
+	}
+	return n
+}
+
+// states returns a snapshot of the tracked-client state of every currently
+// registered subscription, for use by ConfigGetState. Safe for concurrent
+// use.
+func (s *subscriptions) states() []*pbgo.ConfigSubscriptionState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var states []*pbgo.ConfigSubscriptionState
+	for _, sub := range s.subs {
+		trackedClients := make([]*pbgo.ConfigSubscriptionState_TrackedClient, 0, len(sub.trackedClients))
+		for runtimeID, trackedClient := range sub.trackedClients {
+			trackedClients = append(trackedClients, &pbgo.ConfigSubscriptionState_TrackedClient{
+				RuntimeId: runtimeID,
+				SeenAny:   trackedClient.seenAny,
+				Products:  trackedClient.products,
+			})
+		}
+		slices.SortFunc(trackedClients, func(a, b *pbgo.ConfigSubscriptionState_TrackedClient) int {
+			return cmp.Compare(a.RuntimeId, b.RuntimeId)
+		})
+		states = append(states, &pbgo.ConfigSubscriptionState{
+			TrackedClients: trackedClients,
+		})
+	}
+	return states
 }
 
 // filtered returns a new slice containing only the items that satisfy the
