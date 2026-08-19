@@ -47,7 +47,8 @@ type rcClient struct {
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
-	listeners []types.RCListener
+	listeners       []types.RCListener
+	statusListeners []types.RCStatusListener
 	// Tasks are separated from the other products, because they must be executed once
 	taskListeners     []types.RCAgentTaskListener
 	settingsComponent settings.Component
@@ -67,7 +68,8 @@ type Dependencies struct {
 	Lc  compdef.Lifecycle
 
 	Params            rcclient.Params             `optional:"true"`
-	Listeners         []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
+	Listeners         []types.RCListener          `group:"rCListener"` // <-- Fill automatically by Fx
+	StatusListeners   []types.RCStatusListener    `group:"rCStatusListener"`
 	TaskListeners     []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 	SettingsComponent settings.Component
 	Config            configcomp.Component
@@ -86,6 +88,7 @@ func NewComponent(deps Dependencies) (rcclient.Component, error) {
 
 	rc := &rcClient{
 		listeners:         types.FilterListeners(deps.Listeners),
+		statusListeners:   types.FilterStatusListeners(deps.StatusListeners),
 		taskListeners:     types.FilterTaskListeners(deps.TaskListeners),
 		m:                 &sync.Mutex{},
 		settingsComponent: deps.SettingsComponent,
@@ -169,6 +172,9 @@ func (rc *rcClient) start() error {
 		for product, callback := range l {
 			rc.client.Subscribe(string(product), callback)
 		}
+	}
+	for _, l := range rc.statusListeners {
+		rc.client.SubscribeAll(string(l.Product), client.NewStatusListener(l.OnStatus, l.OnStateChange))
 	}
 
 	rc.client.Start()

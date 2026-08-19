@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["signingkeys.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/privateactionrunner/signingkeys/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/def",
+        "//comp/privateactionrunner/signingkeys/def",
+        "//comp/remote-config/rcclient/types",
+        "//pkg/config/remote/data",
+        "//pkg/privateactionrunner/signingkeys",
+        "//pkg/proto/pbgo/core",
+        "//pkg/remoteconfig/state",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["signingkeys_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//pkg/privateactionrunner/types",
+        "//pkg/proto/pbgo/core",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//require",
+    ],
+)

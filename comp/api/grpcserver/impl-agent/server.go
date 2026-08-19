@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
@@ -32,6 +33,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
+	parsigningkeys "github.com/DataDog/datadog-agent/comp/privateactionrunner/signingkeys/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -62,6 +64,7 @@ type serverSecure struct {
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
 	healthPlatformStore  healthplatformstore.Component
+	parSigningKeys       parsigningkeys.Component
 }
 
 // remoteAgentServer implements the dedicated RemoteAgent gRPC service, which owns the remote agent lifecycle
@@ -175,6 +178,34 @@ func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetCon
 		return nil, rcNotInitializedErr
 	}
 	return rcService.ClientGetConfigs(ctx, in)
+}
+
+func (s *serverSecure) GetPARSigningKeys(_ context.Context, in *pb.GetPARSigningKeysRequest) (*pb.GetPARSigningKeysResponse, error) {
+	snapshot, err := s.parSigningKeys.Get(in.GetKnownRevision())
+	if err != nil {
+		return nil, status.Error(codes.Unavailable, err.Error())
+	}
+
+	response := &pb.GetPARSigningKeysResponse{
+		Revision:     snapshot.Revision,
+		Initialized:  snapshot.Initialized,
+		ConfigStatus: snapshot.ConfigStatus,
+		Unchanged:    snapshot.Unchanged,
+	}
+	if !snapshot.UpdatedAt.IsZero() {
+		response.UpdatedAt = timestamppb.New(snapshot.UpdatedAt)
+	}
+	if !snapshot.Unchanged {
+		response.Keys = make([]*pb.PARSigningKey, 0, len(snapshot.Keys))
+		for _, key := range snapshot.Keys {
+			response.Keys = append(response.Keys, &pb.PARSigningKey{
+				Id:      key.ID,
+				KeyType: string(key.KeyType),
+				Key:     key.Key,
+			})
+		}
+	}
+	return response, nil
 }
 
 func (s *serverSecure) GetConfigState(_ context.Context, _ *emptypb.Empty) (*pb.GetStateConfigResponse, error) {

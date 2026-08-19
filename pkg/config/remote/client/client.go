@@ -85,6 +85,11 @@ type Listener interface {
 	// connection is made, after which subsequent failures will trigger OnStateChange(false).
 	OnStateChange(bool)
 
+	// OnStatus is called after every successful poll with the complete current
+	// snapshot for the product and the authoritative TUF status returned by the
+	// Core Agent. Unlike OnUpdate, it is called even when no configuration changed.
+	OnStatus(map[string]state.RawConfig, pbgo.ConfigStatus, func(cfgPath string, status state.ApplyStatus))
+
 	// ShouldIgnoreSignatureExpiration determines whether this listener should continue to receive
 	// configuration updates even when TUF (The Update Framework) signature verification fails
 	// due to expired signatures.
@@ -525,21 +530,17 @@ func (c *Client) update() error {
 	if err != nil {
 		return err
 	}
-	// We don't want to force the products to reload config if nothing changed
-	// in the latest update.
-	if len(changedProducts) == 0 {
-		return nil
-	}
 
 	c.m.Lock()
 	defer c.m.Unlock()
 	for product, productListeners := range c.listeners {
-		if containsProduct(changedProducts, product) {
-			for _, listener := range productListeners {
-				if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
-					!listener.ShouldIgnoreSignatureExpiration() {
-					listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
-				}
+		configs := c.state.GetConfigs(product)
+		for _, listener := range productListeners {
+			listener.OnStatus(configs, response.ConfigStatus, c.state.UpdateApplyStatus)
+			if containsProduct(changedProducts, product) &&
+				(response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
+					!listener.ShouldIgnoreSignatureExpiration()) {
+				listener.OnUpdate(configs, c.state.UpdateApplyStatus)
 			}
 		}
 	}
@@ -657,6 +658,7 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 type listener struct {
 	onUpdate               func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
 	onStateChange          func(bool)
+	onStatus               func(map[string]state.RawConfig, pbgo.ConfigStatus, func(cfgPath string, status state.ApplyStatus))
 	shouldIgnoreExpiration bool
 }
 
@@ -669,6 +671,12 @@ func (l *listener) OnUpdate(configs map[string]state.RawConfig, cb func(cfgPath 
 func (l *listener) OnStateChange(state bool) {
 	if l.onStateChange != nil {
 		l.onStateChange(state)
+	}
+}
+
+func (l *listener) OnStatus(configs map[string]state.RawConfig, configStatus pbgo.ConfigStatus, cb func(string, state.ApplyStatus)) {
+	if l.onStatus != nil {
+		l.onStatus(configs, configStatus, cb)
 	}
 }
 
@@ -689,6 +697,12 @@ func NewUpdateListenerIgnoreExpiration(onUpdate func(updates map[string]state.Ra
 // NewListener creates a remote config listener from a couple of update and state change callbacks
 func NewListener(onUpdate func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)), onStateChange func(bool)) Listener {
 	return &listener{onUpdate: onUpdate, onStateChange: onStateChange}
+}
+
+// NewStatusListener creates a listener that receives the complete product
+// snapshot and authoritative status after every successful poll.
+func NewStatusListener(onStatus func(map[string]state.RawConfig, pbgo.ConfigStatus, func(string, state.ApplyStatus)), onStateChange func(bool)) Listener {
+	return &listener{onStatus: onStatus, onStateChange: onStateChange}
 }
 
 var (

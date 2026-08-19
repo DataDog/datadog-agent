@@ -37,6 +37,7 @@ go_library(
         "//comp/dogstatsd/server/def",
         "//comp/healthplatform/store/def",
         "//comp/metadata/host/impl/hosttags",
+        "//comp/privateactionrunner/signingkeys/def",
         "//comp/remote-config/rcservice/def",
         "//comp/remote-config/rcservicemrf/def",
         "//pkg/proto/pbgo/core",
@@ -50,6 +51,7 @@ go_library(
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/emptypb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
     ],
 )
 
@@ -58,6 +60,7 @@ dd_agent_go_test(
     srcs = [
         "health_platform_test.go",
         "interceptors_test.go",
+        "par_signing_keys_test.go",
         "server_test.go",
     ],
     embed = [":impl-agent"],
@@ -67,6 +70,9 @@ dd_agent_go_test(
         "//comp/core/telemetry/mock",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/mock",
+        "//comp/privateactionrunner/signingkeys/def",
+        "//pkg/privateactionrunner/signingkeys",
+        "//pkg/privateactionrunner/types",
         "//pkg/proto/pbgo/core",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
