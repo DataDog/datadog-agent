@@ -1729,7 +1729,8 @@ properties:
             default: false
             description: Enables baseline Network Path Dynamic Tests for a representative subset of
               eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and
-              system-probe traceroute.
+              system-probe traceroute. Standard connection-monitoring Dynamic Tests take precedence
+              when both options are enabled.
       collector:
         node_type: section
         type: object
