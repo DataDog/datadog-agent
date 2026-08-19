@@ -67,9 +67,18 @@ pub(crate) struct ProcessWaitControl {
 #[cfg(windows)]
 impl ProcessWaitControl {
     fn new(process_handle: HANDLE) -> Result<Arc<Self>> {
+        let wait_handle = match duplicate_process_handle(process_handle) {
+            Ok(handle) => handle,
+            Err(e) => {
+                unsafe {
+                    CloseHandle(process_handle);
+                }
+                return Err(e);
+            }
+        };
         Ok(Arc::new(Self {
             wait_handle: OwnedProcessHandle {
-                handle: duplicate_process_handle(process_handle)?,
+                handle: wait_handle,
             },
             cancelled: AtomicBool::new(false),
         }))
@@ -126,8 +135,13 @@ impl ProcessHandle {
         Self { child }
     }
 
+    /// Build supervision handles from a borrowed process handle.
+    ///
+    /// Duplicates `source` for kill and wait paths; the caller keeps ownership of
+    /// `source` and must close it separately.
     #[cfg(windows)]
-    pub fn from_raw(pid: u32, process_handle: HANDLE) -> Result<Self> {
+    pub fn from_borrowed(pid: u32, source: HANDLE) -> Result<Self> {
+        let process_handle = duplicate_process_handle(source)?;
         let wait_control = ProcessWaitControl::new(process_handle)?;
         Ok(Self {
             pid,

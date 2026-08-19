@@ -45,8 +45,18 @@ impl SuspendedChild {
             bail!("[{process_name}] failed to assign pid {pid} to supervision job: {e:#}");
         }
 
+        let proc_handle = match ProcessHandle::from_borrowed(pid, self.process.as_handle()) {
+            Ok(handle) => handle,
+            Err(e) => {
+                self.abort_before_supervision(&process_name, Some(&job));
+                process.clear_windows_spawn_resources();
+                return Err(e);
+            }
+        };
+
         let previous_count = unsafe { ResumeThread(self.thread.as_handle()) };
         if previous_count == u32::MAX {
+            drop(proc_handle);
             self.abort_before_supervision(&process_name, Some(&job));
             process.clear_windows_spawn_resources();
             bail!(
@@ -56,7 +66,7 @@ impl SuspendedChild {
         }
 
         process.set_job_object(job);
-        ProcessHandle::from_raw(self.pid, self.process.raw())
+        Ok(proc_handle)
     }
 
     fn abort_before_supervision(self, process_name: &str, job: Option<&JobObject>) {
