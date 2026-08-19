@@ -58,28 +58,26 @@ func assertConfigV2(t *testing.T, v2Dir string) {
 	_, err = os.Lstat(filepath.Join(managedDir, "v2", "conf.d", "mycheck.d", "config.yaml"))
 	assert.NoError(t, err)
 
-	_, err = os.Lstat(filepath.Join(managedDir, "stable"))
-	assert.NoError(t, err)
-	stableInfo, err := os.Lstat(filepath.Join(managedDir, "stable"))
-	assert.NoError(t, err)
-	assert.True(t, stableInfo.Mode()&os.ModeSymlink != 0, "stable should remain a symlink in v2 layout")
-	stableTarget, err := os.Readlink(filepath.Join(managedDir, "stable"))
-	assert.NoError(t, err)
-	assert.Equal(t, filepath.Join(managedDir, "v2"), stableTarget)
-
-	_, err = os.Lstat(filepath.Join(managedDir, "experiment"))
-	assert.NoError(t, err)
-	experimentInfo, err := os.Lstat(filepath.Join(managedDir, "experiment"))
-	assert.NoError(t, err)
-	assert.True(t, experimentInfo.Mode()&os.ModeSymlink != 0, "experiment should remain a symlink in v2 layout")
-	experimentTarget, err := os.Readlink(filepath.Join(managedDir, "experiment"))
-	assert.NoError(t, err)
-	assert.Equal(t, filepath.Join(managedDir, "v2"), experimentTarget)
+	stableTarget := assertLegacyManagedV2Symlink(t, filepath.Join(managedDir, "stable"))
+	experimentTarget := assertLegacyManagedV2Symlink(t, filepath.Join(managedDir, "experiment"))
+	assert.Equal(t, stableTarget, experimentTarget)
 
 	// v2Dir/conf.d/mychecks.d/config.yaml does not exists
 	_, err = os.Lstat(filepath.Join(v2Dir, "conf.d", "mycheck.d", "config.yaml"))
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
+}
+
+func assertLegacyManagedV2Symlink(t *testing.T, linkPath string) string {
+	t.Helper()
+	info, err := os.Lstat(linkPath)
+	require.NoError(t, err)
+	require.True(t, info.Mode()&os.ModeSymlink != 0, "%s should be a symlink", linkPath)
+
+	target, err := os.Readlink(linkPath)
+	require.NoError(t, err)
+	assert.Equal(t, "v2", filepath.Base(target), "legacy symlink %s should point at a v2 directory", linkPath)
+	return target
 }
 
 func assertConfigV3(t *testing.T, v3Dir string) {
@@ -119,6 +117,26 @@ func assertDeploymentID(t *testing.T, dirs *Directories, stableDeploymentID stri
 	assert.NoError(t, err)
 	assert.Equal(t, stableDeploymentID, state.StableDeploymentID)
 	assert.Equal(t, experimentDeploymentID, state.ExperimentDeploymentID)
+}
+
+func TestAssertConfigV2AcceptsCopiedAbsoluteLegacyLinks(t *testing.T) {
+	originalDir := t.TempDir()
+	writeConfigV2(t, originalDir)
+	assertConfigV2(t, originalDir)
+
+	backupDir := t.TempDir()
+	originalManagedDir := filepath.Join(originalDir, "managed", "datadog-agent")
+	backupManagedDir := filepath.Join(backupDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(backupManagedDir, "v2", "conf.d", "mycheck.d"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(backupManagedDir, "v2", "datadog.yaml"), []byte("log_level: debug\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(backupManagedDir, "v2", "application_monitoring.yaml"), []byte("enabled: true\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(backupManagedDir, "v2", "conf.d", "mycheck.d", "config.yaml"), []byte("foo: bar\n"), 0644))
+
+	originalV2 := filepath.Join(originalManagedDir, "v2")
+	require.NoError(t, os.Symlink(originalV2, filepath.Join(backupManagedDir, "stable")))
+	require.NoError(t, os.Symlink(originalV2, filepath.Join(backupManagedDir, "experiment")))
+
+	assertConfigV2(t, backupDir)
 }
 
 func TestConfigV2ToV3(t *testing.T) {
