@@ -333,7 +333,7 @@ def _collect_test2json(fragments: list[Path], output_path: str) -> None:
     """
     if not fragments:
         print(
-            "error: no test2json fragments in BEP output; was the test invocation run with --config=ci-test2json?",
+            "error: no test2json fragments in BEP output; was the test invocation run with --config=test2json?",
             file=sys.stderr,
         )
         sys.exit(1)

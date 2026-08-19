@@ -22,8 +22,8 @@ test:dd-agent-go-tests-only --test_tag_filters=dd_agent_go_test,-requires_ebpf
 coverage:go --@rules_go//go/config:cover_format=go_cover
 coverage:go --coverage_report_generator=//bazel/tools/coverage:coverage
 
-# In-graph test2json conversion during bazel test/coverage (bazel/tools/test_log_aspect.bzl).
-test:ci-test2json --aspects=//bazel/tools:test_log_aspect.bzl%test_log_to_json
-test:ci-test2json --output_groups=+test2json
-coverage:ci-test2json --aspects=//bazel/tools:test_log_aspect.bzl%test_log_to_json
-coverage:ci-test2json --output_groups=+test2json
+# Converts each test.log to test2json in-graph (bazel/tools/test_log_aspect.bzl),
+# for tasks/bazel.py to merge afterwards. `coverage` inherits `test` options, so
+# this covers both commands. Usage: bazel test --config=test2json //...
+test:test2json --aspects=//bazel/tools:test_log_aspect.bzl%test_log_to_json
+test:test2json --output_groups=+test2json
