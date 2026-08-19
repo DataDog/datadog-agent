@@ -81,13 +81,30 @@ func WaitForProgramsToBeTraced(t *testing.T, moduleName, programType string, pid
 	// Get attacher for the program type
 	attacher, ok := debugger.attachers[moduleName][programType]
 	require.True(t, ok, "attacher for %v not found", programType)
-	// Try to attach the PID. Any error other than ErrPathIsAlreadyRegistered is a failure.
-	if err := attacher.AttachPID(uint32(pid)); err != ErrPathIsAlreadyRegistered {
-		require.NoError(t, err)
+
+	// Retry attaching the PID until it is traced or we time out. A single
+	// AttachPID call can race with the target process mapping its shared library
+	// (e.g. libssl) under load and run before the library is present; the
+	// original code attached once and then only polled IsProgramTraced, so that
+	// race was never recovered from. Retry the attach on every iteration
+	// instead. Any error other than ErrPathIsAlreadyRegistered is retried and
+	// surfaced only if we ultimately fail to trace the process. The loop runs on
+	// the test goroutine so require.* assertions are safe.
+	attachDeadline := time.Now().Add(time.Second * 5)
+	var lastErr error
+	for {
+		if err := attacher.AttachPID(uint32(pid)); err != nil && err != ErrPathIsAlreadyRegistered {
+			lastErr = err
+		} else if IsProgramTraced(moduleName, programType, pid) {
+			return
+		}
+		if !time.Now().Before(attachDeadline) {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
 	}
-	require.Eventuallyf(t, func() bool {
-		return IsProgramTraced(moduleName, programType, pid)
-	}, time.Second*5, time.Millisecond*100, "process %v is not traced by %v", pid, programType)
+	require.NoError(t, lastErr, "process %v is not traced by %v", pid, programType)
+	require.Failf(t, "process not traced", "process %v is not traced by %v", pid, programType)
 }
 
 // WaitForPathToBeBlocked waits for the path to be blocked from tracing in the

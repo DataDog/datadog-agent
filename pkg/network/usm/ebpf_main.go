@@ -443,6 +443,12 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.BypassEnabled = e.cfg.BypassEnabled
 
+	// The protocols' ConfigureOptions calls below append fresh perf maps / ring
+	// buffers to the manager on every attempt. Record their counts beforehand so
+	// a failed load attempt can drop the ones it added (see resetManagerLoadState).
+	numPerfMaps := len(e.PerfMaps)
+	numRingBuffers := len(e.RingBuffers)
+
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
 	options.TailCallRouter = e.tailCallRouter
@@ -514,6 +520,12 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	err := e.InitWithOptions(buf, &options)
 	if err != nil {
+		// A failed load attempt leaves the manager's maps flagged as
+		// initialized and its perf maps / ring buffers appended. Roll that back
+		// before cleanup() so it does not leak into the next fallback attempt
+		// (CO-RE -> runtime-compiled -> prebuilt) or into subsequent monitor
+		// instances (see resetManagerLoadState).
+		e.resetManagerLoadState(numPerfMaps, numRingBuffers)
 		cleanup()
 	} else {
 		// Update the protocols lists to reflect the ones we actually enabled
@@ -522,6 +534,35 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return err
+}
+
+// resetManagerLoadState reverts the manager's collection back to the state it
+// was in before a failed load attempt.
+//
+// Many of the maps attached to the manager come from shared, package-level
+// protocol specs (see knownProtocols, e.g. http.Spec). A failed
+// InitWithOptions leaves those maps flagged as initialized and appends the
+// protocols' perf maps / ring buffers to the manager. Because the specs are
+// shared, that state would otherwise persist into the next load attempt and
+// even into later monitor instances, producing misleading "map already
+// initialized" and "map name already taken" errors that mask the real load
+// failure.
+func (e *ebpfProgram) resetManagerLoadState(numPerfMaps, numRingBuffers int) {
+	// Reset the initialization state of every map so a subsequent attempt can
+	// initialize them again. Close is a safe no-op for maps that were never
+	// initialized, and a map is only ever flagged initialized after its
+	// underlying array has been loaded.
+	for _, m := range e.Maps {
+		_ = m.Close(manager.CleanInternal)
+	}
+
+	// Perf maps and ring buffers are (re)created and appended on every attempt
+	// by the protocols' ConfigureOptions; drop the ones this attempt added so
+	// they don't accumulate and trip the manager's duplicate-name sanity check.
+	// They are never started before InitWithOptions returns, so there is
+	// nothing to stop.
+	e.PerfMaps = e.PerfMaps[:numPerfMaps]
+	e.RingBuffers = e.RingBuffers[:numRingBuffers]
 }
 
 func getAssetName(module string, debug bool) string {
