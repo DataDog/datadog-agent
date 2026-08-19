@@ -7,7 +7,6 @@ package checks
 
 import (
 	"fmt"
-	"iter"
 	"net/http"
 	"net/netip"
 	"sort"
@@ -220,11 +219,7 @@ func (c *ConnectionsCheck) Cleanup() {
 }
 
 func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
-	c.npCollector.ScheduleNetworkPathTests(networkPathConnections(conns))
-}
-
-func networkPathConnections(conns *model.Connections) iter.Seq[npmodel.NetworkPathConnection] {
-	return func(yield func(npmodel.NetworkPathConnection) bool) {
+	c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		for _, conn := range conns.Conns {
 			srcIP, err := netip.ParseAddr(conn.Laddr.GetIp())
 			if err != nil {
@@ -262,7 +257,7 @@ func networkPathConnections(conns *model.Connections) iter.Seq[npmodel.NetworkPa
 				return
 			}
 		}
-	}
+	})
 }
 
 func getDNSNameForIP(conns *model.Connections, ip string) string {
