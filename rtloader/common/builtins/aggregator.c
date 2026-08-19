@@ -96,10 +96,16 @@ void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb)
     be subsequently freed by the caller. This function may set and raise python
     interpreter errors. The function is static and not in the builtin's API.
 */
-static char **py_tag_to_c(PyObject *py_tags)
+// py_tag_to_c converts a Python sequence of tag strings into a NULL-terminated
+// char** array. The strings are borrowed directly from the Python objects and
+// carry no allocation cost. To keep those Python objects alive past the
+// function return, *py_tags_list_out is set to the (INCREF'd) sequence; the
+// caller must Py_XDECREF it *after* the callback has finished reading the tags.
+// On error *py_tags_list_out is NULL and the function returns NULL.
+static char **py_tag_to_c(PyObject *py_tags, PyObject **py_tags_list_out)
 {
     char **tags = NULL;
-    PyObject *py_tags_list = NULL; // new reference
+    *py_tags_list_out = NULL;
 
     if (!PySequence_Check(py_tags)) {
         PyErr_SetString(PyExc_TypeError, "tags must be a sequence");
@@ -119,32 +125,45 @@ static char **py_tag_to_c(PyObject *py_tags)
         return tags;
     }
 
-    py_tags_list = PySequence_Fast(py_tags, "py_tags is not a sequence"); // new reference
+    // PySequence_Fast returns py_tags itself (with INCREF) for lists and tuples,
+    // or a newly-materialized PyList for other sequence types. Either way the
+    // returned object keeps all items alive for as long as we hold the reference.
+    PyObject *py_tags_list = PySequence_Fast(py_tags, "py_tags is not a sequence");
     if (py_tags_list == NULL) {
-        goto done;
+        return NULL;
     }
 
     if (!(tags = _malloc(sizeof(*tags) * (len + 1)))) {
         PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for tags");
-        goto done;
+        Py_DECREF(py_tags_list);
+        return NULL;
     }
-    int nb_valid_tag = 0;
-    int i;
-    for (i = 0; i < len; i++) {
-        // `item` is borrowed, no need to decref
-        PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
 
-        char *ctag = as_string(item);
-        if (ctag == NULL) {
+    int nb_valid_tag = 0;
+    for (int i = 0; i < len; i++) {
+        PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i); // borrowed
+        const char *ctag;
+        if (PyUnicode_Check(item)) {
+            // PyUnicode_AsUTF8 returns a pointer into CPython's internal UTF-8
+            // cache, valid for the lifetime of item (and therefore of py_tags_list).
+            ctag = PyUnicode_AsUTF8(item);
+            if (ctag == NULL) {
+                PyErr_Clear();
+                continue;
+            }
+        } else if (PyBytes_Check(item)) {
+            ctag = PyBytes_AS_STRING(item); // points into the bytes internal buffer
+        } else {
             continue;
         }
-        tags[nb_valid_tag] = ctag;
-        nb_valid_tag++;
+        tags[nb_valid_tag++] = (char *)ctag;
     }
     tags[nb_valid_tag] = NULL;
 
-done:
-    Py_XDECREF(py_tags_list);
+    // Hand py_tags_list to the caller. It must Py_XDECREF this only after the
+    // callback has consumed the tags array, so the borrowed string pointers
+    // remain valid throughout the callback.
+    *py_tags_list_out = py_tags_list;
     return tags;
 }
 
@@ -157,10 +176,8 @@ done:
 */
 static void free_tags(char **tags)
 {
-    int i;
-    for (i = 0; tags[i] != NULL; i++) {
-        _free(tags[i]);
-    }
+    // Only the pointer array is heap-owned. The strings it points to are borrowed
+    // from Python Unicode/bytes objects and must not be freed here.
     _free(tags);
 }
 
@@ -184,6 +201,7 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
 
     PyObject *check = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
+    PyObject *py_tags_list = NULL;
     char *name = NULL;
     char *hostname = NULL;
     char *check_id = NULL;
@@ -197,12 +215,13 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
         goto error;
     }
 
-    if ((tags = py_tag_to_c(py_tags)) == NULL)
+    if ((tags = py_tag_to_c(py_tags, &py_tags_list)) == NULL)
         goto error;
 
     cb_submit_metric(check_id, mt, name, value, tags, hostname, flush_first_value);
 
     free_tags(tags);
+    Py_XDECREF(py_tags_list);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
@@ -233,6 +252,7 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args)
 
     PyObject *check = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
+    PyObject *py_tags_list = NULL;
     char *name = NULL;
     int status;
     char *hostname = NULL;
@@ -245,12 +265,13 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args)
         goto error;
     }
 
-    if ((tags = py_tag_to_c(py_tags)) == NULL)
+    if ((tags = py_tag_to_c(py_tags, &py_tags_list)) == NULL)
         goto error;
 
     cb_submit_service_check(check_id, name, status, tags, hostname, message);
 
     free_tags(tags);
+    Py_XDECREF(py_tags_list);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
@@ -281,6 +302,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     PyObject *check = NULL; // borrowed
     PyObject *event_dict = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
+    PyObject *py_tags_list = NULL;
     char *check_id = NULL;
     event_t *ev = NULL;
     PyObject * retval = NULL;
@@ -330,7 +352,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     // process the list of tags, set ev->tags = NULL if tags are missing
     py_tags = PyDict_GetItemString(event_dict, "tags");
     if (py_tags != NULL) {
-        ev->tags = py_tag_to_c(py_tags);
+        ev->tags = py_tag_to_c(py_tags, &py_tags_list);
         if (ev->tags == NULL) {
             // we need to return NULL to raise the exception set by PyErr_SetString in py_tag_to_c
             retval = NULL;
@@ -348,6 +370,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     retval = Py_None;
 
 ev_cleanup:
+    Py_XDECREF(py_tags_list);
     if (ev->tags != NULL) {
         free_tags(ev->tags);
     }
@@ -377,6 +400,7 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
 
     PyObject *check = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
+    PyObject *py_tags_list = NULL;
     char *check_id = NULL;
     char *name = NULL;
     long long value;
@@ -392,12 +416,13 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
         goto error;
     }
 
-    if ((tags = py_tag_to_c(py_tags)) == NULL)
+    if ((tags = py_tag_to_c(py_tags, &py_tags_list)) == NULL)
         goto error;
 
     cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
 
     free_tags(tags);
+    Py_XDECREF(py_tags_list);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
