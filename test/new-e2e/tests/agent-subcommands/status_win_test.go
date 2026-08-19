@@ -7,6 +7,7 @@ package agentsubcommands
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 type windowsStatusSuite struct {
@@ -70,5 +72,14 @@ func (v *windowsStatusSuite) TestChecksMetadataWindows() {
 }
 
 func (v *windowsStatusSuite) TestDefaultInstallStatus() {
+	installerStatus, err := v.Env().RemoteHost.Execute("(Get-Service -Name 'Datadog Installer' -ErrorAction SilentlyContinue).Status")
+	v.Require().NoError(err)
+	if strings.EqualFold(strings.TrimSpace(installerStatus), "Running") {
+		v.Require().NoError(windowsCommon.StopService(v.Env().RemoteHost, "Datadog Installer"))
+		defer func() {
+			v.Require().NoError(windowsCommon.StartService(v.Env().RemoteHost, "Datadog Installer"))
+		}()
+	}
+
 	v.testDefaultInstallStatus(nil, []string{"Status: Not running or unreachable"}, false)
 }

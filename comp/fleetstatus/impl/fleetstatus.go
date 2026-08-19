@@ -9,16 +9,18 @@ package fleetstatusimpl
 import (
 	"embed"
 	"io"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	daemonchecker "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/def"
+	localapiclient "github.com/DataDog/datadog-agent/comp/updater/localapiclient/def"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // Requires defines the dependencies for the fleetstatus component
 type Requires struct {
-	Config        config.Component
-	DaemonChecker daemonchecker.Component
+	Config             config.Component
+	InstallerAPIClient localapiclient.StatusClient
 }
 
 // Provides defines the output of the fleetstatus component
@@ -27,15 +29,28 @@ type Provides struct {
 }
 
 type statusProvider struct {
-	Config        config.Component
-	DaemonChecker daemonchecker.Component
+	Config             config.Component
+	InstallerAPIClient localapiclient.StatusClient
+}
+
+type fleetAutomationStatus struct {
+	RemoteManagementEnabled bool            `json:"remoteManagementEnabled"`
+	InstallerRunning        bool            `json:"installerRunning"`
+	FleetAutomationEnabled  bool            `json:"fleetAutomationEnabled"`
+	InstallerStatus         installerStatus `json:"installerStatus"`
+}
+
+type installerStatus struct {
+	Reachable bool                 `json:"reachable"`
+	Packages  []*pbgo.PackageState `json:"packages"`
+	Error     string               `json:"error,omitempty"`
 }
 
 // NewComponent creates a new fleetstatus component
 func NewComponent(reqs Requires) Provides {
 	sp := &statusProvider{
-		Config:        reqs.Config,
-		DaemonChecker: reqs.DaemonChecker,
+		Config:             reqs.Config,
+		InstallerAPIClient: reqs.InstallerAPIClient,
 	}
 
 	return Provides{
@@ -46,11 +61,10 @@ func NewComponent(reqs Requires) Provides {
 //go:embed status_templates
 var templatesFS embed.FS
 
-func (sp statusProvider) getStatusInfo(html bool) map[string]interface{} {
+func (sp statusProvider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
 	sp.populateStatus(stats)
-	stats["HTML"] = html
 
 	return stats
 }
@@ -74,25 +88,34 @@ func (sp statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (sp statusProvider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "fleetstatus.tmpl", buffer, sp.getStatusInfo(false))
+	return status.RenderText(templatesFS, "fleetstatus.tmpl", buffer, sp.getStatusInfo())
 }
 
 // HTML renders the html output
 func (sp statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "fleetstatus.tmpl", buffer, sp.getStatusInfo(true))
+	return status.RenderHTML(templatesFS, "fleetstatusHTML.tmpl", buffer, sp.getStatusInfo())
 }
 
 func (sp statusProvider) populateStatus(stats map[string]interface{}) {
-	status := make(map[string]interface{})
-
 	remoteManagementEnabled := isRemoteManagementEnabled(sp.Config)
-	isInstallerRunning := false
-	isInstallerRunning, _ = sp.DaemonChecker.IsRunning()
+	installer := installerStatus{Packages: make([]*pbgo.PackageState, 0)}
+	response, err := sp.InstallerAPIClient.Status()
+	if err != nil {
+		installer.Error = err.Error()
+	} else {
+		installer.Reachable = true
+		installer.Packages = append(installer.Packages, response.RemoteConfigState...)
+		sort.Slice(installer.Packages, func(i, j int) bool {
+			return installer.Packages[i].GetPackage() < installer.Packages[j].GetPackage()
+		})
+	}
 
-	status["remoteManagementEnabled"] = remoteManagementEnabled
-	status["installerRunning"] = isInstallerRunning
-	status["fleetAutomationEnabled"] = remoteManagementEnabled && isInstallerRunning
-	stats["fleetAutomationStatus"] = status
+	stats["fleetAutomationStatus"] = fleetAutomationStatus{
+		RemoteManagementEnabled: remoteManagementEnabled,
+		InstallerRunning:        installer.Reachable,
+		FleetAutomationEnabled:  remoteManagementEnabled && installer.Reachable,
+		InstallerStatus:         installer,
+	}
 }
 
 func isRemoteManagementEnabled(conf config.Component) bool {

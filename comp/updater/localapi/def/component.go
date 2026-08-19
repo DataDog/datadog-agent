@@ -7,12 +7,35 @@
 package localapi
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
+	"context"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // team: fleet windows-products
 
 // Component is the interface for the updater local api component.
 type Component interface {
-	daemon.LocalAPI
+	Start(context.Context) error
+	Stop(context.Context) error
+}
+
+// StatusEndpoint is the local API route that reports installer state.
+const StatusEndpoint = "/status"
+
+// StatusResponse is the response to the status endpoint.
+type StatusResponse struct {
+	APIResponse
+	RemoteConfigState []*pbgo.PackageState `json:"remote_config_state"`
+	SecretsPubKey     string               `json:"secrets_pub_key"`
+}
+
+// APIResponse is the response to a local API request.
+type APIResponse struct {
+	Error *APIError `json:"error,omitempty"`
+}
+
+// APIError is an error returned by the local API.
+type APIError struct {
+	Message string `json:"message"`
 }

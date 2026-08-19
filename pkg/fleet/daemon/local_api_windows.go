@@ -8,12 +8,11 @@
 package daemon
 
 import (
-	"context"
-	"net"
 	"net/http"
 
 	"github.com/Microsoft/go-winio"
 
+	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
@@ -22,7 +21,7 @@ const (
 )
 
 // NewLocalAPI returns a new LocalAPI.
-func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
+func NewLocalAPI(daemon Daemon) (localapi.Component, error) {
 	// Prevent daemon from running in insecure directories
 	err := paths.IsInstallerDataDirSecure()
 	if err != nil {
@@ -40,19 +39,4 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 		listener: listener,
 		daemon:   daemon,
 	}, nil
-}
-
-// NewLocalAPIClient returns a new LocalAPIClient.
-func NewLocalAPIClient() LocalAPIClient {
-	return &localAPIClientImpl{
-		addr: "daemon",
-		client: &http.Client{
-			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					// Default timeout is 2s
-					return winio.DialPipe(namedPipePath, nil)
-				},
-			},
-		},
-	}
 }

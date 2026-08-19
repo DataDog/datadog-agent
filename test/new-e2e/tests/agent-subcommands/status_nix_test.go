@@ -7,6 +7,7 @@ package agentsubcommands
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -90,6 +91,20 @@ func (v *linuxStatusSuite) TestChecksMetadataUnix() {
 }
 
 func (v *linuxStatusSuite) TestDefaultInstallStatus() {
+	installerServices, err := v.Env().RemoteHost.Execute(`for service in datadog-agent-installer.service datadog-installer.service; do
+		if systemctl is-active --quiet "$service"; then echo "$service"; fi
+	done`)
+	v.Require().NoError(err)
+	for _, service := range strings.Fields(installerServices) {
+		_, err = v.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl stop %s", service))
+		v.Require().NoError(err)
+		service := service
+		defer func() {
+			_, err := v.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl start %s", service))
+			v.Require().NoError(err)
+		}()
+	}
+
 	// wake up the trace-agent
 	resp, _ := v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
 	if resp != nil {

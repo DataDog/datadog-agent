@@ -35,6 +35,19 @@ func TestFleetUpgrade(t *testing.T) {
 func (s *upgradeSuite) TestUpgrade() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err)
+		require.True(c, status.FleetAutomationStatus.InstallerStatus.Reachable)
+		for _, pkg := range status.FleetAutomationStatus.InstallerStatus.Packages {
+			if pkg.Package == "datadog-agent" {
+				require.NotEmpty(c, pkg.StableVersion)
+				require.NotEmpty(c, pkg.RunningVersion)
+				return
+			}
+		}
+		require.Fail(c, "datadog-agent package state not found in core Agent status")
+	}, 2*time.Minute, 5*time.Second)
 
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
 	originalVersion, err := s.Agent.Version()
