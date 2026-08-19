@@ -24,6 +24,12 @@ apm_config:
     enabled: false
 `
 
+const rcSSIOnNoTargets = `
+apm_config:
+  instrumentation:
+    enabled: true
+`
+
 const rcCatchAllCfg = `
 apm_config:
   instrumentation:
@@ -78,74 +84,51 @@ func TestRemotePolicies_AppliedOnEmptyBaseline(t *testing.T) {
 	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "other"})))
 }
 
-// TestRemotePolicies_PrecedenceOverConfig verifies that remote policies are
-// evaluated before the configuration baseline (first match wins), while
-// non-matching pods still fall through to the configuration.
-func TestRemotePolicies_PrecedenceOverConfig(t *testing.T) {
+// TestRemotePolicies_HelmCatchAllWinsOverRemote verifies that an explicit static
+// catch-all matches in the static phase, so remote policies never apply.
+func TestRemotePolicies_HelmCatchAllWinsOverRemote(t *testing.T) {
 	wmeta := newMatchTestWmeta(t)
 	m := newMatchMutator(t, rcCatchAllCfg, wmeta)
 
-	// Baseline: the catch-all config target matches everything.
+	require.NoError(t, m.SetRemotePolicies([]policies.Policy{
+		podLabelPolicy("remote", "app", "db", true, map[string]string{"python": "default"}),
+		podLabelPolicy("remote-deny", "app", "legacy", false, nil),
+	}))
+
 	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "config-default", name)
+	require.False(t, fromPolicy)
+
+	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "legacy"}))
+	require.Equal(t, "config-default", name)
+	require.False(t, fromPolicy)
+}
+
+// TestRemotePolicies_ClearRevertsToBaseline verifies that clearing remote
+// policies restores the synthetic inject-all default.
+func TestRemotePolicies_ClearRevertsToBaseline(t *testing.T) {
+	wmeta := newMatchTestWmeta(t)
+	m := newMatchMutator(t, rcSSIOnNoTargets, wmeta)
+
+	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	require.Equal(t, "default", name)
 	require.False(t, fromPolicy)
 
 	require.NoError(t, m.SetRemotePolicies([]policies.Policy{
 		podLabelPolicy("remote", "app", "db", true, map[string]string{"python": "default"}),
 	}))
-
-	// Remote wins for the matching pod...
 	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "remote", name)
 	require.True(t, fromPolicy)
 
-	// ...but unrelated pods still fall through to the config baseline.
-	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "other"}))
-	require.Equal(t, "config-default", name)
-	require.False(t, fromPolicy)
-}
-
-// TestRemotePolicies_DenyStopsInjection verifies that a matched deny policy
-// prevents injection even when a later policy (or the config baseline) would
-// otherwise match.
-func TestRemotePolicies_DenyStopsInjection(t *testing.T) {
-	wmeta := newMatchTestWmeta(t)
-	m := newMatchMutator(t, rcCatchAllCfg, wmeta)
-
-	require.NoError(t, m.SetRemotePolicies([]policies.Policy{
-		podLabelPolicy("remote-deny", "app", "legacy", false, nil),
-	}))
-
-	// The deny policy matches first, so no target is returned even though the
-	// config catch-all would otherwise apply.
-	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "legacy"})))
-
-	// A non-matching pod still hits the config baseline.
-	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "ok"}))
-	require.Equal(t, "config-default", name)
-	require.False(t, fromPolicy)
-}
-
-// TestRemotePolicies_ClearRevertsToBaseline verifies that clearing the remote
-// policies reverts the mutator to its configuration baseline.
-func TestRemotePolicies_ClearRevertsToBaseline(t *testing.T) {
-	wmeta := newMatchTestWmeta(t)
-	m := newMatchMutator(t, rcCatchAllCfg, wmeta)
-
-	require.NoError(t, m.SetRemotePolicies([]policies.Policy{
-		podLabelPolicy("remote", "app", "db", true, map[string]string{"python": "default"}),
-	}))
-	name, _ := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
-	require.Equal(t, "remote", name)
-
 	m.ClearRemotePolicies()
-	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
-	require.Equal(t, "config-default", name)
+	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	require.Equal(t, "default", name)
 	require.False(t, fromPolicy)
 }
 
-// TestRemotePolicies_FirstMatchWins verifies the ordering among remote policies.
-func TestRemotePolicies_FirstMatchWins(t *testing.T) {
+// TestRemotePolicies_LastMatchWins verifies last-TRUE-wins among remote policies.
+func TestRemotePolicies_LastMatchWins(t *testing.T) {
 	wmeta := newMatchTestWmeta(t)
 	m := newMatchMutator(t, rcDisabledCfg, wmeta)
 
@@ -155,15 +138,15 @@ func TestRemotePolicies_FirstMatchWins(t *testing.T) {
 	}))
 
 	name, _ := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
-	require.Equal(t, "first", name)
+	require.Equal(t, "second", name)
 }
 
 // TestOnRemoteConfigUpdate_ParsesAndApplies exercises the remote-config callback
 // end to end with a dd-wls policies document, then verifies that an empty update
-// reverts the mutator to the configuration baseline.
+// clears remote policies.
 func TestOnRemoteConfigUpdate_ParsesAndApplies(t *testing.T) {
 	wmeta := newMatchTestWmeta(t)
-	m := newMatchMutator(t, rcCatchAllCfg, wmeta)
+	m := newMatchMutator(t, rcDisabledCfg, wmeta)
 
 	const raw = `{
       "policies": [{
@@ -196,11 +179,9 @@ func TestOnRemoteConfigUpdate_ParsesAndApplies(t *testing.T) {
 	require.Equal(t, "java for db-user", name)
 	require.True(t, fromPolicy)
 
-	// An empty update reverts to the config baseline.
+	// An empty update clears remote policies (SSI off → nothing).
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{}, apply)
-	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db-user"}))
-	require.Equal(t, "config-default", name)
-	require.False(t, fromPolicy)
+	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db-user"})))
 }
 
 func TestOnRemoteConfigUpdate_OrdersPolicyIDsByNumericPrefix(t *testing.T) {
@@ -242,14 +223,15 @@ func TestOnRemoteConfigUpdate_OrdersPolicyIDsByNumericPrefix(t *testing.T) {
 		"datadog/2/APM_POLICIES/2.allow/config": {Config: []byte(allow)},
 	}, func(string, state.ApplyStatus) {})
 
-	set := m.activeSet()
-	require.Len(t, set.matcher.policies, 2)
-	require.Equal(t, "allow", set.matcher.policies[0].Name)
-	require.Equal(t, "deny", set.matcher.policies[1].Name)
+	remotePolicies := m.remotePolicies.Load()
+	require.NotNil(t, remotePolicies)
+	require.Len(t, remotePolicies.matcher.policies, 2)
+	// Numeric prefix sorts 2.allow before 10.deny; last-TRUE-wins then picks deny.
+	require.Equal(t, "allow", remotePolicies.matcher.policies[0].Name)
+	require.Equal(t, "deny", remotePolicies.matcher.policies[1].Name)
 
-	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
-	require.Equal(t, "allow", name)
-	require.True(t, fromPolicy)
+	// Last-TRUE-wins: deny is after allow, both match app=db.
+	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
 }
 
 // TestOnRemoteConfigUpdate_InvalidPayloadKeepsBaseline verifies that one malformed
