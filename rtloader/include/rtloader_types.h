@@ -144,6 +144,12 @@ typedef void (*cb_emit_agent_telemetry_t)(char *, char *, double, char *);
 typedef void (*cb_report_issue_t)(char *, char *, char **);
 // (issue_id, error_message_out)
 typedef void (*cb_resolve_issue_t)(char *, char **);
+// (content_type) -> parser_id
+typedef long (*cb_new_prometheus_parser_t)(char *);
+// (parser_id, chunk, result_json_out, error_message_out)
+typedef void (*cb_feed_prometheus_parser_t)(long, char *, char **, char **);
+// (parser_id, result_json_out, error_message_out)
+typedef void (*cb_finish_prometheus_parser_t)(long, char **, char **);
 
 // _util
 // (argv, env, stdout, stderr, ret_code, exception)

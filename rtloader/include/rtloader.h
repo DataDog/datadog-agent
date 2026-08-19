@@ -537,6 +537,9 @@ public:
       Marks a health platform issue resolved by IssueId from Python.
     */
     virtual void setResolveIssueCb(cb_resolve_issue_t) = 0;
+    virtual void setNewPrometheusParserCb(cb_new_prometheus_parser_t) = 0;
+    virtual void setFeedPrometheusParserCb(cb_feed_prometheus_parser_t) = 0;
+    virtual void setFinishPrometheusParserCb(cb_finish_prometheus_parser_t) = 0;
 
 protected:
     //! _allocateInternalErrorDiagnoses member.

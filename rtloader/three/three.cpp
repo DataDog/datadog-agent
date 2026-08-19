@@ -1125,6 +1125,21 @@ void Three::setResolveIssueCb(cb_resolve_issue_t cb)
     _set_resolve_issue_cb(cb);
 }
 
+void Three::setNewPrometheusParserCb(cb_new_prometheus_parser_t cb)
+{
+    _set_new_prometheus_parser_cb(cb);
+}
+
+void Three::setFeedPrometheusParserCb(cb_feed_prometheus_parser_t cb)
+{
+    _set_feed_prometheus_parser_cb(cb);
+}
+
+void Three::setFinishPrometheusParserCb(cb_finish_prometheus_parser_t cb)
+{
+    _set_finish_prometheus_parser_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.
