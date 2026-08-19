@@ -6,11 +6,39 @@
 package common
 
 import (
+	"context"
+	"errors"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
+
+type setupInstallerSpy struct {
+	installer.Installer
+	installed      bool
+	isInstalledErr error
+	installCalls   int
+	forceCalls     int
+}
+
+func (i *setupInstallerSpy) IsInstalled(context.Context, string) (bool, error) {
+	return i.installed, i.isInstalledErr
+}
+
+func (i *setupInstallerSpy) Install(context.Context, string, []string) error {
+	i.installCalls++
+	return nil
+}
+
+func (i *setupInstallerSpy) ForceInstall(context.Context, string, []string) error {
+	i.forceCalls++
+	return nil
+}
 
 func TestParActionsAllowlist_ExplicitEnv(t *testing.T) {
 	explicit := "com.datadoghq.http.request,com.datadoghq.http.response"
@@ -51,4 +79,70 @@ func TestParActionsAllowlist_DefaultCurrentOSFreshInstall(t *testing.T) {
 		[]string{parDefaultAllowlistNix, parDefaultAllowlistWindows},
 		got[0],
 	)
+}
+
+func TestReinstallAPMInjectorIfInstalled(t *testing.T) {
+	t.Run("ignores setup without Agent installation", func(t *testing.T) {
+		spy := &setupInstallerSpy{isInstalledErr: errors.New("must not be called")}
+		setup := &Setup{installer: spy, Packages: Packages{install: map[string]packageWithVersion{}}}
+		setup.Packages.Install(DatadogAPMInjectPackage, "latest")
+
+		require.NoError(t, setup.reinstallAPMInjectorIfInstalled(context.Background()))
+		assert.False(t, setup.Packages.install[DatadogAPMInjectPackage].forceInstall)
+	})
+
+	t.Run("leaves a new injector installation unchanged", func(t *testing.T) {
+		spy := &setupInstallerSpy{}
+		setup := &Setup{installer: spy, Packages: Packages{install: map[string]packageWithVersion{}}}
+		setup.Packages.Install(DatadogAgentPackage, "7.80.4-1")
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.38.0-1")
+
+		require.NoError(t, setup.reinstallAPMInjectorIfInstalled(context.Background()))
+		assert.False(t, setup.Packages.install[DatadogAPMInjectPackage].forceInstall)
+	})
+
+	t.Run("reinstalls the requested injector version", func(t *testing.T) {
+		spy := &setupInstallerSpy{installed: true}
+		setup := &Setup{installer: spy, Packages: Packages{install: map[string]packageWithVersion{}}}
+		setup.Packages.Install(DatadogAgentPackage, "7.80.4-1")
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.39.0-1")
+
+		require.NoError(t, setup.reinstallAPMInjectorIfInstalled(context.Background()))
+		assert.Equal(t, packageWithVersion{
+			name:         DatadogAPMInjectPackage,
+			version:      "0.39.0-1",
+			forceInstall: true,
+		}, setup.Packages.install[DatadogAPMInjectPackage])
+	})
+
+	t.Run("adds the latest injector to an Agent-only install", func(t *testing.T) {
+		spy := &setupInstallerSpy{installed: true}
+		setup := &Setup{installer: spy, Packages: Packages{install: map[string]packageWithVersion{}}}
+		setup.Packages.Install(DatadogAgentPackage, "7.80.4-1")
+
+		require.NoError(t, setup.reinstallAPMInjectorIfInstalled(context.Background()))
+		assert.Equal(t, packageWithVersion{
+			name:         DatadogAPMInjectPackage,
+			version:      "latest",
+			forceInstall: true,
+		}, setup.Packages.install[DatadogAPMInjectPackage])
+	})
+}
+
+func TestInstallPackageForceInstall(t *testing.T) {
+	spy := &setupInstallerSpy{}
+	setup := &Setup{
+		installer: spy,
+		Out:       &Output{},
+		Env:       &env.Env{},
+		Ctx:       context.Background(),
+	}
+
+	require.NoError(t, setup.installPackage(packageWithVersion{
+		name:         DatadogAPMInjectPackage,
+		version:      "0.38.0-1",
+		forceInstall: true,
+	}, "oci://example/apm-inject-package:0.38.0-1"))
+	assert.Zero(t, spy.installCalls)
+	assert.Equal(t, 1, spy.forceCalls)
 }

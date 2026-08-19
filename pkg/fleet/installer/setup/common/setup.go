@@ -153,6 +153,9 @@ func (s *Setup) Run() (err error) {
 
 	defer func() { s.Span.Finish(err) }()
 
+	if err = s.reinstallAPMInjectorIfInstalled(ctx); err != nil {
+		return fmt.Errorf("failed to prepare APM injector reinstallation: %w", err)
+	}
 	packages := resolvePackages(s.Env, s.Packages)
 	s.Out.WriteString("The following packages will be installed:\n")
 	for _, p := range packages {
@@ -193,7 +196,7 @@ func (s *Setup) Run() (err error) {
 	}
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
-		err = s.installPackage(p.name, url)
+		err = s.installPackage(p, url)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
@@ -212,6 +215,33 @@ func (s *Setup) Run() (err error) {
 		ScheduleDelayedAgentRestart(s, s.DelayedAgentRestartConfig.Delay, s.DelayedAgentRestartConfig.LogFile)
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
+	return nil
+}
+
+// reinstallAPMInjectorIfInstalled makes an Agent install refresh the APM
+// injector package hooks when the injector is already present. The current
+// invocation may omit the SSI environment variables used during the original
+// install, so the installed package is the durable signal. The hooks may depend
+// on the installer shipped by the new Agent stable version.
+func (s *Setup) reinstallAPMInjectorIfInstalled(ctx context.Context) error {
+	if _, installingAgent := s.Packages.install[DatadogAgentPackage]; !installingAgent {
+		return nil
+	}
+
+	installed, err := s.installer.IsInstalled(ctx, DatadogAPMInjectPackage)
+	if err != nil {
+		return fmt.Errorf("could not determine whether %s is installed: %w", DatadogAPMInjectPackage, err)
+	}
+	if !installed {
+		return nil
+	}
+
+	injector, requested := s.Packages.install[DatadogAPMInjectPackage]
+	if !requested {
+		injector = packageWithVersion{name: DatadogAPMInjectPackage, version: "latest"}
+	}
+
+	s.Packages.reinstall(injector.name, injector.version)
 	return nil
 }
 
@@ -258,14 +288,14 @@ func fileExists(path string) bool {
 }
 
 // installPackage mimicks the telemetry of calling the install package command
-func (s *Setup) installPackage(name string, url string) (err error) {
+func (s *Setup) installPackage(pkg packageWithVersion, url string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "install")
 	defer func() { span.Finish(err) }()
 	span.SetTag("url", url)
 	span.SetTopLevel()
 
-	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
-	if runtime.GOOS == "windows" && name == DatadogAgentPackage {
+	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", pkg.name))
+	if pkg.forceInstall || runtime.GOOS == "windows" && pkg.name == DatadogAgentPackage {
 		// TODO(WINA-2018): Add support for skipping the installation of the core Agent if it is already installed
 		err = s.installer.ForceInstall(ctx, url, nil)
 	} else {
@@ -274,7 +304,7 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	if err != nil {
 		return err
 	}
-	s.Out.WriteString(fmt.Sprintf("Successfully installed %s\n", name))
+	s.Out.WriteString(fmt.Sprintf("Successfully installed %s\n", pkg.name))
 	return nil
 }
 
