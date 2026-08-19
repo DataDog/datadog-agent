@@ -13,6 +13,7 @@ import (
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
@@ -53,7 +54,7 @@ type RuleEvaluator struct {
 }
 
 // NewRule returns a new rule
-func NewRule(id string, expression string, parsingContext *ast.ParsingContext, opts *Opts, tags ...string) (*Rule, error) {
+func NewRule(id string, expression string, parsingContext *parser.ParsingContext, opts *Opts, tags ...string) (*Rule, error) {
 	if opts.MacroStore == nil {
 		opts.WithMacroStore(&MacroStore{})
 	}
@@ -66,7 +67,7 @@ func NewRule(id string, expression string, parsingContext *ast.ParsingContext, o
 		panic(err)
 	}
 
-	astRule, err := parsingContext.ParseRule(expression)
+	astRule, err := parsingContext.BuildRule(expression)
 	if err != nil {
 		return nil, err
 	}
@@ -191,8 +192,8 @@ func (r *Rule) GetAst() *ast.Rule {
 }
 
 // Parse - Transforms the SECL `Expression` into its AST representation
-func (r *Rule) Parse(parsingContext *ast.ParsingContext) error {
-	astRule, err := parsingContext.ParseRule(r.Expression)
+func (r *Rule) Parse(parsingContext *parser.ParsingContext) error {
+	astRule, err := parsingContext.BuildRule(r.Expression)
 	if err != nil {
 		return err
 	}
@@ -204,7 +205,7 @@ func (r *Rule) Parse(parsingContext *ast.ParsingContext) error {
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
 	state := NewState(model, "", opts.MacroStore)
 
-	eval, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
+	eval, _, err := compileExpr(rule.Root, opts, state)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +326,7 @@ func (r *Rule) genPartials(field Field) error {
 	}
 
 	state := NewState(r.Model, field, partialMacroEvaluatorGetter(macroPartial))
-	pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state)
+	pEval, _, err := compileExpr(r.ast.Root, r.Opts, state)
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
 	}

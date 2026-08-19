@@ -2161,7 +2161,7 @@ func TestRuleErrorLoading(t *testing.T) {
 	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 	assert.NotNil(t, err)
 	assert.Len(t, err.Errors, 1)
-	assert.ErrorContains(t, err.Errors[0], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
+	assert.ErrorContains(t, err.Errors[0], "rule `testB` error: syntax error `1:16: unexpected `=`, did you mean `==`?")
 
 	assert.Contains(t, rs.ListRuleIDs(), "testA")
 	assert.NotContains(t, rs.ListRuleIDs(), "testB")
