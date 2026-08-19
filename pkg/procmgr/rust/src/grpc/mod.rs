@@ -502,7 +502,6 @@ mod tests {
         assert_eq!(resp.exited_processes, 1);
         assert_eq!(resp.created_processes, 1);
 
-        // Clean up running-svc
         let list = client
             .list(proto::ListRequest {})
             .await
@@ -584,7 +583,6 @@ mod tests {
             "start response should include uuid"
         );
 
-        // Cross-check via list
         let resp = client
             .list(proto::ListRequest {})
             .await
@@ -593,7 +591,6 @@ mod tests {
         assert_eq!(resp.processes[0].state, proto::ProcessState::Running as i32);
         assert_eq!(resp.processes[0].pid, start_resp.pid);
 
-        // Clean up
         test_helpers::cleanup_process(start_resp.pid);
     }
 
@@ -685,7 +682,6 @@ mod tests {
             "stop response should include uuid"
         );
 
-        // Cross-check via describe
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
         let resp = client
@@ -747,7 +743,6 @@ mod tests {
         }])
         .await;
 
-        // Start
         client
             .start(proto::StartRequest {
                 name_or_uuid: "lifecycle".to_string(),
@@ -762,7 +757,6 @@ mod tests {
             .into_inner();
         assert_eq!(resp.running_processes, 1);
 
-        // Stop
         client
             .stop(proto::StopRequest {
                 name_or_uuid: "lifecycle".to_string(),

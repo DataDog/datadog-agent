@@ -581,12 +581,10 @@ mod tests {
             err.message()
         );
 
-        // A longer, unambiguous prefix should resolve correctly.
         mgr.handle_start("aabbccdd-1", &handles)
             .await
             .expect("unambiguous prefix should resolve");
 
-        // Clean up the spawned process.
         let _: Result<_, _> = mgr.handle_stop("aabbccdd-1").await;
     }
 }
