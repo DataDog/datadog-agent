@@ -257,7 +257,7 @@ def eval_ddeval(
         aws_profile: AWS CLI profile with write access to qbranch-gensim-recordings.
         expires_in: Presigned URL lifetime in seconds (60-604800).
         build: Build the testbench before uploading it.
-        testbench_binary: Testbench binary to upload.
+        testbench_binary: Testbench binary to upload. Custom paths require --no-build.
     """
     if not 1 <= jobs <= 100:
         raise Exit("--jobs must be between 1 and 100", code=2)
@@ -272,11 +272,15 @@ def eval_ddeval(
     if data_env not in {"staging", "prod", "eu1", "us3"}:
         raise Exit("--data-env must be one of staging, prod, eu1, or us3", code=2)
 
+    binary_path = Path(testbench_binary).expanduser().resolve()
+    default_binary_path = Path("bin/anomalydetection-testbench").resolve()
+    if build and binary_path != default_binary_path:
+        raise Exit("custom --testbench-binary requires --no-build", code=2)
+
     if build:
         print("Building anomalydetection-testbench for Linux/amd64...")
         _build_testbench(ctx, env={"GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0"})
 
-    binary_path = Path(testbench_binary).expanduser().resolve()
     if not binary_path.is_file():
         raise Exit(f"testbench binary not found: {binary_path}", code=2)
     try:

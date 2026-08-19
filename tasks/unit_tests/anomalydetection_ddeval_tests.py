@@ -3,7 +3,9 @@ import tempfile
 import unittest
 from io import StringIO
 
-from tasks.anomalydetection import _local_ddeval_command
+from invoke.exceptions import Exit
+
+from tasks.anomalydetection import _local_ddeval_command, eval_ddeval
 from tasks.libs.anomalydetection.ddeval import (
     ARTIFACT_PREFIX,
     RedactingWriter,
@@ -26,6 +28,10 @@ PRESIGNED_URL = (
 
 
 class TestLocalDDEvalArtifacts(unittest.TestCase):
+    def test_custom_testbench_binary_requires_no_build(self):
+        with self.assertRaisesRegex(Exit, "custom --testbench-binary requires --no-build"):
+            eval_ddeval.body(None, testbench_binary="/tmp/custom-testbench")
+
     def test_custom_ddeval_executable_is_not_shell_parsed(self):
         executable = r"C:\Program Files\DDEval\ddeval.exe"
 
