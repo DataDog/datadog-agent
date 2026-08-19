@@ -31,7 +31,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-const version = "202403"
+const version = "202608"
 
 const (
 	k8sManifestsDir   = "/etc/kubernetes/manifests"
@@ -199,6 +199,18 @@ func (l *loader) detectManagedEnvironment(flags map[string]string, kubelet *K8sK
 		}
 	}
 	return nil
+}
+
+// flagDefault returns the value to assume for a flag left off the command line.
+// Kubernetes keeps historical defaults for a few kubelet flags to preserve the
+// command line API and drops them once --config is used, where the configuration
+// file defaults apply instead. The two disagree on the settings the CIS
+// benchmarks check.
+func flagDefault(config *K8sConfigFileMeta, cli, file string) string {
+	if config == nil {
+		return cli
+	}
+	return file
 }
 
 func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, []byte, bool) {
