@@ -36,12 +36,9 @@ func (s *baselineHostTrafficDynamicPathSuite) SetupSuite() {
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
 
-	// Start the five-minute bootstrap window after infrastructure setup so the
-	// test traffic cannot miss it and fall into the next ten-minute window.
-	require.NoError(s.T(), s.Env().Agent.Client.Restart())
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		assert.True(c, s.Env().Agent.Client.IsReady(), "Agent did not become ready after restart")
-	}, time.Minute, 5*time.Second)
+	// direct_send is false, so process-agent owns the selector. Restart it after
+	// infrastructure setup so traffic cannot miss the five-minute bootstrap window.
+	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-process-agent")
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 }
 
