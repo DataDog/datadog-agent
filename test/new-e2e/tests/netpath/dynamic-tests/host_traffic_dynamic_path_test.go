@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -58,7 +59,7 @@ services:
     privileged: true
     ports:
     - 80:8080/tcp
-    image: ${DD_REGISTRY:-docker.io}/mccutchen/go-httpbin:2.25.0@sha256:20739736d4eb8dc1b998dff701f437b8bd62dcc46492bd0d861e89890ca36500
+    image: ghcr.io/datadog/apps-go-httpbin:{APPS_VERSION}
     container_name: httpbin
     volumes: []
     environment: {}
@@ -150,7 +151,7 @@ func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Pr
 func hostTrafficHTTPBinCompose() docker.ComposeInlineManifest {
 	return docker.ComposeInlineManifest{
 		Name:    "httpbin",
-		Content: pulumi.String(hostTrafficHTTPBinComposeYAML),
+		Content: pulumi.String(strings.ReplaceAll(hostTrafficHTTPBinComposeYAML, "{APPS_VERSION}", apps.Version)),
 	}
 }
 
