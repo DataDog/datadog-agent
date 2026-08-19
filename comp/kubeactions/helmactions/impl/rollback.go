@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/utils/ptr"
 
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +39,7 @@ const (
 	// rollback Job (and its Pods) must carry. The Job/Pod watcher's
 	// jobWatchSelector is derived from them so the two can never drift.
 	managedByValue = "datadog-cluster-agent"
-	componentValue = "helm-rollback"
+	componentValue = "helm-actions"
 
 	defaultTTLSecondsAfterFinished int32 = 3600
 )
@@ -65,7 +66,7 @@ func (e *RollbackExecutor) Run(ctx context.Context, opts helmactions.RollbackInp
 	job := buildRollbackJob(opts)
 	created, err := e.clientset.BatchV1().Jobs(opts.JobNamespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("create helm rollback job in %s: %w", opts.JobNamespace, err)
+		return nil, fmt.Errorf("executor jobs create [ns:%s]: %w", opts.JobNamespace, err)
 	}
 	log.Infof("[HelmActions] Created rollback job %s/%s for release %s/%s (revision=%d)",
 		created.Namespace, created.Name, opts.ReleaseNamespace, opts.Release, opts.Revision)
@@ -78,14 +79,16 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 		image = DefaultHelmImage
 	}
 
-	backoffLimit := int32(0)
-	if opts.BackoffLimit != nil {
-		backoffLimit = *opts.BackoffLimit
+	backoffLimit := opts.BackoffLimit
+
+	ttl := opts.TTLSecondsAfterFinished
+	if ttl == nil {
+		ttl = ptr.To(defaultTTLSecondsAfterFinished)
 	}
 
-	ttl := defaultTTLSecondsAfterFinished
-	if opts.TTLSecondsAfterFinished != nil {
-		ttl = *opts.TTLSecondsAfterFinished
+	deadline := opts.ActiveDeadlineSeconds
+	if deadline == nil {
+		deadline = ptr.To(int64(jobStuckDurationLimit.Seconds()))
 	}
 
 	args := []string{"rollback", opts.Release}
@@ -117,8 +120,10 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 			Labels:       labels,
 		},
 		Spec: batchv1.JobSpec{
-			BackoffLimit:            &backoffLimit,
-			TTLSecondsAfterFinished: &ttl,
+			// backoff only count failed pods
+			BackoffLimit:            backoffLimit,
+			ActiveDeadlineSeconds:   deadline,
+			TTLSecondsAfterFinished: ttl,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
@@ -133,6 +138,13 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 							Command: []string{"helm"},
 							Args:    args,
 							Env:     env,
+							// FallbackToLogsOnError lets the kubelet copy the tail of
+							// the container's stdout/stderr into
+							// ContainerStatus.State.Terminated.Message on non-zero
+							// exit. The Pod watcher reads that field directly, so
+							// diagnosing a failed rollback needs no "pods/log" RBAC
+							// grant — only the "pods" get/list/watch it already has.
+							TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 						},
 					},
 				},
