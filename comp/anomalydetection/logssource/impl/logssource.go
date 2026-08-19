@@ -18,7 +18,6 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -46,7 +45,6 @@ type Requires struct {
 	compdef.In
 
 	Lc          compdef.Lifecycle
-	Log         log.Component
 	Config      config.Component
 	Hostname    hostname.Component
 	WMeta       option.Option[workloadmeta.Component]
@@ -93,7 +91,6 @@ type logssourceComponent struct{}
 //     build tag (no-op otherwise)
 //   - file logs are always supported
 func NewComponent(deps Requires) (Provides, error) {
-	logger := deps.Log
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()
 
@@ -113,13 +110,13 @@ func NewComponent(deps Requires) (Provides, error) {
 	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
 	logsRules, err := logsfilter.LoadRules(deps.Config, logsProcessingRulesKey)
 	if err != nil {
-		logger.Warnf(logging.Format("logssource %s: invalid rules, proceeding without log filtering: %v"), logsProcessingRulesKey, err)
+		logging.Warnf("logssource %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
 		logsRules = &logsfilter.Rules{}
 	}
 
 	processingRules, err := logsconfig.GlobalProcessingRules(deps.Config)
 	if err != nil {
-		logger.Warnf(logging.Format("logssource invalid global processing rules, proceeding without them: %v"), err)
+		logging.Warnf("logssource invalid global processing rules, proceeding without them: %v", err)
 		processingRules = nil
 	}
 
@@ -145,7 +142,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	if containerSourcesActive {
 		fingerprintCfg, err := logsconfig.GlobalFingerprintConfig(deps.Config)
 		if err != nil {
-			logger.Warnf(logging.Format("logssource invalid fingerprint config, proceeding with defaults: %v"), err)
+			logging.Warnf("logssource invalid fingerprint config, proceeding with defaults: %v", err)
 			fingerprintCfg = &types.FingerprintConfig{}
 		}
 		fileOpener := opener.NewFileOpener()
@@ -172,21 +169,21 @@ func NewComponent(deps Requires) (Provides, error) {
 			adScheduler = logsadscheduler.NewNamed(deps.Autodiscovery, "observer-logssource AD scheduler")
 		}
 	} else if logSourceSettings.containerSourcesEnabled {
-		logger.Debugf(logging.Format("logssource container log sources not started: workloadmeta unavailable"))
+		logging.Debugf("logssource container log sources not started: workloadmeta unavailable")
 	}
 
 	if containerSourcesActive || logSourceSettings.kubeletSourceEnabled {
 		launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
 	}
 	if logSourceSettings.kubeletSourceEnabled {
-		registerKubeletJournaldSource(logSources, logger)
+		registerKubeletJournaldSource(logSources)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
-			logger.Infof(logging.Format("logssource starting log pipeline"))
+			logging.Infof("logssource starting log pipeline")
 			pipeline.start()
 			launchersMgr.Start()
 			if adScheduler != nil {

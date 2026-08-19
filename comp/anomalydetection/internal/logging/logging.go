@@ -12,28 +12,23 @@ import pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 // the trailing separator so log producers and consumers share one exact marker.
 const Prefix = "[anomalydetection] "
 
-// Format returns a format string with the anomaly-detection prefix. Use it
-// when logging through an injected log.Component so the original caller
-// attribution is retained.
-func Format(format string) string { return Prefix + format }
-
 func prefixedMessage(args []interface{}) string { return Prefix + pkglog.BuildLogEntry(args...) }
 
 func Trace(args ...interface{})                 { pkglog.TraceStackDepth(1, prefixedMessage(args)) }
-func Tracef(format string, args ...interface{}) { pkglog.TracefStackDepth(1, Format(format), args...) }
+func Tracef(format string, args ...interface{}) { pkglog.TracefStackDepth(1, Prefix+format, args...) }
 func Debug(args ...interface{})                 { pkglog.DebugStackDepth(1, prefixedMessage(args)) }
-func Debugf(format string, args ...interface{}) { pkglog.DebugfStackDepth(1, Format(format), args...) }
+func Debugf(format string, args ...interface{}) { pkglog.DebugfStackDepth(1, Prefix+format, args...) }
 func Info(args ...interface{})                  { pkglog.InfoStackDepth(1, prefixedMessage(args)) }
-func Infof(format string, args ...interface{})  { pkglog.InfofStackDepth(1, Format(format), args...) }
+func Infof(format string, args ...interface{})  { pkglog.InfofStackDepth(1, Prefix+format, args...) }
 func Warn(args ...interface{}) error            { return pkglog.WarnStackDepth(1, prefixedMessage(args)) }
 func Warnf(format string, args ...interface{}) error {
-	return pkglog.WarnfStackDepth(1, Format(format), args...)
+	return pkglog.WarnfStackDepth(1, Prefix+format, args...)
 }
 func Error(args ...interface{}) error { return pkglog.ErrorStackDepth(1, prefixedMessage(args)) }
 func Errorf(format string, args ...interface{}) error {
-	return pkglog.ErrorfStackDepth(1, Format(format), args...)
+	return pkglog.ErrorfStackDepth(1, Prefix+format, args...)
 }
 func Critical(args ...interface{}) error { return pkglog.CriticalStackDepth(1, prefixedMessage(args)) }
 func Criticalf(format string, args ...interface{}) error {
-	return pkglog.CriticalfStackDepth(1, Format(format), args...)
+	return pkglog.CriticalfStackDepth(1, Prefix+format, args...)
 }

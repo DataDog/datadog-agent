@@ -25,7 +25,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/hostname",
         "//comp/core/hostname/hostnameinterface/def",
-        "//comp/core/log/def",
         "//comp/core/tagger/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/util/workloadmeta",

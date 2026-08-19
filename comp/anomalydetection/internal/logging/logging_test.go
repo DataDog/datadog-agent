@@ -28,7 +28,3 @@ func TestGlobalLoggerPrefixesFormattedAndUnformattedMessages(t *testing.T) {
 		"[anomalydetection] logssource unavailable",
 	}, messages)
 }
-
-func TestFormat(t *testing.T) {
-	require.Equal(t, "[anomalydetection] reporter sent %d events", Format("reporter sent %d events"))
-}

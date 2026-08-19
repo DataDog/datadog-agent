@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -24,24 +23,6 @@ type testLifecycle struct {
 func (l *testLifecycle) Append(h compdef.Hook) {
 	l.hooks = append(l.hooks, h)
 }
-
-type noopLogComponent struct{}
-
-func (noopLogComponent) Trace(...interface{})                   {}
-func (noopLogComponent) Tracef(string, ...interface{})          {}
-func (noopLogComponent) Debug(...interface{})                   {}
-func (noopLogComponent) Debugf(string, ...interface{})          {}
-func (noopLogComponent) Info(...interface{})                    {}
-func (noopLogComponent) Infof(string, ...interface{})           {}
-func (noopLogComponent) Warn(...interface{}) error              { return nil }
-func (noopLogComponent) Warnf(string, ...interface{}) error     { return nil }
-func (noopLogComponent) Error(...interface{}) error             { return nil }
-func (noopLogComponent) Errorf(string, ...interface{}) error    { return nil }
-func (noopLogComponent) Critical(...interface{}) error          { return nil }
-func (noopLogComponent) Criticalf(string, ...interface{}) error { return nil }
-func (noopLogComponent) Flush()                                 {}
-
-var _ log.Component = noopLogComponent{}
 
 func requireNoObserverMetricFamilies(t *testing.T, telemetryComp telemetry.Component) {
 	t.Helper()
@@ -106,7 +87,6 @@ anomaly_detection:
 			_, err := NewComponent(Requires{
 				Lifecycle: lc,
 				Config:    cfg,
-				Log:       noopLogComponent{},
 				Telemetry: telComp,
 			})
 			require.Error(t, err)
@@ -133,7 +113,6 @@ anomaly_detection:
 	provides, err := NewComponent(Requires{
 		Lifecycle: lc,
 		Config:    cfg,
-		Log:       noopLogComponent{},
 		Telemetry: telComp,
 	})
 	require.NoError(t, err)

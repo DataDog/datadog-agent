@@ -119,8 +119,7 @@ Both paths share filtering primitives from `internal/logsfilter/`.
 
 ### Logging convention
 
-Use `internal/logging` for every production log: package functions for global
-logs and `logging.Format(...)` for injected log components. Its
+Use `internal/logging` for every production log. Its
 `[anomalydetection] ` marker prevents self-ingestion; label only non-main
 subsystems such as `logssource`, `reporter`, or `logsfilter` in messages.
 
