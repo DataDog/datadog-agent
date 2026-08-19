@@ -1,9 +1,22 @@
 """Convert TestRunner test.log outputs to test2json fragments via aspect actions."""
 
-load(":test2json.bzl", "Test2JsonInfo", "fragment_basename")
-
 _TEST_LOG = "test.log"
-_OUTPUT_GROUP = "test2json"
+
+def _fragment_basename(target_name, test_log_path):
+    """Basename of the fragment for one TestRunner test.log path.
+
+    A target can own several TestRunner actions (test sharding, --runs_per_test),
+    so the tail of the test.log path is folded into the name to keep the declared
+    files unique.
+    """
+    marker = target_name + "/"
+    idx = test_log_path.find(marker)
+    if idx >= 0:
+        suffix = test_log_path[idx + len(marker):]
+    else:
+        suffix = test_log_path.split("/")[-1]
+    safe = suffix.replace("/", "_").replace(":", "_")
+    return target_name + "_" + safe + ".test2json.jsonl"
 
 def _test_log_paths(test_runner_action):
     return [
@@ -22,7 +35,7 @@ def _test_log_to_json_impl(target, ctx):
         if action.mnemonic != "TestRunner":
             continue
         for test_log in _test_log_paths(action):
-            out = ctx.actions.declare_file(fragment_basename(target.label.name, test_log.path))
+            out = ctx.actions.declare_file(_fragment_basename(target.label.name, test_log.path))
             args = ctx.actions.args()
             args.add("-label", label_str)
             args.add("-log", test_log)
@@ -37,14 +50,11 @@ def _test_log_to_json_impl(target, ctx):
             fragments.append(out)
     if not fragments:
         return []
-    info = Test2JsonInfo(
-        fragments = depset(fragments),
-        label = label_str,
-    )
-    return [
-        OutputGroupInfo(**{_OUTPUT_GROUP: depset(fragments)}),
-        info,
-    ]
+
+    # The group name is also spelled in bazel/configs/go_tests.bazelrc
+    # (--output_groups=+test2json) and in tasks/bazel.py, which reads it back
+    # out of the BEP.
+    return [OutputGroupInfo(test2json = depset(fragments))]
 
 test_log_to_json = aspect(
     doc = "Runs testlogs_to_json on each TestRunner test.log for this target.",
