@@ -5,8 +5,10 @@
 
 //! Spawn identity for operator-facing list/describe output.
 
+#[cfg(any(test, feature = "test-helpers"))]
 use log::warn;
 
+#[cfg(any(test, feature = "test-helpers"))]
 use super::profile::SpawnProfile;
 
 /// Resolve the account procmgr intends to use (or last used) for spawn.

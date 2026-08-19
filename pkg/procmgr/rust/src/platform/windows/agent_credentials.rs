@@ -76,6 +76,7 @@ fn account_name_for_logon(domain: &str, user: &str) -> AccountName {
 }
 
 /// Resolve the spawn account display string for a profile on Windows.
+#[cfg(any(test, feature = "test-helpers"))]
 pub(crate) fn spawn_user_for_profile(
     process_name: &str,
     profile: crate::spawn::SpawnProfile,

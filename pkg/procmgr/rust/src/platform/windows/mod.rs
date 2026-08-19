@@ -18,6 +18,7 @@ mod spawn;
 mod wide;
 mod win_handle;
 
+#[cfg(any(test, feature = "test-helpers"))]
 pub(crate) use agent_credentials::spawn_user_for_profile;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
