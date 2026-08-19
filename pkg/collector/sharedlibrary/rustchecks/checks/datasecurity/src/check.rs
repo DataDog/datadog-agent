@@ -6,7 +6,7 @@ use crate::config::{CheckConfig, SubTask};
 use crate::constants::SDS_RESULT_EVENT_TYPE;
 use crate::proto::{self, Status as ScanStatus};
 use crate::result::{ScanOutcome, build_sds_result};
-use crate::scanning::Scanner;
+use crate::scanning::{Scanner, clear_caches};
 
 /// Check entrypoint.
 ///
@@ -29,14 +29,24 @@ fn run(check: &AgentCheck) -> Result<()> {
         ),
     );
 
-    let scanner = Scanner::new(&config.scanning_rules).context("failed to create sds scanner")?;
-
-    for sub_task in &config.scan_data {
-        run_sub_task(check, &config, &scanner, sub_task)?;
-    }
+    // scan() drops the scanner on return; clear dd-sds' caches unconditionally
+    // afterwards, since scanner construction memoizes regexes even when it fails.
+    let result = scan(check, &config);
+    clear_caches();
+    result?;
 
     check.log(LogLevel::Info, "datasecurity: check completed");
     Ok(())
+}
+
+/// Builds the scanner and runs every sub task. The scanner is dropped when this
+/// returns, so its compiled regexes are reclaimable by the caller's cache clear.
+fn scan(check: &AgentCheck, config: &CheckConfig) -> Result<()> {
+    let scanner = Scanner::new(&config.scanning_rules).context("failed to create sds scanner")?;
+    config
+        .scan_data
+        .iter()
+        .try_for_each(|sub_task| run_sub_task(check, config, &scanner, sub_task))
 }
 
 fn run_sub_task(
