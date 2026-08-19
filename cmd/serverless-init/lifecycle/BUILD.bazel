@@ -8,6 +8,7 @@ go_library(
         "config.go",
         "forwarder.go",
         "heartbeat.go",
+        "wire.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle",
     visibility = ["//visibility:public"],
@@ -25,6 +26,7 @@ dd_agent_go_test(
         "config_test.go",
         "forwarder_test.go",
         "heartbeat_test.go",
+        "wire_test.go",
     ],
     embed = [":lifecycle"],
     deps = [
