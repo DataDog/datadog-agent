@@ -271,7 +271,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 		host = s.hostname.GetSafe(context.TODO())
 	}
 
-	s.logger.Infof("[observer] sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
+	s.logger.Infof("reporter sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
 
 	payload := buildChangeEventPayload(c, msg, ts, aggKey, host)
 	body, err := json.Marshal(payload)
@@ -310,7 +310,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 		host = s.hostname.GetSafe(context.TODO())
 	}
 
-	s.logger.Infof("[observer] sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
+	s.logger.Infof("reporter sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
 		evt.Correlation.Pattern, direction, aggKey, ts)
 
 	tags := []string{

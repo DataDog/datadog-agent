@@ -15,6 +15,6 @@ import (
 // registerKubeletJournaldSource is a no-op stub; journald tailing requires
 // both kubelet and systemd build tags. Returns nil (no source created).
 func registerKubeletJournaldSource(_ *sources.LogSources, logger log.Component) *sources.LogSource {
-	logger.Debugf("[observer/logssource] kubelet journald source not registered: requires kubelet+systemd build tags")
+	logger.Debugf("logssource kubelet journald source not registered: requires kubelet+systemd build tags")
 	return nil
 }

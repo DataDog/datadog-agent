@@ -11,6 +11,7 @@ import (
 	"time"
 
 	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -92,6 +93,7 @@ type logssourceComponent struct{}
 //     build tag (no-op otherwise)
 //   - file logs are always supported
 func NewComponent(deps Requires) (Provides, error) {
+	logger := logging.Wrap(deps.Log)
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()
 
@@ -111,13 +113,13 @@ func NewComponent(deps Requires) (Provides, error) {
 	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
 	logsRules, err := logsfilter.LoadRules(deps.Config, logsProcessingRulesKey)
 	if err != nil {
-		deps.Log.Warnf("[observer/logssource] %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
+		logger.Warnf("logssource %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
 		logsRules = &logsfilter.Rules{}
 	}
 
 	processingRules, err := logsconfig.GlobalProcessingRules(deps.Config)
 	if err != nil {
-		deps.Log.Warnf("observer logssource: invalid global processing rules, proceeding without them: %v", err)
+		logger.Warnf("logssource invalid global processing rules, proceeding without them: %v", err)
 		processingRules = nil
 	}
 
@@ -143,7 +145,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	if containerSourcesActive {
 		fingerprintCfg, err := logsconfig.GlobalFingerprintConfig(deps.Config)
 		if err != nil {
-			deps.Log.Warnf("observer logssource: invalid fingerprint config, proceeding with defaults: %v", err)
+			logger.Warnf("logssource invalid fingerprint config, proceeding with defaults: %v", err)
 			fingerprintCfg = &types.FingerprintConfig{}
 		}
 		fileOpener := opener.NewFileOpener()
@@ -170,21 +172,21 @@ func NewComponent(deps Requires) (Provides, error) {
 			adScheduler = logsadscheduler.NewNamed(deps.Autodiscovery, "observer-logssource AD scheduler")
 		}
 	} else if logSourceSettings.containerSourcesEnabled {
-		deps.Log.Debugf("[observer/logssource] container log sources not started: workloadmeta unavailable")
+		logger.Debugf("logssource container log sources not started: workloadmeta unavailable")
 	}
 
 	if containerSourcesActive || logSourceSettings.kubeletSourceEnabled {
 		launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
 	}
 	if logSourceSettings.kubeletSourceEnabled {
-		registerKubeletJournaldSource(logSources, deps.Log)
+		registerKubeletJournaldSource(logSources, logger)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
-			deps.Log.Infof("[observer/logssource] starting log pipeline")
+			logger.Infof("logssource starting log pipeline")
 			pipeline.start()
 			launchersMgr.Start()
 			if adScheduler != nil {

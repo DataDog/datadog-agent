@@ -17,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/config",
+        "//comp/anomalydetection/internal/logging",
         "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/logssource/def",
         "//comp/anomalydetection/observer/def",

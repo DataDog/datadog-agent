@@ -25,7 +25,7 @@ func registerKubeletJournaldSource(logSources *sources.LogSources, logger log.Co
 		Tags:               logsconfig.StringSliceField{"source:kubelet"},
 	})
 	logSources.AddSource(src)
-	logger.Infof("[observer/logssource] registered kubelet journald source: config_id=%q include_units=%v tags=%v",
+	logger.Infof("logssource registered kubelet journald source: config_id=%q include_units=%v tags=%v",
 		src.Config.ConfigID, src.Config.IncludeSystemUnits, src.Config.Tags)
 	return src
 }
