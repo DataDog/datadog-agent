@@ -130,11 +130,12 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	// grab the warnings and add them to the struct
 	c.lastWarnings = c.getPythonWarnings()
 
-	checkErrStr := C.GoString(cResult)
-	if checkErrStr == "" {
+	// Fast path: on success run() returns "". Avoid the GoString heap allocation
+	// by checking the first byte directly before converting the whole string.
+	if *(*byte)(unsafe.Pointer(cResult)) == 0 {
 		return nil
 	}
-	return errors.New(checkErrStr)
+	return errors.New(C.GoString(cResult))
 }
 
 func (c *PythonCheck) runCheck(commitMetrics bool) error {
