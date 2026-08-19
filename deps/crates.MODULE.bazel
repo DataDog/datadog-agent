@@ -13,6 +13,13 @@ crate.from_cargo(
     validate_lockfile = True,
 )
 crate.annotation(
+    build_script_env = {
+        "PROTOC": "$(execpath @@//bazel/toolchains/protoc:protoc)",
+    },
+    build_script_tools = ["@@//bazel/toolchains/protoc:protoc"],
+    crate = "datadog-protos",
+)
+crate.annotation(
     crate = "protoc-gen-prost",
     gen_binaries = ["protoc-gen-prost"],
 )
