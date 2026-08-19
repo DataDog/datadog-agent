@@ -200,6 +200,22 @@ DATADOG_AGENT_RTLOADER_API char *discover_config(rtloader_t *, rtloader_pyobject
 */
 DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *check);
 
+/*! \fn int run_remote_query_stream(rtloader_t *, rtloader_pyobject_t *check, const char *integration, const char
+   *request_json, remote_query_stream_emit_cb emit, void *userdata)
+    \brief Runs the integration remote query streaming helper for a check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param check A rtloader_pyobject_t * pointer to the check instance we wish to use.
+    \param integration The integration helper module name.
+    \param request_json A credential-free JSON request string.
+    \param emit Callback invoked once per serialized stream event.
+    \param userdata Opaque pointer passed to emit.
+    \return 1 on success, 0 on failure.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API int run_remote_query_stream(rtloader_t *, rtloader_pyobject_t *check,
+                                                       const char *integration, const char *request_json,
+                                                       remote_query_stream_emit_cb emit, void *userdata);
+
 /*! \fn char *cancel_check(rtloader_t *, rtloader_pyobject_t *check)
     \brief Cancels a check instance. This allow check to be notified when
     they're unscheduled and can free any remaining resources.
