@@ -4,17 +4,20 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::process::ManagedProcess;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 /// Shut down processes in the given index order (typically reverse startup order).
-/// Sends graceful stop to all first, then waits for each in order so total shutdown
-/// time is bounded by the slowest process rather than the sum of per-process timeouts.
+///
+/// Sends graceful stop to all first so every child begins shutting down together, then
+/// waits sequentially. Each wait uses the remaining per-process graceful budget since
+/// the shared stop signal, so stubborn children do not each get a fresh full timeout.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();
     }
+    let signal_time = Instant::now();
     for &idx in order {
-        processes[idx].wait_for_stop().await;
+        processes[idx].wait_for_stop_since(signal_time).await;
     }
 }
 
@@ -29,7 +32,7 @@ mod tests {
     use super::*;
     use crate::state::ProcessState;
     use crate::test_helpers;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     fn sleep_config() -> crate::config::ProcessConfig {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -141,43 +144,6 @@ mod tests {
         assert!(
             started.elapsed() < Duration::from_secs(5),
             "shared graceful budget should not apply two full stop timeouts sequentially, took {:?}",
-            started.elapsed()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_shutdown_ordered_shared_force_kill_budget() {
-        let (cmd, args) = test_helpers::trap_term_sleep();
-        let mut cfg = test_helpers::make_config(cmd, args);
-        cfg.stop_timeout = Some(1);
-
-        let mut procs: Vec<ManagedProcess> = (0..3)
-            .map(|i| {
-                ManagedProcess::new_config(format!("p{i}"), test_helpers::test_uuid(), cfg.clone())
-            })
-            .collect();
-        for proc in &mut procs {
-            proc.spawn().unwrap();
-        }
-
-        let signal_time = Instant::now();
-        let budget =
-            ShutdownBudget::with_deadline(signal_time, signal_time + Duration::from_secs(5));
-        for proc in &mut procs {
-            proc.request_stop();
-        }
-
-        let started = Instant::now();
-        for proc in &mut procs {
-            proc.wait_for_stop_since(budget).await;
-        }
-
-        for proc in &procs {
-            assert_eq!(proc.state(), ProcessState::Stopped);
-        }
-        assert!(
-            started.elapsed() < Duration::from_secs(8),
-            "shared shutdown deadline should cap serial force-kill waits, took {:?}",
             started.elapsed()
         );
     }

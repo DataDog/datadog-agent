@@ -16,6 +16,7 @@ use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
 use std::collections::VecDeque;
 use std::pin::Pin;
+use std::time::Instant as StopInstant;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
@@ -542,6 +543,10 @@ impl ManagedProcess {
         self.config.stop_timeout()
     }
 
+    fn graceful_budget_since(&self, signal_time: StopInstant) -> Duration {
+        self.stop_timeout().saturating_sub(signal_time.elapsed())
+    }
+
     fn mark_stopped(&mut self) {
         #[cfg(windows)]
         {
@@ -623,9 +628,7 @@ impl ManagedProcess {
         }
     }
 
-    async fn wait_for_stop_exit(&mut self) -> bool {
-        let timeout = self.stop_timeout();
-
+    async fn wait_for_stop_exit(&mut self, graceful_budget: Duration) -> bool {
         if let Some(handle) = self.watcher_handle.take() {
             tokio::pin!(handle);
             let status = match time::timeout(graceful_budget, &mut handle).await {
@@ -635,8 +638,11 @@ impl ManagedProcess {
                     None
                 }
                 Err(_) => {
-                    self.force_kill_and_wait(timeout, ForceKillWaitTarget::Watcher(&mut handle))
-                        .await
+                    self.force_kill_and_wait(
+                        graceful_budget,
+                        ForceKillWaitTarget::Watcher(&mut handle),
+                    )
+                    .await
                 }
             };
             return status.is_some_and(|status| {
@@ -653,7 +659,7 @@ impl ManagedProcess {
                     None
                 }
                 Err(_) => {
-                    self.force_kill_and_wait(timeout, ForceKillWaitTarget::Child)
+                    self.force_kill_and_wait(graceful_budget, ForceKillWaitTarget::Child)
                         .await
                 }
             };
@@ -685,9 +691,18 @@ impl ManagedProcess {
     /// Wait for a process that was signaled with [`Self::request_stop`] to exit,
     /// force-killing on timeout and releasing Windows spawn resources.
     pub async fn wait_for_stop(&mut self) {
+        self.wait_for_stop_since(StopInstant::now()).await;
+    }
+
+    /// Like [`Self::wait_for_stop`], but measures the graceful budget from
+    /// `signal_time` instead of from when this wait starts.
+    ///
+    /// Used during ordered shutdown so every child shares one stop deadline.
+    pub(crate) async fn wait_for_stop_since(&mut self, signal_time: StopInstant) {
+        let graceful_budget = self.graceful_budget_since(signal_time);
         match self.state {
             ProcessState::Running | ProcessState::Stopping => {
-                if !self.wait_for_stop_exit().await {
+                if !self.wait_for_stop_exit(graceful_budget).await {
                     self.mark_stopped();
                 }
                 #[cfg(windows)]
