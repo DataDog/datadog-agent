@@ -246,6 +246,21 @@ func TestBaselineCollectorClampsInterval(t *testing.T) {
 	assert.Equal(t, baselineMinimumInterval, collector.baselineSelector.interval)
 }
 
+func TestBaselineIntervalFloorDoesNotAffectNetflow(t *testing.T) {
+	_, collector := newTestNpCollector(t, map[string]any{
+		"network_path.connections_monitoring.baseline_tests_enabled": true,
+		"network_path.netflow_monitoring.enabled":                    true,
+		"network_path.collector.pathtest_interval":                   10 * time.Millisecond,
+	}, &teststatsd.Client{}, nil)
+
+	assert.Equal(t, baselineMinimumInterval, collector.baselineSelector.interval)
+	collector.pathtestStore.Add(&common.Pathtest{Hostname: "netflow", Origin: payload.PathOriginNetflow})
+	require.Len(t, collector.pathtestStore.Flush(), 1)
+	require.Eventually(t, func() bool {
+		return len(collector.pathtestStore.Flush()) == 1
+	}, time.Second, 10*time.Millisecond, "NetFlow should keep the configured recurring interval")
+}
+
 func TestStandardModeTakesPrecedenceOverBaseline(t *testing.T) {
 	_, collector := newTestNpCollector(t, map[string]any{
 		"network_path.connections_monitoring.enabled":                true,

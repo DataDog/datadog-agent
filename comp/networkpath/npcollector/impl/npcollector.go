@@ -103,14 +103,14 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		logger.Errorf("connection filter errors: %s", errors.Join(errs...))
 	}
 
-	storeConfig := collectorConfigs.storeConfig
 	var baselineSelector *baselineSelector
 	if collectorConfigs.baselineTestsEnabled && !collectorConfigs.connectionsMonitoringEnabled {
-		if storeConfig.Interval < baselineMinimumInterval {
-			logger.Warnf("network_path.collector.pathtest_interval=%s is below the baseline minimum; using %s", storeConfig.Interval, baselineMinimumInterval)
-			storeConfig.Interval = baselineMinimumInterval
+		baselineInterval := collectorConfigs.storeConfig.Interval
+		if baselineInterval < baselineMinimumInterval {
+			logger.Warnf("network_path.collector.pathtest_interval=%s is below the baseline minimum; using %s", baselineInterval, baselineMinimumInterval)
+			baselineInterval = baselineMinimumInterval
 		}
-		baselineSelector = newBaselineSelector(storeConfig.Interval)
+		baselineSelector = newBaselineSelector(baselineInterval)
 	}
 
 	return &npCollectorImpl{
@@ -123,7 +123,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		statsdClient: statsd,
 		rdnsquerier:  rdnsquerier,
 
-		pathtestStore:          pathteststore.NewPathtestStore(storeConfig, logger, statsd, time.Now),
+		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.storeConfig, logger, statsd, time.Now),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		baselineSelector:       baselineSelector,
