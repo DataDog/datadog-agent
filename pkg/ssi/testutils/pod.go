@@ -43,6 +43,10 @@ const (
 	InjectionStatusAnnotation = "internal.apm.datadoghq.com/injection-status"
 	// InjectedLibrariesAnnotation records the JSON array of components the webhook attempted to inject.
 	InjectedLibrariesAnnotation = "internal.apm.datadoghq.com/injected-libraries"
+	// AppliedTargetAnnotation is the JSON of the local SSI target that matched the pod.
+	AppliedTargetAnnotation = "internal.apm.datadoghq.com/applied-target"
+	// AppliedPolicyAnnotation is the compact JSON of the remote-config policy that matched the pod.
+	AppliedPolicyAnnotation = "internal.apm.datadoghq.com/applied-policy"
 )
 
 // CSIDriverStatus annotation values (kept in sync with the annotation package).
@@ -225,6 +229,27 @@ func (v *PodValidator) RequireInjectionStatus(t *testing.T, expected string) {
 // Use the CSIDriverStatus* constants for the expected value.
 func (v *PodValidator) RequireCSIDriverStatus(t *testing.T, expected string) {
 	v.RequireAnnotations(t, map[string]string{CSIDriverStatusAnnotation: expected})
+}
+
+// RequireAppliedTargetName ensures applied-target is set and its JSON name matches expected.
+func (v *PodValidator) RequireAppliedTargetName(t *testing.T, expected string) {
+	requireAppliedJSONName(t, v.raw, AppliedTargetAnnotation, expected)
+}
+
+// RequireAppliedPolicyName ensures applied-policy is set and its JSON name matches expected.
+func (v *PodValidator) RequireAppliedPolicyName(t *testing.T, expected string) {
+	requireAppliedJSONName(t, v.raw, AppliedPolicyAnnotation, expected)
+}
+
+func requireAppliedJSONName(t *testing.T, pod *corev1.Pod, key, expected string) {
+	t.Helper()
+	raw, exists := pod.Annotations[key]
+	require.True(t, exists, "annotation %s should exist", key)
+	var payload struct {
+		Name string `json:"name"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(raw), &payload), "annotation %s is not JSON: %s", key, raw)
+	require.Equal(t, expected, payload.Name, "annotation %s name", key)
 }
 
 // RequireInjectedLibraries ensures the injected-libraries annotation lists exactly the expected

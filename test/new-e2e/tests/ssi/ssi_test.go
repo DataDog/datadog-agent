@@ -21,6 +21,7 @@ import (
 	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
+	kubeClient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -30,6 +31,7 @@ import (
 	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 //go:embed testdata/base.yaml
@@ -56,13 +58,28 @@ var rcPoliciesHelmValues string
 //go:embed testdata/rc_host_linux_only_policy.json
 var rcHostLinuxOnlyPolicyJSON []byte
 
+//go:embed testdata/rc_namespace_other_policy.json
+var rcNamespaceOtherPolicyJSON []byte
+
+//go:embed testdata/rc_deny_targeted_namespace_policy.json
+var rcDenyTargetedNamespacePolicyJSON []byte
+
 const (
-	apmPoliciesRCProduct      = "APM_POLICIES"
-	rcHostLinuxOnlyConfigID   = "1.host-linux-only"
-	rcHostLinuxOnlyConfigName = "config"
-	rcFakeIntakeDefaultOrgID  = "42"
-	rcAnnotatedPodNamespace   = "other"
-	rcAnnotatedPodApp         = "rc-ann-only"
+	apmPoliciesRCProduct              = "APM_POLICIES"
+	rcHostLinuxOnlyConfigID           = "1.host-linux-only"
+	rcHostLinuxOnlyConfigName         = "config"
+	rcNamespaceOtherConfigID          = "1.namespace-other"
+	rcNamespaceOtherConfigName        = "config"
+	rcDenyTargetedNamespaceConfigID   = "1.deny-targeted-namespace"
+	rcDenyTargetedNamespaceConfigName = "config"
+	rcFakeIntakeDefaultOrgID          = "42"
+	rcHelmTargetNamespace             = "targeted-namespace"
+	rcHelmTargetApp                   = "rc-target-python"
+	rcOtherNamespace                  = "other"
+	rcAnnotatedPodApp                 = "rc-ann-only"
+	rcUnannotatedPodApp               = "rc-unannotated"
+	rcHelmTargetName                  = "python-apps"
+	rcNamespaceOtherPolicyName        = "namespace other: matches admission namespace fact"
 )
 
 // ssiSuite runs all SSI test groups on a single cluster, calling UpdateEnv at the start of
@@ -563,7 +580,10 @@ func (v *ssiSuite) TestRegistryAllowList() {
 	})
 }
 
-func (v *ssiSuite) TestRemoteConfigNoFalsePositive() {
+func (v *ssiSuite) TestRemoteConfig() {
+	// rc_policies.yaml: helm SSI target (namespace injection=yes, pod language=python) plus two
+	// workloads in namespace "other", outside that target: annotated lib-injection and unannotated.
+	// RC uptake is asserted by pod mutation (install type, env defaults), not fakeintake poll counters.
 	agentOptions := []kubernetesagentparams.Option{
 		kubernetesagentparams.WithHelmValues(rcPoliciesHelmValues),
 		kubernetesagentparams.WithTimeout(600),
@@ -573,13 +593,13 @@ func (v *ssiSuite) TestRemoteConfigNoFalsePositive() {
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "rc-policies", []singlestep.Namespace{
 				{
-					Name: "targeted-namespace",
+					Name: rcHelmTargetNamespace,
 					Labels: map[string]string{
 						"injection": "yes",
 					},
 					Apps: []singlestep.App{
 						{
-							Name:    "rc-target-python",
+							Name:    rcHelmTargetApp,
 							Image:   "gcr.io/datadoghq/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
@@ -590,7 +610,7 @@ func (v *ssiSuite) TestRemoteConfigNoFalsePositive() {
 					},
 				},
 				{
-					Name: "other",
+					Name: rcOtherNamespace,
 					Apps: []singlestep.App{
 						{
 							Name:    rcAnnotatedPodApp,
@@ -604,6 +624,12 @@ func (v *ssiSuite) TestRemoteConfigNoFalsePositive() {
 								"admission.datadoghq.com/python-lib.version": "v3.18.1",
 							},
 						},
+						{
+							Name:    rcUnannotatedPodApp,
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
+						},
 					},
 				},
 			}, dependsOnAgent)
@@ -612,36 +638,132 @@ func (v *ssiSuite) TestRemoteConfigNoFalsePositive() {
 
 	v.UpdateEnv(Provisioner(provisionerOpts))
 
-	v.Run("AnnotatedPodStaysLibInjectionWithRCHostOnlyPolicy", func() {
+	fi := v.Env().FakeIntake.Client()
+
+	// Host-only RC cannot match K8s admission facts. Annotated pod in "other" stays lib-injection;
+	// unannotated pod stays uninjected; helm target in targeted-namespace still gets SSI.
+	v.Run("HostOnlyPolicyDoesNotMatchK8s", func() {
 		k8s := v.Env().KubernetesCluster.Client()
-		fi := v.Env().FakeIntake.Client()
 
-		require.Eventually(v.T(), func() bool {
-			stats, err := fi.RCStats()
-			return err == nil && stats.Polls > 0
-		}, 2*time.Minute, 5*time.Second, "cluster agent did not poll fakeintake Remote Config")
+		cleanup := v.pushAPMPolicy(fi, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName, rcHostLinuxOnlyPolicyJSON)
+		defer cleanup()
 
-		baselineStats, err := fi.RCStats()
-		require.NoError(v.T(), err)
-
-		require.NoError(v.T(), fi.RCAddConfig("", apmPoliciesRCProduct, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName, rcHostLinuxOnlyPolicyJSON))
-		v.T().Cleanup(func() {
-			_ = fi.RCDeleteConfig(fmt.Sprintf("%s/%s/%s/%s", rcFakeIntakeDefaultOrgID, apmPoliciesRCProduct, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName))
-		})
-
-		require.Eventually(v.T(), func() bool {
-			stats, err := fi.RCStats()
-			return err == nil && stats.ConfigsCount >= 1 && stats.Version > baselineStats.Version
-		}, 2*time.Minute, 5*time.Second, "fakeintake did not store the APM_POLICIES RC payload")
-
-		RestartPod(v.T(), k8s, rcAnnotatedPodNamespace, rcAnnotatedPodApp)
-		pod := WaitForMutatedPodInNamespace(v.T(), k8s, rcAnnotatedPodNamespace, rcAnnotatedPodApp)
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
 
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		podValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
 		podValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
+		// Library annotations short-circuit applied-target / applied-policy metadata.
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
+		unannotatedValidator.RequireNoInjection(v.T())
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		v.requireHelmTargetStillSSI(k8s)
 	})
+
+	// RC policy matching namespace "other" enables SSI on the annotated pod and on the unannotated
+	// pod (true on-demand, still outside the helm target). Helm local targeting is unchanged.
+	v.Run("NamespacePolicyEnablesSSIOutsideHelmTarget", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+
+		cleanup := v.pushAPMPolicy(fi, rcNamespaceOtherConfigID, rcNamespaceOtherConfigName, rcNamespaceOtherPolicyJSON)
+		defer cleanup()
+
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+
+		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
+		podValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcAnnotatedPodApp})
+		podValidator.RequireEnvs(v.T(), map[string]string{"DD_TRACE_ENABLED": "true"}, []string{rcAnnotatedPodApp})
+		// SSI mode follows the policy match; annotation short-circuit still skips applied-policy JSON.
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
+		unannotatedValidator.RequireInjection(v.T(), []string{rcUnannotatedPodApp})
+		unannotatedValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcUnannotatedPodApp})
+		unannotatedValidator.RequireEnvs(v.T(), map[string]string{"DD_TRACE_ENABLED": "true"}, []string{rcUnannotatedPodApp})
+		unannotatedValidator.RequireAppliedPolicyName(v.T(), rcNamespaceOtherPolicyName)
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation})
+
+		v.requireHelmTargetStillSSI(k8s)
+	})
+
+	// Remote policies are evaluated before local helm targets. A deny matching
+	// targeted-namespace blocks SSI on the helm workload; namespace "other" is unchanged.
+	v.Run("NamespacePolicyOverridesHelmTarget", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+
+		cleanup := v.pushAPMPolicy(fi, rcDenyTargetedNamespaceConfigID, rcDenyTargetedNamespaceConfigName, rcDenyTargetedNamespacePolicyJSON)
+		defer cleanup()
+
+		RestartPod(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp)
+		helmPod := FindPodInNamespace(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp)
+		helmValidator := testutils.NewPodValidator(helmPod, testutils.InjectionModeAuto)
+		helmValidator.RequireNoInjection(v.T())
+		helmValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		annotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		annotatedValidator := testutils.NewPodValidator(annotated, testutils.InjectionModeAuto)
+		annotatedValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
+		annotatedValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
+		annotatedValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
+		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
+		unannotatedValidator.RequireNoInjection(v.T())
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+	})
+}
+
+func (v *ssiSuite) requireHelmTargetStillSSI(k8s kubeClient.Interface) {
+	v.T().Helper()
+
+	RestartPod(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp)
+	pod := WaitForMutatedPodInNamespace(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp)
+	podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+	podValidator.RequireInjection(v.T(), []string{rcHelmTargetApp})
+	podValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcHelmTargetApp})
+	podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
+	podValidator.RequireAppliedTargetName(v.T(), rcHelmTargetName)
+	podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedPolicyAnnotation})
+}
+
+func (v *ssiSuite) pushAPMPolicy(fi *fakeintake.Client, configID, configName string, payload []byte) func() {
+	v.T().Helper()
+
+	baselineStats, err := fi.RCStats()
+	require.NoError(v.T(), err)
+
+	require.NoError(v.T(), fi.RCAddConfig("", apmPoliciesRCProduct, configID, configName, payload))
+
+	require.Eventually(v.T(), func() bool {
+		stats, err := fi.RCStats()
+		return err == nil && stats.ConfigsCount >= 1 && stats.Version > baselineStats.Version
+	}, 2*time.Minute, 5*time.Second, "fakeintake did not store the APM_POLICIES RC payload")
+
+	// Poll snapshot after storage, not before RCAddConfig.
+	statsAfterPublish, err := fi.RCStats()
+	require.NoError(v.T(), err)
+	require.Eventually(v.T(), func() bool {
+		stats, err := fi.RCStats()
+		return err == nil && stats.Polls > statsAfterPublish.Polls
+	}, 2*time.Minute, 5*time.Second, "cluster agent did not poll fakeintake after APM_POLICIES was published")
+
+	return func() {
+		_ = fi.RCDeleteConfig(fmt.Sprintf("%s/%s/%s/%s", rcFakeIntakeDefaultOrgID, apmPoliciesRCProduct, configID, configName))
+	}
 }
 
 func isOpenShift() bool {
