@@ -105,12 +105,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 
 	var baselineSelector *baselineSelector
 	if collectorConfigs.baselineTestsEnabled && !collectorConfigs.connectionsMonitoringEnabled {
-		baselineInterval := collectorConfigs.storeConfig.Interval
-		if baselineInterval < baselineMinimumInterval {
-			logger.Warnf("network_path.collector.pathtest_interval=%s is below the baseline minimum; using %s", baselineInterval, baselineMinimumInterval)
-			baselineInterval = baselineMinimumInterval
-		}
-		baselineSelector = newBaselineSelector(baselineInterval)
+		baselineSelector = newBaselineSelector()
 	}
 
 	return &npCollectorImpl{

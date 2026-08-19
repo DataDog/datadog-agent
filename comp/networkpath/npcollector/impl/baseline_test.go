@@ -65,32 +65,34 @@ func scheduledBaselineHosts(t *testing.T, collector *npCollectorImpl) []string {
 
 func TestBaselineSelectorAccumulatesTrafficAcrossBootstrapWindow(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBaselineSelector(30 * time.Minute)
+	selector := newBaselineSelector()
 	selector.add(baselinePath("one"), 40, now)
 	selector.add(baselinePath("two"), 90, now)
 	selector.add(baselinePath("one"), 60, now.Add(time.Minute))
 	selector.add(baselinePath("three"), 80, now.Add(2*time.Minute))
 	selector.add(baselinePath("four"), 70, now.Add(3*time.Minute))
+	selector.add(baselinePath("five"), 60, now.Add(4*time.Minute))
+	selector.add(baselinePath("six"), 50, now.Add(4*time.Minute))
 
 	assert.Nil(t, selector.flush(now.Add(baselineBootstrapWindow-time.Second)))
 	selected := selector.flush(now.Add(baselineBootstrapWindow))
 
-	assert.Equal(t, []string{"one", "two", "three"}, pathHosts(selected))
+	assert.Equal(t, []string{"one", "two", "three", "four", "five"}, pathHosts(selected))
 	for _, path := range selected {
 		assert.Equal(t, payload.DynamicTestProfileBaseline, path.DynamicTestProfile)
 		assert.True(t, path.RunOnce)
 	}
 }
 
-func TestBaselineSelectorUsesConfiguredWindowsAfterBootstrap(t *testing.T) {
+func TestBaselineSelectorUsesHourlyWindowsAfterBootstrap(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBaselineSelector(30 * time.Minute)
+	selector := newBaselineSelector()
 	selector.add(baselinePath("bootstrap"), 1, now)
 	require.Len(t, selector.flush(now.Add(5*time.Minute)), 1)
 
 	selector.add(baselinePath("regular"), 1, now.Add(6*time.Minute))
-	assert.Nil(t, selector.flush(now.Add(34*time.Minute)))
-	selected := selector.flush(now.Add(35 * time.Minute))
+	assert.Nil(t, selector.flush(now.Add(64*time.Minute)))
+	selected := selector.flush(now.Add(65 * time.Minute))
 
 	require.Len(t, selected, 1)
 	assert.Equal(t, "regular", selected[0].Hostname)
@@ -98,7 +100,7 @@ func TestBaselineSelectorUsesConfiguredWindowsAfterBootstrap(t *testing.T) {
 
 func TestBaselineSelectorBoundsHeavyHitterCandidates(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBaselineSelector(30 * time.Minute)
+	selector := newBaselineSelector()
 	selector.add(baselinePath("heavy"), 10_000, now)
 	for i := 1; i <= baselineCandidateLimit*4; i++ {
 		selector.add(baselinePath(netip.AddrFrom4([4]byte{10, 0, byte(i / 255), byte(i % 255)}).String()), 1, now)
@@ -112,7 +114,7 @@ func TestBaselineSelectorBoundsHeavyHitterCandidates(t *testing.T) {
 
 func TestBaselineSelectorIgnoresZeroByteObservationsWhenFull(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBaselineSelector(30 * time.Minute)
+	selector := newBaselineSelector()
 	originalHashes := make([]uint64, 0, baselineCandidateLimit)
 	for i := 1; i <= baselineCandidateLimit; i++ {
 		path := baselinePath(netip.AddrFrom4([4]byte{10, 0, 0, byte(i)}).String())
@@ -133,7 +135,7 @@ func TestBaselineSelectorIgnoresZeroByteObservationsWhenFull(t *testing.T) {
 
 func TestBaselineSelectorBreaksTiesByPathHash(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBaselineSelector(30 * time.Minute)
+	selector := newBaselineSelector()
 	paths := []common.Pathtest{baselinePath("one"), baselinePath("two"), baselinePath("three")}
 	for _, path := range paths {
 		selector.add(path, 1, now)
@@ -169,12 +171,14 @@ func TestBaselineCollectorEmitsOnlyAtWindowBoundary(t *testing.T) {
 		baselineConn("10.0.0.2", 3),
 		baselineConn("10.0.0.3", 2),
 		baselineConn("10.0.0.4", 4),
+		baselineConn("10.0.0.5", 5),
+		baselineConn("10.0.0.6", 6),
 	}))
 	assert.Empty(t, collector.pathtestInputChan)
 
 	now = now.Add(baselineBootstrapWindow)
 	collector.flushBaselinePaths(now)
-	assert.Equal(t, []string{"10.0.0.4", "10.0.0.2", "10.0.0.3"}, scheduledBaselineHosts(t, collector))
+	assert.Equal(t, []string{"10.0.0.6", "10.0.0.5", "10.0.0.4", "10.0.0.2", "10.0.0.3"}, scheduledBaselineHosts(t, collector))
 	collector.flushBaselinePaths(now.Add(time.Minute))
 	assert.Empty(t, collector.pathtestInputChan)
 }
@@ -213,7 +217,7 @@ func TestBaselineCollectorDoesNotMixBoundarySnapshotIntoPreviousWindow(t *testin
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{baselineConn("10.0.0.2", 2)}))
 	assert.Equal(t, []string{"10.0.0.1"}, scheduledBaselineHosts(t, collector))
 
-	now = now.Add(10 * time.Minute)
+	now = now.Add(baselineSelectionInterval)
 	collector.flushBaselinePaths(now)
 	assert.Equal(t, []string{"10.0.0.2"}, scheduledBaselineHosts(t, collector))
 }
@@ -247,25 +251,24 @@ func TestBaselineCollectorPreservesWinningRCProvenance(t *testing.T) {
 	assert.Equal(t, []string{"team:payments"}, pathtest.Tags)
 }
 
-func TestBaselineCollectorClampsInterval(t *testing.T) {
+func TestBaselineIntervalIgnoresPathtestInterval(t *testing.T) {
 	_, collector := newTestNpCollector(t, map[string]any{
 		"network_path.connections_monitoring.baseline_tests_enabled": true,
 		"network_path.collector.pathtest_interval":                   time.Minute,
+		"network_path.collector.monitor_ip_without_domain":           true,
 	}, &teststatsd.Client{}, nil)
+	now := MockTimeNow()
+	collector.TimeNowFn = func() time.Time { return now }
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{baselineConn("10.0.0.1", 1)}))
+	collector.flushBaselinePaths(now.Add(baselineBootstrapWindow))
+	require.Len(t, scheduledBaselineHosts(t, collector), 1)
 
-	require.NotNil(t, collector.baselineSelector)
-	assert.Equal(t, baselineMinimumInterval, collector.baselineSelector.interval)
-}
-
-func TestBaselineIntervalFloorDoesNotAffectNetflow(t *testing.T) {
-	_, collector := newTestNpCollector(t, map[string]any{
-		"network_path.connections_monitoring.baseline_tests_enabled": true,
-		"network_path.netflow_monitoring.enabled":                    true,
-		"network_path.collector.pathtest_interval":                   10 * time.Millisecond,
-	}, &teststatsd.Client{}, nil)
-
-	assert.Equal(t, baselineMinimumInterval, collector.baselineSelector.interval)
-	assert.Equal(t, 10*time.Millisecond, collector.collectorConfigs.storeConfig.Interval)
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{baselineConn("10.0.0.2", 1)}))
+	collector.flushBaselinePaths(now.Add(baselineBootstrapWindow + time.Minute))
+	assert.Empty(t, collector.pathtestInputChan)
+	collector.flushBaselinePaths(now.Add(baselineBootstrapWindow + baselineSelectionInterval))
+	assert.Equal(t, []string{"10.0.0.2"}, scheduledBaselineHosts(t, collector))
+	assert.Equal(t, time.Minute, collector.collectorConfigs.storeConfig.Interval)
 }
 
 func TestStandardModeTakesPrecedenceOverBaseline(t *testing.T) {
@@ -283,7 +286,7 @@ func TestStandardModeTakesPrecedenceOverBaseline(t *testing.T) {
 }
 
 func TestBaselineEmptyWindowSelectsNothing(t *testing.T) {
-	selector := newBaselineSelector(30 * time.Minute)
+	selector := newBaselineSelector()
 	selector.start(MockTimeNow())
 	assert.Empty(t, selector.flush(MockTimeNow().Add(baselineBootstrapWindow)))
 }
@@ -309,15 +312,17 @@ func TestBaselineWindowConsumesSlotsBeforeChannelAdmission(t *testing.T) {
 	now := MockTimeNow()
 	collector.TimeNowFn = func() time.Time { return now }
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
-		baselineConn("10.0.0.1", 3),
-		baselineConn("10.0.0.2", 2),
-		baselineConn("10.0.0.3", 1),
+		baselineConn("10.0.0.1", 5),
+		baselineConn("10.0.0.2", 4),
+		baselineConn("10.0.0.3", 3),
+		baselineConn("10.0.0.4", 2),
+		baselineConn("10.0.0.5", 1),
 	}))
 
 	collector.flushBaselinePaths(now.Add(baselineBootstrapWindow))
 
 	assert.Len(t, collector.pathtestInputChan, 1)
-	assert.Equal(t, int64(2), stats.GetCountSummaries()["datadog.network_path.collector.schedule.pathtest_dropped"].Sum)
+	assert.Equal(t, int64(4), stats.GetCountSummaries()["datadog.network_path.collector.schedule.pathtest_dropped"].Sum)
 	collector.flushBaselinePaths(now.Add(baselineBootstrapWindow + time.Minute))
 	assert.Len(t, collector.pathtestInputChan, 1, "dropped winners must not be retried")
 }

@@ -16,14 +16,14 @@ import (
 )
 
 // Baseline selection accumulates admitted CNM path byte volume over a
-// five-minute bootstrap window and subsequent configured intervals. It uses
-// bounded weighted Space-Saving to emit up to three one-shot paths per window.
+// five-minute bootstrap window and subsequent hourly intervals. It uses
+// bounded weighted Space-Saving to emit up to five one-shot paths per window.
 // Windows restart when flushed, and missed windows are not replayed.
 const (
-	baselineSelectionsPerWindow = 3
+	baselineSelectionsPerWindow = 5
 	baselineCandidateLimit      = 32
 	baselineBootstrapWindow     = 5 * time.Minute
-	baselineMinimumInterval     = 10 * time.Minute
+	baselineSelectionInterval   = time.Hour
 )
 
 type baselineCandidate struct {
@@ -45,14 +45,12 @@ func (candidate baselineCandidate) betterThan(other baselineCandidate) bool {
 // critical safety property for the Agent on high-cardinality hosts.
 type baselineSelector struct {
 	mu         sync.Mutex
-	interval   time.Duration
 	deadline   time.Time
 	candidates map[uint64]baselineCandidate
 }
 
-func newBaselineSelector(interval time.Duration) *baselineSelector {
+func newBaselineSelector() *baselineSelector {
 	return &baselineSelector{
-		interval:   interval,
 		candidates: make(map[uint64]baselineCandidate, baselineCandidateLimit),
 	}
 }
@@ -142,7 +140,7 @@ func (selector *baselineSelector) flush(now time.Time) []common.Pathtest {
 
 	clear(selector.candidates)
 	// Start a fresh window from this flush; missed windows are not replayed.
-	selector.deadline = now.Add(selector.interval)
+	selector.deadline = now.Add(baselineSelectionInterval)
 	return paths
 }
 
