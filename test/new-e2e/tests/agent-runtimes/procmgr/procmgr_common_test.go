@@ -77,6 +77,25 @@ func (s *baseProcmgrSuite) TestCLIStatus() {
 	}, 30*time.Second, 2*time.Second)
 }
 
+func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, "test-sleep", map[string]string{
+			"STATE":   "Running",
+			"COMMAND": s.platform.sleepCommand,
+		})
+	}, 30*time.Second, 2*time.Second)
+}
+
+func (s *baseProcmgrSuite) TestCLIDescribe() {
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		assertField(ct, out, "Name", "test-sleep")
+		assertField(ct, out, "State", "Running")
+		assertField(ct, out, "Command", s.platform.sleepCommand)
+	}, 30*time.Second, 2*time.Second)
+}
+
 func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
