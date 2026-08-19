@@ -21,3 +21,9 @@ test:dd-agent-go-tests-only --test_tag_filters=dd_agent_go_test,-requires_ebpf
 # Usage: bazel coverage --config=coverage:go //pkg/...
 coverage:go --@rules_go//go/config:cover_format=go_cover
 coverage:go --coverage_report_generator=//bazel/tools/coverage:coverage
+
+# In-graph test2json conversion during bazel test/coverage (bazel/tools/test_log_aspect.bzl).
+test:ci-test2json --aspects=//bazel/tools:test_log_aspect.bzl%test_log_to_json
+test:ci-test2json --output_groups=+test2json
+coverage:ci-test2json --aspects=//bazel/tools:test_log_aspect.bzl%test_log_to_json
+coverage:ci-test2json --output_groups=+test2json

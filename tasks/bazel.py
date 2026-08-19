@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -250,28 +249,35 @@ def _collect_junit(test_artifacts, output_tgz):
 
 
 def _collect_test2json(ctx, test_artifacts, output_path):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        manifest_path = os.path.join(tmpdir, "manifest.tsv")
-        with open(manifest_path, "w") as manifest:
-            for label in sorted(test_artifacts.keys()):
-                # Use the Bazel label, not the Go import path, as the test2json package
-                # identity. dd_agent_go_test emits multiple configured go_test targets
-                # for different build-tag sets in the same Go package; collapsing them
-                # to one import path would make UTOF report those distinct runs as
-                # retries.
-                manifest.writelines(f'{label}\t{log_path}\n' for log_path in test_artifacts[label]["log_paths"])
+    """Merge in-graph aspect test2json fragments in BEP label order."""
+    output_base = Path(bazel(ctx, "info", "output_path", capture_output=True).strip())
+    with open(output_path, "wb") as out:
+        for label in sorted(test_artifacts.keys()):
+            for log_path in test_artifacts[label]["log_paths"]:
+                fragment = _test2json_fragment_path(output_base, label, log_path)
+                out.write(fragment.read_bytes())
 
-        bazel(
-            ctx,
-            "run",
-            "--config=gorace",  # to use same analysis cache across test & run commands
-            "//bazel/tools/testlogs_to_json",
-            "--",
-            "-manifest",
-            manifest_path,
-            "-output",
-            os.path.abspath(output_path),
+
+def _test2json_fragment_path(output_base: Path, label: str, log_path: Path) -> Path:
+    """Return the aspect-produced test2json fragment for one test.log."""
+    name = label.split(":")[1]
+    pkg = label.removeprefix("//").split(":")[0]
+    marker = name + "/"
+    log_str = str(log_path)
+    if marker in log_str:
+        suffix = log_str.split(marker, 1)[1].replace("/", "_").replace(":", "_")
+    else:
+        suffix = log_path.name
+    fname = f"{name}_{suffix}.test2json.jsonl"
+    hits = sorted(output_base.glob(f"bazel-out/*/bin/{pkg}/{fname}"))
+    if not hits:
+        hits = sorted(output_base.glob(f"**/bin/{pkg}/{fname}"))
+    if len(hits) != 1:
+        raise RuntimeError(
+            f"expected one test2json fragment for {label} log {log_path}, "
+            f"found {len(hits)}: {[str(p) for p in hits]}"
         )
+    return hits[0]
 
 
 @task(

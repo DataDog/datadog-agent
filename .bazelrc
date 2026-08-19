@@ -108,7 +108,8 @@ common:ci --config=adms
 common:ci --config=lint
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 common:ci --remote_download_regex=.*/test\.xml$ # force-download test.xml even under --remote_download_outputs=toplevel, so junit collection can read it locally
-common:ci --remote_download_regex=.*/test\.log$ # force-download test.log for test2json postprocessing
+common:ci --remote_download_regex=.*/test\.log$ # force-download test.log for in-graph TestLogToJson aspect inputs
+common:ci --remote_download_regex=.*/\.test2json\.jsonl$ # force-download aspect test2json fragments for post-test merge
 
 # Project/Language configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/go_tests.bazelrc
