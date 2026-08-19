@@ -65,13 +65,15 @@ type MicroVM struct {
 	flushTimeout time.Duration
 }
 
-// GetTags returns MicroVM-specific tags parsed from the image ARN env var.
+// GetTags returns MicroVM-specific tags parsed from the image ARN env var,
+// plus the image version read directly from its own env var.
 func (m *MicroVM) GetTags() map[string]string {
 	tags := map[string]string{
-		"origin":            MicroVMOrigin,
-		"_dd.origin":        MicroVMOrigin,
-		"resource_type":     MicroVMResourceType,
-		"resource_provider": MicroVMResourceProvider,
+		"origin":                       MicroVMOrigin,
+		"_dd.origin":                   MicroVMOrigin,
+		"resource_type":                MicroVMResourceType,
+		"resource_provider":            MicroVMResourceProvider,
+		"lambda_microvm_image_version": tagValueOrUnknown(os.Getenv(serverlessenv.MicroVMImageVersionEnvVar)),
 	}
 
 	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
@@ -170,6 +172,7 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 		lc.FlushTimeout,
 		components.Handle,
 		components.Forwarder,
+		components.EnabledHooks,
 		heartbeat,
 	)
 	if lc.LogsTagSetter != nil {
@@ -225,9 +228,6 @@ func (m *MicroVM) Shutdown(_ *serverlessMetrics.ServerlessMetricAgent, _ bool, _
 // AddStartMetric is a no-op for MicroVM. The lifecycle server emits the run
 // metric when the /run hook fires; emitting it here would double-count.
 func (m *MicroVM) AddStartMetric(_ *serverlessMetrics.ServerlessMetricAgent) {}
-
-// ShouldForceFlushAllOnForceFlushToSerializer returns false for MicroVM.
-func (m *MicroVM) ShouldForceFlushAllOnForceFlushToSerializer() bool { return false }
 
 // isMicroVM returns true when running inside an AWS Lambda MicroVM.
 func isMicroVM() bool {
