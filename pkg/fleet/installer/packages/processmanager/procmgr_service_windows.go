@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	ddProcmgrServiceName = "dd-procmgr-service"
+	ddProcmgrServiceName            = "dd-procmgr-service"
 	ddProcmgrReloadOrRestartTimeout = 120 * time.Second
 )
 
