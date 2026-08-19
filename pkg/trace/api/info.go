@@ -121,6 +121,14 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.Memcached = o.Memcached
 	}
 
+	// obfuscation_version is bumped to 2 to disable client-side stats obfuscation only when the
+	// effective SQL config (the only thing obfuscateStatsGroup actually reads) diverges from
+	// default.
+	obfuscationVersion := obfuscate.Version
+	if r.conf.EffectiveSQLConfig() != (obfuscate.SQLConfig{}) {
+		obfuscationVersion = 2
+	}
+
 	// We check that endpoints contains stats, even though we know this version of the
 	// agent supports it. It's conceivable that the stats endpoint could be disabled at some point
 	// so this is defensive against that case.
@@ -188,7 +196,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		SpanEvents:             true,
 		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
 		SpanKindsStatsComputed: spanKindsStatsComputed,
-		ObfuscationVersion:     obfuscate.Version,
+		ObfuscationVersion:     obfuscationVersion,
 		FilterTags:             filtertags,
 		FilterTagsRegex:        filtertagsregex,
 		IgnoreResources:        ignoreResources,
