@@ -117,6 +117,13 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 
 Both paths share filtering primitives from `internal/logsfilter/`.
 
+### Logging convention
+
+Use `internal/logging` for every production log: package functions for global
+logs and `logging.Wrap(deps.Log)` for injected log components. Its
+`[anomalydetection] ` marker prevents self-ingestion; label only non-main
+subsystems such as `logssource`, `reporter`, or `logsfilter` in messages.
+
 Metrics with the `datadog.*` prefix are normalized as internal agent telemetry.
 Only observer telemetry under `datadog.agent.observer.*` is dropped before it
 reaches observer storage, preventing an ingestion loop.
