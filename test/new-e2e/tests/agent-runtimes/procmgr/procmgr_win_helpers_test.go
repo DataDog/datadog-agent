@@ -36,24 +36,6 @@ func replaceProcessesDYaml(yamlPath, old, new string) string {
 	)
 }
 
-func windowsProcessOwnerByName(host *e2ecomponents.RemoteHost, name string) (string, error) {
-	script := psRemote(
-		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`,
-		name,
-	)
-	out, err := host.Execute(script)
-	return strings.TrimSpace(out), err
-}
-
-func windowsProcessOwnerByPID(host *e2ecomponents.RemoteHost, pid string) (string, error) {
-	script := psRemote(
-		`$p = Get-CimInstance Win32_Process -Filter "ProcessId=%s"; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`,
-		pid,
-	)
-	out, err := host.Execute(script)
-	return strings.TrimSpace(out), err
-}
-
 func waitProcmgrDescribeRunning(
 	t *testing.T,
 	host *e2ecomponents.RemoteHost,
