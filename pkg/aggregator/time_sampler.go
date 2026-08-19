@@ -92,10 +92,6 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 }
 
 func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64, filterList filterlist.TagMatcher) {
-	if s.observerHandle != nil {
-		s.observerHandle.ObserveMetric(metricSample)
-	}
-
 	// use the timestamp provided in the sample if any
 	if metricSample.Timestamp > 0 {
 		timestamp = metricSample.Timestamp
@@ -122,6 +118,10 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
 			return
 		}
+	}
+
+	if s.observerHandle != nil {
+		s.observerHandle.ObserveMetricWithContextKey(metricSample, observer.MetricContextKey(contextKey))
 	}
 
 	s.observeDogStatsDLookback(metricSample, timestamp, contextKey)

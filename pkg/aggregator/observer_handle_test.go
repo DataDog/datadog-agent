@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,10 +30,12 @@ type recordingHandle struct {
 }
 
 type recordedCall struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp int64
+	name          string
+	value         float64
+	tags          []string
+	timestamp     int64
+	contextKey    observer.MetricContextKey
+	hasContextKey bool
 }
 
 func (h *recordingHandle) ObserveMetric(v observer.MetricView) {
@@ -45,6 +48,12 @@ func (h *recordingHandle) ObserveMetric(v observer.MetricView) {
 		tags:      tagsCopy,
 		timestamp: v.GetTimestampUnix(),
 	})
+}
+
+func (h *recordingHandle) ObserveMetricWithContextKey(v observer.MetricView, key observer.MetricContextKey) {
+	h.ObserveMetric(v)
+	h.calls[len(h.calls)-1].contextKey = key
+	h.calls[len(h.calls)-1].hasContextKey = true
 }
 
 func (h *recordingHandle) ObserveLog(_ observer.LogView) {}
@@ -97,6 +106,9 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 	assert.Equal(t, 1.0, handle.calls[0].value)
 	assert.Equal(t, []string{"env:prod"}, handle.calls[0].tags)
 	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
+	assert.True(t, handle.calls[0].hasContextKey)
+	expectedKey := sampler.contextResolver.trackContext(&samples[0], int64(samples[0].Timestamp), matcher)
+	assert.Equal(t, observer.MetricContextKey(expectedKey), handle.calls[0].contextKey)
 
 	assert.Equal(t, "metric.b", handle.calls[1].name)
 	assert.Equal(t, 2.5, handle.calls[1].value)
@@ -111,6 +123,22 @@ func TestTimeSamplerObserverHandleNil(t *testing.T) {
 	matcher := filterlist.NewNoopTagMatcher()
 	s := metrics.MetricSample{Name: "m", Value: 1, Mtype: metrics.GaugeType, SampleRate: 1}
 	assert.NotPanics(t, func() { sampler.sample(&s, 100, matcher) })
+}
+
+func TestTimeSamplerObserverHandleSkipsRejectedSamples(t *testing.T) {
+	store := tags.NewStore(false, "test")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
+	handle := &recordingHandle{}
+	sampler.observerHandle = handle
+
+	matcher := filterlist.NewNoopTagMatcher()
+	invalidGauge := metrics.MetricSample{Name: "invalid.gauge", Value: math.NaN(), Mtype: metrics.GaugeType, SampleRate: 1, Timestamp: 1000}
+	invalidDistribution := metrics.MetricSample{Name: "invalid.distribution", Value: math.NaN(), Mtype: metrics.DistributionType, SampleRate: 1, Timestamp: 1000}
+
+	sampler.sample(&invalidGauge, invalidGauge.Timestamp, matcher)
+	sampler.sample(&invalidDistribution, invalidDistribution.Timestamp, matcher)
+
+	assert.Empty(t, handle.calls)
 }
 
 // TestSetObserverNilIsNoop verifies SetObserver(nil) leaves all handles unset.
@@ -205,6 +233,7 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 	assert.Equal(t, 42.0, handle.calls[0].value)
 	assert.Equal(t, []string{"host:myhost"}, handle.calls[0].tags)
 	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
+	assert.True(t, handle.calls[0].hasContextKey)
 
 	assert.Equal(t, "system.mem.used", handle.calls[1].name)
 	assert.Equal(t, 8192.0, handle.calls[1].value)
@@ -219,6 +248,22 @@ func TestCheckSamplerObserverHandleNil(t *testing.T) {
 	matcher := filterlist.NewNoopTagMatcher()
 	s := metrics.MetricSample{Name: "m", Value: 1, Mtype: metrics.GaugeType, SampleRate: 1}
 	assert.NotPanics(t, func() { cs.addSample(&s, matcher) })
+}
+
+func TestCheckSamplerObserverHandleSkipsRejectedSamples(t *testing.T) {
+	store := tags.NewStore(false, "test")
+	cs := newCheckSampler(10, false, false, 0, false, store, "test-check", nooptagger.NewComponent())
+	handle := &recordingHandle{}
+	cs.SetObserverHandle(handle)
+
+	matcher := filterlist.NewNoopTagMatcher()
+	invalidGauge := metrics.MetricSample{Name: "invalid.gauge", Value: math.NaN(), Mtype: metrics.GaugeType, SampleRate: 1, Timestamp: 1000}
+	invalidDistribution := metrics.MetricSample{Name: "invalid.distribution", Value: math.NaN(), Mtype: metrics.DistributionType, SampleRate: 1, Timestamp: 1000}
+
+	cs.addSample(&invalidGauge, matcher)
+	cs.addSample(&invalidDistribution, matcher)
+
+	assert.Empty(t, handle.calls)
 }
 
 // TestBufferedAggregatorObserverHandlePropagation verifies that SetObserverHandle

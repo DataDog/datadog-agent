@@ -27,7 +27,10 @@ type countingHandle struct {
 }
 
 func (h *countingHandle) ObserveMetric(_ observerdef.MetricView) { h.received++ }
-func (h *countingHandle) ObserveLog(_ observerdef.LogView)       { h.logReceived++ }
+func (h *countingHandle) ObserveMetricWithContextKey(_ observerdef.MetricView, _ observerdef.MetricContextKey) {
+	h.received++
+}
+func (h *countingHandle) ObserveLog(_ observerdef.LogView) { h.logReceived++ }
 
 // mockLogView implements observer.LogView for testing.
 type mockLogView struct {

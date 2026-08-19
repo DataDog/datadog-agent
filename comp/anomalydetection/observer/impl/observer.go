@@ -70,10 +70,12 @@ type observation struct {
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
 type metricObs struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp int64
+	name          string
+	value         float64
+	tags          []string
+	timestamp     int64
+	contextKey    observerdef.MetricContextKey
+	hasContextKey bool
 }
 
 // Ensure metricObs implements observerdef.MetricView
@@ -721,6 +723,8 @@ type metricDropHandle struct{ inner observerdef.Handle }
 var _ observerdef.Handle = (*metricDropHandle)(nil)
 
 func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (m *metricDropHandle) ObserveMetricWithContextKey(_ observerdef.MetricView, _ observerdef.MetricContextKey) {
+}
 func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
 	return true
 }
@@ -736,6 +740,8 @@ func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
 type noopObserveHandle struct{}
 
 func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (h *noopObserveHandle) ObserveMetricWithContextKey(_ observerdef.MetricView, _ observerdef.MetricContextKey) {
+}
 func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
 	return false
 }
@@ -1026,6 +1032,10 @@ type metricIngestDecision struct {
 }
 
 func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
+	return prepareMetricIngestWithContextKey(source, sample, filter, 0, false)
+}
+
+func prepareMetricIngestWithContextKey(source string, sample observerdef.MetricView, filter *metricsFilterRules, contextKey observerdef.MetricContextKey, hasContextKey bool) metricIngestDecision {
 	name := sample.GetName()
 	normalizedSource := normalizeMetricSource(name, source)
 	// Canonicalize once so the mute hash in isAllowed matches seriesKeyHash in
@@ -1042,10 +1052,12 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 	return metricIngestDecision{
 		source: normalizedSource,
 		metric: &metricObs{
-			name:      name,
-			value:     sample.GetValue(),
-			tags:      tags,
-			timestamp: timestamp,
+			name:          name,
+			value:         sample.GetValue(),
+			tags:          tags,
+			timestamp:     timestamp,
+			contextKey:    contextKey,
+			hasContextKey: hasContextKey,
 		},
 	}
 }
@@ -1092,12 +1104,22 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	_ = h.ObserveMetricAndReportDrop(sample)
 }
 
+// ObserveMetricWithContextKey observes a metric while preserving an
+// aggregation key already computed by the producer.
+func (h *handle) ObserveMetricWithContextKey(sample observerdef.MetricView, key observerdef.MetricContextKey) {
+	_ = h.observeMetricAndReportDrop(sample, key, true)
+}
+
 // ObserveMetricAndReportDrop observes a metric and reports whether this
 // specific call was dropped by observer backpressure (channel full).
 // Metrics rejected by processing rules are counted via telemetry but do not
 // report a channel drop.
 func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
-	decision := prepareMetricIngest(h.source, sample, h.filter)
+	return h.observeMetricAndReportDrop(sample, 0, false)
+}
+
+func (h *handle) observeMetricAndReportDrop(sample observerdef.MetricView, contextKey observerdef.MetricContextKey, hasContextKey bool) bool {
+	decision := prepareMetricIngestWithContextKey(h.source, sample, h.filter, contextKey, hasContextKey)
 	if decision.metric == nil {
 		if h.telemetry != nil && decision.source != "" {
 			h.telemetry.recordFilteredMetric(decision.source)

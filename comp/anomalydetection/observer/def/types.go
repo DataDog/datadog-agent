@@ -23,9 +23,19 @@ type Handle interface {
 	// ObserveMetric observes a DogStatsD metric sample.
 	ObserveMetric(sample MetricView)
 
+	// ObserveMetricWithContextKey observes a metric sample whose aggregation
+	// context key was already computed by the producer. The key is opaque to
+	// callers outside the aggregation pipeline.
+	ObserveMetricWithContextKey(sample MetricView, key MetricContextKey)
+
 	// ObserveLog observes a log message.
 	ObserveLog(msg LogView)
 }
+
+// MetricContextKey is an opaque, already-computed metric series identity.
+// It lets metric producers reuse their aggregation key instead of requiring
+// the observer to hash the same series identity again.
+type MetricContextKey uint64
 
 // HandleFunc is a function that returns a handle for a named source.
 type HandleFunc func(name string) Handle

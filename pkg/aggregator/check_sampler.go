@@ -77,16 +77,22 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
-	if cs.observerHandle != nil {
-		cs.observerHandle.ObserveMetric(metricSample)
-	}
 	if metricSample.Mtype == metrics.DistributionType {
-		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
+		if !cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate) {
+			return
+		}
+		if cs.observerHandle != nil {
+			cs.observerHandle.ObserveMetricWithContextKey(metricSample, observer.MetricContextKey(contextKey))
+		}
 		return
 	}
 
 	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1, pkgconfigsetup.Datadog()); err != nil {
 		log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+		return
+	}
+	if cs.observerHandle != nil {
+		cs.observerHandle.ObserveMetricWithContextKey(metricSample, observer.MetricContextKey(contextKey))
 	}
 }
 
