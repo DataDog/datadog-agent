@@ -305,6 +305,11 @@ func TestStartBindFailurePanics(t *testing.T) {
 
 	r := newTestReceiverFromConfig(conf)
 	assert.Panics(t, r.Start)
+	// Start launches the telemetry forwarder's workers before attempting the
+	// TCP bind that panics, and the panic recovery above skips the rest of
+	// Start, so nothing else stops them. r.Stop is not an option: it waits on
+	// r.exit, which is only drained by the serve loop that never started.
+	r.telemetryForwarder.Stop()
 }
 
 func TestNoDuplicatePatterns(t *testing.T) {
