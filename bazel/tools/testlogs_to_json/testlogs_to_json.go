@@ -24,6 +24,8 @@ type manifestEntry struct {
 
 type options struct {
 	manifestPath string
+	label        string
+	logPath      string
 	outputPath   string
 }
 
@@ -40,7 +42,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	entries, err := readManifest(opts.manifestPath)
+	entries, err := opts.entries()
 	if err != nil {
 		return err
 	}
@@ -68,18 +70,31 @@ func parseFlags(args []string) (options, error) {
 	var opts options
 	fs := flag.NewFlagSet("testlogs_to_json", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	fs.StringVar(&opts.manifestPath, "manifest", "", "Path to a tab-separated manifest: <go import path>\\t<test.log path>")
+	fs.StringVar(&opts.manifestPath, "manifest", "", "Path to a tab-separated manifest: <label>\\t<test.log path>")
+	fs.StringVar(&opts.label, "label", "", "Bazel test label for a single test.log conversion")
+	fs.StringVar(&opts.logPath, "log", "", "Path to a single test.log to convert")
 	fs.StringVar(&opts.outputPath, "output", "-", "Path to write test2json JSONL output, or '-' for stdout")
 	if err := fs.Parse(args); err != nil {
 		return opts, err
-	}
-	if opts.manifestPath == "" {
-		return opts, errors.New("missing required -manifest")
 	}
 	if fs.NArg() != 0 {
 		return opts, fmt.Errorf("unexpected positional arguments: %s", strings.Join(fs.Args(), " "))
 	}
 	return opts, nil
+}
+
+func (opts options) entries() ([]manifestEntry, error) {
+	switch {
+	case opts.manifestPath != "":
+		if opts.label != "" || opts.logPath != "" {
+			return nil, errors.New("use either -manifest or -label/-log, not both")
+		}
+		return readManifest(opts.manifestPath)
+	case opts.label != "" && opts.logPath != "":
+		return []manifestEntry{{pkg: opts.label, logPath: opts.logPath}}, nil
+	default:
+		return nil, errors.New("missing required -manifest or both -label and -log")
+	}
 }
 
 func readManifest(path string) ([]manifestEntry, error) {

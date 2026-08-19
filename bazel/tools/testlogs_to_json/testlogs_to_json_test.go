@@ -8,6 +8,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,19 +42,6 @@ func TestReadManifest(t *testing.T) {
 		if entries[i] != want[i] {
 			t.Fatalf("entry %d = %#v, want %#v", i, entries[i], want[i])
 		}
-	}
-}
-
-func TestReadManifestRejectsInvalidLine(t *testing.T) {
-	dir := t.TempDir()
-	manifestPath := filepath.Join(dir, "manifest.tsv")
-	if err := os.WriteFile(manifestPath, []byte("github.com/DataDog/datadog-agent/pkg/foo /path/to/foo.log\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := readManifest(manifestPath)
-	if err == nil || !strings.Contains(err.Error(), "invalid manifest line") {
-		t.Fatalf("expected invalid manifest error, got %v", err)
 	}
 }
 
@@ -92,6 +80,32 @@ func TestConvertMultipleLogs(t *testing.T) {
 	assertEvent(t, events, "github.com/DataDog/datadog-agent/pkg/bar", "", "fail")
 }
 
+func TestSingleLogFlags(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "test.log")
+	outPath := filepath.Join(dir, "out.jsonl")
+	if err := os.WriteFile(logPath, []byte("=== RUN   TestFoo\n--- PASS: TestFoo (0.01s)\nPASS\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := run([]string{
+		"-label", "//pkg/foo:foo_test",
+		"-log", logPath,
+		"-output", outPath,
+	}, io.Discard, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"Package":"//pkg/foo:foo_test"`) {
+		t.Fatalf("unexpected output: %s", data)
+	}
+}
+
 func assertEvent(t *testing.T, events []map[string]any, pkg, testName, action string) {
 	t.Helper()
 	for _, event := range events {
@@ -108,4 +122,17 @@ func assertEvent(t *testing.T, events []map[string]any, pkg, testName, action st
 		}
 	}
 	t.Fatalf("did not find event package=%q test=%q action=%q in %#v", pkg, testName, action, events)
+}
+
+func TestReadManifestRejectsInvalidLine(t *testing.T) {
+	dir := t.TempDir()
+	manifestPath := filepath.Join(dir, "manifest.tsv")
+	if err := os.WriteFile(manifestPath, []byte("github.com/DataDog/datadog-agent/pkg/foo /path/to/foo.log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := readManifest(manifestPath)
+	if err == nil || !strings.Contains(err.Error(), "invalid manifest line") {
+		t.Fatalf("expected invalid manifest error, got %v", err)
+	}
 }
