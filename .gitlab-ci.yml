@@ -1613,6 +1613,7 @@ workflow:
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - comp/core/autodiscovery/listeners/staticconfig.go
+        - tasks/gpu.py
       compare_to: $COMPARE_TO_BRANCH
 
 .on_autoscaling_or_e2e_changes:
