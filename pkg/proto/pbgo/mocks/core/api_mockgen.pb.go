@@ -356,6 +356,26 @@ func (mr *MockAgentSecureClientMockRecorder) GetHostTags(ctx, in any, opts ...an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHostTags", reflect.TypeOf((*MockAgentSecureClient)(nil).GetHostTags), varargs...)
 }
 
+// GetPARSigningKeys mocks base method.
+func (m *MockAgentSecureClient) GetPARSigningKeys(ctx context.Context, in *core.GetPARSigningKeysRequest, opts ...grpc.CallOption) (*core.GetPARSigningKeysResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetPARSigningKeys", varargs...)
+	ret0, _ := ret[0].(*core.GetPARSigningKeysResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPARSigningKeys indicates an expected call of GetPARSigningKeys.
+func (mr *MockAgentSecureClientMockRecorder) GetPARSigningKeys(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPARSigningKeys", reflect.TypeOf((*MockAgentSecureClient)(nil).GetPARSigningKeys), varargs...)
+}
+
 // RefreshRemoteAgent mocks base method.
 func (m *MockAgentSecureClient) RefreshRemoteAgent(ctx context.Context, in *core.RefreshRemoteAgentRequest, opts ...grpc.CallOption) (*core.RefreshRemoteAgentResponse, error) {
 	m.ctrl.T.Helper()
@@ -751,6 +771,21 @@ func (m *MockAgentSecureServer) GetHostTags(arg0 context.Context, arg1 *core.Hos
 func (mr *MockAgentSecureServerMockRecorder) GetHostTags(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHostTags", reflect.TypeOf((*MockAgentSecureServer)(nil).GetHostTags), arg0, arg1)
+}
+
+// GetPARSigningKeys mocks base method.
+func (m *MockAgentSecureServer) GetPARSigningKeys(arg0 context.Context, arg1 *core.GetPARSigningKeysRequest) (*core.GetPARSigningKeysResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPARSigningKeys", arg0, arg1)
+	ret0, _ := ret[0].(*core.GetPARSigningKeysResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPARSigningKeys indicates an expected call of GetPARSigningKeys.
+func (mr *MockAgentSecureServerMockRecorder) GetPARSigningKeys(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPARSigningKeys", reflect.TypeOf((*MockAgentSecureServer)(nil).GetPARSigningKeys), arg0, arg1)
 }
 
 // RefreshRemoteAgent mocks base method.

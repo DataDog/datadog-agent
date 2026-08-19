@@ -134,6 +134,7 @@ const (
 	AgentSecure_DogstatsdCaptureTrigger_FullMethodName                 = "/datadog.api.v1.AgentSecure/DogstatsdCaptureTrigger"
 	AgentSecure_DogstatsdSetTaggerState_FullMethodName                 = "/datadog.api.v1.AgentSecure/DogstatsdSetTaggerState"
 	AgentSecure_ClientGetConfigs_FullMethodName                        = "/datadog.api.v1.AgentSecure/ClientGetConfigs"
+	AgentSecure_GetPARSigningKeys_FullMethodName                       = "/datadog.api.v1.AgentSecure/GetPARSigningKeys"
 	AgentSecure_GetConfigState_FullMethodName                          = "/datadog.api.v1.AgentSecure/GetConfigState"
 	AgentSecure_ClientGetConfigsHA_FullMethodName                      = "/datadog.api.v1.AgentSecure/ClientGetConfigsHA"
 	AgentSecure_GetConfigStateHA_FullMethodName                        = "/datadog.api.v1.AgentSecure/GetConfigStateHA"
@@ -167,6 +168,8 @@ type AgentSecureClient interface {
 	// Set the tagger state for dogstatsd.
 	DogstatsdSetTaggerState(ctx context.Context, in *TaggerState, opts ...grpc.CallOption) (*TaggerStateResponse, error)
 	ClientGetConfigs(ctx context.Context, in *ClientGetConfigsRequest, opts ...grpc.CallOption) (*ClientGetConfigsResponse, error)
+	// Returns the Core Agent's authoritative AP_RUNNER_KEYS snapshot.
+	GetPARSigningKeys(ctx context.Context, in *GetPARSigningKeysRequest, opts ...grpc.CallOption) (*GetPARSigningKeysResponse, error)
 	GetConfigState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
 	ClientGetConfigsHA(ctx context.Context, in *ClientGetConfigsRequest, opts ...grpc.CallOption) (*ClientGetConfigsResponse, error)
 	GetConfigStateHA(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
@@ -273,6 +276,16 @@ func (c *agentSecureClient) ClientGetConfigs(ctx context.Context, in *ClientGetC
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ClientGetConfigsResponse)
 	err := c.cc.Invoke(ctx, AgentSecure_ClientGetConfigs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentSecureClient) GetPARSigningKeys(ctx context.Context, in *GetPARSigningKeysRequest, opts ...grpc.CallOption) (*GetPARSigningKeysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPARSigningKeysResponse)
+	err := c.cc.Invoke(ctx, AgentSecure_GetPARSigningKeys_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -484,6 +497,8 @@ type AgentSecureServer interface {
 	// Set the tagger state for dogstatsd.
 	DogstatsdSetTaggerState(context.Context, *TaggerState) (*TaggerStateResponse, error)
 	ClientGetConfigs(context.Context, *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error)
+	// Returns the Core Agent's authoritative AP_RUNNER_KEYS snapshot.
+	GetPARSigningKeys(context.Context, *GetPARSigningKeysRequest) (*GetPARSigningKeysResponse, error)
 	GetConfigState(context.Context, *emptypb.Empty) (*GetStateConfigResponse, error)
 	ClientGetConfigsHA(context.Context, *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error)
 	GetConfigStateHA(context.Context, *emptypb.Empty) (*GetStateConfigResponse, error)
@@ -544,6 +559,9 @@ func (UnimplementedAgentSecureServer) DogstatsdSetTaggerState(context.Context, *
 }
 func (UnimplementedAgentSecureServer) ClientGetConfigs(context.Context, *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClientGetConfigs not implemented")
+}
+func (UnimplementedAgentSecureServer) GetPARSigningKeys(context.Context, *GetPARSigningKeysRequest) (*GetPARSigningKeysResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPARSigningKeys not implemented")
 }
 func (UnimplementedAgentSecureServer) GetConfigState(context.Context, *emptypb.Empty) (*GetStateConfigResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetConfigState not implemented")
@@ -708,6 +726,24 @@ func _AgentSecure_ClientGetConfigs_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AgentSecureServer).ClientGetConfigs(ctx, req.(*ClientGetConfigsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentSecure_GetPARSigningKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPARSigningKeysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).GetPARSigningKeys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentSecure_GetPARSigningKeys_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).GetPARSigningKeys(ctx, req.(*GetPARSigningKeysRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -969,6 +1005,10 @@ var AgentSecure_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClientGetConfigs",
 			Handler:    _AgentSecure_ClientGetConfigs_Handler,
+		},
+		{
+			MethodName: "GetPARSigningKeys",
+			Handler:    _AgentSecure_GetPARSigningKeys_Handler,
 		},
 		{
 			MethodName: "GetConfigState",
