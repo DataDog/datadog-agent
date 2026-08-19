@@ -18,6 +18,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         ":gosym",
         "//pkg/dyninst/ir",

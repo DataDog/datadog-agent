@@ -34,7 +34,7 @@ const (
 )
 
 // EvpProxyAllowedHeaders contains the headers that the proxy will forward. All others will be cleared.
-var EvpProxyAllowedHeaders = []string{"Content-Type", "Accept-Encoding", "Content-Encoding", "User-Agent", "DD-CI-PROVIDER-NAME"}
+var EvpProxyAllowedHeaders = []string{"Content-Type", "Accept-Encoding", "Content-Encoding", "User-Agent", "DD-CI-PROVIDER-NAME", "DD-EVP-ORIGIN", "DD-EVP-ORIGIN-VERSION"}
 
 // evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {

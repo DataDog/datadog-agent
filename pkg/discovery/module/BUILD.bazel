@@ -57,6 +57,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":module"],
     gotags_sets = [["linux_bpf"]],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/discovery/core",
         "//pkg/discovery/language",

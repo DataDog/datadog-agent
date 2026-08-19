@@ -13,11 +13,8 @@ import (
 type Params struct {
 	installerURL string
 	agentUser    string
-	// For now the extraEnvVars are only used by the install script,
-	// but they can (and should) be passed to the executable.
-	installerScript string
-	extraEnvVars    map[string]string
-	pipelineID      string
+	extraEnvVars map[string]string
+	pipelineID   string
 }
 
 // Option is an optional function parameter type for the Params
@@ -43,14 +40,6 @@ func WithExtraEnvVars(envVars map[string]string) Option {
 func WithInstallerURL(installerURL string) Option {
 	return func(params *Params) error {
 		params.installerURL = installerURL
-		return nil
-	}
-}
-
-// WithInstallerScript uses a specific URL for the Datadog Installer script command instead of using the pipeline script.
-func WithInstallerScript(installerScript string) Option {
-	return func(params *Params) error {
-		params.installerScript = installerScript
 		return nil
 	}
 }
@@ -102,20 +91,10 @@ func WithMSILogFile(filename string) MsiOption {
 // Example: local installer exe
 //
 //	export CURRENT_AGENT_INSTALLER_URL="file:///path/to/installer.exe"
-//
-// Example: local install script
-//
-//	export CURRENT_AGENT_INSTALLER_SCRIPT="file:///path/to/install.ps1"
 func WithInstallScriptDevEnvOverrides(prefix string) Option {
 	return func(params *Params) error {
 		if url, ok := os.LookupEnv(prefix + "_INSTALLER_URL"); ok {
 			err := WithInstallerURL(url)(params)
-			if err != nil {
-				return err
-			}
-		}
-		if script, ok := os.LookupEnv(prefix + "_INSTALLER_SCRIPT"); ok {
-			err := WithInstallerScript(script)(params)
 			if err != nil {
 				return err
 			}

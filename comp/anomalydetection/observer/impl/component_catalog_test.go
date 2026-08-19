@@ -26,6 +26,24 @@ func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
 }
 
+func TestTestbenchCatalogAndSettingsIncludePassthrough(t *testing.T) {
+	found := false
+	for _, entry := range TestbenchCatalogEntries() {
+		if entry.Name == TestbenchPassthroughComponentName {
+			found = true
+			require.Equal(t, "correlator", entry.Kind)
+			require.False(t, entry.DefaultEnabled)
+		}
+	}
+	require.True(t, found)
+
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		TestbenchPassthroughComponentName: json.RawMessage(`{"enabled":true}`),
+	})
+	require.NoError(t, err)
+	require.True(t, settings.Enabled[TestbenchPassthroughComponentName])
+}
+
 // TestValidateDetectorTeardownContract_FlagsBareDetector confirms the
 // validator rejects a Detector that doesn't implement SeriesRemover and isn't
 // allowlisted — i.e. the check actually fails when it should.

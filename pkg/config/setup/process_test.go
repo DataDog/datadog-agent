@@ -479,3 +479,118 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 		})
 	}
 }
+
+// TestProcConfigEnabledTransformPrecedence ensures the deprecated process_config.enabled only fills in
+// the settings that replaced it, and never overrides them when the user configured them explicitly. The
+// expected sources pin down which value won: environment-variable for the user's, agent-runtime for the
+// one derived from the deprecated setting.
+func TestProcConfigEnabledTransformPrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name                                                   string
+		env                                                    map[string]string
+		expectedContainerCollection, expectedProcessCollection bool
+		expectedContainerSource, expectedProcessSource         pkgconfigmodel.Source
+	}{
+		{
+			name: "explicit container collection wins over process_config.enabled",
+			env: map[string]string{
+				"DD_PROCESS_CONFIG_ENABLED":                      "false",
+				"DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED": "false",
+			},
+			expectedContainerCollection: false,
+			expectedContainerSource:     pkgconfigmodel.SourceEnvVar,
+			expectedProcessCollection:   false,
+			expectedProcessSource:       pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name: "explicit process collection wins over process_config.enabled",
+			env: map[string]string{
+				"DD_PROCESS_CONFIG_ENABLED":                    "true",
+				"DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED": "false",
+			},
+			expectedContainerCollection: false,
+			expectedContainerSource:     pkgconfigmodel.SourceAgentRuntime,
+			expectedProcessCollection:   false,
+			expectedProcessSource:       pkgconfigmodel.SourceEnvVar,
+		},
+		{
+			name: "explicit collection settings win over process_config.enabled=disabled",
+			env: map[string]string{
+				"DD_PROCESS_CONFIG_ENABLED":                      "disabled",
+				"DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED": "true",
+				"DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED":   "true",
+			},
+			expectedContainerCollection: true,
+			expectedContainerSource:     pkgconfigmodel.SourceEnvVar,
+			expectedProcessCollection:   true,
+			expectedProcessSource:       pkgconfigmodel.SourceEnvVar,
+		},
+		{
+			name: "process_config.enabled still applies to the settings left unset",
+			env: map[string]string{
+				"DD_PROCESS_CONFIG_ENABLED":                    "false",
+				"DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED": "true",
+			},
+			expectedContainerCollection: true,
+			expectedContainerSource:     pkgconfigmodel.SourceAgentRuntime,
+			expectedProcessCollection:   true,
+			expectedProcessSource:       pkgconfigmodel.SourceEnvVar,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for env, value := range tc.env {
+				t.Setenv(env, value)
+			}
+
+			cfg := newTestConfWithoutOverrides(t)
+			loadProcessTransforms(cfg)
+
+			assert.Equal(t, tc.expectedContainerCollection, cfg.GetBool("process_config.container_collection.enabled"))
+			assert.Equal(t, tc.expectedContainerSource, cfg.GetSource("process_config.container_collection.enabled"))
+			assert.Equal(t, tc.expectedProcessCollection, cfg.GetBool("process_config.process_collection.enabled"))
+			assert.Equal(t, tc.expectedProcessSource, cfg.GetSource("process_config.process_collection.enabled"))
+		})
+	}
+}
+
+// TestProcConfigEnabledTransformNormalizesDeprecatedKey ensures the deprecated setting is not left enabled
+// once the settings that replaced it are off. Consumers OR the three keys together, so a stale "true"
+// would keep process checks running after the user disabled them.
+func TestProcConfigEnabledTransformNormalizesDeprecatedKey(t *testing.T) {
+	t.Setenv("DD_PROCESS_CONFIG_ENABLED", "true")
+	t.Setenv("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "false")
+
+	cfg := newTestConfWithoutOverrides(t)
+	loadProcessTransforms(cfg)
+
+	assert.False(t, cfg.GetBool("process_config.process_collection.enabled"))
+	assert.False(t, cfg.GetBool("process_config.container_collection.enabled"))
+	assert.False(t, cfg.GetBool("process_config.enabled"))
+}
+
+// TestProcConfigEnabledTransformOverridesInfraMode ensures infra-mode values, which rank below user
+// configuration, do not shadow the deprecated process_config.enabled.
+func TestProcConfigEnabledTransformOverridesInfraMode(t *testing.T) {
+	cfg := newTestConfWithoutOverrides(t)
+	cfg.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
+	cfg.SetInTest("process_config.enabled", "disabled")
+	loadProcessTransforms(cfg)
+
+	assert.False(t, cfg.GetBool("process_config.process_collection.enabled"))
+	assert.False(t, cfg.GetBool("process_config.container_collection.enabled"))
+}
+
+// TestProcConfigEnabledTransformIsIdempotent ensures re-running the transform keeps the values computed by
+// the first pass. It is registered as an override func, and override funcs can run more than once.
+func TestProcConfigEnabledTransformIsIdempotent(t *testing.T) {
+	t.Setenv("DD_PROCESS_CONFIG_ENABLED", "false")
+	t.Setenv("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false")
+
+	cfg := newTestConfWithoutOverrides(t)
+	for i := range 3 {
+		loadProcessTransforms(cfg)
+
+		assert.Falsef(t, cfg.GetBool("process_config.container_collection.enabled"), "run %d overrode the user value", i+1)
+		assert.Falsef(t, cfg.GetBool("process_config.process_collection.enabled"), "run %d changed the derived value", i+1)
+	}
+}

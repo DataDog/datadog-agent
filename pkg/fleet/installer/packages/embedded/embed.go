@@ -8,7 +8,7 @@ package embedded
 
 import (
 	"embed"
-	"path/filepath"
+	"path"
 )
 
 // ScriptDDCleanup is the embedded dd-cleanup script.
@@ -26,8 +26,13 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
+// The -nocap variants are selected by GetSystemdUnit on hosts whose kernel does not support
+// ambient capabilities, so they must be embedded alongside the base flavors.
+//
 //go:embed tmpl/gen/oci/*.service
+//go:embed tmpl/gen/oci-nocap/*.service
 //go:embed tmpl/gen/debrpm/*.service
+//go:embed tmpl/gen/debrpm-nocap/*.service
 var systemdUnits embed.FS
 
 // DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout). Its
@@ -83,5 +88,7 @@ func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSu
 	if !ambiantCapabilitiesSupported {
 		dir += "-nocap"
 	}
-	return systemdUnits.ReadFile(filepath.Join("tmpl/gen", dir, name))
+	// path.Join, not filepath.Join: embed.FS names are always slash-separated, so the
+	// backslashes filepath.Join emits on Windows would never resolve.
+	return systemdUnits.ReadFile(path.Join("tmpl/gen", dir, name))
 }

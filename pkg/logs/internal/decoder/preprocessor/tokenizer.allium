@@ -8,7 +8,8 @@
 --   labelling, multiline detection) that reason about log line
 --   structure rather than content.
 -- Includes: Byte-to-token classification, run-length encoding,
---   special token promotion, input truncation, structural collapsing.
+--   special token promotion, hybrid token promotion, input
+--   truncation, structural collapsing.
 -- Excludes:
 --   - Pattern matching across token sequences (lives in
 --     adaptive_sampler.allium as the PatternMatching contract).
@@ -20,8 +21,9 @@
 -- Value Types
 ------------------------------------------------------------
 
--- A Token is a single byte classifying a run of input characters.
--- Tokens fall into five categories:
+-- A Token is a single byte classifying a run of input characters,
+-- or a hybrid token that replaces a sequence of those runs.
+-- Tokens fall into six categories:
 --
 --   Space: whitespace (space, tab, newline, carriage return).
 --     Each whitespace run produces one Space token regardless of length.
@@ -49,6 +51,11 @@
 --       Emergency, Exception, Crash, Failure, Deadlock, Timeout
 --     The corresponding regular Cn token is replaced by the
 --     special token.
+--
+--   Hybrid: after run-length encoding and special-token promotion,
+--     some multi-token patterns are collapsed into one token.
+--     Currently IPv4: four 1-3 digit runs separated by single '.'
+--     characters become one IPv4 token.
 
 value TokenSequence {
     -- Ordered sequence of tokens produced by the tokenizer from
@@ -126,6 +133,22 @@ contract Tokenization {
         -- is_important is a scan over the promoted severity
         -- tokens, not a regex over content bytes.
 
+    @invariant HybridTokenPromotion
+        -- After run-length encoding and special-token promotion, the
+        -- token sequence is scanned left to right for hybrid tokens.
+        -- Currently IPv4: seven consecutive tokens
+        --   D1-D3, Period, D1-D3, Period, D1-D3, Period, D1-D3
+        -- are replaced by one IPv4 token when each Period spans a
+        -- single byte. A collapsed ".." or "..." run is still one
+        -- Period token but spans multiple bytes, so it is not an
+        -- IPv4 separator. Digit runs of 4 or more (D4-D10) never
+        -- form an octet. Matching is greedy: "1.2.3.4.5" becomes
+        -- IPv4, Period, D1. Octet digit-width is discarded, so
+        -- "10.1.48.10" and "192.168.0.1" produce the same IPv4
+        -- token. Octet values are not range-checked (0-255); the
+        -- shape is what matters for timestamp detection and for
+        -- keeping digit-for-digit substitution structure-preserving.
+
     @invariant InputTruncation
         -- Only the first max_bytes of the input are tokenized.
         -- Bytes beyond this offset are ignored. Two messages that
@@ -159,6 +182,9 @@ contract Tokenization {
         -- "2025-12-31 23:59:59 Dec startup" both produce:
         --   D4 Dash D2 Dash D2 Space D2 Colon D2 Colon D2
         --   Space Month Space C7
+        -- Example: "connected from 10.1.48.10" and
+        -- "connected from 192.168.0.1" both produce:
+        --   C9 Space C4 Space IPv4
 
     @guidance
         -- The default classification maps all unrecognised bytes to
@@ -169,5 +195,7 @@ contract Tokenization {
         --
         -- The special token table is non-exhaustive and can be
         -- expanded. Adding new recognised patterns changes which
-        -- log lines are considered structurally equivalent.
+        -- log lines are considered structurally equivalent. The
+        -- same applies to hybrid tokens (IPv4 today; UUID and
+        -- file paths are expected later).
 }

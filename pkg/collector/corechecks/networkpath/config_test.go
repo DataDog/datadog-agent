@@ -61,14 +61,16 @@ hostname: 1.2.3.4
 			},
 		},
 		{
-			name: "test config id",
+			name: "test config identity",
 			rawInstance: []byte(`
 test_config_id: test-config-a
+test_config_name: Production paths
 hostname: 1.2.3.4
 `),
 			rawInitConfig: []byte(``),
 			expectedConfig: &CheckConfig{
 				TestConfigID:          "test-config-a",
+				TestConfigName:        "Production paths",
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
@@ -602,6 +604,7 @@ func TestRunSetsTestConfigIDInPayload(t *testing.T) {
 
 	rawInstance := integration.Data(`
 test_config_id: test-config-a
+test_config_name: Production paths
 hostname: api.example.com
 source_service: frontend
 destination_service: api
@@ -634,6 +637,7 @@ tags:
 			return false
 		}
 		return path.TestConfigID == "test-config-a" &&
+			path.TestConfigName == "Production paths" &&
 			path.Namespace == "my-namespace" &&
 			path.Origin == payload.PathOriginNetworkPathIntegration &&
 			path.TestRunType == payload.TestRunTypeScheduled &&
@@ -648,10 +652,11 @@ tags:
 
 func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
 	tests := []struct {
-		name                 string
-		provider             string
-		expectedConfigSource payload.TestConfigSource
-		expectedTestConfigID string
+		name                   string
+		provider               string
+		expectedConfigSource   payload.TestConfigSource
+		expectedTestConfigID   string
+		expectedTestConfigName string
 	}{
 		{
 			name:     "file",
@@ -670,10 +675,11 @@ func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
 			provider: names.KubeContainer,
 		},
 		{
-			name:                 "network path remote config",
-			provider:             names.NetworkPathRemoteConfig,
-			expectedConfigSource: payload.TestConfigSourceRemote,
-			expectedTestConfigID: "test-config-a",
+			name:                   "network path remote config",
+			provider:               names.NetworkPathRemoteConfig,
+			expectedConfigSource:   payload.TestConfigSourceRemote,
+			expectedTestConfigID:   "test-config-a",
+			expectedTestConfigName: "Production paths",
 		},
 		{
 			name:     "generic remote config",
@@ -689,6 +695,7 @@ func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rawInstance := integration.Data(`
 test_config_id: test-config-a
+test_config_name: Production paths
 hostname: api.example.com
 `)
 			check := &Check{CheckBase: core.NewCheckBase(CheckName)}
@@ -696,6 +703,7 @@ hostname: api.example.com
 			err := check.Configure(nil, integration.FakeConfigHash, rawInstance, integration.Data{}, "test source", tt.provider)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedTestConfigID, check.config.TestConfigID)
+			assert.Equal(t, tt.expectedTestConfigName, check.config.TestConfigName)
 			assert.Equal(t, tt.expectedConfigSource, check.testConfigSource)
 		})
 	}

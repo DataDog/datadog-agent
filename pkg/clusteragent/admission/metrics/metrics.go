@@ -78,6 +78,14 @@ var (
 		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
+	WebhooksRequestSize = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+		"admission_webhooks",
+		"request_size_bytes",
+		[]string{"webhook_name", "webhook_type"},
+		"Admission webhook request body size distribution (in bytes), from the declared Content-Length.",
+		[]float64{1 << 10, 4 << 10, 16 << 10, 64 << 10, 256 << 10, 1 << 20, 2 << 20, 4 << 20, 7 << 20, 16 << 20},
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
 	LibInjectionAttempts = telemetryimpl.GetCompatComponent().NewCounterWithOpts("admission_webhooks", "library_injection_attempts",
 		[]string{"language", "injected", "auto_detected", "injection_type"}, "Number of pod library injection attempts by language and injection type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})

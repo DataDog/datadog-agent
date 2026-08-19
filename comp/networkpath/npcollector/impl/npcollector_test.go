@@ -498,6 +498,7 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 			Namespace:        "netflow-ns",
 			Origin:           payload.PathOriginNetflow,
 			TestConfigID:     "dynamic-a",
+			TestConfigName:   "Production paths",
 			TestConfigSource: payload.TestConfigSourceRemote,
 			Tags:             []string{"team:payments", "env:prod"},
 		},
@@ -507,6 +508,7 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 	assert.Equal(t, payload.SourceProductNetflow, emittedPath.SourceProduct)
 	assert.Equal(t, "netflow-ns", emittedPath.Namespace)
 	assert.Equal(t, "dynamic-a", emittedPath.TestConfigID)
+	assert.Equal(t, "Production paths", emittedPath.TestConfigName)
 	assert.Equal(t, payload.TestConfigSourceRemote, emittedPath.TestConfigSource)
 	assert.Equal(t, []string{"team:payments", "env:prod"}, emittedPath.Tags)
 }
@@ -1183,10 +1185,11 @@ func TestScheduleNetworkPathTestsCapturesWinningRCConfigID(t *testing.T) {
 	}
 	_, collector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
 	filter, errs := connfilter.NewConnFilter([]connfilter.Config{{
-		Type:         connfilter.FilterTypeInclude,
-		MatchDomain:  "remote.example.com",
-		TestConfigID: "dynamic-a",
-		Tags:         []string{"team:payments"},
+		Type:           connfilter.FilterTypeInclude,
+		MatchDomain:    "remote.example.com",
+		TestConfigID:   "dynamic-a",
+		TestConfigName: "Production paths",
+		Tags:           []string{"team:payments"},
 	}}, "", false)
 	require.Empty(t, errs)
 	collector.filter = filter
@@ -1210,10 +1213,12 @@ func TestScheduleNetworkPathTestsCapturesWinningRCConfigID(t *testing.T) {
 	local := <-collector.pathtestInputChan
 	assert.Equal(t, "remote.example.com", remote.Hostname)
 	assert.Equal(t, "dynamic-a", remote.TestConfigID)
+	assert.Equal(t, "Production paths", remote.TestConfigName)
 	assert.Equal(t, payload.TestConfigSourceRemote, remote.TestConfigSource)
 	assert.Equal(t, []string{"team:payments"}, remote.Tags)
 	assert.Equal(t, "local.example.com", local.Hostname)
 	assert.Empty(t, local.TestConfigID)
+	assert.Empty(t, local.TestConfigName)
 	assert.Empty(t, local.TestConfigSource)
 	assert.Empty(t, local.Tags)
 }

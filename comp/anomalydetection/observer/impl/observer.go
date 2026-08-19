@@ -274,6 +274,22 @@ func NewComponent(deps Requires) (Provides, error) {
 				storageCfg.PointRetentionSecs = int64(d.Seconds())
 			}
 		}
+		if cfg.IsConfigured("anomaly_detection.storage.inactive_series_ttl") {
+			d := cfg.GetDuration("anomaly_detection.storage.inactive_series_ttl")
+			if d < 0 {
+				pkglog.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
+			} else {
+				storageCfg.InactiveSeriesTTLSeconds = int64(d.Seconds())
+			}
+		}
+		if cfg.IsConfigured("anomaly_detection.storage.inactive_series_check_interval") {
+			d := cfg.GetDuration("anomaly_detection.storage.inactive_series_check_interval")
+			if d < 0 {
+				pkglog.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
+			} else {
+				storageCfg.InactiveSeriesCheckIntervalSeconds = int64(d.Seconds())
+			}
+		}
 	}
 
 	compiledMetricFilter, err := loadMetricFilter(cfg)
@@ -293,7 +309,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	// watcher with nil gauges when settings are reset below.
 	var scorer *anomalyScorer
 	if rawScorer != nil {
-		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerState, obsTelemetry.scorerEwma)
+		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerSeverity, obsTelemetry.scorerEwma)
 		pkglog.Infof("[observer] anomaly_scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
 	}
@@ -313,6 +329,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	eng.onProcessingTime = obsTelemetry.recordProcessingTime
+	eng.onDetectorEmission = obsTelemetry.recordDetectorEmission
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -425,7 +442,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.internal", maxRateLow, maxRateMedium, maxRateHigh)
 		agentLogsHandle := obs.GetHandle("agent_logs")
 		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
-			obsTelemetry.recordSamplerDropped("internal", priority)
+			obsTelemetry.recordInputRateLimiterDropped("internal", priority)
 		}, logsRules)
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
@@ -558,8 +575,8 @@ type seriesDetectorAdapter struct {
 
 	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
 	// avoid rebuilding a string key per series per Detect call. SeriesRefs
-	// are append-only (storage.go:305) so they remain stable for the lifetime
-	// of a series.
+	// are unique and never reused, so they remain stable for the lifetime of
+	// a series.
 	lastVisibleCount map[observerdef.SeriesRef]int
 }
 
@@ -740,10 +757,10 @@ func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView)
 }
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
 
-// RecordSamplerDropped increments the rate-limiter dropped counter.
+// RecordSamplerDropped increments the observer input-rate-limiter drop counter.
 func (o *observerImpl) RecordSamplerDropped(source, priority string) {
 	if o.telemetry != nil {
-		o.telemetry.recordSamplerDropped(source, priority)
+		o.telemetry.recordInputRateLimiterDropped(source, priority)
 	}
 }
 
@@ -968,7 +985,7 @@ func (o *observerImpl) IngestLogForReplay(source string, msg observerdef.LogView
 	_ = o.engine.IngestLog(source, lo)
 	o.engine.storage.RecordObservationTime(lo.timestampMs / 1000)
 	if o.telemetry != nil {
-		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
+		o.telemetry.recordLogAccepted(classifyLogSource(source, lo.tags), len(lo.content))
 	}
 	o.replayMu.Unlock()
 }
@@ -985,7 +1002,7 @@ func (o *observerImpl) IngestLogAndAdvance(source string, msg observerdef.LogVie
 	}
 	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
 	if o.telemetry != nil {
-		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
+		o.telemetry.recordLogAccepted(classifyLogSource(source, lo.tags), len(lo.content))
 	}
 	if len(requests) > 0 {
 		o.publishSeriesCount()
@@ -1027,10 +1044,16 @@ type metricIngestDecision struct {
 func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
 	normalizedSource := normalizeMetricSource(name, source)
-	// Canonicalize once so the mute hash in isAllowed matches seriesKeyHash in
+	precheck := filter.precheck(name, normalizedSource)
+	if precheck.reject {
+		return metricIngestDecision{source: normalizedSource}
+	}
+
+	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
 	// storage, and downstream Add calls hit the tagsSorted fast path.
 	tags := canonicalizeTags(sample.GetRawTags())
-	if !filter.isAllowed(name, normalizedSource, tags) {
+	if filter.isMuted(name, normalizedSource, tags) ||
+		(precheck.needsTags && !filter.isAllowedByRulesFrom(name, normalizedSource, tags, precheck.firstCandidate)) {
 		return metricIngestDecision{source: normalizedSource}
 	}
 
@@ -1067,6 +1090,9 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 		o.engine.replayAdvances.Add(1)
 	}
 	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
+	if o.telemetry != nil {
+		o.telemetry.recordMetricAccepted(decision.source)
+	}
 	if len(requests) > 0 {
 		o.publishSeriesCount()
 	}
@@ -1081,6 +1107,13 @@ type handle struct {
 	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
 	telemetry *observerTelemetry
 	filter    *metricsFilterRules
+
+	// The overwhelmingly common filtered-metric source for a handle is its
+	// source. Bind that Prometheus counter lazily to avoid a label lookup and a
+	// variadic allocation for every rejected metric.
+	filteredMetricOnce   sync.Once
+	filteredMetricSource string
+	filteredMetric       telemetry.SimpleCounter
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -1096,7 +1129,7 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 	decision := prepareMetricIngest(h.source, sample, h.filter)
 	if decision.metric == nil {
 		if h.telemetry != nil && decision.source != "" {
-			h.telemetry.recordFilteredMetric(decision.source)
+			h.recordFilteredMetric(decision.source)
 		}
 		return false
 	}
@@ -1108,14 +1141,33 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
+		if h.telemetry != nil {
+			h.telemetry.recordMetricAccepted(decision.source)
+		}
 		return false
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
-			h.telemetry.recordChannelDropped(h.source)
+			h.telemetry.recordObservationDropped("metrics", decision.source)
 		}
 		return true
 	}
+}
+
+func (h *handle) recordFilteredMetric(source string) {
+	h.filteredMetricOnce.Do(func() {
+		h.filteredMetricSource = source
+		h.filteredMetric = h.telemetry.filteredMetrics.WithValues(source)
+	})
+	if h.filteredMetricSource == source {
+		h.filteredMetric.Inc()
+		return
+	}
+
+	// datadog.* metrics are normalized to the agent namespace, rather than the
+	// source that created this handle. That path is uncommon, so retain the
+	// generic lookup to keep telemetry labels correct.
+	h.telemetry.recordFilteredMetric(source)
 }
 
 // ObserveLog observes a log message.
@@ -1147,15 +1199,14 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	select {
 	case h.ch <- obs:
 		if h.telemetry != nil {
-			h.telemetry.recordLogIngested(logSource, len(content))
+			h.telemetry.recordLogAccepted(logSource, len(content))
 		}
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
 			// Roll back pre-enqueue in-flight increment for dropped logs.
 			h.telemetry.decrementLogsInFlight(logSource)
-			h.telemetry.recordDroppedLog(h.source, tags)
-			h.telemetry.recordChannelDropped(h.source)
+			h.telemetry.recordObservationDropped("logs", logSource)
 		}
 	}
 }

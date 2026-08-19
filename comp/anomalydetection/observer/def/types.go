@@ -148,8 +148,9 @@ func (sd SeriesDescriptor) Key() string {
 }
 
 // SeriesRef is a compact numeric handle for a stored time series.
-// Storage assigns a SeriesRef when a series key is first created;
-// the ref remains stable for the lifetime of the storage instance.
+// Storage assigns a unique SeriesRef when a series key is first created. The
+// ref remains stable while the series is live and is never reused; after
+// eviction it is invalid for the remainder of the storage instance lifetime.
 type SeriesRef int
 
 // QueryHandle pairs a storage series ref with its aggregate, providing
@@ -611,11 +612,11 @@ type Detector interface {
 // segment buffers, ScanWelch posterior, the seriesDetectorAdapter visible
 // point count map, etc.) keyed by SeriesRef. Storage frees the series
 // payload itself when extractors evict their LRU contexts and the engine
-// calls RemoveSeriesByKeys, but without this hook the detector-side maps
+// calls its series-removal methods, but without this hook the detector-side maps
 // keep growing unbounded with the cumulative number of series ever
 // observed. The engine fans the freed refs out to every detector that
-// implements this interface immediately after RemoveSeriesByKeys returns
-// them, keeping detector state symmetric with storage state.
+// implements this interface immediately after storage returns them, keeping
+// detector state symmetric with storage state.
 //
 // Implementations should be cheap (a handful of map deletes) and tolerant
 // of refs they have never seen — adapters routinely receive refs for

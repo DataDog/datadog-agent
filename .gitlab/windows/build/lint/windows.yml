@@ -1,7 +1,7 @@
 .lint_windows_base:
   stage: lint
   needs: ["go_deps", "go_tools_deps"]
-  extends: .windows_docker_default
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]
   script:
     - $ErrorActionPreference = "Stop"
     - !reference [.sanitize_goproxy_windows]
@@ -11,11 +11,9 @@
     # Windows jobs are using either 8Gb or 16Gb of memory so we can limit memory to 16Gb on this job because even if we decided to limit to 10Gb for instance,
     # it would leave 6Gb free but we could not fit another job with these 6Gb remaining.
     - >
-      docker run --rm
+      .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M
-      --storage-opt "size=50GB"
       -v "$(Get-Location):c:\mnt"
-      -e CI
       -e GITLAB_CI
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
       -e AWS_NETWORKING=true

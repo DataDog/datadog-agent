@@ -450,6 +450,123 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "", logs)
 	})
 
+	t.Run("origin-headers-forwarded", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set("DD-EVP-ORIGIN", "my-server-sdk")
+		req.Header.Set("DD-EVP-ORIGIN-VERSION", "1.2.3")
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", strconv.Itoa(resp.StatusCode))
+		resp.Body.Close()
+		require.Len(t, proxyreqs, 1)
+		proxyreq := proxyreqs[0]
+		assert.Equal(t, "my-server-sdk", proxyreq.Header.Get("DD-EVP-ORIGIN"))
+		assert.Equal(t, "1.2.3", proxyreq.Header.Get("DD-EVP-ORIGIN-VERSION"))
+		assert.Equal(t, "", logs)
+	})
+
+	t.Run("origin-headers-casing", func(t *testing.T) {
+		// Go's http.Header.Get/Set canonicalize header keys, so a caller sending
+		// lowercase headers should still be matched by the allowlist and forwarded.
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set("dd-evp-origin", "my-server-sdk")
+		req.Header.Set("dd-evp-origin-version", "1.2.3")
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", strconv.Itoa(resp.StatusCode))
+		resp.Body.Close()
+		require.Len(t, proxyreqs, 1)
+		proxyreq := proxyreqs[0]
+		assert.Equal(t, "my-server-sdk", proxyreq.Header.Get("DD-EVP-ORIGIN"))
+		assert.Equal(t, "1.2.3", proxyreq.Header.Get("DD-EVP-ORIGIN-VERSION"))
+		assert.Equal(t, "", logs)
+	})
+
+	t.Run("origin-headers-dual-shipping", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.EVPProxy.AdditionalEndpoints = map[string][]string{
+			"datadoghq.eu": {"test_api_key_1", "test_api_key_2"},
+		}
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set("DD-EVP-ORIGIN", "my-server-sdk")
+		req.Header.Set("DD-EVP-ORIGIN-VERSION", "1.2.3")
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", strconv.Itoa(resp.StatusCode))
+		resp.Body.Close()
+		require.Len(t, proxyreqs, 3)
+		for _, pr := range proxyreqs {
+			assert.Equal(t, "my-server-sdk", pr.Header.Get("DD-EVP-ORIGIN"))
+			assert.Equal(t, "1.2.3", pr.Header.Get("DD-EVP-ORIGIN-VERSION"))
+		}
+		assert.Equal(t, "", logs)
+	})
+
+	t.Run("origin-headers-stripped-unrelated", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set("DD-EVP-ORIGIN", "my-server-sdk")
+		req.Header.Set("DD-EVP-ORIGIN-VERSION", "1.2.3")
+		req.Header.Set("Unexpected-Header", "To-Be-Discarded")
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", strconv.Itoa(resp.StatusCode))
+		resp.Body.Close()
+		require.Len(t, proxyreqs, 1)
+		proxyreq := proxyreqs[0]
+		assert.Equal(t, "my-server-sdk", proxyreq.Header.Get("DD-EVP-ORIGIN"))
+		assert.Equal(t, "1.2.3", proxyreq.Header.Get("DD-EVP-ORIGIN-VERSION"))
+		assert.NotContains(t, proxyreq.Header, "Unexpected-Header")
+		assert.Equal(t, "", logs)
+	})
+
+	t.Run("origin-headers-absent", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", strconv.Itoa(resp.StatusCode))
+		resp.Body.Close()
+		require.Len(t, proxyreqs, 1)
+		proxyreq := proxyreqs[0]
+		// Headers are not synthesized; absent on the inbound request means absent on the outbound request.
+		assert.NotContains(t, proxyreq.Header, "DD-EVP-ORIGIN")
+		assert.NotContains(t, proxyreq.Header, "DD-EVP-ORIGIN-VERSION")
+		assert.Equal(t, "", logs)
+	})
+
 	t.Run("error-tracking-standalone-header-added", func(t *testing.T) {
 		stats.Reset()
 

@@ -73,20 +73,6 @@ func nextSeverityLevel(ewma float64, current severityeventsdef.SeverityLevel, lo
 	return severityeventsdef.SeverityLow
 }
 
-// severityLevelName returns a human-readable label for a SeverityLevel.
-func severityLevelName(l severityeventsdef.SeverityLevel) string {
-	switch l {
-	case severityeventsdef.SeverityLow:
-		return "Low"
-	case severityeventsdef.SeverityMedium:
-		return "Medium"
-	case severityeventsdef.SeverityHigh:
-		return "High"
-	default:
-		return fmt.Sprintf("SeverityLevel(%d)", int(l))
-	}
-}
-
 // ---------------------------------------------------------------------------
 // EWMA helpers
 // ---------------------------------------------------------------------------
@@ -94,6 +80,15 @@ func severityLevelName(l severityeventsdef.SeverityLevel) string {
 // levelWeights maps anomaly level (0–4) to its EWMA weight.
 // Level 0=VeryLow, 1=Low, 2=Medium, 3=High, 4=XHigh.
 var levelWeights = [5]float64{0.2, 0.5, 1.0, 2.0, 3.0}
+
+var anomalySeverityLabels = [5]string{"xlow", "low", "medium", "high", "xhigh"}
+
+func anomalySeverityLabel(level int) string {
+	if level < 0 || level >= len(anomalySeverityLabels) {
+		return "unknown"
+	}
+	return anomalySeverityLabels[level]
+}
 
 // anomalyLevel assigns a 0–4 level to an anomaly.
 // If the detector has an entry in cfg.DetectorThresholds, the numeric Score is
@@ -560,8 +555,8 @@ type anomalyScorer struct {
 	dispatchers []*severityeventsimpl.Dispatcher
 
 	// Internal watcher fields (gauges may be nil when replay only needs episodes).
-	ewmaGauge  telemetry.Gauge // may be nil; set on every Advance tick
-	stateGauge telemetry.Gauge // may be nil; set on severity transitions
+	ewmaGauge     telemetry.Gauge // may be nil; set on every Advance tick
+	severityGauge telemetry.Gauge // may be nil; set to the current severity on every Advance tick
 
 	// Episode tracking (guarded by mu; only active when correlationEvents is true).
 	// openEpisode is the currently open configured-threshold severity period.
@@ -647,12 +642,13 @@ func (s *anomalyScorer) advanceRawLevel(ewma float64) severityeventsdef.Severity
 }
 
 // newAnomalyScorerWithTelemetry creates a scorer with the watcher enabled.
-// Non-nil stateGauge and ewmaGauge values are written on each severity transition
-// and EWMA tick respectively. The watcher self-subscribes using cfg.CooldownSecs.
-func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGauge telemetry.Gauge) *anomalyScorer {
+// Non-nil severityGauge and ewmaGauge values are written with the current
+// severity and EWMA on every advance tick. The watcher self-subscribes using
+// cfg.CooldownSecs.
+func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaGauge telemetry.Gauge) *anomalyScorer {
 	s := newAnomalyScorerBase(cfg)
 	s.ewmaGauge = ewmaGauge
-	s.stateGauge = stateGauge
+	s.severityGauge = severityGauge
 
 	// Self-subscribe as the internal watcher.
 	if _, err := s.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
@@ -669,8 +665,8 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGaug
 // ---------------------------------------------------------------------------
 
 // OnSeverityTransition is called by the self-subscription on each severity
-// transition. It sets the state gauge, optionally logs the event, and manages
-// episodes while severity is at or above the configured event threshold.
+// transition. It optionally logs the event and manages episodes while severity
+// is at or above the configured event threshold.
 func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
 	direction := "escalation"
 	if evt.Direction == severityeventsdef.SeverityEventDeescalation {
@@ -681,14 +677,10 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 		pkglog.Infof("[observer] anomaly scorer %s severity %s to %s (was %s, t=%d)",
 			s.Name(),
 			direction,
-			severityLevelName(evt.ToLevel),
-			severityLevelName(evt.FromLevel),
+			evt.ToLevel.String(),
+			evt.FromLevel.String(),
 			evt.Timestamp,
 		)
-	}
-
-	if s.stateGauge != nil {
-		s.stateGauge.Set(float64(evt.ToLevel), "scorer:"+s.Name(), direction)
 	}
 
 	if s.config.CorrelationEvents {
@@ -793,6 +785,10 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	if s.ewmaGauge != nil && len(states) > 0 {
 		last := states[len(states)-1]
 		s.ewmaGauge.Set(last.ewma, s.Name())
+	}
+	if s.severityGauge != nil && len(states) > 0 {
+		last := states[len(states)-1]
+		s.severityGauge.Set(float64(last.level), s.Name())
 	}
 
 	// Drive the dispatchers outside the scorer lock so listeners can safely call

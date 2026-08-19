@@ -3,3 +3,8 @@ logs:
     path: '/var/log/e2e_test_logs/hello-world.log'
     service: hello
     source: custom_log
+  - type: file
+    path: '/var/log/e2e_test_logs/iis-w3c.log'
+    service: iis-w3c
+    source: iis
+    auto_multi_line_detection: true

@@ -41,6 +41,7 @@ dd_agent_go_test(
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf/ebpftest",
         "//pkg/security/probe/config",

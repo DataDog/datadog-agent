@@ -54,18 +54,20 @@ const (
 	maxShutdownGrace = 30 * time.Second
 )
 
-// preflightModeDuration is how long ADP is left running.
+// minPreflightModeDuration is the floor on how long ADP is left running, and the default
+// data_plane.preflight_mode_duration resolves to.
 //
-// Deliberately not a config setting. There is no operational reason to tune it: the off
-// switch operators actually need is data_plane.preflight_mode, and a documented duration would be
-// public API we have to support and later deprecate for a mechanism that only exists until ADP
-// goes GA. Fixing it also makes the agent telemetry schedule's start_after a provable
-// relationship rather than one that silently breaks when an operator raises the window past it.
+// It is a floor rather than a plain default because a window shorter than this does not measure
+// ADP, it measures the clock: 90s is what the pre-flight was sized for, and stopping ADP while
+// its startup is still in progress would report a healthy host as a finding. So a configured
+// value below this is raised to it rather than honoured. Only the upper end is open, which is
+// the direction the setting exists for — keeping ADP resident for the whole of a fixed-length
+// benchmark run.
 //
-// A var rather than a const only so tests can shorten it; nothing in production reassigns it.
-// If this is raised, check start_after on the data-plane-preflight-mode profile in
+// A var rather than a const only so tests can lower the floor; nothing in production reassigns
+// it. If this is raised, check start_after on the data-plane-preflight-mode profile in
 // comp/core/agenttelemetry/impl/defaultProfiles.yaml still lands after the window.
-var preflightModeDuration = 90 * time.Second
+var minPreflightModeDuration = 90 * time.Second
 
 // resolveDataPlanePath returns the ADP binary path. A variable so tests can substitute a
 // stand-in binary.
@@ -178,7 +180,7 @@ func NewComponent(reqs Requires) Provides {
 }
 
 // start kicks off the pre-flight in the background. It must not block: a preflight mode run
-// lasts a minute by default, and OnStart hooks run in sequence with every other
+// lasts at least minPreflightModeDuration, and OnStart hooks run in sequence with every other
 // component's.
 func (d *preflightModeComponent) start(context.Context) error {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -228,6 +230,15 @@ func (d *preflightModeComponent) stop(context.Context) error {
 func (d *preflightModeComponent) shutdownGrace() time.Duration {
 	grace := d.stopTimeout() + probeConnectTimeout + probeWriteTimeout + shutdownSlack
 	return min(grace, maxShutdownGrace)
+}
+
+// duration is how long ADP is left running, never less than minPreflightModeDuration.
+//
+// The clamp also absorbs the values GetDuration produces from input that is not a duration
+// string at all: a bare number is read as that many nanoseconds, and anything unparseable comes
+// back as zero. Both would otherwise stop ADP the instant it started.
+func (d *preflightModeComponent) duration() time.Duration {
+	return max(d.config.GetDuration(DataPlanePreflightModeDuration), minPreflightModeDuration)
 }
 
 // stopTimeout is how long ADP is given to exit after being asked to stop.
@@ -330,8 +341,12 @@ func (d *preflightModeComponent) run(ctx context.Context) {
 		return
 	}
 
+	// Read once, so the window the run is logged with, timed by and reported against is the same
+	// one even if the setting changes under it.
+	window := d.duration()
+
 	d.log.Infof("Starting Agent Data Plane in preflight mode for %s (binary %s, DogStatsD endpoint %s)",
-		preflightModeDuration, d.binPath, l.describe())
+		window, d.binPath, l.describe())
 	if err := cmd.Start(); err != nil {
 		d.log.Warnf("Agent Data Plane preflight mode could not start %s: %v", d.binPath, err)
 		o.add(findingSpawnFailed)
@@ -355,7 +370,7 @@ func (d *preflightModeComponent) run(ctx context.Context) {
 	probeResult := make(chan bool, 1)
 	go func() { probeResult <- d.probe(procCtx, l) }()
 
-	timer := time.NewTimer(preflightModeDuration)
+	timer := time.NewTimer(window)
 	defer timer.Stop()
 
 	var exitedEarly, interrupted bool
@@ -383,7 +398,7 @@ func (d *preflightModeComponent) run(ctx context.Context) {
 		// findings from what ADP actually logged are still added below.
 		o.add(findingInterrupted)
 	case exitedEarly:
-		d.log.Debugf("Agent Data Plane exited before the %s preflight mode window elapsed", preflightModeDuration)
+		d.log.Debugf("Agent Data Plane exited before the %s preflight mode window elapsed", window)
 		o.add(findingExitedEarly)
 	case probeFailed:
 		o.add(findingProbeFailed)

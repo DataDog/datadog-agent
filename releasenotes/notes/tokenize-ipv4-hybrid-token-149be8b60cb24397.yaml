@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Auto multi-line detection no longer concatenates consecutive IIS W3C
+    extended-format access log entries. A client IPv4 address next to the
+    leading timestamp was being scored as part of that timestamp, which
+    dropped the match to the detection threshold so each single-line record
+    was treated as a continuation of the previous one. IPv4 addresses are
+    now recognized as their own token and no longer interfere with timestamp
+    detection.

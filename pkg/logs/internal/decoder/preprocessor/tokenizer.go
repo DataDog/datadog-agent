@@ -13,7 +13,13 @@ import (
 
 // maxRun is the maximum run of a char or digit before it is capped.
 // Note: This must not exceed d10 or c10 below.
-const maxRun = 10
+const (
+	maxRun         = 10
+	ipv4TokenWidth = 7 // D Period D Period D Period D
+	// maxIPv4OctetDigits is the longest digit run that can be an octet, so a
+	// run longer than this can never close a dotted quad.
+	maxIPv4OctetDigits = 3
+)
 
 // maxSpecialTokenLen and the special-token/debug-string tables are generated
 // from the master list in gentokentables/main.go into token_tables_gen.go.
@@ -147,18 +153,36 @@ func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 			r = maxRun - 1
 		}
 		t.tsBuf = append(t.tsBuf, token+Token(r))
-	} else {
-		t.tsBuf = append(t.tsBuf, token)
+		// A dotted quad can only ever be closed by its final octet, so this is
+		// the one emission that can complete the pattern. Checking here keeps
+		// the cost off every other token and avoids a second pass entirely.
+		if token == D1 && runLen <= maxIPv4OctetDigits {
+			t.collapseIPv4Tail()
+		}
+		return
 	}
+	t.tsBuf = append(t.tsBuf, token)
 }
 
 // tokenizeIntoBuffers scans input a single time and emits tokens into the
 // reusable buffers. The returned slices alias those buffers (see
 // tokenizeBorrowed for the lifetime contract).
 func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+	t.emitRuns(input)
+	return t.tsBuf, t.idxBuf
+}
+
+// emitRuns run-length-encodes input into tsBuf/idxBuf, collapsing hybrid tokens
+// via emitToken as each one completes.
+func (t *Tokenizer) emitRuns(input []byte) {
 	inputLen := len(input)
 	if inputLen == 0 {
-		return nil, nil
+		t.tsBuf = t.tsBuf[:0]
+		t.idxBuf = t.idxBuf[:0]
+		return
 	}
 
 	// Reuse the scratch buffers across calls; only grow when the estimate
@@ -189,10 +213,47 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 		}
 	}
 
-	// Flush the final run.
 	t.emitToken(input, lastToken, start, inputLen)
+}
 
-	return t.tsBuf, t.idxBuf
+func isIPv4OctetToken(tok Token) bool {
+	return tok >= D1 && tok <= D3
+}
+
+// collapseIPv4Tail rewrites a dotted quad ending at the last emitted token into
+// a single IPv4 token. As separate digit/period tokens a quad looks like a
+// timestamp fragment to the detector, and addresses with different octet widths
+// would otherwise be different sampler patterns.
+//
+// Called from emitToken immediately after a 1-3 digit run is appended, which is
+// the only emission that can close the pattern, so the tokenizer never makes a
+// second pass over the token list. Each octet must be a 1-3 digit run and each
+// separator a single '.'; a collapsed ".." / "..." Period token is rejected via
+// the start indices.
+func (t *Tokenizer) collapseIPv4Tail() {
+	n := len(t.tsBuf)
+	if n < ipv4TokenWidth {
+		return
+	}
+	ts := t.tsBuf[n-ipv4TokenWidth:]
+
+	// Separators first: they reject nearly every call in a single compare, and
+	// the trailing octet is already known from the caller.
+	if ts[5] != Period || ts[3] != Period || ts[1] != Period {
+		return
+	}
+	if !isIPv4OctetToken(ts[0]) || !isIPv4OctetToken(ts[2]) || !isIPv4OctetToken(ts[4]) {
+		return
+	}
+	idx := t.idxBuf[n-ipv4TokenWidth:]
+	if idx[2] != idx[1]+1 || idx[4] != idx[3]+1 || idx[6] != idx[5]+1 {
+		return
+	}
+
+	// Keep idx[0] (the address start) and drop the six tokens it absorbed.
+	ts[0] = IPv4
+	t.tsBuf = t.tsBuf[:n-ipv4TokenWidth+1]
+	t.idxBuf = t.idxBuf[:n-ipv4TokenWidth+1]
 }
 
 // tokensToString converts a list of tokens to a debug string.

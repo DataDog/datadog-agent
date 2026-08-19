@@ -80,17 +80,34 @@ pub async fn connect(path: &Path) -> Result<tonic::transport::Channel> {
 
 /// Connect lazily to dd-procmgrd and reconnect if it restarted.
 pub fn connect_lazy(path: &Path) -> tonic::transport::Channel {
+    connect_lazy_inner(path, None)
+}
+
+/// Like [`connect_lazy`] but bounds every request by `request_timeout`, failing
+/// with [`tonic::Code::Cancelled`]. Not for RPCs that legitimately block, such as
+/// `Stop` waiting out a process stop timeout.
+pub fn connect_lazy_with_timeout(
+    path: &Path,
+    request_timeout: Duration,
+) -> tonic::transport::Channel {
+    connect_lazy_inner(path, Some(request_timeout))
+}
+
+fn connect_lazy_inner(path: &Path, request_timeout: Option<Duration>) -> tonic::transport::Channel {
     let path = path.to_path_buf();
-    tonic::transport::Endpoint::from_static(TONIC_PLACEHOLDER_URI)
-        .connect_timeout(CONNECT_TIMEOUT)
-        .connect_with_connector_lazy(tower::service_fn(move |_| {
-            let path = path.clone();
-            async move {
-                connect_platform(&path)
-                    .await
-                    .map(hyper_util::rt::TokioIo::new)
-            }
-        }))
+    let mut endpoint = tonic::transport::Endpoint::from_static(TONIC_PLACEHOLDER_URI)
+        .connect_timeout(CONNECT_TIMEOUT);
+    if let Some(timeout) = request_timeout {
+        endpoint = endpoint.timeout(timeout);
+    }
+    endpoint.connect_with_connector_lazy(tower::service_fn(move |_| {
+        let path = path.clone();
+        async move {
+            connect_platform(&path)
+                .await
+                .map(hyper_util::rt::TokioIo::new)
+        }
+    }))
 }
 
 #[cfg(unix)]

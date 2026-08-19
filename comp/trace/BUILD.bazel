@@ -1,6 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
-
-# gazelle:exclude bundle_test.go
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "trace",
@@ -16,5 +15,37 @@ go_library(
         "//comp/trace/config/fx",
         "//comp/trace/config/mock",
         "//pkg/util/fxutil",
+    ],
+)
+
+dd_agent_go_test(
+    name = "trace_test",
+    srcs = ["bundle_test.go"],
+    embed = [":trace"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
+        "//comp/core/tagger/fx",
+        "//comp/core/telemetry/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx",
+        "//comp/dogstatsd/statsd/fx",
+        "//comp/dogstatsd/statsd/impl",
+        "//comp/trace/agent/def",
+        "//comp/trace/agent/impl",
+        "//comp/trace/compression/fx-zstd",
+        "//comp/trace/config/def",
+        "//comp/trace/config/impl",
+        "//comp/trace/payload-modifier/fx",
+        "//pkg/trace/telemetry",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

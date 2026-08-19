@@ -444,6 +444,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 	cyclosbom, err := sbomutil.UncompressSBOM(img.SBOM)
 	if err != nil {
 		log.Errorf("Failed to uncompress SBOM for image %s: %v", img.ID, err)
+		return
 	}
 
 	for repo := range repos {

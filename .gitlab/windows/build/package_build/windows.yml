@@ -1,12 +1,12 @@
 ---
 .windows_msi_base:
   stage: package_build
-  extends: [.windows_docker_default, .bazel:defs:cache:windows]  # the latter for `bazel run @openssl//:install`
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]
   needs: ["go_deps"]
-  variables:
-    GIT_DEPTH: 0  # git describe --tags needs reachable tags
   script:
     - $ErrorActionPreference = 'Stop'
+    - Invoke-Expression "$S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache ."
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
@@ -93,21 +93,21 @@ windows_msi_and_bosh_zip_x64-a7-fips:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  extends: .windows_docker_default
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]
   needs: ["go_deps"]
   variables:
     ARCH: "x64"
-    GIT_DEPTH: 0  # git describe --tags needs reachable tags
   script:
     - $ErrorActionPreference = "Stop"
+    - Invoke-Expression "$S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache ."
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
-      docker run --rm
+      .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M
       -v "$(Get-Location):c:\mnt"
-      -e CI
       -e GITLAB_CI
       -e CI_COMMIT_BRANCH
       -e CI_PIPELINE_ID
@@ -172,9 +172,10 @@ windows_zip_ddot_x64:
   needs: ["go_deps"]
   variables:
     ARCH: "x64"
-    GIT_DEPTH: 0  # git describe --tags needs reachable tags
   script:
     - $ErrorActionPreference = "Stop"
+    - Invoke-Expression "$S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache ."
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
