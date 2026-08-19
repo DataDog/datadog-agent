@@ -7,7 +7,6 @@ package ssi
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -151,8 +150,8 @@ func localAgentImagesFromStackParams() []string {
 
 	var images []string
 	for _, key := range []string{
-		fmt.Sprintf("ddagent:%s", config.DDAgentFullImagePathParamName),
-		fmt.Sprintf("ddagent:%s", config.DDClusterAgentFullImagePathParamName),
+		"ddagent:" + config.DDAgentFullImagePathParamName,
+		"ddagent:" + config.DDClusterAgentFullImagePathParamName,
 	} {
 		if image := params[key]; image != "" {
 			images = append(images, image)

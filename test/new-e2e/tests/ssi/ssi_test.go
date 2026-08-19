@@ -57,12 +57,12 @@ var rcPoliciesHelmValues string
 var rcHostLinuxOnlyPolicyJSON []byte
 
 const (
-	apmPoliciesRCProduct       = "APM_POLICIES"
-	rcHostLinuxOnlyConfigID    = "1.host-linux-only"
-	rcHostLinuxOnlyConfigName  = "config"
-	rcFakeIntakeDefaultOrgID   = "42"
-	rcAnnotatedPodNamespace    = "other"
-	rcAnnotatedPodApp          = "rc-ann-only"
+	apmPoliciesRCProduct      = "APM_POLICIES"
+	rcHostLinuxOnlyConfigID   = "1.host-linux-only"
+	rcHostLinuxOnlyConfigName = "config"
+	rcFakeIntakeDefaultOrgID  = "42"
+	rcAnnotatedPodNamespace   = "other"
+	rcAnnotatedPodApp         = "rc-ann-only"
 )
 
 // ssiSuite runs all SSI test groups on a single cluster, calling UpdateEnv at the start of
