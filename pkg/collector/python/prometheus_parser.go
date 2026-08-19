@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -45,11 +46,30 @@ type jsonMetricFamily struct {
 	Samples []jsonSample `json:"samples"`
 }
 
+// jsonFloat is a float64 that serializes NaN and ±Inf as JSON strings so that
+// encoding/json does not reject them. The Python caller decodes these strings
+// back to the corresponding float values.
+type jsonFloat float64
+
+func (f jsonFloat) MarshalJSON() ([]byte, error) {
+	v := float64(f)
+	switch {
+	case math.IsNaN(v):
+		return []byte(`"NaN"`), nil
+	case math.IsInf(v, 1):
+		return []byte(`"+Inf"`), nil
+	case math.IsInf(v, -1):
+		return []byte(`"-Inf"`), nil
+	default:
+		return json.Marshal(v)
+	}
+}
+
 // jsonSample is the JSON-serializable representation of a single sample.
 type jsonSample struct {
 	Name      string            `json:"name"`
 	Labels    map[string]string `json:"labels"`
-	Value     float64           `json:"value"`
+	Value     jsonFloat         `json:"value"`
 	Timestamp *int64            `json:"timestamp,omitempty"`
 }
 
@@ -77,29 +97,58 @@ func feedPrometheusParser(id int64, chunk string) (string, error) {
 		state.buffer = chunk
 	}
 
-	// Find the last metric family boundary (a line starting with "# HELP " or "# TYPE ").
-	// Only split there if there is at least one sample line before it.
 	lines := strings.Split(state.buffer, "\n")
 	lastBoundary := -1
+
+	// Scan backward for the last HELP/TYPE line, then walk back to the start of
+	// its contiguous metadata block so that HELP and TYPE lines for the same
+	// family are never split across the boundary. Only split if at least one
+	// sample line precedes the block (i.e. a complete family exists before it).
 	for i := len(lines) - 1; i > 0; i-- {
 		if strings.HasPrefix(lines[i], "# HELP ") || strings.HasPrefix(lines[i], "# TYPE ") {
-			// Verify there's sample data before this boundary.
-			hasSample := false
-			for j := 0; j < i; j++ {
+			start := i
+			for start > 0 && (strings.HasPrefix(lines[start-1], "# HELP ") || strings.HasPrefix(lines[start-1], "# TYPE ")) {
+				start--
+			}
+			for j := 0; j < start; j++ {
 				if lines[j] != "" && !strings.HasPrefix(lines[j], "#") {
-					hasSample = true
+					lastBoundary = start
 					break
 				}
-			}
-			if hasSample {
-				lastBoundary = i
 			}
 			break
 		}
 	}
 
+	// Fallback for sample-only expositions (no HELP/TYPE directives): scan only
+	// the tail of the buffer (the most recently appended chunk) for a metric-name
+	// transition. This bounds the scan to O(chunk size) per call rather than
+	// O(buffer size), avoiding quadratic growth on large exporters.
 	if lastBoundary <= 0 {
-		// No complete family boundary found; keep buffering.
+		chunkLines := strings.Count(chunk, "\n") + 2
+		scanFrom := len(lines) - chunkLines
+		if scanFrom < 0 {
+			scanFrom = 0
+		}
+		lastName := ""
+		for i := len(lines) - 1; i >= scanFrom; i-- {
+			line := lines[i]
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			name := sampleMetricName(line)
+			if lastName == "" {
+				lastName = name
+				continue
+			}
+			if name != lastName {
+				lastBoundary = i + 1
+				break
+			}
+		}
+	}
+
+	if lastBoundary <= 0 {
 		return "", nil
 	}
 
@@ -127,6 +176,15 @@ func finishPrometheusParser(id int64) (string, error) {
 
 // parseText parses a complete block of prometheus/openmetrics text and returns
 // the metric families as a JSON string.
+//
+// Family grouping follows the structure of the text itself: a # HELP or # TYPE
+// directive opens a new family, and all subsequent series belong to that family
+// until the next directive. This mirrors the Python prometheus_client approach
+// and requires no knowledge of type-specific metric name suffixes, making it
+// correct for all current and future OpenMetrics types.
+//
+// For sample-only expositions (no directives), samples are grouped by exact
+// metric name — a new family starts whenever the name changes.
 func parseText(text string, contentType string) (string, error) {
 	data := []byte(text)
 
@@ -144,6 +202,7 @@ func parseText(text string, contentType string) (string, error) {
 	}
 
 	var families []jsonMetricFamily
+	currentIdx := -1 // index into families of the active family; -1 = none yet
 	var lbls labels.Labels
 
 	for {
@@ -159,34 +218,37 @@ func parseText(text string, contentType string) (string, error) {
 		switch entry {
 		case textparse.EntryHelp:
 			name, help := parser.Help()
-			// Start or update family with help text
-			if len(families) == 0 || families[len(families)-1].Name != string(name) {
+			sName := string(name)
+			if currentIdx >= 0 && families[currentIdx].Name == sName {
+				families[currentIdx].Help = string(help)
+			} else {
+				if currentIdx >= 0 && len(families[currentIdx].Samples) == 0 {
+					families = families[:currentIdx]
+				}
 				families = append(families, jsonMetricFamily{
-					Name:    string(name),
+					Name:    sName,
 					Help:    string(help),
 					Samples: make([]jsonSample, 0, 8),
 				})
-			} else {
-				families[len(families)-1].Help = string(help)
+				currentIdx = len(families) - 1
 			}
 
 		case textparse.EntryType:
 			name, typ := parser.Type()
 			sName := string(name)
 			sType := strings.ToLower(string(typ))
-
-			if len(families) > 0 && families[len(families)-1].Name == sName {
-				families[len(families)-1].Type = sType
+			if currentIdx >= 0 && families[currentIdx].Name == sName {
+				families[currentIdx].Type = sType
 			} else {
-				// Discard previous family if it has no samples
-				if len(families) > 0 && len(families[len(families)-1].Samples) == 0 {
-					families = families[:len(families)-1]
+				if currentIdx >= 0 && len(families[currentIdx].Samples) == 0 {
+					families = families[:currentIdx]
 				}
 				families = append(families, jsonMetricFamily{
 					Name:    sName,
 					Type:    sType,
 					Samples: make([]jsonSample, 0, 8),
 				})
+				currentIdx = len(families) - 1
 			}
 
 		case textparse.EntrySeries:
@@ -203,35 +265,37 @@ func parseText(text string, contentType string) (string, error) {
 				}
 			})
 
-			// Match to current family, trimming suffixes for histogram/summary
-			if len(families) == 0 || !belongsToFamily(&families[len(families)-1], rawName) {
-				// Create new untyped family
-				if len(families) > 0 && len(families[len(families)-1].Samples) == 0 {
-					families = families[:len(families)-1]
+			// For a typed family (opened by # HELP / # TYPE), all series until
+			// the next directive belong to it — no suffix detection needed.
+			// For an untyped family (sample-only exposition), group by exact
+			// metric name; start a new family when the name changes.
+			if currentIdx < 0 || (families[currentIdx].Type == "untyped" && families[currentIdx].Name != rawName) {
+				if currentIdx >= 0 && len(families[currentIdx].Samples) == 0 {
+					families = families[:currentIdx]
 				}
 				families = append(families, jsonMetricFamily{
 					Name:    rawName,
 					Type:    "untyped",
 					Samples: make([]jsonSample, 0, 8),
 				})
+				currentIdx = len(families) - 1
 			}
 
 			sample := jsonSample{
 				Name:   rawName,
 				Labels: labelMap,
-				Value:  value,
+				Value:  jsonFloat(value),
 			}
 			if ts != nil {
 				sample.Timestamp = ts
 			}
-
-			families[len(families)-1].Samples = append(families[len(families)-1].Samples, sample)
+			families[currentIdx].Samples = append(families[currentIdx].Samples, sample)
 		}
 	}
 
-	// Discard last family if it has no samples
-	if len(families) > 0 && len(families[len(families)-1].Samples) == 0 {
-		families = families[:len(families)-1]
+	// Discard trailing empty family (e.g. a # HELP/TYPE with no following samples).
+	if currentIdx >= 0 && len(families[currentIdx].Samples) == 0 {
+		families = families[:currentIdx]
 	}
 
 	if len(families) == 0 {
@@ -243,33 +307,6 @@ func parseText(text string, contentType string) (string, error) {
 		return "", err
 	}
 	return string(result), nil
-}
-
-// belongsToFamily checks whether a sample name belongs to the given metric family,
-// accounting for histogram/summary suffixes.
-func belongsToFamily(family *jsonMetricFamily, sampleName string) bool {
-	if family.Name == sampleName {
-		return true
-	}
-	switch family.Type {
-	case "histogram":
-		for _, suffix := range []string{"_bucket", "_sum", "_count"} {
-			if strings.TrimSuffix(sampleName, suffix) == family.Name {
-				return true
-			}
-		}
-	case "summary":
-		for _, suffix := range []string{"_sum", "_count"} {
-			if strings.TrimSuffix(sampleName, suffix) == family.Name {
-				return true
-			}
-		}
-	case "counter":
-		if strings.TrimSuffix(sampleName, "_total") == family.Name {
-			return true
-		}
-	}
-	return false
 }
 
 // --- CGo exported functions ---

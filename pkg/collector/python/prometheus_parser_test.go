@@ -33,7 +33,7 @@ go_goroutines 42
 	assert.Equal(t, "Number of goroutines.", families[0].Help)
 	require.Len(t, families[0].Samples, 1)
 	assert.Equal(t, "go_goroutines", families[0].Samples[0].Name)
-	assert.Equal(t, 42.0, families[0].Samples[0].Value)
+	assert.Equal(t, jsonFloat(42.0), families[0].Samples[0].Value)
 	assert.Empty(t, families[0].Samples[0].Labels)
 }
 
@@ -54,7 +54,7 @@ http_requests_total{method="POST",code="200"} 42
 	assert.Equal(t, "counter", families[0].Type)
 	require.Len(t, families[0].Samples, 2)
 	assert.Equal(t, map[string]string{"method": "GET", "code": "200"}, families[0].Samples[0].Labels)
-	assert.Equal(t, 1027.0, families[0].Samples[0].Value)
+	assert.Equal(t, jsonFloat(1027.0), families[0].Samples[0].Value)
 }
 
 func TestParseTextHistogram(t *testing.T) {
@@ -173,28 +173,4 @@ metric_a 1`
 func TestFinishUnknownID(t *testing.T) {
 	_, err := finishPrometheusParser(99999)
 	assert.Error(t, err)
-}
-
-func TestBelongsToFamily(t *testing.T) {
-	tests := []struct {
-		family     jsonMetricFamily
-		sampleName string
-		expected   bool
-	}{
-		{jsonMetricFamily{Name: "foo", Type: "gauge"}, "foo", true},
-		{jsonMetricFamily{Name: "foo", Type: "gauge"}, "bar", false},
-		{jsonMetricFamily{Name: "foo", Type: "histogram"}, "foo_bucket", true},
-		{jsonMetricFamily{Name: "foo", Type: "histogram"}, "foo_sum", true},
-		{jsonMetricFamily{Name: "foo", Type: "histogram"}, "foo_count", true},
-		{jsonMetricFamily{Name: "foo", Type: "summary"}, "foo_sum", true},
-		{jsonMetricFamily{Name: "foo", Type: "summary"}, "foo_count", true},
-		{jsonMetricFamily{Name: "foo", Type: "summary"}, "foo_bucket", false},
-		{jsonMetricFamily{Name: "foo", Type: "counter"}, "foo_total", true},
-		{jsonMetricFamily{Name: "foo", Type: "counter"}, "foo_bucket", false},
-	}
-
-	for _, tt := range tests {
-		result := belongsToFamily(&tt.family, tt.sampleName)
-		assert.Equal(t, tt.expected, result, "belongsToFamily(%s, %s, %s)", tt.family.Name, tt.family.Type, tt.sampleName)
-	}
 }
