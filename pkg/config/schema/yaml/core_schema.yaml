@@ -1727,11 +1727,11 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            description: Selects up to three eligible Cloud Network Monitoring paths with the most
-              sent and received bytes during each Network Path Dynamic Test interval. The first
-              selection window is five minutes. In baseline mode, the minimum effective
-              network_path.collector.pathtest_interval is ten minutes. Requires traceroute.enabled
-              in the system-probe configuration.
+            description: Selects up to three representative high-volume eligible Cloud Network
+              Monitoring paths using a bounded estimate of sent and received bytes observed during
+              each Network Path Dynamic Test interval. The first selection window is five minutes.
+              In baseline mode, the minimum effective network_path.collector.pathtest_interval is
+              ten minutes. Requires traceroute.enabled in the system-probe configuration.
             example: 'true'
       collector:
         node_type: section
