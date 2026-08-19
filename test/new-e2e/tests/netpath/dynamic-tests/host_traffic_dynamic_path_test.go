@@ -159,6 +159,7 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
+	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
@@ -258,6 +259,10 @@ func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {
 	require.Failf(s.T(), "Remote Config entry not found", "product=%s config_id=%s config_name=%s", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName)
 }
 
+func (s *hostTrafficDynamicPathSuite) ensureCurlInstalled() {
+	s.Env().RemoteHost.MustExecute("if ! command -v curl >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y curl; fi")
+}
+
 func (s *hostTrafficDynamicPathSuite) startHostTrafficDNSServer() {
 	httpbinHost := s.Env().HTTPBinHost
 	httpbinHost.CopyFileFromFS(hostTrafficDNSFiles, "fixtures/host_traffic_dns.py", hostTrafficDNSRemotePath)
@@ -341,17 +346,15 @@ func (s *hostTrafficDynamicPathSuite) assertHostTrafficDomainResolves() {
 	output := s.Env().RemoteHost.MustExecute("getent ahostsv4 " + shellQuote(hostTrafficRemoteConfigDomain))
 	require.Contains(s.T(), output, s.Env().HTTPBinHost.Address)
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.Env().RemoteHost.MustExecuteOn(c, hostTrafficRequestCommand(hostTrafficRemoteConfigDomain))
-	}, 20*time.Second, 2*time.Second, "host traffic endpoint did not become ready")
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -4 -fsS --retry 3 --max-time 5 %s >/dev/null", shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain))))
 }
 
 func (s *hostTrafficDynamicPathSuite) startHostTrafficGenerator(duration time.Duration) {
 	seconds := int(duration.Seconds())
 	trafficCommand := fmt.Sprintf(
-		"i=0; while [ \"$i\" -lt %d ]; do %s >/dev/null || true; sleep 2; i=$((i+2)); done",
+		"i=0; while [ \"$i\" -lt %d ]; do curl -4 -fsS --max-time 5 %s >/dev/null || true; sleep 2; i=$((i+2)); done",
 		seconds,
-		hostTrafficRequestCommand(hostTrafficRemoteConfigDomain),
+		shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain)),
 	)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("nohup sh -c %s >%s 2>&1 & echo $! >%s",
 		shellQuote(trafficCommand),
@@ -410,13 +413,6 @@ func hasTracerouteDestinationIP(np *aggregator.Netpath) bool {
 
 func hostTrafficURL(domain string) string {
 	return "http://" + domain + "/"
-}
-
-func hostTrafficRequestCommand(domain string) string {
-	return fmt.Sprintf("python3 -c %s %s",
-		shellQuote("import sys, urllib.request; urllib.request.urlopen(sys.argv[1], timeout=5).read()"),
-		shellQuote(hostTrafficURL(domain)),
-	)
 }
 
 func shellQuote(value string) string {

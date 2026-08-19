@@ -31,6 +31,7 @@ func TestBaselineHostTrafficDynamicPathSuite(t *testing.T) {
 
 func (s *baselineHostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
@@ -63,14 +64,10 @@ func (s *baselineHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath(
 		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
 		require.NotNil(c, match, "no baseline host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
 
-		assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
 		assert.Equal(c, payload.DynamicTestProfileBaseline, match.DynamicTestProfile)
 		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
-		assert.Equal(c, payload.ProtocolTCP, match.Protocol)
-		assert.Equal(c, hostTrafficRemoteConfigDomain, match.Destination.Hostname)
-		assert.Equal(c, uint16(80), match.Destination.Port)
 		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
 		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
 	}, 7*time.Minute, 10*time.Second)

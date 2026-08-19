@@ -7,7 +7,6 @@ package npcollectorimpl
 
 import (
 	"math"
-	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -84,12 +83,12 @@ func (selector *baselineSelector) add(path common.Pathtest, bytes uint64, now ti
 	hash := path.GetHash()
 	if candidate, found := selector.candidates[hash]; found {
 		candidate.bytes = saturatingAdd(candidate.bytes, bytes)
-		candidate.path = clonePathtest(path)
+		candidate.path = path
 		selector.candidates[hash] = candidate
 		return
 	}
 
-	candidate := baselineCandidate{path: clonePathtest(path), hash: hash, bytes: bytes}
+	candidate := baselineCandidate{path: path, hash: hash, bytes: bytes}
 	if len(selector.candidates) < baselineCandidateLimit {
 		selector.candidates[hash] = candidate
 		return
@@ -145,11 +144,6 @@ func (selector *baselineSelector) flush(now time.Time) []common.Pathtest {
 	// Start a fresh window from this flush; missed windows are not replayed.
 	selector.deadline = now.Add(selector.interval)
 	return paths
-}
-
-func clonePathtest(path common.Pathtest) common.Pathtest {
-	path.Tags = slices.Clone(path.Tags)
-	return path
 }
 
 func saturatingAdd(left, right uint64) uint64 {

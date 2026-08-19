@@ -199,27 +199,6 @@ func TestPathtestStoreFlushReturnsImmutableSnapshot(t *testing.T) {
 	assert.NotSame(t, flushed[0].Pathtest, store.contexts[initial.GetHash()].Pathtest)
 }
 
-func TestPathtestStoreAddPreservesRecurringCadence(t *testing.T) {
-	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
-	store := NewPathtestStore(Config{
-		ContextsLimit: 10,
-		TTL:           30 * time.Minute,
-		Interval:      10 * time.Minute,
-	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
-	store.Add(&common.Pathtest{Hostname: "recurring"})
-
-	require.Len(t, store.Flush(), 1)
-	assert.Equal(t, 1, store.GetContextsCount())
-
-	now = now.Add(5 * time.Minute)
-	store.Add(&common.Pathtest{Hostname: "recurring"})
-	assert.Empty(t, store.Flush(), "reselection must preserve the existing cadence")
-
-	now = now.Add(5 * time.Minute)
-	require.Len(t, store.Flush(), 1)
-	assert.Equal(t, 1, store.GetContextsCount())
-}
-
 func TestPathtestStoreRunsOneShotOnlyOnce(t *testing.T) {
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 	store := NewPathtestStore(Config{

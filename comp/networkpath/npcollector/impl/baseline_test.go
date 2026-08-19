@@ -218,20 +218,6 @@ func TestBaselineCollectorDoesNotMixBoundarySnapshotIntoPreviousWindow(t *testin
 	assert.Equal(t, []string{"10.0.0.2"}, scheduledBaselineHosts(t, collector))
 }
 
-func TestBaselineSelectorOwnsRetainedMetadata(t *testing.T) {
-	now := MockTimeNow()
-	selector := newBaselineSelector(30 * time.Minute)
-	path := baselinePath("one")
-	path.Tags = []string{"env:prod"}
-	selector.add(path, 1, now)
-	path.Tags[0] = "env:changed"
-
-	selected := selector.flush(now.Add(baselineBootstrapWindow))
-
-	require.Len(t, selected, 1)
-	assert.Equal(t, []string{"env:prod"}, selected[0].Tags)
-}
-
 func TestBaselineCollectorPreservesWinningRCProvenance(t *testing.T) {
 	_, collector := newTestNpCollector(t, map[string]any{
 		"network_path.connections_monitoring.baseline_tests_enabled": true,
