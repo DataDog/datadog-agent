@@ -7,6 +7,10 @@ from tasks.static_quality_gates.decisions import (
 )
 from tasks.static_quality_gates.gates import GateMetricHandler
 
+# Stand-in for a member of a team referenced in EXCEPTION_APPROVERS, used throughout
+# TestExceptionApprovalChecker's team-fetch-path tests.
+TEAM_MEMBER = "aiuto"
+
 
 class TestShouldBypassFailure(unittest.TestCase):
     """Test the should_bypass_failure function for delta-based non-blocking failures."""
@@ -197,12 +201,12 @@ class TestExceptionApprovalChecker(unittest.TestCase):
         """Returns the login of the first authorized approver."""
         mock_review = MagicMock()
         mock_review.state = "APPROVED"
-        mock_review.user.login = "aiuto"
+        mock_review.user.login = TEAM_MEMBER
         mock_pr = MagicMock()
         mock_pr.get_reviews.return_value = [mock_review]
 
-        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {"aiuto"})
-        self.assertEqual(checker.get(), "aiuto")
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
+        self.assertEqual(checker.get(), TEAM_MEMBER)
 
     def test_returns_none_when_no_authorized_approver(self):
         """Returns None when approvals exist but none from authorized reviewers."""
@@ -212,33 +216,33 @@ class TestExceptionApprovalChecker(unittest.TestCase):
         mock_pr = MagicMock()
         mock_pr.get_reviews.return_value = [mock_review]
 
-        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {"aiuto"})
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
         self.assertIsNone(checker.get())
 
     def test_returns_none_when_authorized_reviewer_did_not_approve(self):
         """Returns None when an authorized reviewer left a non-approval review."""
         mock_review = MagicMock()
         mock_review.state = "CHANGES_REQUESTED"
-        mock_review.user.login = "aiuto"
+        mock_review.user.login = TEAM_MEMBER
         mock_pr = MagicMock()
         mock_pr.get_reviews.return_value = [mock_review]
 
-        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {"aiuto"})
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
         self.assertIsNone(checker.get())
 
     def test_returns_none_when_pr_is_none(self):
         """Returns None when no PR object is provided."""
-        self.assertIsNone(ExceptionApprovalChecker(None, team_members_fetcher=lambda team_slug: {"aiuto"}).get())
+        self.assertIsNone(ExceptionApprovalChecker(None, team_members_fetcher=lambda team_slug: {TEAM_MEMBER}).get())
 
     def test_fetches_reviews_only_once(self):
         """get_reviews is called exactly once regardless of how many times get() is called."""
         mock_review = MagicMock()
         mock_review.state = "APPROVED"
-        mock_review.user.login = "aiuto"
+        mock_review.user.login = TEAM_MEMBER
         mock_pr = MagicMock()
         mock_pr.get_reviews.return_value = [mock_review]
 
-        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {"aiuto"})
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
         checker.get()
         checker.get()
         checker.get()
@@ -250,7 +254,7 @@ class TestExceptionApprovalChecker(unittest.TestCase):
         mock_pr = MagicMock()
         mock_pr.get_reviews.side_effect = Exception("API error")
 
-        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {"aiuto"})
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
         with patch('builtins.print'):
             self.assertIsNone(checker.get())
 
@@ -267,7 +271,7 @@ class TestExceptionApprovalChecker(unittest.TestCase):
 
     def test_accepts_any_authorized_approver(self):
         """Any member of the exception-approvers team grants an exception."""
-        team_members = {"aiuto", "quentinus95", "alopezz"}
+        team_members = {TEAM_MEMBER, "quentinus95", "alopezz"}
         for approver in team_members:
             with self.subTest(approver=approver):
                 mock_review = MagicMock()
