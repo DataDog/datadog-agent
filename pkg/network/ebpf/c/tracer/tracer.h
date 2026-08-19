@@ -139,6 +139,25 @@ typedef struct {
     __u64 tcp_done_connection_flush;
     __u64 tcp_close_connection_flush;
     __u64 tcp_syn_retransmit;
+    // TLS-vs-Redis misclassification diagnostics (see jmw/tls-misclassification).
+    // These validate a specific suspected root cause: on a connection whose TLS handshake was
+    // never observed, is_tls() rejects large records (they span segments), the loose one-byte
+    // is_redis() check then matches ciphertext, and mark_as_fully_classified() pins that wrong
+    // answer permanently — reporting encrypted traffic as tls_encrypted:false.
+    //
+    // Link 1: is_tls() bailed out solely because the record ran past the end of the packet.
+    __u64 tls_reject_record_exceeds_packet;
+    // Link 1 (variant): a handshake record fit in the packet but is_valid_tls_handshake() rejected
+    // it — handshake type other than Client/ServerHello, coalesced messages, or a fragmented
+    // message. This is the path by which a brand-new connection can be misclassified.
+    __u64 tls_reject_handshake_invalid;
+    // Link 2: a db-layer protocol matched a buffer that begins with a plausible TLS record header.
+    __u64 applayer_match_on_tls_payload;
+    // Link 2: Redis matched on a port Redis never serves — a false positive by definition.
+    __u64 redis_match_on_nonstandard_port;
+    // Link 3: a plausible TLS record header was seen but the app layer was already locked in,
+    // so is_tls() could never run again for this connection.
+    __u64 tls_locked_out_by_applayer;
 } telemetry_t;
 
 typedef struct {
