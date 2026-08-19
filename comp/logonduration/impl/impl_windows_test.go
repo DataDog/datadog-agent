@@ -68,6 +68,34 @@ func straddlingGPTimeline(boot time.Time) BootTimeline {
 	}
 }
 
+func twoBusyIntervalTimeline(boot time.Time) BootTimeline {
+	return BootTimeline{
+		BootStart:           boot,
+		LoginUIStart:        boot.Add(8 * time.Second),
+		LoginUIDone:         boot.Add(10 * time.Second),
+		MachineGPStart:      boot.Add(12 * time.Second),
+		MachineGPEnd:        boot.Add(20 * time.Second),
+		ExplorerInitStart:   boot.Add(30 * time.Second),
+		ExplorerInitEnd:     boot.Add(40 * time.Second),
+		SessionLogon:        boot.Add(50 * time.Second),
+		DesktopVisibleStart: boot.Add(70 * time.Second),
+	}
+}
+
+func nestedBusyIntervalTimeline(boot time.Time) BootTimeline {
+	return BootTimeline{
+		BootStart:           boot,
+		LoginUIStart:        boot.Add(8 * time.Second),
+		LoginUIDone:         boot.Add(10 * time.Second),
+		MachineGPStart:      boot.Add(12 * time.Second),
+		MachineGPEnd:        boot.Add(40 * time.Second),
+		ProfileLoadStart:    boot.Add(20 * time.Second),
+		ProfileLoadEnd:      boot.Add(30 * time.Second),
+		SessionLogon:        boot.Add(50 * time.Second),
+		DesktopVisibleStart: boot.Add(70 * time.Second),
+	}
+}
+
 func milestonesByID(milestones []Milestone) map[string]Milestone {
 	byID := make(map[string]Milestone, len(milestones))
 	for _, m := range milestones {
@@ -110,6 +138,8 @@ func TestBootTimelineOffsetsAreMonotone(t *testing.T) {
 		"no machine pass":                noMachinePass,
 		"machine pass never ended":       unterminatedPass,
 		"machine pass predates the wait": passFromBeforeTheWait,
+		"two busy intervals":             twoBusyIntervalTimeline(boot),
+		"nested busy intervals":          nestedBusyIntervalTimeline(boot),
 	} {
 		t.Run(name, func(t *testing.T) {
 			assertMonotoneTimeline(t, buildTimelineMilestones(tl))
@@ -301,6 +331,27 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.InDelta(t, 0.0, m["computer_group_policy"].DurationMs, 0.001)
 		assert.InDelta(t, 10000.0, m["logon_duration"].OffsetMs, 0.001)
 		assert.InDelta(t, 39000.0, m["desktop_startup_apps"].OffsetMs, 0.001)
+	})
+
+	t.Run("two busy intervals in the region elide the three stretches around them", func(t *testing.T) {
+		m := milestonesByID(buildTimelineMilestones(twoBusyIntervalTimeline(boot)))
+
+		// Elided: [10s,12s), [20s,30s), [40s,50s) = 22000ms. Both spans keep their width.
+		assert.InDelta(t, 10000.0, m["computer_group_policy"].OffsetMs, 0.001)
+		assert.InDelta(t, 8000.0, m["computer_group_policy"].DurationMs, 0.001)
+		assert.InDelta(t, 18000.0, m["explorer_initializing"].OffsetMs, 0.001)
+		assert.InDelta(t, 10000.0, m["explorer_initializing"].DurationMs, 0.001)
+		assert.InDelta(t, 28000.0, m["logon_duration"].OffsetMs, 0.001)
+	})
+
+	t.Run("an interval nested in another does not rewind the merge cursor", func(t *testing.T) {
+		m := milestonesByID(buildTimelineMilestones(nestedBusyIntervalTimeline(boot)))
+
+		// [20s,30s) lies inside [12s,40s), so only [10s,12s) and [40s,50s) go: 12000ms,
+		// not the 22000ms a cursor that stepped back to 30s would elide.
+		assert.InDelta(t, 10000.0, m["computer_group_policy"].OffsetMs, 0.001)
+		assert.InDelta(t, 18000.0, m["profile_loaded"].OffsetMs, 0.001)
+		assert.InDelta(t, 38000.0, m["logon_duration"].OffsetMs, 0.001)
 	})
 
 	t.Run("a pass reaching into the region from before it keeps its full width", func(t *testing.T) {
