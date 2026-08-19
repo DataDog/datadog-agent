@@ -15,10 +15,6 @@ use std::time::{Duration, Instant};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
-// ---------------------------------------------------------------------------
-// DaemonHandle
-// ---------------------------------------------------------------------------
-
 /// Handle to a running dd-procmgrd daemon.
 pub struct DaemonHandle {
     child: Child,
@@ -178,10 +174,6 @@ impl Drop for DaemonHandle {
         let _ = self.child.wait();
     }
 }
-
-// ---------------------------------------------------------------------------
-// CliOutput
-// ---------------------------------------------------------------------------
 
 /// Captured output from a dd-procmgr CLI invocation.
 pub struct CliOutput {
@@ -404,10 +396,6 @@ fn extract_column(row: &str, col_idx: usize, columns: &[(&str, usize)]) -> Strin
     row.get(start..end).unwrap_or("").trim().to_string()
 }
 
-// ---------------------------------------------------------------------------
-// CliRunner
-// ---------------------------------------------------------------------------
-
 /// Runs dd-procmgr CLI commands against a daemon socket.
 pub struct CliRunner {
     socket_path: PathBuf,
@@ -437,10 +425,6 @@ impl CliRunner {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// TestEnv
-// ---------------------------------------------------------------------------
 
 /// Self-contained test environment: temp dir, daemon, and CLI runner.
 /// Drop stops the daemon and cleans up the temp dir.
@@ -531,10 +515,6 @@ impl Drop for TestEnv {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Free functions
-// ---------------------------------------------------------------------------
 
 fn spawn_log_reader<R: std::io::Read + Send + 'static>(
     stream: R,

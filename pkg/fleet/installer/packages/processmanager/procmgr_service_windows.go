@@ -24,12 +24,9 @@ import (
 
 const (
 	ddProcmgrServiceName = "dd-procmgr-service"
-	// ddProcmgrReloadOrRestartTimeout bounds `dd-procmgr reload` and SCM restart after processes.d changes.
 	ddProcmgrReloadOrRestartTimeout = 120 * time.Second
 )
 
-// validatedDDProcmgrCLI returns the absolute path to dd-procmgr.exe under DatadogProgramFilesDir
-// only when it resolves structurally to <installRoot>\bin\agent\dd-procmgr.exe.
 func validatedDDProcmgrCLI() (string, error) {
 	raw := paths.DatadogProgramFilesDir
 	if raw == "" {
@@ -52,10 +49,8 @@ func validatedDDProcmgrCLI() (string, error) {
 	return cli, nil
 }
 
-// ReloadOrRestartProcmgr tells dd-procmgrd to re-read processes.d from disk (e.g. after DDOT
-// processes.d removal). Prefer `dd-procmgr reload` over an SCM service restart; fall back to
-// restarting dd-procmgr-service when the CLI is absent or reload fails. No-op when the service
-// is already stopped (e.g. MSI prerm runs after StopDDServices).
+// ReloadOrRestartProcmgr reloads processes.d via `dd-procmgr reload`, falling back to an SCM
+// restart. No-op when the service is already stopped (MSI prerm runs after StopDDServices).
 func ReloadOrRestartProcmgr() {
 	if paths.DatadogProgramFilesDir == "" {
 		log.Warnf("procmgr: DatadogProgramFilesDir is empty; cannot reload or restart %s", ddProcmgrServiceName)
@@ -97,8 +92,7 @@ func ReloadOrRestartProcmgr() {
 	}
 }
 
-// RestartProcmgrService restarts dd-procmgr-service so it re-reads processes.d from disk.
-// No-op when the service is already stopped (e.g. MSI prerm runs after StopDDServices).
+// RestartProcmgrService restarts dd-procmgr-service. No-op when it is already stopped.
 func RestartProcmgrService() {
 	if paths.DatadogProgramFilesDir == "" {
 		log.Warnf("procmgr: DatadogProgramFilesDir is empty; cannot restart %s", ddProcmgrServiceName)

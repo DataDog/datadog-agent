@@ -36,10 +36,6 @@ pub fn set_permissions(_path: &Path) {}
 /// Named pipes are kernel objects; no filesystem cleanup needed.
 pub fn cleanup(_path: &Path) {}
 
-// ---------------------------------------------------------------------------
-// NamedPipeIo — wrapper for tonic's `Connected` trait
-// ---------------------------------------------------------------------------
-
 #[derive(Clone)]
 pub struct PipeCallerAuth {
     pipe: PipeHandle,
@@ -119,10 +115,6 @@ impl AsyncWrite for NamedPipeIo {
         Pin::new(&mut self.pipe).poll_shutdown(cx)
     }
 }
-
-// ---------------------------------------------------------------------------
-// Server
-// ---------------------------------------------------------------------------
 
 pub async fn serve<F>(router: tonic::transport::server::Router, shutdown: F) -> Result<()>
 where
