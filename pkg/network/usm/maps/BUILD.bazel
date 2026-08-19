@@ -26,6 +26,7 @@ dd_agent_go_test(
     embed = [":maps"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/util/kernel",
         "@com_github_cilium_ebpf//:ebpf",
