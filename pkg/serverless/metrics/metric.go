@@ -56,6 +56,17 @@ func (c *ServerlessMetricAgent) AddEnhancedUsageMetric(name string, value float6
 	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, c.tags.EnhancedUsageMetric, extraTags...)
 }
 
+// Flush forces an immediate flush of aggregated samples to the serializer.
+// Satisfied interface: cmd/serverless-init/lifecycle.Flusher, used by MicroVM
+// to flush telemetry on-demand before a Firecracker snapshot (/suspend,
+// /terminate), independent of the Fx-managed shutdown flush.
+func (c *ServerlessMetricAgent) Flush() {
+	if c.Demux == nil {
+		return
+	}
+	c.Demux.ForceFlushToSerializer(time.Now(), true)
+}
+
 // sendMetricSample records a distribution metric sample using the agent's extra tags plus any
 // optional tags supplied as `key:value` strings through extraTags.
 func (c *ServerlessMetricAgent) sendMetricSample(name string, value float64, metricSource metrics.MetricSource, metricsType metrics.MetricType, timestamp float64, tags []string, extraTags ...string) {

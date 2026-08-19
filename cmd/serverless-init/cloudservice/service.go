@@ -28,9 +28,13 @@ type TraceAgent interface {
 
 // TracingContext holds dependencies passed to CloudService.Init.
 // TraceAgent and SpanTags are used by CloudRunJobs for span creation.
+// LifecycleCtx is populated by main.go for MicroVM environments so that
+// MicroVM.Init can construct and start the lifecycle hook server; it is nil
+// for all other cloud services and ignored by their Init implementations.
 type TracingContext struct {
-	TraceAgent TraceAgent
-	SpanTags   map[string]string
+	TraceAgent   TraceAgent
+	SpanTags     map[string]string
+	LifecycleCtx *LifecycleContext
 }
 
 // EnhancedMetricTags holds base tags and high-cardinality tags for enhanced metrics.
@@ -171,12 +175,13 @@ func (l *LocalService) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Conf
 
 // defaultRun is the standard Run implementation for cloud services that do not
 // manage a child process themselves. In sidecar mode it calls RunSidecar; in
-// init-container mode it spawns the user app directly via RunInit.
+// init-container mode it spawns the user app with no child handle (no
+// MarkAlive/MarkDead tracking). MicroVM overrides Run to supply its child.
 func defaultRun(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
 	if modeConf.SidecarMode {
 		return mode.RunSidecar(logConfig)
 	}
-	return mode.RunInit(logConfig)
+	return mode.RunInit(logConfig, nil) // no child tracking for non-MicroVM services
 }
 
 // Shutdown emits the shutdown metric for LocalService
@@ -196,6 +201,10 @@ func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessM
 //nolint:revive // TODO(SERV) Fix revive lin
 func GetCloudServiceType() CloudService {
 	arch := runtime.GOARCH
+
+	if isMicroVM() {
+		return &MicroVM{}
+	}
 
 	if arch != archAMD64 {
 		log.Errorf(unsupportedArchMsg, arch)

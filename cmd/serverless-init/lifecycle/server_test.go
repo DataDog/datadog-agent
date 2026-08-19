@@ -858,12 +858,13 @@ func TestStopWithoutStartReturnsNil(t *testing.T) {
 
 // TestServeAndStopGracefulShutdown exercises the real HTTP server lifecycle.
 // It binds a listener on a random free port, serves until Stop is called,
-// and verifies that Serve returns http.ErrServerClosed — the contract that
-// lets main.go's defer chain run cleanly when shutdown is triggered externally.
+// and verifies that serve returns http.ErrServerClosed — the contract
+// ListenAndServe relies on to distinguish a deliberate Stop from an
+// unexpected failure.
 func TestServeAndStopGracefulShutdown(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	// /ready needs an alive child handle to return 200; without one the
-	// handler returns 503, but Serve+Stop semantics are independent of the
+	// handler returns 503, but serve+Stop semantics are independent of the
 	// route's reply, so injecting an alive handle keeps the smoke check meaningful.
 	h := newFakeChildHandle()
 	h.alive.Store(true)
@@ -872,10 +873,9 @@ func TestServeAndStopGracefulShutdown(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	serverDone := make(chan struct{})
+	serveErr := make(chan error, 1)
 	go func() {
-		srv.Serve(listener)
-		close(serverDone)
+		serveErr <- srv.serve(listener)
 	}()
 
 	resp, err := http.Post("http://"+listener.Addr().String()+pathReady, "", nil)
@@ -888,11 +888,94 @@ func TestServeAndStopGracefulShutdown(t *testing.T) {
 	require.NoError(t, srv.Stop(ctx))
 
 	select {
-	case <-serverDone:
-		// Serve returned after Stop — correct.
+	case err := <-serveErr:
+		assert.ErrorIs(t, err, http.ErrServerClosed)
 	case <-time.After(2 * time.Second):
-		t.Fatal("Serve did not return after Stop")
+		t.Fatal("serve did not return after Stop")
 	}
+}
+
+// TestServe_ReturnsUnderlyingErrorOnUnexpectedFailure verifies that serve
+// propagates a failure that is not http.ErrServerClosed, rather than
+// swallowing it. ListenAndServe relies on this to invoke onServeError only
+// for genuine failures, not for a deliberate Stop.
+func TestServe_ReturnsUnderlyingErrorOnUnexpectedFailure(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	// Close the listener out from under serve (never call Stop) so the
+	// underlying http.Server.Serve fails immediately for a reason other than
+	// a graceful shutdown.
+	require.NoError(t, listener.Close())
+
+	err = srv.serve(listener)
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, http.ErrServerClosed))
+}
+
+// TestListenAndServe_BindFailureReturnsErrorDirectly verifies that a bind
+// failure surfaces synchronously from ListenAndServe's return value, not via
+// onServeError — callers (e.g. cloudservice.MicroVM.Init) rely on this to
+// fail startup deterministically rather than racing a background goroutine.
+func TestListenAndServe_BindFailureReturnsErrorDirectly(t *testing.T) {
+	// Bind the wildcard address (":<port>") — the same address pattern
+	// NewServer's Addr uses — so the conflict is guaranteed regardless of
+	// platform-specific rules around binding a specific address vs wildcard
+	// on the same port.
+	occupied, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+	defer occupied.Close()
+	port := occupied.Addr().(*net.TCPAddr).Port
+
+	srv := NewServer(port, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, nil)
+
+	called := false
+	err = srv.ListenAndServe(func(error) { called = true })
+	require.Error(t, err)
+	assert.False(t, called, "onServeError must not fire for a bind failure")
+}
+
+// TestListenAndServe_InvokesOnServeErrorForUnexpectedFailure verifies that a
+// serve-time failure (as opposed to a bind failure) is reported via
+// onServeError from the background goroutine, since ListenAndServe itself has
+// already returned nil by that point.
+func TestListenAndServe_InvokesOnServeErrorForUnexpectedFailure(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+
+	errCh := make(chan error, 1)
+	require.NoError(t, srv.ListenAndServe(func(err error) { errCh <- err }))
+
+	// Force an unexpected failure by closing the listener ListenAndServe
+	// bound, bypassing Stop.
+	require.NoError(t, srv.listener.Close())
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		assert.False(t, errors.Is(err, http.ErrServerClosed))
+	case <-time.After(2 * time.Second):
+		t.Fatal("onServeError was not invoked")
+	}
+}
+
+// TestListenAndServe_StopDoesNotInvokeOnServeError verifies the common case:
+// a deliberate Stop must not be reported through onServeError, or every
+// normal shutdown would look like a failure to the caller.
+func TestListenAndServe_StopDoesNotInvokeOnServeError(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+
+	called := atomic.NewBool(false)
+	require.NoError(t, srv.ListenAndServe(func(error) { called.Store(true) }))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	require.NoError(t, srv.Stop(ctx))
+
+	// Give the background goroutine a moment to observe the shutdown and
+	// (incorrectly, if this regresses) invoke onServeError.
+	time.Sleep(50 * time.Millisecond)
+	assert.False(t, called.Load())
 }
 
 // TestNewServerConfiguresHTTPTimeouts verifies that NewServer sets ReadTimeout and
@@ -1070,6 +1153,32 @@ func TestFlushAllDrainTimeoutDoesNotBlock(t *testing.T) {
 	start := time.Now()
 	srv.flushAll(ctx)
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must return within flushTimeout even when drainer blocks")
+}
+
+// TestFlushAllNilLogsFlusherDoesNotPanic verifies that flushAll tolerates a nil
+// logsFlusher without panicking, and still flushes the metric and trace
+// flushers promptly. Production setup() can pass a nil logsFlusher into the
+// LifecycleContext when the logs agent failed to start (SetupLogAgent
+// returns nil on error), so MicroVM's /suspend and /terminate handshake must
+// not crash on that value. A nil-interface method call in the flushAll
+// goroutine wouldn't be caught by assert.NotPanics (it panics in a different
+// goroutine), so this also asserts flushAll returns promptly via the normal
+// "all workers done" path rather than falling back to the flushTimeout path,
+// which is what happens when the logs-flush goroutine never signals
+// completion.
+func TestFlushAllNilLogsFlusherDoesNotPanic(t *testing.T) {
+	metric := &mockFlusher{}
+	trace := &mockFlusher{}
+	drainer := &mockSampleDrainer{}
+	srv := NewServer(0, metric, trace, nil, &mockMetricEmitter{}, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
+	defer cancel()
+	start := time.Now()
+	assert.NotPanics(t, func() { srv.flushAll(ctx) })
+	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must not fall back to the flushTimeout path when logsFlusher is nil")
+	assert.Equal(t, int32(1), metric.count.Load())
+	assert.Equal(t, int32(1), trace.count.Load())
 }
 
 // withFakeHeartbeat installs a real *Heartbeat with a long interval that
