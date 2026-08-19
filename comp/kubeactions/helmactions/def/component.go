@@ -48,6 +48,9 @@ type RollbackInputs struct {
 	// 0 — a failed rollback is surfaced as a failed Job rather than retried,
 	// because retrying produces another helm revision instead of being a no-op.
 	BackoffLimit *int32 `json:"backoffLimit,omitempty"`
+	// ActiveDeadlineSeconds allows for control of how long the job will hang in a pending state
+	// not being able to move forward until considered as failed.
+	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,omitempty"`
 	// TTLSecondsAfterFinished overrides the Job's spec.ttlSecondsAfterFinished.
 	// When nil, defaults to 1h so finished Jobs are garbage-collected by the
 	// TTL controller.
