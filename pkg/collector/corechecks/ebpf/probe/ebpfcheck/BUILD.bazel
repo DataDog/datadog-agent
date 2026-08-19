@@ -74,6 +74,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":ebpfcheck"],
     gotags_sets = [["linux_bpf"]],
+    tags = ["requires_ebpf"],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",

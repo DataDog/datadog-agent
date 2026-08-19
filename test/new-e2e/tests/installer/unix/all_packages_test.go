@@ -169,6 +169,7 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.host.ConfigureAptMirrors()
+	s.host.ConfigureYumMirrors()
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
 	s.updatePythonOnSuse()

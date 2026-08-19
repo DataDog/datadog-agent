@@ -10,6 +10,7 @@ package installer
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -232,6 +233,78 @@ func (s *testInstallExeSuite) TestConfigValuesNotOverwrittenByDefaults() {
 	err = yaml.Unmarshal(contentAfter, &configValues)
 	s.Require().NoError(err, "failed to parse datadog.yaml as YAML")
 	s.Require().Empty(configValues, "datadog.yaml should have no configuration values set - default env values should not overwrite config. Got: %v", configValues)
+}
+
+// TestInstallUpgradeReinstallLifecycle tests installing a previous Agent version, upgrading
+// to the current version via an experiment, and reinstalling the last stable version.
+func (s *testInstallExeSuite) TestInstallUpgradeReinstallLifecycle() {
+	s.Run("Fresh install", func() {
+		s.installPrevious()
+		s.Run("Install different Agent version", func() {
+			s.upgradeToLatestExperiment()
+			s.Run("Reinstall last stable", func() {
+				s.installPrevious()
+			})
+		})
+	})
+}
+
+func (s *testInstallExeSuite) mustInstallVersion(versionPredicate string, opts ...PackageOption) {
+	// Arrange
+	packageConfig, err := NewPackageConfig(opts...)
+	s.Require().NoError(err)
+
+	// Act
+	output, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": packageConfig.Version,
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        packageConfig.Registry,
+	}))
+
+	// Assert
+	if s.NoError(err) {
+		fmt.Printf("%s\n", output)
+	}
+	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogInstallerService().
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, versionPredicate)
+		})
+}
+
+func (s *testInstallExeSuite) installPrevious() {
+	s.mustInstallVersion(
+		s.StableAgentVersion().Version(),
+		WithPackage(s.StableAgentVersion().OCIPackage()),
+	)
+}
+
+func (s *testInstallExeSuite) installCurrent() {
+	s.mustInstallVersion(
+		s.CurrentAgentVersion().Version(),
+		WithPackage(s.CurrentAgentVersion().OCIPackage()),
+	)
+}
+
+func (s *testInstallExeSuite) upgradeToLatestExperiment() {
+	s.MustStartExperimentCurrentVersion()
+
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
+
+// TestReinstallAfterMSIUninstall tests that the install script can reinstall the agent after MSI uninstallation.
+// This is a regression test for the 7.72.0 issue (WINA-2017) where reinstallation was skipped after uninstall.
+func (s *testInstallExeSuite) TestReinstallAfterMSIUninstall() {
+	s.installCurrent()
+	s.Require().NoError(wincommonagent.UninstallAgent(s.Env().RemoteHost,
+		filepath.Join(s.SessionOutputDir(), "uninstall.log"),
+	))
+	s.installCurrent()
 }
 
 // proxyEnv provisions a Windows VM (for the installer) and a Linux VM (hosting a Squid proxy)

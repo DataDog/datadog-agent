@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import os
 import os.path
 import platform
@@ -110,8 +109,8 @@ def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[
     TODO: remove once migrated fully to the Bazel MinGW toolchain.
     """
     # bazel cquery is idempotent: it fetches/extracts @winlibs_mingw64 only if missing.
-    gcc = bazel(ctx, "cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
-    output_base = bazel(ctx, "info", "output_base", capture_output=True).strip()
+    gcc = bazel("cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
+    output_base = bazel("info", "output_base", capture_output=True).strip()
     mingw_bin = Path(output_base, gcc).parent
     path = (env or {}).get("PATH") or os.environ.get("PATH", "")
     return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
@@ -222,13 +221,12 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     # it returns 0, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
     whydeadcode_out = bazel(
-        runner,
         "run",
         *(f"--run_env={k}={v}" for k, v in (env or {}).items()),
         "@com_github_aarzilli_whydeadcode//:whydeadcode",
         "--",
         "--ignore-unrecognized-input",
-        input_stream=CustomReader(result.stderr),
+        input=result.stderr,
         capture_output=True,
     )
     if whydeadcode_out:
@@ -237,17 +235,3 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
         )
 
     return result
-
-
-class CustomReader(io.StringIO):
-    """
-    Custom reader to read 10MiB at a time.
-    This is a workaround to increase invoke performance at reading from stdin
-    See https://github.com/pyinvoke/invoke/issues/819
-    """
-
-    def __init__(self, data: str):
-        super().__init__(data)
-
-    def read(self, n: int | None = None) -> str:
-        return super().read(1024 * 1024 * 10)

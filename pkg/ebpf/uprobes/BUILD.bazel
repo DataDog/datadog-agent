@@ -50,6 +50,7 @@ dd_agent_go_test(
     embed = [":uprobes"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/ebpftest",
@@ -65,5 +66,43 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
+    ],
+)
+
+dd_agent_go_test(
+    name = "attacher_test",
+    srcs = ["attacher_test.go"],
+    embed = [":uprobes"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/ebpftest",
+        "//pkg/network/go/bininspect",
+        "//pkg/network/usm/sharedlibraries",
+        "//pkg/network/usm/sharedlibraries/testutil",
+        "//pkg/network/usm/utils",
+        "//pkg/util/kernel",
+        "//pkg/util/safeelf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)
+
+dd_agent_go_test(
+    name = "inspector_test",
+    srcs = ["inspector_test.go"],
+    embed = [":uprobes"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/usm/utils",
+        "@com_github_stretchr_testify//require",
     ],
 )

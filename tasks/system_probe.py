@@ -166,7 +166,7 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
 
-    bazel(ctx, "run", "--", "@libpcap//:install", f"--destdir={embedded_path}")
+    bazel("run", "--", "@libpcap//:install", f"--destdir={embedded_path}")
     ctx.run(f"strip -g {target_file}")
     return
 
@@ -605,7 +605,7 @@ def e2e_prepare(ctx, ci=False, packages=""):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
-    bazel(ctx, "run", "//internal/tools:install_gotestsum", "--", f"--destdir={files_dir}")
+    bazel("run", "//internal/tools:install_gotestsum", "--", f"--destdir={files_dir}")
     go_build(ctx, "cmd/test2json", ldflags="-s -w", bin_path=f"{files_dir}/test2json", env={"CGO_ENABLED": "0"})
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
@@ -1046,8 +1046,8 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
     extra_flags = ebpf_bazel_flags(arch)
 
     print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
-    bazel(ctx, "build", *extra_flags, *all_build_targets)
-    bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
+    bazel("build", *extra_flags, *all_build_targets)
+    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
     os.makedirs(build_dir, exist_ok=True)
@@ -1154,8 +1154,8 @@ def bazel_build_windows_resources(ctx: Context) -> None:
         "//pkg/util/winutil/messagestrings:messagetable",
         "//cmd/system-probe/windows_resources:rsrc",
     ]
-    bazel(ctx, "build", *targets)
-    bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
+    bazel("build", *targets)
+    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
 
     copies = [(os.path.join(bazel_bin, bazel_rel), dst) for bazel_rel, dst in _BAZEL_WINDOWS_RESOURCE_COPIES]
     for src, dst in copies:
@@ -1184,7 +1184,7 @@ def build_object_files(
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        bazel(ctx, "run", *arch_flags, "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
+        bazel("run", *arch_flags, "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
 
         # Build eBPF .o files via Bazel
         bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir)
@@ -1194,7 +1194,7 @@ def build_object_files(
 
     # Verify all committed cgo godefs files are up to date.
     # The test_suite skips platform-incompatible tests via target_compatible_with.
-    bazel(ctx, "test", *arch_flags, "//pkg/ebpf:verify_generated_files")
+    bazel("test", *arch_flags, "//pkg/ebpf:verify_generated_files")
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
@@ -1252,7 +1252,7 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
-        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
+        bazel("run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
 
     # Install Rust static libraries that cgo needs to find at link time. These
     # always land in the source tree (alongside the Go files) rather than in
@@ -1260,7 +1260,7 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     for source_path, lib_dest in RUST_STATIC_LIBS.items():
         if packages and not any(source_path.startswith(package) for package in packages):
             continue
-        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install_libs", f"--destdir={lib_dest}")
+        bazel("run", *platform_flags, "--", f"@//{source_path}:install_libs", f"--destdir={lib_dest}")
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {
@@ -1282,12 +1282,12 @@ def build_cws_object_files(
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch_obj, str(build_dir), str(runtime_dir))
-    bazel(ctx, "test", *arch_flags, "//pkg/ebpf:verify_generated_files")
+    bazel("test", *arch_flags, "//pkg/ebpf:verify_generated_files")
 
     if with_unit_test:
         targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())
-        bazel(ctx, "build", *arch_flags, *targets)
-        bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
+        bazel("build", *arch_flags, *targets)
+        bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
 
         for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
             label_path, name = target.lstrip("/").rsplit(":", 1)

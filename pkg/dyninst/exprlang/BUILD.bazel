@@ -115,6 +115,7 @@ dd_agent_go_test(
     ],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "@com_github_go_json_experiment_json//:json",
         "@com_github_go_json_experiment_json//jsontext",
