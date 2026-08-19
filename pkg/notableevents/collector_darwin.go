@@ -45,8 +45,6 @@ const (
 	maxDarwinTotalFiles        = 2048
 	maxDarwinDirectoryEntries  = 1024
 	maxDarwinFingerprintBytes  = 128
-	// maxDarwinShutdownBootUUIDBytes bounds the persisted boot session UUID,
-	// which is 36 bytes in every observed form.
 	maxDarwinShutdownBootUUIDBytes = 64
 	diagnosticReportsDirName       = "Library/Logs/DiagnosticReports"
 	systemDiagnosticReportsDir     = "/Library/Logs/DiagnosticReports"
@@ -81,10 +79,6 @@ type darwinBookmarkState struct {
 	ShutdownCause *shutdownCauseBookmark             `json:"shutdown_cause,omitempty"`
 }
 
-// shutdownCauseBookmark records the boot (including clean boots) whose PMU
-// fault payload was already examined, so the check runs at most once per boot
-// across Agent restarts. The field is optional so existing bookmarks
-// deserialize into it without a schema bump.
 type shutdownCauseBookmark struct {
 	BootUUID string `json:"boot_uuid"`
 	EventID  string `json:"event_id,omitempty"`
@@ -406,8 +400,6 @@ func (c *Collector) releaseCommitLocked(reservation *darwinCommitReservation) {
 func (c *Collector) run(ctx context.Context) {
 	defer c.wg.Done()
 
-	// Runs before scanOnce: cheap and non-blocking, so a machine recovering
-	// from a fault shutdown reports it promptly.
 	c.checkShutdownCauseOnce()
 	c.scanOnce(ctx)
 	reconcileTicker := time.NewTicker(c.reconcileInterval)
@@ -451,10 +443,7 @@ func (c *Collector) run(ctx context.Context) {
 }
 
 // checkShutdownCauseOnce reads and classifies the previous boot's PMU fault
-// payload once per collector lifetime. Strictly additive: every failure path
-// logs and returns, so it can neither block startup nor disturb crash-report
-// collection. It only holds stateMu, never scanMu, so the lock order is
-// trivially safe.
+// payload once per collector lifetime. 
 func (c *Collector) checkShutdownCauseOnce() {
 	bootUUID, err := c.readBootUUID()
 	if err != nil || bootUUID == "" {
@@ -463,8 +452,6 @@ func (c *Collector) checkShutdownCauseOnce() {
 			c.shutdownCauseDeferred = true
 			c.stateMu.Unlock()
 		}
-		// No boot identity means no dedup key, so skip rather than risk
-		// repeating on every restart.
 		log.Debugf("Skipping macOS shutdown-cause check: no boot session UUID: %v", err)
 		return
 	}
@@ -521,10 +508,6 @@ func (c *Collector) checkShutdownCauseOnce() {
 	c.publishShutdownCause(bootUUID, &event)
 }
 
-// retryShutdownCauseIfDeferred re-runs the check after an earlier attempt
-// found the bookmark owned by another commit. Idempotent: it settles after
-// the first uncontended tick, since checkShutdownCauseOnce returns immediately
-// once the boot is recorded.
 func (c *Collector) retryShutdownCauseIfDeferred() {
 	c.stateMu.Lock()
 	deferred := c.shutdownCauseDeferred && !c.closed
@@ -595,9 +578,6 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 	c.stateMu.Unlock()
 
 	if err := c.store.Save(cloneDarwinBookmarkState(candidate)); err != nil {
-		// Nothing pending, no boot recorded: the read stays retryable within
-		// this process. The candidate is cheap to rebuild since the property
-		// it derives from doesn't change until reboot.
 		c.stateMu.Lock()
 		c.shutdownCauseDeferred = true
 		firstWarning := !c.shutdownCauseSaveWarned
@@ -1439,16 +1419,10 @@ func eventID(identity string) string {
 	return "macos-crash-v1:" + hashString(identity)
 }
 
-// shutdownCauseIdentity identifies one fault on one boot. The boot UUID alone
-// carries no fault info, and the token set alone would collapse a machine
-// that overheats repeatedly into permanent silence. Tokens arrive pre-sorted
-// since PMU enumeration order isn't stable across boots.
 func shutdownCauseIdentity(bootUUID string, sortedFaultTokens []string) string {
 	return "shutdown:" + bootUUID + ":" + strings.Join(sortedFaultTokens, ",")
 }
 
-// shutdownEventID converts a private shutdown-cause identity into the stable
-// public event identifier.
 func shutdownEventID(identity string) string {
 	return "macos-shutdown-v1:" + hashString(identity)
 }
@@ -1499,8 +1473,6 @@ func normalizeDarwinBookmarkState(state *darwinBookmarkState, now time.Time) boo
 			changed = true
 		}
 	}
-	// A record without a boot UUID cannot deduplicate anything, so it is dropped
-	// rather than repaired. A missing timestamp is clamped, matching LastSeen.
 	if state.ShutdownCause != nil {
 		switch {
 		case state.ShutdownCause.BootUUID == "":
@@ -1567,9 +1539,6 @@ func cloneDarwinBookmarkStateForAck(state *darwinBookmarkState) *darwinBookmarkS
 	}
 }
 
-// cloneShutdownCauseBookmark copies the pointer target rather than the pointer.
-// Sharing it would let an unpublished candidate alias live state, so a failed
-// Save could leave its mutation behind.
 func cloneShutdownCauseBookmark(source *shutdownCauseBookmark) *shutdownCauseBookmark {
 	if source == nil {
 		return nil

@@ -12,14 +12,9 @@
 #include <stdbool.h>
 #include <string.h>
 
-// The IORegistry is machine-controlled, so every traversal bound is explicit
-// even though this runs as root inside system-probe.
 #define DD_PMU_MAX_SERVICES 16
-
 #define DD_PMU_TOKEN_SEPARATOR '\x1f'
 
-// dd_pkg_notableevents_append copies value into buffer, reporting whether the
-// remaining capacity was sufficient.
 static bool dd_pkg_notableevents_append(
     char *buffer,
     size_t size,
@@ -34,9 +29,6 @@ static bool dd_pkg_notableevents_append(
     return true;
 }
 
-// dd_pkg_notableevents_contains_token reports whether token already occurs as
-// a complete, separator-delimited entry in buffer[0, written), matching how
-// strings.Split would see it on the Go side.
 static bool dd_pkg_notableevents_contains_token(
     const char *buffer,
     size_t written,
@@ -110,8 +102,6 @@ static int dd_pkg_notableevents_append_tokens(
         }
         capacity += 1;
 
-        // Sized for the worst-case UTF-8 expansion of an already-bounded
-        // token, so no allocation is needed here.
         char token[(DD_PMU_MAX_TOKEN_CHARS - 1) * 4 + 1];
         if ((size_t)capacity > sizeof(token) ||
             !CFStringGetCString(bounded, token, sizeof(token), kCFStringEncodingUTF8)) {
@@ -145,9 +135,6 @@ static int dd_pkg_notableevents_append_tokens(
     return 0;
 }
 
-// dd_pkg_notableevents_read_pmu_boot_fault_info walks the IOService plane and
-// flattens every IOPMUBootFaultInfo array found. The walk can stop early once
-// DD_PMU_MAX_TOKENS_PER_SERVICE distinct tokens are collected.
 int dd_pkg_notableevents_read_pmu_boot_fault_info(
     char *buffer,
     size_t size,
@@ -157,12 +144,7 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
     }
     *written = 0;
 
-    // Class name is PMIC-specific and varies by Mac, and IOKit can't match on
-    // key presence alone (kIOPropertyMatchKey needs a value), so the whole
-    // plane is traversed instead.
     io_iterator_t iterator = IO_OBJECT_NULL;
-    // MACH_PORT_NULL selects the default port without naming the constant
-    // renamed from kIOMasterPortDefault to kIOMainPortDefault in macOS 12.
     kern_return_t result = IORegistryCreateIterator(
         MACH_PORT_NULL,
         kIOServicePlane,
@@ -212,7 +194,6 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
         distinct_tokens = candidate_tokens;
         services += 1;
 
-        // DD_PMU_MAX_TOKENS_PER_SERVICE doubles as the known-dictionary size:
         // once the cross-service union reaches it, every possible token has
         // already been seen, so no remaining service can add a new one.
         if (distinct_tokens >= DD_PMU_MAX_TOKENS_PER_SERVICE) {

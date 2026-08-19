@@ -25,10 +25,6 @@ const (
 	shutdownClassHardware shutdownClass = "hardware"
 )
 
-// shutdownClassPrecedence orders classes from most to least significant. A
-// collapsing machine drags multiple fault types together, and thermal must
-// win or the event titles as something else. A new class must be added here
-// to become reachable.
 var shutdownClassPrecedence = []shutdownClass{
 	shutdownClassThermal,
 	shutdownClassPower,
@@ -37,13 +33,6 @@ var shutdownClassPrecedence = []shutdownClass{
 	shutdownClassHardware,
 }
 
-// shutdownTitles and shutdownMessages are fixed per class rather than built
-// from token text, keeping them inside MaxEventStringBytes unconditionally
-// and token data out of the title/message.
-//
-// "followed a CRASH signal" is deliberate: a user holding
-// Control-Command-Power asserts this same hardware line, so "kernel panic"
-// would be wrong on the common path.
 var shutdownTitles = map[shutdownClass]string{
 	shutdownClassThermal:  "macOS overheated shutdown",
 	shutdownClassPower:    "macOS power fault shutdown",
@@ -60,10 +49,6 @@ var shutdownMessages = map[shutdownClass]string{
 	shutdownClassHardware: "The previous shutdown was caused by a hardware fault",
 }
 
-// shutdownFaultFamilies maps a token family to its fault class. A family
-// absent from this map is benign, so unfamiliar hardware stays silent by
-// default. Deliberately static: the PMU's fault-name dictionary describes
-// what hardware can name, not what constitutes a fault.
 var shutdownFaultFamilies = map[string]shutdownClass{
 	// Thermal.
 	"ot":       shutdownClassThermal, // over-temperature, 12 tokens
@@ -96,16 +81,6 @@ var shutdownFaultFamilies = map[string]shutdownClass{
 	"otp_crc": shutdownClassHardware, // OTP trim-memory CRC failure
 }
 
-// shutdownBenignTokens lists fault-family tokens the hardware actually names
-// for a benign or user-driven condition — finer-grained than family
-// classification allows.
-//
-// Excluding a token only matters when it's the sole evidence for its class,
-// so it can't turn a real fault into a false negative.
-//
-// Every entry needs a documented reason: looking benign isn't enough (e.g.
-// vddio,vddio_1v2_sgpio0_ok reads like a rail-OK status but actually means the
-// rail-OK signal dropped).
 var shutdownBenignTokens = map[string]struct{}{
 	// Booting after the battery was charged from depleted, not a regulator
 	// failure. The other buck_ tokens do name real faults.
@@ -115,24 +90,15 @@ var shutdownBenignTokens = map[string]struct{}{
 	"timeout,dblclick_timeout": {},
 }
 
-// shutdownUnderscoreFamilies lists families that separate family from detail
-// with "_" instead of ",", so buck_en_err and pgood_error_idx0 resolve to
-// their family instead of being treated as benign. Comma separation is still
-// tried first, keeping otp_crc out of the thermal "ot" family.
 var shutdownUnderscoreFamilies = []string{"buck", "pgood", "target_off"}
 
-// shutdownCauseResult is one classified boot fault payload.
 type shutdownCauseResult struct {
-	// Class is the winning classification, chosen by precedence.
 	Class shutdownClass
 	// PrimaryFamily is the lexicographically first family of Class present.
 	// Arbitrary but deterministic, which is what a stable title needs.
 	PrimaryFamily string
-	// Tokens is the sorted, deduplicated union across every publishing PMU.
 	Tokens []string
-	// Families is the sorted set of families present, benign ones included.
 	Families []string
-	// FaultTokens is the subset of Tokens belonging to a fault family.
 	FaultTokens []string
 }
 
@@ -155,10 +121,14 @@ func tokenFamily(token string) string {
 	return token
 }
 
-// validatePMUBootFaultInfo rejects a payload that cannot be trusted as event
-// content; a rejected read is never partially classified. The token bound is
-// charged per distinct token, not per slice entry, since a caller could
-// hand-construct info.Tokens with duplicates.
+// validatePMUBootFaultInfo rejects a payload with a malformed token or more
+// distinct tokens than the known dictionary. A token already truncated by the
+// native reader to the shared size bound is indistinguishable from a
+// full-length token and is classified as-is; truncation-detection is
+// intentionally not this function's job. The token bound is charged per
+// distinct token, not per slice entry: the real IOKit-backed reader already
+// dedups, but this function accepts any pmuBootFaultInfo, including
+// hand-constructed ones with duplicates.
 func validatePMUBootFaultInfo(info pmuBootFaultInfo) error {
 	distinct := make(map[string]struct{})
 	for _, token := range info.Tokens {
@@ -176,8 +146,6 @@ func validatePMUBootFaultInfo(info pmuBootFaultInfo) error {
 	return nil
 }
 
-// isShutdownToken reports whether a token holds only the characters the PMU
-// dictionary uses.
 func isShutdownToken(token string) bool {
 	if token == "" {
 		return false
@@ -194,9 +162,6 @@ func isShutdownToken(token string) bool {
 	return true
 }
 
-// classifyShutdownTokens unions and classifies one boot's tokens. The boolean
-// is false when nothing qualifies as a fault, which is the clean-shutdown case
-// and must produce no event at all.
 func classifyShutdownTokens(info pmuBootFaultInfo) (shutdownCauseResult, bool) {
 	tokens := make(map[string]struct{}, len(info.Tokens))
 	for _, token := range info.Tokens {
@@ -219,9 +184,6 @@ func classifyShutdownTokens(info pmuBootFaultInfo) (shutdownCauseResult, bool) {
 		family := tokenFamily(token)
 		families[family] = struct{}{}
 
-		// Checked before the family lookup, and after Families is recorded: a
-		// benign token is still part of the payload, it just cannot elect a
-		// class or land in FaultTokens.
 		if _, benign := shutdownBenignTokens[token]; benign {
 			continue
 		}
@@ -255,7 +217,6 @@ func classifyShutdownTokens(info pmuBootFaultInfo) (shutdownCauseResult, bool) {
 	return shutdownCauseResult{}, false
 }
 
-// lexicographicallyFirst returns the smallest key of a non-empty set.
 func lexicographicallyFirst(values map[string]struct{}) string {
 	first := ""
 	for value := range values {

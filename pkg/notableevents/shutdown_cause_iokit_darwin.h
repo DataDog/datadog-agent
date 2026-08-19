@@ -13,8 +13,7 @@
 // plus margin: 10% over token count, 50% over token length. A service
 // exceeding DD_PMU_MAX_TOKENS_PER_SERVICE is dropped, not failed; a token
 // exceeding DD_PMU_MAX_TOKEN_CHARS (content plus its trailing separator byte)
-// is truncated rather than dropping its service. Declared here, not in the
-// .c file, so cgo and Go share the same bound instead of each guessing one.
+// is truncated rather than dropping its service. 
 #define DD_PMU_MAX_TOKENS_PER_SERVICE 88
 #define DD_PMU_MAX_TOKEN_CHARS 53
 
