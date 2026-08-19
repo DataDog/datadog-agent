@@ -44,6 +44,7 @@ ALL_TAGS = set([
     "jmx",
     "kubeapiserver",
     "kubelet",
+    "bpf",
     "linux_bpf",
     "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
@@ -237,6 +238,7 @@ SERVERLESS_TAGS = set(["serverless", "otlp"])
 SYSTEM_PROBE_TAGS = set([
     "datadog.no_waf",
     "ec2",
+    "bpf",
     "linux_bpf",
     "netcgo",
     "npm",
@@ -289,7 +291,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy", "crio"])
+LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "bpf", "linux_bpf", "nvml", "pcap", "podman", "trivy", "crio"])
 
 # List of tags to always remove when building on AIX
 AIX_EXCLUDED_TAGS = set([
@@ -304,6 +306,7 @@ AIX_EXCLUDED_TAGS = set([
     "jmx",
     "kubeapiserver",
     "kubelet",
+    "bpf",
     "linux_bpf",
     "netcgo",
     "npm",
