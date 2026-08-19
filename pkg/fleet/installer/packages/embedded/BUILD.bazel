@@ -154,7 +154,7 @@ go_test(
     srcs = ["tmpl/main_test.go"],
     embed = [":tmpl_lib"],
     # keep
-    embedsrcs = service_srcs + glob(["tmpl/**"]),
+    embedsrcs = glob(["tmpl/**"]),
     tags = ["dd_agent_go_test"],
     deps = [
         "//pkg/fleet/installer/fixtures",
