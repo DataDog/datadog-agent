@@ -94,6 +94,7 @@ func ConfigHandler(r *api.HTTPReceiver, cf rcclient.ConfigFetcher, cfg *config.A
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.Write(content)
 
 	})
