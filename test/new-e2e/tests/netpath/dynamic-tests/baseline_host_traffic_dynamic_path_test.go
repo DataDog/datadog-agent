@@ -38,7 +38,7 @@ func (s *baselineHostTrafficDynamicPathSuite) SetupSuite() {
 
 	// direct_send is false, so process-agent owns the selector. Restart it after
 	// infrastructure setup so traffic cannot miss the five-minute bootstrap window.
-	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-process-agent")
+	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-process.service")
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 }
 
