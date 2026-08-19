@@ -92,10 +92,6 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.hasDDOT = s.installRealDDOT()
-
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		s.Env().RemoteHost.MustExecuteOn(t, "sudo chmod 0777 "+linuxSocket)
-	}, 30*time.Second, 2*time.Second)
 }
 
 func ddotPackageName() string {
