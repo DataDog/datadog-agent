@@ -36,6 +36,6 @@
     "tag": "v1.37.0-rc.1",
     "digest": "sha256:adc3f1a9ef8b768d311c0592f727c30e274a870c8f0f7713e949558d0275f8f1",
     "rc": true,
-    "kind_version": "v0.31.0"
+    "kind_version": "v0.32.0"
   }
 }
