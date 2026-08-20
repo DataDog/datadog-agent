@@ -264,40 +264,56 @@ func (h *Host) DeletePath(path string) {
 // WaitForUnitActive waits for a systemd unit to be active
 func (h *Host) WaitForUnitActive(t *testing.T, units ...string) {
 	for _, unit := range units {
-		assert.Eventually(t, func() bool {
+		active := assert.Eventually(t, func() bool {
 			_, err := h.remote.Execute("systemctl is-active --quiet " + unit)
 
 			return err == nil
-		}, time.Second*90, time.Second*2, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+		}, time.Second*90, time.Second*2, "unit %s did not become active", unit)
+		if !active {
+			h.logUnitJournals(t, unit)
+		}
 	}
 }
 
 // WaitForUnitActivating waits for a systemd unit to be activating
 func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	for _, unit := range units {
-		assert.Eventually(t, func() bool {
+		activating := assert.Eventually(t, func() bool {
 			_, err := h.remote.Execute(fmt.Sprintf("grep -q \"Active: activating\" <(sudo systemctl status %s)", unit))
 			return err == nil
 		},
 			time.Second*90,
 			time.Second*2,
-			"unit %s did not become activating. installer logs:\n%s\n\ninstaller exp logs:\n%sunit %s logs:\n%s",
+			"unit %s did not become activating",
 			unit,
-			h.remote.MustExecute("sudo journalctl -xeu datadog-installer"),
-			h.remote.MustExecute("sudo journalctl -xeu datadog-installer-exp"),
-			unit,
-			h.remote.MustExecute("sudo journalctl -xeu "+unit),
 		)
+		if !activating {
+			h.logUnitJournals(t, "datadog-installer.service", "datadog-installer-exp.service", unit)
+		}
 	}
 }
 
 // WaitForUnitExited waits for a systemd unit to exit with a specific exit code
 func (h *Host) WaitForUnitExited(t *testing.T, exitCode int, units ...string) {
 	for _, unit := range units {
-		assert.Eventually(t, func() bool {
+		exited := assert.Eventually(t, func() bool {
 			_, err := h.remote.Execute(fmt.Sprintf("systemctl show -p ExecMainCode -p ExecMainStatus %[2]s | xargs | grep -q 'ExecMainCode=1 ExecMainStatus=%[1]d'", exitCode, unit))
 			return err == nil
-		}, time.Second*90, time.Second*2, "unit %s did not exit or exit with expected code. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+		}, time.Second*90, time.Second*2, "unit %s did not exit with code %d", unit, exitCode)
+		if !exited {
+			h.logUnitJournals(t, unit)
+		}
+	}
+}
+
+func (h *Host) logUnitJournals(t *testing.T, units ...string) {
+	for _, unit := range units {
+		logs, err := h.remote.Execute("sudo journalctl -xeu " + unit + " --no-pager")
+		if err != nil {
+			t.Logf("failed to collect %s journal: %v\n%s", unit, err, logs)
+			continue
+		}
+		t.Logf("%s journal:\n%s", unit, logs)
 	}
 }
 

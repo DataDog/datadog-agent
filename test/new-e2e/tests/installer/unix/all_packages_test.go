@@ -140,6 +140,8 @@ type packageBaseSuite struct {
 	os                   e2eos.Descriptor
 	installMethod        InstallMethodOption
 	pipelineAgentVersion string
+	ansiblePrefix        string
+	ansiblePrepared      bool
 }
 
 func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption, opts ...awshost.ProvisionerOption) packageBaseSuite {
@@ -227,23 +229,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 			(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
 			s.T().Skip("Ansible doesn't install support Python2 anymore")
 		}
-		// Install ansible then install the agent
-		var ansiblePrefix string
-		collectionVersion := os.Getenv("E2E_DATADOG_DD_COLLECTION_VERSION")
-		if collectionVersion == "" {
-			collectionVersion = "6.5.0"
-		}
-		for i := 0; i < 3; i++ {
-			ansiblePrefix = s.installAnsible(s.os)
-			collectionInstallCmd := fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:%s", ansiblePrefix, collectionVersion)
-			if _, err := s.Env().RemoteHost.Execute(collectionInstallCmd); err == nil {
-				break
-			}
-			if i == 2 {
-				s.T().Fatal("failed to install ansible-galaxy collection after 3 attempts")
-			}
-			time.Sleep(time.Second)
-		}
+		ansiblePrefix := s.prepareAnsible()
 
 		// Write the playbook. InstallScriptEnv sets datadog_installer_registry to the
 		// pipeline OCI registry (installtesting.datad0g.com.internal.dda-testing.com), which
@@ -275,9 +261,8 @@ func envForceVersion(pkg, version string) string {
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
-	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP} {
-		s.Env().RemoteHost.Execute("sudo systemctl reset-failed " + service)
-	}
+	services := []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP}
+	s.Env().RemoteHost.Execute("sudo systemctl reset-failed " + strings.Join(services, " "))
 
 	// Unfortunately no guarantee that the datadog-installer symlink exists
 	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
@@ -291,16 +276,13 @@ func (s *packageBaseSuite) Purge() {
 // This is done with SystemD environment files overrides to avoid having to touch the agent configuration files
 // and potentially interfere with the tests.
 func (s *packageBaseSuite) setupFakeIntake() {
-	if s.os.Family() == e2eos.WindowsFamily {
+	if s.os.Family() == e2eos.WindowsFamily || s.Env().FakeIntake == nil {
 		return
 	}
-	var env []string
-	if s.Env().FakeIntake != nil {
-		env = append(env, []string{
-			"DD_SKIP_SSL_VALIDATION=true",
-			"DD_URL=" + s.Env().FakeIntake.URL,
-			"DD_APM_DD_URL=" + s.Env().FakeIntake.URL,
-		}...)
+	env := []string{
+		"DD_SKIP_SSL_VALIDATION=true",
+		"DD_URL=" + s.Env().FakeIntake.URL,
+		"DD_APM_DD_URL=" + s.Env().FakeIntake.URL,
 	}
 	for _, e := range env {
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "%s" | sudo tee -a /etc/environment`, e))
@@ -316,6 +298,35 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
 	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
+}
+
+// prepareAnsible installs Ansible and the collection once per suite VM. Purge
+// only removes Datadog packages, so repeating this setup before every test
+// adds package-manager and network work without restoring any test isolation.
+func (s *packageBaseSuite) prepareAnsible() string {
+	if s.ansiblePrepared {
+		return s.ansiblePrefix
+	}
+
+	ansiblePrefix := s.installAnsible(s.os)
+	collectionVersion := os.Getenv("E2E_DATADOG_DD_COLLECTION_VERSION")
+	if collectionVersion == "" {
+		collectionVersion = "6.5.0"
+	}
+	collectionInstallCmd := fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:%s", ansiblePrefix, collectionVersion)
+	for i := 0; i < 3; i++ {
+		if _, err := s.Env().RemoteHost.Execute(collectionInstallCmd); err == nil {
+			s.ansiblePrefix = ansiblePrefix
+			s.ansiblePrepared = true
+			return ansiblePrefix
+		}
+		if i == 2 {
+			s.T().Fatal("failed to install ansible-galaxy collection after 3 attempts")
+		}
+		time.Sleep(time.Second)
+	}
+
+	return ansiblePrefix
 }
 
 func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
