@@ -6,6 +6,7 @@ from pathlib import Path
 
 from tasks.bazel import (
     _IMPORT_PREFIX,
+    _TEST2JSON_OUTPUT_GROUP,
     _is_gotestsum_shaped,
     _label_to_import_path,
     _parse_bep,
@@ -132,7 +133,7 @@ class TestParseBep(unittest.TestCase):
             )
 
             self.assertEqual(
-                _parse_bep(bep_path),
+                _parse_bep(bep_path).tests,
                 {
                     "//pkg/foo:foo_test": {
                         "cached": True,
@@ -180,7 +181,7 @@ class TestParseBep(unittest.TestCase):
                 )
             )
 
-            artifacts = _parse_bep(bep_path)
+            artifacts = _parse_bep(bep_path).tests
             self.assertEqual(artifacts["//pkg/foo:foo_test"]["xml_paths"], [file_uri_path])
             self.assertEqual(artifacts["//pkg/foo:foo_test"]["log_paths"], [reconstructed_log])
 
@@ -227,7 +228,7 @@ class TestParseBep(unittest.TestCase):
                 )
             )
 
-            artifacts = _parse_bep(bep_path)
+            artifacts = _parse_bep(bep_path).tests
             self.assertEqual(sorted(artifacts["//pkg/foo:foo_test"]["xml_paths"]), sorted([first, second]))
             self.assertEqual(sorted(artifacts["//pkg/foo:foo_test"]["log_paths"]), sorted([first_log, second_log]))
 
@@ -235,7 +236,7 @@ class TestParseBep(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             bep_path = Path(tmpdir) / "bep.json"
             bep_path.write_text(_bep_line({"id": {"workspace": {}}, "workspaceInfo": {"localExecRoot": "/exec/root"}}))
-            self.assertEqual(_parse_bep(bep_path), {})
+            self.assertEqual(_parse_bep(bep_path), ({}, []))
 
     def test_missing_log_is_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -253,6 +254,81 @@ class TestParseBep(unittest.TestCase):
 
             with self.assertRaisesRegex(RuntimeError, "did not include .*test.log"):
                 _parse_bep(bep_path)
+
+
+class TestParseBepTest2JsonFragments(unittest.TestCase):
+    @staticmethod
+    def _named_set(set_id: str, files: list[Path], nested: list[str] | None = None) -> str:
+        return _bep_line(
+            {
+                "id": {"namedSet": {"id": set_id}},
+                "namedSetOfFiles": {
+                    "files": [{"name": f.name, "uri": f.as_uri()} for f in files],
+                    "fileSets": [{"id": n} for n in nested or []],
+                },
+            }
+        )
+
+    @staticmethod
+    def _target_completed(label: str, set_ids: list[str]) -> str:
+        return _bep_line(
+            {
+                "id": {"targetCompleted": {"label": label}},
+                "completed": {
+                    "outputGroup": [
+                        {"name": _TEST2JSON_OUTPUT_GROUP, "fileSets": [{"id": s} for s in set_ids]},
+                    ]
+                },
+            }
+        )
+
+    def test_fragments_flattened_from_nested_sets_and_ordered_by_label(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            zzz_direct = Path(tmpdir) / "zzz_direct.test2json.jsonl"
+            zzz_nested = Path(tmpdir) / "zzz_nested.test2json.jsonl"
+            aaa = Path(tmpdir) / "aaa.test2json.jsonl"
+            for f in (zzz_direct, zzz_nested, aaa):
+                f.write_text("{}\n")
+
+            bep_path = Path(tmpdir) / "bep.json"
+            bep_path.write_text(
+                "".join(
+                    [
+                        self._named_set("s_nested", [zzz_nested]),
+                        self._named_set("s_zzz", [zzz_direct], nested=["s_nested"]),
+                        self._named_set("s_aaa", [aaa]),
+                        self._target_completed("//pkg/zzz:zzz_test", ["s_zzz"]),
+                        self._target_completed("//pkg/aaa:aaa_test", ["s_aaa"]),
+                    ]
+                )
+            )
+
+            # Sorted by label so reruns emit fragments in a stable order.
+            self.assertEqual(
+                _parse_bep(bep_path).test2json_fragments,
+                [aaa, zzz_direct, zzz_nested],
+            )
+
+    def test_unknown_file_set_is_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bep_path = Path(tmpdir) / "bep.json"
+            bep_path.write_text(self._target_completed("//pkg/foo:foo_test", ["missing"]))
+
+            with self.assertRaisesRegex(RuntimeError, "unknown fileSet"):
+                _parse_bep(bep_path)
+
+    def test_targets_without_output_group_produce_no_fragments(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bep_path = Path(tmpdir) / "bep.json"
+            bep_path.write_text(
+                _bep_line(
+                    {
+                        "id": {"targetCompleted": {"label": "//pkg/foo:foo_lib"}},
+                        "completed": {"outputGroup": [{"name": "default", "fileSets": [{"id": "s1"}]}]},
+                    }
+                )
+            )
+            self.assertEqual(_parse_bep(bep_path).test2json_fragments, [])
 
 
 if __name__ == "__main__":
