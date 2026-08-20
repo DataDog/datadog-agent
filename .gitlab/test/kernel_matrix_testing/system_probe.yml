@@ -24,11 +24,13 @@ upload_dependencies_sysprobe_arm64:
     TEST_COMPONENT: system-probe
 
 # --- Docker test images
+# `upload_dependencies_{sysprobe,secagent}_*` both need these images, and every KMT test job
+# needs those uploads, so this must follow the union of both components' triggers.
 .pull_test_dockers:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: []
   tags: ["arch:amd64", "specific:true"]
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules: !reference [.on_system_probe_or_security_agent_changes_or_manual]
   stage: kernel_matrix_testing_prepare
   script:
     - !reference [.login_to_docker_readonly_crane]

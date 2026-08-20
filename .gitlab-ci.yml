@@ -959,6 +959,22 @@ workflow:
   - when: manual
     allow_failure: true
 
+# For KMT jobs shared by both components: the two path lists overlap but neither contains
+# the other, and a job needed by both matrices must run whenever either one does. Gating
+# such a job on one component's paths silently skips the other component's whole matrix.
+.on_system_probe_or_security_agent_changes_or_manual:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - <<: *if_run_all_kmt_tests
+  - changes:
+      paths: *system_probe_change_paths
+      compare_to: $COMPARE_TO_BRANCH
+  - changes:
+      paths: *security_agent_change_paths
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
 # New E2E related rules
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
