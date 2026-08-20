@@ -8,7 +8,7 @@ use log::info;
 use std::path::PathBuf;
 
 use crate::config::ProcessConfig;
-use crate::env::{expand_env_vars, parse_environment_file};
+use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
 
 use super::profile::SpawnProfile;
 use super::stdio_setting::{self, StdioSetting};
@@ -71,7 +71,15 @@ fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String
     }
 
     for (k, v) in &config.env {
-        env.push((k.clone(), expand_env_vars(v)));
+        match v.strip_prefix('-') {
+            Some(template) => match try_expand_env_vars(template) {
+                Some(val) => env.push((k.clone(), val)),
+                None => info!(
+                    "[{process_name}] optional env var {k} references an unset variable, omitting"
+                ),
+            },
+            None => env.push((k.clone(), expand_env_vars(v))),
+        }
     }
 
     Ok(env)
