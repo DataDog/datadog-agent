@@ -10,6 +10,15 @@ pub(crate) fn expand_env_vars(input: &str) -> String {
     expand_vars_with(input, |name| std::env::var(name).ok())
 }
 
+/// Like [`expand_env_vars`], but for values prefixed with `-` in an `env:` map entry: returns
+/// `None` (instead of a string with a literal `${VAR}` left in place) if any referenced variable
+/// is unset, so the caller can omit the env var entirely. This lets a single process definition
+/// shared by the stable and experiment dd-procmgr export an env var only when the supervising
+/// dd-procmgr itself has it set, without the child seeing an unresolved placeholder.
+pub(crate) fn try_expand_env_vars(input: &str) -> Option<String> {
+    try_expand_vars_with(input, |name| std::env::var(name).ok())
+}
+
 pub(crate) fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> String {
     let mut out = String::with_capacity(input.len());
     let mut rest = input;
@@ -39,6 +48,26 @@ pub(crate) fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<Stri
     }
     out.push_str(rest);
     out
+}
+
+/// Core of [`try_expand_env_vars`] with the variable lookup injected, so it can be
+/// unit-tested without mutating the process environment. Unlike [`expand_vars_with`], this does
+/// not warn on an unresolved variable and returns `None` for the whole input as soon as one is
+/// found, since the caller treats that as "omit this optional value" rather than a
+/// misconfiguration.
+fn try_expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> Option<String> {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(start) = rest.find("${") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        let end = after.find('}')?;
+        let name = &after[..end];
+        out.push_str(&lookup(name)?);
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    Some(out)
 }
 
 /// Parse a systemd-style environment file into key-value pairs.
@@ -102,5 +131,27 @@ LANG=en_US.UTF-8
     #[test]
     fn test_parse_missing_file() {
         assert!(parse_environment_file("/nonexistent/env").is_err());
+    }
+
+    #[test]
+    fn test_try_expand_vars_substitutes_known() {
+        let lookup = |name: &str| match name {
+            "DD_INVENTORIES_FIRST_RUN_DELAY" => Some("5".to_string()),
+            _ => None,
+        };
+        assert_eq!(
+            try_expand_vars_with("${DD_INVENTORIES_FIRST_RUN_DELAY}", lookup),
+            Some("5".to_string())
+        );
+    }
+
+    #[test]
+    fn test_try_expand_vars_none_when_unset() {
+        let lookup = |_: &str| None;
+        assert_eq!(
+            try_expand_vars_with("${DD_INVENTORIES_FIRST_RUN_DELAY}", lookup),
+            None,
+            "an unset optional variable must yield None so the caller can omit the env var"
+        );
     }
 }
