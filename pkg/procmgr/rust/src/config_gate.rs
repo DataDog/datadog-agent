@@ -11,8 +11,10 @@
 //! (`pkg/config/model/types.go`): agent-runtime transforms, then fleet policy,
 //! environment variables, explicit base YAML, then agent default.
 //!
-//! When deprecated `process_config.enabled` is set, collection keys follow
-//! `loadProcessTransforms` in `pkg/config/setup/process.go` instead of defaults.
+//! When deprecated `process_config.enabled` is set in file or env, collection keys
+//! follow `loadProcessTransforms` in `pkg/config/setup/process.go`. That transform
+//! runs in `LoadDatadog` before `MergeFleetPolicy`, so fleet-only
+//! `process_config.enabled` does not rewrite collection keys.
 //!
 //! Derived `system_probe_config.enabled` (module knobs) is implemented in
 //! [`system_probe`] and must stay in sync with `pkg/system-probe/config/config.go`.
@@ -100,16 +102,16 @@ impl ProcessEnabledMode {
 }
 
 const LEGACY_PROCESS_ENABLED_KEY: &str = "process_config.enabled";
-const LEGACY_FLEET_POLICY_FILE: &str = "datadog.yaml";
 
 impl GatedKeySpec {
-    /// Resolution order (most keys): legacy `process_config.enabled` transform (collection keys only)
-    /// → fleet policy → env → base YAML → agent default.
+    /// Resolution order (most keys): legacy `process_config.enabled` transform (collection keys
+    /// only, from pre-fleet file/env) → fleet policy → env → base YAML → agent default.
     ///
     /// `system_probe_config.enabled` is special: returns [`system_probe::derived_enabled`] only,
     /// mirroring post-`load()`/`Adjust` `GetBool` (module-derived runtime value).
     ///
-    /// Legacy transforms mirror `loadProcessTransforms`. Fleet policy outranks env vars
+    /// Legacy transforms mirror `loadProcessTransforms` (file + env only). Direct
+    /// `process_config.enabled` still honors fleet. Fleet policy outranks env vars
     /// (`SourceFleetPolicies` > `SourceEnvVar`).
     fn enabled(&self, base_path: &str, yaml: &mut YamlCache) -> anyhow::Result<bool> {
         if let Some(enabled) = self.legacy_collection_override(base_path, yaml)? {
@@ -393,11 +395,8 @@ fn resolve_legacy_process_enabled_mode(
     base_path: &str,
     yaml: &mut YamlCache,
 ) -> anyhow::Result<Option<ProcessEnabledMode>> {
-    if let Some(path) = yaml.fleet_policy_path(LEGACY_FLEET_POLICY_FILE, base_path)?
-        && let Some(mode) = legacy_enabled_mode_from_file(yaml, &path)?
-    {
-        return Ok(Some(mode));
-    }
+    // loadProcessTransforms runs in LoadDatadog before MergeFleetPolicy, so only
+    // env and the base YAML file participate.
     if let Some(mode) = legacy_enabled_env_mode() {
         return Ok(Some(mode));
     }
@@ -1334,7 +1333,7 @@ process_config:
     }
 
     #[test]
-    fn fleet_legacy_enabled_transforms_collection_keys() {
+    fn fleet_legacy_enabled_does_not_transform_collection_keys() {
         with_env_lock(|| {
             clear_gated_env_vars();
 
@@ -1344,18 +1343,33 @@ process_config:
             write_config(
                 &fleet_dir,
                 "datadog.yaml",
-                "process_config:\n  enabled: false\n",
+                "process_config:\n  enabled: true\n",
             );
             let agent = write_config(
                 dir.path(),
                 "datadog.yaml",
-                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+                "process_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
             );
             let _fleet = EnvGuard::set(
                 "DD_FLEET_POLICIES_DIR",
                 fleet_dir.to_string_lossy().as_ref(),
             );
-            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+            let collection_only = vec![ConditionConfigFile {
+                path: agent.clone(),
+                keys: vec![
+                    "process_config.process_collection.enabled".into(),
+                    "process_config.container_collection.enabled".into(),
+                    "process_config.process_discovery.enabled".into(),
+                ],
+            }];
+            assert!(
+                !condition_config_any_met(&collection_only),
+                "fleet-only process_config.enabled must not rewrite collection keys"
+            );
+            assert!(
+                condition_config_any_met(&process_agent_conditions(agent)),
+                "the deprecated key itself still honors fleet policy"
+            );
         });
     }
 
@@ -1779,6 +1793,33 @@ process_config:
                 keys: vec!["process_config.process_collection.enabled".into()],
             }];
             assert!(!condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn derived_notable_events_matches_go_os_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\nnotable_events:\n  enabled: true\n",
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  enabled: false\n",
+            );
+            let met = condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe));
+            #[cfg(target_os = "macos")]
+            assert!(met, "notable_events.enabled should enable system-probe on macOS");
+            #[cfg(not(target_os = "macos"))]
+            assert!(
+                !met,
+                "notable_events.enabled should not enable system-probe off macOS"
+            );
         });
     }
 
