@@ -78,7 +78,7 @@ fn token_user_sid(token: &TokenHandle) -> Result<Vec<u8>> {
 
         // GetTokenInformation writes into an arbitrary byte buffer; read_unaligned
         // avoids UB from casting Vec<u8> to &TOKEN_USER.
-        let token_user = ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>());
+        let token_user = unsafe { ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>()) };
         let sid_ptr = token_user.User.Sid;
         if sid_ptr.is_null() {
             bail!("TokenUser SID is null");
