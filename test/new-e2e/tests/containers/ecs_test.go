@@ -537,10 +537,16 @@ func (suite *ecsSuite) TestCPU() {
 }
 
 func (suite *ecsSuite) TestDogtstatsdUDS() {
+	// Skipped for ADP-enabled CI sweep (DADP-72): data_plane.enabled=true disables the Core Agent
+	// DSD server but the ECS container image does not bundle the agent-data-plane binary, so the
+	// DSD listener is absent entirely and metrics from the dogstatsd sidecar task never arrive.
+	suite.T().Skip("skipped for ADP-enabled CI sweep (DADP-72): ECS image has no ADP binary; DSD listener absent when data_plane.enabled=true")
 	suite.testDogstatsd(taskNameDogstatsdUDS)
 }
 
 func (suite *ecsSuite) TestDogtstatsdUDP() {
+	// Skipped for ADP-enabled CI sweep (DADP-72): same reason as TestDogtstatsdUDS above.
+	suite.T().Skip("skipped for ADP-enabled CI sweep (DADP-72): ECS image has no ADP binary; DSD listener absent when data_plane.enabled=true")
 	suite.testDogstatsd(taskNameDogstatsdUDP)
 }
 

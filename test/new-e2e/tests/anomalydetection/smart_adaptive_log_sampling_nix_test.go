@@ -49,6 +49,10 @@ type smartSeverityProfilesSuite struct {
 }
 
 func TestSmartSeverityProfilesAdaptiveSampling(t *testing.T) {
+	// Skipped for ADP-enabled CI sweep (DADP-72): DSD gauge spikes are used to drive the anomaly
+	// scorer to a higher severity level. When ADP owns port 8125 the Core Agent scorer never sees
+	// the metrics, so the severity never escalates and the adaptive-sampling gate stays wrong.
+	t.Skip("skipped for ADP-enabled CI sweep (DADP-72): DSD metrics bypass Core Agent anomaly scorer when ADP owns port 8125")
 	t.Parallel()
 
 	// language=yaml
