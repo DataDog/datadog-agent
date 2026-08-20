@@ -186,6 +186,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_auto_start_runs_when_config_gate_open() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir().unwrap();
+        let yaml = write_agent_yaml(dir.path(), true);
+        let mgr = ProcessManager::new(
+            loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+            uuid_gen(),
+        );
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
+
+        mgr.auto_start_all(&handles).await;
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "process should auto-start when condition_config_any is met"
+        );
+
+        mgr.shutdown().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_auto_start_skips_when_config_gate_closed() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir().unwrap();
+        let yaml = write_agent_yaml(dir.path(), false);
+        let mgr = ProcessManager::new(
+            loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+            uuid_gen(),
+        );
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
+
+        mgr.auto_start_all(&handles).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "process should not auto-start when condition_config_any is not met"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_on_failure_restart_skips_when_config_gate_closes() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir().unwrap();
+        let yaml = write_agent_yaml(dir.path(), true);
+        let mgr = ProcessManager::new(
+            loader(vec![gated_on_failure_sleep_def("gated-svc", &yaml)]),
+            uuid_gen(),
+        );
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
+
+        mgr.auto_start_all(&handles).await;
+        let pid = {
+            let procs = mgr.processes().await;
+            assert!(procs[0].is_running());
+            procs[0].pid().unwrap()
+        };
+
+        write_agent_yaml(dir.path(), false);
+        {
+            let mut procs = mgr.processes.write().await;
+            let (cmd, args) = test_helpers::false_cmd();
+            let status = std::process::Command::new(cmd).args(args).status()?;
+            procs[0].set_last_status(status);
+        }
+        test_helpers::cleanup_process(pid);
+
+        let pending = {
+            let procs = mgr.processes().await;
+            current_pending_restart(&procs[0])
+        };
+        mgr.complete_restart(pending, &handles).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "on-failure restart should skip when the config gate is closed"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_spawn_failure_schedules_on_failure_restart() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(
             loader(vec![ProcessDefinition {

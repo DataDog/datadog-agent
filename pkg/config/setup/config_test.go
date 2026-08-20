@@ -55,10 +55,6 @@ func unsetProxyEnvForTest(t *testing.T) {
 	}
 }
 
-// testFleetPoliciesDir is a fixed path used in YAML round-trip tests so fleet_policies_dir
-// is deterministic across platforms (env is read during InitConfig; FleetConfigOverride skips when set).
-const testFleetPoliciesDir = `C:\testdata\fleet\policies`
-
 func TestDefaults(t *testing.T) {
 	config := newTestConf(t)
 
@@ -1398,7 +1394,6 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
-	t.Setenv("DD_FLEET_POLICIES_DIR", testFleetPoliciesDir)
 
 	config := newTestConf(t)
 	config.SetInTest("use_proxy_for_cloud_metadata", true)
@@ -1425,7 +1420,6 @@ func TestConfigAssignAtPath(t *testing.T) {
   - changed
   https://url2.eu:
   - third
-fleet_policies_dir: C:\testdata\fleet\policies
 process_config:
   additional_endpoints:
     https://url1.com:
@@ -1491,7 +1485,6 @@ secret_backend_arguments:
 `)
 
 func TestConfigAssignAtPathSimple(t *testing.T) {
-	t.Setenv("DD_FLEET_POLICIES_DIR", testFleetPoliciesDir)
 
 	config := newTestConf(t)
 	config.SetInTest("use_proxy_for_cloud_metadata", true)
@@ -1505,8 +1498,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
 	assert.NoError(t, err)
 
-	expectedYaml := `fleet_policies_dir: C:\testdata\fleet\policies
-secret_backend_arguments:
+	expectedYaml := `secret_backend_arguments:
 - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
@@ -1518,7 +1510,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigMustMatchOrigin(t *testing.T) {
-	t.Setenv("DD_FLEET_POLICIES_DIR", testFleetPoliciesDir)
 
 	testMinimalConf := []byte(`apm_config:
   apm_dd_url: ENC[some_url]
@@ -1534,18 +1525,11 @@ use_proxy_for_cloud_metadata: true
 
 	expectedYaml := `apm_config:
   apm_dd_url: first_value
-fleet_policies_dir: C:\testdata\fleet\policies
 secret_backend_command: command
 use_proxy_for_cloud_metadata: true
 `
 	expectedDiffYaml := `apm_config:
   apm_dd_url: second_value
-secret_backend_command: command
-use_proxy_for_cloud_metadata: true
-`
-	expectedDiffConfigYaml := `apm_config:
-  apm_dd_url: second_value
-fleet_policies_dir: C:\testdata\fleet\policies
 secret_backend_command: command
 use_proxy_for_cloud_metadata: true
 `
@@ -1589,7 +1573,7 @@ use_proxy_for_cloud_metadata: true
 	// now the original config was modified because of the origin match
 	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
 	assert.NoError(t, err)
-	assert.YAMLEq(t, expectedDiffConfigYaml, string(yamlConf))
+	assert.YAMLEq(t, expectedDiffYaml, string(yamlConf))
 }
 
 func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
