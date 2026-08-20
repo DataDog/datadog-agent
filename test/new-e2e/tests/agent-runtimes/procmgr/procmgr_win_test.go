@@ -186,9 +186,10 @@ $id.Name
 	assert.NotContains(s.T(), strings.ToUpper(caller), "SYSTEM")
 
 	const procName = "e2e-admin-pipe-create"
+	// Use cmd.exe (/c exit) so PowerShell does not bind dash-prefixed args like -NoProfile.
 	createOut, err := host.Execute(s.platform.cliCmd(fmt.Sprintf(
-		`create --name %s --command %s --args -NoProfile --args -NonInteractive --args -Command --args "Start-Sleep -Seconds 3600" --no-auto-start --description "E2E admin pipe auth"`,
-		procName, winSleepCommand,
+		`create --name %s --command C:\Windows\System32\cmd.exe --args /c --args exit --no-auto-start --description 'E2E admin pipe auth'`,
+		procName,
 	)))
 	require.NoError(s.T(), err, "Create RPC should succeed for Administrator pipe client; output: %s", createOut)
 	assert.NotContains(s.T(), strings.ToLower(createOut), "permission denied")
