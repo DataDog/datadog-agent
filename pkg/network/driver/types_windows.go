@@ -246,6 +246,12 @@ const (
 	ClassificationRequestTLS  = 0xa
 	ClassificationResponseTLS = 0x2
 
+	ClassificationRequestRedis    = 0xb
+	ClassificationRequestPostgres = 0xc
+	ClassificationRequestMySQL    = 0xd
+	ClassificationRequestMongo    = 0xe
+	ClassificationRequestAMQP     = 0xf
+
 	ALPNProtocolHTTP2  = 0x1
 	ALPNProtocolHTTP11 = 0x2
 

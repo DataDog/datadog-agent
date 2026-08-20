@@ -139,6 +139,7 @@ go_library(
             "//pkg/network/config",
             "//pkg/network/driver",
             "//pkg/network/protocols/http",
+            "//pkg/network/protocols/telemetry",
             "//pkg/network/types",
             "@org_golang_x_sys//windows",
         ],

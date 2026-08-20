@@ -146,6 +146,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//pkg/network/driver",
             "//pkg/network/encoding/marshal",
+            "//pkg/network/protocols/telemetry",
             "//pkg/network/usm/state",
             "//pkg/util/winutil/iphelper",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",

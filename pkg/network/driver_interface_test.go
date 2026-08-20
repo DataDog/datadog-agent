@@ -10,6 +10,7 @@ package network
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 
@@ -90,4 +91,62 @@ func TestConnectionStatsInfiniteLoop(t *testing.T) {
 		return true
 	})
 	require.NoError(t, err, "Failed to get connection stats")
+}
+
+// TestClassifiedProtocolName covers the telemetry tag values derived from the
+// driver classification, which drive the windows.classified_flows counter.
+func TestClassifiedProtocolName(t *testing.T) {
+	tests := []struct {
+		name             string
+		status           uint16
+		classifyRequest  uint16
+		classifyResponse uint16
+		expected         string
+	}{
+		{"redis", driver.ClassificationClassified, driver.ClassificationRequestRedis, 0, "redis"},
+		{"postgres", driver.ClassificationClassified, driver.ClassificationRequestPostgres, 0, "postgres"},
+		{"mysql", driver.ClassificationClassified, driver.ClassificationRequestMySQL, 0, "mysql"},
+		{"mongo", driver.ClassificationClassified, driver.ClassificationRequestMongo, 0, "mongo"},
+		{"amqp", driver.ClassificationClassified, driver.ClassificationRequestAMQP, 0, "amqp"},
+		{"http", driver.ClassificationClassified, driver.ClassificationRequestHTTPGet, 0, "http"},
+		{"http delete", driver.ClassificationClassified, driver.ClassificationRequestHTTPDelete, 0, "http"},
+		{"http2", driver.ClassificationClassified, driver.ClassificationRequestHTTP2, 0, "http2"},
+		{"tls", driver.ClassificationClassified, driver.ClassificationRequestTLS, 0, "tls"},
+		{
+			"response only http",
+			driver.ClassificationClassified,
+			driver.ClassificationRequestUnclassified,
+			driver.ClassificationResponseHTTP,
+			"http",
+		},
+		// unclassified flows must not be counted, otherwise the survey is diluted
+		{"unclassified", driver.ClassificationUnclassified, driver.ClassificationRequestRedis, 0, ""},
+		{"unknown", driver.ClassificationUnknown, driver.ClassificationRequestUnclassified, 0, ""},
+		{
+			"insufficient data",
+			driver.ClassificationUnableInsufficientData,
+			driver.ClassificationRequestUnclassified,
+			0,
+			"",
+		},
+		{
+			"classified but no value set",
+			driver.ClassificationClassified,
+			driver.ClassificationRequestUnclassified,
+			driver.ClassificationResponseUnclassified,
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flow := &driver.PerFlowData{
+				ClassificationStatus: tt.status,
+				ClassifyRequest:      tt.classifyRequest,
+				ClassifyResponse:     tt.classifyResponse,
+			}
+
+			assert.Equal(t, tt.expected, classifiedProtocolName(flow))
+		})
+	}
 }

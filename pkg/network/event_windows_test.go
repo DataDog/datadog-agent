@@ -251,3 +251,120 @@ func TestFlowToConnStatWithIPv4UdpNoMonotonicc(t *testing.T) {
 	assert.Equal(t, cs.TLSTags.OfferedVersions, uint8(flow.Tls_versions_offered))
 	assert.Equal(t, cs.TLSTags.CipherSuite, flow.Tls_cipher_suite)
 }
+
+// TestFlowToConnStatProtocolClassification covers the mapping from the driver's
+// CLASSIFICATION_REQUEST_* values onto ConnectionStats.ProtocolStack, including
+// the first-bytes classifiers added for the Windows protocol survey.
+func TestFlowToConnStatProtocolClassification(t *testing.T) {
+	tests := []struct {
+		name             string
+		status           uint16
+		classifyRequest  uint16
+		classifyResponse uint16
+		upgradeAccepted  uint8
+		expected         protocols.Stack
+	}{
+		{
+			name:            "redis",
+			status:          driver.ClassificationClassified,
+			classifyRequest: driver.ClassificationRequestRedis,
+			expected:        protocols.Stack{Application: protocols.Redis},
+		},
+		{
+			name:            "postgres",
+			status:          driver.ClassificationClassified,
+			classifyRequest: driver.ClassificationRequestPostgres,
+			expected:        protocols.Stack{Application: protocols.Postgres},
+		},
+		{
+			name:            "mysql",
+			status:          driver.ClassificationClassified,
+			classifyRequest: driver.ClassificationRequestMySQL,
+			expected:        protocols.Stack{Application: protocols.MySQL},
+		},
+		{
+			name:            "mongo",
+			status:          driver.ClassificationClassified,
+			classifyRequest: driver.ClassificationRequestMongo,
+			expected:        protocols.Stack{Application: protocols.Mongo},
+		},
+		{
+			name:            "amqp",
+			status:          driver.ClassificationClassified,
+			classifyRequest: driver.ClassificationRequestAMQP,
+			expected:        protocols.Stack{Application: protocols.AMQP},
+		},
+		{
+			name:            "http get",
+			status:          driver.ClassificationClassified,
+			classifyRequest: driver.ClassificationRequestHTTPGet,
+			expected:        protocols.Stack{Application: protocols.HTTP},
+		},
+		{
+			// ClassificationRequestHTTPLast == ClassificationRequestHTTPDelete, so an
+			// exclusive upper bound on the HTTP range silently dropped DELETE flows
+			// whose response was never observed.
+			name:            "http delete is included in the http range",
+			status:          driver.ClassificationClassified,
+			classifyRequest: driver.ClassificationRequestHTTPDelete,
+			expected:        protocols.Stack{Application: protocols.HTTP},
+		},
+		{
+			name:            "http2",
+			status:          driver.ClassificationClassified,
+			classifyRequest: driver.ClassificationRequestHTTP2,
+			expected:        protocols.Stack{Application: protocols.HTTP2},
+		},
+		{
+			name:            "tls",
+			status:          driver.ClassificationClassified,
+			classifyRequest: driver.ClassificationRequestTLS,
+			expected:        protocols.Stack{Encryption: protocols.TLS},
+		},
+		{
+			name:             "response only http",
+			status:           driver.ClassificationClassified,
+			classifyRequest:  driver.ClassificationRequestUnclassified,
+			classifyResponse: driver.ClassificationResponseHTTP,
+			expected:         protocols.Stack{Application: protocols.HTTP},
+		},
+		{
+			name:             "http upgraded to http2",
+			status:           driver.ClassificationClassified,
+			classifyRequest:  driver.ClassificationRequestUnclassified,
+			classifyResponse: driver.ClassificationResponseHTTP,
+			upgradeAccepted:  1,
+			expected:         protocols.Stack{Application: protocols.HTTP2},
+		},
+		{
+			name:            "unclassified flows carry no protocol",
+			status:          driver.ClassificationUnclassified,
+			classifyRequest: driver.ClassificationRequestRedis,
+			expected:        protocols.Stack{},
+		},
+		{
+			name:            "insufficient data carries no protocol",
+			status:          driver.ClassificationUnableInsufficientData,
+			classifyRequest: driver.ClassificationRequestUnclassified,
+			expected:        protocols.Stack{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flow := &driver.PerFlowData{
+				AddressFamily:           syscall.AF_INET,
+				Protocol:                syscall.IPPROTO_TCP,
+				ClassificationStatus:    tt.status,
+				ClassifyRequest:         tt.classifyRequest,
+				ClassifyResponse:        tt.classifyResponse,
+				HttpUpgradeToH2Accepted: tt.upgradeAccepted,
+			}
+
+			cs := &ConnectionStats{}
+			FlowToConnStat(cs, flow, false)
+
+			assert.Equal(t, tt.expected, cs.ProtocolStack)
+		})
+	}
+}

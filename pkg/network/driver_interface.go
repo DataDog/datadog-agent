@@ -21,6 +21,7 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -76,6 +77,57 @@ var driverTelemetry = struct {
 	telemetryimpl.GetCompatComponent().NewGauge(driverStats, "open_buffer_size", []string{}, "Gauge measuring the size of the open buffer"),
 	telemetryimpl.GetCompatComponent().NewCounter(driverStats, "open_buffer_increases", []string{}, "Counter measuring the number of open buffer increases"),
 	telemetryimpl.GetCompatComponent().NewCounter(driverStats, "open_buffer_decreases", []string{}, "Counter measuring the number of open buffer decreases"),
+}
+
+// Counts of closed flows by the application protocol the driver classified them as,
+// used to survey which protocols Windows hosts actually speak.
+//
+// These go through the network_tracer registry rather than the telemetry component
+// because that registry is the one wired to statsd (see ReportStatsd), which is what
+// actually leaves the host. Tags are fixed per metric instance in that registry, so
+// there is one counter per protocol rather than one counter with a protocol label.
+var classifiedFlowCounters = func() map[string]*libtelemetry.Counter {
+	protocols := []string{"http", "http2", "tls", "redis", "postgres", "mysql", "mongo", "amqp"}
+	counters := make(map[string]*libtelemetry.Counter, len(protocols))
+	for _, p := range protocols {
+		counters[p] = libtelemetry.NewCounter("windows.classified_flows",
+			"protocol:"+p, libtelemetry.OptStatsd, libtelemetry.OptPrometheus)
+	}
+	return counters
+}()
+
+// classifiedProtocolName maps a driver classification to a telemetry tag value.
+// Returns "" for flows the driver did not classify, which are not counted.
+func classifiedProtocolName(fd *driver.PerFlowData) string {
+	if fd.ClassificationStatus != driver.ClassificationClassified {
+		return ""
+	}
+
+	switch crq := fd.ClassifyRequest; {
+	case crq >= driver.ClassificationRequestHTTPUnknown && crq <= driver.ClassificationRequestHTTPLast:
+		return "http"
+	case crq == driver.ClassificationRequestHTTP2:
+		return "http2"
+	case crq == driver.ClassificationRequestTLS:
+		return "tls"
+	case crq == driver.ClassificationRequestRedis:
+		return "redis"
+	case crq == driver.ClassificationRequestPostgres:
+		return "postgres"
+	case crq == driver.ClassificationRequestMySQL:
+		return "mysql"
+	case crq == driver.ClassificationRequestMongo:
+		return "mongo"
+	case crq == driver.ClassificationRequestAMQP:
+		return "amqp"
+	}
+
+	// the request side can be missed entirely; fall back to what the response told us
+	if fd.ClassifyResponse == driver.ClassificationResponseHTTP {
+		return "http"
+	}
+
+	return ""
 }
 
 // DriverInterface holds all necessary information for interacting with the windows driver
@@ -315,6 +367,15 @@ func (di *DriverInterface) getFlowConnectionStats(ioctl uint32, connbuffer *driv
 			pfd := (*driver.PerFlowData)(unsafe.Pointer(&(buf[0])))
 			c := outbuffer.Next()
 			FlowToConnStat(c, pfd, di.enableMonotonicCounts)
+			// Count only closed flows, so each flow is counted exactly once: the
+			// driver drains its closed table on read, whereas open flows are
+			// re-read every cycle.  Counted before the connection filter so this
+			// reflects everything the driver classified.
+			if ioctl == driver.GetClosedFlowsIOCTL {
+				if counter := classifiedFlowCounters[classifiedProtocolName(pfd)]; counter != nil {
+					counter.Add(1)
+				}
+			}
 			if !filter(c) {
 				outbuffer.Reclaim(1)
 				continue

@@ -128,6 +128,12 @@ const (
 	ClassificationRequestTLS  = C.CLASSIFICATION_REQUEST_TLS
 	ClassificationResponseTLS = C.CLASSIFICATION_RESPONSE_TLS
 
+	ClassificationRequestRedis    = C.CLASSIFICATION_REQUEST_REDIS
+	ClassificationRequestPostgres = C.CLASSIFICATION_REQUEST_POSTGRES
+	ClassificationRequestMySQL    = C.CLASSIFICATION_REQUEST_MYSQL
+	ClassificationRequestMongo    = C.CLASSIFICATION_REQUEST_MONGO
+	ClassificationRequestAMQP     = C.CLASSIFICATION_REQUEST_AMQP
+
 	ALPNProtocolHTTP2  = C.ALPN_PROTOCOL_HTTP2
 	ALPNProtocolHTTP11 = C.ALPN_PROTOCOL_HTTP11
 
