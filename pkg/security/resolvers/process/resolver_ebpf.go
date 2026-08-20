@@ -1319,7 +1319,9 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
-	p.goLabelsMap, _ = managerhelper.Map(p.manager, "go_labels_procs")
+	if p.goLabelsMap, err = managerhelper.Map(p.manager, "go_labels_procs"); err != nil {
+		return err
+	}
 
 	go p.cacheFlush(ctx)
 
