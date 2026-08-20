@@ -7,7 +7,6 @@ dd_agent_go_test(
     deps = [
         "//test/e2e-framework/components/activedirectory",
         "//test/e2e-framework/scenarios/aws/ec2/windows",
-        "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host/windows",
