@@ -317,20 +317,32 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// https://datadoghq.atlassian.net/wiki/spaces/AM/pages/6164349836/Validating+Customer+Migration+to+V3+payload#Agent-Behind-a-Proxy
 	//   - use_v3_api.series.enabled is still the datadog_only default.
 	// Off by default behind the datadog.otelagent.MetricsV3Series gate (staged rollout).
-	proxyConfigured := pkgconfig.GetString("proxy.https") != "" || pkgconfig.GetString("proxy.http") != ""
-	if metricsV3SeriesGate.IsEnabled() &&
-		ddURL == "https://api."+ddc.API.Site &&
-		configutils.IsDatadogURL("https://app."+ddc.API.Site) &&
-		!proxyConfigured &&
-		strings.ToLower(strings.TrimSpace(pkgconfig.GetString("use_v3_api.series.enabled"))) == "datadog_only" {
+	if strings.ToLower(strings.TrimSpace(pkgconfig.GetString("use_v3_api.series.enabled"))) == "datadog_only" {
+		proxyConfigured := pkgconfig.GetString("proxy.https") != "" || pkgconfig.GetString("proxy.http") != ""
 		seriesEndpoints := pkgconfig.GetStringMapString("use_v3_api.series.endpoints")
-		if _, alreadySet := seriesEndpoints[ddURL]; !alreadySet {
+		_, alreadySet := seriesEndpoints[ddURL]
+		gateOn := metricsV3SeriesGate.IsEnabled()
+		defaultEndpoint := ddURL == "https://api."+ddc.API.Site
+		datadogSite := configutils.IsDatadogURL("https://app." + ddc.API.Site)
+		switch {
+		case alreadySet:
+			// explicit per-endpoint entry — leave it untouched
+		case gateOn && defaultEndpoint && datadogSite && !proxyConfigured:
 			merged := make(map[string]string, len(seriesEndpoints)+1)
 			for url, v3 := range seriesEndpoints {
 				merged[url] = v3
 			}
 			merged[ddURL] = "true"
 			pkgconfig.Set("use_v3_api.series.endpoints", merged, pkgconfigmodel.SourceAgentRuntime)
+		default:
+			// datadog_only requested but a guard blocks v3 — report why and how to enable.
+			fmt.Printf("[WARN] DDOT: metrics v3 series intake NOT enabled (use_v3_api.series.enabled=datadog_only); series stay on v2.\n"+
+				"  All of the following are required to enable v3:\n"+
+				"    - feature gate on (--feature-gates=+datadog.otelagent.MetricsV3Series): %t\n"+
+				"    - default endpoint (dd_url == https://api.<site>; dd_url=%q): %t\n"+
+				"    - recognized Datadog site (site=%q): %t\n"+
+				"    - no proxy configured: %t\n",
+				gateOn, ddURL, defaultEndpoint, ddc.API.Site, datadogSite, !proxyConfigured)
 		}
 	}
 
