@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 )
 
 func TestMergeMaps(t *testing.T) {
@@ -41,4 +43,25 @@ func TestMergeMapsOverridesMapWithNonMap(t *testing.T) {
 	mergeMaps(dst, src)
 
 	assert.Equal(t, "disabled", dst["agents"])
+}
+
+func TestBuildValuesConfiguresFakeintakeRemoteConfig(t *testing.T) {
+	values := buildValues(
+		chartParams{RCRootJSON: "root-json"},
+		"kind-cluster",
+		&fakeintake.FakeintakeOutput{URL: "http://fakeintake"},
+		"cluster-agent-token",
+	)
+
+	expected := []interface{}{
+		map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_RC_DD_URL", "value": "http://fakeintake"},
+		map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_NO_TLS", "value": "true"},
+		map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION", "value": "true"},
+		map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_CONFIG_ROOT", "value": "root-json"},
+		map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT", "value": "root-json"},
+		map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL", "value": "5s"},
+	}
+
+	assert.Equal(t, expected, values["datadog"].(map[string]interface{})["env"])
+	assert.Equal(t, expected, values["clusterAgent"].(map[string]interface{})["env"])
 }

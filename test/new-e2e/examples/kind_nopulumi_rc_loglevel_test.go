@@ -8,9 +8,10 @@ package examples
 // This example shows how to use fakeintake's Remote Config backend to change
 // the agent's log level at runtime on a Kind (Kubernetes-in-Docker) cluster.
 //
-// The Kind cluster, fakeintake, and Agent are all provisioned through Pulumi.
-// The Pulumi Agent component wires the Agent to fakeintake's Remote Config
-// endpoint and signing roots.
+// The Kind cluster and fakeintake are provisioned first, without an Agent.
+// SetupSuite then installs the Agent through the provisioner-independent Helm
+// installer. This keeps Agent installation outside the Pulumi program while
+// retaining a real Kubernetes cluster and fakeintake Remote Config backend.
 //
 // Flow:
 //  1. Agent pods start at the default (info) log level — no DEBUG lines in the log.
@@ -30,40 +31,48 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
-	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	helminstaller "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/kubernetes/helm"
 	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
-type rcLogLevelKindExampleSuite struct {
+type rcLogLevelKindNoPulumiAgentInstallExampleSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-// TestRCLogLevelKindExampleSuite is the entry point for the Kind Remote Config log-level example.
+// TestRCLogLevelKindNoPulumiAgentInstallExampleSuite is the entry point for the
+// Kind Remote Config example that installs the Agent outside Pulumi.
 // Run locally with:
 //
-//	dda inv new-e2e-tests.run --targets=./examples/... -run TestRCLogLevelKindExampleSuite
-func TestRCLogLevelKindExampleSuite(t *testing.T) {
+//	dda inv new-e2e-tests.run --targets=./examples/... -run TestRCLogLevelKindNoPulumiAgentInstallExampleSuite
+func TestRCLogLevelKindNoPulumiAgentInstallExampleSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &rcLogLevelKindExampleSuite{},
-		e2e.WithProvisioner(awskubernetes.Provisioner(
-			awskubernetes.WithRunOptions(
-				scenariokindvm.WithAgentOptions(
-					kubernetesagentparams.WithNamespace("datadog"),
-				),
-			),
-		)),
+	// With no Agent options, Pulumi creates only the cluster and fakeintake.
+	// SetupSuite owns the non-Pulumi Agent installation below.
+	e2e.Run(t, &rcLogLevelKindNoPulumiAgentInstallExampleSuite{},
+		e2e.WithProvisioner(awskubernetes.Provisioner()),
 	)
 }
 
-// TestLogLevelViaRCKind verifies that the agent honours an AGENT_CONFIG payload
-// delivered through Remote Config on a Kind cluster:
+func (s *rcLogLevelKindNoPulumiAgentInstallExampleSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+
+	require.Nil(s.T(), s.Env().Agent, "the provisioner must not install the Agent")
+	require.NoError(s.T(), helminstaller.Install(context.Background(), s.Env(), helminstaller.Params{
+		AgentVersion:        "latest",
+		ClusterAgentVersion: "latest",
+		Namespace:           "datadog",
+	}))
+	require.NotNil(s.T(), s.Env().Agent)
+}
+
+// TestLogLevelViaRCKindNoPulumiAgentInstall verifies that an Agent installed
+// outside Pulumi honours an AGENT_CONFIG payload delivered through Remote Config:
 //
 //  1. No DEBUG lines exist at startup (default log_level is info).
 //  2. After pushing an AGENT_CONFIG layer + configuration_order, DEBUG lines appear.
-func (s *rcLogLevelKindExampleSuite) TestLogLevelViaRCKind() {
+func (s *rcLogLevelKindNoPulumiAgentInstallExampleSuite) TestLogLevelViaRCKindNoPulumiAgentInstall() {
 	fi := s.Env().FakeIntake.Client()
 
 	// Step 1 — wait for an agent pod to be running and confirm no DEBUG logs.

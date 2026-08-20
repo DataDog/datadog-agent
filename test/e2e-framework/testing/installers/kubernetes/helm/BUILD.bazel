@@ -26,5 +26,8 @@ dd_agent_go_test(
     name = "helm_test",
     srcs = ["helm_test.go"],
     embed = [":helm"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "@com_github_stretchr_testify//assert",
+    ],
 )

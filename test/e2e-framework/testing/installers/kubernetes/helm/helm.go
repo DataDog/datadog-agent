@@ -58,8 +58,13 @@ func Install(_ context.Context, env *environments.Kubernetes, p Params) error {
 	}
 
 	var fi *fakeintake.FakeintakeOutput
+	var rcRootJSON string
 	if env.FakeIntake != nil {
 		fi = &env.FakeIntake.FakeintakeOutput
+		rcRootJSON, err = fakeintake.RCRootJSON()
+		if err != nil {
+			return fmt.Errorf("building fakeintake Remote Config root: %w", err)
+		}
 	}
 
 	output, err := installChart(env.KubernetesCluster.KubeConfig, env.KubernetesCluster.ClusterName, fi, chartParams{
@@ -68,6 +73,7 @@ func Install(_ context.Context, env *environments.Kubernetes, p Params) error {
 		Namespace:           p.Namespace,
 		APIKey:              apiKey,
 		AppKey:              appKey,
+		RCRootJSON:          rcRootJSON,
 		Values:              p.Values,
 	})
 	if err != nil {
@@ -85,7 +91,7 @@ const releaseName = "dda-linux"
 
 type chartParams struct {
 	AgentVersion, ClusterAgentVersion, Namespace string
-	APIKey, AppKey                               string
+	APIKey, AppKey, RCRootJSON                   string
 	Values                                       map[string]interface{}
 }
 
@@ -196,9 +202,24 @@ func buildValues(p chartParams, clusterName string, fi *fakeintake.FakeintakeOut
 			"tlsVerify": false,
 		},
 	}
+	clusterAgent := map[string]interface{}{
+		"token": clusterAgentToken,
+		"image": map[string]interface{}{"tag": p.ClusterAgentVersion},
+	}
 	if fi != nil {
 		datadog["dd_url"] = fi.URL
 		datadog["skipSslValidation"] = true
+
+		rcEnv := []interface{}{
+			map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_RC_DD_URL", "value": fi.URL},
+			map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_NO_TLS", "value": "true"},
+			map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION", "value": "true"},
+			map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_CONFIG_ROOT", "value": p.RCRootJSON},
+			map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT", "value": p.RCRootJSON},
+			map[string]interface{}{"name": "DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL", "value": "5s"},
+		}
+		datadog["env"] = rcEnv
+		clusterAgent["env"] = rcEnv
 	}
 
 	return map[string]interface{}{
@@ -207,10 +228,7 @@ func buildValues(p chartParams, clusterName string, fi *fakeintake.FakeintakeOut
 			"useHostNetwork": true,
 			"image":          map[string]interface{}{"tag": p.AgentVersion},
 		},
-		"clusterAgent": map[string]interface{}{
-			"token": clusterAgentToken,
-			"image": map[string]interface{}{"tag": p.ClusterAgentVersion},
-		},
+		"clusterAgent": clusterAgent,
 	}
 }
 
