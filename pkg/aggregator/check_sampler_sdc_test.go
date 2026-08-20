@@ -209,6 +209,20 @@ func TestSDC_DryRunShipsUnmodifiedButTelemetryReflectsCompression(t *testing.T) 
 		require.NotNil(t, s, "dry-run must ship every point unmodified, even ones real compression would swallow")
 		require.Equal(t, []metrics.Point{{Ts: ts, Value: 1}}, s.Points)
 	}
+	// Only the 2 verbatim warmup ships count as breakpoints so far (same as
+	// in normal, non-dry-run mode); the flat run added none.
+	require.EqualValues(t, 2, cs.sdcCompressor.tlmBreakpoints.Get())
+
+	// A real spike must still register as one more breakpoint in telemetry,
+	// even in dry-run — that's the whole point of dry-run: previewing the
+	// real compression ratio without applying it — even though the shipped
+	// point is still the raw sample, not the compressed breakpoint's own
+	// (different) value.
+	addSDCGauge(cs, "my.gauge", 9000, 6, nil)
+	s := findSDCSerie(sdcCommitAndFlush(cs, 6), "my.gauge")
+	require.NotNil(t, s)
+	require.Equal(t, []metrics.Point{{Ts: 6, Value: 9000}}, s.Points, "dry-run ships the raw sample, not the compressed breakpoint's own value")
+	require.EqualValues(t, 3, cs.sdcCompressor.tlmBreakpoints.Get(), "the spike must register as one more real breakpoint even though dry-run didn't actually swallow anything")
 }
 
 func TestSDC_ContextsTelemetryTracksCreationAndExpiry(t *testing.T) {

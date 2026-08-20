@@ -183,17 +183,24 @@ func (sc *checkSDCCompressor) apply(contextKey ckey.ContextKey, serie *metrics.S
 		bps := st.compressor.Update(pt.Ts, pt.Value)
 		sc.tlmSamples.Inc()
 
+		// Telemetry always reflects what the compressor actually decided,
+		// even in dry-run mode — that's the point of dry-run: previewing
+		// the real compression ratio without applying it. Only what ships
+		// in kept differs below.
+		if len(bps) > 0 {
+			st.silentFlushes = 0
+		}
+		for range bps {
+			sc.tlmBreakpoints.Inc()
+		}
+
 		if sc.dryRun {
 			// Every point still ships unmodified in dry-run mode.
 			kept = append(kept, pt)
 			continue
 		}
-		if len(bps) > 0 {
-			st.silentFlushes = 0
-		}
 		for _, bp := range bps {
 			kept = append(kept, metrics.Point{Ts: bp.Ts, Value: bp.Value})
-			sc.tlmBreakpoints.Inc()
 		}
 	}
 
