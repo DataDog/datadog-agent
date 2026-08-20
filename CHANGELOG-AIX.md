@@ -10,6 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Build the embedded OpenSSL with `-blibpath` pointing at the embedded library directory so the `openssl` CLI works when invoked directly from a plain shell. Previously it failed with `Dependent module /usr/lib/libssl.a(libssl64.so.3) could not be loaded` unless `LIBPATH` was set manually.
+
 ---
 
 ## 7.83.0-devel.git.909.f7eb778-1 (2026-08-18)
