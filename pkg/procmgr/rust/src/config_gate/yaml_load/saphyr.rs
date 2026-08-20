@@ -124,7 +124,10 @@ impl Builder {
                 pending_key: None,
                 anchor,
             } => (pairs, anchor),
-            Frame::Mapping { pending_key: Some(_), .. } => {
+            Frame::Mapping {
+                pending_key: Some(_),
+                ..
+            } => {
                 bail!("YAML mapping ended before value for key");
             }
             _ => bail!("YAML mapping end without matching start"),
@@ -157,7 +160,9 @@ impl Builder {
     fn attach(&mut self, value: Value) {
         match self.stack.last_mut() {
             None => self.root = Some(value),
-            Some(Frame::Mapping { pairs, pending_key, .. }) => {
+            Some(Frame::Mapping {
+                pairs, pending_key, ..
+            }) => {
                 if pending_key.is_none() {
                     *pending_key = Some(scalar_as_key(value));
                 } else {

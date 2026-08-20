@@ -79,10 +79,7 @@ mod tests {
     fn permissive_parse_accepts_null_with_duplicate_keys() {
         let yaml = "network_config:\n  enabled:\nsystem_probe_config:\n  enabled: true\nprocess_config:\n  enabled: false\nprocess_config:\n  process_collection:\n    enabled: true\n";
         let root = load_yaml(yaml).unwrap();
-        assert_eq!(
-            dotted(&root, "network_config.enabled"),
-            Some(&Value::Null)
-        );
+        assert_eq!(dotted(&root, "network_config.enabled"), Some(&Value::Null));
         assert_eq!(
             dotted(&root, "system_probe_config.enabled"),
             Some(&Value::Bool(true))
