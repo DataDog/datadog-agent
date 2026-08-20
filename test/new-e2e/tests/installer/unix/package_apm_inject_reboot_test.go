@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +32,20 @@ var launcherPreloadPath = filepath.Join(injectOCIPath, "stable", "inject", "laun
 const crashyConstructorUnconditionalSrc = `#include <unistd.h>
 __attribute__((constructor)) static void crash(void) { _exit(1); }
 `
+
+const (
+	// agentMinorVersionWithoutAPMSystemdCommands is passed to the public install
+	// script through DD_AGENT_MINOR_VERSION to exercise a real package-manager
+	// downgrade.
+	agentMinorVersionWithoutAPMSystemdCommands = "80.4"
+
+	// agentVersionWithoutAPMSystemdCommands is the resulting installer repository
+	// version (the Debian package's -1 revision is not part of this directory
+	// name). Its embedded installer does not expose `apm instrument-start` or
+	// `apm instrument-stop`. A systemd unit rendered with the mutable Agent
+	// `stable` path becomes unusable after downgrading to this version.
+	agentVersionWithoutAPMSystemdCommands = "7." + agentMinorVersionWithoutAPMSystemdCommands
+)
 
 // captureBootID returns the current kernel boot id. Used as the source of
 // truth for "has this host actually rebooted?" — reboot-command exit status is
@@ -144,6 +159,96 @@ func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(strconv.FormatUint(traceID, 10))
 	s.assertTraceReceived(traceID)
+}
+
+// TestAgentDowngradeAPMInjectService verifies that changing the Agent version
+// refreshes an already-installed APM injector:
+//
+//  1. Install host SSI with the pipeline installer and verify the service.
+//  2. Downgrade the Agent to 7.80.4 and refresh the stable injector hooks.
+//  3. Garbage-collect the recent Agent package.
+//  4. Reboot and verify host injection still uses a valid preload entry without
+//     producing loader errors.
+//
+// The downgraded Agent's installer does not expose the commands needed by the
+// systemd unit. Refreshing the injector post-install hook removes the unusable
+// unit and falls back to the persistent injector path without replacing the
+// injector package repository.
+//
+// This is intentionally limited to one representative host. The contract is
+// the installer/package/systemd lifecycle, not distro- or architecture-specific
+// behavior.
+func (s *packageApmInjectSuite) TestAgentDowngradeAPMInjectService() {
+	isUbuntu2404 := s.os.Flavor == e2eos.Ubuntu2404.Flavor && s.os.Version == e2eos.Ubuntu2404.Version
+	if s.installMethod != InstallMethodInstallScript || !isUbuntu2404 || s.arch != e2eos.AMD64Arch {
+		s.T().Skip("Agent downgrade lifecycle is covered on Ubuntu 24.04 amd64 with the install script")
+	}
+	s.requireSystemd()
+
+	host := s.Env().RemoteHost
+	// Purge uses the downgraded Agent installer, which predates the current APM
+	// cleanup commands. Always remove the preload entry last so a same-host retry
+	// does not start with a dangling /run launcher after the reboot.
+	defer host.Execute("sudo rm -f /etc/ld.so.preload") //nolint:errcheck
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	defer s.Purge()
+
+	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
+	s.assertLDPreloadInstrumented(injectOCIPath)
+
+	unit, err := s.host.ReadFile("/etc/systemd/system/datadog-apm-inject.service")
+	require.NoError(s.T(), err)
+	require.Contains(s.T(), string(unit), "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer",
+		"test precondition: the unit must depend on the mutable Agent stable path")
+
+	recentAgentVersion := s.host.AgentStableVersion()
+	require.NotEqual(s.T(), agentVersionWithoutAPMSystemdCommands, recentAgentVersion,
+		"test requires a recent Agent before exercising the downgrade")
+
+	// Repeat the SSI installation while downgrading the Agent. Before the fix,
+	// the already-stable injector version was skipped and its post-install hook
+	// was not refreshed against the downgraded Agent.
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		"TESTING_APT_URL=",
+		"TESTING_APT_REPO_VERSION=",
+		"TESTING_YUM_URL=",
+		"TESTING_YUM_VERSION_PATH=",
+		"DD_REPO_URL=datadoghq.com",
+		"DD_AGENT_MAJOR_VERSION=7",
+		"DD_AGENT_MINOR_VERSION="+agentMinorVersionWithoutAPMSystemdCommands,
+	)
+	require.Equal(s.T(), agentVersionWithoutAPMSystemdCommands, s.host.AgentStableVersion())
+
+	// Explicitly run GC through the now-stable Agent installer and prove the
+	// recent Agent package is gone.
+	oldInstallerPath := "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer"
+	host.MustExecute("sudo " + oldInstallerPath + " garbage-collect")
+	_, err = host.Execute("test ! -e /opt/datadog-packages/datadog-agent/" + recentAgentVersion)
+	require.NoError(s.T(), err, "recent Agent version was not garbage-collected")
+
+	help, err := host.Execute("sudo " + oldInstallerPath + " apm --help")
+	require.NoError(s.T(), err, "could not inspect the downgraded embedded installer")
+	require.NotContains(s.T(), help, "instrument-start", "test precondition: 7.80.4 unexpectedly supports instrument-start")
+	require.NotContains(s.T(), help, "instrument-stop", "test precondition: 7.80.4 unexpectedly supports instrument-stop")
+
+	s.reboot()
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+
+	preload, err := s.host.ReadFile("/etc/ld.so.preload")
+	require.NoError(s.T(), err)
+	require.Contains(s.T(), string(preload), launcherPreloadPath)
+	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	_, err = host.Execute("test -e " + launcherPreloadPath)
+	require.NoError(s.T(), err, "ld.so.preload entry is dangling")
+	_, err = host.Execute("test ! -e /etc/systemd/system/datadog-apm-inject.service")
+	require.NoError(s.T(), err, "unsupported apm-inject service was not removed")
+	s.assertDockerdNotInstrumented()
+
+	stderr, err := host.Execute(`i=0; while [ "$i" -lt 10 ]; do /bin/true; i=$((i + 1)); done 2>&1`)
+	require.NoError(s.T(), err)
+	require.NotContains(s.T(), stderr, "cannot be preloaded")
 }
 
 // TestSystemdServiceRebootBrokenInjector verifies the safety property the

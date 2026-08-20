@@ -110,8 +110,10 @@ type Packages struct {
 }
 
 type packageWithVersion struct {
-	name    string
-	version string
+	name         string
+	version      string
+	forceInstall bool
+	refreshHooks bool
 }
 
 // Install marks a package to be installed
@@ -119,6 +121,26 @@ func (p *Packages) Install(pkg string, version string) {
 	p.install[pkg] = packageWithVersion{
 		name:    pkg,
 		version: version,
+	}
+}
+
+// reinstall marks a package to be installed even when the requested version is
+// already stable.
+func (p *Packages) reinstall(pkg string, version string) {
+	p.install[pkg] = packageWithVersion{
+		name:         pkg,
+		version:      version,
+		forceInstall: true,
+	}
+}
+
+// refresh marks an installed package's stable post-install hooks to be rerun
+// without replacing its repository contents.
+func (p *Packages) refresh(pkg string, version string) {
+	p.install[pkg] = packageWithVersion{
+		name:         pkg,
+		version:      version,
+		refreshHooks: true,
 	}
 }
 

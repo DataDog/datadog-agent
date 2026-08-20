@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
@@ -362,6 +363,36 @@ func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
 	newLastModTime, err := latestModTimeFS(r.StableFS(), ".")
 	assert.NoError(t, err)
 	assert.NotEqual(t, lastModTime, newLastModTime)
+}
+
+func TestRunPostInstallHookPreservesExperiment(t *testing.T) {
+	s := fixtures.NewServer(t)
+	installer := newTestPackageManager(t, s, t.TempDir())
+	defer installer.db.Close()
+	installer.testHooks.noop = true
+
+	require.NoError(t, installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil))
+	require.NoError(t, installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2)))
+	stateBefore, err := installer.State(testCtx, fixtures.FixtureSimpleV1.Package)
+	require.NoError(t, err)
+	require.True(t, stateBefore.HasExperiment())
+
+	installer.testHooks.noop = false
+	installer.testHooks.On(
+		"PostInstall",
+		testCtx,
+		fixtures.FixtureSimpleV1.Package,
+		packages.PackageTypeOCI,
+		false,
+		mock.Anything,
+	).Return(nil).Once()
+
+	require.NoError(t, installer.RunPostInstallHook(testCtx, fixtures.FixtureSimpleV1.Package))
+	stateAfter, err := installer.State(testCtx, fixtures.FixtureSimpleV1.Package)
+	require.NoError(t, err)
+	assert.Equal(t, stateBefore, stateAfter)
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), installer.packages.Get(fixtures.FixtureSimpleV1.Package).StableFS())
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), installer.packages.Get(fixtures.FixtureSimpleV1.Package).ExperimentFS())
 }
 
 func TestReinstallAfterDBClean(t *testing.T) {
