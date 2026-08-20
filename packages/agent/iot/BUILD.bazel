@@ -37,7 +37,12 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":dirs",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@systemd//:all_files",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # Called from omnibus datadog-iot-agent.rb (Linux only) after dda builds the binary:
