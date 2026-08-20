@@ -262,7 +262,6 @@ def _collect_test2json(ctx, test_artifacts, output_path):
                 manifest.writelines(f'{label}\t{log_path}\n' for log_path in test_artifacts[label]["log_paths"])
 
         bazel(
-            ctx,
             "run",
             "--config=gorace",  # to use same analysis cache across test & run commands
             "//bazel/tools/testlogs_to_json",
