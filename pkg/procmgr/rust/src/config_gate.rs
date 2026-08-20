@@ -1465,6 +1465,8 @@ process_config:
     fn missing_system_probe_without_fleet_blocks_gate() {
         with_env_lock(|| {
             clear_gated_env_vars();
+            // Linux schema default would otherwise enable discovery with no YAML file.
+            let _discovery = EnvGuard::set("DD_DISCOVERY_ENABLED", "false");
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1581,8 +1583,10 @@ process_config:
         });
     }
 
+    /// Env still drives `loadProcessTransforms`; fleet-only `process_config.enabled`
+    /// does not rewrite collection keys (`false` means containers-only).
     #[test]
-    fn fleet_legacy_beats_env_for_process_enabled_transform() {
+    fn env_legacy_transform_not_overridden_by_fleet_enabled() {
         with_env_lock(|| {
             clear_gated_env_vars();
 
@@ -1608,7 +1612,7 @@ process_config:
                 path: agent,
                 keys: vec!["process_config.process_collection.enabled".into()],
             }];
-            assert!(condition_config_any_met(&conditions));
+            assert!(!condition_config_any_met(&conditions));
         });
     }
 
@@ -1764,7 +1768,11 @@ process_config:
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
-            let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  enabled: false\n",
+            );
             assert!(!condition_config_any_met(
                 &process_agent_windows_conditions(agent, sysprobe)
             ));
@@ -1875,7 +1883,7 @@ process_config:
             let sysprobe = write_config(
                 dir.path(),
                 "system-probe.yaml",
-                "system_probe_config:\n  enabled: true\n",
+                "system_probe_config:\n  enabled: true\ndiscovery:\n  enabled: false\n",
             );
             assert!(!condition_config_any_met(
                 &process_agent_windows_conditions(agent, sysprobe)
@@ -1900,7 +1908,7 @@ process_config:
             let sysprobe = write_config(
                 dir.path(),
                 "system-probe.yaml",
-                "system_probe_config:\n  enabled: true\n",
+                "system_probe_config:\n  enabled: true\ndiscovery:\n  enabled: false\n",
             );
             let _fleet = EnvGuard::set(
                 "DD_FLEET_POLICIES_DIR",
@@ -1966,7 +1974,7 @@ process_config:
             let sysprobe = write_config(
                 dir.path(),
                 "system-probe.yaml",
-                "service_monitoring_config:\n  enabled: true\nnetwork_config:\n  enable_sk_tracer: true\n",
+                "service_monitoring_config:\n  enabled: true\nnetwork_config:\n  enable_sk_tracer: true\ndiscovery:\n  enabled: false\n",
             );
             assert!(!condition_config_any_met(
                 &process_agent_windows_conditions(agent, sysprobe)
@@ -2003,7 +2011,7 @@ process_config:
             let sysprobe = write_config(
                 dir.path(),
                 "system-probe.yaml",
-                "discovery:\n  service_map:\n    enabled: true\nnetwork_config:\n  enable_ebpfless: true\n",
+                "discovery:\n  enabled: false\n  service_map:\n    enabled: true\nnetwork_config:\n  enable_ebpfless: true\n",
             );
             assert!(!condition_config_any_met(
                 &process_agent_windows_conditions(agent, sysprobe)
@@ -2021,7 +2029,7 @@ process_config:
             let sysprobe = write_config(
                 dir.path(),
                 "system-probe.yaml",
-                "discovery:\n  service_map:\n    enabled: true\nnetwork_config:\n  enable_sk_tracer: true\n",
+                "discovery:\n  enabled: false\n  service_map:\n    enabled: true\nnetwork_config:\n  enable_sk_tracer: true\n",
             );
             assert!(!condition_config_any_met(
                 &process_agent_windows_conditions(agent, sysprobe)
@@ -2136,7 +2144,11 @@ process_config:
                 "service_monitoring_config:\n  enabled: false\n",
             );
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
-            let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  enabled: false\n",
+            );
             let _fleet = EnvGuard::set(
                 "DD_FLEET_POLICIES_DIR",
                 fleet_dir.to_string_lossy().as_ref(),
