@@ -24,6 +24,8 @@ use super::sid::lookup_account_sid;
 #[cfg(not(test))]
 use super::{open_datadog_agent_key, registry_nonempty_string};
 
+const AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
+const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 const NT_AUTHORITY: &str = "NT AUTHORITY";
 
 #[derive(Clone, PartialEq, Eq)]
@@ -67,6 +69,54 @@ impl AgentAccount {
     pub(crate) fn inherits_supervisor_token(&self) -> bool {
         matches!(self, AgentAccount::LocalSystem)
     }
+
+    /// Operator-facing account name for list/describe output.
+    pub(crate) fn display_name(&self) -> String {
+        self.account_name().display()
+    }
+
+    fn account_name(&self) -> AccountName {
+        match self {
+            AgentAccount::LocalSystem => AccountName::new(NT_AUTHORITY, "SYSTEM"),
+            AgentAccount::LocalService => AccountName::new(NT_AUTHORITY, "LocalService"),
+            AgentAccount::NetworkService => AccountName::new(NT_AUTHORITY, "NetworkService"),
+            AgentAccount::PasswordLogon { domain, user, .. }
+            | AgentAccount::ServiceAccountLogon { domain, user } => {
+                account_name_for_logon(domain, user)
+            }
+        }
+    }
+}
+
+/// Match registry-style local SAM display (`.\user`) when installer stored the computer name as domain.
+fn account_name_for_logon(domain: &str, user: &str) -> AccountName {
+    let display_domain = match lookup_account_sid(domain, user)
+        .ok()
+        .and_then(|sid| is_local_account(&sid).ok())
+    {
+        Some(true) => String::new(),
+        _ => domain.to_string(),
+    };
+    AccountName::new(display_domain, user)
+}
+
+/// Resolve the spawn account display string for a profile on Windows.
+#[cfg(any(test, feature = "test-helpers"))]
+pub(crate) fn spawn_user_for_profile(
+    process_name: &str,
+    profile: crate::spawn::SpawnProfile,
+) -> Result<String> {
+    match profile {
+        crate::spawn::SpawnProfile::Privileged => {
+            Ok(AccountName::new(NT_AUTHORITY, "SYSTEM").display())
+        }
+        crate::spawn::SpawnProfile::Agent => resolve_agent_account()
+            .with_context(|| {
+                format!("[{process_name}] resolve agent service account for spawn user")
+            })
+            .map(|account| account.display_name()),
+    }
+}
 
     /// Operator-facing account name for list/describe output.
     pub(crate) fn display_name(&self) -> String {

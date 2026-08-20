@@ -351,7 +351,7 @@ fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
 }
 
 fn process_identity(proc: &ManagedProcess) -> (String, String) {
-    (proc.profile().to_string(), proc.user().to_string())
+    (proc.profile().as_str().to_string(), proc.user().to_string())
 }
 
 #[cfg(test)]

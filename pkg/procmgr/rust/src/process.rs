@@ -9,7 +9,6 @@ use crate::handle::ProcessHandle;
 #[cfg(windows)]
 use crate::handle::ProcessWaitControl;
 use crate::platform;
-use crate::shutdown::ShutdownBudget;
 use crate::spawn::{SpawnProfile, profile_for};
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
@@ -139,6 +138,9 @@ enum ForceKillWaitTarget<'a> {
     Watcher(&'a mut Pin<&'a mut JoinHandle<Option<std::process::ExitStatus>>>),
     Child,
 }
+
+/// Placeholder until platform spawn resolves the intended account.
+const DEFERRED_SPAWN_USER: &str = "unknown";
 
 pub struct ManagedProcess {
     name: String,
