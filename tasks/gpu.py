@@ -7,6 +7,7 @@ import tempfile
 import traceback
 from pathlib import Path
 
+import requests
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
@@ -69,17 +70,22 @@ def download_gpu_burner(ctx, output_path: str):
 
     print(f"== Downloading gpu-burner to {destination} ==", flush=True)
     with tempfile.NamedTemporaryFile(prefix="gpu-burner-", suffix=".tar.gz") as archive:
-        ctx.run(
-            " ".join(
-                [
-                    "curl --fail --location",
-                    f"-H {shlex.quote(f'Authorization: {token}')}",
-                    shlex.quote(artifact_url),
-                    f"-o {shlex.quote(archive.name)}",
-                ]
-            ),
-            hide=True,
-        )
+        try:
+            response = requests.get(
+                artifact_url,
+                headers={"Authorization": token},
+                stream=True,
+                timeout=None,
+            )
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise Exit(message=f"failed to download gpu-burner from mASS: {e}") from e
+
+        with open(archive.name, "wb") as writer:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    writer.write(chunk)
+
         print(f"== Extracting gpu-burner to {destination} ==", flush=True)
         ctx.run(f"tar -xzf {shlex.quote(archive.name)} -C {shlex.quote(str(destination))}")
 
