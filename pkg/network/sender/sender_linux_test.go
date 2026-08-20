@@ -155,6 +155,21 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	}
 }
 
+func TestNetworkPathConnectionsBytes(t *testing.T) {
+	d := mockDirectSender(t)
+	conn := makeConnection(1)
+	conn.Last.SentBytes = 5
+	conn.Last.RecvBytes = 6
+
+	got := slices.Collect(d.networkPathConnections(&network.Connections{
+		BufferedData: network.BufferedData{Conns: []network.ConnectionStats{conn}},
+	}))
+
+	require.Len(t, got, 1)
+	assert.Equal(t, uint64(5), got[0].SentBytes)
+	assert.Equal(t, uint64(6), got[0].RecvBytes)
+}
+
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	d := mockDirectSender(t)
 	d.maxConnsPerMessage = 1

@@ -16,6 +16,7 @@ from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -635,6 +636,15 @@ def split_btfhub_constants(ctx):
 
 @task
 def generate_cws_proto(ctx):
+    print(
+        color_message(
+            """DEPRECATED - use one of the following instead:
+- bazel run //pkg/security/proto/api:write_pb_go
+- bazel run //:write_all
+""",
+            "orange",
+        )
+    )
     bazel("run", "//pkg/security/proto/api:write_pb_go")
 
 
