@@ -90,11 +90,19 @@ impl ProcessManager {
         handles: &RuntimeHandles,
     ) {
         let mut procs = self.processes.write().await;
-        let Some(proc) = procs.iter_mut().find(|p| p.uuid() == pending) else {
-            warn!("restart for unknown process '{pending}'");
+        let Some(proc) = procs.iter_mut().find(|p| p.uuid() == pending.uuid) else {
+            warn!("restart for unknown process '{}'", pending.uuid);
             return;
         };
         let name = proc.name().to_owned();
+        if pending.spawn_seq != proc.spawn_seq() {
+            info!(
+                "[{name}] ignoring stale queued restart (spawn_seq {} != {})",
+                pending.spawn_seq,
+                proc.spawn_seq()
+            );
+            return;
+        }
         if proc.is_running() {
             info!("[{name}] already running, skipping queued restart");
             return;
