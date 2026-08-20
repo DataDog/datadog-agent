@@ -168,11 +168,10 @@ namespace Datadog.CustomActions
         {
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
             var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
+            // No password to give the services. Only reachable for domain accounts: local accounts
+            // always get a generated password, and IsServiceAccount covers gMSA and the well known
+            // accounts.
             var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
-            // Only domain accounts can be left without a usable password: local accounts get a
-            // generated one, and IsServiceAccount covers gMSA and the well known accounts. Ordered so
-            // IsDomainAccount is only called when the password is missing.
-            var passwordUnavailable = passwordNotProvided && _nativeMethods.IsDomainAccount(ddAgentUserSID);
             if (passwordNotProvided)
             {
                 _session.Log("Password not provided, will not change service user password");
@@ -220,9 +219,9 @@ namespace Datadog.CustomActions
             }
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, ddAgentUserName, ddAgentUserPassword);
             // When procmgr moves back to LocalSystem, replace this with an unconditional enable rather
-            // than deleting it. passwordUnavailable describes the Agent user, and a disabled start type
+            // than deleting it. passwordNotProvided describes the Agent user, and a disabled start type
             // survives an upgrade, so hosts disabled here would otherwise stay disabled forever.
-            ConfigureProcmgrStartType(passwordUnavailable);
+            ConfigureProcmgrStartType(passwordNotProvided);
 
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
@@ -239,10 +238,10 @@ namespace Datadog.CustomActions
         /// logon until the account is locked out. Disable the service in that case so that it is never
         /// started, and set it back to demand start once a password is available again.
         /// </summary>
-        private void ConfigureProcmgrStartType(bool passwordUnavailable)
+        private void ConfigureProcmgrStartType(bool passwordNotProvided)
         {
             ServiceStartMode startType;
-            if (passwordUnavailable)
+            if (passwordNotProvided)
             {
                 startType = ServiceStartMode.Disabled;
                 _session.Log(
