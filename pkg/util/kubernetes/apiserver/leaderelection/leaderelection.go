@@ -71,8 +71,8 @@ type LeaderEngine struct {
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
 	lockType            string
-	initMutex sync.Mutex
-	initDone  bool
+	initMutex           sync.Mutex
+	initDone            bool
 
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
