@@ -10,7 +10,7 @@ import (
 	"embed"
 	"errors"
 	"io/fs"
-	"path/filepath"
+	"path"
 )
 
 // ScriptDDCleanup is the embedded dd-cleanup script.
@@ -75,12 +75,12 @@ const (
 
 // GetSystemdUnit returns the unit for the given name, for the plain systemd service manager.
 func GetSystemdUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	return systemdUnits.ReadFile(filepath.Join("tmpl/gen/sd", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+	return systemdUnits.ReadFile(path.Join("tmpl/gen/sd", flavorDir(unitType, ambiantCapabilitiesSupported), name))
 }
 
 // GetProcmgrUnit returns the unit for the given name, for the procmgr service manager.
 func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	data, err := procmgrUnits.ReadFile(filepath.Join("tmpl/gen/pm", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+	data, err := procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", flavorDir(unitType, ambiantCapabilitiesSupported), name))
 	if errors.Is(err, fs.ErrNotExist) {
 		return GetSystemdUnit(name, unitType, ambiantCapabilitiesSupported)
 	}
@@ -89,7 +89,7 @@ func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported
 
 // GetProcmgrProcess returns the process config for the given name (actually only for procmgr)
 func GetProcmgrProcess(name string) ([]byte, error) {
-	return procmgrUnits.ReadFile(filepath.Join("tmpl/gen/pm", "processes.d", name))
+	return procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", "processes.d", name))
 }
 
 func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
