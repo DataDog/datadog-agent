@@ -69,7 +69,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `sysctl` | Kernel | A sysctl parameter was read or modified | 7.65 |
 | `unlink` | File | A file was deleted | 7.27 |
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
-| `unshare` | Kernel | A process created new namespaces | 7.83 |
+| `unshare` | Kernel | A process created new namespaces | 7.84 |
 | `utimes` | File | Change file access/modification times | 7.27 |
 
 ## FIM triggers
