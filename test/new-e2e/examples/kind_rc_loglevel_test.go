@@ -8,9 +8,9 @@ package examples
 // This example shows how to use fakeintake's Remote Config backend to change
 // the agent's log level at runtime on a Kind (Kubernetes-in-Docker) cluster.
 //
-// The Kind cluster, fakeintake, and Agent are all provisioned through Pulumi.
-// The Pulumi Agent component wires the Agent to fakeintake's Remote Config
-// endpoint and signing roots.
+// Remote Config is wired automatically: every awskubernetes.Provisioner() run
+// starts fakeintake with a fixed TUF signing key and configures the agent to
+// point at fakeintake's RC endpoint — no extra provisioner options needed.
 //
 // Flow:
 //  1. Agent pods start at the default (info) log level — no DEBUG lines in the log.
@@ -30,8 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
-	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
@@ -46,15 +44,9 @@ type rcLogLevelKindExampleSuite struct {
 //
 //	dda inv new-e2e-tests.run --targets=./examples/... -run TestRCLogLevelKindExampleSuite
 func TestRCLogLevelKindExampleSuite(t *testing.T) {
-	t.Parallel()
+	// RC is wired automatically — no special provisioner option is required.
 	e2e.Run(t, &rcLogLevelKindExampleSuite{},
-		e2e.WithProvisioner(awskubernetes.Provisioner(
-			awskubernetes.WithRunOptions(
-				scenariokindvm.WithAgentOptions(
-					kubernetesagentparams.WithNamespace("datadog"),
-				),
-			),
-		)),
+		e2e.WithProvisioner(awskubernetes.Provisioner()),
 	)
 }
 
