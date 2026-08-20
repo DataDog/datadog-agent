@@ -101,7 +101,7 @@ func windowsUserProfileEnvMarkerPath(runID int64) string {
 func windowsUserProfileEnvCreateArgs(procName, markerPath string) string {
 	psCommand := fmt.Sprintf(`$env:USERPROFILE | Set-Content -LiteralPath '%s'`, markerPath)
 	return psRemote(
-		`create --name '%s' --command '%s' --args -NoProfile --args -NonInteractive --args -Command --args '%s' --env SystemRoot=C:\Windows --env 'PATH=C:\Windows\System32;C:\Windows' --restart-policy always --description 'E2E userprofile env check'`,
+		`create --name '%s' --command '%s' --args '-NoProfile' --args '-NonInteractive' --args '-Command' --args '%s' --env SystemRoot=C:\Windows --env 'PATH=C:\Windows\System32;C:\Windows' --restart-policy always --description 'E2E userprofile env check'`,
 		procName,
 		winSleepCommand,
 		psCommand,
