@@ -180,6 +180,9 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDi
 		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "install_pre_lsa_secret.log")))
 	suite.Require().NoError(err, "should succeed to install Agent %s with a domain account & password", preLSASecretAgentVersion)
 
+	// Reset fakeintake so the post-upgrade payload check below can't pass on data sent by the pre-upgrade install.
+	suite.Require().NoError(suite.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
 	// Upgrade without providing the password.
 	_, err = suite.InstallAgent(host,
 		windowsAgent.WithPackage(suite.AgentPackage),
