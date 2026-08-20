@@ -110,8 +110,9 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
         }
     }
 
+    // config.go:199-203: LogonDurationModule reads core datadog.yaml, not system-probe.yaml.
     #[cfg(target_os = "macos")]
-    if cfg.sp_bool("logon_duration.enabled")? {
+    if cfg.agent_bool("logon_duration.enabled")? {
         return Ok(true);
     }
 
