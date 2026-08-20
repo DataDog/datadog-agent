@@ -63,7 +63,6 @@ dd_agent_go_test(
         "//pkg/fleet/installer/repository",
         "//pkg/procmgr/coat",
         "//pkg/proto/pbgo/core",
-        "//pkg/proto/pbgo/procmgr",
         "//pkg/remoteconfig/state",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
