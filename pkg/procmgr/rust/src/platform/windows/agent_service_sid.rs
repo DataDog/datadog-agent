@@ -8,7 +8,7 @@ use anyhow::{Context, Result, bail};
 use log::info;
 use std::ptr;
 use windows_sys::Win32::System::Services::{
-    CloseServiceHandle, OpenSCManagerW, OpenServiceW, QUERY_SERVICE_CONFIGW, QueryServiceConfigW,
+    CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceConfigW, QUERY_SERVICE_CONFIGW,
     SC_HANDLE, SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
 };
 
@@ -119,7 +119,7 @@ fn service_start_name(service_name: &str) -> Result<String> {
         );
     }
 
-    let config = unsafe { ptr::read_unaligned(buffer.as_ptr().cast::<QUERY_SERVICE_CONFIGW>()) };
+    let config = ptr::read_unaligned(buffer.as_ptr().cast::<QUERY_SERVICE_CONFIGW>());
     let start_name = wide::from_ptr(config.lpServiceStartName);
     if start_name.is_empty() {
         bail!("QueryServiceConfigW({service_name}): empty service start name");
