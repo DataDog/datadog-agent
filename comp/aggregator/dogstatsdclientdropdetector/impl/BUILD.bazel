@@ -3,38 +3,33 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["dogstatsdclienttelemetry.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/impl",
+    srcs = ["dogstatsdclientdropdetector.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/dogstatsdclientdropdetector/def",
-        "//comp/aggregator/dogstatsdclienttelemetry/def",
-        "//comp/core/telemetry/def",
-        "//pkg/aggregator",
-        "//pkg/metrics",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/healthplatform/issues/dogstatsdclientdrops",
+        "//comp/healthplatform/store/def",
     ],
 )
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = [
-        "dogstatsdclientdropdetector_bench_test.go",
-        "dogstatsdclienttelemetry_bench_test.go",
-        "dogstatsdclienttelemetry_test.go",
-    ],
+    srcs = ["dogstatsdclientdropdetector_test.go"],
     embed = [":impl"],
     deps = [
         "//comp/aggregator/dogstatsdclientdropdetector/def",
-        "//comp/aggregator/dogstatsdclientdropdetector/impl",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
-        "//comp/core/telemetry/def",
-        "//comp/core/telemetry/mock",
         "//comp/def",
+        "//comp/healthplatform/issues/dogstatsdclientdrops",
+        "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/mock",
-        "//pkg/metrics",
-        "//pkg/tagset",
         "@com_github_stretchr_testify//require",
     ],
 )
