@@ -3075,6 +3075,7 @@ core,go.temporal.io/api/schedule/v1,MIT,Copyright (c) 2025 Temporal Technologies
 core,go.temporal.io/api/sdk/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/serviceerror,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/taskqueue/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/temporalnexus,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/temporalproto,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/update/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/version/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
