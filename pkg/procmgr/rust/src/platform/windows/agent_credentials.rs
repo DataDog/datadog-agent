@@ -187,11 +187,7 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     resolve_domain_agent_account(domain, user, &sid)
 }
 
-fn resolve_domain_agent_account(
-    domain: String,
-    user: String,
-    sid: &[u8],
-) -> Result<AgentAccount> {
+fn resolve_domain_agent_account(domain: String, user: String, sid: &[u8]) -> Result<AgentAccount> {
     let display = AccountName::new(&domain, &user).display();
     info!("resolving domain agent account for {display}");
     let is_local =
@@ -210,7 +206,9 @@ fn resolve_domain_agent_account(
 /// Skip the DC-dependent query when a regular domain account already has a stored password.
 fn should_query_managed_service_account(user: &str, lsa_password: Option<&str>) -> bool {
     user.ends_with('$')
-        || lsa_password.filter(|password| !password.is_empty()).is_none()
+        || lsa_password
+            .filter(|password| !password.is_empty())
+            .is_none()
 }
 
 /// Pick the spawn credential type from gMSA classification and optional LSA password.
@@ -242,9 +240,8 @@ fn agent_account_from_msa_and_lsa(
 
 fn should_use_lsa_password(user: &str, msa: ManagedServiceAccountState) -> bool {
     match msa {
-        ManagedServiceAccountState::NotService | ManagedServiceAccountState::AssumeRegularDomainAccount => {
-            true
-        }
+        ManagedServiceAccountState::NotService
+        | ManagedServiceAccountState::AssumeRegularDomainAccount => true,
         ManagedServiceAccountState::ClassificationUnavailable => !user.ends_with('$'),
         ManagedServiceAccountState::Installed
         | ManagedServiceAccountState::NotExist
@@ -268,8 +265,10 @@ fn passwordless_agent_account(
     }
 
     match msa {
-        ManagedServiceAccountState::Installed
-        | ManagedServiceAccountState::ClassificationUnavailable if user.ends_with('$') => {
+        ManagedServiceAccountState::Installed => {
+            Ok(AgentAccount::ServiceAccountLogon { domain, user })
+        }
+        ManagedServiceAccountState::ClassificationUnavailable if user.ends_with('$') => {
             Ok(AgentAccount::ServiceAccountLogon { domain, user })
         }
         ManagedServiceAccountState::ClassificationUnavailable if user.ends_with('$') => {
@@ -630,10 +629,16 @@ mod tests {
 
     #[test]
     fn should_query_managed_service_account_skips_dc_for_password_backed_domain_accounts() {
-        assert!(!should_query_managed_service_account("ddagent", Some("secret")));
+        assert!(!should_query_managed_service_account(
+            "ddagent",
+            Some("secret")
+        ));
         assert!(should_query_managed_service_account("ddagent", None));
         assert!(should_query_managed_service_account("ddagent", Some("")));
-        assert!(should_query_managed_service_account("gmsa$", Some("secret")));
+        assert!(should_query_managed_service_account(
+            "gmsa$",
+            Some("secret")
+        ));
     }
 
     #[test]
