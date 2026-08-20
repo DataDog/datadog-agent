@@ -290,7 +290,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/google/btree v1.1.3
-	github.com/google/cel-go v0.29.2
+	github.com/google/cel-go v0.31.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.7
 	github.com/google/gofuzz v1.2.0
@@ -369,7 +369,7 @@ require (
 	github.com/prometheus/procfs v0.21.1
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/rabbitmq/amqp091-go v1.12.0
-	github.com/redis/go-redis/v9 v9.21.0
+	github.com/redis/go-redis/v9 v9.22.0
 	github.com/rickar/props v1.1.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846
@@ -390,7 +390,7 @@ require (
 	github.com/swaggest/jsonschema-go v0.3.79
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.4
-	github.com/twmb/franz-go v1.21.5
+	github.com/twmb/franz-go v1.21.6
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	github.com/twmb/murmur3 v1.1.8
@@ -456,8 +456,8 @@ require (
 	go.opentelemetry.io/otel/sdk v1.44.0
 	go.opentelemetry.io/otel/sdk/metric v1.44.1-0.20260622141720-fbe3d073ba93
 	go.opentelemetry.io/otel/trace v1.44.1-0.20260622141720-fbe3d073ba93
-	go.temporal.io/api v1.63.3
-	go.temporal.io/sdk v1.46.0
+	go.temporal.io/api v1.63.4
+	go.temporal.io/sdk v1.47.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/dig v1.19.0
