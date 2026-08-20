@@ -9,7 +9,7 @@
 //! `cmd/agent/subcommands/run/dependent_services_windows.go`: start only when any
 //! configured key evaluates to true. Resolution order matches agent config
 //! (`pkg/config/model/types.go`): agent-runtime transforms, then fleet policy,
-//! environment variables, explicit base YAML, then agent default.
+//! environment variables, explicit base YAML, infra-mode, then agent default.
 //!
 //! When deprecated `process_config.enabled` is set in file or env, collection keys
 //! follow `loadProcessTransforms` in `pkg/config/setup/process.go`: the deprecated
@@ -18,6 +18,11 @@
 //! The transform runs in `LoadDatadog` before `MergeFleetPolicy`, so fleet-only
 //! `process_config.enabled` does not rewrite collection keys, and a transform
 //! write (`SourceAgentRuntime`) outranks a later fleet policy.
+//!
+//! `infrastructure_mode: end_user_device` enables process collection at
+//! `SourceInfraMode` (`applyInfrastructureModeOverrides`). That applies only when
+//! the key was not set via fleet, env, or file, and was not filled by the legacy
+//! transform.
 //!
 //! Derived `system_probe_config.enabled` (module knobs) is implemented in
 //! [`system_probe`] and must stay in sync with `pkg/system-probe/config/config.go`.
@@ -108,7 +113,8 @@ const LEGACY_PROCESS_ENABLED_KEY: &str = "process_config.enabled";
 impl GatedKeySpec {
     /// Resolution order (most keys): legacy `process_config.enabled` transform
     /// (collection keys not already set in file/env; AgentRuntime, so it outranks
-    /// fleet) → fleet policy → env → base YAML → agent default.
+    /// fleet) → fleet policy → env → base YAML → infra-mode (`end_user_device`
+    /// enables process collection) → agent default.
     ///
     /// `system_probe_config.enabled` is special: returns [`system_probe::derived_enabled`] only,
     /// mirroring post-`load()`/`Adjust` `GetBool` (module-derived runtime value).
@@ -138,7 +144,11 @@ impl GatedKeySpec {
         if let Some(enabled) = yaml.bool_key_if_exists(base_path, self.key)? {
             return Ok(enabled);
         }
-        Ok(self.default)
+        if self.infra_mode_process_collection_override(base_path, yaml)? {
+            Ok(true)
+        } else {
+            Ok(self.default)
+        }
     }
 
     fn uses_legacy_process_enabled(&self) -> bool {
@@ -190,6 +200,21 @@ impl GatedKeySpec {
             transform_time_bool(yaml, base_path, "process_config.process_collection.enabled")?
                 .unwrap_or(mode.process_collection());
         Ok(Some(process_collection))
+    }
+
+    /// `applyInfrastructureModeOverrides`: `end_user_device` enables process collection
+    /// at `SourceInfraMode` (above default, below file/env/fleet).
+    fn infra_mode_process_collection_override(
+        &self,
+        base_path: &str,
+        yaml: &mut YamlCache,
+    ) -> anyhow::Result<bool> {
+        if self.key != "process_config.process_collection.enabled" {
+            return Ok(false);
+        }
+        Ok(yaml
+            .resolve_string(base_path, "infrastructure_mode", self.fleet_policy_file)?
+            .is_some_and(|mode| mode == "end_user_device"))
     }
 
     fn fleet_policy_value(
@@ -1017,6 +1042,70 @@ process_config:
                 fleet_dir.to_string_lossy().as_ref(),
             );
             assert_gate_key(&agent, "process_config.enabled", false);
+            assert_gate_key(&agent, "process_config.process_collection.enabled", false);
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn end_user_device_enables_process_collection_when_unset() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "infrastructure_mode: end_user_device\nprocess_config:\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            assert_gate_key(&agent, "process_config.process_collection.enabled", true);
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn explicit_process_collection_wins_over_end_user_device() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "infrastructure_mode: end_user_device\nprocess_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            assert_gate_key(&agent, "process_config.process_collection.enabled", false);
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn end_user_device_env_enables_process_collection_when_unset() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _mode = EnvGuard::set("DD_INFRASTRUCTURE_MODE", "end_user_device");
+            let _container =
+                EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
+            let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "false");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", "# api_key: placeholder\n");
+            assert_gate_key(&agent, "process_config.process_collection.enabled", true);
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn legacy_transform_overrides_end_user_device_process_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "infrastructure_mode: end_user_device\nprocess_config:\n  enabled: disabled\n  process_discovery:\n    enabled: false\n",
+            );
             assert_gate_key(&agent, "process_config.process_collection.enabled", false);
             assert!(!condition_config_any_met(&process_agent_conditions(agent)));
         });
