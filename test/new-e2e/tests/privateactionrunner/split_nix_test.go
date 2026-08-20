@@ -77,6 +77,18 @@ func TestLinuxPARSplitSuite(t *testing.T) {
 // ordered flow: OPMS polling and liveness, idle executor reclamation, on-demand
 // action execution and publication, and graceful control-plane shutdown. Keeping
 // the flow in one test avoids order dependencies between suite methods.
+func (s *linuxPARSplitSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	_, err := s.Env().RemoteHost.Execute(
+		`sudo sh -c 'grep -qxF "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true" /etc/datadog-agent/environment 2>/dev/null || printf "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true\n" >> /etc/datadog-agent/environment'`,
+	)
+	s.Require().NoError(err)
+	_, err = s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent-procmgr.service")
+	s.Require().NoError(err)
+}
+
 func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	client := s.Env().FakeIntake.Client()
 	s.Require().NoError(client.FlushPAR(), "reset PAR state so same-host retries are independent")
@@ -84,10 +96,10 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	s.T().Cleanup(s.resetSigningKeyState)
 	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey1.id, s.signingKey1.id, s.signingKey1.config))
 
-	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
+	s.waitForProcessStateStable(parControlProcess, "Running", 5*time.Second, 2*time.Minute)
 	// Exactly one process may poll OPMS in split mode. Confirm the monolithic
-	// runner has exited before attributing the requests below to par-control.
-	s.waitForProcessState(parMonolithProcess, "Exited", 2*time.Minute)
+	// systemd service has exited before attributing the requests below to par-control.
+	s.waitForSystemdState(privateActionRunnerServiceName, "inactive", 2*time.Minute)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPARDequeueCount()
 		require.NoError(c, err)
@@ -454,21 +466,46 @@ func (s *linuxPARSplitSuite) runProcmgr(command, name string) error {
 
 func (s *linuxPARSplitSuite) waitForProcessState(name, state string, timeout time.Duration) {
 	s.T().Helper()
+	s.waitForProcessStateStable(name, state, 0, timeout)
+}
+
+func (s *linuxPARSplitSuite) waitForProcessStateStable(name, state string, stableFor, timeout time.Duration) {
+	s.T().Helper()
 	var lastOutput string
+	var matchingSince time.Time
 	ok := assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
 			"sudo %s --socket %s describe %s", procmgrCLI, procmgrSocket, name,
 		))
 		lastOutput = output
-		assert.NoError(c, err)
-		assert.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state)
-	}, timeout, 2*time.Second, "%s should become %s", name, state)
+		if !assert.NoError(c, err) {
+			matchingSince = time.Time{}
+			return
+		}
+		if !assert.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state) {
+			matchingSince = time.Time{}
+			return
+		}
+		if matchingSince.IsZero() {
+			matchingSince = time.Now()
+		}
+		assert.GreaterOrEqual(c, time.Since(matchingSince), stableFor)
+	}, timeout, 2*time.Second, "%s should become %s and remain there for %s", name, state, stableFor)
 	if !ok {
 		journal, _ := s.Env().RemoteHost.Execute(
 			"sudo journalctl -u datadog-agent-procmgr.service --no-pager -n 500 --output=cat",
 		)
 		s.Require().FailNowf("process did not reach expected state",
-			"%s should become %s\nlast describe output:\n%s\ndd-procmgrd journal tail:\n%s",
-			name, state, lastOutput, journal)
+			"%s should become %s and remain there for %s\nlast describe output:\n%s\ndd-procmgrd journal tail:\n%s",
+			name, state, stableFor, lastOutput, journal)
 	}
+}
+
+func (s *linuxPARSplitSuite) waitForSystemdState(name, state string, timeout time.Duration) {
+	s.T().Helper()
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl is-active %s || true", name))
+		require.NoError(c, err)
+		require.Equal(c, state, strings.TrimSpace(output))
+	}, timeout, 2*time.Second, "%s should become %s", name, state)
 }

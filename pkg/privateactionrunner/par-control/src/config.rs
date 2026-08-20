@@ -328,21 +328,20 @@ fn resolve_opms_base_url(
 ) -> Result<String> {
     if let Some(raw_url) = dd_url.filter(|url| !url.is_empty()) {
         let url = reqwest::Url::parse(raw_url).context("invalid dd_url")?;
-        if url.scheme() == "http" {
-            if !allow_insecure_opms {
-                bail!("plaintext OPMS requires {SKIP_TASK_VERIFICATION_ENV}=true");
-            }
-            let host = url.host_str().context("dd_url has no host")?;
+        if !matches!(url.scheme(), "http" | "https") {
+            bail!("unsupported dd_url scheme {:?}", url.scheme());
+        }
+        let host = url.host_str().context("dd_url has no host")?;
+        if allow_insecure_opms {
             let authority = match url.port() {
                 Some(port) => format!("{host}:{port}"),
                 None => host.to_string(),
             };
-            return Ok(format!("http://{authority}"));
+            return Ok(format!("{}://{authority}", url.scheme()));
         }
-        if url.scheme() != "https" {
-            bail!("unsupported dd_url scheme {:?}", url.scheme());
+        if url.scheme() == "http" {
+            bail!("plaintext OPMS endpoint is not allowed");
         }
-        let host = url.host_str().context("dd_url has no host")?;
         let site = extract_datadog_site(host).with_context(|| {
             format!("cannot derive a Datadog site from HTTPS dd_url {raw_url:?}")
         })?;
@@ -552,12 +551,17 @@ private_action_runner:
     }
 
     #[test]
-    fn plaintext_opms_requires_test_bypass() {
+    fn custom_opms_requires_test_bypass() {
         assert_eq!(
             resolve_opms_base_url(None, Some("http://fake-opms:8080"), true).unwrap(),
             "http://fake-opms:8080"
         );
+        assert_eq!(
+            resolve_opms_base_url(None, Some("https://fake-opms:8443"), true).unwrap(),
+            "https://fake-opms:8443"
+        );
         assert!(resolve_opms_base_url(None, Some("http://fake-opms:8080"), false).is_err());
+        assert!(resolve_opms_base_url(None, Some("https://fake-opms:8443"), false).is_err());
     }
 
     #[test]
