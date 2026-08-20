@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestClientAuthRequiresVerification(t *testing.T) {
@@ -93,5 +94,32 @@ func TestValidate(t *testing.T) {
 			ClientAuth: tls.VerifyClientCertIfGiven,
 		}
 		assert.NoError(t, c.Validate())
+	})
+
+	t.Run("allowed_client_names with required client auth is OK", func(t *testing.T) {
+		c := &ServerConfig{
+			CertFile:           "/cert",
+			KeyFile:            "/key",
+			CAFile:             "/ca",
+			AllowedClientNames: []string{"relay.example.com"},
+			ClientAuth:         tls.RequireAndVerifyClientCert,
+		}
+		assert.NoError(t, c.Validate())
+	})
+
+	// "optional" lets a client skip its certificate, and the allowlist with it.
+	t.Run("allowed_client_names without required client auth is rejected", func(t *testing.T) {
+		for _, auth := range []tls.ClientAuthType{tls.NoClientCert, tls.RequestClientCert, tls.RequireAnyClientCert, tls.VerifyClientCertIfGiven} {
+			c := &ServerConfig{
+				CertFile:           "/cert",
+				KeyFile:            "/key",
+				CAFile:             "/ca",
+				AllowedClientNames: []string{"relay.example.com"},
+				ClientAuth:         auth,
+			}
+			err := c.Validate()
+			require.Error(t, err, "client auth %d should be rejected", auth)
+			assert.Contains(t, err.Error(), "allowed_client_names requires client_auth")
+		}
 	})
 }

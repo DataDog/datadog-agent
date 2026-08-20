@@ -13,6 +13,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -824,4 +825,142 @@ func TestTCPMTLSRejectsExpiredClientCert(t *testing.T) {
 	assert.Equal(t, 0, len(listener.tailers), "no tailer should exist for an expired client cert")
 
 	listener.Stop()
+}
+
+func TestTCPMTLSAcceptsAllowedClientName(t *testing.T) {
+	pki := generateTestPKI(t)
+	serverCert, serverKey := pki.issueServerCert(t)
+	clientCert, clientKey := pki.issueClientCert(t)
+
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+
+	src := sources.NewLogSource("", &config.LogsConfig{
+		Port: tcpTestPort,
+		TLS: &config.TLSListenerConfig{
+			CertFile:   serverCert,
+			KeyFile:    serverKey,
+			CAFile:     pki.caPath,
+			ClientAuth: "required",
+			// The test PKI issues client certificates with common name "client".
+			AllowedClientNames: config.StringSliceField{"other-relay", "client"},
+		},
+	})
+
+	listener, err := NewTCPListener(pp, src, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	defer listener.Stop()
+	require.NotNil(t, listener.listener)
+
+	clientTLSCert, err := tls.LoadX509KeyPair(clientCert, clientKey)
+	require.NoError(t, err)
+
+	conn, err := dialTLSWithRetry(t, listener.listener.Addr().String(), &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec
+		Certificates:       []tls.Certificate{clientTLSCert},
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	fmt.Fprint(conn, "allowed name\n")
+	msg := <-msgChan
+	assert.Equal(t, "allowed name", string(msg.GetContent()))
+}
+
+// A certificate the CA vouches for is still turned away when its identity is
+// not on the list, which is the whole point of the setting.
+func TestTCPMTLSRejectsUnlistedClientName(t *testing.T) {
+	pki := generateTestPKI(t)
+	serverCert, serverKey := pki.issueServerCert(t)
+	clientCert, clientKey := pki.issueClientCert(t)
+
+	pp := mock.NewMockProvider()
+
+	src := sources.NewLogSource("", &config.LogsConfig{
+		Port: tcpTestPort,
+		TLS: &config.TLSListenerConfig{
+			CertFile:           serverCert,
+			KeyFile:            serverKey,
+			CAFile:             pki.caPath,
+			ClientAuth:         "required",
+			AllowedClientNames: config.StringSliceField{"some-other-relay"},
+		},
+	})
+
+	listener, err := NewTCPListener(pp, src, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	defer listener.Stop()
+	require.NotNil(t, listener.listener)
+
+	clientTLSCert, err := tls.LoadX509KeyPair(clientCert, clientKey)
+	require.NoError(t, err)
+
+	conn, dialErr := tls.Dial("tcp", listener.listener.Addr().String(), &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec
+		Certificates:       []tls.Certificate{clientTLSCert},
+	})
+
+	if dialErr == nil {
+		// TLS 1.3: the server rejects after the handshake completes, so the
+		// failure only surfaces on the first I/O. Closing the connection before
+		// the listener stops keeps a regression from hanging Stop().
+		defer conn.Close()
+		conn.SetDeadline(time.Now().Add(5 * time.Second)) //nolint:errcheck
+		_, writeErr := fmt.Fprint(conn, "should fail\n")
+		if writeErr == nil {
+			buf := make([]byte, 1)
+			_, readErr := conn.Read(buf)
+			require.Error(t, readErr, "server should reject an unlisted client name")
+			// A read deadline would also produce an error, which would let this
+			// assertion pass on a server that quietly accepted the connection.
+			var netErr net.Error
+			if errors.As(readErr, &netErr) {
+				assert.False(t, netErr.Timeout(), "server left the connection open instead of rejecting the unlisted client name")
+			}
+		}
+	}
+
+	assert.Equal(t, 0, len(listener.tailers), "no tailer should exist for an unlisted client name")
+}
+
+// Without the setting, any client the CA trusts is still accepted.
+func TestTCPMTLSAcceptsAnyClientWhenNoNamesConfigured(t *testing.T) {
+	pki := generateTestPKI(t)
+	serverCert, serverKey := pki.issueServerCert(t)
+	clientCert, clientKey := pki.issueClientCert(t)
+
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+
+	src := sources.NewLogSource("", &config.LogsConfig{
+		Port: tcpTestPort,
+		TLS: &config.TLSListenerConfig{
+			CertFile:   serverCert,
+			KeyFile:    serverKey,
+			CAFile:     pki.caPath,
+			ClientAuth: "required",
+		},
+	})
+
+	listener, err := NewTCPListener(pp, src, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	defer listener.Stop()
+	require.NotNil(t, listener.listener)
+
+	clientTLSCert, err := tls.LoadX509KeyPair(clientCert, clientKey)
+	require.NoError(t, err)
+
+	conn, err := dialTLSWithRetry(t, listener.listener.Addr().String(), &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec
+		Certificates:       []tls.Certificate{clientTLSCert},
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	fmt.Fprint(conn, "no allowlist\n")
+	msg := <-msgChan
+	assert.Equal(t, "no allowlist", string(msg.GetContent()))
 }
