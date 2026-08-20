@@ -91,9 +91,11 @@ fn try_auto_start(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::config::{
         ConfigLoader, ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader,
     };
+    use crate::config_gate::ConditionConfigFile;
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, UuidGenerator, V4UuidGenerator};
     use std::io::Write;
