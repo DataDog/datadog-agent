@@ -7,6 +7,7 @@
 package otelagent
 
 import (
+	"context"
 	_ "embed"
 	"testing"
 	"time"
@@ -17,6 +18,9 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	pulumicorev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	k8sclient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -56,7 +60,10 @@ const gatewayNamespace = "datadog-gateway"
 // through the OTLP pipeline already — leaving file tailing on double-ingests
 // the calendar app's stdout, and that copy lacks the OTLP-derived tags
 // (e.g. custom.attribute, k8s.container.name) that utils.TestLogs asserts on
-// (mirrors gatewayTestSuite's values in gateway_test.go).
+// (mirrors gatewayTestSuite's values in gateway_test.go). Finally, it disables
+// the core node-agent DaemonSet entirely (agents.enabled: false): this suite
+// is meant to exercise the gateway collector on its own, and TestNoCoreAgent
+// asserts this Helm release never runs a core Agent pod alongside it.
 const dogtelGatewayHelmValues = `
 datadog:
   otelCollector:
@@ -64,6 +71,8 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
+agents:
+  enabled: false
 `
 
 // dogtelGatewayTestSuite verifies a standalone otel-agent (DD_OTEL_STANDALONE=true,
@@ -208,4 +217,22 @@ func (s *dogtelGatewayTestSuite) TestOTLPLogs() {
 // end-to-end through the leaf -> gateway -> fakeintake path.
 func (s *dogtelGatewayTestSuite) TestHosts() {
 	utils.TestHosts(s)
+}
+
+// TestNoCoreAgent verifies neither side of this topology runs a core Datadog
+// Agent pod: the leaf is a bare DaemonSet manifest containing only an
+// otel-agent container (otelstandalone.K8sAppDefinition never creates a core
+// Agent), and the gateway's Helm release sets agents.enabled: false in
+// dogtelGatewayHelmValues so only the otelAgentGateway Deployment is created.
+func (s *dogtelGatewayTestSuite) TestNoCoreAgent() {
+	assertNoPodWithAppLabel(s.T(), s.Env().KubernetesCluster.Client(), "datadog", coreAgentPodLabel)
+	assertNoPodWithAppLabel(s.T(), s.Env().KubernetesCluster.Client(), gatewayNamespace, coreAgentPodLabel)
+}
+
+func assertNoPodWithAppLabel(t *testing.T, client k8sclient.Interface, namespace, appLabel string) {
+	res, err := client.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, res.Items, "expected no core agent pod (app=%q) in namespace %q", appLabel, namespace)
 }
