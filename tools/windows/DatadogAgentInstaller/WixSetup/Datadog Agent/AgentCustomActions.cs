@@ -787,13 +787,15 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
-            // Runs on every install/upgrade/repair/uninstall pass.
+            // Scheduled right after InstallInitialize, the earliest a deferred action can run:
+            // the config root must already be secure before any other install/uninstall action
+            // that may rely on its contents.
             DDCreateFolders = new CustomAction<CustomActions>(
                     new Id(nameof(DDCreateFolders)),
                     CustomActions.DDCreateFolders,
                     Return.check,
-                    When.Before,
-                    Step.CreateFolders,
+                    When.After,
+                    Step.InstallInitialize,
                     Condition.Always
                     )
             {
