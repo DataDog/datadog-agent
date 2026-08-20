@@ -113,6 +113,25 @@ func TestDDOTSeriesV3NotForcedForNonDatadogSite(t *testing.T) {
 	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
 }
 
+// TestDDOTSeriesV3NotForcedBehindProxy verifies a proxied Agent is NOT force-opted into v3,
+// even on a default Datadog endpoint. A forwarding proxy may inflate/recompress payloads and
+// reject the v3 format (and custom proxy/pipeline endpoints may not support v3 yet), so per
+// the v3 migration RFC a proxied deployment stays on v2 under datadog_only.
+func TestDDOTSeriesV3NotForcedBehindProxy(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_PROXY_HTTPS", "http://proxy.corp.internal:3128")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	require.Equal(t, "https://api.datadoghq.com", c.GetString("dd_url"))
+	require.NotEmpty(t, c.GetString("proxy.https"), "proxy env var must be loaded")
+
+	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
+	_, present := endpoints[c.GetString("dd_url")]
+	assert.False(t, present, "a proxied Agent must not be force-opted into v3")
+	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
+}
+
 // TestDDOTSeriesV3RespectsExplicitOptOut verifies DD_USE_V3_API_SERIES_ENABLED=false keeps
 // the default api.<site> endpoint on v2: the per-endpoint opt-in is only injected on the
 // datadog_only default, so an explicit operator kill-switch is honored (a per-endpoint entry

@@ -14,10 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
-	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -26,6 +22,11 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/service"
+
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
+	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -230,44 +231,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	}
 
-	// V3 series metrics intake for DDOT. The global use_v3_api.series.enabled default
-	// ("datadog_only") gates v3 on IsDatadogURL, whose allowlist matches app.<site> for
-	// recognized Datadog sites — but the Datadog exporter (and therefore dd_url above)
-	// targets api.<site>, which IsDatadogURL never recognizes, so a default DDOT deployment
-	// to a Datadog site would silently stay on v2. Opt DDOT's own default endpoint in to v3
-	// with a per-endpoint override, keyed by the exact dd_url the forwarder resolver reports
-	// as its config name.
-	//
-	// All three guards must hold:
-	//   - dd_url is the exporter's default derived endpoint (https://api.<site>), not a
-	//     custom/proxy endpoint the operator set explicitly;
-	//   - <site> is a recognized Datadog site (IsDatadogURL on its app.<site> form). A
-	//     private or proxy site derives the same https://api.<site> shape, but must NOT be
-	//     forced onto v3 — that intake may only accept v2. This preserves the datadog_only
-	//     safeguard instead of trusting any syntactically derived default endpoint;
-	//   - use_v3_api.series.enabled is still the datadog_only default, so an explicit
-	//     enabled=true/false (DD_USE_V3_API_SERIES_ENABLED) is respected globally even though
-	//     a per-endpoint entry would otherwise outrank it.
-	// An explicit per-endpoint entry for this URL is left untouched.
-	if ddURL == "https://api."+ddc.API.Site &&
-		configutils.IsDatadogURL("https://app."+ddc.API.Site) &&
-		strings.ToLower(strings.TrimSpace(pkgconfig.GetString("use_v3_api.series.enabled"))) == "datadog_only" {
-		seriesEndpoints := pkgconfig.GetStringMapString("use_v3_api.series.endpoints")
-		if _, alreadySet := seriesEndpoints[ddURL]; !alreadySet {
-			merged := make(map[string]string, len(seriesEndpoints)+1)
-			for url, v3 := range seriesEndpoints {
-				merged[url] = v3
-			}
-			merged[ddURL] = "true"
-			pkgconfig.Set("use_v3_api.series.endpoints", merged, pkgconfigmodel.SourceAgentRuntime)
-		}
-	}
-
 	// Compression: the otel-agent (DDOT) uses zstd for every signal (metrics, traces,
 	// logs) so the compression algorithm stays consistent across signals. The level
 	// defaults to 3 but stays overridable via DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL
 	// (SourceDefault < SourceEnvVar). zstd also makes the v3 series intake viable for DDOT
-	// (v3 rejects zlib); the v3 series opt-in is handled above.
+	// (v3 rejects zlib); the v3 series opt-in is handled below (after proxy resolution).
 	pkgconfig.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("serializer_zstd_compressor_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
@@ -337,6 +305,32 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Without this, LoadDatadog is never called when no core config is given, and proxy
 	// env vars are silently ignored.
 	pkgconfigsetup.LoadProxyFromEnv(pkgconfig)
+
+	// V3 series metrics enbling for DDOT. The global "use_v3_api.series.enabled" default is ("datadog_only")
+	// and apply v3 (using IsDatadogURL) only to app.<site>. While Datadog exporter targets api.<site>
+	//
+	// All guards:
+	//   - dd_url is the exporter's default derived endpoint (https://api.<site>), not a
+	//     custom endpoint the operator set explicitly;
+	//   - <site> is a recognized Datadog site (IsDatadogURL on its app.<site> form).
+	//   - no forwarding proxy is configured.  a proxied Agent stays on v2 (per the v3 migration RFC);
+	// https://datadoghq.atlassian.net/wiki/spaces/AM/pages/6164349836/Validating+Customer+Migration+to+V3+payload#Agent-Behind-a-Proxy
+	//   - use_v3_api.series.enabled is still the datadog_only default.
+	proxyConfigured := pkgconfig.GetString("proxy.https") != "" || pkgconfig.GetString("proxy.http") != ""
+	if ddURL == "https://api."+ddc.API.Site &&
+		configutils.IsDatadogURL("https://app."+ddc.API.Site) &&
+		!proxyConfigured &&
+		strings.ToLower(strings.TrimSpace(pkgconfig.GetString("use_v3_api.series.enabled"))) == "datadog_only" {
+		seriesEndpoints := pkgconfig.GetStringMapString("use_v3_api.series.endpoints")
+		if _, alreadySet := seriesEndpoints[ddURL]; !alreadySet {
+			merged := make(map[string]string, len(seriesEndpoints)+1)
+			for url, v3 := range seriesEndpoints {
+				merged[url] = v3
+			}
+			merged[ddURL] = "true"
+			pkgconfig.Set("use_v3_api.series.endpoints", merged, pkgconfigmodel.SourceAgentRuntime)
+		}
+	}
 
 	// Apply dogtelextension config and resolve ENC[] secrets only in standalone
 	// mode. In connected mode the core agent owns both settings and secret
