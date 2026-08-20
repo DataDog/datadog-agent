@@ -379,10 +379,27 @@ impl YamlCache {
         match self.0.entry(path.to_owned()) {
             Entry::Occupied(entry) => Ok(entry.into_mut()),
             Entry::Vacant(entry) => {
-                let contents = std::fs::read_to_string(path)
-                    .map_err(|err| anyhow::anyhow!("read {path}: {err}"))?;
-                let root = yaml_load::load_yaml(&contents)
-                    .map_err(|err| anyhow::anyhow!("parse {path}: {err}"))?;
+                // Unreadable or invalid YAML: Agent `ReadInConfig` still initializes
+                // (`ErrConfigFileNotFound` wrap in `pkg/config/nodetreemodel/read_config_file.go`),
+                // then env and schema defaults apply. Cache an empty mapping so later keys
+                // on the same path do not retry or fail the gate.
+                let root = match std::fs::read_to_string(path) {
+                    Ok(contents) => match yaml_load::load_yaml(&contents) {
+                        Ok(root) => root,
+                        Err(err) => {
+                            log::warn!(
+                                "condition_config_any: parse {path}: {err:#}; using env and defaults"
+                            );
+                            serde_yaml::Value::Mapping(serde_yaml::Mapping::new())
+                        }
+                    },
+                    Err(err) => {
+                        log::warn!(
+                            "condition_config_any: read {path}: {err:#}; using env and defaults"
+                        );
+                        serde_yaml::Value::Mapping(serde_yaml::Mapping::new())
+                    }
+                };
                 Ok(entry.insert(root))
             }
         }
@@ -1906,6 +1923,54 @@ process_config:
             keys: vec!["process_config.enabled".into()],
         }];
         assert!(!condition_config_any_met(&conditions));
+    }
+
+    #[test]
+    fn invalid_base_yaml_uses_default_enabled_keys() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", "{\n");
+            assert!(
+                condition_config_any_met(&process_agent_conditions(agent)),
+                "container_collection/process_discovery defaults should keep the gate open"
+            );
+        });
+    }
+
+    #[test]
+    fn invalid_base_yaml_keeps_default_disabled_keys_off() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", "{\n");
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_collection.enabled".into()],
+            }];
+            assert!(!condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn env_override_applies_when_base_yaml_is_invalid() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _collection = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true");
+            let _container =
+                EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
+            let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "false");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", "{\n");
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_collection.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
+        });
     }
 
     #[test]
