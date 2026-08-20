@@ -123,3 +123,60 @@ anomaly_detection:
 
 	requireNoObserverMetricFamilies(t, telComp)
 }
+
+func TestNewComponentReadsInactiveSeriesEvictionStorageConfig(t *testing.T) {
+	tt := []struct {
+		name          string
+		storageConfig string
+		wantTTL       int64
+		wantInterval  int64
+	}{
+		{
+			name: "configured",
+			storageConfig: `
+    inactive_series_ttl: 30m
+    inactive_series_check_interval: 10m`,
+			wantTTL:      30 * 60,
+			wantInterval: 10 * 60,
+		},
+		{
+			name: "disabled with zero",
+			storageConfig: `
+    inactive_series_ttl: 0s
+    inactive_series_check_interval: 0s`,
+			wantTTL:      0,
+			wantInterval: 0,
+		},
+		{
+			name: "negative values retain defaults",
+			storageConfig: `
+    inactive_series_ttl: -1s
+    inactive_series_check_interval: -1s`,
+			wantTTL:      storageInactiveSeriesTTLSeconds,
+			wantInterval: storageInactiveSeriesCheckIntervalSeconds,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+  storage:
+`+tc.storageConfig)
+
+			provides, err := NewComponent(Requires{
+				Lifecycle: &testLifecycle{},
+				Config:    cfg,
+				Log:       noopLogComponent{},
+			})
+			require.NoError(t, err)
+			obs, ok := provides.Comp.(*observerImpl)
+			require.True(t, ok)
+			require.Equal(t, tc.wantTTL, obs.engine.storage.cfg.InactiveSeriesTTLSeconds)
+			require.Equal(t, tc.wantInterval, obs.engine.storage.cfg.InactiveSeriesCheckIntervalSeconds)
+		})
+	}
+}
