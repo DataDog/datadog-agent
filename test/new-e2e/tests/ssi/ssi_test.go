@@ -641,16 +641,20 @@ func (v *ssiSuite) TestRemoteConfig() {
 
 	fi := v.Env().FakeIntake.Client()
 
-	// Host-only RC cannot match K8s admission facts. Annotated pod in "other" stays lib-injection;
-	// unannotated pod stays uninjected; helm target in targeted-namespace still gets SSI.
+	// Host-only RC cannot match K8s admission facts. A matching policy is published first so
+	// the annotated pod leaves the helm baseline; replacing that same RC document with the
+	// host-only payload must restore lib-injection. Delete-then-add would restore the
+	// baseline as soon as the matching policy is gone, before host-only is applied.
 	v.Run("HostOnlyPolicyDoesNotMatchK8s", func() {
 		k8s := v.Env().KubernetesCluster.Client()
 
-		cleanup := v.pushAPMPolicy(fi, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName, rcHostLinuxOnlyPolicyJSON)
+		cleanup := v.pushAPMPolicy(fi, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName, rcNamespaceOtherPolicyJSON)
 		defer cleanup()
 
-		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
-		pod := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_single_step"))
+
+		_ = v.pushAPMPolicy(fi, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName, rcHostLinuxOnlyPolicyJSON)
+		pod := RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_lib_injection"))
 
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
@@ -743,7 +747,7 @@ func (v *ssiSuite) pushAPMPolicy(fi *fakeintake.Client, configID, configName str
 	v.T().Helper()
 	require.NoError(v.T(), fi.RCAddConfig("", apmPoliciesRCProduct, configID, configName, payload))
 	return func() {
-		_ = fi.RCDeleteConfig(fmt.Sprintf("%s/%s/%s/%s", rcFakeIntakeDefaultOrgID, apmPoliciesRCProduct, configID, configName))
+		require.NoError(v.T(), fi.RCDeleteConfig(fmt.Sprintf("%s/%s/%s/%s", rcFakeIntakeDefaultOrgID, apmPoliciesRCProduct, configID, configName)))
 	}
 }
 
