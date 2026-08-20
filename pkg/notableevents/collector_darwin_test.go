@@ -1634,6 +1634,247 @@ func TestDarwinCollectorPrunesExpiredUnreferencedAcknowledgements(t *testing.T) 
 	assert.Contains(t, collector.state.Acknowledged, "recent")
 }
 
+// TestDarwinCollectorStatsReportSteadyState verifies the gauges follow live
+// bookmark contents and publish the limits they are measured against.
+func TestDarwinCollectorStatsReportSteadyState(t *testing.T) {
+	reportDir := realTempDir(t)
+	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
+	collector.scanOnce(context.Background())
+	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-STATS-STEADY")
+	collector.scanOnce(context.Background())
+
+	stats := collector.Stats()
+	assert.Equal(t, 1, stats.PendingEvents)
+	assert.Equal(t, 1, stats.TrackedFiles)
+	assert.Equal(t, 1, stats.TrackedDirectories)
+	assert.Zero(t, stats.SaturatedDirectories)
+	assert.Zero(t, stats.RetryDirectories)
+	assert.False(t, stats.BookmarkUnsaved)
+	assert.False(t, stats.BookmarkStagePending)
+	assert.Zero(t, stats.PersistenceErrors)
+	assert.Zero(t, stats.CapacityDeferrals)
+	assert.Equal(t, maxDarwinPendingEvents, stats.PendingEventsMax)
+	assert.Equal(t, maxDarwinTotalFiles, stats.TrackedFilesMax)
+	assert.Equal(t, maxDarwinDirectories, stats.TrackedDirectoriesMax)
+	assert.Equal(t, collector.maxAcknowledged, stats.AcknowledgedIdentitiesMax)
+}
+
+// TestDarwinCollectorStatsCountPersistenceFailures verifies failed saves are
+// counted and that a stalled bookmark stays visible while it holds delivery.
+func TestDarwinCollectorStatsCountPersistenceFailures(t *testing.T) {
+	reportDir := realTempDir(t)
+	store := &fakeDarwinBookmarkStore{}
+	collector := newTestCollector(t, reportDir, store)
+	collector.scanOnce(context.Background())
+
+	store.saveErr = errors.New("disk full")
+	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-STATS-SAVE")
+	collector.scanOnce(context.Background())
+
+	stats := collector.Stats()
+	assert.Equal(t, uint64(1), stats.PersistenceErrors)
+	assert.True(t, stats.BookmarkStagePending)
+	assert.Equal(t, 1, stats.RetryDirectories)
+
+	store.saveErr = nil
+	collector.scanOnce(context.Background())
+
+	stats = collector.Stats()
+	assert.False(t, stats.BookmarkStagePending)
+	assert.Zero(t, stats.RetryDirectories)
+	assert.Equal(t, uint64(1), stats.PersistenceErrors, "counters are cumulative and must survive recovery")
+}
+
+// TestDarwinCollectorStatsCountCapacityDeferrals verifies events withheld for
+// lack of pending capacity are visible even though they are retried later.
+func TestDarwinCollectorStatsCountCapacityDeferrals(t *testing.T) {
+	reportDir := realTempDir(t)
+	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
+	collector.scanOnce(context.Background())
+	for index := 0; index < maxDarwinPendingEvents; index++ {
+		id := fmt.Sprintf("queued-%03d", index)
+		collector.state.Pending[id] = Event{ID: id}
+	}
+	writeIPSFile(t, reportDir, "Later.ips", "Later", "/Applications/Later", "INCIDENT-STATS-FULL")
+
+	collector.scanOnce(context.Background())
+
+	stats := collector.Stats()
+	assert.Equal(t, uint64(1), stats.CapacityDeferrals)
+	assert.Equal(t, stats.PendingEventsMax, stats.PendingEvents)
+}
+
+// TestDarwinCollectorStatsSplitBaselineSuppression verifies suppressed reports
+// are attributed to first run or to saturation recovery, the latter being the
+// case where events that should have been delivered were lost.
+func TestDarwinCollectorStatsSplitBaselineSuppression(t *testing.T) {
+	reportDir := realTempDir(t)
+	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
+	writeIPSFile(t, reportDir, "Old.ips", "Old", "/Applications/Old", "INCIDENT-STATS-OLD")
+
+	collector.scanOnce(context.Background())
+
+	stats := collector.Stats()
+	assert.Equal(t, uint64(1), stats.BaselineSuppressedFirstRun)
+	assert.Zero(t, stats.BaselineSuppressedAfterSaturation)
+	assert.Empty(t, collector.Pending())
+
+	for index := 0; index <= maxDarwinFilesPerDirectory; index++ {
+		name := fmt.Sprintf("Flood-%03d.ips", index)
+		writeIPSFile(t, reportDir, name, "Flood", "/Applications/Flood", fmt.Sprintf("INCIDENT-STATS-FLOOD-%03d", index))
+	}
+	collector.scanOnce(context.Background())
+
+	require.True(t, collector.state.Directories[hashString(filepath.Clean(reportDir))].Saturated)
+	assert.Equal(t, uint64(1), collector.Stats().BaselineSuppressedFirstRun,
+		"a saturated directory is never enumerated, so nothing is attributed to it yet")
+
+	for index := 2; index <= maxDarwinFilesPerDirectory; index++ {
+		require.NoError(t, os.Remove(filepath.Join(reportDir, fmt.Sprintf("Flood-%03d.ips", index))))
+	}
+	collector.scanOnce(context.Background())
+
+	stats = collector.Stats()
+	assert.Zero(t, stats.SaturatedDirectories)
+	assert.Equal(t, uint64(1), stats.BaselineSuppressedFirstRun)
+	assert.Equal(t, uint64(2), stats.BaselineSuppressedAfterSaturation,
+		"only the two reports that survived saturation are newly suppressed")
+}
+
+// TestDarwinCollectorStatsTrackRetryDirectories verifies the retry gauge mirrors
+// scanMu-owned state, which Stats must never lock to read.
+func TestDarwinCollectorStatsTrackRetryDirectories(t *testing.T) {
+	reportDir := realTempDir(t)
+	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
+	collector.scanOnce(context.Background())
+	require.Zero(t, collector.Stats().RetryDirectories)
+	dir := reportDirectory{path: reportDir, scope: "system"}
+
+	collector.scanMu.Lock()
+	collector.setDirectoryRetryLocked(dir, true)
+	collector.scanMu.Unlock()
+	assert.Equal(t, 1, collector.Stats().RetryDirectories)
+
+	collector.scanMu.Lock()
+	collector.setDirectoryRetryLocked(dir, false)
+	collector.scanMu.Unlock()
+	assert.Zero(t, collector.Stats().RetryDirectories)
+
+	collector.scanMu.Lock()
+	collector.setDirectoryRetryLocked(dir, true)
+	collector.refreshKnownDirectoriesLocked(nil)
+	collector.scanMu.Unlock()
+	assert.Zero(t, collector.Stats().RetryDirectories, "directories dropped by discovery must leave the gauge")
+}
+
+type fakeCollectorWatcher struct {
+	events chan string
+	errors chan error
+}
+
+func newFakeCollectorWatcher() *fakeCollectorWatcher {
+	return &fakeCollectorWatcher{
+		events: make(chan string, 1),
+		errors: make(chan error, 1),
+	}
+}
+
+func (w *fakeCollectorWatcher) Events() <-chan string   { return w.events }
+func (w *fakeCollectorWatcher) Errors() <-chan error    { return w.errors }
+func (w *fakeCollectorWatcher) Update(_ []string) error { return nil }
+func (w *fakeCollectorWatcher) Close() error            { return nil }
+
+// TestDarwinCollectorStatsTrackWatcherLifecycle verifies watcher coverage is
+// observable, so a collector silently reduced to periodic reconciles is visible.
+func TestDarwinCollectorStatsTrackWatcherLifecycle(t *testing.T) {
+	reportDir := realTempDir(t)
+	collector, err := newDarwinCollectorWithDeps(
+		func() []reportDirectory {
+			return []reportDirectory{{path: reportDir, scope: "system"}}
+		},
+		time.Hour,
+		time.Hour,
+		&fakeDarwinBookmarkStore{},
+		func() (darwinReportWatcher, error) { return newFakeCollectorWatcher(), nil },
+	)
+	require.NoError(t, err)
+	require.False(t, collector.Stats().WatcherActive)
+
+	collector.scanOnce(context.Background())
+	stats := collector.Stats()
+	assert.True(t, stats.WatcherActive)
+	assert.Zero(t, stats.WatcherRestarts, "the initial attach is not a restart")
+
+	collector.scanMu.Lock()
+	require.NoError(t, collector.closeWatcherLocked())
+	collector.scanMu.Unlock()
+	assert.False(t, collector.Stats().WatcherActive)
+
+	collector.scanMu.Lock()
+	collector.restoreWatcherLocked()
+	collector.scanMu.Unlock()
+
+	stats = collector.Stats()
+	assert.True(t, stats.WatcherActive)
+	assert.Equal(t, uint64(1), stats.WatcherRestarts)
+}
+
+// TestDarwinCollectorStatsCountReattachAfterFailedRestore verifies a watcher
+// that only comes back on a later reconcile, because the restore right after
+// the failure could not create one, is still counted as a restart.
+func TestDarwinCollectorStatsCountReattachAfterFailedRestore(t *testing.T) {
+	reportDir := realTempDir(t)
+	var createErr error
+	collector, err := newDarwinCollectorWithDeps(
+		func() []reportDirectory {
+			return []reportDirectory{{path: reportDir, scope: "system"}}
+		},
+		time.Hour,
+		time.Hour,
+		&fakeDarwinBookmarkStore{},
+		func() (darwinReportWatcher, error) {
+			if createErr != nil {
+				return nil, createErr
+			}
+			return newFakeCollectorWatcher(), nil
+		},
+	)
+	require.NoError(t, err)
+
+	collector.scanOnce(context.Background())
+	require.True(t, collector.Stats().WatcherActive)
+	require.Zero(t, collector.Stats().WatcherRestarts)
+
+	createErr = errors.New("fsevents unavailable")
+	collector.scanMu.Lock()
+	require.NoError(t, collector.closeWatcherLocked())
+	collector.restoreWatcherLocked()
+	collector.scanMu.Unlock()
+	require.False(t, collector.Stats().WatcherActive)
+	require.Zero(t, collector.Stats().WatcherRestarts)
+
+	createErr = nil
+	collector.scanOnce(context.Background())
+
+	stats := collector.Stats()
+	assert.True(t, stats.WatcherActive)
+	assert.Equal(t, uint64(1), stats.WatcherRestarts)
+}
+
+// TestDarwinCollectorStatsSeparateWatcherDropsFromErrors verifies dropped
+// notifications, which imply missed reports, are counted apart from other
+// watcher failures.
+func TestDarwinCollectorStatsSeparateWatcherDropsFromErrors(t *testing.T) {
+	collector := newTestCollector(t, realTempDir(t), &fakeDarwinBookmarkStore{})
+
+	collector.recordWatcherError(fmt.Errorf("watcher: %w", &fseventsDroppedError{flags: fseventsDroppedFlags}))
+	collector.recordWatcherError(errors.New("stream update rejected"))
+
+	stats := collector.Stats()
+	assert.Equal(t, uint64(1), stats.FSEventsDrops)
+	assert.Equal(t, uint64(1), stats.WatcherErrors)
+}
+
 // newTestCollector creates a deterministic collector for one temporary report directory.
 func newTestCollector(t *testing.T, reportDir string, store darwinBookmarkStore) *Collector {
 	t.Helper()

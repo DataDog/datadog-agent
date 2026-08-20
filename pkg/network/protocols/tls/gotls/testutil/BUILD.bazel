@@ -12,14 +12,23 @@ go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/network/config",
         "//pkg/network/protocols/http/testutil",
         "//pkg/network/testutil",
-        "//pkg/network/usm/config",
         "//pkg/network/usm/testutil",
-        "//pkg/util/kernel",
         "//pkg/util/testutil",
         "//pkg/util/testutil/docker",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/config",
+            "//pkg/network/usm/config",
+            "//pkg/util/kernel",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/config",
+            "//pkg/network/usm/config",
+            "//pkg/util/kernel",
+        ],
+        "//conditions:default": [],
+    }),
 )

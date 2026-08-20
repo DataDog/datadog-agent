@@ -241,6 +241,20 @@ func TestInstallAgentLogTapProcessingRulesExcludeBySource(t *testing.T) {
 	assert.Empty(t, h.logs, "all agent logs should be excluded by source rule")
 }
 
+func TestInstallAgentLogTapDropsAnomalyDetectionLogsWithoutRateCharge(t *testing.T) {
+	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
+
+	h := &captureHandle{}
+	// 0.1/s allows exactly one info log in the 10-second rate window.
+	installAgentLogTap(h, "", -1, 0.1, -1, nil, nil)
+
+	simulateLogEmit(pkglog.InfoLvl, "[anomalydetection] observer configured")
+	simulateLogEmit(pkglog.InfoLvl, "ordinary agent log")
+
+	require.Len(t, h.logs, 1)
+	assert.Contains(t, h.logs[0].GetContent(), "ordinary agent log")
+}
+
 func TestInstallAgentLogTapNilRulesAllowsAll(t *testing.T) {
 	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
 

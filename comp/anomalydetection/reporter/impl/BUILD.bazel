@@ -11,11 +11,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/anomalydetection/internal/logging",
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/reporter/def",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
-        "//comp/core/log/def",
         "//comp/core/telemetry/def",
         "//comp/forwarder/eventplatform/def",
         "//pkg/logs/message",

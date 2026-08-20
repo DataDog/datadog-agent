@@ -7,6 +7,7 @@ go_library(
         "collector_darwin.go",
         "format_darwin.go",
         "reader_darwin.go",
+        "stats_darwin.go",
         "store_darwin.go",
         "watcher_darwin.go",
         "watcher_fsevents_darwin.c",

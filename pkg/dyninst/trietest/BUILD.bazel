@@ -18,11 +18,18 @@ dd_agent_go_test(
         "trie_test.go",
     ],
     embed = [":trietest"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
-    deps = [
-        "@com_github_stretchr_testify//require",
-        "@net_pgregory_rapid//:rapid",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//require",
+            "@net_pgregory_rapid//:rapid",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//require",
+            "@net_pgregory_rapid//:rapid",
+        ],
+        "//conditions:default": [],
+    }),
 )
