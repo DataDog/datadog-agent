@@ -119,21 +119,43 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
         return Ok(account);
     }
 
-    match read_agent_password_from_lsa()? {
-        Some(password) if !password.is_empty() => Ok(AgentAccount::PasswordLogon {
-            domain,
-            user,
-            password,
-        }),
-        _ => resolve_without_lsa_password(domain, user, &sid),
-    }
+    resolve_domain_agent_account(domain, user, &sid)
 }
 
-fn resolve_without_lsa_password(domain: String, user: String, sid: &[u8]) -> Result<AgentAccount> {
+fn resolve_domain_agent_account(
+    domain: String,
+    user: String,
+    sid: &[u8],
+) -> Result<AgentAccount> {
     let display = AccountName::new(&domain, &user).display();
     let is_local =
         is_local_account(sid).with_context(|| format!("classify local account for {display}"))?;
     let msa = query_managed_service_account(&domain, &user)?;
+    let lsa_password = read_agent_password_from_lsa()?;
+    agent_account_from_msa_and_lsa(domain, user, lsa_password.as_deref(), is_local, msa)
+}
+
+/// Pick the spawn credential type from gMSA classification and optional LSA password.
+///
+/// Installed gMSA wins over a stale LSA secret left behind when installer secret removal fails
+/// during a password-account to gMSA migration.
+fn agent_account_from_msa_and_lsa(
+    domain: String,
+    user: String,
+    lsa_password: Option<&str>,
+    is_local: bool,
+    msa: ManagedServiceAccountState,
+) -> Result<AgentAccount> {
+    if matches!(msa, ManagedServiceAccountState::Installed) {
+        return Ok(AgentAccount::ServiceAccountLogon { domain, user });
+    }
+    if let Some(password) = lsa_password.filter(|password| !password.is_empty()) {
+        return Ok(AgentAccount::PasswordLogon {
+            domain,
+            user,
+            password: password.to_string(),
+        });
+    }
     passwordless_agent_account(domain, user, is_local, msa)
 }
 
@@ -352,6 +374,45 @@ mod tests {
     fn resolve_uses_supervisor_token_in_unit_tests() {
         let account = resolve_agent_account().expect("unit tests use LocalSystem");
         assert_eq!(account, AgentAccount::LocalSystem);
+    }
+
+    #[test]
+    fn installed_gmsa_takes_precedence_over_stale_lsa_password() {
+        let account = agent_account_from_msa_and_lsa(
+            "CORP".to_string(),
+            "gmsa$".to_string(),
+            Some("stale-password-from-previous-ddagentuser"),
+            false,
+            ManagedServiceAccountState::Installed,
+        )
+        .expect("installed gMSA should ignore stale LSA password");
+        assert_eq!(
+            account,
+            AgentAccount::ServiceAccountLogon {
+                domain: "CORP".to_string(),
+                user: "gmsa$".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn lsa_password_used_when_account_is_not_gmsa() {
+        let account = agent_account_from_msa_and_lsa(
+            "CORP".to_string(),
+            "ddagent".to_string(),
+            Some("secret"),
+            false,
+            ManagedServiceAccountState::NotService,
+        )
+        .expect("regular domain account should use LSA password");
+        assert_eq!(
+            account,
+            AgentAccount::PasswordLogon {
+                domain: "CORP".to_string(),
+                user: "ddagent".to_string(),
+                password: "secret".to_string(),
+            }
+        );
     }
 
     #[test]
