@@ -6,7 +6,6 @@ go_library(
     srcs = [
         "remote_query_execute.go",
         "remote_query_match.go",
-        "remote_query_upload.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remotequeries/impl",
     visibility = ["//visibility:public"],
@@ -14,7 +13,6 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//pkg/collector/check",
-        "//pkg/util/http",
         "@in_gopkg_yaml_v3//:yaml_v3",
         "@org_uber_go_fx//:fx",
     ],
@@ -24,7 +22,6 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "remote_query_test.go",
-        "remote_query_upload_test.go",
     ],
     embed = [":impl"],
     deps = [
