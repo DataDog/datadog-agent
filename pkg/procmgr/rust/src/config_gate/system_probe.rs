@@ -115,6 +115,12 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
         return Ok(true);
     }
 
+    // config.go:221 — NotableEventsModule reads core datadog.yaml, not system-probe.yaml.
+    #[cfg(target_os = "macos")]
+    if cfg.agent_bool("notable_events.enabled")? {
+        return Ok(true);
+    }
+
     // config.go:210-221 — Windows/macOS modules with their own knob.
     // Injector default-on-when-other-modules-enabled is skipped: it cannot be the
     // first module to turn system-probe on. Auto-enabled Windows crash detection

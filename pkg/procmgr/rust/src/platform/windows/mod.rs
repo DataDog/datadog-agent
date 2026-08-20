@@ -379,10 +379,8 @@ pub fn default_config_dir() -> PathBuf {
     install_root().join("processes.d")
 }
 
-/// Registry `fleet_policies_dir`, then stable managed default (no env / YAML).
-///
-/// Used by config gates after env and the gated config file's `fleet_policies_dir` are ruled out
-/// (`pkg/config/setup/config_windows.go` `FleetConfigOverride`).
+/// Registry `fleet_policies_dir`, then the stable managed default.
+/// Config gates use this after env and the gated config file's `fleet_policies_dir`.
 pub fn fleet_policies_dir_fallback() -> Option<PathBuf> {
     fleet_policies_dir_from_registry()
         .map(PathBuf::from)
@@ -390,9 +388,6 @@ pub fn fleet_policies_dir_fallback() -> Option<PathBuf> {
 }
 
 /// `DD_FLEET_POLICIES_DIR` when set, otherwise [`fleet_policies_dir_fallback`].
-///
-/// Config gates use `config_gate::YamlCache::fleet_policies_dir` for full precedence
-/// (env → gated config file → registry/default).
 pub fn resolve_fleet_policies_dir() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR")
         && !dir.is_empty()

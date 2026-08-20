@@ -4,8 +4,64 @@
 // Copyright 2026-present Datadog, Inc.
 
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use super::merge_env_overrides;
+
+const CORE_AGENT_SERVICE_NAME: &str = "datadogagent";
+
+static CORE_AGENT_SCM_ENV: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+
+#[cfg(test)]
+static TEST_CORE_AGENT_SCM_ENV: std::sync::Mutex<Option<HashMap<String, String>>> =
+    std::sync::Mutex::new(None);
+
+pub(crate) fn core_agent_scm_env_var(name: &str) -> Option<String> {
+    #[cfg(test)]
+    if let Ok(guard) = TEST_CORE_AGENT_SCM_ENV.lock()
+        && let Some(map) = guard.as_ref()
+    {
+        return scm_env_lookup(map, name);
+    }
+
+    let guard = core_agent_scm_env_map();
+    scm_env_lookup(guard.as_ref().expect("initialized scm env"), name)
+}
+
+fn core_agent_scm_env_map() -> std::sync::MutexGuard<'static, Option<HashMap<String, String>>> {
+    let mut guard = CORE_AGENT_SCM_ENV.lock().expect("core agent scm env lock");
+    if guard.is_none() {
+        *guard = Some(load_core_agent_scm_environment());
+    }
+    guard
+}
+
+fn scm_env_lookup(env: &HashMap<String, String>, name: &str) -> Option<String> {
+    env.iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(name))
+        .map(|(_, value)| value.clone())
+        .filter(|value| !value.is_empty())
+}
+
+fn load_core_agent_scm_environment() -> HashMap<String, String> {
+    match read_service_environment(CORE_AGENT_SERVICE_NAME) {
+        Ok(entries) => parse_scm_environment_entries(&entries)
+            .into_iter()
+            .collect(),
+        Err(e) => {
+            log::warn!("failed to read core Agent SCM Environment for config gates: {e:#}");
+            HashMap::new()
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn set_test_core_agent_scm_env(env: Option<HashMap<String, String>>) {
+    let mut guard = TEST_CORE_AGENT_SCM_ENV
+        .lock()
+        .expect("test core agent scm env lock");
+    *guard = env;
+}
 
 fn legacy_scm_service_name(process_name: &str) -> Option<&'static str> {
     match process_name {
@@ -187,6 +243,19 @@ mod tests {
         );
         assert_eq!(vars.get("DD_CUSTOM").unwrap(), "from-yaml");
         assert_eq!(vars.get("BASE").unwrap(), "1");
+    }
+
+    #[test]
+    fn core_agent_scm_env_var_uses_case_insensitive_lookup() {
+        set_test_core_agent_scm_env(Some(HashMap::from([(
+            "dd_process_config_enabled".to_string(),
+            "false".to_string(),
+        )])));
+        assert_eq!(
+            core_agent_scm_env_var("DD_PROCESS_CONFIG_ENABLED"),
+            Some("false".to_string())
+        );
+        set_test_core_agent_scm_env(None);
     }
 
     #[test]
