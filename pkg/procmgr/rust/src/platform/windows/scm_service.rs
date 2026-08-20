@@ -79,6 +79,7 @@ unsafe extern "system" fn ctrl_handler(
                 NO_ERROR,
                 SCM_STOP_WAIT_HINT.as_millis() as u32,
             );
+            super::record_service_stop_signal();
             super::shutdown_notify().notify_one();
             NO_ERROR
         }
