@@ -30,6 +30,13 @@ const SERVICE_NAME: &str = "dd-procmgr-service";
 const SCM_STOP_WAIT_HINT: Duration = Duration::from_secs(180);
 const EXIT_GATE: Duration = Duration::from_secs(5);
 
+/// Upper bound for ordered child shutdown after the service stop signal.
+///
+/// Matches the SCM wait hint minus time to report STOPPED and exit.
+pub(crate) fn service_shutdown_deadline(signal_time: Instant) -> Instant {
+    signal_time + SCM_STOP_WAIT_HINT.saturating_sub(EXIT_GATE)
+}
+
 static STATUS_HANDLE: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 
 fn service_name_wide() -> Vec<u16> {
