@@ -29,17 +29,48 @@ fn scalar_to_value(text: &str, style: ScalarStyle) -> Value {
     }
 }
 
-/// Plain-scalar coercion aligned with Go yaml.v2 (YAML 1.1 bool/null spellings).
+/// Plain-scalar coercion aligned with Go yaml.v2 (YAML 1.1 bool/null spellings
+/// and numeric scalars, including floats such as `1.0`).
 fn plain_scalar_to_value(text: &str) -> Value {
     match text.to_ascii_lowercase().as_str() {
         "" | "~" | "null" => Value::Null,
         "true" | "yes" | "on" | "y" => Value::Bool(true),
         "false" | "no" | "off" | "n" => Value::Bool(false),
-        _ => text
-            .parse::<i64>()
-            .map(|n| Value::Number(n.into()))
-            .unwrap_or_else(|_| Value::String(text.to_owned())),
+        _ => yaml_v2_plain_number(text).unwrap_or_else(|| Value::String(text.to_owned())),
     }
+}
+
+/// Integers first, then finite floats. Matches yaml.v2 unmarshalling into
+/// `interface{}` so `cast.ToBoolE` can treat a non-zero number as true.
+fn yaml_v2_plain_number(text: &str) -> Option<Value> {
+    if let Ok(n) = text.parse::<i64>() {
+        return Some(Value::Number(n.into()));
+    }
+    if !looks_like_yaml_11_float(text) {
+        return None;
+    }
+    text.parse::<f64>()
+        .ok()
+        .filter(|n| n.is_finite())
+        .map(|n| Value::Number(n.into()))
+}
+
+/// Digit-based decimal or scientific form (`1.0`, `1e0`). Rejects Rust-only
+/// spellings such as `inf` that yaml.v2 would leave as strings.
+fn looks_like_yaml_11_float(text: &str) -> bool {
+    let mut rest = text.as_bytes();
+    if rest.first().is_some_and(|c| *c == b'+' || *c == b'-') {
+        rest = &rest[1..];
+    }
+    if rest.is_empty() {
+        return false;
+    }
+    let has_digit = rest.iter().any(u8::is_ascii_digit);
+    let has_dot_or_exp = rest.iter().any(|c| *c == b'.' || *c == b'e' || *c == b'E');
+    let all_float_chars = rest.iter().all(|c| {
+        c.is_ascii_digit() || *c == b'.' || *c == b'e' || *c == b'E' || *c == b'+' || *c == b'-'
+    });
+    has_digit && has_dot_or_exp && all_float_chars
 }
 
 fn mapping_from_pairs(pairs: HashMap<String, Value>) -> Value {
@@ -201,5 +232,23 @@ mod tests {
     fn single_quoted_yaml_11_bool_stays_string() {
         let root = load("enabled: 'on'\n").unwrap();
         assert_eq!(root.get("enabled"), Some(&Value::String("on".into())));
+    }
+
+    #[test]
+    fn plain_float_is_number() {
+        let root = load("enabled: 1.0\n").unwrap();
+        assert_eq!(root.get("enabled").and_then(Value::as_f64), Some(1.0));
+    }
+
+    #[test]
+    fn quoted_float_stays_string() {
+        let root = load("enabled: \"1.0\"\n").unwrap();
+        assert_eq!(root.get("enabled"), Some(&Value::String("1.0".into())));
+    }
+
+    #[test]
+    fn rust_inf_spelling_stays_string() {
+        let root = load("enabled: inf\n").unwrap();
+        assert_eq!(root.get("enabled"), Some(&Value::String("inf".into())));
     }
 }
