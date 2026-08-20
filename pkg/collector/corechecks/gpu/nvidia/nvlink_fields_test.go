@@ -109,7 +109,7 @@ func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 	var dataRXValues []float64
 	var rawTXValues []float64
 	var discardValues []float64
-	for _, metric := range collected {
+	for _, metric := range requireMetrics(t, collected) {
 		switch metric.Name {
 		case "nvlink.throughput.data.rx":
 			dataRXValues = append(dataRXValues, metric.Value)
@@ -174,7 +174,7 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	collected, err := collector.Collect()
 	require.NoError(t, err)
 
-	for _, metric := range collected {
+	for _, metric := range requireMetrics(t, collected) {
 		require.NotEqual(t, "nvlink.tx.discards", metric.Name)
 	}
 
@@ -257,10 +257,10 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 			collected, err := collector.Collect()
 			require.NoError(t, err)
 
-			// Run through RemoveDuplicateMetrics, same as the real check
-			deduped := RemoveDuplicateMetrics(map[CollectorName][]*Metric{
+			// Run through RemoveDuplicateSamples, same as the real check
+			deduped := requireMetrics(t, RemoveDuplicateSamples(map[CollectorName][]Sample{
 				nvlinkFields: collected,
-			})
+			}))
 
 			var nvlinkSpeed []*Metric
 			for _, m := range deduped {
@@ -270,7 +270,7 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 			}
 
 			require.Len(t, nvlinkSpeed, 1, "exactly one nvlink.speed metric should survive dedup")
-			require.Equal(t, tt.expectPriority, nvlinkSpeed[0].Priority)
+			require.Equal(t, tt.expectPriority, nvlinkSpeed[0].Priority())
 			require.Equal(t, tt.expectValue, nvlinkSpeed[0].Value)
 		})
 	}
