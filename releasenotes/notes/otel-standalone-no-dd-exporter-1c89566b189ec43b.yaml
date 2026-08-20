@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    Fixed a standalone OTel Agent (``DD_OTEL_STANDALONE=true``) failing to
+    Fixed a standalone DDOT (``DD_OTEL_STANDALONE=true``) failing to
     start when configured without a Datadog exporter, for example when the
-    dogtel extension is used to forward telemetry to a separate gateway
-    Agent via an OTLP exporter instead.
+    standalone DDOT is used to forward telemetry to a separate gateway
+    layer via an OTLP exporter instead.
