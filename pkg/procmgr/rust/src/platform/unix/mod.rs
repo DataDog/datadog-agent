@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod runtime_user;
 mod spawn;
 
+pub(crate) use runtime_user::runtime_user_for_pid;
 pub(crate) use spawn::spawn_child_handle;
 
 use nix::sys::signal::{self, Signal};
@@ -12,6 +14,34 @@ use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use tokio::process::Command;
+
+use log::warn;
+use nix::unistd::{User, geteuid};
+use std::sync::OnceLock;
+
+static SUPERVISOR_SPAWN_USER: OnceLock<String> = OnceLock::new();
+
+fn resolve_supervisor_spawn_user() -> String {
+    match User::from_uid(geteuid()) {
+        Ok(Some(user)) => user.name,
+        Ok(None) => {
+            warn!("no passwd entry for supervisor uid");
+            "unknown".to_string()
+        }
+        Err(e) => {
+            warn!("could not resolve supervisor spawn user for display: {e:#}");
+            "unknown".to_string()
+        }
+    }
+}
+
+/// Return the passwd name for procmgr's effective user (the account Unix children inherit).
+/// The result is cached after the first lookup, including failures (stored as `unknown`).
+pub(crate) fn spawn_user_for_supervisor() -> String {
+    SUPERVISOR_SPAWN_USER
+        .get_or_init(resolve_supervisor_spawn_user)
+        .clone()
+}
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.

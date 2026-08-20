@@ -9,6 +9,7 @@ use crate::handle::ProcessHandle;
 #[cfg(windows)]
 use crate::handle::ProcessWaitControl;
 use crate::platform;
+use crate::spawn::{SpawnProfile, profile_for};
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
@@ -139,10 +140,15 @@ enum ForceKillWaitTarget<'a> {
     Child,
 }
 
+/// Placeholder until platform spawn resolves the intended account.
+const DEFERRED_SPAWN_USER: &str = "unknown";
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
     config: ProcessConfig,
+    profile: SpawnProfile,
+    user: String,
     state: ProcessState,
     pid: Option<u32>,
     handle: Option<ProcessHandle>,
@@ -170,11 +176,14 @@ impl ManagedProcess {
     }
 
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
+        let profile = profile_for(&name);
         let restarts = RestartTracker::new(config.restart_delay());
         Self {
             name,
             uuid,
             config,
+            profile,
+            user: DEFERRED_SPAWN_USER.to_string(),
             state: ProcessState::Created,
             pid: None,
             handle: None,
@@ -303,6 +312,18 @@ impl ManagedProcess {
                 Err(_) => return false,
             }
         }
+    }
+
+    pub fn profile(&self) -> SpawnProfile {
+        self.profile
+    }
+
+    pub fn user(&self) -> &str {
+        &self.user
+    }
+
+    pub(crate) fn set_intended_user(&mut self, user: String) {
+        self.user = user;
     }
 
     pub fn restart_count(&self) -> u32 {
@@ -438,6 +459,8 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
+        // Platform spawn resolves the account and records intended user from the
+        // identity actually selected for launch (before creating the child).
         let handle = platform::spawn_child_handle(self)?;
 
         self.pid = handle.id();
@@ -1052,6 +1075,25 @@ pub mod tests {
         let status = proc.wait().await.unwrap();
         assert_eq!(status.code(), Some(7));
     }
+
+    #[tokio::test]
+    async fn test_spawn_refreshes_intended_user_before_running() {
+        use crate::spawn::spawn_user_for;
+
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut proc = ManagedProcess::new_config(
+            "spawn-user-refresh".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        let expected = spawn_user_for(proc.name(), proc.profile());
+        proc.spawn().unwrap();
+        assert_eq!(proc.user(), expected);
+        assert!(proc.is_running());
+        let _ = proc.wait().await;
+    }
+
+    // -- signal tests (Unix-only: test the raw send_signal API) --
 
     #[cfg(unix)]
     #[tokio::test]
