@@ -1,0 +1,15 @@
+---
+features:
+  - |
+    On Windows, network protocol classification now recognizes Redis, PostgreSQL,
+    MySQL, MongoDB and AMQP connections in addition to HTTP, HTTP/2 and TLS.
+    Classification uses only the first bytes of a connection and requires the
+    matching version of the network driver.
+  - |
+    On Windows, system-probe now reports the ``datadog.network_tracer.*`` metrics,
+    including a new ``datadog.network_tracer.windows.classified_flows`` count
+    tagged by ``protocol``. These metrics were previously only reported on Linux.
+fixes:
+  - |
+    On Windows, HTTP ``DELETE`` connections are no longer missing their protocol
+    when no response was observed on the connection.

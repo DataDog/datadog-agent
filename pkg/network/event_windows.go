@@ -164,12 +164,25 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 				// do nothing because it may be classified in the response if
 				// the request portion of the flow was missed.
 
-			case crq >= driver.ClassificationRequestHTTPUnknown && crq < driver.ClassificationRequestHTTPLast:
+			// ClassificationRequestHTTPLast is itself a valid HTTP verb (DELETE), so
+			// the upper bound has to be inclusive, matching the driver's own range
+			// check in ddfilter/classify/classify_tcp.c
+			case crq >= driver.ClassificationRequestHTTPUnknown && crq <= driver.ClassificationRequestHTTPLast:
 				cs.ProtocolStack = protocols.Stack{Application: protocols.HTTP}
 			case crq == driver.ClassificationRequestHTTP2:
 				cs.ProtocolStack = protocols.Stack{Application: protocols.HTTP2}
 			case crq == driver.ClassificationRequestTLS:
 				cs.ProtocolStack = protocols.Stack{Encryption: protocols.TLS}
+			case crq == driver.ClassificationRequestRedis:
+				cs.ProtocolStack = protocols.Stack{Application: protocols.Redis}
+			case crq == driver.ClassificationRequestPostgres:
+				cs.ProtocolStack = protocols.Stack{Application: protocols.Postgres}
+			case crq == driver.ClassificationRequestMySQL:
+				cs.ProtocolStack = protocols.Stack{Application: protocols.MySQL}
+			case crq == driver.ClassificationRequestMongo:
+				cs.ProtocolStack = protocols.Stack{Application: protocols.Mongo}
+			case crq == driver.ClassificationRequestAMQP:
+				cs.ProtocolStack = protocols.Stack{Application: protocols.AMQP}
 			}
 
 			switch crsp := flow.ClassifyResponse; {

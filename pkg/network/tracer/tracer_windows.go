@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	driver "github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
@@ -41,6 +42,9 @@ const (
 	defaultPollInterval = int(15)
 	defaultBufferSize   = 512
 	minBufferSize       = 256
+
+	// matches the interval the Linux USM monitor uses for the same registry
+	telemetryReportInterval = 30 * time.Second
 )
 
 // Tracer struct for tracking network state and connections
@@ -72,7 +76,7 @@ type Tracer struct {
 }
 
 // NewTracer returns an initialized tracer struct
-func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.ClientInterface) (*Tracer, error) {
+func NewTracer(config *config.Config, telemetry telemetry.Component, statsdClient statsd.ClientInterface) (*Tracer, error) {
 	if err := driver.Start(); err != nil {
 		return nil, fmt.Errorf("error starting driver: %s", err)
 	}
@@ -143,6 +147,8 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		events.RegisterHandler(tr.processCache)
 	}
 
+	tr.startTelemetryReporter(statsdClient)
+
 	tr.closedEventLoop.Add(1)
 	go func() {
 		defer tr.closedEventLoop.Done()
@@ -181,6 +187,34 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 
 	}()
 	return tr, nil
+}
+
+// startTelemetryReporter flushes the network_tracer metric registry to statsd.
+//
+// The equivalent loop on Linux lives in the USM monitor, which is linux_bpf only, so
+// until now nothing on Windows ever reported these metrics and they stayed inside the
+// process. Runs from the tracer so it covers NPM regardless of whether USM is enabled.
+func (t *Tracer) startTelemetryReporter(statsdClient statsd.ClientInterface) {
+	if statsdClient == nil {
+		log.Warn("no statsd client, network tracer telemetry will not be reported")
+		return
+	}
+
+	libtelemetry.SetStatsdClient(statsdClient)
+
+	go func() {
+		ticker := time.NewTicker(telemetryReportInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				libtelemetry.ReportStatsd()
+			case <-t.stopChan:
+				return
+			}
+		}
+	}()
 }
 
 // Stop function stops running tracer
