@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    The ``curl`` binary is no longer included in the Cluster Agent container image, reducing its attack surface.
+    The Agent does not use the system-provided ``curl`` directly, nor should any shipped integrations.
+    Users who rely on ``curl`` being present (for example when connecting to a running container) must install it themselves in a custom image.
