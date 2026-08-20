@@ -71,7 +71,7 @@ fn service_start_name(service_name: &str) -> Result<String> {
         );
     }
 
-    let config = ptr::read_unaligned(buffer.as_ptr().cast::<QUERY_SERVICE_CONFIGW>());
+    let config = unsafe { ptr::read_unaligned(buffer.as_ptr().cast::<QUERY_SERVICE_CONFIGW>()) };
     let start_name = wide::from_ptr(config.lpServiceStartName);
     if start_name.is_empty() {
         bail!("QueryServiceConfigW({service_name}): empty service start name");
