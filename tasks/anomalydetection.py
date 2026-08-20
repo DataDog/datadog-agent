@@ -53,6 +53,9 @@ from tasks.libs.anomalydetection.eval import (
     print_eval_tp_summary,
     random_component_combinations,
 )
+from tasks.libs.anomalydetection.eval import (
+    AWS_PROFILE as AWS_VAULT_PROFILE,
+)
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import join_command
 from tasks.schema.generate import schema_codegen
@@ -254,7 +257,8 @@ def eval_ddeval(
         testbench_config: Optional Observer component-config JSON file.
         ddsource_dir: dd-source checkout used to run DDEval with Bazel.
         ddeval_executable: Path or name of an installed DDEval executable; bypasses dd-source/Bazel discovery.
-        aws_profile: AWS CLI profile with write access to qbranch-gensim-recordings.
+        aws_profile: Optional AWS CLI profile with write access to qbranch-gensim-recordings.
+            When omitted, uses the standard 8-hour agent-sandbox aws-vault profile.
         expires_in: Presigned URL lifetime in seconds (60-604800).
         build: Build the testbench before uploading it.
         testbench_binary: Testbench binary to upload. Custom paths require --no-build.
@@ -295,7 +299,7 @@ def eval_ddeval(
     except ValueError as error:
         raise Exit(str(error), code=2) from error
 
-    profile = aws_profile or os.environ.get("AWS_PROFILE") or "exec-sso-agent-sandbox-account-admin"
+    aws_command = _local_aws_command(aws_profile)
     digest = sha256_file(binary_path)
     commit = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
     object_key = local_testbench_key(digest)
@@ -304,9 +308,7 @@ def eval_ddeval(
     head_result = ctx.run(
         join_command(
             [
-                "aws",
-                "--profile",
-                profile,
+                *aws_command,
                 "--region",
                 ARTIFACT_REGION,
                 "s3api",
@@ -335,9 +337,7 @@ def eval_ddeval(
         print(f"Uploading {binary_path.name} to {s3_uri}")
         upload_command = join_command(
             [
-                "aws",
-                "--profile",
-                profile,
+                *aws_command,
                 "--region",
                 ARTIFACT_REGION,
                 "s3",
@@ -361,9 +361,7 @@ def eval_ddeval(
         presign_result = ctx.run(
             join_command(
                 [
-                    "aws",
-                    "--profile",
-                    profile,
+                    *aws_command,
                     "--region",
                     ARTIFACT_REGION,
                     "s3",
@@ -470,6 +468,12 @@ def _local_ddeval_command(ddeval_executable: str, ddsource_dir: str) -> tuple[li
     raise ValueError(
         "could not find dd-source at ~/dd/dd-source; set --ddsource-dir, $DDSOURCE_DIR, or --ddeval-executable"
     )
+
+
+def _local_aws_command(aws_profile: str) -> list[str]:
+    if aws_profile:
+        return ["aws", "--profile", aws_profile]
+    return ["aws-vault", "exec", AWS_VAULT_PROFILE, "--", "aws"]
 
 
 @task

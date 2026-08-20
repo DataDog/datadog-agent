@@ -2,10 +2,11 @@ import hashlib
 import tempfile
 import unittest
 from io import StringIO
+from unittest.mock import patch
 
 from invoke.exceptions import Exit
 
-from tasks.anomalydetection import _local_ddeval_command, eval_ddeval
+from tasks.anomalydetection import AWS_VAULT_PROFILE, _local_aws_command, _local_ddeval_command, eval_ddeval
 from tasks.libs.anomalydetection.ddeval import (
     ARTIFACT_PREFIX,
     RedactingWriter,
@@ -28,6 +29,13 @@ PRESIGNED_URL = (
 
 
 class TestLocalDDEvalArtifacts(unittest.TestCase):
+    @patch.dict("os.environ", {"AWS_PROFILE": "legacy-profile"})
+    def test_default_aws_command_ignores_ambient_profile(self):
+        self.assertEqual(_local_aws_command(""), ["aws-vault", "exec", AWS_VAULT_PROFILE, "--", "aws"])
+
+    def test_custom_aws_profile_bypasses_aws_vault(self):
+        self.assertEqual(_local_aws_command("custom-profile"), ["aws", "--profile", "custom-profile"])
+
     def test_custom_testbench_binary_requires_no_build(self):
         with self.assertRaisesRegex(Exit, "custom --testbench-binary requires --no-build"):
             eval_ddeval.body(None, testbench_binary="/tmp/custom-testbench")
