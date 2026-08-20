@@ -261,7 +261,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		RecoveryInterval:       10,
 		RecoveryReset:          true,
 		Version:                EPIntakeVersion1,
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
 		apiKey:                 atomic.NewString("456"),
@@ -279,7 +279,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		RecoveryInterval:       10,
 		RecoveryReset:          true,
 		Version:                EPIntakeVersion1,
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
 		apiKey:                 atomic.NewString("789"),
@@ -297,7 +297,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		RecoveryInterval:       10,
 		RecoveryReset:          true,
 		Version:                EPIntakeVersion1,
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, constants.DefaultBatchMaxConcurrentSend, constants.DefaultBatchMaxSize, constants.DefaultBatchMaxContentSize, constants.DefaultInputChanSize)
@@ -327,7 +327,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		UseCompression:         false,
 		CompressionLevel:       0,
 		ProxyAddress:           "proxy.test:3128",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint := Endpoint{
 		apiKey:                 atomic.NewString("456"),
@@ -340,7 +340,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		UseCompression:         false,
 		CompressionLevel:       0,
 		ProxyAddress:           "proxy.test:3128",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
@@ -390,7 +390,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		BackoffMax:             constants.DefaultLogsSenderBackoffMax,
 		RecoveryInterval:       constants.DefaultForwarderRecoveryInterval,
 		Version:                EPIntakeVersion1,
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
 		apiKey:                 atomic.NewString("456"),
@@ -407,7 +407,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		BackoffMax:             constants.DefaultLogsSenderBackoffMax,
 		RecoveryInterval:       constants.DefaultForwarderRecoveryInterval,
 		Version:                EPIntakeVersion1,
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
 		apiKey:                 atomic.NewString("789"),
@@ -424,7 +424,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		BackoffMax:             constants.DefaultLogsSenderBackoffMax,
 		RecoveryInterval:       constants.DefaultForwarderRecoveryInterval,
 		Version:                EPIntakeVersion1,
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, constants.DefaultBatchMaxConcurrentSend, constants.DefaultBatchMaxSize, constants.DefaultBatchMaxContentSize, constants.DefaultInputChanSize)
@@ -477,7 +477,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		TrackType:              "test-track",
 		Protocol:               "test-proto",
 		Origin:                 "test-source",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
 		apiKey:                 atomic.NewString("456"),
@@ -494,7 +494,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		BackoffMax:             constants.DefaultLogsSenderBackoffMax,
 		RecoveryInterval:       constants.DefaultForwarderRecoveryInterval,
 		Version:                EPIntakeVersion1,
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
 		apiKey:                 atomic.NewString("789"),
@@ -514,7 +514,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		TrackType:              "test-track",
 		Protocol:               "test-proto",
 		Origin:                 "test-source",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, constants.DefaultBatchMaxConcurrentSend, constants.DefaultBatchMaxSize, constants.DefaultBatchMaxContentSize, constants.DefaultInputChanSize)
@@ -550,7 +550,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		UseCompression:         false,
 		CompressionLevel:       0,
 		ProxyAddress:           "proxy.test:3128",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint := Endpoint{
 		apiKey:                 atomic.NewString("456"),
@@ -563,7 +563,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		UseCompression:         false,
 		CompressionLevel:       0,
 		ProxyAddress:           "proxy.test:3128",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
@@ -678,7 +678,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		TrackType:              "test-track",
 		Origin:                 "test-source",
 		Protocol:               "test-proto",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 
 	expectedEndpoints := &Endpoints{
@@ -719,7 +719,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		TrackType:              "test-track",
 		Origin:                 "serverless",
 		Protocol:               "test-proto",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 
 	expectedEndpoints := &Endpoints{
@@ -1090,7 +1090,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 		RecoveryReset:           true,
 		Protocol:                "test-proto",
 		Origin:                  "test-origin",
-		isReliable:              atomic.NewBool(true),
+		isReliable:              true,
 	}
 
 	expectedEndpoints := &Endpoints{
@@ -1135,7 +1135,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 		TrackType:              "test-track",
 		Protocol:               "test-proto",
 		Origin:                 "test-source",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 
 	expectedEndpoints := &Endpoints{
@@ -1180,7 +1180,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 		TrackType:              "test-track",
 		Protocol:               "test-proto",
 		Origin:                 "test-source",
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 	}
 
 	expectedEndpoints := &Endpoints{

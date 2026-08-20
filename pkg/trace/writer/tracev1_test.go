@@ -572,6 +572,24 @@ func TestTraceWriterV1RebuildSendersRejectsMalformedHost(t *testing.T) {
 	assert.Equal(t, first.URL+pathTraces, writer.senders[0].cfg.url.String())
 }
 
+// TestTraceWriterV1SendHoldsSendersLock pins the same locking invariant as the
+// TraceWriter test of the same name - see assertSendHoldsSendersLock for why.
+func TestTraceWriterV1SendHoldsSendersLock(t *testing.T) {
+	srv := newTestServerWithLatency(sendBlockLatency)
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:            testHostname,
+		DefaultEnv:          testEnv,
+		Endpoints:           []*config.Endpoint{{APIKey: "123", Host: srv.URL}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 1},
+		SynchronousFlushing: true,
+	}
+	w := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer w.Stop()
+
+	assertSendHoldsSendersLock(t, srv, &w.sendersMu, func() { w.serializePrepared(&pb.AgentPayload{}, nil) })
+}
+
 func TestTraceWriterV1DoesNotRebuildAfterStop(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()

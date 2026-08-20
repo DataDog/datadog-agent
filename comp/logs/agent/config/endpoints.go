@@ -53,10 +53,14 @@ const (
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
-	// isReliable is mutable at runtime (not just construction): a pending delegated-auth
-	// directive forces it false until the real key resolves, so it needs the same
-	// shared-pointer-across-copies treatment as apiKey below.
-	isReliable *atomic.Bool
+	// isReliable is fixed at load time. An endpoint whose key is still a pending DELA(...)
+	// directive is forced unreliable (see delaAwareAPIKey's callers) and stays that way for the
+	// process lifetime, even after the key resolves: GetReliableEndpoints/GetUnReliableEndpoints
+	// are read once when the logs pipelines build their destinations, and those destinations bake
+	// the reliable/unreliable choice in, so there is nothing to flip afterwards. Its API key is
+	// still updated live, so the endpoint does deliver once resolved - just on the best-effort
+	// path rather than the blocking one.
+	isReliable bool
 	useSSL     bool
 
 	// the apiKey to use for this endpoint
@@ -136,7 +140,7 @@ func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, 
 		Port:              port,
 		PathPrefix:        pathPrefix,
 		useSSL:            useSSL,
-		isReliable:        atomic.NewBool(true), // by default endpoints are reliable
+		isReliable:        true, // by default endpoints are reliable
 	}
 }
 
@@ -152,7 +156,7 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint 
 		ProxyAddress:            logsConfig.socks5ProxyAddress(),
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
 		useSSL:                  !logsConfig.logsNoSSL(),
-		isReliable:              atomic.NewBool(true), // by default endpoints are reliable
+		isReliable:              true, // by default endpoints are reliable
 	}
 	if registerCallback {
 		e.onConfigUpdate(logsConfig)
@@ -180,7 +184,7 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint
 		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
 		useSSL:                  !logsConfig.logsNoSSL(),
-		isReliable:              atomic.NewBool(true), // by default endpoints are reliable
+		isReliable:              true, // by default endpoints are reliable
 	}
 	if registerCallback {
 		e.onConfigUpdate(logsConfig)
@@ -208,9 +212,9 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 		newE.CompressionLevel = e.CompressionLevel
 		newE.ProxyAddress = l.socks5ProxyAddress()
 		// A pending delegated-auth directive forces this unreliable regardless of the configured
-		// setting, so it doesn't block the pipeline while there's no real key yet; the reload
-		// callback below restores the configured value once the key resolves.
-		newE.isReliable.Store(!pending && (e.IsReliable == nil || *e.IsReliable))
+		// setting: a reliable destination with no API key puts the whole logs pipeline in a
+		// permanent error state. See Endpoint.isReliable for why this is not restored later.
+		newE.isReliable = !pending && (e.IsReliable == nil || *e.IsReliable)
 		if e.ConnectionResetIntervalSeconds != nil {
 			newE.ConnectionResetInterval = time.Duration(*e.ConnectionResetIntervalSeconds) * time.Second
 		} else {
@@ -257,9 +261,9 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		newE.CompressionLevel = main.CompressionLevel
 		newE.ProxyAddress = e.ProxyAddress
 		// A pending delegated-auth directive forces this unreliable regardless of the configured
-		// setting, so it doesn't block the pipeline while there's no real key yet; the reload
-		// callback below restores the configured value once the key resolves.
-		newE.isReliable.Store(!pending && (e.IsReliable == nil || *e.IsReliable))
+		// setting: a reliable destination with no API key puts the whole logs pipeline in a
+		// permanent error state. See Endpoint.isReliable for why this is not restored later.
+		newE.isReliable = !pending && (e.IsReliable == nil || *e.IsReliable)
 		if e.ConnectionResetIntervalSeconds != nil {
 			newE.ConnectionResetInterval = time.Duration(*e.ConnectionResetIntervalSeconds) * time.Second
 		} else {
@@ -400,8 +404,9 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 			return
 		}
 
-		configuredEndpoint := newAdditionalEndpoints[e.additionalEndpointsIdx]
-		newAPIKey, pending := delaAwareAPIKey(configuredEndpoint.APIKey)
+		// The pending flag is ignored here: isReliable is fixed at load time (see
+		// Endpoint.isReliable), so there is nothing to update besides the key itself.
+		newAPIKey, _ := delaAwareAPIKey(newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey)
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,
@@ -409,15 +414,12 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 			scrubber.HideKeyExceptLastChars(newAPIKey),
 		)
 		e.apiKey.Store(newAPIKey)
-		// Restore the configured reliability once the directive resolves (or re-force unreliable
-		// if a rotation ever replaced a real key with a still-pending directive).
-		e.isReliable.Store(!pending && (configuredEndpoint.IsReliable == nil || *configuredEndpoint.IsReliable))
 	})
 }
 
 // IsReliable returns true if the endpoint is reliable. Endpoints are reliable by default.
 func (e *Endpoint) IsReliable() bool {
-	return e.isReliable.Load()
+	return e.isReliable
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.

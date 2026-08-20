@@ -693,8 +693,8 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdateDelegatedAuthDirective() {
 			suite.False(endpoints[0].IsReliable())
 
 			// Once delegated auth resolves the directive and writes the real key back into the
-			// same config slot, the endpoint's onConfigUpdate callback must rotate from "" to it,
-			// and restore the endpoint to its configured (default: reliable) state.
+			// same config slot, the endpoint's onConfigUpdate callback rotates the key from "" to
+			// it, so the endpoint starts delivering.
 			suite.config.SetInTest("logs_config.additional_endpoints", `[{
 			"api_key": "resolved-real-key",
 			"Host":    "localhost1",
@@ -702,7 +702,11 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdateDelegatedAuthDirective() {
 			}]`)
 
 			suite.Equal("resolved-real-key", endpoints[0].GetAPIKey())
-			suite.True(endpoints[0].IsReliable())
+			// Reliability is deliberately NOT restored: the logs pipelines partition endpoints
+			// into reliable/unreliable destinations once at startup, so flipping this afterwards
+			// would have no effect on delivery. The endpoint stays on the best-effort path until
+			// the Agent restarts. See Endpoint.isReliable.
+			suite.False(endpoints[0].IsReliable())
 		})
 	}
 }
@@ -730,7 +734,7 @@ func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 		useSSL:                 true,
 		Host:                   "localhost1",
 		Port:                   1234,
@@ -742,7 +746,7 @@ func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 1,
-		isReliable:             atomic.NewBool(false),
+		isReliable:             false,
 		Host:                   "localhost2",
 		Port:                   5678,
 	}
@@ -779,7 +783,7 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
-		isReliable:             atomic.NewBool(true),
+		isReliable:             true,
 		useSSL:                 true,
 		Host:                   "localhost1",
 		Port:                   1234,
@@ -792,7 +796,7 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 1,
-		isReliable:             atomic.NewBool(false),
+		isReliable:             false,
 		Host:                   "localhost2",
 		Port:                   5678,
 		UseCompression:         true,

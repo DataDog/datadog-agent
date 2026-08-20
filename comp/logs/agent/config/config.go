@@ -402,7 +402,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			opwEndpoint.Port = port
 			opwEndpoint.useSSL = useSSL
 			opwEndpoint.isAdditionalEndpoint = true
-			opwEndpoint.isReliable.Store(logsConfig.obsPipelineWorkerDualShipReliable())
+			opwEndpoint.isReliable = logsConfig.obsPipelineWorkerDualShipReliable()
 			opwEndpoint.Version = main.Version
 			opwEndpoint.TrackType = main.TrackType
 			opwEndpoint.Protocol = main.Protocol

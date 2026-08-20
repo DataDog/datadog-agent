@@ -381,13 +381,16 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 	if err := writer.Close(); err != nil {
 		log.Errorf("Error closing %s stream when writing trace payload: %v", w.compressor.Encoding(), err)
 	}
-	// Snapshot senders under the lock, then send outside it: sendPayloads can block on a network
-	// flush (sync_flushing waits for completion), and holding sendersMu.RLock() across that would
-	// stall a concurrent RebuildSenders/Stop waiting for the write lock.
+	// The read lock MUST be held across the send, not just around reading the slice. RebuildSenders
+	// takes the write lock, swaps the slice, and then calls stopSenders on the old senders, which
+	// closes each sender's queue. sender.Push checks s.closed and then sends on that queue as two
+	// separate steps, so a push overlapping a rebuild is a send-on-closed-channel panic. Holding
+	// the read lock here blocks RebuildSenders until this send completes; any rebuild that starts
+	// afterwards swaps in new senders that this call never touches.
 	w.sendersMu.RLock()
 	senders := w.senders
-	w.sendersMu.RUnlock()
 	sendPayloads(senders, p, w.syncMode)
+	w.sendersMu.RUnlock()
 }
 
 func (w *TraceWriter) report() {

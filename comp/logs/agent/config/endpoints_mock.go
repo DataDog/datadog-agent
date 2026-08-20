@@ -19,7 +19,7 @@ func NewMockEndpoint() Endpoint {
 		Host:              "localhost",
 		Port:              443,
 		useSSL:            true,
-		isReliable:        atomic.NewBool(true),
+		isReliable:        true,
 		UseCompression:    true,
 		CompressionLevel:  6,
 	}
@@ -77,7 +77,7 @@ func NewMockEndpointWithOptions(opts map[string]interface{}) Endpoint {
 		e.CompressionLevel = compressionLevel
 	}
 	if isReliable, ok := opts["is_reliable"].(bool); ok {
-		e.isReliable.Store(isReliable)
+		e.isReliable = isReliable
 	}
 
 	return e

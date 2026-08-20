@@ -298,13 +298,13 @@ func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 		log.Errorf("Stats encoding error: %v", err)
 		return
 	}
-	// Snapshot senders under the lock, then send outside it: sendPayloads can block on a network
-	// flush (sync_flushing waits for completion), and holding sendersMu.RLock() across that would
-	// stall a concurrent RebuildSenders/Stop waiting for the write lock.
+	// The read lock MUST be held across the send - see the equivalent comment in TraceWriter.serialize.
+	// Releasing it before sendPayloads lets RebuildSenders stopSenders (which closes each sender's
+	// queue) while this goroutine is still pushing to them, panicking on send to a closed channel.
 	w.sendersMu.RLock()
 	senders := w.senders
-	w.sendersMu.RUnlock()
 	sendPayloads(senders, req, w.syncMode)
+	w.sendersMu.RUnlock()
 }
 
 func (w *DatadogStatsWriter) sendPayloads() {

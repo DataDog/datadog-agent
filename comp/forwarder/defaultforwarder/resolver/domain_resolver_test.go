@@ -259,7 +259,17 @@ func TestLegacyEndpointConversionPreservesPendingDelegatedAuth(t *testing.T) {
 		HasPendingDelegatedAuth: true,
 	}}))
 	require.NoError(t, err)
-	assert.True(t, resolvers["https://pending.example"].IsUsable())
+	resolver, ok := resolvers["https://pending.example"]
+	require.True(t, ok, "the pending domain must still get a resolver")
+	assert.True(t, resolver.IsUsable())
+
+	// The domain must be usable because it is pending, NOT because it carries a key. An endpoint
+	// awaiting delegated auth has an empty APIKey, and utils.DedupAPIKeys does not filter empty
+	// strings - so if that empty key were kept it would produce a `DD-Api-Key: ` authorizer and
+	// real payloads would be submitted against it (403s + retry-queue churn) until resolution.
+	assert.Empty(t, resolver.GetAPIKeys(), "a pending endpoint must contribute no API key")
+	assert.Empty(t, resolver.GetAuthorizers(), "a pending endpoint must produce no auth header")
+	assert.True(t, resolver.hasPendingDelegatedAuth)
 }
 
 func TestIsUsableWithNoKeysAndNoPendingDelegatedAuth(t *testing.T) {
