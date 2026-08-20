@@ -15,6 +15,8 @@ import (
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,12 +76,10 @@ const (
 
 // timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
-	cfg    StorageConfig
-	mu     sync.RWMutex
-	series map[uint64]*seriesStats // keyed by seriesKeyHash; no string retained per entry
-	// contextKeySeries keeps aggregation ContextKeys in a separate uint64 index
-	// so they cannot collide with the legacy FNV hash domain.
-	contextKeySeries map[uint64]*seriesStats
+	cfg StorageConfig
+	mu  sync.RWMutex
+	// series is keyed exclusively by the aggregator ContextKey domain.
+	series map[uint64]*seriesStats
 
 	// observationTimestamps tracks all timestamps where observations occurred,
 	// even if no metric series was written for that timestamp.
@@ -99,7 +99,7 @@ type timeSeriesStorage struct {
 	// series key is created, not on every write to an existing series.
 	seriesGen uint64
 
-	// tagIntern maps a fnv64a hash of a series' sorted tag set to the canonical
+	// tagIntern maps a tagset hash of a series' sorted tag set to the canonical
 	// []string slice shared by all series with that tag combination, plus a
 	// reference count. When the count drops to zero on eviction the entry is
 	// deleted. Protected by s.mu (write lock).
@@ -128,8 +128,7 @@ type seriesStats struct {
 	Name       string
 	Tags       []string
 	storageKey uint64
-	contextKey bool
-	tagsHash   uint64                  // fnv64a hash of Tags; 0 means not interned
+	tagsHash   uint64                  // tagset hash of Tags; 0 means not interned
 	ref        observer.SeriesRef      // compact numeric ID assigned on creation
 	context    *observer.MetricContext // optional; set by extractors for anomaly enrichment
 	// supportedAggregations is a bit mask. Zero means all aggregations are
@@ -275,7 +274,6 @@ func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 	return &timeSeriesStorage{
 		cfg:                   cfg,
 		series:                make(map[uint64]*seriesStats),
-		contextKeySeries:      make(map[uint64]*seriesStats),
 		seriesIDStats:         make(map[observer.SeriesRef]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
@@ -298,16 +296,16 @@ type AddResult struct {
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
-	return s.add(namespace, name, value, timestamp, tags, seriesKeyHash(namespace, name, tags), false)
+	return s.AddWithKey(namespace, name, value, timestamp, tags, contextKeyFor(name, "", tags))
 }
 
 // AddWithKey inserts a point using an aggregation context key already computed
 // by the metric pipeline. Equal context keys identify the same external series.
 func (s *timeSeriesStorage) AddWithKey(namespace, name string, value float64, timestamp int64, tags []string, key observer.MetricContextKey) AddResult {
-	return s.add(namespace, name, value, timestamp, tags, uint64(key), true)
+	return s.add(namespace, name, value, timestamp, tags, uint64(key))
 }
 
-func (s *timeSeriesStorage) add(namespace, name string, value float64, timestamp int64, tags []string, key uint64, contextKey bool) AddResult {
+func (s *timeSeriesStorage) add(namespace, name string, value float64, timestamp int64, tags []string, key uint64) AddResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -321,28 +319,8 @@ func (s *timeSeriesStorage) add(namespace, name string, value float64, timestamp
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return AddResult{Ref: -1}
 	}
-	// Skip the alloc when tags are already sorted. Both ingest paths (real metrics
-	// via prepareMetricIngest and virtual metrics via IngestLog) canonicalize before
-	// calling Add, so this fast path is hit on every normal call.
-	var canonTags []string
-	if tagsSorted(tags) {
-		canonTags = tags
-	} else {
-		canonTags = canonicalizeTags(tags)
-	}
-
 	var stats *seriesStats
-	if contextKey {
-		stats = s.contextKeySeries[key]
-	} else {
-		stats = s.series[key]
-		// Collision guard: verify full identity (namespace + name + sorted tags).
-		if stats != nil && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonTags)) {
-			pkglog.Warnf("[observer] seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
-				key, stats.Namespace, stats.Name, namespace, name)
-			stats = s.findSeriesByIdentity(namespace, name, canonTags)
-		}
-	}
+	stats = s.series[key]
 	exists := stats != nil
 	if !exists {
 		// Only intern on new series creation so the ref count tracks exactly
@@ -355,17 +333,10 @@ func (s *timeSeriesStorage) add(namespace, name string, value float64, timestamp
 			Name:       name,
 			Tags:       canonical,
 			storageKey: key,
-			contextKey: contextKey,
 			tagsHash:   th,
 			ref:        id,
 		}
-		if contextKey {
-			s.contextKeySeries[key] = stats
-		} else if _, occupied := s.series[key]; !occupied {
-			// Only claim the hash slot when empty to avoid displacing an existing
-			// collision-displaced series.
-			s.series[key] = stats
-		}
+		s.series[key] = stats
 		s.seriesIDStats[id] = stats
 		if namespace != observer.TelemetryNamespace {
 			s.liveSeriesCount++
@@ -742,24 +713,14 @@ func tagsEqual(a, b []string) bool {
 // slice. Matches the default for dogstatsd_string_interner_size.
 const tagInternMaxSize = 4096
 
-// hashTags computes a fnv64a hash over sorted tags without constructing the
-// joined string. Distinct from seriesKeyHash (which includes namespace+name).
-// Returns 0 only for empty input; remaps the rare zero hash to 1 as sentinel.
+// hashTags computes the same order-independent tag hash used by ContextKey.
 func hashTags(tags []string) uint64 {
 	if len(tags) == 0 {
 		return 0
 	}
-	h := fnvOffsetBasis64
-	for i, t := range tags {
-		if i > 0 {
-			h ^= uint64(',')
-			h *= fnvPrime64
-		}
-		for j := 0; j < len(t); j++ {
-			h ^= uint64(t[j])
-			h *= fnvPrime64
-		}
-	}
+	acc := tagset.NewHashingTagsAccumulatorWithTags(tags)
+	acc.SortUniq()
+	h := acc.Hash()
 	if h == 0 {
 		h = 1
 	}
@@ -819,27 +780,11 @@ func (s *timeSeriesStorage) TagInternedCount() int {
 	return len(s.tagIntern)
 }
 
-// seriesKeyHash computes FNV-1a over namespace|name|tag1,tag2,... without
-// allocating a string. Produces the same value as fnv64aString(seriesKey(...)).
-func seriesKeyHash(namespace, name string, tags []string) uint64 {
-	if len(tags) > 1 && !tagsSorted(tags) {
-		tags = canonicalizeTags(tags)
-	}
-	h := fnv64aString(namespace)
-	h = fnv64aMix(h, name)
-	h ^= uint64('|')
-	h *= fnvPrime64
-	for i, t := range tags {
-		if i > 0 {
-			h ^= uint64(',')
-			h *= fnvPrime64
-		}
-		for j := 0; j < len(t); j++ {
-			h ^= uint64(t[j])
-			h *= fnvPrime64
-		}
-	}
-	return h
+// contextKeyFor is the compatibility path for callers outside the aggregator.
+// It deliberately uses the same generator and identity domain as live metrics.
+func contextKeyFor(name, host string, tags []string) observer.MetricContextKey {
+	acc := tagset.NewHashingTagsAccumulatorWithTags(tags)
+	return observer.MetricContextKey(ckey.NewKeyGenerator().Generate(name, host, acc))
 }
 
 // resolveByID returns the seriesStats for a numeric series ID.
@@ -859,9 +804,6 @@ func (s *timeSeriesStorage) FindRefsByHashes(hashes map[uint64]struct{}) []obser
 	refs := make([]observer.SeriesRef, 0, len(hashes))
 	for h := range hashes {
 		if stats := s.series[h]; stats != nil {
-			refs = append(refs, stats.ref)
-		}
-		if stats := s.contextKeySeries[h]; stats != nil {
 			refs = append(refs, stats.ref)
 		}
 	}
@@ -1125,11 +1067,7 @@ func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
 		return false
 	}
 	s.releaseTagIntern(stats.tagsHash)
-	if stats.contextKey {
-		if s.contextKeySeries[stats.storageKey] == stats {
-			delete(s.contextKeySeries, stats.storageKey)
-		}
-	} else if s.series[stats.storageKey] == stats {
+	if s.series[stats.storageKey] == stats {
 		delete(s.series, stats.storageKey)
 	}
 	delete(s.seriesIDStats, stats.ref)

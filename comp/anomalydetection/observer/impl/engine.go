@@ -330,17 +330,17 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				copy(newTags, tags)
 				tags = append(newTags, sourceTag)
 			}
-			// Always canonicalize so the hash computed here matches storage's
-			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
+			// Canonicalize once for filtering and storage metadata.
 			tags = canonicalizeTags(tags)
+			key := contextKeyFor(m.Name, l.hostname, tags)
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, tags)]; ok {
+				if _, ok := e.baseline.mutedHashes[uint64(key)]; ok {
 					continue
 				}
 			}
 			timestamp := l.timestampMs / 1000
 			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
-				if !e.logCounts.observe(extractor.Name(), m, timestamp, tags) {
+				if !e.logCounts.observe(extractor.Name(), m, timestamp, tags, key, l.hostname) {
 					e.latePoints.Add(1)
 					if e.latePointsBySource == nil {
 						e.latePointsBySource = make(map[string]int64)
@@ -349,7 +349,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 				continue
 			}
-			res := e.storage.Add(extractor.Name(), m.Name, m.Value, timestamp, tags)
+			res := e.storage.AddWithKey(extractor.Name(), m.Name, m.Value, timestamp, tags, key)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
@@ -681,7 +681,7 @@ func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
 			return key
 		}
 	}
-	return seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)
+	return uint64(contextKeyFor(anomaly.Source.Name, "", anomaly.Source.Tags))
 }
 
 // enrichAnomaly decorates an anomaly with context stored on the source series.

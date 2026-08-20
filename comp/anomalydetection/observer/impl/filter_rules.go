@@ -171,9 +171,8 @@ func compileRuleTags(tags []string) ([]string, error) {
 }
 
 // isAllowed returns true if the metric should be ingested.
-// tags must be sorted so the mute hash matches seriesKeyHash in storage.
 func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
-	return f.isAllowedWithContextKey(name, source, tags, 0, false)
+	return f.isAllowedWithContextKey(name, source, tags, uint64(contextKeyFor(name, "", tags)), true)
 }
 
 // isAllowedWithContextKey evaluates rules using an aggregation context key for
@@ -190,7 +189,7 @@ func (f *metricsFilterRules) isAllowedWithContextKey(name, source string, tags [
 	if m := f.muted.Load(); m != nil {
 		key := contextKey
 		if !hasContextKey {
-			key = seriesKeyHash(source, name, tags)
+			key = uint64(contextKeyFor(name, "", tags))
 		}
 		if _, ok := (*m)[key]; ok {
 			return false

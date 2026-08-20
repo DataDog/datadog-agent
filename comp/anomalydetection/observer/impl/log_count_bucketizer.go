@@ -46,6 +46,7 @@ type logCountBucketSeries struct {
 	namespace string
 	name      string
 	tags      []string
+	key       observerdef.MetricContextKey
 	context   *observerdef.MetricContext
 	anchor    int64
 	// lastObserved is the latest real log timestamp. Synthetic zero buckets do
@@ -94,9 +95,13 @@ func (b *materializedLogCountBucketizer) observe(
 	metric observerdef.MetricOutput,
 	timestamp int64,
 	tags []string,
+	identity ...any,
 ) bool {
-	key := seriesKeyHash(namespace, metric.Name, tags)
-	state := b.series[key]
+	key := contextKeyFor(metric.Name, "", tags)
+	if len(identity) > 0 {
+		key = identity[0].(observerdef.MetricContextKey)
+	}
+	state := b.series[uint64(key)]
 	if state == nil && timestamp <= b.flushedThrough {
 		return false
 	}
@@ -114,13 +119,14 @@ func (b *materializedLogCountBucketizer) observe(
 			namespace:    namespace,
 			name:         metric.Name,
 			tags:         append([]string(nil), tags...),
+			key:          key,
 			context:      metric.Context,
 			anchor:       timestamp,
 			lastObserved: timestamp,
 			storageRef:   -1,
 			values:       make(map[int64]float64),
 		}
-		b.series[key] = state
+		b.series[uint64(key)] = state
 	} else {
 		state.lastObserved = max(state.lastObserved, timestamp)
 		if metric.Context != nil {
@@ -153,12 +159,13 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
 			for nextEnd <= interval.lastEnd && nextEnd <= upTo {
-				result := storage.Add(
+				result := storage.AddWithKey(
 					state.namespace,
 					state.name,
 					state.values[nextEnd],
 					nextEnd,
 					state.tags,
+					state.key,
 				)
 				if state.context != nil && result.Ref >= 0 {
 					storage.SetContext(result.Ref, state.context)

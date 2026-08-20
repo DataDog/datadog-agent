@@ -12,6 +12,7 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -46,8 +47,9 @@ type noAggregationStreamWorker struct {
 	seriesSink   *metrics.IterableSeries
 	sketchesSink *metrics.IterableSketches
 
-	taggerBuffer *tagset.HashlessTagsAccumulator
-	metricBuffer *tagset.HashlessTagsAccumulator
+	taggerBuffer *tagset.HashingTagsAccumulator
+	metricBuffer *tagset.HashingTagsAccumulator
+	keyGenerator *ckey.KeyGenerator
 
 	// Shared no-aggregation input queue. Multiple workers receive from the same
 	// channel so available workers pull work instead of being selected by demux.
@@ -114,8 +116,9 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *me
 
 		metricSamplePool: metricSamplePool,
 
-		taggerBuffer: tagset.NewHashlessTagsAccumulator(),
-		metricBuffer: tagset.NewHashlessTagsAccumulator(),
+		taggerBuffer: tagset.NewHashingTagsAccumulator(),
+		metricBuffer: tagset.NewHashingTagsAccumulator(),
+		keyGenerator: ckey.NewKeyGenerator(),
 
 		stopChan:    make(chan trigger),
 		samplesChan: samplesChan,
@@ -207,13 +210,13 @@ func (w *noAggregationStreamWorker) run() {
 								continue
 							}
 
-							if w.observerHandle != nil {
-								w.observerHandle.ObserveMetric(&sample)
-							}
-
 							// enrich metric sample tags
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger)
-							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
+							w.metricBuffer.Append(w.taggerBuffer.Get()...)
+							if w.observerHandle != nil {
+								key := w.keyGenerator.Generate(sample.Name, sample.Host, w.metricBuffer)
+								w.observerHandle.ObserveMetricWithContextKey(&sample, observer.MetricContextKey(key))
+							}
 
 							// if the value is a rate, we have to account for the 10s interval
 							if mtype == metrics.APIRateType {

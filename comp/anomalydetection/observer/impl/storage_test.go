@@ -71,7 +71,7 @@ func TestTimeSeriesStorage_AddWithKeyLegacyLookupAndRemoval(t *testing.T) {
 	assert.Equal(t, ""+fmt.Sprint(res.Ref)+":avg", s.CompactSeriesID("dogstatsd|metric.a:avg|env:prod"))
 	require.Equal(t, []observer.SeriesRef{res.Ref}, s.RemoveSeriesByRefs([]observer.SeriesRef{res.Ref}))
 	assert.Nil(t, s.GetSeriesMeta(res.Ref))
-	assert.Empty(t, s.contextKeySeries)
+	assert.Empty(t, s.series)
 }
 
 func TestEngineIngestMetricUsesContextKey(t *testing.T) {
@@ -764,9 +764,9 @@ func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
 	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
 
-	hA := seriesKeyHash("ns", "a", []string{"k:1"})
-	hB := seriesKeyHash("ns", "b", []string{"k:2"})
-	hMissing := seriesKeyHash("ns", "ghost", nil)
+	hA := uint64(contextKeyFor("a", "", []string{"k:1"}))
+	hB := uint64(contextKeyFor("b", "", []string{"k:2"}))
+	hMissing := uint64(contextKeyFor("ghost", "", nil))
 
 	refs := s.FindRefsByHashes(map[uint64]struct{}{hA: {}, hB: {}, hMissing: {}})
 

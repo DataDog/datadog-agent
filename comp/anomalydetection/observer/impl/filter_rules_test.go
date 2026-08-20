@@ -73,12 +73,12 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	tags := []string{"env:prod"}
-	h := seriesKeyHash("check", "system.cpu.user", tags)
+	h := uint64(contextKeyFor("system.cpu.user", "", tags))
 	filter.publishMutedSnapshot(map[uint64]struct{}{h: {}})
 
 	assert.False(t, filter.isAllowed("system.cpu.user", "check", tags))
 	assert.True(t, filter.isAllowed("system.mem.used", "check", tags))
-	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", tags))
+	assert.False(t, filter.isAllowed("system.cpu.user", "dogstatsd", tags))
 	// LogMetricsExtractorName bypasses the mute check entirely
 	assert.True(t, filter.isAllowed("system.cpu.user", LogMetricsExtractorName, tags))
 }

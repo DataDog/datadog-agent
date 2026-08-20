@@ -1038,8 +1038,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 func prepareMetricIngestWithContextKey(source string, sample observerdef.MetricView, filter *metricsFilterRules, contextKey observerdef.MetricContextKey, hasContextKey bool) metricIngestDecision {
 	name := sample.GetName()
 	normalizedSource := normalizeMetricSource(name, source)
-	// Canonicalize once so the mute hash in isAllowed matches seriesKeyHash in
-	// storage, and downstream Add calls hit the tagsSorted fast path.
+	// Canonicalize once for rule matching and retained metadata.
 	tags := canonicalizeTags(sample.GetRawTags())
 	if !filter.isAllowedWithContextKey(name, normalizedSource, tags, uint64(contextKey), hasContextKey) {
 		return metricIngestDecision{source: normalizedSource}
