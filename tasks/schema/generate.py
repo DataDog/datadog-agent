@@ -24,36 +24,6 @@ SYSTEM_PROBE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "system-probe_schema.ya
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
 
-# Top-level sections of the core schema that get split into their own YAML
-# file. Each entry in this list becomes a sibling file `yaml/<name>.yaml` in
-# the same directory as yaml/core_schema.yaml, and the top file's entry is
-# replaced with `{$ref: "<name>.yaml"}`. The list is the set of top-level
-# entries with at least 8 children (chosen at the time of the split).
-CORE_SPLIT_SECTIONS = [
-    "logs_config",
-    "apm_config",
-    "sbom",
-    "process_config",
-    "cluster_agent",
-    "admission_controller",
-    "agent_telemetry",
-    "container_image",
-    "container_lifecycle",
-    "external_metrics_provider",
-    "private_action_runner",
-    "orchestrator_explorer",
-    "remote_configuration",
-    "cluster_checks",
-    "compliance_config",
-    "snmp_listener",
-    "internal_profiling",
-    "multi_region_failover",
-    "gpu",
-    "otelcollector",
-    "runtime_security_config",
-    "network_devices.yaml",
-]
-
 
 def str_presenter(dumper, data):
     if "\n" in data:
@@ -75,7 +45,7 @@ def compress(ctx, output_dir=COMPRESS_DIR):
     if sys.platform == "aix":
         _compress_no_bazel(ctx, output_dir)
         return
-    bazel(ctx, "run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+    bazel("run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
 
 
 # Must match the ZSTD_ARGS in pkg/config/schema/BUILD.bazel: --no-check to

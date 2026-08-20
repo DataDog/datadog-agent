@@ -133,9 +133,12 @@ type Collector struct {
 	store             darwinBookmarkStore
 	createWatcher     darwinReportWatcherFactory
 	watcher           darwinReportWatcher
-	knownDirs         map[string]reportDirectory
-	retryDirs         map[string]reportDirectory
-	stagedRuntime     *stagedDarwinScanRuntime
+	// watcherEverAttached distinguishes the initial attach from later ones so
+	// only the latter count as restarts.
+	watcherEverAttached bool
+	knownDirs           map[string]reportDirectory
+	retryDirs           map[string]reportDirectory
+	stagedRuntime       *stagedDarwinScanRuntime
 
 	state             *darwinBookmarkState
 	stagedScan        *stagedDarwinScan
@@ -156,6 +159,8 @@ type Collector struct {
 	now               func() time.Time
 	identityRetention time.Duration
 	maxAcknowledged   int
+
+	counters collectorCounters
 
 	started   bool
 	closed    bool
@@ -309,6 +314,45 @@ func (c *Collector) Pending() []Event {
 	return events
 }
 
+// Stats returns an aggregate snapshot of collector health. It never acquires
+// scanMu, which a scan holds across report I/O, so it stays responsive while
+// scanning. Gauges owned by scanMu are read from their atomic mirrors.
+func (c *Collector) Stats() CollectorStats {
+	stats := CollectorStats{
+		PendingEventsMax:                  maxDarwinPendingEvents,
+		TrackedFilesMax:                   maxDarwinTotalFiles,
+		TrackedDirectoriesMax:             maxDarwinDirectories,
+		AcknowledgedIdentitiesMax:         c.maxAcknowledged,
+		RetryDirectories:                  int(c.counters.retryDirectories.Load()),
+		WatcherActive:                     c.counters.watcherActive.Load(),
+		PersistenceErrors:                 c.counters.persistenceErrors.Load(),
+		CapacityDeferrals:                 c.counters.capacityDeferrals.Load(),
+		BaselineSuppressedFirstRun:        c.counters.baselineSuppressedFirstRun.Load(),
+		BaselineSuppressedAfterSaturation: c.counters.baselineSuppressedAfterSaturation.Load(),
+		FSEventsDrops:                     c.counters.fseventsDrops.Load(),
+		WatcherErrors:                     c.counters.watcherErrors.Load(),
+		WatcherRestarts:                   c.counters.watcherRestarts.Load(),
+	}
+
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	stats.PendingEvents = len(c.state.Pending)
+	stats.AcknowledgedIdentities = len(c.state.Acknowledged)
+	stats.TrackedDirectories = len(c.state.Directories)
+	stats.BookmarkUnsaved = c.unsaved
+	stats.BookmarkStagePending = c.stagedScan != nil
+	for _, dirState := range c.state.Directories {
+		if dirState == nil {
+			continue
+		}
+		stats.TrackedFiles += len(dirState.Files)
+		if dirState.Saturated {
+			stats.SaturatedDirectories++
+		}
+	}
+	return stats
+}
+
 // Ack atomically moves pending IDs to retained acknowledgement state. Unknown
 // and already acknowledged IDs are no-ops. If persistence fails, no in-memory
 // event is removed and callers can safely retry.
@@ -360,6 +404,7 @@ func (c *Collector) Ack(ids []string) error {
 	c.stateMu.Unlock()
 
 	if err := c.store.Save(next); err != nil {
+		c.counters.persistenceErrors.Add(1)
 		c.stateMu.Lock()
 		c.releaseCommitLocked(reservation)
 		c.stateMu.Unlock()
@@ -437,6 +482,7 @@ func (c *Collector) run(ctx context.Context) {
 				c.scanMu.Unlock()
 				continue
 			}
+			c.recordWatcherError(err)
 			log.Warnf("macOS DiagnosticReports watcher error: %v", err)
 		}
 	}
@@ -600,6 +646,17 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 	c.stateMu.Unlock()
 }
 
+// recordWatcherError separates dropped-event notifications, which imply lost
+// change notifications, from other asynchronous watcher failures.
+func (c *Collector) recordWatcherError(err error) {
+	var dropped *fseventsDroppedError
+	if errors.As(err, &dropped) {
+		c.counters.fseventsDrops.Add(1)
+		return
+	}
+	c.counters.watcherErrors.Add(1)
+}
+
 // watcherChannelsLocked returns nil-safe watcher channels while scanMu is held.
 func (c *Collector) watcherChannelsLocked() (<-chan string, <-chan error) {
 	if c.watcher == nil {
@@ -612,6 +669,7 @@ func (c *Collector) watcherChannelsLocked() (<-chan string, <-chan error) {
 func (c *Collector) closeWatcherLocked() error {
 	watcher := c.watcher
 	c.watcher = nil
+	c.counters.watcherActive.Store(false)
 	if watcher == nil {
 		return nil
 	}
@@ -630,6 +688,11 @@ type directoryScanResult struct {
 	BaselineIncidentIDs map[string]struct{}
 	BaselineCompletions []darwinBaselineReportCompletion
 	Deliverables        map[string]darwinScanDeliverable
+	// BaselineSuppressedFirstRun and BaselineSuppressedAfterSaturation count
+	// reports recorded without delivery, split by why the directory was being
+	// baselined.
+	BaselineSuppressedFirstRun        int
+	BaselineSuppressedAfterSaturation int
 }
 
 type darwinBaselineReportCompletion struct {
@@ -652,6 +715,9 @@ type darwinReportSource struct {
 type darwinScanIncidents struct {
 	baselineIDs  map[string]struct{}
 	deliverables map[string]darwinScanDeliverable
+	// capacityDeferrals counts events reconcile could not queue because
+	// pending delivery was full.
+	capacityDeferrals int
 }
 
 // scanOnce refreshes report directories and reconciles their current contents.
@@ -686,6 +752,11 @@ func (c *Collector) ensureWatcherLocked() {
 		return
 	}
 	c.watcher = watcher
+	c.counters.watcherActive.Store(true)
+	if c.watcherEverAttached {
+		c.counters.watcherRestarts.Add(1)
+	}
+	c.watcherEverAttached = true
 }
 
 // processWatcherEvent coalesces queued changes and scans only affected known directories.
@@ -771,9 +842,10 @@ func (c *Collector) retryDirectoriesLocked() []reportDirectory {
 // restoreWatcherLocked recreates watcher coverage after an asynchronous watcher failure.
 func (c *Collector) restoreWatcherLocked() {
 	c.ensureWatcherLocked()
-	if c.watcher != nil {
-		c.refreshWatchedDirectoriesLocked(c.knownDirectoriesLocked())
+	if c.watcher == nil {
+		return
 	}
+	c.refreshWatchedDirectoriesLocked(c.knownDirectoriesLocked())
 }
 
 // knownDirectoriesLocked returns a stable snapshot of currently discovered report directories.
@@ -820,6 +892,8 @@ func (c *Collector) scanDirectoriesLocked(ctx context.Context, dirs []reportDire
 
 		result, err := c.scanDirectory(ctx, dir, candidate)
 		dirty = dirty || result.StateChanged
+		addUint64(&c.counters.baselineSuppressedFirstRun, result.BaselineSuppressedFirstRun)
+		addUint64(&c.counters.baselineSuppressedAfterSaturation, result.BaselineSuppressedAfterSaturation)
 		retryResults[directoryRuntimeKey(dir.path)] = result.ShouldRetry
 		results = append(results, result)
 		incidents.addDirectoryResult(result)
@@ -835,6 +909,7 @@ func (c *Collector) scanDirectoriesLocked(ctx context.Context, dirs []reportDire
 	if incidents.reconcile(candidate, retryResults, c.currentTime()) {
 		dirty = true
 	}
+	addUint64(&c.counters.capacityDeferrals, incidents.capacityDeferrals)
 	for index := range results {
 		result := &results[index]
 		dirState := candidate.Directories[result.DirectoryKey]
@@ -920,6 +995,7 @@ func (i *darwinScanIncidents) reconcile(state *darwinBookmarkState, retryResults
 			continue
 		}
 		if len(state.Pending) >= maxDarwinPendingEvents {
+			i.capacityDeferrals++
 			for key := range deliverable.ContributingDirKeys {
 				retryResults[key] = true
 			}
@@ -997,6 +1073,7 @@ func (c *Collector) persistCandidateLocked(
 	c.stateMu.Unlock()
 
 	if err := c.store.Save(cloneDarwinBookmarkState(staged.candidate)); err != nil {
+		c.counters.persistenceErrors.Add(1)
 		c.stagedRuntime = runtime
 		c.stateMu.Lock()
 		c.stagedScan = staged
@@ -1034,6 +1111,7 @@ func (c *Collector) persistStagedScanLocked() ([]reportDirectory, bool) {
 	c.stateMu.Unlock()
 
 	if err := c.store.Save(cloneDarwinBookmarkState(staged.candidate)); err != nil {
+		c.counters.persistenceErrors.Add(1)
 		c.stateMu.Lock()
 		c.releaseCommitLocked(reservation)
 		c.stateMu.Unlock()
@@ -1149,6 +1227,7 @@ func (c *Collector) refreshKnownDirectoriesLocked(dirs []reportDirectory) {
 			delete(c.retryDirs, key)
 		}
 	}
+	c.counters.retryDirectories.Store(int64(len(c.retryDirs)))
 }
 
 // refreshWatchedDirectoriesLocked synchronizes FSEvents coverage with watchable directories.
@@ -1177,6 +1256,7 @@ func (c *Collector) setDirectoryRetryLocked(dir reportDirectory, shouldRetry boo
 	} else {
 		delete(c.retryDirs, key)
 	}
+	c.counters.retryDirectories.Store(int64(len(c.retryDirs)))
 }
 
 // scanDirectoryInternal securely reads reports and updates only the private
@@ -1243,6 +1323,10 @@ func (c *Collector) scanDirectoryInternal(ctx context.Context, dir reportDirecto
 	}
 
 	baselineScan := !dirState.Initialized || dirState.Saturated
+	// A directory that never completed a baseline has never delivered anything,
+	// so attribute its suppressions to first run even when it is also
+	// saturated. Saturation only costs real events once delivery was working.
+	saturationBaseline := dirState.Initialized && dirState.Saturated
 	presentFiles := make(map[string]struct{})
 
 	for _, entry := range entries {
@@ -1309,6 +1393,15 @@ func (c *Collector) scanDirectoryInternal(ctx context.Context, dir reportDirecto
 		}
 
 		if baselineScan || suppressOnSuccess {
+			// Only a baseline scan counts. The suppressOnSuccess-only path
+			// completes a report that an earlier baseline already counted.
+			if baselineScan {
+				if saturationBaseline {
+					result.BaselineSuppressedAfterSaturation++
+				} else {
+					result.BaselineSuppressedFirstRun++
+				}
+			}
 			if suppressOnSuccess && !baselineScan {
 				result.BaselineCompletions = append(result.BaselineCompletions, darwinBaselineReportCompletion{
 					Name:  name,
