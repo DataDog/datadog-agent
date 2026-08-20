@@ -47,14 +47,15 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 		}),
 	)
 
-	metricsOut, _, err := sramEccErrorStatusSample(mockDevice)
+	samplesOut, _, err := sramEccErrorStatusSample(mockDevice)
 	require.NoError(t, err)
-	require.Len(t, metricsOut, 12)
+	require.Len(t, samplesOut, 12)
+	metricsOut := requireMetrics(t, samplesOut)
 
 	assertMetric := func(name string, value float64, tags ...string) {
 		t.Helper()
 		for _, metric := range metricsOut {
-			if metric.Name == name && slices.Equal(metric.Tags, tags) {
+			if metric.Name == name && slices.Equal(metric.tags, tags) {
 				require.Equal(t, value, metric.Value)
 				require.Equal(t, metrics.GaugeType, metric.Type)
 				return
@@ -121,17 +122,17 @@ func TestAllECCAPIHandlers(t *testing.T) {
 		BThresholdExceeded:      112,
 	}
 	sramExpectedMetrics := []Metric{
-		{Name: "errors.ecc.corrected.total", Value: 101, Type: metrics.GaugeType, Tags: []string{"memory_location:sram"}},
-		{Name: "errors.ecc.corrected.volatile", Value: 102, Type: metrics.GaugeType, Tags: []string{"memory_location:sram"}},
-		{Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 103, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:parity"}},
-		{Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 104, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:parity"}},
-		{Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 105, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:secded"}},
-		{Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 106, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:secded"}},
-		{Name: "errors.ecc.uncorrected.total", Value: 107, Type: metrics.GaugeType, Tags: []string{"memory_location:l2_cache"}},
-		{Name: "errors.ecc.uncorrected.total", Value: 108, Type: metrics.GaugeType, Tags: []string{"memory_location:sm"}},
-		{Name: "errors.ecc.uncorrected.total", Value: 109, Type: metrics.GaugeType, Tags: []string{"memory_location:pcie"}},
-		{Name: "errors.ecc.uncorrected.total", Value: 110, Type: metrics.GaugeType, Tags: []string{"memory_location:microcontroller"}},
-		{Name: "errors.ecc.uncorrected.total", Value: 111, Type: metrics.GaugeType, Tags: []string{"memory_location:other"}},
+		{baseSample: baseSample{tags: []string{"memory_location:sram"}}, Name: "errors.ecc.corrected.total", Value: 101, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram"}}, Name: "errors.ecc.corrected.volatile", Value: 102, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:parity"}}, Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 103, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:parity"}}, Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 104, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:secded"}}, Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 105, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:secded"}}, Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 106, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:l2_cache"}}, Name: "errors.ecc.uncorrected.total", Value: 107, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sm"}}, Name: "errors.ecc.uncorrected.total", Value: 108, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:pcie"}}, Name: "errors.ecc.uncorrected.total", Value: 109, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:microcontroller"}}, Name: "errors.ecc.uncorrected.total", Value: 110, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:other"}}, Name: "errors.ecc.uncorrected.total", Value: 111, Type: metrics.GaugeType},
 		{Name: "errors.ecc.sram.threshold_exceeded", Value: 1, Type: metrics.GaugeType},
 	}
 
@@ -140,10 +141,10 @@ func TestAllECCAPIHandlers(t *testing.T) {
 	}
 	legacyMetric := func(errorType, counterType, memoryLocation string, value uint64) Metric {
 		return Metric{
-			Name:  fmt.Sprintf("errors.ecc.%s.%s", errorType, counterType),
-			Value: float64(value),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:" + memoryLocation},
+			baseSample: baseSample{tags: []string{"memory_location:" + memoryLocation}},
+			Name:       fmt.Sprintf("errors.ecc.%s.%s", errorType, counterType),
+			Value:      float64(value),
+			Type:       metrics.GaugeType,
 		}
 	}
 
@@ -214,22 +215,27 @@ func TestAllECCAPIHandlers(t *testing.T) {
 			)
 
 			apis := createStatelessAPIs(&CollectorDependencies{})
-			var metricsOut []Metric
+			var samplesOut []Sample
 			for _, api := range apis {
 				if api.Name != "sram_ecc_error_status" && !strings.HasPrefix(api.Name, "ecc_errors.") {
 					continue
 				}
 
-				metrics, _, err := api.Handler(device, 0)
+				samples, _, err := api.Handler(device, 0)
 				if err != nil {
-					require.Empty(t, metrics)
+					require.Empty(t, samples)
 					require.True(t, safenvml.IsUnsupported(err))
 					continue
 				}
-				metricsOut = append(metricsOut, metrics...)
+				samplesOut = append(samplesOut, samples...)
 			}
 
-			require.ElementsMatch(t, tt.expected, metricsOut)
+			actualMetrics := requireMetrics(t, samplesOut)
+			actualMetricValues := make([]Metric, 0, len(actualMetrics))
+			for _, metric := range actualMetrics {
+				actualMetricValues = append(actualMetricValues, *metric)
+			}
+			require.ElementsMatch(t, tt.expected, actualMetricValues)
 		})
 	}
 }
@@ -334,7 +340,7 @@ func TestCollectProcessMemory(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							return processMemorySample(device)
 						},
 					},
@@ -363,7 +369,7 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
-				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+				Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 					return processMemorySample(device)
 				},
 			},
@@ -392,7 +398,7 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
-				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+				Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 					return processMemorySample(device)
 				},
 			},
@@ -416,16 +422,16 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 
 	// Check process.memory.usage metrics have associated workloads
 	processMemoryMetrics := 0
-	for _, metric := range processMetrics {
+	for _, metric := range requireMetrics(t, processMetrics) {
 		if metric.Name == "process.memory.usage" {
 			processMemoryMetrics++
-			require.Len(t, metric.AssociatedWorkloads, 1, "process.memory.usage should have exactly one workload")
-			require.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind), "process.memory.usage workload should be of kind process")
-			require.Equal(t, Medium, metric.Priority, "process.memory.usage should have High priority")
+			require.Len(t, metric.AssociatedWorkloads(), 1, "process.memory.usage should have exactly one workload")
+			require.Equal(t, "process", string(metric.AssociatedWorkloads()[0].Kind), "process.memory.usage workload should be of kind process")
+			require.Equal(t, Medium, metric.Priority(), "process.memory.usage should have High priority")
 		}
 		if metric.Name == "memory.limit" {
-			require.Len(t, metric.AssociatedWorkloads, 2, "memory.limit should have workloads for all processes")
-			require.Equal(t, Medium, metric.Priority, "memory.limit should have High priority")
+			require.Len(t, metric.AssociatedWorkloads(), 2, "memory.limit should have workloads for all processes")
+			require.Equal(t, Medium, metric.Priority(), "memory.limit should have High priority")
 		}
 	}
 	require.Equal(t, 2, processMemoryMetrics, "Should have process.memory.usage for each process")
@@ -475,7 +481,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							// Test the API first (like the original TestFunc)
 							fields := []nvml.FieldValue{
 								{
@@ -487,7 +493,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 								return nil, 0, err
 							}
 							// If test passes, return empty metrics for this test
-							return []Metric{}, 0, nil
+							return []Sample{}, 0, nil
 						},
 					},
 				}
@@ -565,7 +571,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							return nvlinkSample(device)
 						},
 					},
@@ -598,18 +604,19 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 
 			// Verify metrics, as we still expect to have all 3 metrics even if some errors were returned
 			require.Len(t, allMetrics, 3)
+			collectedMetrics := requireMetrics(t, allMetrics)
 
 			// Check total links metric
-			require.Equal(t, float64(len(tt.nvlinkStates)), allMetrics[0].Value)
-			require.Equal(t, metrics.GaugeType, allMetrics[0].Type)
+			require.Equal(t, float64(len(tt.nvlinkStates)), collectedMetrics[0].Value)
+			require.Equal(t, metrics.GaugeType, collectedMetrics[0].Type)
 
 			// Check active links metric
-			require.Equal(t, float64(tt.expectedActive), allMetrics[1].Value)
-			require.Equal(t, metrics.GaugeType, allMetrics[1].Type)
+			require.Equal(t, float64(tt.expectedActive), collectedMetrics[1].Value)
+			require.Equal(t, metrics.GaugeType, collectedMetrics[1].Type)
 
 			// Check inactive links metric
-			require.Equal(t, float64(tt.expectedInactive), allMetrics[2].Value)
-			require.Equal(t, metrics.GaugeType, allMetrics[2].Type)
+			require.Equal(t, float64(tt.expectedInactive), collectedMetrics[2].Value)
+			require.Equal(t, metrics.GaugeType, collectedMetrics[2].Type)
 		})
 	}
 }
@@ -682,13 +689,13 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							return processMemorySample(device)
 						},
 					},
 					{
 						Name: "process_detail_list",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							return processDetailListSample(device)
 						},
 					},
@@ -712,11 +719,10 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-
 			// Deduplicate across the two API handlers, just like the real collector pipeline does
-			deduped := RemoveDuplicateMetrics(map[CollectorName][]*Metric{
+			deduped := requireMetrics(t, RemoveDuplicateSamples(map[CollectorName][]Sample{
 				collector.Name(): allMetrics,
-			})
+			}))
 
 			// Find the process.memory.usage metric and verify its value
 			var foundProcessMemory bool
@@ -726,14 +732,14 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 				case "process.memory.usage":
 					foundProcessMemory = true
 					require.Equal(t, tt.expectMemory, m.Value, "process.memory.usage value mismatch")
-					require.Len(t, m.AssociatedWorkloads, 1)
-					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads[0].ID)
+					require.Len(t, m.AssociatedWorkloads(), 1)
+					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads()[0].ID)
 				case "memory.limit":
 					require.False(t, foundMemoryLimit, "memory.limit should be emitted only once")
 					foundMemoryLimit = true
 					require.Equal(t, float64(testutil.DefaultTotalMemory), m.Value, "memory.limit should equal total device memory")
-					require.Len(t, m.AssociatedWorkloads, 1, "memory.limit should have one associated workload")
-					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads[0].ID, "memory.limit workload should match the winning process source")
+					require.Len(t, m.AssociatedWorkloads(), 1, "memory.limit should have one associated workload")
+					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads()[0].ID, "memory.limit workload should match the winning process source")
 				}
 			}
 
@@ -819,7 +825,7 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
 			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")
 
-			gotMetrics, _, err := deviceUnhealthyAPI.Handler(device, 0)
+			gotSamples, _, err := deviceUnhealthyAPI.Handler(device, 0)
 			if tt.expectError {
 				require.Error(t, err)
 			} else {
@@ -827,10 +833,11 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 			}
 
 			if tt.expectMetrics {
+				gotMetrics := requireMetrics(t, gotSamples)
 				require.Len(t, gotMetrics, 1)
 				require.Equal(t, "device.unhealthy", gotMetrics[0].Name)
 			} else {
-				require.Empty(t, gotMetrics)
+				require.Empty(t, gotSamples)
 			}
 		})
 	}
@@ -1024,9 +1031,8 @@ func TestPCIELinkMetrics(t *testing.T) {
 				require.ErrorContains(t, err, test.expectedErr)
 			}
 			require.Len(t, metricsOut, len(test.expectedMetricVals))
-			metricsByName := metricValuesToPointers(metricsOut)
 			for metricName, expectedValue := range test.expectedMetricVals {
-				metric := findMetric(metricsByName, metricName)
+				metric := findMetric(metricsOut, metricName)
 				require.NotNil(t, metric, "expected metric %s", metricName)
 				require.InDelta(t, expectedValue, metric.Value, 1e6)
 				require.Equal(t, metrics.GaugeType, metric.Type)
@@ -1095,7 +1101,7 @@ func TestClockThrottleReasonMetrics(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			metricsOut := clockThrottleReasonMetrics(test.reasons)
+			metricsOut := requireMetrics(t, clockThrottleReasonMetrics(test.reasons))
 
 			for _, metric := range metricsOut {
 				if strings.HasPrefix(metric.Name, "clock.throttle_reasons.") {
@@ -1115,8 +1121,8 @@ func TestClockThrottleReasonMetrics(t *testing.T) {
 						expectedTag = throttleReasonTag + ":" + test.expectedReason
 					}
 
-					require.Len(t, metric.Tags, 1)
-					require.Equal(t, expectedTag, metric.Tags[0], "expected metric %s to have tag %s", metric.Name, expectedTag)
+					require.Len(t, metric.tags, 1)
+					require.Equal(t, expectedTag, metric.tags[0], "expected metric %s to have tag %s", metric.Name, expectedTag)
 				} else {
 					require.Failf(t, "unexpected metric", "received unknown metric %s", metric.Name)
 				}
@@ -1146,15 +1152,15 @@ func TestNeedsRecoverySample(t *testing.T) {
 				nvml.FI_DEV_GET_GPU_RECOVERY_ACTION: testutil.NewFieldValue(uint64(tt.action)),
 			}))
 
-			metricsOut, _, err := needsRecoverySample(device)
+			samplesOut, _, err := needsRecoverySample(device)
 			require.NoError(t, err)
-			require.Len(t, metricsOut, 1)
+			require.Len(t, samplesOut, 1)
 
-			metric := metricsOut[0]
+			metric := requireMetrics(t, samplesOut)[0]
 			require.Equal(t, "device.needs_recovery", metric.Name)
 			require.Equal(t, metrics.GaugeType, metric.Type)
 			require.Equal(t, tt.expectedValue, metric.Value)
-			require.Equal(t, []string{tt.expectedTag}, metric.Tags)
+			require.Equal(t, []string{tt.expectedTag}, metric.tags)
 
 		})
 	}

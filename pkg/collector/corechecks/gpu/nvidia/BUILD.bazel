@@ -26,7 +26,9 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia",
     visibility = ["//visibility:public"],
-    deps = select({
+    deps = [
+        "//pkg/aggregator/sender",
+    ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/tagger/def",
             "//comp/core/tagger/types",
@@ -88,6 +90,7 @@ dd_agent_go_test(
         "nvlink_plr_test.go",
         "prm_cache_test.go",
         "rates_test.go",
+        "samples_test.go",
         "sampling_test.go",
         "stateless_test.go",
     ],

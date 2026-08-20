@@ -464,8 +464,13 @@ func collectMetricNames(t *testing.T, spCache *SystemProbeCache) map[string]stru
 	for _, collector := range collectors {
 		metrics, err := collector.Collect()
 		require.NoError(t, err, "collector %s failed to collect", collector.Name())
-		for _, metric := range metrics {
-			names[metric.Name] = struct{}{}
+		for _, sample := range metrics {
+			switch sample := sample.(type) {
+			case *Metric:
+				names[sample.Name] = struct{}{}
+			case *HistogramSample:
+				names[sample.Name] = struct{}{}
+			}
 		}
 	}
 
@@ -506,30 +511,37 @@ func seedPRMCacheForDevices(t *testing.T, cache *PRMCache, devices []ddnvml.Devi
 	}
 }
 
-func TestRemoveDuplicateMetrics(t *testing.T) {
+func TestRemoveDuplicateSamples(t *testing.T) {
+	metric := func(name string, priority MetricPriority, tags ...string) *Metric {
+		return &Metric{
+			baseSample: baseSample{priority: priority, tags: tags},
+			Name:       name,
+		}
+	}
+
 	t.Run("ComprehensiveScenario", func(t *testing.T) {
 		// Test the exact scenario from function comment plus additional edge cases including zero priority
-		allMetrics := map[CollectorName][]*Metric{
+		allMetrics := map[CollectorName][]Sample{
 			sampling: {
-				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
-				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
-				{Name: "core.temp", Priority: Low}, // Zero priority (default)
+				metric("memory.usage", Medium, "pid:1001"),
+				metric("memory.usage", Medium, "pid:1002"),
+				metric("core.temp", Low), // Zero priority (default)
 			},
 			stateless: {
-				{Name: "memory.usage", Priority: Low, Tags: []string{"pid:1003"}},
-				{Name: "fan.speed", Priority: Low}, // Zero priority (default)
-				{Name: "power.draw", Priority: Low},
-				{Name: "disk.usage", Priority: Low}, // Zero priority, unique metric
+				metric("memory.usage", Low, "pid:1003"),
+				metric("fan.speed", Low), // Zero priority (default)
+				metric("power.draw", Low),
+				metric("disk.usage", Low), // Zero priority, unique metric
 			},
 			ebpf: {
-				{Name: "core.temp", Priority: Medium}, // Conflicts with CollectorA, higher priority beats zero
-				{Name: "voltage", Priority: Low},
-				{Name: "fan.speed", Priority: Low}, // Zero priority tie with CollectorB
+				metric("core.temp", Medium), // Conflicts with CollectorA, higher priority beats zero
+				metric("voltage", Low),
+				metric("fan.speed", Low), // Zero priority tie with CollectorB
 			},
 			field: {}, // Empty collector
 		}
 
-		result := RemoveDuplicateMetrics(allMetrics)
+		result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
 
 		require.Len(t, result, 7) // 6 + 1 for fan.speed winner
 
@@ -538,23 +550,23 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		for _, metric := range result {
 			switch metric.Name {
 			case "memory.usage":
-				require.Equal(t, Medium, metric.Priority)
-				require.NotContains(t, metric.Tags, "pid:1003")
+				require.Equal(t, Medium, metric.Priority())
+				require.NotContains(t, metric.tags, "pid:1003")
 				memoryUsageCount++
 			case "core.temp":
-				require.Equal(t, Medium, metric.Priority)
+				require.Equal(t, Medium, metric.Priority())
 				coreTempCount++
 			case "power.draw":
-				require.Equal(t, Low, metric.Priority)
+				require.Equal(t, Low, metric.Priority())
 				powerDrawCount++
 			case "voltage":
-				require.Equal(t, Low, metric.Priority)
+				require.Equal(t, Low, metric.Priority())
 				voltageCount++
 			case "disk.usage":
-				require.Equal(t, Low, metric.Priority)
+				require.Equal(t, Low, metric.Priority())
 				diskUsageCount++
 			case "fan.speed":
-				require.Equal(t, Low, metric.Priority) // Zero priority tie winner
+				require.Equal(t, Low, metric.Priority()) // Zero priority tie winner
 				fanSpeedCount++
 			}
 		}
@@ -569,22 +581,22 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 	t.Run("SingleCollectorMultipleSameName", func(t *testing.T) {
 		// Ensure intra-collector preservation - no deduplication within same collector
-		allMetrics := map[CollectorName][]*Metric{
+		allMetrics := map[CollectorName][]Sample{
 			sampling: {
-				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
-				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
-				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1003"}},
-				{Name: "cpu.usage", Priority: Low},
+				metric("memory.usage", Medium, "pid:1001"),
+				metric("memory.usage", Medium, "pid:1002"),
+				metric("memory.usage", Medium, "pid:1003"),
+				metric("cpu.usage", Low),
 			},
 		}
 
-		result := RemoveDuplicateMetrics(allMetrics)
+		result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
 
 		expected := []*Metric{
-			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
-			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
-			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1003"}},
-			{Name: "cpu.usage", Priority: Low},
+			metric("memory.usage", Medium, "pid:1001"),
+			metric("memory.usage", Medium, "pid:1002"),
+			metric("memory.usage", Medium, "pid:1003"),
+			metric("cpu.usage", Low),
 		}
 
 		require.Len(t, result, 4)
@@ -594,47 +606,47 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 	t.Run("PriorityTie", func(t *testing.T) {
 		// Edge case: same metric name with same priority across collectors
 		// First collector (in iteration order) should win
-		allMetrics := map[CollectorName][]*Metric{
+		allMetrics := map[CollectorName][]Sample{
 			sampling: {
-				{Name: "metric1", Priority: Low, Tags: []string{"tagA"}},
+				metric("metric1", Low, "tagA"),
 			},
 			stateless: {
-				{Name: "metric1", Priority: Low, Tags: []string{"tagB"}},
+				metric("metric1", Low, "tagB"),
 			},
 		}
 
-		result := RemoveDuplicateMetrics(allMetrics)
+		result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
 
 		// Should have exactly 1 metric (one collector wins the tie)
 		require.Len(t, result, 1)
-		require.Equal(t, Low, result[0].Priority)
+		require.Equal(t, Low, result[0].Priority())
 		// Don't assert which specific tag wins since map iteration order is not guaranteed
 	})
 
 	t.Run("EmptyInputs", func(t *testing.T) {
 		// Edge case: empty inputs
 		t.Run("EmptyMap", func(t *testing.T) {
-			result := RemoveDuplicateMetrics(map[CollectorName][]*Metric{})
+			result := RemoveDuplicateSamples(map[CollectorName][]Sample{})
 			require.Len(t, result, 0)
 		})
 
 		t.Run("EmptyCollectors", func(t *testing.T) {
-			allMetrics := map[CollectorName][]*Metric{
+			allMetrics := map[CollectorName][]Sample{
 				sampling: {},
 				ebpf:     {},
 			}
-			result := RemoveDuplicateMetrics(allMetrics)
+			result := RemoveDuplicateSamples(allMetrics)
 			require.Len(t, result, 0)
 		})
 
 		t.Run("MixedEmptyAndNonEmpty", func(t *testing.T) {
-			allMetrics := map[CollectorName][]*Metric{
+			allMetrics := map[CollectorName][]Sample{
 				sampling: {},
 				stateless: {
-					{Name: "metric1", Priority: Low},
+					metric("metric1", Low),
 				},
 			}
-			result := RemoveDuplicateMetrics(allMetrics)
+			result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
 			require.Len(t, result, 1)
 			require.Equal(t, "metric1", result[0].Name)
 		})
@@ -642,29 +654,29 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 	t.Run("PreservedTags", func(t *testing.T) {
 		tags := []string{"pid:1001", "pid:1002"}
-		allMetrics := map[CollectorName][]*Metric{
+		allMetrics := map[CollectorName][]Sample{
 			sampling: {
-				{Name: "memory.limit", Priority: Medium, Tags: tags},
+				metric("memory.limit", Medium, tags...),
 			},
 			ebpf: {
-				{Name: "memory.limit", Priority: Low, Tags: nil},
+				metric("memory.limit", Low),
 			},
 		}
-		result := RemoveDuplicateMetrics(allMetrics)
+		result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
 		require.Len(t, result, 1)
-		require.ElementsMatch(t, result[0].Tags, tags)
+		require.ElementsMatch(t, result[0].tags, tags)
 	})
 
 	t.Run("DifferentPrioritySameCollector", func(t *testing.T) {
-		allMetrics := map[CollectorName][]*Metric{
+		allMetrics := map[CollectorName][]Sample{
 			sampling: {
-				{Name: "memory.limit", Priority: Medium, Tags: []string{"pid:1001"}},
-				{Name: "memory.limit", Priority: Low, Tags: []string{""}},
+				metric("memory.limit", Medium, "pid:1001"),
+				metric("memory.limit", Low, ""),
 			},
 		}
-		result := RemoveDuplicateMetrics(allMetrics)
+		result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
 		require.Len(t, result, 1)
-		require.ElementsMatch(t, result[0].Tags, []string{"pid:1001"})
+		require.ElementsMatch(t, result[0].tags, []string{"pid:1001"})
 	})
 }
 
@@ -759,7 +771,9 @@ func TestConfiguredMetricPriority(t *testing.T) {
 	for _, collector := range collectors {
 		metrics, err := collector.Collect()
 		require.NoError(t, err)
-		for _, metric := range metrics {
+		for _, sample := range metrics {
+			metric, ok := sample.(*Metric)
+			require.True(t, ok)
 			metricMap, ok := metricsByCollector[metric.Name]
 			if ok {
 				require.NotContains(t, metricMap, collector.Name(), "each collector should only emit one %s metric with the same name", metric.Name)
@@ -781,7 +795,7 @@ func TestConfiguredMetricPriority(t *testing.T) {
 			for i := range len(collectorOrder) - 1 {
 				higherPriorityCollector := collectorOrder[i]
 				lowerPriorityCollector := collectorOrder[i+1]
-				require.Greater(t, metricMap[higherPriorityCollector].Priority, metricMap[lowerPriorityCollector].Priority, "collector %s should have higher priority than collector %s", higherPriorityCollector, lowerPriorityCollector)
+				require.Greater(t, metricMap[higherPriorityCollector].Priority(), metricMap[lowerPriorityCollector].Priority(), "collector %s should have higher priority than collector %s", higherPriorityCollector, lowerPriorityCollector)
 			}
 		})
 	}
