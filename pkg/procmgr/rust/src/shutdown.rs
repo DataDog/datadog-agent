@@ -66,7 +66,8 @@ pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize])
     for &idx in order {
         processes[idx].request_stop();
     }
-    let budget = ShutdownBudget::service_stop(Instant::now());
+    let signal_time = crate::platform::service_stop_signal_time().unwrap_or_else(Instant::now);
+    let budget = ShutdownBudget::service_stop(signal_time);
     for &idx in order {
         processes[idx].wait_for_stop_since(budget).await;
     }

@@ -34,6 +34,7 @@ use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 use tokio::sync::Notify;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE, TRUE};
 use windows_sys::Win32::System::Console::{
@@ -51,6 +52,7 @@ use windows_sys::Win32::System::Threading::{
 };
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
+static SERVICE_STOP_SIGNAL_TIME: OnceLock<Instant> = OnceLock::new();
 
 static CONSOLE_LOCK: Mutex<()> = Mutex::new(());
 
@@ -60,6 +62,16 @@ pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
 
 pub fn shutdown_notify() -> &'static Notify {
     SHUTDOWN_NOTIFY.get_or_init(Notify::new)
+}
+
+/// Record when SCM delivered STOP/SHUTDOWN/PRESHUTDOWN (before async teardown).
+pub(crate) fn record_service_stop_signal() {
+    let _ = SERVICE_STOP_SIGNAL_TIME.set(Instant::now());
+}
+
+/// Time SCM stop was signaled, if this process is stopping as a Windows service.
+pub(crate) fn service_stop_signal_time() -> Option<Instant> {
+    SERVICE_STOP_SIGNAL_TIME.get().copied()
 }
 
 /// Win32 job object with kill-on-close (supervises child process trees).
