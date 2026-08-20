@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 )
 
 // RateLimitDiscrepancies reports rate-limit settings that would make a less
@@ -54,7 +54,7 @@ func RateLimitDiscrepancies(low, medium, high float64) []string {
 // by the ordering check.
 func WarnRateLimitDiscrepancies(prefix string, low, medium, high float64) {
 	for _, discrepancy := range RateLimitDiscrepancies(low, medium, high) {
-		pkglog.Warnf("config max rates within %s: %s", prefix, discrepancy)
+		logging.Warnf("logsfilter config max rates within %s: %s", prefix, discrepancy)
 	}
 }
 
@@ -133,7 +133,7 @@ func IsValidMinSeverity(minSeverity string) bool {
 // which retains its safe WarnPriority fallback.
 func WarnInvalidMinSeverity(key, value string) {
 	if !IsValidMinSeverity(value) {
-		pkglog.Warnf("config %s has unrecognized value %q; using the safe default warn", key, value)
+		logging.Warnf("logsfilter config %s has unrecognized value %q; using the safe default warn", key, value)
 	}
 }
 
