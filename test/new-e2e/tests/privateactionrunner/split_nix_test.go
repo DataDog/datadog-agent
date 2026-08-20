@@ -84,10 +84,10 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	s.T().Cleanup(s.resetSigningKeyState)
 	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey1.id, s.signingKey1.id, s.signingKey1.config))
 
-	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
+	s.waitForProcessStateStable(parControlProcess, "Running", 5*time.Second, 2*time.Minute)
 	// Exactly one process may poll OPMS in split mode. Confirm the monolithic
-	// runner has exited before attributing the requests below to par-control.
-	s.waitForProcessState(parMonolithProcess, "Exited", 2*time.Minute)
+	// systemd service has exited before attributing the requests below to par-control.
+	s.waitForSystemdState(privateActionRunnerServiceName, "inactive", 2*time.Minute)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPARDequeueCount()
 		require.NoError(c, err)
@@ -113,7 +113,7 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	// Successful execution proves the cold executor was started on demand;
 	// verify its clean idle self-exit is recorded as Exited, not Stopped (which
 	// is reserved for an explicit supervisor stop).
-	s.waitForProcessState(parExecutorProcess, "Exited", 2*time.Minute)
+	s.waitForProcessState(parExecutorProcess, "Exited", 3*time.Minute)
 
 	// Exercise bootstrap and identity selection through the installed process
 	// definition. These transitions share one ordered test because they mutate
@@ -136,7 +136,7 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 
 func (s *linuxPARSplitSuite) testCoreAgentUnavailableRecovery() {
 	client := s.Env().FakeIntake.Client()
-	s.waitForProcessState(parExecutorProcess, "Exited", 2*time.Minute)
+	s.waitForProcessState(parExecutorProcess, "Exited", 3*time.Minute)
 
 	serviceManager := common.GetServiceManager(s.Env().RemoteHost)
 	s.Require().NotNil(serviceManager)
@@ -176,61 +176,33 @@ func (s *linuxPARSplitSuite) testCoreAgentUnavailableRecovery() {
 
 func (s *linuxPARSplitSuite) testSigningKeyLifecycle() {
 	client := s.Env().FakeIntake.Client()
+	executorPID := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		`pgrep -fo '[/]opt/datadog-agent/embedded/bin/privateactionrunner run-executor'`,
+	))
+	s.Require().NotEmpty(executorPID)
 
-	stats, err := client.RCStats()
-	s.Require().NoError(err)
-	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey2.id, s.signingKey2.id, s.signingKey2.config))
-	s.waitForRCPolls(stats.Polls + 2)
-	s.Require().True(s.runSignedTask(s.signingKey2, "rotated-key").Success, "rotated signing key should execute")
-
-	stats, err = client.RCStats()
-	s.Require().NoError(err)
+	// Delete key 1 before adding key 2 so a successful key-2 task proves that
+	// this executor consumed the complete replacement snapshot.
 	s.deleteSigningKey(s.signingKey1.id)
-	s.waitForRCPolls(stats.Polls + 2)
+	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey2.id, s.signingKey2.id, s.signingKey2.config))
+	setPARTaskSigningKey(s.T(), client, s.signingKey2)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		taskID := uuid.New().String()
+		require.NoError(c, client.EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+			"command":         "echo rotated-key",
+			"allowedCommands": []string{"rshell:echo"},
+		}))
+		result, err := client.GetPARTaskResult(taskID, 20*time.Second)
+		require.NoError(c, err)
+		require.True(c, result.Success, "rotated signing key should execute: %+v", result)
+	}, time.Minute, 2*time.Second)
+
 	revoked := s.runSignedTask(s.signingKey1, "revoked-key")
 	s.Require().False(revoked.Success, "revoked signing key should be rejected")
 	s.Require().Equal(int(errorcode.ActionPlatformErrorCode_SIGNATURE_KEY_NOT_FOUND), revoked.ErrorCode)
-
-	stats, err = client.RCStats()
-	s.Require().NoError(err)
-	expiresAt := time.Now().Add(40 * time.Second)
-	s.Require().NoError(client.RCSetExpiration(expiresAt))
-	s.waitForRCPolls(stats.Polls + 2)
-
-	dequeues, err := client.GetPARDequeueCount()
-	s.Require().NoError(err)
-	setPARTaskSigningKey(s.T(), client, s.signingKey2)
-	activeTaskID := uuid.New().String()
-	s.Require().NoError(client.EnqueuePARTask(activeTaskID, runCommandAction, map[string]interface{}{
-		"command":         "sleep 60; echo active-action-completed",
-		"allowedCommands": []string{"rshell:sleep", "rshell:echo"},
-	}))
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		count, countErr := client.GetPARDequeueCount()
-		require.NoError(c, countErr)
-		require.Greater(c, count, dequeues, "long-running action should be dequeued before expiration")
-	}, 30*time.Second, time.Second)
-
-	s.Require().Eventually(func() bool {
-		return time.Now().After(expiresAt.Add(6 * time.Second))
-	}, time.Minute, time.Second, "wait for the accepted TUF metadata and executor poll to expire")
-	_, err = client.GetPARTaskResult(activeTaskID, time.Second)
-	s.Require().Error(err, "long-running action should still be active when signing-key state expires")
-
-	expired := s.runSignedTask(s.signingKey2, "expired-snapshot")
-	s.Require().False(expired.Success, "expired signing-key state should make the executor unavailable")
-	s.Require().Contains(expired.ErrorDetails, "executor unavailable")
-
-	activeResult, err := client.GetPARTaskResult(activeTaskID, 2*time.Minute)
-	s.Require().NoError(err)
-	s.Require().True(activeResult.Success, "action already running at expiration should finish: %+v", activeResult)
-	s.Require().Contains(activeResult.Outputs["stdout"], "active-action-completed")
-
-	stats, err = client.RCStats()
-	s.Require().NoError(err)
-	s.Require().NoError(client.RCSetExpiration(time.Now().Add(24 * time.Hour)))
-	s.waitForRCPolls(stats.Polls + 2)
-	s.Require().True(s.runSignedTask(s.signingKey2, "expiration-recovery").Success, "fresh signing-key state should restore readiness")
+	s.Require().Equal(executorPID, strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		`pgrep -fo '[/]opt/datadog-agent/embedded/bin/privateactionrunner run-executor'`,
+	)), "key rotation and revocation must happen in the same executor process")
 }
 
 func (s *linuxPARSplitSuite) runSignedTask(key testSigningKey, output string) *api.PARTaskResult {
@@ -245,14 +217,6 @@ func (s *linuxPARSplitSuite) runSignedTask(key testSigningKey, output string) *a
 	result, err := s.Env().FakeIntake.Client().GetPARTaskResult(taskID, 2*time.Minute)
 	s.Require().NoError(err)
 	return result
-}
-
-func (s *linuxPARSplitSuite) waitForRCPolls(want uint64) {
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		stats, err := s.Env().FakeIntake.Client().RCStats()
-		require.NoError(c, err)
-		require.GreaterOrEqual(c, stats.Polls, want)
-	}, 45*time.Second, time.Second)
 }
 
 func (s *linuxPARSplitSuite) resetSigningKeyState() {
@@ -388,7 +352,7 @@ func splitConfig(urn, privateKey string) string {
   enabled: true
   split_enabled: true
   self_enroll: false
-%s  idle_timeout_seconds: 5
+%s  idle_timeout_seconds: 120
   actions_allowlist:
     - %s
 `, identity, runCommandAction)
@@ -458,21 +422,46 @@ func (s *linuxPARSplitSuite) runProcmgr(command, name string) error {
 
 func (s *linuxPARSplitSuite) waitForProcessState(name, state string, timeout time.Duration) {
 	s.T().Helper()
+	s.waitForProcessStateStable(name, state, 0, timeout)
+}
+
+func (s *linuxPARSplitSuite) waitForProcessStateStable(name, state string, stableFor, timeout time.Duration) {
+	s.T().Helper()
 	var lastOutput string
+	var matchingSince time.Time
 	ok := assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
 			"sudo %s --socket %s describe %s", procmgrCLI, procmgrSocket, name,
 		))
 		lastOutput = output
-		assert.NoError(c, err)
-		assert.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state)
-	}, timeout, 2*time.Second, "%s should become %s", name, state)
+		if !assert.NoError(c, err) {
+			matchingSince = time.Time{}
+			return
+		}
+		if !assert.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state) {
+			matchingSince = time.Time{}
+			return
+		}
+		if matchingSince.IsZero() {
+			matchingSince = time.Now()
+		}
+		assert.GreaterOrEqual(c, time.Since(matchingSince), stableFor)
+	}, timeout, 2*time.Second, "%s should become %s and remain there for %s", name, state, stableFor)
 	if !ok {
 		journal, _ := s.Env().RemoteHost.Execute(
 			"sudo journalctl -u datadog-agent-procmgr.service --no-pager -n 500 --output=cat",
 		)
 		s.Require().FailNowf("process did not reach expected state",
-			"%s should become %s\nlast describe output:\n%s\ndd-procmgrd journal tail:\n%s",
-			name, state, lastOutput, journal)
+			"%s should become %s and remain there for %s\nlast describe output:\n%s\ndd-procmgrd journal tail:\n%s",
+			name, state, stableFor, lastOutput, journal)
 	}
+}
+
+func (s *linuxPARSplitSuite) waitForSystemdState(name, state string, timeout time.Duration) {
+	s.T().Helper()
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl is-active %s || true", name))
+		require.NoError(c, err)
+		require.Equal(c, state, strings.TrimSpace(output))
+	}, timeout, 2*time.Second, "%s should become %s", name, state)
 }

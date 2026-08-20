@@ -77,7 +77,7 @@ func (s *windowsPARSplitLifecycleSuite) SetupSuite() {
 }
 
 // TestExecutorStartsForSignedWork proves the MSI's named-pipe mTLS path and
-// authenticated Core Agent key delivery work with a real signed task.
+// generic Remote Config key delivery work with a real signed task.
 func (s *windowsPARSplitLifecycleSuite) TestExecutorStartsForSignedWork() {
 	client := s.Env().FakeIntake.Client()
 	s.Require().NoError(client.FlushPAR())
