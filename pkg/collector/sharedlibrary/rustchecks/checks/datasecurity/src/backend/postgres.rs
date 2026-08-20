@@ -17,8 +17,16 @@ impl ScanEngine for PostgresEngine {
     }
 
     fn fetch_data(&self, sub_task: &SubTask) -> Result<ScanData> {
-        // TODO(dsec-161): prevent reinitializing the connection for each sub task;
-        // reuse a pooled/cached connection across sub tasks sharing the same target.
+        // WARNING: do not modify the `client.query` call nor share the connection
+        // unless you know what you are doing.
+        //
+        // We get a "free" security layer from two properties held together:
+        //   - a single connection per query, forced read-only via
+        //     `default_transaction_read_only=on` (a shared connection could have
+        //     that flipped off before a write query runs);
+        //   - a single statement via `query`, which rejects multi-statement input
+        //     and so blocks piggy-backed writes.
+        // Weakening either one removes the guarantee that scanning stays read-only.
         let mut client = connect(sub_task)?;
 
         let rows = client
@@ -110,4 +118,4 @@ fn cell_to_value(row: &Row, index: usize) -> Value {
     }
 }
 
-// TODO(dsec-161): add tests for the postgres engine.
+// TODO(dsec-266): add tests for the postgres engine.
