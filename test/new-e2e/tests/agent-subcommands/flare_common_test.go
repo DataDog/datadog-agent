@@ -23,6 +23,15 @@ type baseFlareSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
+// BeforeTest will be called before each test
+func (v *baseFlareSuite) BeforeTest(suiteName, testName string) {
+	v.BaseSuite.BeforeTest(suiteName, testName)
+
+	// Reset the fakeintake between tests so GetLatestFlare() can't pick up a flare
+	// left over from a previous test (or the framework's post-failure diagnose flare).
+	require.NoError(v.T(), v.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+}
+
 func (v *baseFlareSuite) TestFlareDefaultFiles() {
 	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"})
 	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v, flareArgs)
