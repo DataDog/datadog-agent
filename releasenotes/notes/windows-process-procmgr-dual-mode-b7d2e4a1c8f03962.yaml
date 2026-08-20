@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    On Windows, when ``process_manager.enabled`` is true and the fleet installer writes
+    ``processes.d/datadog-agent-process.yaml``, the process-agent is supervised by
+    dd-procmgr instead of the legacy ``datadog-process-agent`` Windows service. When the
+    processes.d definition is absent or process manager is disabled, the Agent continues
+    to start process-agent via SCM when process collection is enabled.
