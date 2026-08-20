@@ -47,6 +47,8 @@ dd_agent_go_test(
     ],
     embed = [":healthplatform"],
     deps = [
+        "//comp/aggregator/dogstatsdclientdropdetector/def",
+        "//comp/aggregator/dogstatsdclientdropdetector/fx",
         "//comp/aggregator/dogstatsdclienttelemetry/fx",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",

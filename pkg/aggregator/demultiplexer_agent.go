@@ -91,7 +91,8 @@ type AgentDemultiplexerOptions struct {
 	DogStatsDLookback        DogStatsDLookback
 	DogStatsDLookbackFactory DogStatsDLookbackFactory
 
-	FinalDogStatsDSerieObservers []FinalDogStatsDSerieObserver
+	FinalDogStatsDSerieObservers     []FinalDogStatsDSerieObserver
+	FinalDogStatsDSerieFlushListener FinalDogStatsDSerieFlushListener
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 
@@ -576,9 +577,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				<-t.trigger.blockChan
 			}
 
-			// Signal the end of the DogStatsD flush once all workers have emitted their series,
-			// allowing observers to evaluate the complete flush output.
-			completeFinalDogStatsDSerieObserverFlushes(d.options.FinalDogStatsDSerieObservers)
+			// Evaluate the client drop detector after all DogStatsD workers have
+			// contributed to this serializer-flush window.
+			if d.options.FinalDogStatsDSerieFlushListener != nil {
+				d.options.FinalDogStatsDSerieFlushListener.CompleteFinalDogStatsDSerieFlush()
+			}
 
 			// flush the aggregator (check samplers)
 			// -------------------------------------

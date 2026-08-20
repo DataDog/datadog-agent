@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	dogstatsdclientdropdetector "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -54,6 +55,7 @@ type Dependencies struct {
 	Observer                     observer.Component                       `optional:"true"`
 	DogStatsDLookbackFactory     aggregator.DogStatsDLookbackFactory      `optional:"true"`
 	FinalDogStatsDSerieObservers []aggregator.FinalDogStatsDSerieObserver `group:"dogstatsd_final_serie_observers"`
+	ClientDropDetector           dogstatsdclientdropdetector.Component    `optional:"true"`
 
 	Params Params
 }
@@ -83,7 +85,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 			return Provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-	options := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory, deps.FinalDogStatsDSerieObservers)
+	options := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory, deps.FinalDogStatsDSerieObservers, deps.ClientDropDetector)
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
@@ -120,6 +122,7 @@ func createAgentDemultiplexerOptions(
 	params Params,
 	dogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory,
 	finalDogStatsDSerieObservers []aggregator.FinalDogStatsDSerieObserver,
+	clientDropDetector dogstatsdclientdropdetector.Component,
 ) aggregator.AgentDemultiplexerOptions {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
 	if params.useDogstatsdNoAggregationPipelineConfig {
@@ -133,6 +136,7 @@ func createAgentDemultiplexerOptions(
 
 	options.DogStatsDLookbackFactory = dogStatsDLookbackFactory
 	options.FinalDogStatsDSerieObservers = finalDogStatsDSerieObservers
+	options.FinalDogStatsDSerieFlushListener = clientDropDetector
 
 	// Override FlushInterval only if flushInterval is set by the user
 	if v, ok := params.flushInterval.Get(); ok {
