@@ -2147,6 +2147,59 @@ process_config:
     }
 
     #[test]
+    fn derived_logon_duration_matches_go_os_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\nlogon_duration:\n  enabled: true\n",
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  enabled: false\n",
+            );
+            let met = condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe));
+            #[cfg(target_os = "macos")]
+            assert!(
+                met,
+                "logon_duration.enabled in datadog.yaml should enable system-probe on macOS"
+            );
+            #[cfg(not(target_os = "macos"))]
+            assert!(
+                !met,
+                "logon_duration.enabled should not enable system-probe off macOS"
+            );
+        });
+    }
+
+    #[test]
+    fn derived_logon_duration_in_system_probe_yaml_does_not_enable() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  enabled: false\nlogon_duration:\n  enabled: true\n",
+            );
+            assert!(
+                !condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe)),
+                "logon_duration.enabled in system-probe.yaml should not enable the gate"
+            );
+        });
+    }
+
+    #[test]
     fn derived_tcp_queue_length_enables_system_probe_gate() {
         with_env_lock(|| {
             clear_gated_env_vars();
