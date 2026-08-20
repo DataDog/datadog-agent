@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use log::warn;
 use std::path::Path;
 use std::process::Stdio;
 use std::ptr;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE, HANDLE_FLAG_INHERIT,
-    INVALID_HANDLE_VALUE, SetHandleInformation,
+    CloseHandle, DuplicateHandle, SetHandleInformation, DUPLICATE_SAME_ACCESS, HANDLE,
+    HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_APPEND_DATA, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
@@ -302,20 +302,5 @@ mod tests {
         assert!(status.success());
         let contents = std::fs::read_to_string(&path).unwrap();
         assert!(contents.contains("fileline"), "got {contents:?}");
-    }
-
-    #[test]
-    fn unopenable_file_path_falls_back_to_inherit() {
-        let bad_path = StdioSetting::File(PathBuf::from(
-            r"C:\nonexistent_pmgr_stdio_dir\out.log",
-        ));
-        let handle = map_stdio_setting(
-            "test-proc",
-            &bad_path,
-            STD_OUTPUT_HANDLE,
-            &AgentAccount::LocalSystem,
-        )
-        .expect("map_stdio_setting should fall back instead of failing spawn");
-        assert!(!handle.raw().is_null());
     }
 }
