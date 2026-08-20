@@ -169,12 +169,9 @@ namespace Datadog.CustomActions
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
             var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
             var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
-            // Narrow to domain accounts, which are the only ones that can actually be left without a
-            // usable password: ProcessDdAgentUserCredentials generates a random password for local
-            // accounts, and IsServiceAccount already covers gMSA plus
-            // LocalSystem/LocalService/NetworkService, none of which need a password. Evaluated only when
-            // the password is missing so that IsDomainAccount is not called on the common path.
-            // See ConfigureProcmgrStartType.
+            // Only domain accounts can be left without a usable password: local accounts get a
+            // generated one, and IsServiceAccount covers gMSA and the well known accounts. Ordered so
+            // IsDomainAccount is only called when the password is missing.
             var passwordUnavailable = passwordNotProvided && _nativeMethods.IsDomainAccount(ddAgentUserSID);
             if (passwordNotProvided)
             {
@@ -222,6 +219,8 @@ namespace Datadog.CustomActions
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, ddAgentUserName, ddAgentUserPassword);
+            // Remove when procmgr moves back to LocalSystem: passwordUnavailable describes the Agent
+            // user, so this would then disable a service that no longer needs the password.
             ConfigureProcmgrStartType(passwordUnavailable);
 
             // SYSTEM
@@ -234,23 +233,10 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Sets the start type of the Datadog Process Manager service based on whether the Agent user
-        /// password is available.
-        ///
-        /// dd-procmgr-service runs as ddagentuser. The MSI creates it with whatever
-        /// DDAGENTUSER_PROCESSED_PASSWORD contains, and on an upgrade that does not re-provide the
-        /// password and has no password stored in the LSA secret store (hosts first installed with Agent
-        /// 7.65 or earlier) that is an empty password. The service then fails to log on, and the SCM
-        /// restart-on-failure actions retry the failing logon indefinitely, which locks out domain
-        /// accounts.
-        ///
-        /// Disable the service in that case so that it is never started and never attempts a logon. The
-        /// core Agent tolerates this: startDependentServices only logs a warning when a dependent service
-        /// fails to start. DDOT, the Private Action Runner and ADP will not run, but they could not have
-        /// run anyway, since they need the same unavailable password.
-        ///
-        /// When the password is available the start type is set back to demand start, so that a later
-        /// install that does provide the password re-enables the service.
+        /// dd-procmgr-service runs as ddagentuser and is a new service. If we do not have the password
+        /// and it is not in the LSA store, the service cannot log on, and the SCM retries the failing
+        /// logon until the account is locked out. Disable the service in that case so that it is never
+        /// started, and set it back to demand start once a password is available again.
         /// </summary>
         private void ConfigureProcmgrStartType(bool passwordUnavailable)
         {

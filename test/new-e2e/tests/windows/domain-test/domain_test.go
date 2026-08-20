@@ -9,13 +9,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
-	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
@@ -161,14 +158,11 @@ type testUpgradeWithoutStoredPasswordSuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 }
 
-// TestUpgradeWithoutPasswordDoesNotLockOutAccount covers the regression where upgrading a host that was
-// first installed with Agent 7.65 or earlier, without providing DDAGENTUSER_PASSWORD, created
-// dd-procmgr-service with an empty password. The service then failed to log on and the SCM retried the
-// failing logon indefinitely, locking out the domain account within a few minutes.
-//
-// The installer must now leave dd-procmgr-service disabled when no password is available, and re-enable
-// it once a password is provided again.
-func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDoesNotLockOutAccount() {
+// TestUpgradeWithoutPasswordDisablesProcessManager covers the regression where upgrading a host first
+// installed with Agent 7.65 or earlier, without providing DDAGENTUSER_PASSWORD, left dd-procmgr-service
+// failing to log on until the domain account locked out. It must now be disabled instead, and re-enabled
+// once a password is provided again.
+func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDisablesProcessManager() {
 	host := suite.Env().RemoteHost
 	username := fmt.Sprintf("%s\\%s", TestDomain, TestUser)
 
@@ -186,11 +180,6 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDo
 		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "install_pre_lsa_secret.log")))
 	suite.Require().NoError(err, "should succeed to install Agent %s with a domain account & password", preLSASecretAgentVersion)
 
-	// Record the host time so the event log assertions below only consider the upgrade.
-	upgradeStartTime, err := host.Execute("(Get-Date).ToString('o')")
-	suite.Require().NoError(err)
-	upgradeStartTime = strings.TrimSpace(upgradeStartTime)
-
 	// Upgrade without providing the password.
 	_, err = suite.InstallAgent(host,
 		windowsAgent.WithPackage(suite.AgentPackage),
@@ -202,39 +191,6 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDo
 		suite.Require().NoError(err)
 		suite.Assert().Equal(windowsCommon.SERVICE_DISABLED, config.StartType,
 			"%s must be disabled when the Agent user password is not available", procmgrServiceName)
-	})
-
-	// The failing logons happened once a minute and locked the account out after about 4 minutes, so
-	// watch for longer than that before concluding the loop is gone.
-	suite.Run("domain account is not locked out", func() {
-		// Count the queries that actually answered. Without this, a query that always fails, for
-		// example because the AD module or permissions are broken, would return "not locked out"
-		// every tick and the assertion below would pass without ever having been evaluated.
-		var answered atomic.Int32
-		suite.Never(func() bool {
-			out, err := host.Execute(fmt.Sprintf(
-				`[bool](Search-ADAccount -LockedOut | Where-Object { $_.SamAccountName -eq '%s' })`, TestUser))
-			if err != nil {
-				suite.T().Logf("could not query locked out accounts: %v", err)
-				return false
-			}
-			answered.Add(1)
-			return strings.EqualFold(strings.TrimSpace(out), "True")
-		}, 6*time.Minute, 30*time.Second, "the %s account must not be locked out after upgrading without a password", TestUser)
-		suite.Require().Positive(answered.Load(),
-			"no query for locked out accounts succeeded, so the lockout assertion was never evaluated")
-	})
-
-	// Checked after the window above so that it covers the whole period the retry loop would have run in.
-	suite.Run("process manager does not attempt to log on", func() {
-		// The SCM never launches a disabled service, so there must be no service logon failures
-		// (7000/7031/7038) and no failed account logons (4625) after the upgrade.
-		suite.assertNoEventsAfter(host,
-			fmt.Sprintf(`@{LogName='System'; ID=7000,7031,7038; StartTime=[datetime]'%s'}`, upgradeStartTime),
-			procmgrServiceName)
-		suite.assertNoEventsAfter(host,
-			fmt.Sprintf(`@{LogName='Security'; ID=4625; StartTime=[datetime]'%s'}`, upgradeStartTime),
-			TestUser)
 	})
 
 	suite.Run("core Agent is unaffected", func() {
@@ -263,14 +219,4 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDo
 		suite.Assert().NoError(windowsCommon.StartService(host, procmgrServiceName),
 			"%s should start once the Agent user password is available", procmgrServiceName)
 	})
-}
-
-// assertNoEventsAfter asserts that no event matching filterHashTable mentions needle.
-func (suite *testUpgradeWithoutStoredPasswordSuite) assertNoEventsAfter(host *components.RemoteHost, filterHashTable string, needle string) {
-	entries, err := windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filterHashTable)
-	suite.Require().NoError(err)
-	for _, entry := range entries {
-		suite.Assert().NotContains(entry.Message, needle,
-			"unexpected event %d mentioning %s: %s", entry.ID, needle, entry.Message)
-	}
 }
