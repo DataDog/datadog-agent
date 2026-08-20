@@ -30,7 +30,7 @@ require (
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3
 	github.com/stretchr/testify v1.11.1
 	github.com/twmb/murmur3 v1.1.8
-	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
+	google.golang.org/protobuf v1.36.12
 )
 
 require (

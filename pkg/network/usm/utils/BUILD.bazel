@@ -15,9 +15,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/utils",
     visibility = ["//visibility:public"],
     deps = select({
-        "@rules_go//go/platform:aix": [
-            "//pkg/network/types",
-        ],
         "@rules_go//go/platform:android": [
             "//pkg/network/config",
             "//pkg/network/go/binversion",
@@ -36,24 +33,6 @@ go_library(
             "@org_golang_x_sys//unix",
             "@org_uber_go_atomic//:atomic",
         ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:js": [
-            "//pkg/network/types",
-        ],
         "@rules_go//go/platform:linux": [
             "//pkg/network/config",
             "//pkg/network/go/binversion",
@@ -71,24 +50,6 @@ go_library(
             "@com_github_twmb_murmur3//:murmur3",
             "@org_golang_x_sys//unix",
             "@org_uber_go_atomic//:atomic",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:osx": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:qnx": [
-            "//pkg/network/types",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "//pkg/network/types",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/network/types",
@@ -112,13 +73,8 @@ dd_agent_go_test(
         "//conditions:default": [],
     }),
     embed = [":utils"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     deps = select({
-        "@rules_go//go/platform:aix": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
         "@rules_go//go/platform:android": [
             "//pkg/network/protocols/telemetry",
             "//pkg/network/types",
@@ -128,36 +84,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:js": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
         "@rules_go//go/platform:linux": [
             "//pkg/network/protocols/telemetry",
             "//pkg/network/types",
@@ -166,36 +92,6 @@ dd_agent_go_test(
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:osx": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:qnx": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "//pkg/network/types",
-            "//pkg/process/util",
-            "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/network/types",

@@ -44,6 +44,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/config",
+        "//comp/anomalydetection/internal/logging",
         "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/observer/impl/patterns",
@@ -52,7 +53,6 @@ go_library(
         "//comp/anomalydetection/severityevents/def",
         "//comp/anomalydetection/severityevents/impl",
         "//comp/core/config",
-        "//comp/core/log/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
         "//comp/def",
@@ -111,7 +111,6 @@ dd_agent_go_test(
         "//comp/anomalydetection/recorder/def",
         "//comp/anomalydetection/reporter/def",
         "//comp/anomalydetection/severityevents/def",
-        "//comp/core/log/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/core/telemetry/impl/noops",

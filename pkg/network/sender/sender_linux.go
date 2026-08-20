@@ -292,6 +292,8 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 				Domain:            getDNSNameForIP(conns, conn.Dest),
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.Pid == d.sysProbePID,
+				SentBytes:         conn.Last.SentBytes,
+				RecvBytes:         conn.Last.RecvBytes,
 			}
 			if !yield(npc) {
 				return

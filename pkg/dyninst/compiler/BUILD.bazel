@@ -17,11 +17,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/compiler",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/ir",
-        "//pkg/util/log",
-        "@org_golang_x_time//rate",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/ir",
+            "//pkg/util/log",
+            "@org_golang_x_time//rate",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/ir",
+            "//pkg/util/log",
+            "@org_golang_x_time//rate",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_stringer(
@@ -41,16 +49,28 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":compiler"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
-    deps = [
-        "//pkg/dyninst/ir",
-        "//pkg/dyninst/irgen",
-        "//pkg/dyninst/object",
-        "//pkg/dyninst/testprogs",
-        "//pkg/util/log",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/ir",
+            "//pkg/dyninst/irgen",
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/testprogs",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/ir",
+            "//pkg/dyninst/irgen",
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/testprogs",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

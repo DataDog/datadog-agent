@@ -1202,7 +1202,7 @@ def kmt_sysprobe_prepare(
                         variables={
                             "go": go_path,
                             "chdir": "true",
-                            "tags": "-tags=\"test,linux_bpf\"",
+                            "tags": "-tags=\"test,bpf\"",
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
                             "env": env_str,
                         },

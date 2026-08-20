@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
-# keep: main.go is gated by linux && linux_bpf; Gazelle drops rules for packages
-# with no platform-independent sources, but this binary is valid on Linux+linux_bpf.
+# keep: main.go is gated by linux && bpf; Gazelle drops rules for packages
+# with no platform-independent sources, but this binary is valid on Linux+bpf.
 go_library(
     name = "btfhub_lib",
     srcs = ["main.go"],
@@ -23,7 +23,8 @@ go_library(
 go_binary(
     name = "btfhub",
     embed = [":btfhub_lib"],
-    gotags = ["linux_bpf"],
+    gotags = ["bpf"],
     tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )

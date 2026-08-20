@@ -14,8 +14,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -338,7 +338,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	// Collision guard: verify full identity (namespace + name + sorted tags).
 	if exists && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonTags)) {
 		// Hash collision — extremely rare with FNV-64a (~10^-14 at 1000 series).
-		pkglog.Warnf("[observer] seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
+		logging.Warnf("seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
 			h, stats.Namespace, stats.Name, namespace, name)
 		exists = false
 		for _, st := range s.seriesIDStats {
@@ -463,7 +463,7 @@ func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, v
 	sampled := s.sampledDrops[metricKey]
 	if sampled < 3 {
 		s.sampledDrops[metricKey] = sampled + 1
-		pkglog.Warnf("[observer] dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
+		logging.Warnf("dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
 			reason, namespace, name, value, timestamp, tags, sampled+1)
 	}
 }

@@ -130,7 +130,7 @@ var DefaultFieldValues = map[uint32]MockFieldValue{
 	nvml.FI_DEV_MEMORY_TEMP:                                  NewFieldValue(42),
 	nvml.FI_DEV_PCIE_REPLAY_COUNTER:                          NewFieldValue(7),
 	nvml.FI_DEV_PERF_POLICY_THERMAL:                          NewFieldValue(85),
-	nvml.FI_DEV_NVLINK_LINK_COUNT:                            NewFieldValue(2),
+	nvml.FI_DEV_NVLINK_LINK_COUNT:                            NewFieldValue(0),
 	nvml.FI_DEV_C2C_LINK_COUNT:                               NewFieldValue(0),
 	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX:                    NewFieldValue(1000),
 	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX:                    NewFieldValue(2000),

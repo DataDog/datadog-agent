@@ -97,7 +97,7 @@ If your system-probe module needs an agent-side check (to fetch data via HTTP an
 
 ### System-Probe Module
 
-See `cmd/system-probe/modules/AGENTS.md` for module factory, router, and lifecycle details. Files typically live in `cmd/system-probe/modules/<check>.go` with `//go:build linux && linux_bpf`.
+See `cmd/system-probe/modules/AGENTS.md` for module factory, router, and lifecycle details. Files typically live in `cmd/system-probe/modules/<check>.go` with `//go:build linux && bpf`.
 
 ## Common Patterns
 
@@ -354,7 +354,7 @@ If your system-probe module has an agent-side component (most do), see `.cursor/
 ### Test Suite Structure
 
 ```go
-//go:build linux_bpf
+//go:build linux && bpf
 
 type myCheckTestSuite struct {
     suite.Suite
@@ -496,9 +496,9 @@ if err != nil {
 
 ## Build Tags Reference
 
-- `linux_bpf` - eBPF probe implementation
+- `bpf` - eBPF probe implementation (with `linux`)
 - `linux` - Linux-specific code (checks, utilities)
-- `!linux_bpf` - Stub implementations for non-eBPF builds
+- `!linux || !bpf` - Stub implementations for non-eBPF builds
 - `!linux` - Cross-platform stubs
 
 ## Key Files to Always Check
