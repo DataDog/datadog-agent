@@ -66,6 +66,7 @@
     - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
     - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
   variables:
+    GIT_DEPTH: 0  # Full history: --impacted tests use git merge-base
     GIT_STRATEGY: "clone" # Needed because we use git merge-base
     DYNAMIC_TESTS_FLAG: "--impacted"
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
@@ -855,8 +856,6 @@ new-e2e-apm:
     - deploy_agent_oci
     - deploy_ddot_oci
     - qa_installer_script_linux
-    - job: qa_installer_script_windows
-      optional: true
   variables:
     TEAM: fleet
     E2E_USE_AWS_PROFILE: "false"
@@ -945,8 +944,6 @@ new-e2e-installer:
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_installer_script_linux
-    - job: qa_installer_script_windows
-      optional: true
     - deploy_ddot_oci
   variables:
     TARGETS: ./tests/installer/unix
@@ -973,8 +970,6 @@ new-e2e-installer-ansible:
       optional: true
     - deploy_installer_oci
     - deploy_agent_oci
-    - job: qa_installer_script_windows
-      optional: true
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet

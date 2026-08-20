@@ -9,7 +9,7 @@ go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.82.1
-	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
+	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
 require (
@@ -24,7 +24,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.82.1 // indirect
@@ -124,8 +123,6 @@ replace github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../.
 replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 
 replace github.com/DataDog/datadog-agent/pkg/config/basic => ../../pkg/config/basic
-
-replace github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../pkg/config/buildschema
 
 replace github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 

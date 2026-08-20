@@ -32,7 +32,7 @@ type componentEntry struct {
 	name           string
 	displayName    string
 	kind           componentKind
-	defaultConfig  any           // typed config value (e.g. CUSUMConfig, RRCFConfig)
+	defaultConfig  any           // typed config value (e.g. BOCPDConfig, RRCFConfig)
 	factory        func(any) any // accepts the config, returns the component
 	defaultEnabled bool
 
@@ -90,11 +90,14 @@ type ComponentSettings struct {
 	configs map[string]any
 }
 
-// ApplyTestbenchDetectorDefaults applies the shorter detector warmups used by
-// the offline testbench. Production builds ComponentSettings from the agent
-// config and never calls this function. An explicit testbench --config entry
-// for a detector takes precedence over this profile.
-func ApplyTestbenchDetectorDefaults(settings ComponentSettings) ComponentSettings {
+// ApplyTestbenchDefaults applies replay-specific defaults used by the offline
+// testbench. Production builds ComponentSettings from the agent config and
+// never calls this function. Explicit testbench --config component entries
+// take precedence over this profile.
+func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
+	if settings.Enabled == nil {
+		settings.Enabled = make(map[string]bool)
+	}
 	if settings.configs == nil {
 		settings.configs = make(map[string]any)
 	}
@@ -116,6 +119,19 @@ func ApplyTestbenchDetectorDefaults(settings ComponentSettings) ComponentSetting
 		if _, explicitlyConfigured := settings.configs[name]; !explicitlyConfigured {
 			settings.configs[name] = cfg
 		}
+	}
+
+	// Evals should score the scorer's correlation episodes. Preserve explicit
+	// component choices in --config, which are used for ablations and manual
+	// comparisons.
+	if _, explicitlyEnabled := settings.Enabled["anomaly_scorer"]; !explicitlyEnabled {
+		settings.Enabled["anomaly_scorer"] = true
+	}
+	if _, explicitlyConfigured := settings.configs["anomaly_scorer"]; !explicitlyConfigured {
+		scorer := DefaultAnomalyScorerConfig()
+		scorer.CorrelationEvents = true
+		scorer.CooldownSecs = 0
+		settings.configs["anomaly_scorer"] = scorer
 	}
 	return settings
 }
@@ -173,21 +189,6 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			// ---- Detectors ----
-			{
-				name:           "cusum",
-				displayName:    "CUSUM",
-				kind:           componentDetector,
-				defaultConfig:  DefaultCUSUMConfig(),
-				factory:        func(cfg any) any { return NewCUSUMDetector(cfg.(CUSUMConfig)) },
-				defaultEnabled: false,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(CUSUMConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, fmt.Errorf("cusum: failed to parse JSON config: %w", err)
-					}
-					return cfg, nil
-				},
-			},
 			{
 				name:           "bocpd",
 				displayName:    "BOCPD",
@@ -271,27 +272,12 @@ func defaultCatalog() *componentCatalog {
 			},
 			// ---- Correlators ----
 			{
-				name:           "cross_signal",
-				displayName:    "CrossSignal",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultCorrelatorConfig(),
-				factory:        func(cfg any) any { return NewCorrelator(cfg.(CorrelatorConfig)) },
-				defaultEnabled: false,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(CorrelatorConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, fmt.Errorf("cross_signal: failed to parse JSON config: %w", err)
-					}
-					return cfg, nil
-				},
-			},
-			{
 				name:           "time_cluster",
 				displayName:    "TimeCluster",
 				kind:           componentCorrelator,
 				defaultConfig:  DefaultTimeClusterConfig(),
 				factory:        func(cfg any) any { return NewTimeClusterCorrelator(cfg.(TimeClusterConfig)) },
-				defaultEnabled: true,
+				defaultEnabled: false,
 				readConfig:     readTimeClusterConfig,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(TimeClusterConfig)
@@ -300,13 +286,6 @@ func defaultCatalog() *componentCatalog {
 					}
 					return cfg, nil
 				},
-			},
-			{
-				name:           "passthrough",
-				displayName:    "Passthrough",
-				kind:           componentCorrelator,
-				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
-				defaultEnabled: false,
 			},
 			// ---- Anomaly Scorer (treated as a Correlator by the engine) ----
 			{
@@ -406,10 +385,15 @@ type CatalogEntry struct {
 	DefaultEnabled bool
 }
 
+// TestbenchPassthroughComponentName is the testbench-only adapter that converts
+// each raw anomaly into an evaluation period. It is deliberately absent from
+// the production component catalog.
+const TestbenchPassthroughComponentName = "passthrough"
+
 // ParseSettingsFromJSON builds ComponentSettings from a map of JSON-encoded
-// per-component overrides (e.g. from a --config params file). Each value may
-// contain an optional "enabled" bool plus component-specific hyperparameters.
-// Unknown component names are rejected.
+// per-component overrides (e.g. from a testbench --config params file). Each
+// value may contain an optional "enabled" bool plus component-specific
+// hyperparameters. Unknown component names are rejected.
 func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSettings, error) {
 	cat := defaultCatalog()
 	settings := ComponentSettings{
@@ -417,6 +401,19 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 		configs: make(map[string]any),
 	}
 	for name, raw := range overrides {
+		var wrapper struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.Unmarshal(raw, &wrapper); err != nil {
+			return ComponentSettings{}, fmt.Errorf("parsing enabled for %q: %w", name, err)
+		}
+		if name == TestbenchPassthroughComponentName {
+			if wrapper.Enabled != nil {
+				settings.Enabled[name] = *wrapper.Enabled
+			}
+			continue
+		}
+
 		var entry *componentEntry
 		for i := range cat.entries {
 			if cat.entries[i].name == name {
@@ -426,12 +423,6 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 		}
 		if entry == nil {
 			return ComponentSettings{}, fmt.Errorf("unknown component %q in params file", name)
-		}
-		var wrapper struct {
-			Enabled *bool `json:"enabled"`
-		}
-		if err := json.Unmarshal(raw, &wrapper); err != nil {
-			return ComponentSettings{}, fmt.Errorf("parsing enabled for %q: %w", name, err)
 		}
 		if wrapper.Enabled != nil {
 			settings.Enabled[name] = *wrapper.Enabled
@@ -451,15 +442,21 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 // Used by the CLI to implement --only without hardcoding component lists.
 func TestbenchCatalogEntries() []CatalogEntry {
 	cat := defaultCatalog()
-	result := make([]CatalogEntry, len(cat.entries))
-	for i, e := range cat.entries {
-		result[i] = CatalogEntry{
+	result := make([]CatalogEntry, 0, len(cat.entries)+1)
+	for _, e := range cat.entries {
+		result = append(result, CatalogEntry{
 			Name:           e.name,
 			DisplayName:    e.displayName,
 			Kind:           kindString(e.kind),
 			DefaultEnabled: e.defaultEnabled,
-		}
+		})
 	}
+	result = append(result, CatalogEntry{
+		Name:           TestbenchPassthroughComponentName,
+		DisplayName:    "Passthrough",
+		Kind:           kindString(componentCorrelator),
+		DefaultEnabled: false,
+	})
 	return result
 }
 

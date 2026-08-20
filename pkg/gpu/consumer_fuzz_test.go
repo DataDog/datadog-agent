@@ -20,7 +20,7 @@ import (
 
 // Run locally with `go test -fuzz=FuzzConsumerHandleEvent -run=FuzzConsumerHandleEvent`
 func FuzzConsumerHandleEvent(f *testing.F) {
-	ddnvml.WithMockNVML(f, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	ddnvml.WithMockNVML(f, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithNVLinkLinkCount(0)))
 
 	cfg := config.New()
 	ctx := getTestSystemContext(f, withFatbinParsingEnabled(false)) // Keep it simple, disable fatbin parsing
