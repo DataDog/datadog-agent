@@ -20,7 +20,6 @@
 //! [`system_probe`] and must stay in sync with `pkg/system-probe/config/config.go`.
 //! Env bindings are centralized in [`env_bindings`].
 
-
 mod env_bindings;
 mod system_probe;
 mod yaml_load;
@@ -544,9 +543,7 @@ pub fn condition_config_summary(conditions: &[ConditionConfigFile]) -> String {
         .iter()
         .flat_map(|file| {
             let path = expand_env_vars(&file.path);
-            file.keys
-                .iter()
-                .map(move |key| format!("{path}:{key}"))
+            file.keys.iter().map(move |key| format!("{path}:{key}"))
         })
         .collect::<Vec<_>>()
         .join(", ")
@@ -1718,10 +1715,7 @@ process_config:
             value_as_bool(&serde_yaml::Value::String("yes".into())),
             Some(false)
         );
-        assert_eq!(
-            value_as_bool(&serde_yaml::Value::Bool(true)),
-            Some(true)
-        );
+        assert_eq!(value_as_bool(&serde_yaml::Value::Bool(true)), Some(true));
     }
 
     #[test]
@@ -1814,7 +1808,10 @@ process_config:
             );
             let met = condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe));
             #[cfg(target_os = "macos")]
-            assert!(met, "notable_events.enabled should enable system-probe on macOS");
+            assert!(
+                met,
+                "notable_events.enabled should enable system-probe on macOS"
+            );
             #[cfg(not(target_os = "macos"))]
             assert!(
                 !met,
@@ -2042,9 +2039,9 @@ process_config:
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
             let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
-            assert!(condition_config_any_met(
-                &process_agent_windows_conditions(agent, sysprobe)
-            ));
+            assert!(condition_config_any_met(&process_agent_windows_conditions(
+                agent, sysprobe
+            )));
         });
     }
 
