@@ -219,8 +219,9 @@ namespace Datadog.CustomActions
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, ddAgentUserName, ddAgentUserPassword);
-            // Remove when procmgr moves back to LocalSystem: passwordUnavailable describes the Agent
-            // user, so this would then disable a service that no longer needs the password.
+            // When procmgr moves back to LocalSystem, replace this with an unconditional enable rather
+            // than deleting it. passwordUnavailable describes the Agent user, and a disabled start type
+            // survives an upgrade, so hosts disabled here would otherwise stay disabled forever.
             ConfigureProcmgrStartType(passwordUnavailable);
 
             // SYSTEM
@@ -240,9 +241,10 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ConfigureProcmgrStartType(bool passwordUnavailable)
         {
-            var startType = passwordUnavailable ? ServiceStartMode.Disabled : ServiceStartMode.Manual;
+            ServiceStartMode startType;
             if (passwordUnavailable)
             {
+                startType = ServiceStartMode.Disabled;
                 _session.Log(
                     $"The Agent user password is not available, setting {Constants.ProcmgrServiceName} start type to " +
                     "disabled so that it does not repeatedly fail to log on, which can lock out the account. " +
@@ -251,6 +253,7 @@ namespace Datadog.CustomActions
             }
             else
             {
+                startType = ServiceStartMode.Manual;
                 _session.Log($"Setting {Constants.ProcmgrServiceName} start type to {startType}");
             }
 
