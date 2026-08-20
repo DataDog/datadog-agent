@@ -19,6 +19,11 @@ crate.annotation(
     build_script_tools = ["@@//bazel/toolchains/protoc:protoc"],
     crate = "datadog-protos",
 )
+# Use the MinGW toolchain's import libraries instead of winapi's bundled libraries.
+crate.annotation(
+    build_script_env = {"WINAPI_NO_BUNDLED_LIBRARIES": "1"},
+    crate = "winapi",
+)
 crate.annotation(
     crate = "protoc-gen-prost",
     gen_binaries = ["protoc-gen-prost"],
