@@ -23,6 +23,12 @@ def _label_string(label):
     return "//%s:%s" % (label.package, label.name)
 
 def _test_log_to_json_impl(target, ctx):
+    # Rules with analysis_test = True (skylib's analysistest and friends) may not
+    # register actions, and the restriction covers aspects applied to them, so
+    # their logs cannot be converted in-graph.
+    if AnalysisTestResultInfo in target:
+        return []
+
     label_str = _label_string(target.label)
     fragments = []
     for action in target.actions:
