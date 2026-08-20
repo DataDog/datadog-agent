@@ -861,9 +861,24 @@ namespace Datadog.CustomActions
         {
             try
             {
-                UninstallRemoveFileAccess();
+                // Each cleanup step is independent: a failure in one must not prevent the other from running.
+                try
+                {
+                    UninstallRemoveFileAccess();
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to remove file access during uninstall: {e}");
+                }
 
-                UninstallRemoveLsaSecret();
+                try
+                {
+                    UninstallRemoveLsaSecret();
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to remove LSA secret during uninstall: {e}");
+                }
 
                 // We intentionally do NOT delete the ddagentuser account.
                 // For domain accounts, the account may still be in use elsewhere and we can't delete accounts from domain clients.
@@ -872,6 +887,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
+                // Backstop for anything added here in the future that isn't already wrapped above.
                 _session.Log($"Failed to uninstall user: {e}");
                 return ActionResult.Failure;
             }
