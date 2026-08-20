@@ -661,7 +661,11 @@ impl ManagedProcess {
         if crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
             return true;
         }
-        info!("[{}] condition_config_any not met", self.name);
+        info!(
+            "[{}] condition_config_any not met: {}",
+            self.name,
+            crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+        );
         false
     }
 
