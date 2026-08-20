@@ -244,13 +244,12 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
 
-		if cs.sdcCompressor != nil && cs.sdcCompressor.tracks(serie.ContextKey) {
+		if cs.sdcCompressor != nil && cs.sdcCompressor.stashIfTracked(serie) {
 			// Defer the compression decision to the next flush (or to this
 			// context's expiry, if it goes idle before then) — see
 			// checkSDCCompressor.flushPending — so it's evaluated at the
 			// same globally-shared cadence for every check, regardless of
 			// this check's own min_collection_interval.
-			cs.sdcCompressor.stash(serie)
 			continue
 		}
 		cs.series = append(cs.series, serie)

@@ -124,24 +124,23 @@ func (sc *checkSDCCompressor) noteSample(contextKey ckey.ContextKey) {
 	sc.tlmContexts.Inc()
 }
 
-// tracks reports whether contextKey has compressor state, i.e. whether it's
-// a Gauge-family context on this eligible check (see noteSample). Used by
-// CheckSampler.commitSeries to decide whether to defer a serie into
-// pendingSeries (via stash) rather than shipping it immediately.
-func (sc *checkSDCCompressor) tracks(contextKey ckey.ContextKey) bool {
-	_, ok := sc.contexts[contextKey]
-	return ok
-}
-
-// stash accumulates a fully-resolved serie's points into this window's
-// pending buffer for its context, merging into an existing accumulator if
-// this isn't the first commit to sample that context since the last flush.
-func (sc *checkSDCCompressor) stash(serie *metrics.Serie) {
+// stashIfTracked accumulates a fully-resolved serie's points into this
+// window's pending buffer for its context — merging into an existing
+// accumulator if this isn't the first commit to sample that context since
+// the last flush — and reports whether it did so. Returns false (does
+// nothing) for a context with no compressor state, i.e. not a Gauge-family
+// context on this eligible check (see noteSample); the caller (CheckSampler.
+// commitSeries) ships those immediately instead of deferring them.
+func (sc *checkSDCCompressor) stashIfTracked(serie *metrics.Serie) bool {
+	if _, ok := sc.contexts[serie.ContextKey]; !ok {
+		return false
+	}
 	if existing, ok := sc.pendingSeries[serie.ContextKey]; ok {
 		existing.Points = append(existing.Points, serie.Points...)
-		return
+	} else {
+		sc.pendingSeries[serie.ContextKey] = serie
 	}
-	sc.pendingSeries[serie.ContextKey] = serie
+	return true
 }
 
 // flushPending drains every context's pending points accumulated since the
