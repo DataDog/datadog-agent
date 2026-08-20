@@ -48,7 +48,7 @@ func TestConfigStreamEnabled(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv(configStreamConsumerEnabledEnv, test.value)
-			if enabled := configStreamEnabled(); enabled != test.enabled {
+			if enabled := isConfigStreamEnabled(); enabled != test.enabled {
 				t.Fatalf("configStreamEnabled() = %t, want %t", enabled, test.enabled)
 			}
 		})
