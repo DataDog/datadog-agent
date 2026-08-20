@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -443,9 +442,9 @@ func NewComponent(deps Requires) (Provides, error) {
 			defer ticker.Stop()
 			for range ticker.C {
 				if err := obs.DumpMetrics(dumpPath); err != nil {
-					fmt.Fprintf(os.Stderr, "[observer] dump error: %v\n", err)
+					logging.Errorf("dump error: %v", err)
 				} else {
-					fmt.Printf("[observer] dumped metrics to %s\n", dumpPath)
+					logging.Debugf("dumped metrics to %s", dumpPath)
 				}
 			}
 		}()
