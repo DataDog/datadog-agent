@@ -1,0 +1,199 @@
+-- allium: 3
+-- aggregator.allium
+
+-- Scope: Contract layer for the aggregation stage in the Datadog
+--   Agent's logs preprocessor pipeline. Defines the
+--   AggregatedMessageWithTokens value (one element of an
+--   aggregator's output stream), the Message value (one line
+--   crossing the aggregator boundary) and the Aggregator contract
+--   (the abstract interface for any line-combining strategy).
+--
+--   The Aggregator stage described here is the post-labelling
+--   line-combining stage. It consumes labelled log lines and
+--   produces completed log messages. Different Aggregator
+--   implementations combine lines using different strategies —
+--   multi-line grouping driven by labelling decisions,
+--   regex-pattern grouping, or no grouping at all. This module
+--   describes only the abstract contract every Aggregator must
+--   honour; specific strategies live in their own modules.
+--
+--   Pre-labelling aggregation stages exist earlier in the
+--   pipeline (the JSONAggregator and StackTraceAggregator stages,
+--   both running before tokenization and labelling) but are
+--   governed by their own contracts and interfaces and do not
+--   fulfil this contract. They operate on raw, pre-tokenized
+--   messages without a label argument. See json_aggregator.allium
+--   for the JSONAggregator contract; the stack-trace aggregator
+--   does not yet have a spec.
+-- Includes: Message value, AggregatedMessageWithTokens value,
+--   Aggregator contract.
+-- Excludes:
+--   - Specific Aggregator implementations. Each Aggregator-
+--     fulfilling entity (CombiningAggregator, DetectingAggregator,
+--     PassThroughAggregator, RegexAggregator) lives in its own
+--     spec module and declares fulfils Aggregator against this
+--     contract.
+--   - The pre-labelling JSONAggregator and StackTraceAggregator
+--     stages. Those stages are governed by their own contracts
+--     and do not fulfil Aggregator. See json_aggregator.allium.
+--   - The upstream Labeler stage that produces the Label argument
+--     to Process. The Aggregator contract describes how the
+--     argument is consumed but not how it is computed; the
+--     Labeler contract lives in labeler.allium.
+--   - The downstream Sampler stage that consumes
+--     AggregatedMessageWithTokens. The contract describes the
+--     handoff but not how the sampler uses the tokens.
+--   - Caller-side selection of which Aggregator implementation
+--     a particular log source uses. That is a preprocessor
+--     configuration concern, not part of the contract.
+
+use "./labeler.allium" as labeler
+use "./tokenizer.allium" as tokenizer
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value Message {
+    -- A single log line crossing the aggregator boundary. The
+    -- aggregator observes the line's content bytes, the tags
+    -- attached by upstream stages, and a flag indicating whether
+    -- upstream framing already truncated the content. Aggregators
+    -- may mutate content (replacing it with the aggregated
+    -- result), tags (appending truncation-reason tags) and the
+    -- is_truncated flag (setting it when emitted content was
+    -- itself truncated).
+    --
+    -- content:       the line bytes, as labelled by the upstream
+    --                Labeler stage.
+    -- tags:          tags attached to the message by upstream
+    --                pipeline stages. Aggregators may append to
+    --                this set.
+    -- is_truncated:  whether the message's content was already
+    --                truncated by an upstream stage. Aggregators
+    --                use this to propagate the truncation flag
+    --                onto emitted content and may set it on the
+    --                outgoing message when the aggregator itself
+    --                truncates.
+    content: String
+    tags: Set<String>
+    is_truncated: Boolean
+}
+
+value AggregatedMessageWithTokens {
+    -- One element of an aggregator's output stream. Pairs a
+    -- completed log message with the tokens from its first line.
+    --
+    -- The first-line tokens flow forward to the downstream
+    -- Sampler stage, which uses them for pattern-based rate
+    -- limiting. For a single-line aggregate the tokens describe
+    -- that one line; for a multi-line aggregate they describe
+    -- only the first line (the leader). The aggregator does not
+    -- recompute tokens for combined lines — the leader's tokens
+    -- act as the pattern signature for the entire aggregate.
+    msg: Message
+    tokens: tokenizer/TokenSequence
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract Aggregator {
+    -- A line-combining strategy. The aggregator receives one
+    -- labelled log line per call to process and may buffer it,
+    -- combine it with previously buffered lines, or emit it
+    -- directly. Each call returns zero or more completed messages;
+    -- an explicit flush is also available to drain whatever
+    -- remains buffered.
+    --
+    -- Aggregators are stateful: the same call sequence on a fresh
+    -- aggregator and on one with prior buffered content can produce
+    -- different outputs. The contract's invariants describe the
+    -- relationship between sequential operations on a single
+    -- aggregator instance, not pure-function behaviour.
+    process: (msg: Message,
+              label: labeler/Label,
+              tokens: tokenizer/TokenSequence) -> Sequence<AggregatedMessageWithTokens>
+
+    -- flush and is_empty take no arguments in the Go implementation.
+    -- Allium 3 does not support zero-argument function signatures
+    -- (`name: () -> Type` is a parse error), so they are declared
+    -- here as properties. Their operational semantics — that flush
+    -- mutates buffer state and that both produce a fresh observation
+    -- on every read — are carried by the @invariants below.
+    flush: Sequence<AggregatedMessageWithTokens>
+
+    is_empty: Boolean
+
+    @invariant Determinism
+        -- For a given aggregator instance in a given internal
+        -- state, equal (msg, label, tokens) inputs to process
+        -- produce equal output sequences, and equivalently for
+        -- flush. Aggregators may not branch on randomness or
+        -- external state. This is the stateful analogue of the
+        -- Labeler contract's Determinism: pure given state.
+
+    @invariant ByteConservation
+        -- The bytes of every emitted message's content derive
+        -- only from the bytes of input messages previously
+        -- supplied to process on this aggregator, plus a finite
+        -- set of well-known marker bytes (truncation flags,
+        -- separators introduced by line combination). Aggregators
+        -- never invent content from elsewhere — every byte
+        -- emitted has a traceable origin. The exact transformation
+        -- depends on the strategy; per-strategy specs refine this
+        -- invariant.
+
+    @invariant FlushDrainsBuffer
+        -- After flush returns, is_empty returns true. Calling
+        -- flush on an already-empty aggregator returns an empty
+        -- sequence (and is_empty remains true). flush therefore
+        -- always leaves the aggregator in a quiescent state.
+
+    @invariant IsEmptyConsistency
+        -- is_empty returns true at construction and after every
+        -- flush. It returns false while the aggregator holds
+        -- buffered content whose emission has not yet occurred —
+        -- either because the buffered content is not yet a
+        -- complete aggregate, or because the aggregator is
+        -- otherwise holding state that flush would drain. The
+        -- pairing is symmetric: is_empty = true iff flush would
+        -- return an empty sequence.
+
+    @invariant ResultLifetime
+        -- The sequences returned by process and flush are valid
+        -- only until the next call to process or flush on the
+        -- same aggregator instance. Implementations are permitted
+        -- to reuse the backing storage between calls; callers
+        -- that need to retain a returned sequence beyond the next
+        -- operation must copy it. This is a usage contract — a
+        -- caller obligation, not a property the aggregator
+        -- verifies.
+
+    @guidance
+        -- The label argument is the result of the upstream
+        -- Labeler stage. Aggregators may consume it to make
+        -- combination decisions (for example, treating a
+        -- start_group label as a signal to flush the current
+        -- aggregate and start a new one) or ignore it entirely
+        -- (PassThroughAggregator does no grouping and discards
+        -- the argument). Either is contractually permitted.
+        --
+        -- The tokens argument is the tokenised first line, as
+        -- produced by the upstream Tokenization stage. The
+        -- aggregator forwards these tokens unchanged into
+        -- AggregatedMessageWithTokens.tokens on whichever emitted
+        -- message ends up representing this line — typically the
+        -- message that has this line as its first (leader) line.
+        -- For a single-line emission, the tokens describe that
+        -- one line; for a multi-line aggregate, the tokens
+        -- describe only the leader. The aggregator does not
+        -- recompute tokens when combining lines.
+        --
+        -- Aggregator instances are not safe for concurrent use.
+        -- A single aggregator serves a single log source's
+        -- sequential preprocessor pipeline; callers must not
+        -- invoke process, flush or is_empty concurrently on the
+        -- same instance.
+}

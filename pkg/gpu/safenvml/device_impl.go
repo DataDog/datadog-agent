@@ -109,6 +109,10 @@ func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
 		return err
 	}
+
+	d.lib.fieldValuesLock()
+	defer d.lib.fieldValuesUnlock()
+
 	ret := d.nvmlDevice.GetFieldValues(values)
 	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
 }
@@ -253,6 +257,14 @@ func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
 	}
 	state, ret := d.nvmlDevice.GetNvLinkState(link)
 	return state, NewNvmlAPIErrorOrNil("GetNvLinkState", ret)
+}
+
+func (d *safeDeviceImpl) GetNvLinkVersion(link int) (int, error) {
+	if err := d.lib.lookup(toNativeName("GetNvLinkVersion")); err != nil {
+		return 0, err
+	}
+	version, ret := d.nvmlDevice.GetNvLinkVersion(link)
+	return int(version), NewNvmlAPIErrorOrNil("GetNvLinkVersion", ret)
 }
 
 func (d *safeDeviceImpl) GetPciInfo() (nvml.PciInfo, error) {
