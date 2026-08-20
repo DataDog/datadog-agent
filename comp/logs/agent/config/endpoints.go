@@ -404,9 +404,16 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 			return
 		}
 
-		// The pending flag is ignored here: isReliable is fixed at load time (see
-		// Endpoint.isReliable), so there is nothing to update besides the key itself.
-		newAPIKey, _ := delaAwareAPIKey(newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey)
+		newAPIKey, pending := delaAwareAPIKey(newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey)
+		// isReliable is fixed at load time (see Endpoint.isReliable), so it is not updated here.
+		// That is fine in the normal direction (pending -> resolved), but a rotation that puts a
+		// directive BACK where a real key was leaves a reliable endpoint holding no key, which
+		// stalls its pipeline. Nothing can downgrade it at this point, so make it visible.
+		if pending && e.isReliable {
+			log.Warnf("delegated auth directive replaced the resolved key for reliable endpoint '%s' number %d; "+
+				"it has no usable key until the directive resolves again, and reliability cannot be lowered without an Agent restart",
+				e.configSettingPath, e.additionalEndpointsIdx)
+		}
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,

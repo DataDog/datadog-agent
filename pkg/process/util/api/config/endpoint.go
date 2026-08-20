@@ -35,13 +35,17 @@ func KeysPerDomains(endpoints []Endpoint) map[string][]utils.APIKeys {
 		// An endpoint whose key is still a pending DELA(...) directive arrives here with an empty
 		// APIKey. It must contribute NO key rather than an empty one: utils.DedupAPIKeys does not
 		// filter empty strings, so a `[]string{""}` here reaches the forwarder's authorizers and
-		// gets sent upstream as a literal `DD-Api-Key: ` header (403s and retry-queue churn until
-		// the key resolves). It would also make resolver.IsUsable() pass on key count rather than
-		// on HasPendingDelegatedAuth, defeating the flag. This matches utils.MakeEndpoints, which
-		// likewise drops empty keys while keeping the pending domain.
-		keys := []string{}
-		if ep.APIKey != "" {
-			keys = append(keys, ep.APIKey)
+		// gets sent upstream as a literal `DD-Api-Key: ` header. It would also make
+		// resolver.IsUsable() pass on key count rather than on HasPendingDelegatedAuth, defeating
+		// the flag.
+		//
+		// Deliberately scoped to the pending case. A non-pending endpoint with an empty key (an
+		// unresolved `api_key`, say) keeps its historical `[]string{""}`: dropping it would make
+		// the domain fail IsUsable() and be discarded at forwarder construction, and a discarded
+		// domain has no resolver left for UpdateAPIKey to revive when the key does arrive.
+		keys := []string{ep.APIKey}
+		if ep.APIKey == "" && ep.HasPendingDelegatedAuth {
+			keys = []string{}
 		}
 		keysPerDomains[domain] = append(keysPerDomains[domain], utils.APIKeys{
 			ConfigSettingPath:       ep.ConfigSettingPath,

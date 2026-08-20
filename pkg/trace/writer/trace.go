@@ -387,6 +387,14 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 	// separate steps, so a push overlapping a rebuild is a send-on-closed-channel panic. Holding
 	// the read lock here blocks RebuildSenders until this send completes; any rebuild that starts
 	// afterwards swaps in new senders that this call never touches.
+	//
+	// The cost is a real stall, and it is not small: Push blocks on a full queue, and the drain
+	// loop retries with up to backoffMaxDuration (10s) per attempt, so an unreachable endpoint can
+	// hold this for maxRetries x ~10s. Because RWMutex gives a waiting writer priority, a queued
+	// RebuildSenders also blocks subsequent readers (UpdateAPIKey included), and the trace config
+	// component holds reloadMu across the callback that reaches here - so a slow endpoint delays
+	// config reload. That is the accepted tradeoff: a bounded stall beats a crash. There is no
+	// deadlock - nothing reachable under this lock re-takes sendersMu or reloadMu.
 	w.sendersMu.RLock()
 	senders := w.senders
 	sendPayloads(senders, p, w.syncMode)

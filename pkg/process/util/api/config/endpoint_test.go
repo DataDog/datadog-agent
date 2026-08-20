@@ -104,6 +104,19 @@ func TestKeysPerDomain(t *testing.T) {
 			},
 		},
 		{
+			// An empty key that is NOT pending keeps its historical []string{""}. Dropping it
+			// would make the domain fail resolver.IsUsable() and be discarded at forwarder
+			// construction, leaving no resolver for UpdateAPIKey to revive once the key arrives.
+			input: []Endpoint{{
+				APIKey:            "",
+				Endpoint:          getEndpoint(t, "http://unresolved.example"),
+				ConfigSettingPath: "api_key",
+			}},
+			expected: map[string][]utils.APIKeys{
+				"http://unresolved.example": {utils.NewAPIKeys("api_key", "")},
+			},
+		},
+		{
 			// A real key alongside a pending one on the same domain: the real key survives, the
 			// pending entry contributes none, and the domain is marked pending.
 			input: []Endpoint{

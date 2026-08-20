@@ -190,33 +190,70 @@ var (
 
 // TestRebuildAdditionalEndpointSenders covers the runtime reload entry point that the trace
 // config component wires to its additional_endpoints OnUpdate callback. It runs against the real
-// writers built by NewAgent (not the mocks NewTestAgent substitutes), so it exercises the actual
-// RebuildSenders implementations, including their endpoint-validation guard.
+// writers built by NewAgent (not the mocks NewTestAgent substitutes) and asserts delivery at the
+// intake, so it fails if the rebuild does not actually reach the writers' senders.
 func TestRebuildAdditionalEndpointSenders(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var mu sync.Mutex
+	keysSeen := map[string]int{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		keysSeen[r.Header.Get("DD-Api-Key")]++
+		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
+	seen := func() map[string]int {
+		mu.Lock()
+		defer mu.Unlock()
+		out := map[string]int{}
+		for k, v := range keysSeen {
+			out[k] = v
+		}
+		return out
+	}
 
 	cfg := config.New()
-	cfg.Endpoints[0].APIKey = "test"
+	cfg.Endpoints[0].APIKey = "primary-key"
 	cfg.Endpoints[0].Host = srv.URL
 	cfg.ReceiverPort = 0
 	cfg.ReceiverSocket = t.TempDir() + "/trace-agent-test.sock"
+	// SendPayload then blocks until the intake has responded, so the counts below are
+	// deterministic without polling.
+	cfg.SynchronousFlushing = true
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	go agnt.StatsWriter.Run()
+	defer func() {
+		agnt.StatsWriter.Stop()
+		// NewAgent starts the trace writers' flush/report goroutines in their constructors, so
+		// stop them too rather than leaking them into the rest of the package's tests.
+		agnt.TraceWriter.Stop()
+		agnt.TraceWriterV1.Stop()
+	}()
 
-	// A second endpoint appears at runtime, as it would when a DELA(...) directive resolves.
+	payload := &pb.StatsPayload{AgentHostname: "h", AgentEnv: "e", AgentVersion: "v"}
+
+	agnt.StatsWriter.SendPayload(payload)
+	require.Equal(t, map[string]int{"primary-key": 1}, seen())
+
+	// A delegated-auth key resolves at runtime, adding a second endpoint.
 	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "resolved-key", Host: srv.URL})
 	agnt.RebuildAdditionalEndpointSenders()
 
-	// A malformed host arriving from a later config push must not take the process down:
-	// newSenders would os.Exit(1) on it, so RebuildSenders validates first and keeps the
-	// senders it already has.
+	agnt.StatsWriter.SendPayload(payload)
+	require.Equal(t, map[string]int{"primary-key": 2, "resolved-key": 1}, seen(),
+		"the resolved endpoint must receive payloads after the rebuild")
+
+	// A malformed host from a later config push must not take the process down (newSenders
+	// would os.Exit(1) on it) and must not disturb the senders already in place.
 	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "bad", Host: "\x7f"})
 	agnt.RebuildAdditionalEndpointSenders()
+
+	agnt.StatsWriter.SendPayload(payload)
+	require.Equal(t, map[string]int{"primary-key": 3, "resolved-key": 2}, seen(),
+		"a rejected rebuild must leave the existing senders delivering")
 }
 
 func TestStopWaits(t *testing.T) {
