@@ -176,18 +176,24 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesResultDelivery(t *testing.T)
 	assert.Equal(t, 24, req.ResultDelivery.MaxBytes)
 }
 
-func TestRemoteQueryExecuteRequestFromProtoRejectsUnsafeResultDeliveryBaseURL(t *testing.T) {
-	_, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+func TestRemoteQueryExecuteRequestFromProtoPreservesResultDeliveryBaseURL(t *testing.T) {
+	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
 		Integration:    "postgres",
 		Operation:      "copy_stream",
 		Format:         "csv",
 		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
 		Query:          "SELECT city, country FROM cities ORDER BY city",
 		CopyLimits:     &pb.RemoteQueryExecuteCopyLimits{ChunkBytes: 8, MaxBytes: 24, MaxRowBytes: 32, TimeoutMs: 1000},
-		ResultDelivery: &pb.RemoteQueryResultDelivery{Mode: "POC_PUBLIC_CHUNKED_UPLOAD", UploadId: "upload-01k", BaseUrl: "https://evil.example.com", Token: "scoped-upload-token", ChunkBytes: 8, MaxBytes: 24, Format: "csv", Compression: "none"},
+		ResultDelivery: &pb.RemoteQueryResultDelivery{Mode: "POC_PUBLIC_CHUNKED_UPLOAD", UploadId: "upload-01k", BaseUrl: "https://dd.datad0g.com/api/unstable/its-agent-intake", Token: "scoped-upload-token", ChunkBytes: 8, MaxBytes: 24, Format: "csv", Compression: "none"},
 	})
-	require.Error(t, err)
-	assert.NotContains(t, err.Error(), "scoped-upload-token")
+
+	require.NoError(t, err)
+	require.NotNil(t, req.ResultDelivery)
+	// The Agent forwards baseUrl and token to the integration, which performs the HTTP upload itself.
+	// It does not allowlist or reject the base URL; the intake mints and owns the URL.
+	assert.Equal(t, "https://dd.datad0g.com/api/unstable/its-agent-intake", req.ResultDelivery.BaseURL)
+	assert.Equal(t, "scoped-upload-token", req.ResultDelivery.Token)
+	assert.Equal(t, "upload-01k", req.ResultDelivery.UploadID)
 }
 
 func TestRemoteQueryStreamEventFromCheckEventSurfacesUploadReceipt(t *testing.T) {
