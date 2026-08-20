@@ -14,7 +14,6 @@ use windows_sys::Win32::System::SystemServices::{
 };
 use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
 
-/// True when the pipe client may call config-mutating gRPC methods (`Create`, `ReloadConfig`). Call after reading a message.
 pub(crate) fn pipe_client_may_mutate(pipe: HANDLE) -> bool {
     if unsafe { ImpersonateNamedPipeClient(pipe) } == 0 {
         let err = std::io::Error::last_os_error();
@@ -37,7 +36,6 @@ pub(crate) fn pipe_client_may_mutate(pipe: HANDLE) -> bool {
     }
     let _revert = RevertGuard;
 
-    // Unidentified clients (e.g. SecurityAnonymous) are denied Create; the pipe stays open.
     impersonated_client_may_mutate().unwrap_or_default()
 }
 

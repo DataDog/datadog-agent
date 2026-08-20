@@ -8,7 +8,6 @@ use tonic::{Request, Status};
 #[cfg(windows)]
 use crate::transport::PipeCallerAuth;
 
-/// Windows: config-mutating RPCs (`Create`, `ReloadConfig`) require an Administrator or LocalSystem pipe client.
 #[cfg(windows)]
 pub(crate) fn require_mutating_pipe_client<T>(request: &Request<T>) -> Result<(), Status> {
     let may_mutate = request
