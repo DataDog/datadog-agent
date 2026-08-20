@@ -24,6 +24,7 @@ pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use runtime_user::runtime_user_for_pid;
 pub use scm_service::run_as_service;
+pub(crate) use scm_service::service_shutdown_deadline;
 pub(crate) use spawn::spawn_child_handle;
 pub(crate) use spawn::user_profile::UserProfileGuard;
 
