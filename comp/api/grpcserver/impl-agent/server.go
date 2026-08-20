@@ -405,7 +405,7 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 	}
 
 	coalescer := newRemoteQueryIPCStreamCoalescer(stream)
-	result := s.remoteQueries.ExecuteStream(execReq, coalescer.Send)
+	result := s.remoteQueries.ExecuteStream(stream.Context(), execReq, coalescer.Send)
 	if result.Error != nil {
 		if err := coalescer.Flush(); err != nil {
 			return err
@@ -601,7 +601,23 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 	if req.GetOperation() != "copy_stream" {
 		return remotequeriesimpl.RemoteQueryExecuteRequest{}, errors.New("operation must be copy_stream")
 	}
-	return remotequeriesimpl.NewRemoteQueryCopyStreamExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetFormat(), remoteQueryCopyLimitsFromProto(req.GetCopyLimits()))
+	return remotequeriesimpl.NewRemoteQueryCopyStreamExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetFormat(), remoteQueryCopyLimitsFromProto(req.GetCopyLimits()), remoteQueryResultDeliveryFromProto(req.GetResultDelivery()))
+}
+
+func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) *remotequeriesimpl.RemoteQueryResultDelivery {
+	if delivery == nil {
+		return nil
+	}
+	return &remotequeriesimpl.RemoteQueryResultDelivery{
+		Mode:        delivery.GetMode(),
+		UploadID:    delivery.GetUploadId(),
+		BaseURL:     delivery.GetBaseUrl(),
+		Token:       delivery.GetToken(),
+		ChunkBytes:  int(delivery.GetChunkBytes()),
+		MaxBytes:    int(delivery.GetMaxBytes()),
+		Format:      delivery.GetFormat(),
+		Compression: delivery.GetCompression(),
+	}
 }
 
 func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent) (*pb.RemoteQueryExecuteStreamEvent, error) {
@@ -633,7 +649,8 @@ func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent) (*
 			Status:        stringFromMetadata(metadata, "status"),
 			BytesEmitted:  uint64FromMetadata(metadata, "bytes_emitted", "bytesEmitted", "bytes"),
 			ChunksEmitted: uint64FromMetadata(metadata, "chunks_emitted", "chunksEmitted", "chunks"),
-			Attributes:    stringAttributes(metadata, "status", "sequence", "bytes_emitted", "bytesEmitted", "chunks_emitted", "chunksEmitted"),
+			Attributes:    stringAttributes(metadata, "status", "sequence", "bytes_emitted", "bytesEmitted", "chunks_emitted", "chunksEmitted", "upload_receipt"),
+			UploadReceipt: uploadReceiptFromMetadata(metadata),
 		}}
 	case "error":
 		errorMetadata := mapFromMetadata(metadata, "error")
@@ -709,6 +726,49 @@ func uint64FromMetadata(metadata map[string]interface{}, keys ...string) uint64 
 		}
 	}
 	return 0
+}
+
+func int64FromMetadata(metadata map[string]interface{}, keys ...string) int64 {
+	for _, key := range keys {
+		switch v := metadata[key].(type) {
+		case float64:
+			return int64(v)
+		case int:
+			return int64(v)
+		case json.Number:
+			if n, err := strconv.ParseInt(string(v), 10, 64); err == nil {
+				return n
+			}
+		case string:
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+func int32FromMetadata(metadata map[string]interface{}, keys ...string) int32 {
+	return int32(int64FromMetadata(metadata, keys...))
+}
+
+// uploadReceiptFromMetadata parses the Agent-enriched upload receipt carried in the final
+// event metadata into the typed proto receipt. Returns nil when no receipt is present.
+func uploadReceiptFromMetadata(metadata map[string]interface{}) *pb.RemoteQueryUploadReceipt {
+	raw, ok := metadata["upload_receipt"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &pb.RemoteQueryUploadReceipt{
+		Mode:         stringFromMetadata(raw, "mode"),
+		UploadId:     stringFromMetadata(raw, "uploadId"),
+		BucketName:   stringFromMetadata(raw, "bucketName"),
+		ManifestPath: stringFromMetadata(raw, "manifestPath"),
+		TotalBytes:   int64FromMetadata(raw, "totalBytes"),
+		TotalRows:    int64FromMetadata(raw, "totalRows"),
+		ChunkCount:   int32FromMetadata(raw, "chunkCount"),
+		Sha256:       stringFromMetadata(raw, "sha256"),
+	}
 }
 
 func stringAttributes(metadata map[string]interface{}, exclude ...string) map[string]string {

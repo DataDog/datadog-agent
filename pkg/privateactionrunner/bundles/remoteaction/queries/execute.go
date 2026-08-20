@@ -42,13 +42,25 @@ func NewExecuteAction(newBridgeClient BridgeClientFactory) *ExecuteAction {
 }
 
 type ExecuteInputs struct {
-	Integration string            `json:"integration"`
-	Operation   string            `json:"operation,omitempty"`
-	Target      TargetInputs      `json:"target"`
-	Query       string            `json:"query"`
-	Format      string            `json:"format,omitempty"`
-	Limits      *LimitsInputs     `json:"limits,omitempty"`
-	CopyLimits  *CopyLimitsInputs `json:"copyLimits,omitempty"`
+	Integration    string                `json:"integration"`
+	Operation      string                `json:"operation,omitempty"`
+	Target         TargetInputs          `json:"target"`
+	Query          string                `json:"query"`
+	Format         string                `json:"format,omitempty"`
+	Limits         *LimitsInputs         `json:"limits,omitempty"`
+	CopyLimits     *CopyLimitsInputs     `json:"copyLimits,omitempty"`
+	ResultDelivery *ResultDeliveryInputs `json:"resultDelivery,omitempty"`
+}
+
+type ResultDeliveryInputs struct {
+	Mode        string `json:"mode"`
+	UploadID    string `json:"uploadId"`
+	BaseURL     string `json:"baseUrl"`
+	Token       string `json:"token"`
+	ChunkBytes  int    `json:"chunkBytes"`
+	MaxBytes    int    `json:"maxBytes"`
+	Format      string `json:"format"`
+	Compression string `json:"compression"`
 }
 
 type TargetInputs struct {
@@ -214,6 +226,18 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 			TimeoutMs:   int32(inputs.CopyLimits.TimeoutMs),
 		}
 	}
+	if inputs.ResultDelivery != nil {
+		req.ResultDelivery = &pb.RemoteQueryResultDelivery{
+			Mode:        inputs.ResultDelivery.Mode,
+			UploadId:    inputs.ResultDelivery.UploadID,
+			BaseUrl:     inputs.ResultDelivery.BaseURL,
+			Token:       inputs.ResultDelivery.Token,
+			ChunkBytes:  int32(inputs.ResultDelivery.ChunkBytes),
+			MaxBytes:    int32(inputs.ResultDelivery.MaxBytes),
+			Format:      inputs.ResultDelivery.Format,
+			Compression: inputs.ResultDelivery.Compression,
+		}
+	}
 	return req
 }
 
@@ -286,12 +310,14 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		return nil, err
 	}
 	if _, isError := output["error"]; !isError {
-		output["stream_summary"] = map[string]interface{}{
-			"payload_bytes":   payloadBytes,
-			"chunks_received": dataChunksReceived,
-		}
-		if payloadBytes > 0 {
-			output["stream_timing"] = remoteQueryStreamTiming(streamStart, firstChunkAt, firstDataAt, finalChunkAt, payloadBytes, dataChunksReceived)
+		if _, isUpload := output["uploadReceipt"]; !isUpload {
+			output["stream_summary"] = map[string]interface{}{
+				"payload_bytes":   payloadBytes,
+				"chunks_received": dataChunksReceived,
+			}
+			if payloadBytes > 0 {
+				output["stream_timing"] = remoteQueryStreamTiming(streamStart, firstChunkAt, firstDataAt, finalChunkAt, payloadBytes, dataChunksReceived)
+			}
 		}
 	}
 	return output, nil
@@ -351,6 +377,18 @@ func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (m
 		out["status"] = e.Final.GetStatus()
 		out["bytes_emitted"] = e.Final.GetBytesEmitted()
 		out["chunks_emitted"] = e.Final.GetChunksEmitted()
+		if receipt := e.Final.GetUploadReceipt(); receipt != nil {
+			out["upload_receipt"] = map[string]interface{}{
+				"mode":         receipt.GetMode(),
+				"uploadId":     receipt.GetUploadId(),
+				"bucketName":   receipt.GetBucketName(),
+				"manifestPath": receipt.GetManifestPath(),
+				"totalBytes":   receipt.GetTotalBytes(),
+				"totalRows":    receipt.GetTotalRows(),
+				"chunkCount":   receipt.GetChunkCount(),
+				"sha256":       receipt.GetSha256(),
+			}
+		}
 		if len(e.Final.GetAttributes()) > 0 {
 			out["attributes"] = e.Final.GetAttributes()
 		}
@@ -400,6 +438,9 @@ func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}, re
 		}
 		return nil, errors.New("remote query stream response missing final event")
 	}
+	if receipt, ok := finalEvent["upload_receipt"].(map[string]interface{}); ok {
+		return remoteQueryUploadOutput(finalEvent, receipt, resultFormat), nil
+	}
 	status, _ := finalEvent["status"].(string)
 	if status == "" {
 		return nil, errors.New("remote query stream final event missing status")
@@ -423,4 +464,31 @@ func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}, re
 	output["encoding"] = "utf8"
 	output["data"] = string(dataBytes)
 	return output, nil
+}
+
+// remoteQueryUploadOutput builds the compact upload-mode output: top-level status, bytes,
+// format, encoding plus the nested uploadReceipt. It never includes bulk data or data_base64.
+func remoteQueryUploadOutput(finalEvent map[string]interface{}, receipt map[string]interface{}, format string) map[string]interface{} {
+	status, _ := finalEvent["status"].(string)
+	if format == "" {
+		format = "csv"
+	}
+	return map[string]interface{}{
+		"status": status,
+		"bytes":  receipt["totalBytes"],
+		"format": format,
+		// encoding is the payload encoding (AP metadata: utf-8/base64). CSV receipt mode is
+		// utf-8; compression is reported separately by the intake receipt, not here.
+		"encoding": "utf-8",
+		"uploadReceipt": map[string]interface{}{
+			"mode":         receipt["mode"],
+			"uploadId":     receipt["uploadId"],
+			"bucketName":   receipt["bucketName"],
+			"manifestPath": receipt["manifestPath"],
+			"totalBytes":   receipt["totalBytes"],
+			"totalRows":    receipt["totalRows"],
+			"chunkCount":   receipt["chunkCount"],
+			"sha256":       receipt["sha256"],
+		},
+	}
 }
