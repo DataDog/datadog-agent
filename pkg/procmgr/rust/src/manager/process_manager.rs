@@ -11,6 +11,7 @@ use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 use tonic::Status;
 
@@ -68,7 +69,10 @@ impl ProcessManager {
             info!("[{}] exited with {}", proc.name(), event.status);
             proc.set_last_status(event.status);
             #[cfg(windows)]
-            proc.ensure_windows_spawn_resources_released().await;
+            proc.ensure_windows_spawn_resources_released(shutdown::ShutdownBudget::unlimited(
+                Instant::now(),
+            ))
+            .await;
             enqueue_pending_restart(proc, handles);
             return;
         }

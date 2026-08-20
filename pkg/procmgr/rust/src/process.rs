@@ -9,13 +9,13 @@ use crate::handle::ProcessHandle;
 #[cfg(windows)]
 use crate::handle::ProcessWaitControl;
 use crate::platform;
+use crate::shutdown::ShutdownBudget;
 use crate::spawn::{SpawnProfile, profile_for};
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
 use std::collections::VecDeque;
 use std::pin::Pin;
-use std::time::Instant as StopInstant;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
@@ -545,10 +545,6 @@ impl ManagedProcess {
         self.config.stop_timeout()
     }
 
-    fn graceful_budget_since(&self, signal_time: StopInstant) -> Duration {
-        self.stop_timeout().saturating_sub(signal_time.elapsed())
-    }
-
     fn mark_stopped(&mut self) {
         #[cfg(windows)]
         {
@@ -578,7 +574,8 @@ impl ManagedProcess {
 
     async fn force_kill_and_wait(
         &mut self,
-        graceful_timeout: Duration,
+        graceful_budget: Duration,
+        budget: ShutdownBudget,
         target: ForceKillWaitTarget<'_>,
     ) -> Option<std::process::ExitStatus> {
         warn!(
@@ -588,9 +585,20 @@ impl ManagedProcess {
         );
         self.force_kill();
 
+        let force_timeout = budget.remaining_cap(Self::FORCE_KILL_TIMEOUT);
+        if force_timeout.is_zero() {
+            warn!(
+                "[{}] shutdown deadline reached; skipping force-kill wait",
+                self.name
+            );
+            #[cfg(windows)]
+            self.cancel_process_wait();
+            return None;
+        }
+
         match target {
             ForceKillWaitTarget::Watcher(handle) => {
-                match time::timeout(Self::FORCE_KILL_TIMEOUT, &mut **handle).await {
+                match time::timeout(force_timeout, &mut **handle).await {
                     Ok(Ok(status)) => status,
                     Ok(Err(e)) => {
                         warn!(
@@ -611,7 +619,7 @@ impl ManagedProcess {
                 }
             }
             ForceKillWaitTarget::Child => {
-                match time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait()).await {
+                match time::timeout(force_timeout, self.wait()).await {
                     Ok(Ok(status)) => Some(status),
                     Ok(Err(e)) => {
                         warn!("[{}] wait failed after force-kill: {e:#}", self.name);
@@ -630,7 +638,8 @@ impl ManagedProcess {
         }
     }
 
-    async fn wait_for_stop_exit(&mut self, graceful_budget: Duration) -> bool {
+    async fn wait_for_stop_exit(&mut self, budget: ShutdownBudget) -> bool {
+        let graceful_budget = budget.graceful_budget(self.stop_timeout());
         if let Some(handle) = self.watcher_handle.take() {
             tokio::pin!(handle);
             let status = match time::timeout(graceful_budget, &mut handle).await {
@@ -642,6 +651,7 @@ impl ManagedProcess {
                 Err(_) => {
                     self.force_kill_and_wait(
                         graceful_budget,
+                        budget,
                         ForceKillWaitTarget::Watcher(&mut handle),
                     )
                     .await
@@ -661,7 +671,7 @@ impl ManagedProcess {
                     None
                 }
                 Err(_) => {
-                    self.force_kill_and_wait(graceful_budget, ForceKillWaitTarget::Child)
+                    self.force_kill_and_wait(graceful_budget, budget, ForceKillWaitTarget::Child)
                         .await
                 }
             };
@@ -689,39 +699,18 @@ impl ManagedProcess {
     }
 
     pub async fn wait_for_stop(&mut self) {
-        self.wait_for_stop_since(StopInstant::now()).await;
+        self.wait_for_stop_since(ShutdownBudget::unlimited(Instant::now()))
+            .await;
     }
 
-    pub(crate) async fn wait_for_stop_since(&mut self, signal_time: StopInstant) {
-        let graceful_budget = self.graceful_budget_since(signal_time);
+    pub(crate) async fn wait_for_stop_since(&mut self, budget: ShutdownBudget) {
         match self.state {
             ProcessState::Running | ProcessState::Stopping => {
-                if !self.wait_for_stop_exit(graceful_budget).await {
+                if !self.wait_for_stop_exit(budget).await {
                     self.mark_stopped();
                 }
                 #[cfg(windows)]
-                self.ensure_windows_spawn_resources_released().await;
-            }
-            _ => {
-                #[cfg(windows)]
-                self.ensure_windows_spawn_resources_released().await;
-            }
-        }
-    }
-
-    pub async fn stop(&mut self) {
-        let started = Instant::now();
-
-        match self.state {
-            ProcessState::Running | ProcessState::Stopping => {
-                self.request_stop();
-                self.wait_for_stop().await;
-                debug!(
-                    "[{}] stop finished (state={}), took {:?}",
-                    self.name,
-                    self.state,
-                    started.elapsed()
-                );
+                self.ensure_windows_spawn_resources_released(budget).await;
             }
             _ => {
                 #[cfg(windows)]
@@ -747,7 +736,7 @@ impl ManagedProcess {
             _ => {
                 #[cfg(windows)]
                 self.ensure_windows_spawn_resources_released(ShutdownBudget::unlimited(
-                    Instant::now().into(),
+                    Instant::now(),
                 ))
                 .await;
                 debug!(
