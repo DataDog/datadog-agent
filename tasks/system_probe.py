@@ -42,7 +42,7 @@ from tasks.schema.generate import schema_codegen
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 
-BPF_TAG = "linux_bpf"
+BPF_TAG = "bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 
@@ -1784,7 +1784,7 @@ def build_usm_debugger(
     go_build(
         ctx,
         "./pkg/network/usm/debugger/cmd/usm-debugger",
-        build_tags=["linux_bpf", "usm_debugger"],
+        build_tags=["bpf", "usm_debugger"],
         ldflags=ldflags,
         bin_path="bin/usm-debugger",
         env=env,
@@ -1863,7 +1863,7 @@ def ninja_add_dyninst_test_programs(
     progs_path = f"{testprogs_path}/progs"
     progs_prefix = f"{dd_module}/{progs_path}/"
     output_base = f"{output_root}/{testprogs_path}/binaries"
-    build_tags = ["test", "linux_bpf"]
+    build_tags = ["test", "bpf"]
 
     # Find the dependencies of the test programs.
     tags_flag = f"-tags \"{','.join(build_tags)}\""

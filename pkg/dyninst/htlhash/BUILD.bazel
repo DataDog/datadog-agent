@@ -12,12 +12,20 @@ go_library(
 dd_agent_go_test(
     name = "htlhash_test",
     srcs = ["htlhash_test.go"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
-    deps = [
-        ":htlhash",
-        "//pkg/dyninst/testprogs",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            ":htlhash",
+            "//pkg/dyninst/testprogs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            ":htlhash",
+            "//pkg/dyninst/testprogs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
