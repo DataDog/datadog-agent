@@ -118,6 +118,11 @@ func New(
 	if err != nil {
 		return nil, err
 	}
+	// system-probe wires the no-op secrets component, so a secret-backed api_key only reaches it
+	// resolved via configsync.
+	if err := endpoint.CheckAPIKeysResolved(processAPIEndpoints); err != nil {
+		return nil, err
+	}
 	resolvers, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints))
 	if err != nil {
 		return nil, err
