@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
-	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -47,6 +46,22 @@ env:
 auto_start: true
 restart: always
 description: E2E test process
+`
+
+	winUserProfileEnvMarkerPath = `C:/ProgramData/Datadog/procmgr-e2e-userprofile.txt`
+
+	winUserProfileEnvTestConfig = `command: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+args:
+  - "-NoProfile"
+  - "-NonInteractive"
+  - "-Command"
+  - "$env:USERPROFILE | Set-Content -LiteralPath 'C:/ProgramData/Datadog/procmgr-e2e-userprofile.txt'"
+env:
+  SystemRoot: C:\Windows
+  PATH: C:\Windows\System32;C:\Windows
+auto_start: true
+restart: always
+description: E2E userprofile env check
 `
 
 	winMissingBinaryConfig = `command: C:\nonexistent\binary.exe
@@ -134,6 +149,7 @@ func TestProcmgrSmokeWindowsSuite(t *testing.T) {
 				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(
 					agentparams.WithFile(winConfigDir+"/test-sleep.yaml", winTestProcessConfig, true),
+					agentparams.WithFile(winConfigDir+"/test-userprofile-env.yaml", winUserProfileEnvTestConfig, true),
 					agentparams.WithFile(winConfigDir+"/missing-binary.yaml", winMissingBinaryConfig, true),
 					withADPEnabled(),
 				),
@@ -257,40 +273,8 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildHasUserProfileEnv() {
 	_, agentUser, err := windowsagent.GetAgentUserFromRegistry(host)
 	require.NoError(s.T(), err)
 
-	markerPath := `C:\ProgramData\Datadog\procmgr-e2e-userprofile.txt`
-	// Use forward slashes inside the YAML double-quoted arg: backslashes are escape sequences in YAML.
-	markerPathForYAML := `C:/ProgramData/Datadog/procmgr-e2e-userprofile.txt`
-	yamlPath := joinWindowsPath(winConfigDir, "test-userprofile-env.yaml")
-	yamlContent := fmt.Sprintf(`command: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
-args:
-  - "-NoProfile"
-  - "-NonInteractive"
-  - "-Command"
-  - "$env:USERPROFILE | Set-Content -LiteralPath '%s'"
-env:
-  SystemRoot: C:\Windows
-  PATH: C:\Windows\System32;C:\Windows
-auto_start: true
-restart: always
-description: E2E userprofile env check
-`, markerPathForYAML)
-
-	host.MustExecute(writeProcessesDYamlContent(yamlPath, yamlContent))
-	// Register marker cleanup first so it runs after yaml removal and agent restart (LIFO).
-	defer func() {
-		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, markerPath))
-	}()
-	defer func() {
-		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, yamlPath))
-		require.NoError(s.T(), windowsCommon.RestartService(host, "DatadogAgent"))
-		s.ensureWindowsProcmgrServiceRunning()
-	}()
-
-	require.NoError(s.T(), windowsCommon.RestartService(host, "DatadogAgent"))
-	s.ensureWindowsProcmgrServiceRunning()
-
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, markerPath))
+		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, winUserProfileEnvMarkerPath))
 		userProfile := strings.TrimSpace(out)
 		assert.NotEmpty(ct, userProfile)
 		assert.NotContains(ct, strings.ToLower(userProfile), "systemprofile")
