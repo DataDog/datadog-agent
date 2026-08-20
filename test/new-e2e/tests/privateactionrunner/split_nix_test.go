@@ -458,11 +458,21 @@ func (s *linuxPARSplitSuite) runProcmgr(command, name string) error {
 
 func (s *linuxPARSplitSuite) waitForProcessState(name, state string, timeout time.Duration) {
 	s.T().Helper()
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+	var lastOutput string
+	ok := assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
 			"sudo %s --socket %s describe %s", procmgrCLI, procmgrSocket, name,
 		))
-		require.NoError(c, err)
-		require.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state)
+		lastOutput = output
+		assert.NoError(c, err)
+		assert.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state)
 	}, timeout, 2*time.Second, "%s should become %s", name, state)
+	if !ok {
+		journal, _ := s.Env().RemoteHost.Execute(
+			"sudo journalctl -u datadog-agent-procmgr.service --no-pager -n 500 --output=cat",
+		)
+		s.Require().FailNowf("process did not reach expected state",
+			"%s should become %s\nlast describe output:\n%s\ndd-procmgrd journal tail:\n%s",
+			name, state, lastOutput, journal)
+	}
 }
