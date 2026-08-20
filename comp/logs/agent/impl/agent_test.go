@@ -13,7 +13,6 @@ import (
 	"expvar"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -74,7 +73,6 @@ type AgentTestSuite struct {
 	configOverrides     map[string]interface{}
 	tagger              tagger.Component
 	kubeHealthRegistrar kubehealthdef.Component
-	stopAgent           func()
 }
 
 type testDeps struct {
@@ -172,8 +170,6 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 	}
 
 	agent.setupAgent()
-	suite.stopAgent = sync.OnceFunc(func() { _ = agent.stop(context.TODO()) })
-	suite.T().Cleanup(suite.stopAgent)
 
 	return agent, sources, services
 }
@@ -198,7 +194,7 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
 		return suite.fakeLogs == metrics.LogsSent.Value()
 	})
-	suite.stopAgent()
+	agent.stop(context.TODO())
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
@@ -246,7 +242,7 @@ func (suite *AgentTestSuite) TestTruncateLogOriginAndService() {
 		return metrics.LogsTruncated.Value() > 0
 	})
 
-	suite.stopAgent()
+	agent.stop(context.TODO())
 
 	// Verify the metric contains the correct service and source information
 	truncatedLogsMetric := metrics.LogsTruncated.Value()
@@ -294,7 +290,7 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return suite.fakeLogs == metrics.LogsProcessed.Value()
 	})
-	suite.stopAgent()
+	agent.stop(context.TODO())
 
 	// The context gets canceled when the agent stops. At this point the additional sender is stuck
 	// trying to establish a connection. `agent.Stop()` will cancel it and the error telemetry will be updated

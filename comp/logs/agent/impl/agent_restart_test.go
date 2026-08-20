@@ -66,7 +66,6 @@ type RestartTestSuite struct {
 	configOverrides     map[string]interface{}
 	tagger              tagger.Component
 	kubeHealthRegistrar kubehealthdef.Component
-	stopAgent           func()
 }
 
 func (suite *RestartTestSuite) SetupTest() {
@@ -157,7 +156,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 	}
 
 	agent.setupAgent()
-	suite.stopAgent = sync.OnceFunc(func() {
+	suite.T().Cleanup(func() {
 		_ = agent.stop(context.TODO())
 
 		// Guarantee the auditor's background flush goroutine is stopped before
@@ -175,7 +174,6 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 		// that races with TempDir removal.
 		agent.auditor.Stop()
 	})
-	suite.T().Cleanup(suite.stopAgent)
 
 	return agent, sources, services
 }
