@@ -1,0 +1,10 @@
+---
+# This is used to create bump PRs from the ami-builder project to this repo
+
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:(ddoghq|DataDog)/ami-builder:.*"
+
+permissions:
+  contents: write
+  pull_requests: write
