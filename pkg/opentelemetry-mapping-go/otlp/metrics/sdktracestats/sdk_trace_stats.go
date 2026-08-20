@@ -236,6 +236,9 @@ func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) (*SDKTraceSp
 	if dp == nil || dp.Count() == 0 {
 		return nil, errors.New("count cannot be zero")
 	}
+	if dp.Count() > math.MaxInt64 {
+		return nil, fmt.Errorf("count %d exceeds maximum %d", dp.Count(), uint64(math.MaxInt64))
+	}
 
 	minimum, maximum, sum := math.NaN(), math.NaN(), math.NaN()
 	scale := timeUnitScaleToNanos(unit) / float64(time.Second)
@@ -271,8 +274,14 @@ func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) (*SDKTraceSp
 			return nil, fmt.Errorf("counts length %d must be 1 greater than bounds length %d", len(counts), len(bounds))
 		}
 		var total uint64
-		for _, count := range counts {
+		for i, count := range counts {
+			if count > math.MaxUint64-total {
+				return nil, errors.New("bucket counts overflow uint64")
+			}
 			total += count
+			if count > math.MaxUint32 {
+				return nil, fmt.Errorf("bucket count %d at index %d exceeds maximum %d", count, i, uint64(math.MaxUint32))
+			}
 		}
 		if total != dp.Count() {
 			return nil, fmt.Errorf("count %d mismatch total bins %d", dp.Count(), total)
@@ -302,26 +311,10 @@ func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) (*SDKTraceSp
 		previous, previousF32 = bound, boundF32
 	}
 	for i, count := range counts {
-		appendSparseBin(sketch, int32(len(bounds)+i), count)
+		sketch.K = append(sketch.K, int32(len(bounds)+i))
+		sketch.N = append(sketch.N, uint32(count))
 	}
 	return sketch, nil
-}
-
-func appendSparseBin(sketch *SDKTraceSparseSketch, key int32, count uint64) {
-	if count <= math.MaxUint32 {
-		sketch.K = append(sketch.K, key)
-		sketch.N = append(sketch.N, uint32(count))
-		return
-	}
-	if remainder := count % math.MaxUint32; remainder != 0 {
-		sketch.K = append(sketch.K, key)
-		sketch.N = append(sketch.N, uint32(remainder))
-	}
-	for count >= math.MaxUint32 {
-		sketch.K = append(sketch.K, key)
-		sketch.N = append(sketch.N, math.MaxUint32)
-		count -= math.MaxUint32
-	}
 }
 
 func sdkDurationNanos(dp *pmetric.HistogramDataPoint, unit string) uint64 {

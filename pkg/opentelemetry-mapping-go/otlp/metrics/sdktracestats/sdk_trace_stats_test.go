@@ -224,9 +224,31 @@ func TestBuildSDKTraceStatsPayloadInputContract(t *testing.T) {
 	})
 }
 
-func TestAppendSparseBinPreservesLargeCounts(t *testing.T) {
-	sketch := &SDKTraceSparseSketch{}
-	appendSparseBin(sketch, 7, uint64(math.MaxUint32)+5)
-	assert.Equal(t, []int32{7, 7}, sketch.K)
-	assert.Equal(t, []uint32{5, math.MaxUint32}, sketch.N)
+func TestBuildSDKTraceStatsPayloadRejectsInvalidCounts(t *testing.T) {
+	tests := []struct {
+		name       string
+		count      uint64
+		counts     []uint64
+		wantErrMsg string
+	}{
+		{name: "count exceeds signed wire range", count: uint64(math.MaxInt64) + 1, counts: []uint64{uint64(math.MaxInt64) + 1}, wantErrMsg: "exceeds maximum"},
+		{name: "bucket exceeds sparse bin range", count: uint64(math.MaxUint32) + 1, counts: []uint64{uint64(math.MaxUint32) + 1}, wantErrMsg: "bucket count"},
+		{name: "bucket sum overflows", count: 1, counts: []uint64{1, math.MaxUint64}, wantErrMsg: "bucket counts overflow"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			metric := sdkTraceMetric("s", test.count, 1, nil)
+			dp := metric.Histogram().DataPoints().At(0)
+			dp.BucketCounts().FromRaw(test.counts)
+			if len(test.counts) > 1 {
+				dp.ExplicitBounds().FromRaw(make([]float64, len(test.counts)-1))
+			}
+
+			payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
+
+			assert.Nil(t, payload)
+			require.Len(t, conversionErrors, 1)
+			assert.ErrorContains(t, conversionErrors[0].Err, test.wantErrMsg)
+		})
+	}
 }
