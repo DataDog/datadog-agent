@@ -4,6 +4,7 @@ dd_agent_go_test(
     name = "otel-agent_test",
     srcs = [
         "complete_test.go",
+        "dogtel_gateway_test.go",
         "dogtel_secrets_test.go",
         "dogtel_standalone_test.go",
         "gateway_test.go",

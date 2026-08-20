@@ -48,6 +48,17 @@ var dogtelGatewayLeafConfig string
 // here — this suite checks gateway health via payload assertions instead.
 const gatewayNamespace = "datadog-gateway"
 
+// dogtelGatewayHelmValues forces the Helm chart's ddot-collector-image helper
+// off its useStandaloneImage default (true), which otherwise runs a
+// semverCompare against the agent image tag; that check panics on floating
+// dev tags such as the default nightly-full-main-jmx (mirrors
+// gatewayTestSuite's values in gateway_test.go).
+const dogtelGatewayHelmValues = `
+datadog:
+  otelCollector:
+    useStandaloneImage: false
+`
+
 // dogtelGatewayTestSuite verifies a standalone otel-agent (DD_OTEL_STANDALONE=true,
 // dogtelextension enabled) configured with an OTLP exporter — instead of the datadog
 // exporter used by dogtelStandaloneTestSuite — forwarding traces, metrics, and logs
@@ -79,6 +90,7 @@ func dogtelGatewayProvisioner() provisioners.TypedProvisioner[environments.Kuber
 		return provlocal.Provisioner(
 			provlocal.WithStandaloneOTelAgent(deployFn),
 			provlocal.WithAgentOptions(
+				kubernetesagentparams.WithHelmValues(dogtelGatewayHelmValues),
 				kubernetesagentparams.WithNamespace(gatewayNamespace),
 				kubernetesagentparams.WithOTelAgent(),
 				kubernetesagentparams.WithOTelGatewayConfig(gatewayConfig),
@@ -90,6 +102,7 @@ func dogtelGatewayProvisioner() provisioners.TypedProvisioner[environments.Kuber
 		provkindvm.WithRunOptions(
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 			scenkindvm.WithAgentOptions(
+				kubernetesagentparams.WithHelmValues(dogtelGatewayHelmValues),
 				kubernetesagentparams.WithNamespace(gatewayNamespace),
 				kubernetesagentparams.WithOTelAgent(),
 				kubernetesagentparams.WithOTelGatewayConfig(gatewayConfig),
