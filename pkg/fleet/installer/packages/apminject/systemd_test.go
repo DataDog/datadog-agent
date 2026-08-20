@@ -193,6 +193,16 @@ func TestSupportsInstrumentSubcommands(t *testing.T) {
 	assert.False(t, supportsInstrumentSubcommands(filepath.Join(tmpDir, "does-not-exist")))
 }
 
+func TestInstallerVersionMatches(t *testing.T) {
+	tmpDir := t.TempDir()
+	installer := filepath.Join(tmpDir, "installer")
+	require.NoError(t, os.WriteFile(installer, []byte("#!/bin/sh\necho 'loader diagnostic' >&2\necho '7.80.4'\n"), 0755))
+
+	assert.True(t, installerVersionMatches(installer, "7.80.4"))
+	assert.False(t, installerVersionMatches(installer, "7.84.0"))
+	assert.False(t, installerVersionMatches(filepath.Join(tmpDir, "missing"), "7.80.4"))
+}
+
 func alwaysSupported(string) bool { return true }
 
 func TestSystemdServiceManager_Uninstall(t *testing.T) {

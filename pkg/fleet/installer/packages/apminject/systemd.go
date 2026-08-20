@@ -15,11 +15,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -43,9 +45,10 @@ var apmInjectServiceFile []byte
 
 // SystemdServiceManager manages the APM injector systemd service
 type SystemdServiceManager struct {
-	servicePath   string
-	serviceName   string
-	installerPath string
+	servicePath     string
+	serviceName     string
+	installerPath   string
+	tmpfsCompatible bool
 }
 
 // NewSystemdServiceManager builds a manager pointing at the first on-disk
@@ -60,10 +63,12 @@ func NewSystemdServiceManager() *SystemdServiceManager {
 	if err != nil {
 		log.Warnf("no datadog-installer supporting `apm instrument-start` found for APM inject service: %v", err)
 	}
+	tmpfsCompatible := installerPath != "" && installerVersionMatches(installerPath, version.AgentVersion)
 	return &SystemdServiceManager{
-		servicePath:   filepath.Join(systemd.UserUnitsPath, systemdServiceName),
-		serviceName:   systemdServiceName,
-		installerPath: installerPath,
+		servicePath:     filepath.Join(systemd.UserUnitsPath, systemdServiceName),
+		serviceName:     systemdServiceName,
+		installerPath:   installerPath,
+		tmpfsCompatible: tmpfsCompatible,
 	}
 }
 
@@ -71,6 +76,14 @@ func NewSystemdServiceManager() *SystemdServiceManager {
 // construction time, or "" if none was found.
 func (s *SystemdServiceManager) InstallerPath() string {
 	return s.installerPath
+}
+
+// TmpfsCompatible reports whether the installer selected for the service is
+// the same version as the installer running the package hook. A version
+// mismatch is treated conservatively because the selected installer may
+// predate the tmpfs preload lifecycle.
+func (s *SystemdServiceManager) TmpfsCompatible() bool {
+	return s.tmpfsCompatible
 }
 
 // ServiceFileExists reports whether the unit file has been written to disk.
@@ -97,6 +110,22 @@ func supportsInstrumentSubcommands(path string) bool {
 		log.Debugf("installer candidate %s does not expose apm instrument-start/stop (err: %v)", path, err)
 	}
 	return supported
+}
+
+func installerVersionMatches(path string, runningVersion string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, path, "version").Output()
+	if err != nil {
+		log.Warnf("could not determine APM inject service installer version from %s, disabling tmpfs preload path: %v", path, err)
+		return false
+	}
+	selectedVersion := strings.TrimSpace(string(out))
+	if selectedVersion != runningVersion {
+		log.Infof("APM inject service installer version %q differs from running installer version %q, disabling tmpfs preload path", selectedVersion, runningVersion)
+		return false
+	}
+	return true
 }
 
 // Setup writes the embedded service file, enables it for future boots, and

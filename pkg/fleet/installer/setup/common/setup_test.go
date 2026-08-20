@@ -102,13 +102,12 @@ func TestReinstallAPMInjectorIfInstalled(t *testing.T) {
 		return ssi.APMInstrumentationStatus{HostInstrumented: true}, nil
 	}
 
-	t.Run("ignores setup without Agent installation", func(t *testing.T) {
+	t.Run("ignores setup without Agent or injector installation", func(t *testing.T) {
 		spy := &setupInstallerSpy{isInstalledErr: errors.New("must not be called")}
 		setup := &Setup{installer: spy, Packages: Packages{install: map[string]packageWithVersion{}}}
-		setup.Packages.Install(DatadogAPMInjectPackage, "latest")
 
 		require.NoError(t, setup.reinstallAPMInjectorIfInstalled(context.Background()))
-		assert.False(t, setup.Packages.install[DatadogAPMInjectPackage].forceInstall)
+		assert.Empty(t, setup.Packages.install)
 	})
 
 	t.Run("leaves a new injector installation unchanged", func(t *testing.T) {
@@ -121,14 +120,13 @@ func TestReinstallAPMInjectorIfInstalled(t *testing.T) {
 		assert.False(t, setup.Packages.install[DatadogAPMInjectPackage].forceInstall)
 	})
 
-	t.Run("reinstalls the requested injector version", func(t *testing.T) {
+	t.Run("reinstalls a requested injector without an Agent package", func(t *testing.T) {
 		spy := &setupInstallerSpy{installed: true, state: repository.State{Stable: "0.38.0-1", Experiment: "0.38.1-1"}}
 		setup := &Setup{
 			installer: spy,
 			Env:       &env.Env{InstallScript: env.InstallScriptEnv{APMInstrumentationEnabled: env.APMInstrumentationEnabledHost}},
 			Packages:  Packages{install: map[string]packageWithVersion{}},
 		}
-		setup.Packages.Install(DatadogAgentPackage, "7.80.4-1")
 		setup.Packages.Install(DatadogAPMInjectPackage, "0.39.0-1")
 
 		require.NoError(t, setup.reinstallAPMInjectorIfInstalled(context.Background()))
