@@ -23,6 +23,8 @@ pub(crate) enum ManagedServiceAccountState {
     CannotInstall,
     CanInstall,
     AssumeRegularDomainAccount,
+    /// NetQueryServiceAccount could not reach the domain controller (e.g. Netlogon down).
+    ClassificationUnavailable,
 }
 
 pub(crate) fn query_managed_service_account(
@@ -61,10 +63,7 @@ fn map_query_status(status: NTSTATUS) -> Result<ManagedServiceAccountState> {
         STATUS_INVALID_ACCOUNT_NAME | STATUS_NAME_TOO_LONG => {
             Ok(ManagedServiceAccountState::AssumeRegularDomainAccount)
         }
-        STATUS_OPEN_FAILED => bail!(
-            "error 0x{STATUS_OPEN_FAILED:X}: ensure the netlogon service is running, \
-             the domain controller is available, and this process can authenticate to it"
-        ),
+        STATUS_OPEN_FAILED => Ok(ManagedServiceAccountState::ClassificationUnavailable),
         _ => bail!("NetQueryServiceAccount failed with status 0x{status:X}"),
     }
 }
@@ -100,6 +99,14 @@ mod tests {
         assert_eq!(
             map_query_status(STATUS_NAME_TOO_LONG).unwrap(),
             ManagedServiceAccountState::AssumeRegularDomainAccount
+        );
+    }
+
+    #[test]
+    fn map_query_status_treats_dc_unavailable_as_classification_unavailable() {
+        assert_eq!(
+            map_query_status(STATUS_OPEN_FAILED).unwrap(),
+            ManagedServiceAccountState::ClassificationUnavailable
         );
     }
 
