@@ -44,7 +44,8 @@ func TestMockNVMLCanonicalMIGDeviceIdentity(t *testing.T) {
 	require.Same(t, mock.MIGDevice(DefaultMIGParentDeviceIdx, 0), child)
 	require.Panics(t, func() { mock.MIGDevice(-1, 0) })
 	require.Panics(t, func() { mock.MIGDevice(DefaultMIGParentDeviceIdx, -1) })
-	require.Nil(t, mock.MIGDevice(DefaultMIGParentDeviceIdx, 99))
+	require.Panics(t, func() { mock.MIGDevice(0, 0) })
+	require.Panics(t, func() { mock.MIGDevice(DefaultMIGParentDeviceIdx, 99) })
 }
 
 func TestMockNVMLDeviceOptionPrecedence(t *testing.T) {

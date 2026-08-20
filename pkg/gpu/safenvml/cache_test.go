@@ -39,23 +39,14 @@ func TestDeviceCache(t *testing.T) {
 func TestDeviceCachePartialFailure(t *testing.T) {
 	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceCount(3),
+		testutil.WithDeviceHandleByIndexCallback(func(index int, device nvml.Device) (nvml.Device, nvml.Return) {
+			if index == 2 {
+				return nil, nvml.ERROR_INVALID_ARGUMENT
+			}
+			return device, nvml.SUCCESS
+		}),
 	)
-
-	// Create a mock that returns 3 devices but only 2 succeed
-	baseDeviceGetCountFunc := func() (int, nvml.Return) {
-		return 3, nvml.SUCCESS
-	}
-
-	baseDeviceGetHandleByIndexFunc := func(index int) (nvml.Device, nvml.Return) {
-		if index == 2 {
-			return nil, nvml.ERROR_INVALID_ARGUMENT
-		}
-		return mockNvml.Device(index), nvml.SUCCESS
-	}
-
-	// Override device count and get by index funcs
-	mockNvml.DeviceGetCountFunc = baseDeviceGetCountFunc
-	mockNvml.DeviceGetHandleByIndexFunc = baseDeviceGetHandleByIndexFunc
 
 	// Use WithMockNVML to set the mock
 	WithMockNVML(t, mockNvml)
@@ -238,21 +229,11 @@ func TestDeviceCacheAllMigDevices(t *testing.T) {
 }
 
 func TestDeviceCacheRefresh_Sequential(t *testing.T) {
+	numDevicesAvailable := 6 // control this and change it during the test
 	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceCountFunc(func() int { return numDevicesAvailable }),
 	)
-
-	// Override device count and get by index funcs
-	numDevicesAvailable := 6 // control this and change it during the test
-	mockNvml.DeviceGetCountFunc = func() (int, nvml.Return) {
-		return numDevicesAvailable, nvml.SUCCESS
-	}
-	mockNvml.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		if index >= numDevicesAvailable {
-			return nil, nvml.ERROR_INVALID_ARGUMENT
-		}
-		return mockNvml.Device(index), nvml.SUCCESS
-	}
 
 	// create a cache with a custom mock lib
 	WithMockNVML(t, mockNvml)
@@ -278,21 +259,12 @@ func TestDeviceCacheRefresh_Sequential(t *testing.T) {
 }
 
 func TestDeviceCacheRefresh_Concurrent(t *testing.T) {
-	mockNvml := testutil.NewMockNVML(
-		testutil.WithSymbolsMock(allSymbols),
-	)
-
 	numDevicesAvailable := atomic.Int32{}
 	numDevicesAvailable.Store(6)
-	mockNvml.DeviceGetCountFunc = func() (int, nvml.Return) {
-		return int(numDevicesAvailable.Load()), nvml.SUCCESS
-	}
-	mockNvml.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		if index >= int(numDevicesAvailable.Load()) {
-			return nil, nvml.ERROR_INVALID_ARGUMENT
-		}
-		return mockNvml.Device(index), nvml.SUCCESS
-	}
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceCountFunc(func() int { return int(numDevicesAvailable.Load()) }),
+	)
 
 	// create a cache with a custom mock lib
 	WithMockNVML(t, mockNvml)

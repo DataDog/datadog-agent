@@ -41,6 +41,12 @@ type mockGpmState struct {
 	samples    []*MockGpmSample
 }
 
+type MockGpmSample struct {
+	nvml.GpmSample
+	ID       int
+	GetIndex int
+}
+
 // NewMockNVML constructs the library, physical devices, and MIG devices.
 // Device options are applied in this order: top-level defaults, then
 // index-specific options.
@@ -93,13 +99,21 @@ func (m *MockNVML) Device(index int) *MockDevice {
 	return m.devices[index]
 }
 
-// MIGDevice returns the canonical MIG child, or nil for an invalid parent or
+// MIGDevice returns the canonical MIG child and panics for an invalid parent or
 // child index.
 func (m *MockNVML) MIGDevice(parent, child int) *MockDevice {
-	if m == nil || parent < 0 || child < 0 {
-		panic("invalid parent or child index")
+	if m == nil {
+		panic("MIGDevice called on nil MockNVML")
 	}
-	return m.migDevices[parent][child]
+	children, ok := m.migDevices[parent]
+	if !ok {
+		panic("invalid MIG parent index")
+	}
+	device, ok := children[child]
+	if !ok {
+		panic("invalid MIG child index")
+	}
+	return device
 }
 
 // SetFieldValues replaces the unscoped field values returned by the device.
