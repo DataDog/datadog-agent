@@ -64,6 +64,18 @@ const fseventsDroppedFlags = uint32(C.kFSEventStreamEventFlagMustScanSubDirs |
 	C.kFSEventStreamEventFlagUserDropped |
 	C.kFSEventStreamEventFlagKernelDropped)
 
+// fseventsDroppedError reports that FSEvents could not deliver a complete event
+// history, so the watched roots were queued for a full rescan. The collector
+// separates these from other watcher failures because they are the only ones
+// that imply lost change notifications.
+type fseventsDroppedError struct {
+	flags uint32
+}
+
+func (e *fseventsDroppedError) Error() string {
+	return fmt.Sprintf("FSEvents dropped events (flags %#x); scheduling full watched-directory rescan", e.flags)
+}
+
 // newDarwinReportWatcher creates an FSEvents watcher with coalesced directory notifications.
 func newDarwinReportWatcher() (darwinReportWatcher, error) {
 	watcher := &darwinDirectoryWatcher{
@@ -277,15 +289,19 @@ func goPkgNotableEventsFSEventsCallback(rawHandle C.uintptr_t, rawPath *C.char, 
 	if !ok {
 		return
 	}
+	watcher.handleEvent(C.GoString(rawPath), uint32(rawFlags))
+}
 
-	flags := uint32(rawFlags)
+// handleEvent reconciles one FSEvents notification. It takes no cgo types so
+// the drop classification stays exercisable without the native stream.
+func (w *darwinDirectoryWatcher) handleEvent(path string, flags uint32) {
 	if flags&fseventsDroppedFlags != 0 {
-		watcher.reportError(fmt.Errorf("FSEvents dropped events (flags %#x); scheduling full watched-directory rescan", flags))
-		watcher.enqueueAllWatched()
+		w.reportError(&fseventsDroppedError{flags: flags})
+		w.enqueueAllWatched()
 		return
 	}
 
-	if watchedDir, found := watcher.watchedDirectoryForPath(C.GoString(rawPath)); found {
-		watcher.enqueue(watchedDir)
+	if watchedDir, found := w.watchedDirectoryForPath(path); found {
+		w.enqueue(watchedDir)
 	}
 }

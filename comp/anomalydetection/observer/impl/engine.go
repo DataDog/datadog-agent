@@ -11,8 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Note: stateView is defined in stateview.go and provides read-only access
@@ -938,15 +938,15 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 		}
 	}
 
-	pkglog.Debugf("[observer] baseline %d/%d ended for detector %q: %d new series muted (%d anomalies seen)",
+	logging.Debugf("baseline %d/%d ended for detector %q: %d new series muted (%d anomalies seen)",
 		e.baseline.completedCount(), len(e.baseline.detectors), detectorName, len(newHashes), windowAnomalyCount)
 
 	if allComplete {
-		pkglog.Infof("[observer] all baseline windows ended: %d/%d series muted from anomaly detection", len(e.baseline.mutedHashes), totalSeries)
+		logging.Infof("all baseline windows ended: %d/%d series muted from anomaly detection", len(e.baseline.mutedHashes), totalSeries)
 	}
 	if allComplete && e.baseline.config.Verbose {
 		for _, name := range e.baseline.takeMutedDisplayNames() {
-			pkglog.Infof("[observer] baseline muted: %s", name)
+			logging.Infof("baseline muted: %s", name)
 		}
 	}
 }

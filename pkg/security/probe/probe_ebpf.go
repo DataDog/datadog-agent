@@ -2058,7 +2058,10 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 	if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
 		pce = newPlaceholderProcessCacheEntryPTraceMe()
 	} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
-		seclog.Errorf("ptrace event without any PID to resolve")
+		seclog.Errorf("ptrace event without any PID to resolve for process %s: request=%d retval=%d",
+			event.ProcessContext.Process.FileEvent.PathnameStr,
+			event.PTrace.Request,
+			event.PTrace.Retval)
 		return false
 	} else {
 		pidToResolve := event.PTrace.PID
