@@ -40,19 +40,51 @@ fn plain_scalar_to_value(text: &str) -> Value {
     }
 }
 
-/// Integers first, then finite floats. Matches yaml.v2 unmarshalling into
-/// `interface{}` so `cast.ToBoolE` can treat a non-zero number as true.
+/// Integers first (decimal, then yaml.v2 `0x`/`0b`/`0o` prefixes), then finite
+/// floats. Matches yaml.v2 unmarshalling into `interface{}` so `cast.ToBoolE`
+/// can treat a non-zero number as true.
 fn yaml_v2_plain_number(text: &str) -> Option<Value> {
-    if let Ok(n) = text.parse::<i64>() {
+    let plain: String = text.chars().filter(|c| *c != '_').collect();
+    if let Ok(n) = plain.parse::<i64>() {
         return Some(Value::Number(n.into()));
     }
-    if !looks_like_yaml_11_float(text) {
+    if let Some(n) = parse_yaml_v2_prefixed_int(&plain) {
+        return Some(Value::Number(n.into()));
+    }
+    if !looks_like_yaml_11_float(&plain) {
         return None;
     }
-    text.parse::<f64>()
+    plain
+        .parse::<f64>()
         .ok()
         .filter(|n| n.is_finite())
         .map(|n| Value::Number(n.into()))
+}
+
+/// `strconv.ParseInt`/`ParseUint` with base 0: `0x` hex, `0b` binary, `0o` octal.
+/// Leading-zero decimals stay decimal (`010` is 10) so `08` still parses as 8
+/// instead of failing octal and falling through to a string.
+fn parse_yaml_v2_prefixed_int(plain: &str) -> Option<i64> {
+    let (negative, rest) = match plain.as_bytes().first() {
+        Some(b'+') => (false, &plain[1..]),
+        Some(b'-') => (true, &plain[1..]),
+        _ => (false, plain),
+    };
+    let bytes = rest.as_bytes();
+    if bytes.len() < 3 || bytes[0] != b'0' {
+        return None;
+    }
+    let (base, digits) = match bytes[1] {
+        b'x' | b'X' => (16, &rest[2..]),
+        b'b' | b'B' => (2, &rest[2..]),
+        b'o' | b'O' => (8, &rest[2..]),
+        _ => return None,
+    };
+    if digits.is_empty() {
+        return None;
+    }
+    let n = i64::from_str_radix(digits, base).ok()?;
+    if negative { n.checked_neg() } else { Some(n) }
 }
 
 /// Digit-based decimal or scientific form (`1.0`, `1e0`). Rejects Rust-only
@@ -250,5 +282,43 @@ mod tests {
     fn rust_inf_spelling_stays_string() {
         let root = load("enabled: inf\n").unwrap();
         assert_eq!(root.get("enabled"), Some(&Value::String("inf".into())));
+    }
+
+    #[test]
+    fn plain_prefixed_ints_are_numbers() {
+        assert_eq!(
+            load("enabled: 0x1\n")
+                .unwrap()
+                .get("enabled")
+                .and_then(Value::as_i64),
+            Some(1)
+        );
+        assert_eq!(
+            load("enabled: 0b1\n")
+                .unwrap()
+                .get("enabled")
+                .and_then(Value::as_i64),
+            Some(1)
+        );
+        assert_eq!(
+            load("enabled: 0o1\n")
+                .unwrap()
+                .get("enabled")
+                .and_then(Value::as_i64),
+            Some(1)
+        );
+        assert_eq!(
+            load("enabled: 0x0\n")
+                .unwrap()
+                .get("enabled")
+                .and_then(Value::as_i64),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn quoted_hex_int_stays_string() {
+        let root = load("enabled: \"0x1\"\n").unwrap();
+        assert_eq!(root.get("enabled"), Some(&Value::String("0x1".into())));
     }
 }
