@@ -34,8 +34,8 @@ const ecrCredentialHelperVersion = "0.12.0"
 // OSes assume both are pre-baked. Remove the RHEL-family install once a RHEL 10 -e2e AMI bakes
 // them.
 func SetupECRDockerAuth(n namer.Namer, host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
-	switch host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux:
+	switch host.OS.Descriptor().Family() {
+	case os.LinuxFamily:
 		ecrCredsHelperInstall, err := ensureECRCredentialHelper(n, host, opts...)
 		if err != nil {
 			return nil, err

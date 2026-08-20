@@ -54,6 +54,15 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 		return e.AgentFullImagePath()
 	}
 
+	if repositoryPath == "" {
+		// If the image pull registry is set use it instead of the default dev repository
+		if e.ImagePullRegistry() != "" {
+			repositoryPath = e.ImagePullRegistry() + "/agent"
+		} else {
+			repositoryPath = defaultDevAgentImageRepo
+		}
+	}
+
 	useOtel := otel
 	useFIPS := fips || e.AgentFIPS()
 	useJMX := jmx
@@ -94,9 +103,6 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 	}
 
 	if useOtel {
-		if repositoryPath == "" {
-			repositoryPath = defaultDevAgentImageRepo
-		}
 		if imageTag == "" {
 			imageTag = defaultOTAgentImageTag
 		}
@@ -106,9 +112,6 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 	}
 
 	if useFIPS {
-		if repositoryPath == "" {
-			repositoryPath = defaultDevAgentImageRepo
-		}
 		if imageTag == "" {
 			if useJMX {
 				imageTag = "main" + fipsSuffix + jmxSuffix
@@ -118,10 +121,6 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 		}
 		e.Ctx().Log.Info("The following image will be used in your test: "+fmt.Sprintf("%s:%s", repositoryPath, imageTag), nil)
 		return utils.BuildDockerImagePath(repositoryPath, imageTag)
-	}
-
-	if repositoryPath == "" {
-		repositoryPath = defaultAgentImageRepo
 	}
 
 	if imageTag == "" {
@@ -145,6 +144,15 @@ func dockerClusterAgentFullImagePath(e config.Env, repositoryPath, imageTag stri
 		return e.ClusterAgentFullImagePath()
 	}
 
+	if repositoryPath == "" {
+		// If the image pull registry is set use it instead of the default dev repository
+		if e.ImagePullRegistry() != "" {
+			repositoryPath = e.ImagePullRegistry() + "/cluster-agent"
+		} else {
+			repositoryPath = defaultClusterAgentImageRepo
+		}
+	}
+
 	useFips := fips || e.AgentFIPS()
 
 	// if agent pipeline id and commit sha are defined, use the image from the pipeline pushed on agent QA registry
@@ -163,18 +171,11 @@ func dockerClusterAgentFullImagePath(e config.Env, repositoryPath, imageTag stri
 	}
 
 	if useFips {
-		if repositoryPath == "" {
-			repositoryPath = defaultDevAgentImageRepo
-		}
 		if imageTag == "" {
 			imageTag = "main" + fipsSuffix
 		}
 		e.Ctx().Log.Info("The following image will be used for dca in your test: "+fmt.Sprintf("%s:%s", repositoryPath, imageTag), nil)
 		return utils.BuildDockerImagePath(repositoryPath, imageTag)
-	}
-
-	if repositoryPath == "" {
-		repositoryPath = defaultClusterAgentImageRepo
 	}
 
 	if imageTag == "" {

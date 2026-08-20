@@ -84,6 +84,9 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.DockerHostOutp
 			params.agentOptions = append(params.agentOptions, dockeragentparams.WithExtraComposeManifest(dogstatsd.DockerComposeManifest.Name, dogstatsd.DockerComposeManifest.Content))
 			params.agentOptions = append(params.agentOptions, dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{"HOST_IP": host.Address}))
 		}
+		if awsEnv.ImagePullRegistry() != "" {
+			params.agentOptions = append(params.agentOptions, dockeragentparams.WithRepository(awsEnv.ImagePullRegistry()))
+		}
 		agent, err := agent.NewDockerAgent(&awsEnv, host, manager, params.agentOptions...)
 		if err != nil {
 			return err
