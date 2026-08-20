@@ -226,14 +226,14 @@ fn agent_account_from_msa_and_lsa(
     if matches!(msa, ManagedServiceAccountState::Installed) {
         return Ok(AgentAccount::ServiceAccountLogon { domain, user });
     }
-    if let Some(password) = lsa_password.filter(|password| !password.is_empty()) {
-        if should_use_lsa_password(&user, msa) {
-            return Ok(AgentAccount::PasswordLogon {
-                domain,
-                user,
-                password: password.to_string(),
-            });
-        }
+    if let Some(password) = lsa_password.filter(|password| !password.is_empty())
+        && should_use_lsa_password(&user, msa)
+    {
+        return Ok(AgentAccount::PasswordLogon {
+            domain,
+            user,
+            password: password.to_string(),
+        });
     }
     passwordless_agent_account(domain, user, is_local, msa)
 }
