@@ -23,8 +23,6 @@ import (
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // parserState holds the state for an incremental prometheus parser.
@@ -203,7 +201,6 @@ func parseText(text string, contentType string) (string, error) {
 	if idx := strings.IndexByte(mediaType, ';'); idx >= 0 {
 		mediaType = mediaType[:idx]
 	}
-	isOpenMetrics := mediaType == "application/openmetrics-text"
 	switch mediaType {
 	case "application/openmetrics-text":
 		parser = textparse.NewOpenMetricsParser(data, st)
@@ -221,8 +218,7 @@ func parseText(text string, contentType string) (string, error) {
 			break
 		}
 		if err != nil {
-			log.Debugf("prometheus parser: skipping parse error: %v", err)
-			break
+			return "", err
 		}
 
 		switch entry {
@@ -247,24 +243,20 @@ func parseText(text string, contentType string) (string, error) {
 			name, typ := parser.Type()
 			sName := string(name)
 			sType := strings.ToLower(string(typ))
-			// Prometheus text format appends _total to counter names in HELP/TYPE
-			// directives, but prometheus_client and the Datadog V2 scraper pipeline
-			// expect the family name without the suffix. Strip it here so that
-			// metric transformer lookups work. OpenMetrics already omits _total.
-			baseName := sName
-			if !isOpenMetrics && sType == "counter" && strings.HasSuffix(baseName, "_total") {
-				baseName = baseName[:len(baseName)-6]
-			}
-			if currentIdx >= 0 && (families[currentIdx].Name == sName || families[currentIdx].Name == baseName) {
-				// Update (and possibly rename) the family opened by EntryHelp.
-				families[currentIdx].Name = baseName
+			// Preserve the TYPE-line name verbatim (e.g. "foo_total" stays
+			// "foo_total").  The Python _json_to_metric function handles
+			// stripping _total for standard counters and adding it for
+			// non-standard ones (# TYPE foo counter with sample foo_total).
+			// Stripping here would make the two patterns indistinguishable.
+			if currentIdx >= 0 && families[currentIdx].Name == sName {
+				// Update the family opened by EntryHelp.
 				families[currentIdx].Type = sType
 			} else {
 				if currentIdx >= 0 && len(families[currentIdx].Samples) == 0 {
 					families = families[:currentIdx]
 				}
 				families = append(families, jsonMetricFamily{
-					Name:    baseName,
+					Name:    sName,
 					Type:    sType,
 					Samples: make([]jsonSample, 0, 8),
 				})

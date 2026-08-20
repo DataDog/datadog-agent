@@ -50,8 +50,9 @@ http_requests_total{method="POST",code="200"} 42
 	require.NoError(t, json.Unmarshal([]byte(result), &families))
 	require.Len(t, families, 1)
 
-	// Family name strips _total to match prometheus_client behaviour.
-	assert.Equal(t, "http_requests", families[0].Name)
+	// Family name preserves the TYPE-line name verbatim; the Python
+	// _json_to_metric function handles _total stripping.
+	assert.Equal(t, "http_requests_total", families[0].Name)
 	assert.Equal(t, "counter", families[0].Type)
 	require.Len(t, families[0].Samples, 2)
 	// Sample name retains the full _total suffix (used by histogram/summary transformers).
