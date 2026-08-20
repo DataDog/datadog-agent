@@ -8,7 +8,7 @@ use anyhow::{Context, Result, bail};
 use log::info;
 use std::ptr;
 use windows_sys::Win32::System::Services::{
-    CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceConfigW, QUERY_SERVICE_CONFIGW,
+    CloseServiceHandle, OpenSCManagerW, OpenServiceW, QUERY_SERVICE_CONFIGW, QueryServiceConfigW,
     SC_HANDLE, SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
 };
 
