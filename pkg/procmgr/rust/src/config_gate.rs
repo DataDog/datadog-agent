@@ -20,6 +20,7 @@
 
 
 mod env_bindings;
+mod secrets;
 mod system_probe;
 mod yaml_load;
 
@@ -100,17 +101,17 @@ impl ProcessEnabledMode {
 }
 
 const LEGACY_PROCESS_ENABLED_KEY: &str = "process_config.enabled";
-const LEGACY_FLEET_POLICY_FILE: &str = "datadog.yaml";
 
 impl GatedKeySpec {
     /// Resolution order (most keys): legacy `process_config.enabled` transform (collection keys only)
-    /// → fleet policy → env → base YAML → agent default.
+    /// → highest-priority configured source (fleet, secret, env, file) → agent default.
     ///
     /// `system_probe_config.enabled` is special: returns [`system_probe::derived_enabled`] only,
     /// mirroring post-`load()`/`Adjust` `GetBool` (module-derived runtime value).
     ///
-    /// Legacy transforms mirror `loadProcessTransforms`. Fleet policy outranks env vars
-    /// (`SourceFleetPolicies` > `SourceEnvVar`).
+    /// Legacy transforms mirror `loadProcessTransforms`, which runs before fleet merge and writes
+    /// collection keys at agent-runtime precedence. The deprecated key is read from env or base YAML
+    /// only (fleet is ignored for this transform).
     fn enabled(&self, base_path: &str, yaml: &mut YamlCache) -> anyhow::Result<bool> {
         if let Some(enabled) = self.legacy_collection_override(base_path, yaml)? {
             return Ok(enabled);
@@ -120,16 +121,12 @@ impl GatedKeySpec {
             // runtime enabled is module-derived, not the literal YAML/env knob alone.
             return system_probe::derived_enabled(base_path, yaml);
         }
-        if let Some(enabled) = self.fleet_policy_value(base_path, yaml)? {
-            return Ok(enabled);
-        }
-        if let Some(enabled) = self.env_override() {
-            return Ok(enabled);
-        }
-        if let Some(enabled) = yaml.bool_key_if_exists(base_path, self.key)? {
-            return Ok(enabled);
-        }
-        Ok(self.default)
+        yaml.resolve_bool_by_source_priority(
+            base_path,
+            self.key,
+            self.fleet_policy_file,
+            self.default,
+        )
     }
 
     fn uses_legacy_process_enabled(&self) -> bool {
@@ -158,24 +155,29 @@ impl GatedKeySpec {
         };
         Ok(Some(enabled))
     }
+}
 
-    fn fleet_policy_value(
-        &self,
-        base_path: &str,
-        yaml: &mut YamlCache,
-    ) -> anyhow::Result<Option<bool>> {
-        let Some(filename) = self.fleet_policy_file else {
-            return Ok(None);
-        };
-        let Some(path) = yaml.fleet_policy_path(filename, base_path)? else {
-            return Ok(None);
-        };
-        yaml.bool_key_if_exists(&path, self.key)
+fn agent_datadog_yaml(config_path: &str) -> String {
+    let path = Path::new(config_path);
+    if path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("datadog.yaml"))
+    {
+        return config_path.to_owned();
     }
+    path.parent()
+        .map(|dir| dir.join("datadog.yaml"))
+        .map(|joined| joined.to_string_lossy().into_owned())
+        .unwrap_or_else(|| config_path.to_owned())
+}
 
-    fn env_override(&self) -> Option<bool> {
-        env_bool_for_config_key(self.key)
+fn resolve_fleet_policies_dir(raw: &str, agent_yaml: &str) -> Option<String> {
+    let resolved = secrets::resolve_config_string(raw, agent_yaml);
+    if secrets::is_enc(&resolved) || resolved.trim().is_empty() {
+        return None;
     }
+    Some(resolved)
 }
 
 pub(super) struct YamlCache(HashMap<String, serde_yaml::Value>);
@@ -186,11 +188,12 @@ impl YamlCache {
     /// System-probe gates do not inherit `fleet_policies_dir` from sibling `datadog.yaml`
     /// (matches `applyFleetPolicy` on the system-probe config object).
     fn fleet_policies_dir(&mut self, config_path: &str) -> anyhow::Result<Option<String>> {
+        let agent = agent_datadog_yaml(config_path);
         if let Some(dir) = env_bindings::env_var_value_for_name("DD_FLEET_POLICIES_DIR") {
-            return Ok(Some(dir));
+            return Ok(resolve_fleet_policies_dir(&dir, &agent));
         }
         if let Some(dir) = self.fleet_policies_dir_in_yaml(config_path)? {
-            return Ok(Some(dir));
+            return Ok(resolve_fleet_policies_dir(&dir, &agent));
         }
         #[cfg(windows)]
         {
@@ -223,23 +226,28 @@ impl YamlCache {
         }))
     }
 
-    /// Fleet policy → env bindings → base YAML → `false`.
+    /// Highest-priority configured source among fleet, secret, env, and base YAML.
+    pub(super) fn resolve_bool_by_source_priority(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+        default: bool,
+    ) -> anyhow::Result<bool> {
+        Ok(self
+            .best_bool_layer(base_path, key, fleet_policy_file)?
+            .map(|layer| layer.value)
+            .unwrap_or(default))
+    }
+
+    /// Highest-priority configured source among fleet, secret, env, and base YAML.
     pub(super) fn resolve_bool(
         &mut self,
         base_path: &str,
         key: &str,
         fleet_policy_file: Option<&str>,
     ) -> anyhow::Result<bool> {
-        if let Some(filename) = fleet_policy_file
-            && let Some(path) = self.fleet_policy_path(filename, base_path)?
-            && let Some(value) = self.bool_key_if_exists(&path, key)?
-        {
-            return Ok(value);
-        }
-        if let Some(enabled) = env_bool_for_config_key(key) {
-            return Ok(enabled);
-        }
-        Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(false))
+        self.resolve_bool_by_source_priority(base_path, key, fleet_policy_file, false)
     }
 
     /// Like [`Self::resolve_bool`] but uses `default` when the key is unset everywhere.
@@ -250,16 +258,7 @@ impl YamlCache {
         fleet_policy_file: Option<&str>,
         default: bool,
     ) -> anyhow::Result<bool> {
-        if let Some(filename) = fleet_policy_file
-            && let Some(path) = self.fleet_policy_path(filename, base_path)?
-            && let Some(value) = self.bool_key_if_exists(&path, key)?
-        {
-            return Ok(value);
-        }
-        if let Some(enabled) = env_bool_for_config_key(key) {
-            return Ok(enabled);
-        }
-        Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(default))
+        self.resolve_bool_by_source_priority(base_path, key, fleet_policy_file, default)
     }
 
     pub(super) fn resolve_string(
@@ -268,19 +267,87 @@ impl YamlCache {
         key: &str,
         fleet_policy_file: Option<&str>,
     ) -> anyhow::Result<Option<String>> {
+        Ok(self
+            .best_string_layer(base_path, key, fleet_policy_file)?
+            .map(|layer| layer.value))
+    }
+
+    fn best_config_layer<T>(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+        layer_from_yaml: impl Fn(&serde_yaml::Value, &str, ConfigSourcePriority) -> Option<Prioritized<T>>,
+        layer_from_env: impl Fn(&str, &str, ConfigSourcePriority) -> Option<Prioritized<T>>,
+    ) -> anyhow::Result<Option<Prioritized<T>>> {
+        let agent_yaml = agent_datadog_yaml(base_path);
+        let mut best: Option<Prioritized<T>> = None;
+
         if let Some(filename) = fleet_policy_file
             && let Some(path) = self.fleet_policy_path(filename, base_path)?
             && let Some(value) = self.dotted_key_if_exists(&path, key)?
         {
-            return Self::string_value(value);
+            if let Some(candidate) =
+                layer_from_yaml(value, &agent_yaml, ConfigSourcePriority::FleetPolicies)
+            {
+                best = Some(Prioritized::pick_best(best, candidate));
+            }
         }
+
         if let Some(text) = env_string_for_config_key(key) {
-            return Ok(Some(text));
+            if let Some(candidate) =
+                layer_from_env(&text, &agent_yaml, ConfigSourcePriority::EnvVar)
+            {
+                best = Some(Prioritized::pick_best(best, candidate));
+            }
         }
-        match self.dotted_key_if_exists(base_path, key)? {
-            Some(value) => Self::string_value(value),
-            None => Ok(None),
+
+        if let Some(value) = self.dotted_key_if_exists(base_path, key)? {
+            if let Some(candidate) =
+                layer_from_yaml(value, &agent_yaml, ConfigSourcePriority::File)
+            {
+                best = Some(Prioritized::pick_best(best, candidate));
+            }
         }
+
+        Ok(best)
+    }
+
+    fn best_bool_layer(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+    ) -> anyhow::Result<Option<Prioritized<bool>>> {
+        self.best_config_layer(
+            base_path,
+            key,
+            fleet_policy_file,
+            prioritized_bool_from_yaml_value,
+            prioritized_bool_from_string,
+        )
+    }
+
+    fn best_string_layer(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+    ) -> anyhow::Result<Option<Prioritized<String>>> {
+        self.best_config_layer(
+            base_path,
+            key,
+            fleet_policy_file,
+            |value, agent_yaml, priority| {
+                YamlCache::string_value(value)
+                    .ok()
+                    .flatten()
+                    .map(|text| prioritized_string_from_raw(text, agent_yaml, priority))
+            },
+            |text, agent_yaml, priority| {
+                Some(prioritized_string_from_raw(text.to_owned(), agent_yaml, priority))
+            },
+        )
     }
 
     /// Whether `key` is present in the base YAML file only (not fleet policy or env).
@@ -334,7 +401,7 @@ impl YamlCache {
         let Some(value) = self.dotted_key(path, key)? else {
             return Ok(None);
         };
-        value_as_bool(value)
+        value_as_bool(value, &agent_datadog_yaml(path))
             .ok_or_else(|| anyhow::anyhow!("key {key} is not a bool"))
             .map(Some)
     }
@@ -371,6 +438,13 @@ impl YamlCache {
     }
 }
 
+/// Drop cached secret handles and backend settings before config-gate re-evaluation.
+pub(crate) fn clear_secret_caches() {
+    secrets::clear_caches();
+    #[cfg(windows)]
+    crate::platform::refresh_core_agent_scm_environment();
+}
+
 /// Returns true when `conditions` is empty or any `(path, key)` pair is enabled.
 pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
     if conditions.is_empty() {
@@ -393,11 +467,7 @@ fn resolve_legacy_process_enabled_mode(
     base_path: &str,
     yaml: &mut YamlCache,
 ) -> anyhow::Result<Option<ProcessEnabledMode>> {
-    if let Some(path) = yaml.fleet_policy_path(LEGACY_FLEET_POLICY_FILE, base_path)?
-        && let Some(mode) = legacy_enabled_mode_from_file(yaml, &path)?
-    {
-        return Ok(Some(mode));
-    }
+    // loadProcessTransforms runs before MergeFleetPolicy; fleet must not drive this transform.
     if let Some(mode) = legacy_enabled_env_mode() {
         return Ok(Some(mode));
     }
@@ -468,7 +538,7 @@ fn config_key_enabled(path: &str, key: &str, yaml: &mut YamlCache) -> anyhow::Re
         .enabled(path, yaml)
 }
 
-fn lookup_mapping_case_insensitive<'a>(
+pub(super) fn lookup_mapping_case_insensitive<'a>(
     mapping: &'a serde_yaml::Mapping,
     key: &str,
 ) -> Option<&'a serde_yaml::Value> {
@@ -517,15 +587,114 @@ fn lookup_dotted_key_in_mapping<'a>(
     lookup_dotted_key_in_mapping(next, rest)
 }
 
-fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
+/// Mirrors `pkg/config/model/types.go` source precedence for user-provided layers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ConfigSourcePriority {
+    File = 3,
+    EnvVar = 4,
+    FleetPolicies = 5,
+    Secret = 7,
+}
+
+struct Prioritized<T> {
+    value: T,
+    priority: ConfigSourcePriority,
+}
+
+impl<T> Prioritized<T> {
+    fn pick_best(current: Option<Self>, candidate: Self) -> Self {
+        match current {
+            Some(existing) if existing.priority >= candidate.priority => existing,
+            _ => candidate,
+        }
+    }
+}
+
+fn prioritized_bool_from_yaml_value(
+    value: &serde_yaml::Value,
+    agent_yaml: &str,
+    base_priority: ConfigSourcePriority,
+) -> Option<Prioritized<bool>> {
     match value {
         // Plain YAML 1.1 bools (`yes`/`on`/…) are coerced to bool at load time in [`yaml_load`].
-        serde_yaml::Value::Bool(enabled) => Some(*enabled),
-        serde_yaml::Value::Number(number) => number.as_i64().map(|n| n != 0),
-        // Quoted scalars and env vars: `strconv.ParseBool` only.
-        serde_yaml::Value::String(text) => Some(parse_agent_bool_string(text).unwrap_or(false)),
+        serde_yaml::Value::Bool(enabled) => Some(Prioritized {
+            value: *enabled,
+            priority: base_priority,
+        }),
+        serde_yaml::Value::Number(number) => {
+            let value = number
+                .as_i64()
+                .map(|n| n != 0)
+                .or_else(|| number.as_f64().map(|n| n != 0.0))?;
+            Some(Prioritized {
+                value,
+                priority: base_priority,
+            })
+        }
+        // Quoted scalars and env vars: secret resolution then `strconv.ParseBool`.
+        serde_yaml::Value::String(text) => {
+            prioritized_bool_from_string(text, agent_yaml, base_priority)
+        }
         _ => None,
     }
+}
+
+fn prioritized_bool_from_string(
+    text: &str,
+    agent_yaml: &str,
+    base_priority: ConfigSourcePriority,
+) -> Option<Prioritized<bool>> {
+    if base_priority != ConfigSourcePriority::FleetPolicies
+        && let Some((resolved, priority)) = promote_secret_string(text, agent_yaml)
+    {
+        return parse_agent_bool_string(&resolved).map(|value| Prioritized { value, priority });
+    }
+    bool_from_config_string(text).map(|value| Prioritized {
+        value,
+        priority: base_priority,
+    })
+}
+
+fn prioritized_string_from_raw(
+    text: String,
+    agent_yaml: &str,
+    base_priority: ConfigSourcePriority,
+) -> Prioritized<String> {
+    if base_priority != ConfigSourcePriority::FleetPolicies
+        && let Some((value, priority)) = promote_secret_string(&text, agent_yaml)
+    {
+        return Prioritized { value, priority };
+    }
+    Prioritized {
+        value: text,
+        priority: base_priority,
+    }
+}
+
+fn promote_secret_string(
+    text: &str,
+    agent_yaml: &str,
+) -> Option<(String, ConfigSourcePriority)> {
+    if !secrets::is_enc(text) {
+        return None;
+    }
+    let resolved = secrets::resolve_config_string(text, agent_yaml);
+    if secrets::is_enc(&resolved) {
+        return None;
+    }
+    Some((resolved, ConfigSourcePriority::Secret))
+}
+
+fn value_as_bool(value: &serde_yaml::Value, agent_yaml: &str) -> Option<bool> {
+    prioritized_bool_from_yaml_value(value, agent_yaml, ConfigSourcePriority::File)
+        .map(|layer| layer.value)
+}
+
+fn bool_from_config_string(text: &str) -> Option<bool> {
+    if secrets::is_enc(text) {
+        return None;
+    }
+    parse_agent_bool_string(text).or(Some(false))
 }
 
 /// Mirrors Go `strconv.ParseBool` for env var bindings.
@@ -554,13 +723,58 @@ pub fn condition_config_summary(conditions: &[ConditionConfigFile]) -> String {
 }
 
 #[cfg(test)]
+pub(crate) mod test_env {
+    use std::sync::Mutex;
+
+    static LOCK: Mutex<()> = Mutex::new(());
+
+    /// Serialize tests that mutate process environment (config gates + secret backend).
+    pub(crate) fn with_lock<F: FnOnce()>(test: F) {
+        let _guard = LOCK.lock().unwrap_or_else(|err| err.into_inner());
+        test();
+    }
+
+    /// Clear `DD_SECRET_BACKEND_*` overrides so parallel tests cannot hijack backend resolution.
+    pub(crate) fn clear_secret_backend_env_vars() {
+        const NAMES: &[&str] = &[
+            "DD_SECRET_BACKEND_COMMAND",
+            "DD_SECRET_BACKEND_ARGUMENTS",
+            "DD_SECRET_BACKEND_TYPE",
+            "DD_SECRET_BACKEND_CONFIG",
+            "DD_SECRET_BACKEND_TIMEOUT",
+            "DD_SECRET_BACKEND_OUTPUT_MAX_SIZE",
+            "DD_SECRET_BACKEND_REMOVE_TRAILING_LINE_BREAK",
+        ];
+        for name in NAMES {
+            // SAFETY: callers must hold the test env lock.
+            unsafe { std::env::remove_var(name) };
+        }
+    }
+
+    /// `tempfile` directories are mode `0700`; on Linux CI (root) secret backends run as `dd-agent`.
+    #[cfg(unix)]
+    pub(crate) fn open_tempdir_for_agent_user(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+            .expect("open tempdir for agent user");
+    }
+
+    #[cfg(not(unix))]
+    pub(crate) fn open_tempdir_for_agent_user(_path: &std::path::Path) {}
+
+    pub(crate) fn tempdir_for_secret_backend() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir");
+        open_tempdir_for_agent_user(dir.path());
+        dir
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use super::test_env;
     use super::*;
     use std::io::Write;
     use std::path::Path;
-    use std::sync::Mutex;
-
-    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn write_config(dir: &Path, name: &str, body: &str) -> String {
         let path = dir.join(name);
@@ -617,15 +831,18 @@ process_config:
     }
 
     fn with_env_lock<F: FnOnce()>(test: F) {
-        let _lock = ENV_TEST_LOCK.lock().unwrap_or_else(|err| err.into_inner());
-        test();
+        test_env::with_lock(|| {
+            test_env::clear_secret_backend_env_vars();
+            test();
+        });
     }
 
     fn clear_gated_env_vars() {
-        // SAFETY: callers must hold ENV_TEST_LOCK.
+        // SAFETY: callers must hold the test env lock.
         unsafe { std::env::remove_var("DD_FLEET_POLICIES_DIR") };
+        test_env::clear_secret_backend_env_vars();
         for env_name in super::env_bindings::all_bound_env_var_names() {
-            // SAFETY: callers must hold ENV_TEST_LOCK.
+            // SAFETY: callers must hold the test env lock.
             unsafe { std::env::remove_var(env_name) };
         }
     }
@@ -899,7 +1116,10 @@ process_config:
             let _empty = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
 
             assert_eq!(
-                env_bool_for_config_key("process_config.process_discovery.enabled"),
+                env_bool_for_config_key(
+                    "process_config.process_discovery.enabled",
+                    "/nonexistent/datadog.yaml",
+                ),
                 None
             );
             assert!(!env_configured_for_key(
@@ -916,7 +1136,10 @@ process_config:
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_DISCOVERY_ENABLED", "true");
 
             assert_eq!(
-                env_bool_for_config_key("process_config.process_discovery.enabled"),
+                env_bool_for_config_key(
+                    "process_config.process_discovery.enabled",
+                    "/nonexistent/datadog.yaml",
+                ),
                 Some(true)
             );
             assert!(env_configured_for_key(
@@ -975,7 +1198,10 @@ process_config:
             let _process = EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "true");
 
             assert_eq!(
-                env_bool_for_config_key("process_config.container_collection.enabled"),
+                env_bool_for_config_key(
+                    "process_config.container_collection.enabled",
+                    "/nonexistent/datadog.yaml",
+                ),
                 Some(false)
             );
         });
@@ -1143,6 +1369,62 @@ process_config:
                     "fleet_policies_dir: {fleet_dir_str}\nprocess_config:\n  enabled: false\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"
                 ),
             );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_policies_dir_resolves_secret_backed_env_path() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            secrets::clear_caches();
+
+            let dir = test_env::tempdir_for_secret_backend();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: true\n",
+            );
+            let fleet_dir_json =
+                serde_json::to_string(fleet_dir.to_string_lossy().as_ref()).unwrap();
+            #[cfg(unix)]
+            let script = {
+                let path = dir.path().join("secret_backend.sh");
+                std::fs::write(
+                    &path,
+                    format!(
+                        "#!/bin/sh\nprintf '{{\"fleet_policies_dir\":{{\"value\":{fleet_dir_json}}}}}'\n"
+                    ),
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                path
+            };
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    format!(
+                        "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{{\\\"fleet_policies_dir\\\":{{\\\"value\\\":{fleet_dir_json}}}}}'\"\r\n"
+                    ),
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!(
+                    "secret_backend_command: {}\nprocess_config:\n  enabled: false\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+                    script.to_string_lossy()
+                ),
+            );
+            let _fleet = EnvGuard::set("DD_FLEET_POLICIES_DIR", "ENC[fleet_policies_dir]");
+
             assert!(condition_config_any_met(&process_agent_conditions(agent)));
         });
     }
@@ -1571,7 +1853,145 @@ process_config:
     }
 
     #[test]
-    fn fleet_legacy_beats_env_for_process_enabled_transform() {
+    fn secret_resolved_value_beats_fleet_policy() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            secrets::clear_caches();
+
+            let dir = test_env::tempdir_for_secret_backend();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            #[cfg(unix)]
+            let script = {
+                let path = dir.path().join("secret_backend.sh");
+                std::fs::write(
+                    &path,
+                    "#!/bin/sh\nprintf '{\"process_collection_enabled\":{\"value\":\"true\"}}'\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                path
+            };
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"process_collection_enabled\\\":{\\\"value\\\":\\\"true\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!(
+                    "secret_backend_command: {}\nprocess_config:\n  enabled: false\n  process_collection:\n    enabled: ENC[process_collection_enabled]\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+                    script.to_string_lossy()
+                ),
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_policy_enc_is_not_resolved() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            secrets::clear_caches();
+
+            let dir = test_env::tempdir_for_secret_backend();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: ENC[fleet_collection_enabled]\n  process_discovery:\n    enabled: false\n",
+            );
+            #[cfg(unix)]
+            let script = {
+                let path = dir.path().join("secret_backend.sh");
+                std::fs::write(
+                    &path,
+                    "#!/bin/sh\nprintf '{\"fleet_collection_enabled\":{\"value\":\"true\"}}'\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                path
+            };
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"fleet_collection_enabled\\\":{\\\"value\\\":\\\"true\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!(
+                    "secret_backend_command: {}\n{}",
+                    script.to_string_lossy(),
+                    ALL_PROCESS_GATES_OFF
+                ),
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            assert!(
+                !condition_config_any_met(&process_agent_conditions(agent)),
+                "fleet policy ENC handles must stay unresolved like Agent MergeFleetPolicy"
+            );
+        });
+    }
+
+    #[test]
+    fn fleet_legacy_enabled_does_not_override_base_transform() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  enabled: disabled\n  process_discovery:\n    enabled: false\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: true\n  process_discovery:\n    enabled: false\n",
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_collection.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn legacy_env_beats_fleet_for_process_enabled_transform() {
         with_env_lock(|| {
             clear_gated_env_vars();
 
@@ -1593,11 +2013,16 @@ process_config:
                 fleet_dir.to_string_lossy().as_ref(),
             );
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "false");
-            let conditions = vec![ConditionConfigFile {
-                path: agent,
+            let process_collection = vec![ConditionConfigFile {
+                path: agent.clone(),
                 keys: vec!["process_config.process_collection.enabled".into()],
             }];
-            assert!(condition_config_any_met(&conditions));
+            let container_collection = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.container_collection.enabled".into()],
+            }];
+            assert!(!condition_config_any_met(&process_collection));
+            assert!(condition_config_any_met(&container_collection));
         });
     }
 
@@ -1627,6 +2052,25 @@ process_config:
             keys: vec!["process_config.enabled".into()],
         }];
         assert!(!condition_config_any_met(&conditions));
+    }
+
+    #[test]
+    fn env_bool_unresolved_secret_falls_through_instead_of_false() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _enc = EnvGuard::set(
+                "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
+                "ENC[missing_backend]",
+            );
+
+            assert_eq!(
+                env_bool_for_config_key(
+                    "process_config.process_collection.enabled",
+                    "/nonexistent/datadog.yaml",
+                ),
+                None
+            );
+        });
     }
 
     #[test]
@@ -1687,21 +2131,47 @@ process_config:
     }
 
     #[test]
-    fn value_as_bool_handles_strings() {
+    fn value_as_bool_handles_numeric_scalars() {
+        let agent_yaml = "/nonexistent/datadog.yaml";
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("disabled".into())),
+            value_as_bool(&serde_yaml::Value::Number(1.into()), agent_yaml),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Number(0.into()), agent_yaml),
             Some(false)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("true".into())),
+            value_as_bool(&serde_yaml::Value::Number(1.0.into()), agent_yaml),
             Some(true)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("1".into())),
+            value_as_bool(&serde_yaml::Value::Number(0.0.into()), agent_yaml),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn value_as_bool_handles_strings() {
+        let agent_yaml = "/nonexistent/datadog.yaml";
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("disabled".into()), agent_yaml),
+            Some(false)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("true".into()), agent_yaml),
             Some(true)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("yes".into())),
+            value_as_bool(&serde_yaml::Value::String("TRUE".into()), agent_yaml),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("1".into()), agent_yaml),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("yes".into()), agent_yaml),
             Some(false)
         );
         assert_eq!(
@@ -1745,6 +2215,51 @@ process_config:
                 keys: vec!["process_config.process_discovery.enabled".into()],
             }];
             assert!(!condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn env_bool_resolves_secret_backed_gate_values() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            secrets::clear_caches();
+            let dir = test_env::tempdir_for_secret_backend();
+            #[cfg(unix)]
+            let script = dir.path().join("secret_backend.sh");
+            #[cfg(unix)]
+            {
+                std::fs::write(
+                    &script,
+                    "#!/bin/sh\nprintf '{\"process_enabled\":{\"value\":\"true\"}}'\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"process_enabled\\\":{\\\"value\\\":\\\"true\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!("secret_backend_command: {}\n", script.to_string_lossy()),
+            );
+            let _enc = EnvGuard::set(
+                "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
+                "ENC[process_enabled]",
+            );
+
+            assert_eq!(
+                env_bool_for_config_key("process_config.process_collection.enabled", &agent,),
+                Some(true)
+            );
         });
     }
 
@@ -2062,6 +2577,49 @@ process_config:
     }
 
     #[test]
+    fn derived_secret_infrastructure_mode_enables_system_probe_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            secrets::clear_caches();
+            let dir = test_env::tempdir_for_secret_backend();
+            #[cfg(unix)]
+            let script = dir.path().join("secret_backend.sh");
+            #[cfg(unix)]
+            {
+                std::fs::write(
+                    &script,
+                    "#!/bin/sh\nprintf '{\"eudm\":{\"value\":\"end_user_device\"}}'\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"eudm\\\":{\\\"value\\\":\\\"end_user_device\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!(
+                    "secret_backend_command: {}\nprocess_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\ninfrastructure_mode: ENC[eudm]\n",
+                    script.to_string_lossy()
+                ),
+            );
+            let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
+            assert!(condition_config_any_met(&process_agent_windows_conditions(
+                agent, sysprobe
+            )));
+        });
+    }
+
+    #[test]
     fn derived_usm_env_enables_system_probe_gate() {
         with_env_lock(|| {
             clear_gated_env_vars();
@@ -2153,5 +2711,3 @@ process_config:
         );
     }
 }
-
-pub fn clear_secret_caches() {}
