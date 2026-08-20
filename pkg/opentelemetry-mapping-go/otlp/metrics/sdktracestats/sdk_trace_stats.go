@@ -26,8 +26,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	stats "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
@@ -43,78 +45,6 @@ type SDKTraceStatsError struct {
 	Err            error
 }
 
-// SDKTraceStatsPayload is a transport-independent APM stats payload.
-type SDKTraceStatsPayload struct {
-	HostName    string
-	Stats       []*SDKTraceStatsBucket
-	HostTags    []string
-	Source      string
-	Aggregate   bool
-	ContainerID string
-}
-
-// SDKTraceStatsBucket is one time bucket of SDK-generated trace stats.
-type SDKTraceStatsBucket struct {
-	Start    int64
-	Duration int64
-	Stats    []*SDKTraceGroupedStats
-}
-
-// SDKTraceGroupedStats contains the mapped fields for one SDK trace histogram datapoint.
-type SDKTraceGroupedStats struct {
-	Name              string
-	Env               string
-	Service           string
-	Resource          string
-	Version           string
-	HTTPStatusCode    int32
-	Synthetics        bool
-	OtherTags         []*SDKTraceStatsTag
-	HasHits           bool
-	HasErrors         bool
-	HasDuration       bool
-	Hits              uint64
-	Errors            uint64
-	Duration          uint64
-	TopLevelHits      uint64
-	SpanKind          string
-	IsTraceRoot       SDKTraceTrilean
-	GRPCStatusCode    string
-	OKSparseSketch    *SDKTraceSparseSketch
-	ErrorSparseSketch *SDKTraceSparseSketch
-}
-
-// SDKTraceStatsTag is a normalized trace stats tag.
-type SDKTraceStatsTag struct {
-	Name  string
-	Value string
-}
-
-// SDKTraceTrilean is a tri-state boolean matching the APM stats wire values.
-type SDKTraceTrilean int32
-
-const (
-	SDKTraceTrileanNotSet SDKTraceTrilean = iota
-	SDKTraceTrileanTrue
-	SDKTraceTrileanFalse
-)
-
-// SDKTraceSparseSketch is the lossless representation of an OTel explicit histogram.
-type SDKTraceSparseSketch struct {
-	K     []int32
-	N     []uint32
-	Basic *SDKTraceSparseSketchBasic
-}
-
-// SDKTraceSparseSketchBasic contains the scalar fields of a sparse sketch.
-type SDKTraceSparseSketchBasic struct {
-	Sum   float64
-	Avg   float64
-	Count int64
-	Min   float64
-	Max   float64
-}
-
 func (e SDKTraceStatsError) Error() string {
 	return fmt.Sprintf("datapoint %d: %v", e.DataPointIndex, e.Err)
 }
@@ -124,10 +54,15 @@ func IsSDKTraceMetric(name string) bool {
 	return name == SDKTraceMetricName
 }
 
+// MarshalStatsPayload serializes a trace stats payload for the APM stats intake.
+func MarshalStatsPayload(payload *stats.OTLPIntakeStatsPayload) ([]byte, error) {
+	return proto.Marshal(payload)
+}
+
 // BuildSDKTraceStatsPayload converts a Datadog SDK OTLP duration histogram into
-// the V4 APM stats payload with caller-provided envelope metadata. Invalid
+// an APM stats payload with caller-provided envelope metadata. Invalid
 // datapoints are skipped and returned as errors.
-func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric pmetric.Metric) (*SDKTraceStatsPayload, []SDKTraceStatsError) {
+func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric pmetric.Metric) (*stats.OTLPIntakeStatsPayload, []SDKTraceStatsError) {
 	if !IsSDKTraceMetric(metric.Name()) || metric.Type() != pmetric.MetricTypeHistogram {
 		return nil, nil
 	}
@@ -140,7 +75,7 @@ func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric p
 	env := attributes.GetEnv(rattrs)
 	version := attributes.GetVersion(rattrs)
 	dps := metric.Histogram().DataPoints()
-	buckets := make([]*SDKTraceStatsBucket, 0, dps.Len())
+	buckets := make([]*stats.StatsBucketV3, 0, dps.Len())
 	var conversionErrors []SDKTraceStatsError
 	for i := 0; i < dps.Len(); i++ {
 		dp := dps.At(i)
@@ -153,27 +88,27 @@ func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric p
 			continue
 		}
 		start, duration := sdkBucketWindow(dp.StartTimestamp(), dp.Timestamp())
-		buckets = append(buckets, &SDKTraceStatsBucket{
+		buckets = append(buckets, &stats.StatsBucketV3{
 			Start:    int64(start),
 			Duration: int64(duration),
-			Stats:    []*SDKTraceGroupedStats{groupedStats},
+			Stats:    []*stats.StatsBucketV3_GroupedStats{groupedStats},
 		})
 	}
 	if len(buckets) == 0 {
 		return nil, conversionErrors
 	}
 
-	return &SDKTraceStatsPayload{
+	return &stats.OTLPIntakeStatsPayload{
 		HostName:    host,
 		Stats:       buckets,
 		HostTags:    attributes.TagsFromAttributes(rattrs),
 		Source:      source,
 		Aggregate:   true,
-		ContainerID: attributes.GetContainerID(rattrs),
+		ContainerId: attributes.GetContainerID(rattrs),
 	}, conversionErrors
 }
 
-func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoint, unit string) (*SDKTraceGroupedStats, error) {
+func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoint, unit string) (*stats.StatsBucketV3_GroupedStats, error) {
 	attrs := dp.Attributes()
 	hits := dp.Count()
 	isError := attributes.GetOTelAttrVal(attrs, false, "status.code") == "STATUS_CODE_ERROR"
@@ -197,15 +132,15 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 	}
 
 	duration := sdkDurationNanos(dp, unit)
-	groupedStats := &SDKTraceGroupedStats{
+	groupedStats := &stats.StatsBucketV3_GroupedStats{
 		Service:        service,
 		Env:            env,
 		Version:        version,
 		Name:           sdkOperationName(attrs),
 		Resource:       resource,
 		SpanKind:       strings.ToLower(spanKindFromAttr(attrs).String()),
-		HTTPStatusCode: int32(attributes.GetStatusCode(attrs)),
-		GRPCStatusCode: sdkGRPCStatusCode(attrs),
+		HttpStatusCode: int32(attributes.GetStatusCode(attrs)),
+		GrpcStatusCode: sdkGRPCStatusCode(attrs),
 		IsTraceRoot:    sdkIsTraceRoot(attrs),
 		Hits:           hits,
 		HasHits:        hits > 0,
@@ -227,12 +162,12 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 	if isError {
 		groupedStats.ErrorSparseSketch = sketch
 	} else {
-		groupedStats.OKSparseSketch = sketch
+		groupedStats.OkSparseSketch = sketch
 	}
 	return groupedStats, nil
 }
 
-func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) (*SDKTraceSparseSketch, error) {
+func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) ([]byte, error) {
 	if dp == nil || dp.Count() == 0 {
 		return nil, errors.New("count cannot be zero")
 	}
@@ -288,10 +223,10 @@ func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) (*SDKTraceSp
 		}
 	}
 
-	sketch := &SDKTraceSparseSketch{
+	sketch := &stats.SparseSketch{
 		K: []int32{-32768},
 		N: []uint32{2},
-		Basic: &SDKTraceSparseSketchBasic{
+		Basic: &stats.SparseSketchBasic{
 			Min: minimum, Max: maximum, Sum: sum, Count: int64(dp.Count()),
 		},
 	}
@@ -314,7 +249,7 @@ func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) (*SDKTraceSp
 		sketch.K = append(sketch.K, int32(len(bounds)+i))
 		sketch.N = append(sketch.N, uint32(count))
 	}
-	return sketch, nil
+	return proto.Marshal(sketch)
 }
 
 func sdkDurationNanos(dp *pmetric.HistogramDataPoint, unit string) uint64 {
@@ -354,14 +289,14 @@ func sdkBucketWindow(startTimestamp, endTimestamp pcommon.Timestamp) (start, dur
 	return uint64(startTimestamp), uint64(endTimestamp - startTimestamp)
 }
 
-func sdkIsTraceRoot(attrs pcommon.Map) SDKTraceTrilean {
+func sdkIsTraceRoot(attrs pcommon.Map) stats.Trilean {
 	switch attributes.GetOTelAttrVal(attrs, false, "datadog.is_trace_root") {
 	case "true", "1":
-		return SDKTraceTrileanTrue
+		return stats.Trilean_TRUE
 	case "false", "0":
-		return SDKTraceTrileanFalse
+		return stats.Trilean_FALSE
 	default:
-		return SDKTraceTrileanNotSet
+		return stats.Trilean_NOT_SET
 	}
 }
 
@@ -403,17 +338,17 @@ func sdkAdditionalMetricTags(attrs pcommon.Map) []string {
 	return tags
 }
 
-func sdkOtherTags(attrs pcommon.Map) []*SDKTraceStatsTag {
+func sdkOtherTags(attrs pcommon.Map) []*stats.Tag {
 	tags := sdkAdditionalMetricTags(attrs)
 	if spanType := attributes.GetOTelAttrVal(attrs, false, "datadog.span.type"); spanType != "" {
 		tags = append(tags, "span.type:"+spanType)
 		sort.Strings(tags)
 	}
-	otherTags := make([]*SDKTraceStatsTag, 0, len(tags))
+	otherTags := make([]*stats.Tag, 0, len(tags))
 	for _, tag := range tags {
 		name, value, ok := strings.Cut(tag, ":")
 		if ok {
-			otherTags = append(otherTags, &SDKTraceStatsTag{Name: name, Value: value})
+			otherTags = append(otherTags, &stats.Tag{Name: name, Value: value})
 		}
 	}
 	return otherTags

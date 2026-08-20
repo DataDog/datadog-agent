@@ -8,10 +8,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb",
         "//pkg/trace/traceutil/normalize",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//pmetric",
         "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 
@@ -20,10 +22,12 @@ dd_agent_go_test(
     srcs = ["sdk_trace_stats_test.go"],
     embed = [":sdktracestats"],
     deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//pmetric",
         "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_golang_google_protobuf//proto",
     ],
 )

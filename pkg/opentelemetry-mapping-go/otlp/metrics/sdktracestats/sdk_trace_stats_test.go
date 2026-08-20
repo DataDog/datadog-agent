@@ -19,11 +19,13 @@ import (
 	"testing"
 	"time"
 
+	stats "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/protobuf/proto"
 )
 
 func sdkTraceMetric(unit string, count uint64, sum float64, attrs map[string]string) pmetric.Metric {
@@ -44,7 +46,7 @@ func sdkTraceMetric(unit string, count uint64, sum float64, attrs map[string]str
 	return metric
 }
 
-func groupedByName(payload *SDKTraceStatsPayload, name string) *SDKTraceGroupedStats {
+func groupedByName(payload *stats.OTLPIntakeStatsPayload, name string) *stats.StatsBucketV3_GroupedStats {
 	if payload == nil {
 		return nil
 	}
@@ -58,13 +60,15 @@ func groupedByName(payload *SDKTraceStatsPayload, name string) *SDKTraceGroupedS
 	return nil
 }
 
-func sparseSketch(t testing.TB, sketch *SDKTraceSparseSketch) *SDKTraceSparseSketch {
+func sparseSketch(t testing.TB, raw []byte) *stats.SparseSketch {
 	t.Helper()
-	require.NotNil(t, sketch)
+	require.NotEmpty(t, raw)
+	sketch := &stats.SparseSketch{}
+	require.NoError(t, proto.Unmarshal(raw, sketch))
 	return sketch
 }
 
-func statsTags(tags []*SDKTraceStatsTag) []string {
+func statsTags(tags []*stats.Tag) []string {
 	values := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		values = append(values, tag.Name+":"+tag.Value)
@@ -104,7 +108,7 @@ func TestBuildSDKTraceStatsPayload(t *testing.T) {
 	require.NotNil(t, payload)
 	assert.Equal(t, "agent-host", payload.HostName)
 	assert.Equal(t, "test-source", payload.Source)
-	assert.Equal(t, "container-123", payload.ContainerID)
+	assert.Equal(t, "container-123", payload.ContainerId)
 	assert.True(t, payload.Aggregate)
 	require.Len(t, payload.Stats, 1)
 	assert.Equal(t, int64(10), payload.Stats[0].Start)
@@ -125,12 +129,18 @@ func TestBuildSDKTraceStatsPayload(t *testing.T) {
 	assert.Equal(t, uint64(5), groupedStats.TopLevelHits)
 	assert.Equal(t, uint64(2e9), groupedStats.Duration)
 	assert.True(t, groupedStats.HasDuration)
-	assert.Equal(t, int32(500), groupedStats.HTTPStatusCode)
-	assert.Equal(t, "5", groupedStats.GRPCStatusCode)
-	assert.Equal(t, SDKTraceTrileanTrue, groupedStats.IsTraceRoot)
+	assert.Equal(t, int32(500), groupedStats.HttpStatusCode)
+	assert.Equal(t, "5", groupedStats.GrpcStatusCode)
+	assert.Equal(t, stats.Trilean_TRUE, groupedStats.IsTraceRoot)
 	assert.Equal(t, []string{"origin:synthetics", "peer.service:users-db", "span.type:web"}, statsTags(groupedStats.OtherTags))
-	assert.Nil(t, groupedStats.OKSparseSketch)
+	assert.Nil(t, groupedStats.OkSparseSketch)
 	assert.Equal(t, int64(5), sparseSketch(t, groupedStats.ErrorSparseSketch).Basic.Count)
+
+	raw, err := MarshalStatsPayload(payload)
+	require.NoError(t, err)
+	roundTrip := &stats.OTLPIntakeStatsPayload{}
+	require.NoError(t, proto.Unmarshal(raw, roundTrip))
+	assert.True(t, proto.Equal(payload, roundTrip))
 }
 
 func TestSpanKindFromAttr(t *testing.T) {
@@ -171,7 +181,7 @@ func TestBuildSDKTraceStatsPayloadPreservesExplicitHistogram(t *testing.T) {
 	require.Empty(t, conversionErrors)
 	groupedStats := groupedByName(payload, "op")
 	require.NotNil(t, groupedStats)
-	sketch := sparseSketch(t, groupedStats.OKSparseSketch)
+	sketch := sparseSketch(t, groupedStats.OkSparseSketch)
 	assert.Equal(t, []int32{-32768, 0, 1, 2, 3, 4}, sketch.K)
 	assert.Equal(t, []uint32{2, math.Float32bits(0.01), math.Float32bits(0.1), 1, 2, 3}, sketch.N)
 	assert.Equal(t, int64(6), sketch.Basic.Count)
