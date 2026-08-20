@@ -274,9 +274,11 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 
 		memInfo, err := device.SafeDevice.GetMemoryInfo()
 		if err != nil {
-			return nil, err
+			log.Warnf("error getting physical device memory info for device %s: %v", device.Name, err)
+			device.Memory = 1 // avoid division by zero
+		} else {
+			device.Memory = memInfo.Total
 		}
-		device.Memory = memInfo.Total
 	}
 
 	return device, nil
