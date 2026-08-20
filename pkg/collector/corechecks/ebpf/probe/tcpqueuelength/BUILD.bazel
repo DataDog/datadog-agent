@@ -25,18 +25,89 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
-        "//pkg/ebpf",
-        "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/bytecode/runtime",
-        "//pkg/ebpf/features",
-        "//pkg/ebpf/maps",
-        "//pkg/util/kernel",
-        "//pkg/util/log",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@org_golang_x_sys//unix",
-    ],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/bytecode/runtime",
+            "//pkg/ebpf/features",
+            "//pkg/ebpf/maps",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/bytecode/runtime",
+            "//pkg/ebpf/features",
+            "//pkg/ebpf/maps",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+            "//pkg/ebpf",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # tcp_queue_length_kern_types_linux_test.go and tcp_queue_length_test.go must be
@@ -63,7 +134,7 @@ dd_agent_go_test(
     # keep: split from tcpqueuelength_types_test; see comment above.
     srcs = ["tcp_queue_length_test.go"],
     embed = [":tcpqueuelength"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     tags = ["requires_ebpf"],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [
