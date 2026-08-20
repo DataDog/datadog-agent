@@ -599,10 +599,23 @@ fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
     match value {
         // Plain YAML 1.1 bools (`yes`/`on`/…) are coerced to bool at load time in [`yaml_load`].
         serde_yaml::Value::Bool(enabled) => Some(*enabled),
-        serde_yaml::Value::Number(number) => number.as_i64().map(|n| n != 0),
+        // `cast.ToBoolE`: any non-zero number is true, including yaml.v2 floats such as `1.0`.
+        serde_yaml::Value::Number(number) => Some(number_as_bool(number)),
         // Quoted scalars and env vars: `strconv.ParseBool` only.
         serde_yaml::Value::String(text) => Some(parse_agent_bool_string(text).unwrap_or(false)),
         _ => None,
+    }
+}
+
+fn number_as_bool(number: &serde_yaml::Number) -> bool {
+    if let Some(n) = number.as_i64() {
+        n != 0
+    } else if let Some(n) = number.as_u64() {
+        n != 0
+    } else if let Some(n) = number.as_f64() {
+        n != 0.0
+    } else {
+        false
     }
 }
 
@@ -1971,6 +1984,22 @@ process_config:
             Some(false)
         );
         assert_eq!(value_as_bool(&serde_yaml::Value::Bool(true)), Some(true));
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Number(1.into())),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Number(0.into())),
+            Some(false)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Number(1.0.into())),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Number(0.0.into())),
+            Some(false)
+        );
     }
 
     #[test]
@@ -2002,6 +2031,44 @@ process_config:
                 dir.path(),
                 "datadog.yaml",
                 "process_config:\n  process_discovery:\n    enabled: \"yes\"\n",
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_discovery.enabled".into()],
+            }];
+            assert!(!condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn plain_yaml_float_one_enables_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_discovery:\n    enabled: 1.0\n",
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_discovery.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn quoted_yaml_float_does_not_enable_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_discovery:\n    enabled: \"1.0\"\n",
             );
             let conditions = vec![ConditionConfigFile {
                 path: agent,
