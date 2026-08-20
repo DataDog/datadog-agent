@@ -218,10 +218,6 @@ fn format_last_exit(exit_code: Option<i32>, signal: Option<i32>) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// list
-// ---------------------------------------------------------------------------
-
 async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
         .list(proto::ListRequest {})
@@ -332,10 +328,6 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// describe
-// ---------------------------------------------------------------------------
-
 async fn cmd_describe(
     client: &mut ProcessManagerClient<Channel>,
     name_or_uuid: &str,
@@ -429,10 +421,6 @@ async fn cmd_describe(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// status
-// ---------------------------------------------------------------------------
-
 async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
         .get_status(proto::GetStatusRequest {})
@@ -490,10 +478,6 @@ fn format_duration(secs: u64) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// config
-// ---------------------------------------------------------------------------
-
 async fn cmd_config(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
         .get_config(proto::GetConfigRequest {})
@@ -518,10 +502,6 @@ async fn cmd_config(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
     println!("Runtime Processes:   {}", resp.runtime_processes);
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// start
-// ---------------------------------------------------------------------------
 
 async fn cmd_start(
     client: &mut ProcessManagerClient<Channel>,
@@ -555,10 +535,6 @@ async fn cmd_start(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// stop
-// ---------------------------------------------------------------------------
-
 async fn cmd_stop(
     client: &mut ProcessManagerClient<Channel>,
     name_or_uuid: &str,
@@ -586,10 +562,6 @@ async fn cmd_stop(
     println!("  State:  {}", state_name(resp.state));
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// create
-// ---------------------------------------------------------------------------
 
 #[allow(clippy::too_many_arguments)]
 async fn cmd_create(
@@ -647,47 +619,11 @@ async fn cmd_create(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// reload
-// ---------------------------------------------------------------------------
-
-async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
-    let resp = client
+async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, _json: bool) -> Result<(), String> {
+    client
         .reload_config(proto::ReloadConfigRequest {})
         .await
-        .map_err(grpc_err)?
-        .into_inner();
-
-    if json {
-        let val = serde_json::json!({
-            "added": resp.added,
-            "removed": resp.removed,
-            "modified": resp.modified,
-            "unchanged": resp.unchanged,
-        });
-        println!("{}", serde_json::to_string_pretty(&val).unwrap());
-        return Ok(());
-    }
-
-    if !resp.added.is_empty() {
-        println!("Added:     {}", resp.added.join(", "));
-    }
-    if !resp.removed.is_empty() {
-        println!("Removed:   {}", resp.removed.join(", "));
-    }
-    if !resp.modified.is_empty() {
-        println!("Modified:  {}", resp.modified.join(", "));
-    }
-    if !resp.unchanged.is_empty() {
-        println!("Unchanged: {}", resp.unchanged.join(", "));
-    }
-    if resp.added.is_empty()
-        && resp.removed.is_empty()
-        && resp.modified.is_empty()
-        && resp.unchanged.is_empty()
-    {
-        println!("No changes");
-    }
+        .map_err(grpc_err)?;
     Ok(())
 }
 

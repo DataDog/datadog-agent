@@ -4,19 +4,18 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::process::ManagedProcess;
+use std::time::Instant;
 
-/// Shut down processes in the given index order (typically reverse startup order).
-/// Sends SIGTERM to all first, then waits for each in order.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();
     }
+    let signal_time = Instant::now();
     for &idx in order {
-        processes[idx].wait_for_stop().await;
+        processes[idx].wait_for_stop_since(signal_time).await;
     }
 }
 
-/// Convenience wrapper: shut down all processes in forward index order.
 #[cfg(test)]
 pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
     let order: Vec<usize> = (0..processes.len()).collect();
@@ -28,6 +27,7 @@ mod tests {
     use super::*;
     use crate::state::ProcessState;
     use crate::test_helpers;
+    use std::time::{Duration, Instant};
 
     fn sleep_config() -> crate::config::ProcessConfig {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -75,11 +75,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_shutdown_all_after_take_child() {
+    async fn test_shutdown_all_after_take_handle() {
         let mut proc =
             ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), sleep_config());
         proc.spawn().unwrap();
-        let _child = proc.take_child();
+        let _handle = proc.take_handle();
 
         assert!(proc.is_running(), "state should still be Running");
         let mut procs = vec![proc];
@@ -87,7 +87,7 @@ mod tests {
         assert_eq!(
             procs[0].state(),
             ProcessState::Stopped,
-            "shutdown should transition to Stopped even without child handle"
+            "shutdown should transition to Stopped even without process handle"
         );
     }
 
@@ -116,5 +116,30 @@ mod tests {
     async fn test_shutdown_ordered_empty() {
         let mut procs: Vec<ManagedProcess> = vec![];
         shutdown_ordered(&mut procs, &[]).await;
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_ordered_shared_graceful_budget() {
+        let (cmd, args) = test_helpers::trap_term_sleep();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.stop_timeout = Some(2);
+
+        let mut p1 =
+            ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), cfg.clone());
+        let mut p2 = ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), cfg);
+        p1.spawn().unwrap();
+        p2.spawn().unwrap();
+
+        let mut procs = vec![p1, p2];
+        let started = Instant::now();
+        shutdown_ordered(&mut procs, &[0, 1]).await;
+
+        assert_eq!(procs[0].state(), ProcessState::Stopped);
+        assert_eq!(procs[1].state(), ProcessState::Stopped);
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "shared graceful budget should not apply two full stop timeouts sequentially, took {:?}",
+            started.elapsed()
+        );
     }
 }
