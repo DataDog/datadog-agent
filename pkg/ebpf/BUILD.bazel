@@ -218,41 +218,106 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/telemetry/def",
-        "//comp/core/telemetry/impl",
-        "//comp/core/telemetry/impl/noops",
-        "//comp/remote-config/rcclient/def",
         "//pkg/config/setup",
         "//pkg/config/utils",
-        "//pkg/ebpf/btf",
         "//pkg/ebpf/bytecode",
         "//pkg/process/util",
-        "//pkg/remoteconfig/state",
         "//pkg/system-probe/config",
-        "//pkg/util/archive",
-        "//pkg/util/funcs",
         "//pkg/util/kernel",
-        "//pkg/util/log",
-        "//pkg/util/sync",
-        "//pkg/version",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_cilium_ebpf//asm",
-        "@com_github_cilium_ebpf//btf",
-        "@com_github_cilium_ebpf//link",
-        "@com_github_cilium_ebpf//perf",
-        "@com_github_cilium_ebpf//ringbuf",
-        "@com_github_cilium_ebpf//rlimit",
-        "@com_github_prometheus_client_golang//prometheus",
     ] + select({
-        "@rules_go//go/platform:android": [
-            "@org_golang_x_sys//unix",
+        "@rules_go//go/platform:aix": [
+            "@com_github_prometheus_client_golang//prometheus",
         ],
-        "@rules_go//go/platform:linux": [
+        "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl",
+            "//comp/core/telemetry/impl/noops",
+            "//comp/remote-config/rcclient/def",
+            "//pkg/ebpf/btf",
             "//pkg/ebpf/maps",
             "//pkg/ebpf/names",
+            "//pkg/remoteconfig/state",
+            "//pkg/util/archive",
+            "//pkg/util/funcs",
+            "//pkg/util/log",
+            "//pkg/util/sync",
+            "//pkg/version",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_cilium_ebpf//perf",
+            "@com_github_cilium_ebpf//ringbuf",
+            "@com_github_cilium_ebpf//rlimit",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_prometheus_client_golang//prometheus",
             "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl",
+            "//comp/core/telemetry/impl/noops",
+            "//comp/remote-config/rcclient/def",
+            "//pkg/ebpf/btf",
+            "//pkg/ebpf/maps",
+            "//pkg/ebpf/names",
+            "//pkg/remoteconfig/state",
+            "//pkg/util/archive",
+            "//pkg/util/funcs",
+            "//pkg/util/log",
+            "//pkg/util/sync",
+            "//pkg/version",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_cilium_ebpf//perf",
+            "@com_github_cilium_ebpf//ringbuf",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_prometheus_client_golang//prometheus",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_prometheus_client_golang//prometheus",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_prometheus_client_golang//prometheus",
         ],
         "//conditions:default": [],
     }),
@@ -263,7 +328,7 @@ dd_agent_go_test(
     name = "types_linux_test",
     srcs = ["types_linux_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     # keep
     deps = [
         "//pkg/ebpf/ebpftest:cgo_align",
@@ -275,7 +340,7 @@ dd_agent_go_test(
     name = "btf_test",
     srcs = ["btf_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
@@ -290,7 +355,7 @@ dd_agent_go_test(
     name = "co_re_telemetry_test",
     srcs = ["co_re_telemetry_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     deps = ["@com_github_stretchr_testify//assert"],
 )
@@ -300,7 +365,7 @@ dd_agent_go_test(
     name = "feature_test",
     srcs = ["feature_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
@@ -317,7 +382,7 @@ dd_agent_go_test(
     name = "ksyms_bpf_test",
     srcs = ["ksyms_bpf_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
@@ -331,7 +396,7 @@ dd_agent_go_test(
     name = "ksyms_test",
     srcs = ["ksyms_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     tags = ["requires_ebpf"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
@@ -341,7 +406,7 @@ dd_agent_go_test(
     name = "lockcontention_test",
     srcs = ["lockcontention_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     deps = [
         "//pkg/util/kernel",
@@ -356,7 +421,7 @@ dd_agent_go_test(
     name = "manager_test",
     srcs = ["manager_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
@@ -374,7 +439,7 @@ dd_agent_go_test(
     name = "map_cleaner_test",
     srcs = ["map_cleaner_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
@@ -393,7 +458,7 @@ dd_agent_go_test(
     name = "preprocess_test",
     srcs = ["preprocess_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     deps = ["@com_github_stretchr_testify//assert"],
 )
@@ -403,7 +468,7 @@ dd_agent_go_test(
     name = "printk_patcher_test",
     srcs = ["printk_patcher_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
@@ -425,7 +490,7 @@ dd_agent_go_test(
     name = "probes_test",
     srcs = ["probes_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
@@ -440,7 +505,7 @@ dd_agent_go_test(
     name = "rc_btf_test",
     srcs = ["rc_btf_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
@@ -458,7 +523,7 @@ dd_agent_go_test(
     name = "time_test",
     srcs = ["time_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",
