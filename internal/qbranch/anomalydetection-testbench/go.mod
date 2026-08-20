@@ -48,6 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs-library v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.80.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.81.0 // indirect
