@@ -620,23 +620,21 @@ impl ManagedProcess {
                     }
                 }
             }
-            ForceKillWaitTarget::Child => {
-                match time::timeout(force_timeout, self.wait()).await {
-                    Ok(Ok(status)) => Some(status),
-                    Ok(Err(e)) => {
-                        warn!("[{}] wait failed after force-kill: {e:#}", self.name);
-                        None
-                    }
-                    Err(_) => {
-                        warn!("[{}] still running after force-kill, giving up", self.name);
-                        #[cfg(windows)]
-                        {
-                            self.cancel_process_wait();
-                        }
-                        None
-                    }
+            ForceKillWaitTarget::Child => match time::timeout(force_timeout, self.wait()).await {
+                Ok(Ok(status)) => Some(status),
+                Ok(Err(e)) => {
+                    warn!("[{}] wait failed after force-kill: {e:#}", self.name);
+                    None
                 }
-            }
+                Err(_) => {
+                    warn!("[{}] still running after force-kill, giving up", self.name);
+                    #[cfg(windows)]
+                    {
+                        self.cancel_process_wait();
+                    }
+                    None
+                }
+            },
         }
     }
 
@@ -701,7 +699,7 @@ impl ManagedProcess {
     }
 
     pub async fn wait_for_stop(&mut self) {
-        self.wait_for_stop_since(ShutdownBudget::unlimited(Instant::now()))
+        self.wait_for_stop_since(ShutdownBudget::unlimited(Instant::now().into()))
             .await;
     }
 
@@ -738,7 +736,7 @@ impl ManagedProcess {
             _ => {
                 #[cfg(windows)]
                 self.ensure_windows_spawn_resources_released(ShutdownBudget::unlimited(
-                    Instant::now(),
+                    Instant::now().into(),
                 ))
                 .await;
                 debug!(
