@@ -316,8 +316,10 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	//   - no forwarding proxy is configured.  a proxied Agent stays on v2 (per the v3 migration RFC);
 	// https://datadoghq.atlassian.net/wiki/spaces/AM/pages/6164349836/Validating+Customer+Migration+to+V3+payload#Agent-Behind-a-Proxy
 	//   - use_v3_api.series.enabled is still the datadog_only default.
+	// Off by default behind the datadog.otelagent.MetricsV3Series gate (staged rollout).
 	proxyConfigured := pkgconfig.GetString("proxy.https") != "" || pkgconfig.GetString("proxy.http") != ""
-	if ddURL == "https://api."+ddc.API.Site &&
+	if metricsV3SeriesGate.IsEnabled() &&
+		ddURL == "https://api."+ddc.API.Site &&
 		configutils.IsDatadogURL("https://app."+ddc.API.Site) &&
 		!proxyConfigured &&
 		strings.ToLower(strings.TrimSpace(pkgconfig.GetString("use_v3_api.series.enabled"))) == "datadog_only" {

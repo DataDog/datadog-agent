@@ -54,6 +54,27 @@ func TestNoURIsProvided(t *testing.T) {
 	assert.Error(t, err, "no URIs provided for configs")
 }
 
+// enableV3SeriesGate turns the DDOT v3-series feature gate on for the test (it is Alpha /
+// off by default) and restores it afterwards.
+func enableV3SeriesGate(t *testing.T) {
+	t.Helper()
+	require.NoError(t, featuregate.GlobalRegistry().Set("datadog.otelagent.MetricsV3Series", true))
+	t.Cleanup(func() { _ = featuregate.GlobalRegistry().Set("datadog.otelagent.MetricsV3Series", false) })
+}
+
+// TestDDOTSeriesV3GatedOffByDefault verifies that with the feature gate off (the default) a
+// default Datadog deployment is not opted into v3.
+func TestDDOTSeriesV3GatedOffByDefault(t *testing.T) {
+	configmock.New(t)
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	require.Equal(t, "https://api.datadoghq.com", c.GetString("dd_url"))
+	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
+	_, present := endpoints[c.GetString("dd_url")]
+	assert.False(t, present, "gate off (default) must not opt into v3")
+}
+
 // TestDDOTSeriesV3EnabledForDefaultEndpoint verifies DDOT opts its default Datadog series
 // endpoint in to the v3 metrics intake. The default endpoint is api.<site>, which
 // datadog_only's IsDatadogURL does not recognize, so without an explicit per-endpoint
@@ -61,6 +82,7 @@ func TestNoURIsProvided(t *testing.T) {
 // the forwarder resolver reports as its config name.
 func TestDDOTSeriesV3EnabledForDefaultEndpoint(t *testing.T) {
 	configmock.New(t)
+	enableV3SeriesGate(t)
 	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
 	require.NoError(t, err)
 
@@ -81,6 +103,7 @@ func TestDDOTSeriesV3EnabledForDefaultEndpoint(t *testing.T) {
 // preserving the safeguard that keeps non-Datadog destinations on v2.
 func TestDDOTSeriesV3NotForcedForCustomEndpoint(t *testing.T) {
 	configmock.New(t)
+	enableV3SeriesGate(t)
 	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_custom_metrics_endpoint.yaml"})
 	require.NoError(t, err)
 
@@ -100,6 +123,7 @@ func TestDDOTSeriesV3NotForcedForCustomEndpoint(t *testing.T) {
 // (v2) — guarding against shipping an unsupported v3 payload to a non-Datadog intake.
 func TestDDOTSeriesV3NotForcedForNonDatadogSite(t *testing.T) {
 	configmock.New(t)
+	enableV3SeriesGate(t)
 	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_non_datadog_site.yaml"})
 	require.NoError(t, err)
 
@@ -119,6 +143,7 @@ func TestDDOTSeriesV3NotForcedForNonDatadogSite(t *testing.T) {
 // the v3 migration RFC a proxied deployment stays on v2 under datadog_only.
 func TestDDOTSeriesV3NotForcedBehindProxy(t *testing.T) {
 	configmock.New(t)
+	enableV3SeriesGate(t)
 	t.Setenv("DD_PROXY_HTTPS", "http://proxy.corp.internal:3128")
 	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
 	require.NoError(t, err)
@@ -138,6 +163,7 @@ func TestDDOTSeriesV3NotForcedBehindProxy(t *testing.T) {
 // would otherwise outrank use_v3_api.series.enabled).
 func TestDDOTSeriesV3RespectsExplicitOptOut(t *testing.T) {
 	configmock.New(t)
+	enableV3SeriesGate(t)
 	t.Setenv("DD_USE_V3_API_SERIES_ENABLED", "false")
 	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
 	require.NoError(t, err)

@@ -1,10 +1,9 @@
 ---
 enhancements:
   - |
-    The Datadog Distribution of the OpenTelemetry Collector (DDOT) now sends series
+    The Datadog Distribution of the OpenTelemetry Collector (DDOT) can now send series
     metrics to Datadog using the v3 metrics intake, reducing metrics egress bandwidth.
-    This aligns DDOT with the core Agent: series follow the ``use_v3_api.series.enabled``
-    setting, whose default (``datadog_only``) uses the v3 intake for Datadog destinations
-    while other destinations continue to use the v2 intake. To keep using the v2 intake,
-    set ``use_v3_api.series.enabled`` to ``false`` (or the ``DD_USE_V3_API_SERIES_ENABLED``
-    environment variable).
+    This is behind the ``datadog.otelagent.MetricsV3Series`` feature gate, which is off by
+    default; enable it with ``--feature-gates=+datadog.otelagent.MetricsV3Series``. When
+    enabled, series to recognized Datadog sites use the v3 intake, while non-Datadog,
+    custom, or proxied destinations continue to use the v2 intake.
