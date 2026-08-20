@@ -72,6 +72,12 @@ type LeaderEngine struct {
 	leaderElector       *leaderelection.LeaderElector
 	lockType            string
 
+	// initMutex serializes concurrent callers of init; initDone lets a later
+	// caller that arrived during the retrier's unlocked window skip re-running
+	// init after an earlier caller already succeeded.
+	initMutex sync.Mutex
+	initDone  bool
+
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
 
@@ -161,6 +167,13 @@ func CreateGlobalLeaderEngine(ctx context.Context) *LeaderEngine {
 }
 
 func (le *LeaderEngine) init() error {
+	le.initMutex.Lock()
+	defer le.initMutex.Unlock()
+
+	if le.initDone {
+		return nil
+	}
+
 	var err error
 
 	if le.HolderIdentity == "" {
@@ -215,6 +228,7 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 	log.Debugf("Leader Engine for %q successfully initialized", le.HolderIdentity)
+	le.initDone = true
 	return nil
 }
 

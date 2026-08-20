@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -724,4 +725,36 @@ func TestWaitForLeaderEngine_IdempotentCreate(t *testing.T) {
 	assert.Same(t, preExisting, le, "WaitForLeaderEngine must reuse the existing global engine")
 	assert.Equal(t, 1, attempts)
 	assert.Equal(t, retry.OK, globalLeaderEngine.initRetry.RetryStatus())
+}
+
+// TestInit_GuardsConcurrentReentry tests that init guards against concurrent reentry.
+func TestInit_GuardsConcurrentReentry(t *testing.T) {
+	sentinel := fake.NewSimpleClientset().CoreV1()
+	le := &LeaderEngine{
+		ctx:             context.Background(),
+		HolderIdentity:  "alyssa",
+		LeaseName:       "datadog-leader-election",
+		LeaderNamespace: "default",
+		LeaseDuration:   60 * time.Second,
+		coreClient:      sentinel,
+		leaderMetric:    &dummyGauge{},
+		initDone:        true,
+	}
+
+	const callers = 16
+	var wg sync.WaitGroup
+	wg.Add(callers)
+	start := make(chan struct{})
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer wg.Done()
+			<-start
+			_ = le.init()
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	assert.Same(t, sentinel, le.coreClient, "init must not re-run after a prior success")
+	assert.True(t, le.initDone, "initDone must remain set")
 }
