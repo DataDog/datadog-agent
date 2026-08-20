@@ -330,3 +330,51 @@ func (s *captureRemoteQueryExecuteStream) Recv() (*pb.RemoteQueryExecuteChunk, e
 	s.chunks = s.chunks[1:]
 	return chunk, nil
 }
+
+func TestExecuteActionReturnsUploadReceiptWithoutBulkData(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Integration: "postgres", Format: "csv"}}}, ChunkIndex: 0},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: 18, ChunksEmitted: 3, UploadReceipt: &pb.RemoteQueryUploadReceipt{Mode: "POC_PUBLIC_CHUNKED_UPLOAD", UploadId: "upload-01k", BucketName: "rq-bucket", ManifestPath: "manifests/upload-01k.json", TotalBytes: 18, TotalRows: 2, ChunkCount: 3, Sha256: "abc123"}}}}, ChunkIndex: 1},
+		{ChunkIndex: 2, Final: true},
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration": "postgres",
+		"operation":   "copy_stream",
+		"format":      "csv",
+		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":       "SELECT city, country FROM cities ORDER BY city",
+		"copyLimits":  map[string]interface{}{"chunkBytes": 8, "maxBytes": 24, "maxRowBytes": 32, "timeoutMs": 1000},
+		"resultDelivery": map[string]interface{}{
+			"mode": "POC_PUBLIC_CHUNKED_UPLOAD", "uploadId": "upload-01k", "baseUrl": "https://api.datadoghq.com", "token": "scoped-upload-token", "chunkBytes": 8, "maxBytes": 24, "format": "csv", "compression": "none",
+		},
+	}), nil)
+
+	require.NoError(t, err)
+	// The request sent to AgentSecure carries the full delivery (incl. baseUrl/token); Agent Go retains the secrets.
+	require.NotNil(t, client.request.GetResultDelivery())
+	assert.Equal(t, "https://api.datadoghq.com", client.request.GetResultDelivery().GetBaseUrl())
+	assert.Equal(t, "scoped-upload-token", client.request.GetResultDelivery().GetToken())
+
+	out := output.(map[string]interface{})
+	assert.Equal(t, "SUCCEEDED", out["status"])
+	assert.Equal(t, "csv", out["format"])
+	assert.Equal(t, "utf-8", out["encoding"])
+	assert.Equal(t, int64(18), out["bytes"])
+	receipt, ok := out["uploadReceipt"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "POC_PUBLIC_CHUNKED_UPLOAD", receipt["mode"])
+	assert.Equal(t, "upload-01k", receipt["uploadId"])
+	assert.Equal(t, "rq-bucket", receipt["bucketName"])
+	assert.Equal(t, "manifests/upload-01k.json", receipt["manifestPath"])
+	assert.Equal(t, int64(18), receipt["totalBytes"])
+	assert.Equal(t, int64(2), receipt["totalRows"])
+	assert.Equal(t, int32(3), receipt["chunkCount"])
+	assert.Equal(t, "abc123", receipt["sha256"])
+	assertNoPayloadDuplicateFields(t, out)
+	assert.NotContains(t, out, "data")
+	assert.NotContains(t, out, "data_base64")
+	assert.NotContains(t, out, "stream_summary")
+	assert.NotContains(t, out, "stream_timing")
+}
