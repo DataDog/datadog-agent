@@ -6,11 +6,6 @@
 use crate::process::ManagedProcess;
 use std::time::Instant;
 
-/// Shut down processes in the given index order (typically reverse startup order).
-///
-/// Sends graceful stop to all first so every child begins shutting down together, then
-/// waits sequentially. Each wait uses the remaining per-process graceful budget since
-/// the shared stop signal, so stubborn children do not each get a fresh full timeout.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();

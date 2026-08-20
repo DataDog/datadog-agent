@@ -25,15 +25,12 @@ pub fn ipc_path() -> PathBuf {
     dd_procmgr_client::ipc_path()
 }
 
-/// Named pipes don't require filesystem preparation.
 pub fn prepare(_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Named pipe permissions are set via security descriptors at creation time.
 pub fn set_permissions(_path: &Path) {}
 
-/// Named pipes are kernel objects; no filesystem cleanup needed.
 pub fn cleanup(_path: &Path) {}
 
 #[derive(Clone)]
@@ -45,8 +42,6 @@ pub struct PipeCallerAuth {
 #[derive(Clone, Copy, Debug)]
 struct PipeHandle(HANDLE);
 
-// SAFETY: Win32 HANDLE values are safe to send/share across threads; the kernel
-// serialises concurrent operations on the same pipe handle.
 unsafe impl Send for PipeHandle {}
 unsafe impl Sync for PipeHandle {}
 
@@ -58,7 +53,6 @@ impl PipeCallerAuth {
         }
     }
 
-    /// `true` when the client is LocalSystem or in the built-in Administrators group.
     pub fn may_mutate(&self) -> bool {
         *self
             .may_mutate
@@ -145,13 +139,9 @@ where
         .await
         .context("gRPC server error");
 
-    // Always cancel the accept loop before returning — even on error — so we
-    // don't leak a background task blocked on server.connect().
+    // Cancel the accept loop before returning so we do not leak a task blocked on connect().
     accept_handle.abort();
 
-    // Surface the accept-loop error when tonic returned successfully (e.g. the
-    // incoming stream ended because the accept loop hit a fatal error and
-    // dropped the sender).
     serve_result?;
     match accept_handle.await {
         Ok(Ok(())) => {}
@@ -164,9 +154,7 @@ where
     Ok(())
 }
 
-/// Accept connections on the named pipe, sending each connected instance
-/// through the channel. Creates a new pipe instance after each connection
-/// so the next client can connect.
+/// Accept connections on the named pipe and create a new instance after each connect.
 async fn accept_loop(
     pipe_name: OsString,
     mut server: NamedPipeServer,

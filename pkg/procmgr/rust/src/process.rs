@@ -636,8 +636,6 @@ impl ManagedProcess {
         false
     }
 
-    /// Mark the process for stop and send a graceful-stop signal. Does not wait
-    /// for exit; pair with [`Self::wait_for_stop`] when shutting down many processes.
     pub fn request_stop(&mut self) {
         match self.state {
             ProcessState::Running => {
@@ -652,16 +650,10 @@ impl ManagedProcess {
         }
     }
 
-    /// Wait for a process that was signaled with [`Self::request_stop`] to exit,
-    /// force-killing on timeout and releasing Windows spawn resources.
     pub async fn wait_for_stop(&mut self) {
         self.wait_for_stop_since(StopInstant::now()).await;
     }
 
-    /// Like [`Self::wait_for_stop`], but measures the graceful budget from
-    /// `signal_time` instead of from when this wait starts.
-    ///
-    /// Used during ordered shutdown so every child shares one stop deadline.
     pub(crate) async fn wait_for_stop_since(&mut self, signal_time: StopInstant) {
         let graceful_budget = self.graceful_budget_since(signal_time);
         match self.state {

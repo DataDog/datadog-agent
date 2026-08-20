@@ -165,10 +165,6 @@ func (s *procmgrWindowsSuite) TestProcmgrServiceRunsAsLocalSystem() {
 	}, 60*time.Second, 2*time.Second)
 }
 
-// Regression: mutating RPC auth must allow elevated Administrators over
-// identification-level named pipes (tokio default; same as COAT/go-winio).
-// CheckTokenMembership on the impersonated client token must not require
-// SecurityImpersonation pipe connection level.
 func (s *procmgrWindowsSuite) TestAdministratorCreateViaNamedPipe() {
 	host := s.Env().RemoteHost
 
@@ -186,7 +182,6 @@ $id.Name
 	assert.NotContains(s.T(), strings.ToUpper(caller), "SYSTEM")
 
 	const procName = "e2e-admin-pipe-create"
-	// Use cmd.exe (/c exit) so PowerShell does not bind dash-prefixed args like -NoProfile.
 	createOut, err := host.Execute(s.platform.cliCmd(fmt.Sprintf(
 		`create --name %s --command C:\Windows\System32\cmd.exe --args /c --args exit --no-auto-start --description 'E2E admin pipe auth'`,
 		procName,
