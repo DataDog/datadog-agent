@@ -699,9 +699,9 @@ type SetNSEventSerializer struct {
 	FD int `json:"fd"`
 	// Requested namespace types, ANY when the syscall let the kernel infer the type
 	NSType string `json:"nstype"`
-	// Mount namespace ID of the thread once the syscall returned
+	// Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved
 	MntNS uint32 `json:"mntns,omitempty"`
-	// Network namespace ID of the thread once the syscall returned
+	// Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved
 	NetNS uint32 `json:"netns,omitempty"`
 }
 
