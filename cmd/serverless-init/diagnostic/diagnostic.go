@@ -25,8 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	servertags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
+	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const diagnosticEnvVar = "DD_SERVERLESS_DIAGNOSTIC_INFO"

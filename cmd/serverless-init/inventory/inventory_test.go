@@ -36,18 +36,40 @@ func TestWorkloadTypeFromOrigin(t *testing.T) {
 	t.Run("cloud_run_service", func(t *testing.T) {
 		assert.Equal(t, "cloud_run_service", workloadTypeFromOrigin(cloudservice.CloudRunOrigin))
 	})
-	t.Run("cloud_run_function", func(t *testing.T) {
+	t.Run("cloud_function_gen2", func(t *testing.T) {
 		t.Setenv("FUNCTION_TARGET", "myHandler")
-		assert.Equal(t, "cloud_run_function", workloadTypeFromOrigin(cloudservice.CloudRunOrigin))
+		assert.Equal(t, "cloud_function_gen2", workloadTypeFromOrigin(cloudservice.CloudRunOrigin))
 	})
 	t.Run("cloud_run_job", func(t *testing.T) {
 		assert.Equal(t, "cloud_run_job", workloadTypeFromOrigin(cloudservice.CloudRunJobsOrigin))
 	})
+	t.Run("azure_container_app", func(t *testing.T) {
+		assert.Equal(t, "azure_container_app", workloadTypeFromOrigin(cloudservice.ContainerAppOrigin))
+	})
+	t.Run("azure_app_service", func(t *testing.T) {
+		assert.Equal(t, "azure_app_service", workloadTypeFromOrigin(cloudservice.AppServiceOrigin))
+	})
+}
+
+func TestRegionFromOriginAndTags(t *testing.T) {
+	t.Run("cloud_run", func(t *testing.T) {
+		tags := map[string]string{"location": "us-central1"}
+		assert.Equal(t, "us-central1", regionFromOriginAndTags(cloudservice.CloudRunOrigin, tags))
+	})
+	t.Run("cloud_run_job", func(t *testing.T) {
+		tags := map[string]string{"location": "europe-west1"}
+		assert.Equal(t, "europe-west1", regionFromOriginAndTags(cloudservice.CloudRunJobsOrigin, tags))
+	})
 	t.Run("container_app", func(t *testing.T) {
-		assert.Equal(t, "container_app", workloadTypeFromOrigin(cloudservice.ContainerAppOrigin))
+		tags := map[string]string{"region": "eastus"}
+		assert.Equal(t, "eastus", regionFromOriginAndTags(cloudservice.ContainerAppOrigin, tags))
 	})
 	t.Run("app_service", func(t *testing.T) {
-		assert.Equal(t, "app_service", workloadTypeFromOrigin(cloudservice.AppServiceOrigin))
+		tags := map[string]string{"region": "westeurope"}
+		assert.Equal(t, "westeurope", regionFromOriginAndTags(cloudservice.AppServiceOrigin, tags))
+	})
+	t.Run("missing", func(t *testing.T) {
+		assert.Equal(t, "", regionFromOriginAndTags(cloudservice.CloudRunOrigin, map[string]string{}))
 	})
 }
 

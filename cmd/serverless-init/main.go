@@ -69,7 +69,6 @@ import (
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
 	slinventory "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -417,8 +416,6 @@ func run(
 	// Populate serverless-specific fields (cloud provider, workload type, etc.)
 	// before forcing the initial collection so all fields are present in the
 	// first payload sent per container lifecycle.
-	flavor.SetFlavor("serverless-init")
-
 	slinventory.SetInventoryFields(inventoryAgentComp, cloudService, modeConf)
 
 	// Force one inventory payload into the forwarder queue before the wrapped

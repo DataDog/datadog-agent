@@ -84,6 +84,11 @@ func SetInventoryFields(ia inventoryagent.Component, cs cloudservice.CloudServic
 		ia.Set("dd_version", v)
 	}
 
+	// region: present in cloudservice tags under different keys per platform.
+	if r := regionFromOriginAndTags(origin, tags); r != "" && r != "unknown" {
+		ia.Set("region", r)
+	}
+
 	// Cloud-provider-specific nullable identity fields (derived, not stored as
 	// cloud_provider per RFC — provider is implied by resource_id's scheme).
 	switch cloudProviderFromOrigin(origin) {
@@ -116,21 +121,23 @@ func cloudProviderFromOrigin(origin string) string {
 }
 
 // workloadTypeFromOrigin maps the cloudservice origin to a workload type enum
-// value matching the RFC canonical vocabulary.
+// value matching the RFC canonical vocabulary. Values MUST match the
+// validServerlessWorkloadTypes allowlist in the EPRW agentmetadata decoder
+// (dd-go agentmetadata_decoder.go); unrecognised values are rejected there.
 func workloadTypeFromOrigin(origin string) string {
 	switch origin {
 	case cloudservice.CloudRunOrigin:
 		// Cloud Functions Gen2 run on Cloud Run but expose FUNCTION_TARGET.
 		if os.Getenv("FUNCTION_TARGET") != "" {
-			return "cloud_run_function"
+			return "cloud_function_gen2"
 		}
 		return "cloud_run_service"
 	case cloudservice.CloudRunJobsOrigin:
 		return "cloud_run_job"
 	case cloudservice.ContainerAppOrigin:
-		return "container_app"
+		return "azure_container_app"
 	case cloudservice.AppServiceOrigin:
-		return "app_service"
+		return "azure_app_service"
 	default:
 		return origin
 	}
@@ -225,6 +232,19 @@ func canonicalAzureID(armID string) string {
 }
 
 // gcpProjectIDFromTags extracts the GCP project id from cloudservice tags.
+// regionFromOriginAndTags returns the deployment region for the workload.
+// GCP cloudservice stores it under "location"; Azure under "region".
+// Returns "" if the value is absent so the caller can omit it (NULL in REDAPL).
+func regionFromOriginAndTags(origin string, tags map[string]string) string {
+	switch origin {
+	case cloudservice.CloudRunOrigin, cloudservice.CloudRunJobsOrigin:
+		return tags["location"]
+	case cloudservice.ContainerAppOrigin, cloudservice.AppServiceOrigin:
+		return tags["region"]
+	}
+	return ""
+}
+
 func gcpProjectIDFromTags(tags map[string]string) string {
 	if v := tags["project_id"]; v != "" && v != "unknown" {
 		return v
