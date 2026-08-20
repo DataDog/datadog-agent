@@ -73,6 +73,7 @@ go_library(
         "//pkg/collector/corechecks/system/disk/io",
         "//pkg/collector/corechecks/system/filehandles",
         "//pkg/collector/corechecks/system/memory",
+        "//pkg/collector/corechecks/system/powershell",
         "//pkg/collector/corechecks/system/thermal",
         "//pkg/collector/corechecks/system/uptime",
         "//pkg/collector/corechecks/system/wincrashdetect",
