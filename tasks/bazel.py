@@ -148,7 +148,6 @@ class _Test2JsonFragments:
 class BepTestArtifacts(TypedDict):
     cached: bool
     xml_paths: list[Path]  # noqa: F841 - TypedDict field, not a local variable
-    log_paths: list[Path]  # noqa: F841 - TypedDict field, not a local variable
 
 
 def _resolve_test_output_path(
@@ -177,15 +176,16 @@ def _parse_bep(bep_path: Path) -> BepResults:
     """Parse a BEP JSON file in one pass.
 
     `tests` is keyed by Bazel test label; each value holds the cache status and
-    the test.xml/test.log files produced by this invocation. The label key
-    preserves distinct dd_agent_go_test variants for the same Go package, such
-    as //pkg/foo:foo_test and //pkg/foo:foo_test_containerd.
+    the test.xml files produced by this invocation. The label key preserves
+    distinct dd_agent_go_test variants for the same Go package, such as
+    //pkg/foo:foo_test and //pkg/foo:foo_test_containerd.
 
-    `test2json_fragments` holds the aspect's per-test JSONL fragments.
+    `test2json_fragments` holds the aspect's per-test JSONL fragments. The
+    aspect converts test.log in-graph, so test.log itself is never read here.
     """
     ctx = _BepContext()
     fragments = _Test2JsonFragments()
-    test_actions: list[tuple[str, str, str, str, bool]] = []
+    test_actions: list[tuple[str, str, str, bool]] = []
 
     with bep_path.open() as f:
         for line in f:
@@ -208,24 +208,19 @@ def _parse_bep(bep_path: Path) -> BepResults:
                         for output in tr.get("testActionOutput", [])
                         if output.get("name")
                     }
-                    missing_outputs = [name for name in ("test.xml", "test.log") if name not in output_uris]
-                    if missing_outputs:
+                    if "test.xml" not in output_uris:
                         raise RuntimeError(
-                            f"BEP testResult for {label} did not include {missing_outputs}; "
+                            f"BEP testResult for {label} did not include test.xml; "
                             f"available outputs: {sorted(output_uris)}"
                         )
                     cached = bool(tr.get("cachedLocally") or tr.get("executionInfo", {}).get("cachedRemotely"))
-                    test_actions.append((label, cfg_id, output_uris["test.xml"], output_uris["test.log"], cached))
+                    test_actions.append((label, cfg_id, output_uris["test.xml"], cached))
 
     results: dict[str, BepTestArtifacts] = {}
-    for label, cfg_id, xml_uri, log_uri, cached in test_actions:
-        artifacts = results.setdefault(
-            label,
-            {"cached": cached, "xml_paths": [], "log_paths": []},
-        )
+    for label, cfg_id, xml_uri, cached in test_actions:
+        artifacts = results.setdefault(label, {"cached": cached, "xml_paths": []})
         artifacts["cached"] = cached
         artifacts["xml_paths"].append(_resolve_test_output_path(label, xml_uri, cfg_id, ctx, "test.xml"))
-        artifacts["log_paths"].append(_resolve_test_output_path(label, log_uri, cfg_id, ctx, "test.log"))
     return BepResults(tests=results, test2json_fragments=fragments.paths(ctx.local_exec_root))
 
 

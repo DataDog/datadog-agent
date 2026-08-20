@@ -100,10 +100,8 @@ class TestParseBep(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             exec_root = Path(tmpdir) / "exec_root"
             reconstructed = exec_root / "bazel-out/k8-fastbuild/testlogs/pkg/foo/foo_test/test.xml"
-            reconstructed_log = reconstructed.parent / "test.log"
             reconstructed.parent.mkdir(parents=True)
             reconstructed.write_text(_JUNIT_XML)
-            reconstructed_log.write_text("PASS\n")
 
             bep_path = Path(tmpdir) / "bep.json"
             bep_path.write_text(
@@ -138,7 +136,6 @@ class TestParseBep(unittest.TestCase):
                     "//pkg/foo:foo_test": {
                         "cached": True,
                         "xml_paths": [reconstructed],
-                        "log_paths": [reconstructed_log],
                     }
                 },
             )
@@ -147,10 +144,10 @@ class TestParseBep(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             exec_root = Path(tmpdir) / "exec_root"
             reconstructed = exec_root / "bazel-out/k8-fastbuild/testlogs/pkg/foo/foo_test/test.xml"
+            # Reported by Bazel but never resolved, so it need not exist on disk.
             reconstructed_log = reconstructed.parent / "test.log"
             reconstructed.parent.mkdir(parents=True)
             reconstructed.write_text(_JUNIT_XML)
-            reconstructed_log.write_text("PASS\n")
             # The file:// URI Bazel reports for a local (non-cached) action
             # points at the same underlying file as the reconstructed path.
             file_uri_path = reconstructed
@@ -183,11 +180,10 @@ class TestParseBep(unittest.TestCase):
 
             artifacts = _parse_bep(bep_path).tests
             self.assertEqual(artifacts["//pkg/foo:foo_test"]["xml_paths"], [file_uri_path])
-            self.assertEqual(artifacts["//pkg/foo:foo_test"]["log_paths"], [reconstructed_log])
 
     def test_repeated_test_result_for_same_label_all_kept(self):
         # A sharded or retried target reports multiple testResult events for
-        # the same label, each with its own test.xml/test.log; none should be dropped.
+        # the same label, each with its own test.xml; none should be dropped.
         with tempfile.TemporaryDirectory() as tmpdir:
             first = Path(tmpdir) / "shard_0.xml"
             second = Path(tmpdir) / "shard_1.xml"
@@ -195,8 +191,6 @@ class TestParseBep(unittest.TestCase):
             second_log = Path(tmpdir) / "shard_1.log"
             first.write_text(_JUNIT_XML)
             second.write_text(_JUNIT_XML)
-            first_log.write_text("PASS\n")
-            second_log.write_text("PASS\n")
 
             bep_path = Path(tmpdir) / "bep.json"
             bep_path.write_text(
@@ -230,7 +224,6 @@ class TestParseBep(unittest.TestCase):
 
             artifacts = _parse_bep(bep_path).tests
             self.assertEqual(sorted(artifacts["//pkg/foo:foo_test"]["xml_paths"]), sorted([first, second]))
-            self.assertEqual(sorted(artifacts["//pkg/foo:foo_test"]["log_paths"]), sorted([first_log, second_log]))
 
     def test_no_test_result_events_produces_nothing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -238,7 +231,26 @@ class TestParseBep(unittest.TestCase):
             bep_path.write_text(_bep_line({"id": {"workspace": {}}, "workspaceInfo": {"localExecRoot": "/exec/root"}}))
             self.assertEqual(_parse_bep(bep_path), ({}, []))
 
-    def test_missing_log_is_error(self):
+    def test_missing_xml_is_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir) / "test.log"
+            log_path.write_text("PASS\n")
+            bep_path = Path(tmpdir) / "bep.json"
+            bep_path.write_text(
+                _bep_line(
+                    {
+                        "id": {"testResult": {"label": "//pkg/foo:foo_test", "configuration": {"id": "cfg1"}}},
+                        "testResult": {"testActionOutput": [{"name": "test.log", "uri": log_path.as_uri()}]},
+                    }
+                )
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "did not include test.xml"):
+                _parse_bep(bep_path)
+
+    def test_absent_test_log_is_tolerated(self):
+        # The aspect converts test.log in-graph, so CI no longer force-downloads
+        # it; a testResult carrying only test.xml must still parse.
         with tempfile.TemporaryDirectory() as tmpdir:
             xml_path = Path(tmpdir) / "test.xml"
             xml_path.write_text(_JUNIT_XML)
@@ -252,8 +264,7 @@ class TestParseBep(unittest.TestCase):
                 )
             )
 
-            with self.assertRaisesRegex(RuntimeError, "did not include .*test.log"):
-                _parse_bep(bep_path)
+            self.assertEqual(_parse_bep(bep_path).tests["//pkg/foo:foo_test"]["xml_paths"], [xml_path])
 
 
 class TestParseBepTest2JsonFragments(unittest.TestCase):
