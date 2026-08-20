@@ -97,9 +97,9 @@ func parseAllowlist(data []byte) (*allowlist, error) {
 	return &a, nil
 }
 
-// validateInstance checks a parsed instance config against the allowlist. It
-// rejects any cmdlet, parameter, or value that policy does not permit — this is
-// the primary enforcement layer.
+// validateInstance rejects any cmdlet, or cmdlet parameter name or value, that
+// policy does not permit. It deliberately does not constrain `where` values: those
+// are carried as data and can only narrow rows, so that is policy, not safety.
 func (a *allowlist) validateInstance(inst *instanceConfig) error {
 	if err := a.validateCmdletUse(inst.Cmdlet, inst.Parameters); err != nil {
 		return err

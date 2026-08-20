@@ -8,27 +8,27 @@
 package powershell
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
+// maxWhereEntries bounds the Where-Object stages one instance may emit, because
+// CreateProcess caps a command line at 32767 characters.
+const maxWhereEntries = 32
+
 var (
-	// cmdletNameRegex matches a read-only Get-* cmdlet name. Restricting the
-	// character set means the name is always safe to embed (single-quoted) in
-	// the generated command.
+	// cmdletNameRegex matches a read-only Get-* cmdlet name. Still load-bearing:
+	// Get-Command -Name accepts wildcards, and this keeps a pattern out of it.
 	cmdletNameRegex = regexp.MustCompile(`^Get-[A-Za-z0-9]+$`)
 
-	// identifierRegex matches a PowerShell parameter or property identifier.
-	// Only these validated identifiers are ever placed in command positions.
+	// identifierRegex matches a parameter or property identifier. These travel in
+	// the payload, so this is a sanity gate rather than an injection defence.
 	identifierRegex = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 )
 
-// validateGetCmdletName verifies that name is a syntactically valid, read-only
-// Get-* cmdlet name.
+// validateGetCmdletName verifies name is a syntactically valid read-only Get-* cmdlet.
 func validateGetCmdletName(name string) error {
 	if !cmdletNameRegex.MatchString(name) {
 		return fmt.Errorf("cmdlet %q is not a read-only Get-* cmdlet (must match Get-<Noun>)", name)
@@ -36,8 +36,7 @@ func validateGetCmdletName(name string) error {
 	return nil
 }
 
-// validateIdentifier verifies that a parameter or property name is a safe
-// identifier suitable for embedding in the generated command.
+// validateIdentifier verifies a parameter or property name is a safe identifier.
 func validateIdentifier(kind, name string) error {
 	if !identifierRegex.MatchString(name) {
 		return fmt.Errorf("%s %q contains characters outside [A-Za-z0-9_]", kind, name)
@@ -45,139 +44,142 @@ func validateIdentifier(kind, name string) error {
 	return nil
 }
 
-// buildCommand renders the fixed-shape PowerShell command that invokes a
-// validated Get-* cmdlet with bound (splatted) parameters, projects the given
-// properties, and emits a compact JSON array.
-//
-// Security: the cmdlet name and every parameter/property name are validated
-// identifiers; every parameter *value* is encoded as a PowerShell single-quoted
-// literal via powershellLiteral, so hostile values can never escape into an
-// executable position. As defense in depth, the command re-resolves the cmdlet
-// and, at runtime, re-checks its verb and (when module is non-empty) that it
-// resolves to the expected module, then invokes the resolved command object
-// itself — so it runs exactly what was validated, not whatever the name might
-// re-resolve to (e.g. a shadowing function from an untrusted module).
-//
-// A non-empty where clause becomes a Where-Object stage placed before
-// Select-Object, so unwanted rows are discarded in the child process and a
-// property used only for filtering never has to be projected.
-func buildCommand(cmdlet, module string, params []parameterEntry, where []whereEntry, selectProps []string) (string, error) {
+// scriptPayload is the data half of a command invocation: everything derived from
+// configuration, sent as JSON on the child's stdin, never rendered into source.
+type scriptPayload struct {
+	// Lower-case tags are load-bearing; the generated script reads these names.
+	Cmdlet     string         `json:"cmdlet"`
+	Module     string         `json:"module"`
+	Parameters []payloadParam `json:"parameters"`
+	Where      []payloadWhere `json:"where"`
+	Select     []string       `json:"select"`
+}
+
+// payloadParam is one named cmdlet parameter, splatted to the cmdlet as data.
+type payloadParam struct {
+	Name  string      `json:"name"`
+	Value interface{} `json:"value"`
+}
+
+// payloadWhere is one filter entry. The operator is not carried here: it comes
+// from the closed whereOps map, so it can never originate in configuration.
+type payloadWhere struct {
+	Property string      `json:"property"`
+	Value    interface{} `json:"value"`
+}
+
+// scriptPreamble is the fixed head of every command and holds no configuration.
+// Preserve: reads stdin to EOF, explicit UTF-8 both ways, no double-quote character.
+const scriptPreamble = `$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+$sr  = New-Object IO.StreamReader([Console]::OpenStandardInput(), (New-Object Text.UTF8Encoding($false)))
+$cfg = $sr.ReadToEnd() | ConvertFrom-Json
+
+$c = Get-Command -Name $cfg.cmdlet -CommandType Cmdlet,Function -ErrorAction Stop
+if (@($c).Count -ne 1) { throw 'powershell check: name resolved to multiple commands' }
+if ($c.Verb -ne 'Get') { throw 'powershell check: not a read-only Get- cmdlet' }
+`
+
+// buildPayload assembles and validates the data half of a command invocation,
+// kept separate so value handling can be tested without going near script text.
+func buildPayload(cmdlet, module string, params []parameterEntry, where []whereEntry, selectProps []string) (scriptPayload, error) {
+	var p scriptPayload
+
 	if err := validateGetCmdletName(cmdlet); err != nil {
-		return "", err
+		return p, err
 	}
+	if len(where) > maxWhereEntries {
+		return p, fmt.Errorf("too many 'where' entries: %d (maximum %d)", len(where), maxWhereEntries)
+	}
+
+	// Normalized to empty rather than nil so the payload shape is stable.
+	p = scriptPayload{
+		Cmdlet:     cmdlet,
+		Module:     module,
+		Parameters: make([]payloadParam, 0, len(params)),
+		Where:      make([]payloadWhere, 0, len(where)),
+		Select:     make([]string, 0, len(selectProps)),
+	}
+
+	seen := make(map[string]struct{}, len(params))
+	for i := range params {
+		if err := validateIdentifier("parameter", params[i].Name); err != nil {
+			return scriptPayload{}, err
+		}
+		// PowerShell hashtable keys are case-insensitive and the splat table is
+		// built by assignment, so a duplicate would silently overwrite.
+		key := strings.ToLower(params[i].Name)
+		if _, dup := seen[key]; dup {
+			return scriptPayload{}, fmt.Errorf("parameter %q is specified more than once", params[i].Name)
+		}
+		seen[key] = struct{}{}
+		p.Parameters = append(p.Parameters, payloadParam{Name: params[i].Name, Value: params[i].Value})
+	}
+
+	for i := range where {
+		// Re-checked here so a hand-constructed entry cannot bypass finalize.
+		if err := validateIdentifier("property", where[i].Property); err != nil {
+			return scriptPayload{}, fmt.Errorf("where entry: %w", err)
+		}
+		p.Where = append(p.Where, payloadWhere{Property: where[i].Property, Value: where[i].Value})
+	}
+
 	for i := range selectProps {
 		if err := validateIdentifier("property", selectProps[i]); err != nil {
-			return "", err
+			return scriptPayload{}, err
 		}
+		p.Select = append(p.Select, selectProps[i])
 	}
-	// Render the filter up front so a bad entry surfaces as a build error rather
-	// than a half-written script.
-	clause, err := whereClause(where)
+
+	return p, nil
+}
+
+// buildCommand renders the PowerShell script plus the JSON payload carrying every
+// configuration-derived value. The script contains NO configuration text: only a
+// stage index and an operator switch/token. See TestScriptIsValueIndependent.
+func buildCommand(cmdlet, module string, params []parameterEntry, where []whereEntry, selectProps []string) (string, []byte, error) {
+	payload, err := buildPayload(cmdlet, module, params, where, selectProps)
 	if err != nil {
-		return "", err
+		return "", nil, err
+	}
+
+	// Rendered up front so a bad entry fails the build, not a half-written script.
+	var decls, pipe strings.Builder
+	for i := range where {
+		if err := where[i].writeStage(&decls, &pipe, i); err != nil {
+			return "", nil, err
+		}
 	}
 
 	var b strings.Builder
-	b.WriteString("$ErrorActionPreference = 'Stop'\n")
-	// Defense in depth: resolve the command and re-check the verb at runtime.
-	// Restrict to Cmdlet/Function (excludes aliases and native applications, but
-	// keeps CDXML/module function-cmdlets like Get-Net*) and require a single
-	// match, so the name can't resolve to an array of commands that would make
-	// the guards below behave unpredictably.
-	fmt.Fprintf(&b, "$c = Get-Command -Name %s -CommandType Cmdlet,Function -ErrorAction Stop\n", singleQuote(cmdlet))
-	b.WriteString("if (@($c).Count -ne 1) { throw 'powershell check: name resolved to multiple commands' }\n")
-	b.WriteString("if ($c.Verb -ne 'Get') { throw 'powershell check: not a read-only Get- cmdlet' }\n")
-	// The allowlist pins each cmdlet to a module; require it to resolve to that
-	// module, which rejects a same-named function shadowing the cmdlet from an
-	// untrusted module. "*" is the explicit opt-out and skips the check.
+	b.WriteString(scriptPreamble)
+	// Rejects a same-named function shadowing the cmdlet from another module. "*"
+	// opts out; whether to emit the guard stays a Go-side decision.
 	if module != "" && module != "*" {
-		fmt.Fprintf(&b, "if ($c.ModuleName -ne %s) { throw 'powershell check: cmdlet resolved to an unexpected module' }\n", singleQuote(module))
+		b.WriteString("if ($c.ModuleName -ne $cfg.module) { throw 'powershell check: cmdlet resolved to an unexpected module' }\n")
 	}
-	// Resolve Where-Object for the same reason the main cmdlet is resolved: a bare
-	// name in the pipeline could be shadowed by a function from another module.
-	if clause != "" {
+	b.WriteString("\n$p = @{}\nforeach ($e in $cfg.parameters) { $p[$e.name] = $e.value }\n")
+	// Resolved rather than invoked by bare name, which another module could shadow.
+	if len(where) > 0 {
 		b.WriteString("$w = Get-Command -Name 'Where-Object' -CommandType Cmdlet -ErrorAction Stop\n")
 	}
+	b.WriteString(decls.String())
 
-	// Build the splat table. Keys are validated identifiers; values are safe literals.
-	b.WriteString("$p = @{")
-	for i := range params {
-		if err := validateIdentifier("parameter", params[i].Name); err != nil {
-			return "", err
-		}
-		lit, err := powershellLiteral(params[i].Value)
-		if err != nil {
-			return "", fmt.Errorf("parameter %q: %w", params[i].Name, err)
-		}
-		if i > 0 {
-			b.WriteString("; ")
-		}
-		fmt.Fprintf(&b, "%s = %s", params[i].Name, lit)
-	}
-	b.WriteString("}\n")
-
-	// Pass the results as -InputObject rather than piping: piping an array into
-	// ConvertTo-Json unrolls it, so a single row would serialize as a bare object.
-	// -InputObject @(...) reliably emits a JSON array for 0, 1, or N rows in
-	// Windows PowerShell 5.1 (which has no ConvertTo-Json -AsArray).
-	// Invoke the validated command object ($c) rather than the name, so we run
-	// exactly what was verified above.
+	// -InputObject @(...) forces a JSON array for 0, 1 or N rows, where piping would
+	// unroll it. Invoke $c, the object validated above, rather than the name.
 	b.WriteString("ConvertTo-Json -Depth 8 -Compress -InputObject @(& $c @p")
-	// Filter before projecting: Select-Object would drop the properties the filter
-	// needs to test.
-	if clause != "" {
-		fmt.Fprintf(&b, " | & $w { %s }", clause)
-	}
+	// Filter before projecting, or Select-Object drops the properties being tested.
+	b.WriteString(pipe.String())
+	// Select-Object -Property throws on an empty list, and selectProperties returns
+	// nothing when every metric is virtual with no tag_by or tag_queries.
 	if len(selectProps) > 0 {
-		fmt.Fprintf(&b, " | Select-Object %s", strings.Join(selectProps, ","))
+		b.WriteString(" | Select-Object -Property $cfg.select")
 	}
 	b.WriteString(")\n")
 
-	return b.String(), nil
-}
-
-// powershellLiteral converts a Go value into a PowerShell literal that is safe
-// to embed directly in a command. Adapted from the Private Action Runner's
-// injection-safe encoder (pkg/privateactionrunner/bundles/script).
-//
-//   - Strings are single-quoted with ' doubled (the only escaping single-quoted
-//     PowerShell strings require), so any content is inert.
-//   - Booleans become $true / $false.
-//   - Numbers become unquoted numeric literals.
-//   - Anything else is JSON-encoded then single-quoted.
-func powershellLiteral(val interface{}) (string, error) {
-	switch v := val.(type) {
-	case nil:
-		return "$null", nil
-	case bool:
-		if v {
-			return "$true", nil
-		}
-		return "$false", nil
-	case string:
-		return singleQuote(v), nil
-	case int:
-		return strconv.FormatInt(int64(v), 10), nil
-	case int64:
-		return strconv.FormatInt(v, 10), nil
-	case float64:
-		if v == float64(int64(v)) {
-			return strconv.FormatInt(int64(v), 10), nil
-		}
-		return strconv.FormatFloat(v, 'f', -1, 64), nil
-	default:
-		var buf bytes.Buffer
-		enc := json.NewEncoder(&buf)
-		enc.SetEscapeHTML(false)
-		if err := enc.Encode(val); err != nil {
-			return "", fmt.Errorf("failed to JSON-encode value: %w", err)
-		}
-		return singleQuote(strings.TrimRight(buf.String(), "\n")), nil
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", nil, fmt.Errorf("could not marshal command payload: %w", err)
 	}
-}
-
-// singleQuote wraps s in PowerShell single quotes, doubling any embedded single
-// quotes. This is the only escaping single-quoted PowerShell strings require.
-func singleQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+	return b.String(), data, nil
 }

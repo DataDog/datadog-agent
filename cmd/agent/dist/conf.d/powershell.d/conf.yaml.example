@@ -35,8 +35,9 @@
 #   ##   - Every parameter an instance passes via `parameters` must be declared under
 #   ##     that cmdlet's `parameters`; undeclared parameters are rejected.
 #   ##   - A parameter value must satisfy `allowed_values` (if set) OR `pattern` (if
-#   ##     set). `allowed_values` takes precedence; if neither is set, any value is
-#   ##     accepted for that (declared) parameter.
+#   ##     set). `allowed_values` takes precedence. Every declared parameter MUST set
+#   ##     one of the two: an allowlist declaring a parameter with neither is
+#   ##     rejected when it loads, so no value can slip through unconstrained.
 #   ##   - A parameter with `required: true` must be present in the instance.
 #   ##   - Any cmdlet used in an instance's `tag_queries` must ALSO be allowlisted.
 #   ##     Join cmdlets are invoked with no user parameters, so only the name is checked.
@@ -100,16 +101,37 @@
 #     ## semantics. Each entry is either a [Property, Op, Value] tuple or a
 #     ## {property: ..., op: ..., value: ...} mapping.
 #     ##
-#     ## Operators: eq, ne, like, notlike, match, notmatch, gt, ge, lt, le
+#     ## Supported operators: eq, ne, like, notlike, match, notmatch, gt, ge, lt, le
 #     ##   like/notlike   - PowerShell wildcards (* and ?), case-insensitive
 #     ##   match/notmatch - .NET regular expression, case-insensitive, NOT anchored
-#     ##   eq/ne          - case-insensitive string comparison
-#     ##   gt/ge/lt/le    - numeric; a non-numeric property value never matches
+#     ##   eq/ne          - case-insensitive comparison
+#     ##   gt/ge/lt/le    - ordering comparison
 #     ##
-#     ## An absent property is $null, so `notlike` on a missing property is TRUE,
-#     ## exactly as in PowerShell. A `where` property does not need to appear in
-#     ## `metrics` or `tag_by`: filtering happens before projection, so a
-#     ## filter-only property is never collected.
+#     ## Every operator maps to the matching `Where-Object` switch, so comparisons
+#     ## behave exactly as they do in PowerShell: the comparison follows the
+#     ## PROPERTY's type, not the type of the value you configure. Consequences worth
+#     ## knowing, all of them standard PowerShell:
+#     ##   - A string property compares as a string, so `[Name, gt, 1024]` on a text
+#     ##     property is a lexical comparison and 'abc' is greater than 1024.
+#     ##   - An absent property is $null, so `notlike` on a missing property is TRUE
+#     ##     and `lt`/`le` on one also match.
+#     ##   - Because of that, a MISSPELLED property name is missing on every row, and
+#     ##     `lt`/`le` will match every row rather than none. Check your spelling
+#     ##     against the cmdlet's real output; the check cannot verify it for you.
+#     ##   - For a typed property the value is coerced to that type. With eq/ne a
+#     ##     value that cannot be coerced simply does not match; with gt/ge/lt/le it
+#     ##     is an ERROR that fails the instance, so `[Length, gt, '1GB']` works while
+#     ##     `[Length, gt, '1 KB']` fails. Try a filter as a real Where-Object command
+#     ##     before deploying it.
+#     ##
+#     ## A `where` property does not need to appear in `metrics` or `tag_by`:
+#     ## filtering happens before projection, so a filter-only property is never
+#     ## collected.
+#     ##
+#     ## Each entry becomes one Where-Object stage, and at most 32 entries are
+#     ## accepted. As with `parameters` above, every property and value is passed to
+#     ## the child process as data; none of it is ever interpolated into the
+#     ## generated PowerShell.
 #     ##
 #     ## Note: filtering reduces what is submitted, and because it runs inside the
 #     ## command it also reduces what is transferred - but the cmdlet still runs in
