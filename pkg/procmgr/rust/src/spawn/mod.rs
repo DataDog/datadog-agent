@@ -3,10 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//! Managed-process spawn: config → [`SpawnRequest`] → platform backend.
+
+mod identity;
 mod profile;
 mod request;
 mod stdio_setting;
 
+#[cfg(any(test, feature = "test-helpers"))]
+pub(crate) use identity::spawn_user_for;
 #[cfg(windows)]
 pub(crate) use profile::DATADOG_AGENT_PROCESS;
 pub(crate) use profile::{SpawnProfile, profile_for};
