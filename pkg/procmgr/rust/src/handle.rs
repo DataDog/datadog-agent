@@ -24,8 +24,6 @@ struct OwnedProcessHandle {
 }
 
 #[cfg(windows)]
-// SAFETY: The Win32 HANDLE is a kernel handle safe to send across threads.
-// The kernel serialises concurrent operations on the same handle.
 unsafe impl Send for OwnedProcessHandle {}
 
 #[cfg(windows)]
@@ -54,10 +52,6 @@ impl Drop for OwnedProcessHandle {
     }
 }
 
-/// Cancellation flag plus a duplicate process handle used for exit waits.
-///
-/// Waits poll in finite slices and observe `cancelled` between slices so shutdown
-/// can abandon a stuck child without closing a handle another thread is waiting on.
 #[cfg(windows)]
 pub(crate) struct ProcessWaitControl {
     wait_handle: OwnedProcessHandle,
@@ -135,10 +129,6 @@ impl ProcessHandle {
         Self { child }
     }
 
-    /// Build supervision handles from a borrowed process handle.
-    ///
-    /// Duplicates `source` for kill and wait paths; the caller keeps ownership of
-    /// `source` and must close it separately.
     #[cfg(windows)]
     pub fn from_borrowed(pid: u32, source: HANDLE) -> Result<Self> {
         let process_handle = duplicate_process_handle(source)?;

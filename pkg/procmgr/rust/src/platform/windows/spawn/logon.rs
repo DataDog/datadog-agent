@@ -94,7 +94,6 @@ fn logon_domain(domain: &str) -> &str {
 
 pub(crate) struct TokenHandle(HANDLE);
 
-// SAFETY: Win32 token handles are kernel objects; the kernel serialises access.
 unsafe impl Send for TokenHandle {}
 unsafe impl Sync for TokenHandle {}
 
