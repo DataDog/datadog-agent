@@ -6,8 +6,8 @@
 use anyhow::{Context, Result, bail};
 use std::ptr;
 use windows_sys::Win32::System::Services::{
-    CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceConfigW, SC_HANDLE,
-    SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
+    CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceConfigW, QUERY_SERVICE_CONFIGW,
+    SC_HANDLE, SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
 };
 
 use super::sid::{lookup_account_sid, sid_to_string};
@@ -56,9 +56,14 @@ fn service_start_name(service_name: &str) -> Result<String> {
     }
 
     let mut buffer = vec![0u8; bytes_needed as usize];
-    let config =
-        buffer.as_mut_ptr() as *mut windows_sys::Win32::System::Services::QUERY_SERVICE_CONFIGW;
-    let ok = unsafe { QueryServiceConfigW(service, config, bytes_needed, &mut bytes_needed) };
+    let ok = unsafe {
+        QueryServiceConfigW(
+            service,
+            buffer.as_mut_ptr().cast(),
+            bytes_needed,
+            &mut bytes_needed,
+        )
+    };
     if ok == 0 {
         bail!(
             "QueryServiceConfigW({service_name}): {}",
@@ -66,7 +71,8 @@ fn service_start_name(service_name: &str) -> Result<String> {
         );
     }
 
-    let start_name = wide::from_ptr(unsafe { (*config).lpServiceStartName });
+    let config = ptr::read_unaligned(buffer.as_ptr().cast::<QUERY_SERVICE_CONFIGW>());
+    let start_name = wide::from_ptr(config.lpServiceStartName);
     if start_name.is_empty() {
         bail!("QueryServiceConfigW({service_name}): empty service start name");
     }
