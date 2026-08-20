@@ -23,7 +23,11 @@ pub(crate) use supervisor::spawn_command_loop_for_tests;
 
 pub(crate) type ExitEvent = crate::process::ProcessExit;
 
-pub(crate) type PendingRestart = String;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PendingRestart {
+    pub(crate) uuid: String,
+    pub(crate) spawn_seq: u64,
+}
 
 pub fn looks_like_uuid_prefix(s: &str) -> bool {
     s.len() >= 8 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
@@ -62,7 +66,10 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
 
 fn enqueue_pending_restart(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
     if let Some(delay) = proc.schedule_restart() {
-        let pending = proc.uuid().to_owned();
+        let pending = PendingRestart {
+            uuid: proc.uuid().to_owned(),
+            spawn_seq: proc.spawn_seq(),
+        };
         let tx = handles.restart_tx.clone();
         tokio::spawn(async move {
             tokio::time::sleep(delay).await;
@@ -110,7 +117,10 @@ mod tests {
     }
 
     fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
-        proc.uuid().to_owned()
+        PendingRestart {
+            uuid: proc.uuid().to_owned(),
+            spawn_seq: proc.spawn_seq(),
+        }
     }
 
     fn sleep_def(name: &str) -> ProcessDefinition {
@@ -152,7 +162,10 @@ mod tests {
         let pending = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
             .await
             .expect("timed out waiting for restart after spawn failure");
-        assert_eq!(pending.as_deref(), Some(expected_uuid.as_str()));
+        assert_eq!(
+            pending.as_ref().map(|p| p.uuid.as_str()),
+            Some(expected_uuid.as_str())
+        );
         Ok(())
     }
 
@@ -214,6 +227,99 @@ mod tests {
             let mut procs = mgr.processes.write().await;
             procs[0].config_mut().command = cmd.to_string();
         }
+
+        mgr.complete_restart(pending, &handles).await;
+        assert!(mgr.processes().await[0].is_running());
+
+        test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stale_restart_timer_invalidated_after_manual_start() -> anyhow::Result<()> {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mgr = ProcessManager::new(
+            loader(vec![ProcessDefinition {
+                name: "action-executor".to_string(),
+                config: ProcessConfig {
+                    command: cmd.to_string(),
+                    args,
+                    auto_start: false,
+                    restart: RestartPolicy::Always,
+                    restart_sec: Some(1.0),
+                    ..Default::default()
+                },
+            }]),
+            uuid_gen(),
+        );
+        let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
+
+        mgr.handle_start("action-executor", &handles).await?;
+        let (uuid, pid, name) = {
+            let procs = mgr.processes().await;
+            assert_eq!(procs[0].spawn_seq(), 1);
+            (
+                procs[0].uuid().to_owned(),
+                procs[0].pid().unwrap(),
+                procs[0].name().to_owned(),
+            )
+        };
+
+        test_helpers::cleanup_process(pid);
+        mgr.handle_exit(
+            ExitEvent {
+                name,
+                pid,
+                status: test_helpers::exit_status(1),
+            },
+            &handles,
+        )
+        .await;
+
+        let stale_pending = PendingRestart {
+            uuid: uuid.clone(),
+            spawn_seq: 1,
+        };
+
+        mgr.handle_start("action-executor", &handles).await?;
+        let (pid, name) = {
+            let procs = mgr.processes().await;
+            assert_eq!(
+                procs[0].spawn_seq(),
+                2,
+                "manual start should bump successful-spawn seq"
+            );
+            (procs[0].pid().unwrap(), procs[0].name().to_owned())
+        };
+
+        test_helpers::cleanup_process(pid);
+        mgr.handle_exit(
+            ExitEvent {
+                name,
+                pid,
+                status: test_helpers::exit_status(1),
+            },
+            &handles,
+        )
+        .await;
+
+        mgr.complete_restart(stale_pending, &handles).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "stale queued restart must not respawn after a newer manual start"
+        );
+
+        let pending = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            while let Some(p) = restart_rx.recv().await {
+                if p.spawn_seq == 2 {
+                    return Some(p);
+                }
+            }
+            None
+        })
+        .await
+        .expect("timed out waiting for current spawn_seq restart")
+        .expect("expected restart event for current spawn_seq");
 
         mgr.complete_restart(pending, &handles).await;
         assert!(mgr.processes().await[0].is_running());

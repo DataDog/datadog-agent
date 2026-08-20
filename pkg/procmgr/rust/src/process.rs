@@ -154,6 +154,7 @@ pub struct ManagedProcess {
     handle: Option<ProcessHandle>,
     watcher_handle: Option<JoinHandle<Option<std::process::ExitStatus>>>,
     restarts: RestartTracker,
+    spawn_seq: u64,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
     #[cfg(windows)]
@@ -189,6 +190,7 @@ impl ManagedProcess {
             handle: None,
             watcher_handle: None,
             restarts,
+            spawn_seq: 0,
             origin,
             last_exit_status: None,
             #[cfg(windows)]
@@ -328,6 +330,14 @@ impl ManagedProcess {
 
     pub fn restart_count(&self) -> u32 {
         self.restarts.count
+    }
+
+    pub(crate) fn spawn_seq(&self) -> u64 {
+        self.spawn_seq
+    }
+
+    fn inc_spawn_seq(&mut self) {
+        self.spawn_seq += 1;
     }
 
     pub fn last_exit_code(&self) -> Option<i32> {
@@ -477,6 +487,7 @@ impl ManagedProcess {
 
         self.handle = Some(handle);
         self.transition_to(ProcessState::Running);
+        self.inc_spawn_seq();
         self.restarts.mark_spawned();
         Ok(())
     }
