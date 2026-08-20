@@ -181,7 +181,7 @@ $id.Name
 	require.NoError(s.T(), err)
 	assert.NotContains(s.T(), strings.ToUpper(caller), "SYSTEM")
 
-	const procName = "e2e-admin-pipe-create"
+	procName := fmt.Sprintf("e2e-admin-pipe-create-%d", time.Now().UnixNano())
 	createOut, err := host.Execute(s.platform.cliCmd(fmt.Sprintf(
 		`create --name %s --command C:\Windows\System32\cmd.exe --args /c --args exit --no-auto-start --description 'E2E admin pipe auth'`,
 		procName,
