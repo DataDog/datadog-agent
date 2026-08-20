@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 _SECURITY_HDRS = glob(["**/*.h"])
@@ -19,4 +21,1547 @@ filegroup(
 exports_files(
     ["maps.h"],
     visibility = ["//pkg/security/secl/model:__pkg__"],
+)
+
+cc_library(
+    name = "hdr/constants/all",
+    hdrs = ["constants/all.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/enums",
+        ":hdr/constants/macros",
+        ":hdr/constants/offsets/all",
+    ],
+)
+
+cc_library(
+    name = "hdr/constants/custom",
+    hdrs = ["constants/custom.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/macros"],
+)
+
+cc_library(
+    name = "hdr/constants/enums",
+    hdrs = ["constants/enums.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/constants/fentry_macro",
+    hdrs = ["constants/fentry_macro.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/constants/macros",
+    hdrs = ["constants/macros.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/constants/offsets/all",
+    hdrs = ["constants/offsets/all.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/bpf",
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/constants/offsets/netns",
+        ":hdr/constants/offsets/network",
+        ":hdr/constants/offsets/process",
+        ":hdr/constants/offsets/splice",
+    ],
+)
+
+cc_library(
+    name = "hdr/constants/offsets/bpf",
+    hdrs = ["constants/offsets/bpf.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/macros"],
+)
+
+cc_library(
+    name = "hdr/constants/offsets/filesystem",
+    hdrs = ["constants/offsets/filesystem.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/enums",
+        ":hdr/constants/macros",
+    ],
+)
+
+cc_library(
+    name = "hdr/constants/offsets/netns",
+    hdrs = ["constants/offsets/netns.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/macros"],
+)
+
+cc_library(
+    name = "hdr/constants/offsets/network",
+    hdrs = ["constants/offsets/network.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/macros"],
+)
+
+cc_library(
+    name = "hdr/constants/offsets/process",
+    hdrs = ["constants/offsets/process.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/macros"],
+)
+
+cc_library(
+    name = "hdr/constants/offsets/splice",
+    hdrs = ["constants/offsets/splice.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/macros"],
+)
+
+cc_library(
+    name = "hdr/constants/syscall_macro",
+    hdrs = ["constants/syscall_macro.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/events_definition",
+    hdrs = ["events_definition.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/structs/all",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/activity_dump",
+    hdrs = ["helpers/activity_dump.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/events_definition",
+        ":hdr/helpers/dentry_resolver",
+        ":hdr/helpers/events",
+        ":hdr/helpers/process",
+        ":hdr/helpers/rate_limiter",
+        ":hdr/helpers/utils",
+        ":hdr/maps",
+        ":hdr/perf_ring",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/all",
+    hdrs = ["helpers/all.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/activity_dump",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/bpf",
+        ":hdr/helpers/buffer_selector",
+        ":hdr/helpers/dentry_resolver",
+        ":hdr/helpers/erpc",
+        ":hdr/helpers/events",
+        ":hdr/helpers/events_predicates",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/iouring",
+        ":hdr/helpers/network/context",
+        ":hdr/helpers/network/dns",
+        ":hdr/helpers/network/flow",
+        ":hdr/helpers/network/imds",
+        ":hdr/helpers/network/parser",
+        ":hdr/helpers/network/pid_resolver",
+        ":hdr/helpers/network/router",
+        ":hdr/helpers/process",
+        ":hdr/helpers/raw_syscalls",
+        ":hdr/helpers/selinux",
+        ":hdr/helpers/span",
+        ":hdr/helpers/syscalls",
+        ":hdr/helpers/sysctl",
+        ":hdr/helpers/user_sessions",
+        ":hdr/helpers/utils",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/approvers",
+    hdrs = ["helpers/approvers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/enums",
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/helpers/rate_limiter",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/bpf",
+    hdrs = ["helpers/bpf.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/enums",
+        ":hdr/events_definition",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/buffer_selector",
+    hdrs = ["helpers/buffer_selector.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/maps"],
+)
+
+cc_library(
+    name = "hdr/helpers/caps",
+    hdrs = ["helpers/caps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/helpers/cgroup",
+    hdrs = ["helpers/cgroup.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/helpers/dentry_resolver",
+    hdrs = ["helpers/dentry_resolver.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/helpers/buffer_selector",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/discarders",
+    hdrs = ["helpers/discarders.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/enums",
+        ":hdr/helpers/buffer_selector",
+        ":hdr/helpers/events",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/erpc",
+    hdrs = ["helpers/erpc.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/enums",
+        ":hdr/constants/fentry_macro",
+        ":hdr/helpers/dentry_resolver",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/span",
+        ":hdr/helpers/strings",
+        ":hdr/helpers/user_sessions",
+        ":hdr/maps",
+        ":hdr/perf_ring",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/events",
+    hdrs = ["helpers/events.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/enums",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/events_predicates",
+    hdrs = ["helpers/events_predicates.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/enums"],
+)
+
+cc_library(
+    name = "hdr/helpers/exec",
+    hdrs = ["helpers/exec.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/fentry_macro",
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/helpers/process",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/filesystem",
+    hdrs = ["helpers/filesystem.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/enums",
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/events_definition",
+        ":hdr/helpers/dentry_resolver",
+        ":hdr/helpers/discarders",
+        ":hdr/maps",
+        ":hdr/perf_ring",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/iouring",
+    hdrs = ["helpers/iouring.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/network/context",
+    hdrs = ["helpers/network/context.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/helpers/network/dns",
+    hdrs = ["helpers/network/dns.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/enums",
+        ":hdr/helpers/activity_dump",
+        ":hdr/helpers/network/context",
+        ":hdr/helpers/process",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/network/flow",
+    hdrs = ["helpers/network/flow.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/maps"],
+)
+
+cc_library(
+    name = "hdr/helpers/network/imds",
+    hdrs = ["helpers/network/imds.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/enums",
+        ":hdr/helpers/network/context",
+        ":hdr/helpers/process",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/network/parser",
+    hdrs = ["helpers/network/parser.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/macros",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/network/pid_resolver",
+    hdrs = ["helpers/network/pid_resolver.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/maps"],
+)
+
+cc_library(
+    name = "hdr/helpers/network/raw",
+    hdrs = ["helpers/network/raw.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/maps"],
+)
+
+cc_library(
+    name = "hdr/helpers/network/router",
+    hdrs = ["helpers/network/router.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/network/stats",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/network/stats",
+    hdrs = ["helpers/network/stats.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/network/context",
+        ":hdr/helpers/network/utils",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/network/utils",
+    hdrs = ["helpers/network/utils.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/helpers/process",
+    hdrs = ["helpers/process.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/enums",
+        ":hdr/constants/offsets/process",
+        ":hdr/events_definition",
+        ":hdr/helpers/cgroup",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/rate_limiter",
+    hdrs = ["helpers/rate_limiter.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/macros",
+        ":hdr/maps",
+        ":hdr/structs/rate_limiter",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/raw_syscalls",
+    hdrs = ["helpers/raw_syscalls.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/maps"],
+)
+
+cc_library(
+    name = "hdr/helpers/selinux",
+    hdrs = ["helpers/selinux.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/maps"],
+)
+
+cc_library(
+    name = "hdr/helpers/span",
+    hdrs = ["helpers/span.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/process",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/strings",
+    hdrs = ["helpers/strings.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/helpers/syscalls",
+    hdrs = ["helpers/syscalls.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/helpers/activity_dump",
+        ":hdr/helpers/cgroup",
+        ":hdr/helpers/events",
+        ":hdr/helpers/span",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/sysctl",
+    hdrs = ["helpers/sysctl.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/process",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/user_sessions",
+    hdrs = ["helpers/user_sessions.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/process",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/helpers/utils",
+    hdrs = ["helpers/utils.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/macros",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/all",
+    hdrs = ["hooks/all.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/hooks/bpf",
+        ":hdr/hooks/caps",
+        ":hdr/hooks/cgroup",
+        ":hdr/hooks/chdir",
+        ":hdr/hooks/chmod",
+        ":hdr/hooks/chown",
+        ":hdr/hooks/commit_creds",
+        ":hdr/hooks/dentry_resolver",
+        ":hdr/hooks/exec",
+        ":hdr/hooks/ioctl",
+        ":hdr/hooks/iouring",
+        ":hdr/hooks/link",
+        ":hdr/hooks/login_uid",
+        ":hdr/hooks/memfd",
+        ":hdr/hooks/mkdir",
+        ":hdr/hooks/mmap",
+        ":hdr/hooks/module",
+        ":hdr/hooks/mount",
+        ":hdr/hooks/mprotect",
+        ":hdr/hooks/namespaces",
+        ":hdr/hooks/network/accept",
+        ":hdr/hooks/network/bind",
+        ":hdr/hooks/network/connect",
+        ":hdr/hooks/network/dns",
+        ":hdr/hooks/network/flow",
+        ":hdr/hooks/network/imds",
+        ":hdr/hooks/network/net_device",
+        ":hdr/hooks/network/raw",
+        ":hdr/hooks/network/socket",
+        ":hdr/hooks/network/stats_worker",
+        ":hdr/hooks/network/tc",
+        ":hdr/hooks/on_demand",
+        ":hdr/hooks/open",
+        ":hdr/hooks/pivot_root",
+        ":hdr/hooks/prctl",
+        ":hdr/hooks/procfs",
+        ":hdr/hooks/ptrace",
+        ":hdr/hooks/raw_syscalls",
+        ":hdr/hooks/rename",
+        ":hdr/hooks/rmdir",
+        ":hdr/hooks/selinux",
+        ":hdr/hooks/setattr",
+        ":hdr/hooks/setrlimit",
+        ":hdr/hooks/setsid",
+        ":hdr/hooks/setsockopt",
+        ":hdr/hooks/setxattr",
+        ":hdr/hooks/signal",
+        ":hdr/hooks/splice",
+        ":hdr/hooks/sysctl",
+        ":hdr/hooks/umount",
+        ":hdr/hooks/unlink",
+        ":hdr/hooks/utimes",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/bpf",
+    hdrs = ["hooks/bpf.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/fentry_macro",
+        ":hdr/constants/offsets/bpf",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/bpf",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/process",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/caps",
+    hdrs = ["hooks/caps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/hooks/cgroup",
+    hdrs = ["hooks/cgroup.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/helpers/process",
+        ":hdr/helpers/syscalls",
+        ":hdr/helpers/utils",
+        ":hdr/hooks/dentry_resolver",
+        ":hdr/maps",
+        ":hdr/structs/dentry_resolver",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/chdir",
+    hdrs = ["hooks/chdir.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/chmod",
+    hdrs = ["hooks/chmod.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/chown",
+    hdrs = ["hooks/chown.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/commit_creds",
+    hdrs = ["hooks/commit_creds.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/events_predicates",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/dentry_resolver",
+    hdrs = ["hooks/dentry_resolver.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/helpers/dentry_resolver",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/exec",
+    hdrs = ["hooks/exec.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/fentry_macro",
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/caps",
+        ":hdr/helpers/cgroup",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/network/stats",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/ioctl",
+    hdrs = ["hooks/ioctl.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/fentry_macro",
+        ":hdr/helpers/erpc",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/iouring",
+    hdrs = ["hooks/iouring.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/fentry_macro",
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/helpers/iouring",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/link",
+    hdrs = ["hooks/link.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/login_uid",
+    hdrs = ["hooks/login_uid.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/helpers/syscalls"],
+)
+
+cc_library(
+    name = "hdr/hooks/memfd",
+    hdrs = ["hooks/memfd.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/fentry_macro",
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/process",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/mkdir",
+    hdrs = ["hooks/mkdir.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/mmap",
+    hdrs = ["hooks/mmap.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/module",
+    hdrs = ["hooks/module.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/mount",
+    hdrs = ["hooks/mount.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/events_predicates",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/mprotect",
+    hdrs = ["hooks/mprotect.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/namespaces",
+    hdrs = ["hooks/namespaces.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/netns",
+        ":hdr/maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/network/accept",
+    hdrs = ["hooks/network/accept.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/offsets/network"],
+)
+
+cc_library(
+    name = "hdr/hooks/network/bind",
+    hdrs = ["hooks/network/bind.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/netns",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/network/connect",
+    hdrs = ["hooks/network/connect.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/netns",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/discarders",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/network/dns",
+    hdrs = ["hooks/network/dns.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/network/dns",
+        ":hdr/helpers/network/parser",
+        ":hdr/helpers/network/router",
+        ":hdr/perf_ring",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/network/flow",
+    hdrs = ["hooks/network/flow.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/netns",
+        ":hdr/constants/offsets/network",
+        ":hdr/helpers/network/flow",
+        ":hdr/helpers/network/pid_resolver",
+        ":hdr/helpers/network/utils",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/network/imds",
+    hdrs = ["hooks/network/imds.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/network/imds",
+        ":hdr/helpers/network/parser",
+        ":hdr/perf_ring",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/network/net_device",
+    hdrs = ["hooks/network/net_device.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/offsets/netns",
+        ":hdr/helpers/process",
+        ":hdr/helpers/span",
+        ":hdr/maps",
+        ":hdr/perf_ring",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/network/raw",
+    hdrs = ["hooks/network/raw.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/network/parser",
+        ":hdr/helpers/network/raw",
+        ":hdr/perf_ring",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/network/socket",
+    hdrs = ["hooks/network/socket.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/network",
+        ":hdr/helpers/iouring",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/network/stats_worker",
+    hdrs = ["hooks/network/stats_worker.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/hooks/network/tc",
+    hdrs = ["hooks/network/tc.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/network/parser",
+        ":hdr/helpers/network/pid_resolver",
+        ":hdr/helpers/network/router",
+        ":hdr/hooks/network/raw",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/offset_guesser",
+    hdrs = ["hooks/offset_guesser.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/fentry_macro",
+        ":hdr/constants/macros",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/on_demand",
+    hdrs = ["hooks/on_demand.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/hooks/open",
+    hdrs = ["hooks/open.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/fentry_macro",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/exec",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/iouring",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/pivot_root",
+    hdrs = ["hooks/pivot_root.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/prctl",
+    hdrs = ["hooks/prctl.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/process",
+        ":hdr/helpers/strings",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/procfs",
+    hdrs = ["hooks/procfs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/constants/offsets/netns",
+        ":hdr/constants/offsets/network",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/utils",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/ptrace",
+    hdrs = ["hooks/ptrace.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/raw_syscalls",
+    hdrs = ["hooks/raw_syscalls.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/activity_dump",
+        ":hdr/helpers/raw_syscalls",
+        ":hdr/helpers/syscalls",
+        ":hdr/structs/security_profile",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/rename",
+    hdrs = ["hooks/rename.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/rmdir",
+    hdrs = ["hooks/rmdir.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/events_predicates",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/selinux",
+    hdrs = ["hooks/selinux.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/selinux",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/setattr",
+    hdrs = ["hooks/setattr.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/events_predicates",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/setrlimit",
+    hdrs = ["hooks/setrlimit.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/events_definition",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/setsid",
+    hdrs = ["hooks/setsid.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/setsockopt",
+    hdrs = ["hooks/setsockopt.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/process",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/setxattr",
+    hdrs = ["hooks/setxattr.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/events_predicates",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/signal",
+    hdrs = ["hooks/signal.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/splice",
+    hdrs = ["hooks/splice.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/splice",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/iouring",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/sysctl",
+    hdrs = ["hooks/sysctl.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/helpers/sysctl"],
+)
+
+cc_library(
+    name = "hdr/hooks/umount",
+    hdrs = ["hooks/umount.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/unlink",
+    hdrs = ["hooks/unlink.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/offsets/filesystem",
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/approvers",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/filesystem",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/hooks/utimes",
+    hdrs = ["hooks/utimes.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/syscall_macro",
+        ":hdr/helpers/discarders",
+        ":hdr/helpers/syscalls",
+    ],
+)
+
+cc_library(
+    name = "hdr/maps",
+    hdrs = ["maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/enums",
+        ":hdr/structs/all",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/perf_ring",
+    hdrs = ["perf_ring.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/structs/all",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/structs/activity_dump",
+    hdrs = ["structs/activity_dump.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/structs/all",
+    hdrs = ["structs/all.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/structs/activity_dump",
+        ":hdr/structs/bpf",
+        ":hdr/structs/caps",
+        ":hdr/structs/dentry_resolver",
+        ":hdr/structs/dns",
+        ":hdr/structs/erpc",
+        ":hdr/structs/events_context",
+        ":hdr/structs/filesystem",
+        ":hdr/structs/filter",
+        ":hdr/structs/network",
+        ":hdr/structs/open",
+        ":hdr/structs/process",
+        ":hdr/structs/selinux",
+        ":hdr/structs/syscalls",
+        ":hdr/structs/tracepoints",
+        ":hdr/structs/user_sessions",
+    ],
+)
+
+cc_library(
+    name = "hdr/structs/bpf",
+    hdrs = ["structs/bpf.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/enums",
+    ],
+)
+
+cc_library(
+    name = "hdr/structs/caps",
+    hdrs = ["structs/caps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/structs/dentry_resolver",
+    hdrs = ["structs/dentry_resolver.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/custom"],
+)
+
+cc_library(
+    name = "hdr/structs/dns",
+    hdrs = ["structs/dns.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/structs/erpc",
+    hdrs = ["structs/erpc.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/structs/events_context",
+    hdrs = ["structs/events_context.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/structs/dentry_resolver",
+    ],
+)
+
+cc_library(
+    name = "hdr/structs/filesystem",
+    hdrs = ["structs/filesystem.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/structs/events_context",
+    ],
+)
+
+cc_library(
+    name = "hdr/structs/filter",
+    hdrs = ["structs/filter.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/constants/enums",
+        ":hdr/structs/dentry_resolver",
+    ],
+)
+
+cc_library(
+    name = "hdr/structs/network",
+    hdrs = ["structs/network.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/structs/open",
+    hdrs = ["structs/open.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/structs/process",
+    hdrs = ["structs/process.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/structs/dentry_resolver",
+        ":hdr/structs/events_context",
+    ],
+)
+
+cc_library(
+    name = "hdr/structs/rate_limiter",
+    hdrs = ["structs/rate_limiter.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/structs/security_profile",
+    hdrs = ["structs/security_profile.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/custom"],
+)
+
+cc_library(
+    name = "hdr/structs/selinux",
+    hdrs = ["structs/selinux.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/constants/custom"],
+)
+
+cc_library(
+    name = "hdr/structs/syscalls",
+    hdrs = ["structs/syscalls.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/constants/custom",
+        ":hdr/structs/bpf",
+        ":hdr/structs/dentry_resolver",
+        ":hdr/structs/events_context",
+        ":hdr/structs/filter",
+        ":hdr/structs/process",
+    ],
+)
+
+cc_library(
+    name = "hdr/structs/tracepoints",
+    hdrs = ["structs/tracepoints.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/structs/user_sessions",
+    hdrs = ["structs/user_sessions.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/tests/activity_dump_ratelimiter_test",
+    hdrs = ["tests/activity_dump_ratelimiter_test.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/activity_dump",
+        ":hdr/helpers/utils",
+        ":hdr/tests/baloum",
+    ],
+)
+
+cc_library(
+    name = "hdr/tests/baloum",
+    hdrs = ["tests/baloum.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/tests/discarders_test",
+    hdrs = ["tests/discarders_test.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/discarders",
+        ":hdr/tests/baloum",
+    ],
+)
+
+cc_library(
+    name = "hdr/tests/path_id_test",
+    hdrs = ["tests/path_id_test.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/tests/raw_packet_test",
+    hdrs = ["tests/raw_packet_test.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/helpers/network/raw",
+        ":hdr/tests/baloum",
+    ],
+)
+
+cc_library(
+    name = "hdr/tests/tests",
+    hdrs = ["tests/tests.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/tests/activity_dump_ratelimiter_test",
+        ":hdr/tests/discarders_test",
+        ":hdr/tests/path_id_test",
+        ":hdr/tests/raw_packet_test",
+    ],
 )

@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
@@ -15,8 +17,17 @@ ebpf_prog(
     extra_flags = ["-Ipkg/dyninst/ebpf"],
     visibility = ["//visibility:public"],
     deps = [
-        ":dyninst_ebpf_headers",
-        "//pkg/ebpf/c:ebpf_c_headers",
+        ":hdr/cfa",
+        ":hdr/context",
+        ":hdr/framing",
+        ":hdr/murmur2",
+        ":hdr/scratch",
+        ":hdr/throttler",
+        ":hdr/walk_stack",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/compiler",
     ],
 )
 
@@ -31,7 +42,202 @@ ebpf_prog(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        ":dyninst_ebpf_headers",
-        "//pkg/ebpf/c:ebpf_c_headers",
+        ":hdr/cfa",
+        ":hdr/context",
+        ":hdr/framing",
+        ":hdr/murmur2",
+        ":hdr/scratch",
+        ":hdr/throttler",
+        ":hdr/walk_stack",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/compiler",
+    ],
+)
+
+cc_library(
+    name = "hdr/binary_search",
+    hdrs = ["binary_search.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/compiler",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/cfa",
+    hdrs = ["cfa.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+    ],
+)
+
+cc_library(
+    name = "hdr/chased_pointers_trie",
+    hdrs = ["chased_pointers_trie.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/compiler",
+    ],
+)
+
+cc_library(
+    name = "hdr/chased_slices",
+    hdrs = ["chased_slices.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/bpf_tracing"],
+)
+
+cc_library(
+    name = "hdr/context",
+    hdrs = ["context.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/chased_pointers_trie",
+        ":hdr/chased_slices",
+        ":hdr/queue",
+        ":hdr/scratch",
+        ":hdr/types",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+    ],
+)
+
+cc_library(
+    name = "hdr/debug",
+    hdrs = ["debug.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/bpf_helpers"],
+)
+
+cc_library(
+    name = "hdr/filter",
+    hdrs = ["filter.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/context",
+        ":hdr/framing",
+        ":hdr/scratch",
+        ":hdr/types",
+    ],
+)
+
+cc_library(
+    name = "hdr/framing",
+    hdrs = ["framing.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/murmur2",
+    hdrs = ["murmur2.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/framing"],
+)
+
+cc_library(
+    name = "hdr/program",
+    hdrs = ["program.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/types",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+    ],
+)
+
+cc_library(
+    name = "hdr/queue",
+    hdrs = ["queue.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/bpf_helpers"],
+)
+
+cc_library(
+    name = "hdr/scratch",
+    hdrs = ["scratch.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/debug",
+        ":hdr/framing",
+        ":hdr/types",
+        "//pkg/ebpf/c:hdr/compiler",
+    ],
+)
+
+cc_library(
+    name = "hdr/stack_machine",
+    hdrs = ["stack_machine.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/chased_pointers_trie",
+        ":hdr/context",
+        ":hdr/debug",
+        ":hdr/filter",
+        ":hdr/framing",
+        ":hdr/program",
+        ":hdr/queue",
+        ":hdr/scratch",
+        ":hdr/swiss_map_hash",
+        ":hdr/types",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/compiler",
+    ],
+)
+
+cc_library(
+    name = "hdr/swiss_map_hash",
+    hdrs = ["swiss_map_hash.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/types"],
+)
+
+cc_library(
+    name = "hdr/throttler",
+    hdrs = ["throttler.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/types"],
+)
+
+cc_library(
+    name = "hdr/types",
+    hdrs = ["types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/walk_stack",
+    hdrs = ["walk_stack.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/binary_search",
+        ":hdr/debug",
+        ":hdr/framing",
+        ":hdr/scratch",
+        ":hdr/stack_machine",
+        ":hdr/types",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
     ],
 )

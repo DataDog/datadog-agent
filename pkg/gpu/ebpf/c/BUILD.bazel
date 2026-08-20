@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 _GPU_HDRS = glob(["*.h"])
@@ -13,4 +15,12 @@ filegroup(
     name = "gpu_headers_files",
     srcs = _GPU_HDRS,
     visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/types",
+    hdrs = ["types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
 )

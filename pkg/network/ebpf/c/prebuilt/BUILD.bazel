@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
@@ -16,12 +18,6 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-_COMMON_DEPS = [
-    ":prebuilt_headers",
-    "//pkg/ebpf/c:ebpf_c_headers",
-    "//pkg/network/ebpf/c:ebpf_c_network",
-]
-
 _NETWORK_FLAGS = [
     "-Ipkg/network/ebpf/c",
     "-g",
@@ -32,7 +28,14 @@ ebpf_program_suite(
     src = "dns.c",
     extra_flags = _NETWORK_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        ":hdr/offsets",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/network/ebpf/c:hdr/ip",
+    ],
 )
 
 ebpf_program_suite(
@@ -40,16 +43,46 @@ ebpf_program_suite(
     src = "offset-guess.c",
     extra_flags = _NETWORK_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        ":hdr/offset-guess",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
 )
 
 ebpf_program_suite(
     name = "tracer",
     src = "//pkg/network/ebpf/c:tracer.c",
+    # tls-certs.h guards these with #ifndef COMPILE_PREBUILT.
+    allowed_unused = [
+        "pkg/network/ebpf/c/protocols/tls/tls-certs-parser.h",
+        "pkg/network/ebpf/c/protocols/tls/tls-certs-statem.h",
+    ],
     core = False,
     extra_flags = _NETWORK_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        ":hdr/offsets",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/network/ebpf/c:hdr/pid_tgid",
+        "//pkg/network/ebpf/c:hdr/protocols/classification/protocol-classification",
+        "//pkg/network/ebpf/c:hdr/protocols/tls/tls-certs",
+        "//pkg/network/ebpf/c:hdr/skb",
+        "//pkg/network/ebpf/c:hdr/tracer/bind",
+        "//pkg/network/ebpf/c:hdr/tracer/events",
+        "//pkg/network/ebpf/c:hdr/tracer/maps",
+        "//pkg/network/ebpf/c:hdr/tracer/port",
+        "//pkg/network/ebpf/c:hdr/tracer/tcp_recv",
+    ],
 )
 
 ebpf_program_suite(
@@ -57,7 +90,26 @@ ebpf_program_suite(
     src = "usm.c",
     extra_flags = _NETWORK_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        ":hdr/offsets",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/network/ebpf/c:hdr/protocols/classification/dispatcher-helpers",
+        "//pkg/network/ebpf/c:hdr/protocols/flush",
+        "//pkg/network/ebpf/c:hdr/protocols/http/buffer",
+        "//pkg/network/ebpf/c:hdr/protocols/http/http",
+        "//pkg/network/ebpf/c:hdr/protocols/http2/decoding",
+        "//pkg/network/ebpf/c:hdr/protocols/http2/decoding-tls",
+        "//pkg/network/ebpf/c:hdr/protocols/kafka/kafka-parsing",
+        "//pkg/network/ebpf/c:hdr/protocols/postgres/decoding",
+        "//pkg/network/ebpf/c:hdr/protocols/redis/decoding",
+        "//pkg/network/ebpf/c:hdr/protocols/sockfd-probes",
+        "//pkg/network/ebpf/c:hdr/protocols/tls/native-tls",
+        "//pkg/network/ebpf/c:hdr/protocols/tls/tags-types",
+    ],
 )
 
 ebpf_program_suite(
@@ -65,7 +117,17 @@ ebpf_program_suite(
     src = "usm_events_test.c",
     extra_flags = _NETWORK_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/ebpf/c:hdr/map-defs",
+        "//pkg/network/ebpf/c:hdr/defs",
+        "//pkg/network/ebpf/c:hdr/pid_tgid",
+        "//pkg/network/ebpf/c:hdr/protocols/events",
+    ],
 )
 
 ebpf_program_suite(
@@ -73,7 +135,16 @@ ebpf_program_suite(
     src = "shared-libraries.c",
     extra_flags = _NETWORK_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/network/ebpf/c:hdr/shared-libraries/maps",
+        "//pkg/network/ebpf/c:hdr/shared-libraries/probes",
+        "//pkg/network/ebpf/c:hdr/shared-libraries/types",
+    ],
 )
 
 ebpf_program_suite(
@@ -81,5 +152,53 @@ ebpf_program_suite(
     src = "conntrack.c",
     extra_flags = _NETWORK_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        ":hdr/conntrack",
+        ":hdr/offsets",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/network/ebpf/c:hdr/conntrack/maps",
+        "//pkg/network/ebpf/c:hdr/ip",
+        "//pkg/network/ebpf/c:hdr/ipv6",
+        "//pkg/network/ebpf/c:hdr/pid_tgid",
+    ],
+)
+
+cc_library(
+    name = "hdr/conntrack",
+    hdrs = ["conntrack.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/network/ebpf/c:hdr/conntrack/helpers",
+        "//pkg/network/ebpf/c:hdr/conntrack/maps",
+        "//pkg/network/ebpf/c:hdr/conntrack/types",
+        "//pkg/network/ebpf/c:hdr/ip",
+        "//pkg/network/ebpf/c:hdr/ipv6",
+        "//pkg/network/ebpf/c:hdr/sock",
+    ],
+)
+
+cc_library(
+    name = "hdr/offset-guess",
+    hdrs = ["offset-guess.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/offsets",
+    hdrs = ["offsets.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:hdr/compiler",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/network/ebpf/c:hdr/defs",
+    ],
 )

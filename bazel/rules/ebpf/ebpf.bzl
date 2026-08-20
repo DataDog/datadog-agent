@@ -81,11 +81,20 @@ def _ebpf_prog_impl(ctx):
     # Build flags
     flags = list(_COMMON_FLAGS)
 
+    # Headers whose use depends on flags set below rather than on anything
+    # visible in deps, so the rule declares them itself.
+    transitive_headers = [header_files]
     if ctx.attr.core:
         flags.extend(_CORE_FLAGS)
+
+        # ktypes.h reaches vmlinux.h only under COMPILE_CORE.
+        transitive_headers.append(ctx.attr._vmlinux[CcInfo].compilation_context.headers)
     else:
         flags.extend(_PREBUILT_FLAGS)
+
+        # Force-included rather than reached through an #include.
         flags.extend(["-include", "pkg/ebpf/c/asm_goto_workaround.h"])
+        transitive_headers.append(ctx.attr._asm_goto_workaround[CcInfo].compilation_context.headers)
 
     # Architecture defines
     flags.extend(_get_arch_flags(target_arch))
@@ -148,7 +157,7 @@ def _ebpf_prog_impl(ctx):
 
     action_inputs = depset(
         [src] + kernel_header_inputs,
-        transitive = [header_files],
+        transitive = transitive_headers,
     )
 
     wrapper_args = ctx.actions.args()
@@ -173,6 +182,26 @@ def _ebpf_prog_impl(ctx):
         unused_inputs_list = unused_inputs_file,
     )
 
+    # --- Validation: every declared header must have been opened ---
+    unused_check = ctx.actions.declare_file(ctx.label.name + ".unused_check")
+
+    check_args = ctx.actions.args()
+    check_args.add("--unused-inputs-list", unused_inputs_file)
+    check_args.add("--marker", unused_check)
+
+    # One token: a bare @@//... argument would be read as a response file.
+    check_args.add("--label=" + str(ctx.label))
+    check_args.add_all(ctx.attr.allowed_unused, before_each = "--allowed")
+
+    ctx.actions.run(
+        inputs = [unused_inputs_file],
+        outputs = [unused_check],
+        executable = ctx.executable._check_unused_inputs,
+        arguments = [check_args],
+        mnemonic = "EbpfUnusedCheck",
+        progress_message = "Checking eBPF header usage %{label}",
+    )
+
     # --- Step 2: .bc -> .o (llc) ---
     obj_file = ctx.actions.declare_file(ctx.label.name + ".o")
 
@@ -192,7 +221,13 @@ def _ebpf_prog_impl(ctx):
         progress_message = "Linking eBPF %{label} (.bc -> .o)",
     )
 
-    return [DefaultInfo(files = depset([obj_file]))]
+    return [
+        DefaultInfo(files = depset([obj_file])),
+        OutputGroupInfo(
+            unused_inputs = depset([unused_inputs_file]),
+            _validation = depset([unused_check]),
+        ),
+    ]
 
 def _stripped_ebpf_impl(ctx):
     """Strip debug info and LBB symbols from an eBPF object file."""
@@ -249,15 +284,35 @@ _ebpf_prog = rule(
         "extra_flags": attr.string_list(
             doc = "Additional compiler flags.",
         ),
+        "allowed_unused": attr.string_list(
+            doc = "Headers permitted to stay unopened because their #include " +
+                  "sits behind an #ifdef that is off for this program.",
+        ),
         "target_arch": attr.string(
             doc = "Explicit target architecture override (x86_64 or aarch64). " +
                   "Takes precedence over the --//bazel/rules/ebpf:target_arch flag.",
+        ),
+        "_asm_goto_workaround": attr.label(
+            default = "//pkg/ebpf/c:hdr/asm_goto_workaround",
+            providers = [CcInfo],
+            doc = "Header force-included into every prebuilt program via -include.",
+        ),
+        "_vmlinux": attr.label(
+            default = "//pkg/ebpf/c:hdr/vmlinux",
+            providers = [CcInfo],
+            doc = "CO-RE type definitions, reachable only under -DCOMPILE_CORE.",
         ),
         "_clang_with_unused_inputs": attr.label(
             default = "//bazel/rules/ebpf:clang_with_unused_inputs",
             executable = True,
             cfg = "exec",
             doc = "Clang wrapper that reports unused declared inputs.",
+        ),
+        "_check_unused_inputs": attr.label(
+            default = "//bazel/rules/ebpf:check_unused_inputs",
+            executable = True,
+            cfg = "exec",
+            doc = "Validation helper that rejects unopened declared headers.",
         ),
         "_target_arch_flag": attr.label(
             default = "//bazel/rules/ebpf:target_arch",
@@ -279,7 +334,7 @@ _ebpf_prog = rule(
     toolchains = [_TOOLCHAIN_TYPE],
 )
 
-def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags, target_arch):
+def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags, target_arch, allowed_unused):
     _ebpf_prog(
         name = name,
         visibility = visibility,
@@ -289,6 +344,7 @@ def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags,
         debug = debug,
         extra_flags = extra_flags,
         target_arch = target_arch,
+        allowed_unused = allowed_unused,
         target_compatible_with = ["@platforms//os:linux"],
     )
     _stripped_ebpf(
@@ -307,11 +363,12 @@ ebpf_prog = macro(
         "debug": attr.bool(default = False, configurable = False),
         "extra_flags": attr.string_list(default = [], configurable = False),
         "target_arch": attr.string(default = "", configurable = False),
+        "allowed_unused": attr.string_list(default = [], configurable = False),
     },
     implementation = _ebpf_prog_macro_impl,
 )
 
-def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, target_arch):
+def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, target_arch, allowed_unused):
     _ebpf_prog(
         name = name,
         visibility = visibility,
@@ -321,6 +378,7 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, tar
         debug = False,
         extra_flags = extra_flags,
         target_arch = target_arch,
+        allowed_unused = allowed_unused,
         target_compatible_with = ["@platforms//os:linux"],
     )
     _stripped_ebpf(
@@ -338,6 +396,7 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, tar
         debug = True,
         extra_flags = extra_flags,
         target_arch = target_arch,
+        allowed_unused = allowed_unused,
         target_compatible_with = ["@platforms//os:linux"],
     )
     _stripped_ebpf(
@@ -362,6 +421,7 @@ ebpf_program_suite = macro(
         "core": attr.bool(default = False, configurable = False),
         "extra_flags": attr.string_list(default = [], configurable = False),
         "target_arch": attr.string(default = "", configurable = False),
+        "allowed_unused": attr.string_list(default = [], configurable = False),
     },
     implementation = _ebpf_program_suite_impl,
 )

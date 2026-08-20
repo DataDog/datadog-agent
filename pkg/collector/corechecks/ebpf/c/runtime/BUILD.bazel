@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
@@ -24,22 +26,38 @@ filegroup(
 ebpf_program_suite(
     name = "oom-kill",
     src = "oom-kill-kern.c",
+    # Included behind #ifdef COMPILE_RUNTIME, which is off for a CO-RE build.
+    allowed_unused = ["pkg/ebpf/c/kconfig.h"],
     core = True,
     visibility = ["//visibility:public"],
     deps = [
-        ":corecheck_ebpf_headers",
-        "//pkg/ebpf/c:ebpf_c_headers",
+        ":hdr/oom-kill-kern-user",
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/cgroup",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/ebpf/c:hdr/map-defs",
     ],
 )
 
 ebpf_program_suite(
     name = "tcp-queue-length",
     src = "tcp-queue-length-kern.c",
+    # Included behind #ifdef COMPILE_RUNTIME, which is off for a CO-RE build.
+    allowed_unused = ["pkg/ebpf/c/kconfig.h"],
     core = True,
     visibility = ["//visibility:public"],
     deps = [
-        ":corecheck_ebpf_headers",
-        "//pkg/ebpf/c:ebpf_c_headers",
+        ":hdr/tcp-queue-length-kern-user",
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/cgroup",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/ebpf/c:hdr/map-defs",
     ],
 )
 
@@ -49,8 +67,12 @@ ebpf_program_suite(
     core = True,
     visibility = ["//visibility:public"],
     deps = [
-        ":corecheck_ebpf_headers",
-        "//pkg/ebpf/c:ebpf_c_headers",
+        ":hdr/ebpf-kern-user",
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/map-defs",
     ],
 )
 
@@ -60,7 +82,44 @@ ebpf_program_suite(
     core = True,
     visibility = ["//visibility:public"],
     deps = [
-        ":corecheck_ebpf_headers",
-        "//pkg/ebpf/c:ebpf_c_headers",
+        ":hdr/noisy-neighbor-kern-user",
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/map-defs",
     ],
+)
+
+cc_library(
+    name = "hdr/ebpf-kern-user",
+    hdrs = ["ebpf-kern-user.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/noisy-neighbor-kern-user",
+    hdrs = ["noisy-neighbor-kern-user.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/oom-kill-kern-user",
+    hdrs = ["oom-kill-kern-user.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/tcp-queue-length-kern-user",
+    hdrs = ["tcp-queue-length-kern-user.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
 )
