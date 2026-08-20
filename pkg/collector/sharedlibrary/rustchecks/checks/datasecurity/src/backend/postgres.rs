@@ -45,7 +45,10 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         .password(&conn.password)
         .application_name(&conn.application_name)
         .connect_timeout(timeout)
-        .options(&format!("-c statement_timeout={}", timeout.as_millis()));
+        .options(&format!(
+            "-c statement_timeout={} -c default_transaction_read_only=on",
+            timeout.as_millis()
+        ));
     // A host starting with `/` is a Unix socket directory, otherwise a TCP host.
     if conn.host.starts_with('/') {
         config.host_path(&conn.host);
