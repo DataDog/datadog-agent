@@ -51,12 +51,19 @@ const gatewayNamespace = "datadog-gateway"
 // dogtelGatewayHelmValues forces the Helm chart's ddot-collector-image helper
 // off its useStandaloneImage default (true), which otherwise runs a
 // semverCompare against the agent image tag; that check panics on floating
-// dev tags such as the default nightly-full-main-jmx (mirrors
-// gatewayTestSuite's values in gateway_test.go).
+// dev tags such as the default nightly-full-main-jmx. It also disables the
+// core Agent's own container log tailing, since the gateway's logs come
+// through the OTLP pipeline already — leaving file tailing on double-ingests
+// the calendar app's stdout, and that copy lacks the OTLP-derived tags
+// (e.g. custom.attribute, k8s.container.name) that utils.TestLogs asserts on
+// (mirrors gatewayTestSuite's values in gateway_test.go).
 const dogtelGatewayHelmValues = `
 datadog:
   otelCollector:
     useStandaloneImage: false
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
 `
 
 // dogtelGatewayTestSuite verifies a standalone otel-agent (DD_OTEL_STANDALONE=true,
