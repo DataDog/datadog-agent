@@ -5,4 +5,5 @@
 
 //go:build !linux || !nvml
 
+// Package nvidia holds the logic to collect metrics from the NVIDIA Management Library (NVML).
 package nvidia

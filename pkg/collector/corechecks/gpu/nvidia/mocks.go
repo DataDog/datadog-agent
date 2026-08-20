@@ -2,14 +2,13 @@
 // github.com/vektra/mockery
 // template: testify
 
-//go:build linux && nvml
+//go:build linux && nvml && test
 
 package nvidia
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	mock "github.com/stretchr/testify/mock"
-
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
 // newMockCollector creates a new instance of mockCollector. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
@@ -95,19 +94,19 @@ func (_c *mockCollector_Collect_Call) RunAndReturn(run func() ([]*Metric, error)
 }
 
 // Device provides a mock function for the type mockCollector
-func (_mock *mockCollector) Device() ddnvml.Device {
+func (_mock *mockCollector) Device() safenvml.Device {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Device")
 	}
 
-	var r0 ddnvml.Device
-	if returnFunc, ok := ret.Get(0).(func() ddnvml.Device); ok {
+	var r0 safenvml.Device
+	if returnFunc, ok := ret.Get(0).(func() safenvml.Device); ok {
 		r0 = returnFunc()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(ddnvml.Device)
+			r0 = ret.Get(0).(safenvml.Device)
 		}
 	}
 	return r0
@@ -130,56 +129,12 @@ func (_c *mockCollector_Device_Call) Run(run func()) *mockCollector_Device_Call 
 	return _c
 }
 
-func (_c *mockCollector_Device_Call) Return(device ddnvml.Device) *mockCollector_Device_Call {
+func (_c *mockCollector_Device_Call) Return(device safenvml.Device) *mockCollector_Device_Call {
 	_c.Call.Return(device)
 	return _c
 }
 
-func (_c *mockCollector_Device_Call) RunAndReturn(run func() ddnvml.Device) *mockCollector_Device_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// DeviceUUID provides a mock function for the type mockCollector
-func (_mock *mockCollector) DeviceUUID() string {
-	ret := _mock.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for DeviceUUID")
-	}
-
-	var r0 string
-	if returnFunc, ok := ret.Get(0).(func() string); ok {
-		r0 = returnFunc()
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-	return r0
-}
-
-// mockCollector_DeviceUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeviceUUID'
-type mockCollector_DeviceUUID_Call struct {
-	*mock.Call
-}
-
-// DeviceUUID is a helper method to define mock.On call
-func (_e *mockCollector_Expecter) DeviceUUID() *mockCollector_DeviceUUID_Call {
-	return &mockCollector_DeviceUUID_Call{Call: _e.mock.On("DeviceUUID")}
-}
-
-func (_c *mockCollector_DeviceUUID_Call) Run(run func()) *mockCollector_DeviceUUID_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *mockCollector_DeviceUUID_Call) Return(s string) *mockCollector_DeviceUUID_Call {
-	_c.Call.Return(s)
-	return _c
-}
-
-func (_c *mockCollector_DeviceUUID_Call) RunAndReturn(run func() string) *mockCollector_DeviceUUID_Call {
+func (_c *mockCollector_Device_Call) RunAndReturn(run func() safenvml.Device) *mockCollector_Device_Call {
 	_c.Call.Return(run)
 	return _c
 }
