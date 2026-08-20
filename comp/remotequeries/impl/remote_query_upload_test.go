@@ -80,7 +80,7 @@ func (f *fakeUploadTransport) request(i int) fakeUploadRequest {
 }
 
 // newTestRelay builds a relay wired to a fake transport with zero backoff.
-func newTestRelay(t *testing.T, ctx context.Context, delivery *RemoteQueryResultDelivery, downstream func(check.RemoteQueryStreamEvent) error) (*remoteQueryUploadRelay, *fakeUploadTransport) {
+func newTestRelay(ctx context.Context, t *testing.T, delivery *RemoteQueryResultDelivery, downstream func(check.RemoteQueryStreamEvent) error) (*remoteQueryUploadRelay, *fakeUploadTransport) {
 	t.Helper()
 	transport := &fakeUploadTransport{}
 	relay, err := newRemoteQueryUploadRelay(ctx, delivery, "org-api-key", downstream, transport)
@@ -105,7 +105,7 @@ func finalizeResponseBody(uploadID string, totalBytes, totalRows, chunkCount int
 func runUploadSuccess(t *testing.T, delivery *RemoteQueryResultDelivery, chunks [][]byte) (*fakeUploadTransport, []check.RemoteQueryStreamEvent) {
 	t.Helper()
 	var downstream []check.RemoteQueryStreamEvent
-	relay, transport := newTestRelay(t, context.Background(), delivery, func(event check.RemoteQueryStreamEvent) error {
+	relay, transport := newTestRelay(context.Background(), t, delivery, func(event check.RemoteQueryStreamEvent) error {
 		downstream = append(downstream, event)
 		return nil
 	})
@@ -313,7 +313,7 @@ func TestUploadRelayAggregateChecksumMatchesConcatenatedBodies(t *testing.T) {
 }
 
 func TestUploadRelayRetriesTransientFailuresWithSameIndex(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	payload := []byte("abcdefgh")
 	aggregate := sha256.Sum256(payload)
 	// chunk 0: 503 then 200 (retry same index); finalize 200.
@@ -332,7 +332,7 @@ func TestUploadRelayRetriesTransientFailuresWithSameIndex(t *testing.T) {
 }
 
 func TestUploadRelayRetries429And408(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	payload := []byte("abcdefgh")
 	aggregate := sha256.Sum256(payload)
 	transport.responses = []fakeUploadResponse{
@@ -348,7 +348,7 @@ func TestUploadRelayRetries429And408(t *testing.T) {
 }
 
 func TestUploadRelayDoesNotRetryNonTransient4xx(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	transport.responses = []fakeUploadResponse{{status: http.StatusBadRequest}}
 	err := relay.emit(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{}`, Payload: []byte("abcdefgh")})
 	require.Error(t, err)
@@ -361,7 +361,7 @@ func TestUploadRelayDoesNotRetryNonTransient4xx(t *testing.T) {
 }
 
 func TestUploadRelayEnforcesMaxBytesCap(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	require.NoError(t, relay.emit(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{}`, Payload: make([]byte, 16)}))
 	err := relay.emit(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{}`, Payload: make([]byte, 16)})
 	require.Error(t, err)
@@ -374,7 +374,7 @@ func TestUploadRelayEnforcesMaxBytesCap(t *testing.T) {
 
 func TestUploadRelayAbortsOnContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	relay, transport := newTestRelay(t, ctx, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(ctx, t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	cancel()
 	err := relay.emit(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{}`, Payload: []byte("abcdefgh")})
 	require.Error(t, err)
@@ -406,7 +406,7 @@ func TestUploadRelayRejectsFinalizeReceiptMismatch(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+			relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 			payload := []byte("abcdefgh")
 			aggregate := sha256.Sum256(payload)
 			transport.responses = []fakeUploadResponse{{status: http.StatusOK}, {status: http.StatusOK, body: tc.body}}
@@ -447,7 +447,7 @@ func TestUploadRelayRequiresAPIKey(t *testing.T) {
 }
 
 func TestUploadRelayBackpressureSplitsOneChunkAtATime(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	// A single 24-byte data event is split into three 8-byte PUTs, processed sequentially.
 	big := bytes.Repeat([]byte("x"), 24)
 	aggregate := sha256.Sum256(big)
@@ -555,7 +555,7 @@ func TestExecuteStreamUploadModeFailsWithoutAPIKey(t *testing.T) {
 // TLS httptest server, bypassing the production allowlist (the relay does not re-validate the
 // base URL). This lets cross-contract tests exercise the real HTTP client (incl. CheckRedirect)
 // against the exact intake response/headers without mutating the immutable allowlist.
-func newRealHTTPRelay(t *testing.T, ctx context.Context, serverURL string, client *http.Client, downstream func(check.RemoteQueryStreamEvent) error) *remoteQueryUploadRelay {
+func newRealHTTPRelay(ctx context.Context, t *testing.T, serverURL string, client *http.Client, downstream func(check.RemoteQueryStreamEvent) error) *remoteQueryUploadRelay {
 	t.Helper()
 	// Append the intake path prefix so chunk/finalize routes match the real intake contract.
 	baseURL := strings.TrimRight(serverURL, "/") + "/api/intake/its-agent-intake"
@@ -611,7 +611,7 @@ func TestUploadRelayCrossContractHTTPServer(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(handler))
 	defer server.Close()
 
-	relay := newRealHTTPRelay(t, context.Background(), server.URL, server.Client(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay := newRealHTTPRelay(context.Background(), t, server.URL, server.Client(), func(check.RemoteQueryStreamEvent) error { return nil })
 	payload := []byte("row1\nx") // 6 bytes, 1 newline → fits one 8-byte chunk
 	require.NoError(t, relay.emit(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{}`, Payload: payload}))
 	require.NoError(t, relay.emit(check.RemoteQueryStreamEvent{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}))
@@ -645,7 +645,7 @@ func TestUploadRelayHTTPClientRejectsRedirect(t *testing.T) {
 	}))
 	defer server.Close()
 
-	relay := newRealHTTPRelay(t, context.Background(), server.URL, server.Client(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay := newRealHTTPRelay(context.Background(), t, server.URL, server.Client(), func(check.RemoteQueryStreamEvent) error { return nil })
 	err := relay.emit(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{}`, Payload: []byte("abcdefgh")})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "302")
@@ -668,7 +668,7 @@ func TestUploadRelayCanceledStreamStillAttemptsAbort(t *testing.T) {
 	defer server.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	relay := newRealHTTPRelay(t, ctx, server.URL, server.Client(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay := newRealHTTPRelay(ctx, t, server.URL, server.Client(), func(check.RemoteQueryStreamEvent) error { return nil })
 	cancel() // cancel the stream context before any data is emitted
 	require.Error(t, relay.emit(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{}`, Payload: []byte("abcdefgh")}))
 	relay.abortIfPending() // abort must still fire even though ctx is cancelled
@@ -680,7 +680,7 @@ func TestUploadRelayCanceledStreamStillAttemptsAbort(t *testing.T) {
 }
 
 func TestUploadRelayFinalizeRejectsTrailingJSON(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	payload := []byte("abcdefgh")
 	aggregate := sha256Sum(payload)
 	// Two JSON objects back-to-back: strict decoder must reject the trailing value.
@@ -706,7 +706,7 @@ func TestUploadRelayFinalizeRejectsModeFormatCompressionMismatch(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+			relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 			payload := []byte("abcdefgh")
 			aggregate := sha256Sum(payload)
 			body := []byte(`{"mode":"` + tc.mode + `","upload_id":"upload-01k","bucket_name":"rq-bucket","manifest_key":"manifests/upload-01k.json","total_bytes":8,"total_rows":0,"chunk_count":1,"sha256":"` + hex.EncodeToString(aggregate) + `","format":"` + tc.format + `","compression":"` + tc.compress + `","finalized_at":"t"}`)
@@ -720,7 +720,7 @@ func TestUploadRelayFinalizeRejectsModeFormatCompressionMismatch(t *testing.T) {
 }
 
 func TestUploadRelayFinalizeRetriesTransientThenSucceeds(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	payload := []byte("abcdefgh")
 	aggregate := sha256Sum(payload)
 	// First finalize attempt: 503 (transient). Second: 200 with exact receipt (idempotent retry).
@@ -739,7 +739,7 @@ func TestUploadRelayFinalizeRetriesTransientThenSucceeds(t *testing.T) {
 }
 
 func TestUploadRelayFinalizeDoesNotRetryNonTransient4xx(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	payload := []byte("abcdefgh")
 	transport.responses = []fakeUploadResponse{
 		{status: http.StatusOK},        // chunk PUT
@@ -773,7 +773,7 @@ func readBody(t *testing.T, r *http.Request) []byte {
 // has already finalized, so a duplicate/late data event can never re-upload after the receipt
 // was surfaced.
 func TestUploadRelayFailsClosedAfterFinalEvent(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	payload := []byte("abcdefgh")
 	aggregate := sha256Sum(payload)
 	transport.responses = []fakeUploadResponse{
@@ -793,7 +793,7 @@ func TestUploadRelayFailsClosedAfterFinalEvent(t *testing.T) {
 // TestUploadRelayFailsClosedAfterAbortEvent rejects data/final events after an error event
 // has already aborted the upload.
 func TestUploadRelayFailsClosedAfterAbortEvent(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	require.NoError(t, relay.emit(check.RemoteQueryStreamEvent{Type: "error", MetadataJSON: `{"code":"copy_failed","message":"boom"}`}))
 	// The error event aborted the upload (one abort POST).
 	abortCalls := transport.calls
@@ -813,7 +813,7 @@ func TestUploadRelayFailsClosedAfterAbortEvent(t *testing.T) {
 // TestUploadRelayAbortIsIdempotentSinglePost confirms handleError + abortIfPending never
 // double-abort: aborted is set before the send, and a racing second call is a no-op.
 func TestUploadRelayAbortIsIdempotentSinglePost(t *testing.T) {
-	relay, transport := newTestRelay(t, context.Background(), validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
+	relay, transport := newTestRelay(context.Background(), t, validUploadDelivery(), func(check.RemoteQueryStreamEvent) error { return nil })
 	require.NoError(t, relay.emit(check.RemoteQueryStreamEvent{Type: "error", MetadataJSON: `{"code":"copy_failed"}`}))
 	abortCalls := transport.calls
 	// A second abortIfPending (as the runner returns) must NOT send a second abort.
