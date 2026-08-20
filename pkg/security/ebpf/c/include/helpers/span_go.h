@@ -112,8 +112,17 @@ static u32 __attribute__((always_inline)) mint_go_labels_id() {
     if (!id) {
         return 0;
     }
+    // The return value of __sync_fetch_and_add is deliberately discarded: using
+    // it emits BPF_ATOMIC|BPF_FETCH, which older kernels reject.
     __sync_fetch_and_add(id, 1);
-    return *id;
+    u32 minted = *id;
+    if (minted == 0) {
+        // The u32 counter wrapped around and 0 is our "invalid id" sentinel,
+        // skip it.
+        __sync_fetch_and_add(id, 1);
+        minted = *id;
+    }
+    return minted;
 }
 
 // Look up the ring slot for a given id (id % GO_LABELS_CTX_MAX_ENTRIES).
@@ -191,11 +200,11 @@ static void __attribute__((always_inline)) collect_go_slice_pair(
         return;
     }
     const u64 pair_off = (u64)n * 2 * sizeof(struct go_string_t);
-    if (bpf_probe_read_user(&s->pairs[n * 2], 2 * sizeof(struct go_string_t),
+    if (bpf_probe_read_user(&s->pair, sizeof(s->pair),
                             (void *)((char *)s->slice.array + pair_off)) < 0) {
         return;
     }
-    store_go_label(entry, n, &s->pairs[n * 2], &s->pairs[n * 2 + 1]);
+    store_go_label(entry, n, &s->pair[0], &s->pair[1]);
 }
 
 // Go <1.24: labels are a map[string]string. We best-effort read the first
