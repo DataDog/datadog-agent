@@ -205,7 +205,6 @@ def _run_command_with_tee(
 
 
 def bazel(
-    ctx: object,
     *args: str,
     capture_output: bool = False,
     env: dict[str, str] | None = None,
@@ -215,7 +214,6 @@ def bazel(
 ) -> str | subprocess.CompletedProcess[str]:
     """Execute a bazel command.
 
-    ctx: retained for compatibility with existing invoke task callers; command execution uses subprocess.
     env: environment variables when passing them through the corresponding Bazel `--*_env=` flags is not suitable.
     input: text to pass to the Bazel subprocess stdin.
     ignore_errors: do not fail fast, but instead return the raw `CompletedProcess`, whether the Bazel command

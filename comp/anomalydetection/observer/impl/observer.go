@@ -1044,10 +1044,16 @@ type metricIngestDecision struct {
 func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
 	normalizedSource := normalizeMetricSource(name, source)
-	// Canonicalize once so the mute hash in isAllowed matches seriesKeyHash in
+	precheck := filter.precheck(name, normalizedSource)
+	if precheck.reject {
+		return metricIngestDecision{source: normalizedSource}
+	}
+
+	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
 	// storage, and downstream Add calls hit the tagsSorted fast path.
 	tags := canonicalizeTags(sample.GetRawTags())
-	if !filter.isAllowed(name, normalizedSource, tags) {
+	if filter.isMuted(name, normalizedSource, tags) ||
+		(precheck.needsTags && !filter.isAllowedByRulesFrom(name, normalizedSource, tags, precheck.firstCandidate)) {
 		return metricIngestDecision{source: normalizedSource}
 	}
 
@@ -1101,6 +1107,13 @@ type handle struct {
 	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
 	telemetry *observerTelemetry
 	filter    *metricsFilterRules
+
+	// The overwhelmingly common filtered-metric source for a handle is its
+	// source. Bind that Prometheus counter lazily to avoid a label lookup and a
+	// variadic allocation for every rejected metric.
+	filteredMetricOnce   sync.Once
+	filteredMetricSource string
+	filteredMetric       telemetry.SimpleCounter
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -1116,7 +1129,7 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 	decision := prepareMetricIngest(h.source, sample, h.filter)
 	if decision.metric == nil {
 		if h.telemetry != nil && decision.source != "" {
-			h.telemetry.recordFilteredMetric(decision.source)
+			h.recordFilteredMetric(decision.source)
 		}
 		return false
 	}
@@ -1139,6 +1152,22 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 		}
 		return true
 	}
+}
+
+func (h *handle) recordFilteredMetric(source string) {
+	h.filteredMetricOnce.Do(func() {
+		h.filteredMetricSource = source
+		h.filteredMetric = h.telemetry.filteredMetrics.WithValues(source)
+	})
+	if h.filteredMetricSource == source {
+		h.filteredMetric.Inc()
+		return
+	}
+
+	// datadog.* metrics are normalized to the agent namespace, rather than the
+	// source that created this handle. That path is uncommon, so retain the
+	// generic lookup to keep telemetry labels correct.
+	h.telemetry.recordFilteredMetric(source)
 }
 
 // ObserveLog observes a log message.
