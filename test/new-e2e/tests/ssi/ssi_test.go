@@ -708,16 +708,19 @@ func (v *ssiSuite) TestRemoteConfig() {
 
 	// Static targeting is evaluated before RC. A remote deny matching targeted-namespace
 	// must not block the helm python workload; RC only applies when no helm target matches.
+	// An allow matching "other" is published first so a pod leaves the helm baseline;
+	// replacing that same document with the deny must restore lib-injection in "other"
+	// (the deny does not match that namespace) while helm targeting stays SSI.
 	v.Run("HelmTargetWinsOverRemoteDeny", func() {
 		k8s := v.Env().KubernetesCluster.Client()
 
-		cleanup := v.pushAPMPolicy(fi, rcDenyTargetedNamespaceConfigID, rcDenyTargetedNamespaceConfigName, rcDenyTargetedNamespacePolicyJSON)
+		cleanup := v.pushAPMPolicy(fi, rcDenyTargetedNamespaceConfigID, rcDenyTargetedNamespaceConfigName, rcNamespaceOtherPolicyJSON)
 		defer cleanup()
 
-		v.requireHelmTargetStillSSI(k8s)
+		RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_single_step"))
 
-		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
-		annotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		_ = v.pushAPMPolicy(fi, rcDenyTargetedNamespaceConfigID, rcDenyTargetedNamespaceConfigName, rcDenyTargetedNamespacePolicyJSON)
+		annotated := RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_lib_injection"))
 		annotatedValidator := testutils.NewPodValidator(annotated, testutils.InjectionModeAuto)
 		annotatedValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
@@ -729,18 +732,25 @@ func (v *ssiSuite) TestRemoteConfig() {
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
 		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		v.requireHelmTargetStillSSI(k8s)
 	})
 
 	// Two RC policies both match namespace "other": allow then deny. Last TRUE wins,
-	// so the unannotated pod stays uninjected. Helm targeting is unchanged.
+	// so the unannotated pod is uninjected. An allow-only document is published first
+	// so the pod leaves the helm baseline; replacing it with allow+deny must restore
+	// no-injection. Delete-then-add would restore the baseline as soon as the allow is
+	// gone, before last-wins is applied. First-wins would keep SSI after the replace.
 	v.Run("LastMatchingRemotePolicyWins", func() {
 		k8s := v.Env().KubernetesCluster.Client()
 
-		cleanup := v.pushAPMPolicy(fi, rcLastWinsOtherConfigID, rcLastWinsOtherConfigName, rcLastWinsOtherPolicyJSON)
+		cleanup := v.pushAPMPolicy(fi, rcLastWinsOtherConfigID, rcLastWinsOtherConfigName, rcNamespaceOtherPolicyJSON)
 		defer cleanup()
 
-		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
-		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		RestartUntil(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp, hasInstallType(rcUnannotatedPodApp, "k8s_single_step"))
+
+		_ = v.pushAPMPolicy(fi, rcLastWinsOtherConfigID, rcLastWinsOtherConfigName, rcLastWinsOtherPolicyJSON)
+		unannotated := RestartUntil(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp, noInjection(rcUnannotatedPodApp))
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
 		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
