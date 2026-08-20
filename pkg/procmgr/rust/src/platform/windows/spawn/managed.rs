@@ -15,7 +15,6 @@ use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::primary_token::spawn_as_primary_token;
 use super::privileged;
 
-/// Spawn suspended; job assignment is post-spawn (`CreateProcessAsUserW` + impersonation).
 pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {
     let profile = profile_for(process.name());
     let request = SpawnRequest::from_config(process.name(), process.config(), profile)?;

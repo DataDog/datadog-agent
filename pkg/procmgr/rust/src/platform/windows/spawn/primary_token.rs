@@ -32,7 +32,6 @@ pub(super) fn spawn_as_primary_token(
     request: &SpawnRequest,
     account: &AgentAccount,
 ) -> Result<(SuspendedChild, Option<UserProfileGuard>)> {
-    // Map stdio to explicit Win32 handles for CreateProcessAsUserW.
     let stdout_handle = map_stdio_setting(
         process_name,
         &request.stdout_setting,
@@ -97,10 +96,7 @@ pub(super) fn spawn_as_primary_token(
         | CREATE_NO_WINDOW
         | CREATE_UNICODE_ENVIRONMENT;
 
-    // Run as the supervisor (LocalSystem): pass the target primary token via `hToken`.
-    // Do not impersonate here — a job object handle created by LocalSystem is not valid
-    // in an impersonated thread context (CreateProcessAsUserW returns ERROR_INVALID_HANDLE).
-    // Spawn suspended; the caller assigns the job and resumes the initial thread.
+    // Do not impersonate: a LocalSystem job handle is invalid in an impersonated thread.
     let mut pi: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {
         CreateProcessAsUserW(

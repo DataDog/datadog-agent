@@ -62,9 +62,6 @@ pub struct JobObject {
     handle: HANDLE,
 }
 
-// SAFETY: The Win32 HANDLE is a plain pointer-sized value that is safe to
-// send across threads. The kernel serialises concurrent operations on the
-// same handle.
 unsafe impl Send for JobObject {}
 unsafe impl Sync for JobObject {}
 
