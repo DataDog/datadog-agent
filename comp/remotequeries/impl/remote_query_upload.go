@@ -321,7 +321,7 @@ func (r *remoteQueryUploadRelay) emit(event check.RemoteQueryStreamEvent) error 
 	case "data":
 		return r.handleData(event)
 	case "final":
-		return r.handleFinal(event)
+		return r.handleFinal()
 	case "error":
 		return r.handleError(event)
 	default:
@@ -361,7 +361,7 @@ func (r *remoteQueryUploadRelay) handleData(event check.RemoteQueryStreamEvent) 
 	return nil
 }
 
-func (r *remoteQueryUploadRelay) handleFinal(event check.RemoteQueryStreamEvent) error {
+func (r *remoteQueryUploadRelay) handleFinal() error {
 	// Flush the remaining buffer as the final chunk before finalizing.
 	if r.buffer.Len() > 0 {
 		if err := r.flushOneChunk(r.buffer.Len()); err != nil {
