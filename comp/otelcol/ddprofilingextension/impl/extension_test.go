@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// OTel datadogextension is not supported on AIX.
+//go:build !aix
+
 // Package ddprofilingextension defines the OpenTelemetry Extension implementation.
 package ddprofilingextensionimpl
 

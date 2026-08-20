@@ -325,6 +325,9 @@ func TestUninstallExperiment(t *testing.T) {
 }
 
 func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
+	if runtime.GOOS == "aix" {
+		t.Skip("fleet installer is not supported on AIX")
+	}
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
@@ -345,6 +348,9 @@ func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 }
 
 func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
+	if runtime.GOOS == "aix" {
+		t.Skip("fleet installer is not supported on AIX")
+	}
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
@@ -473,6 +479,10 @@ func TestPurge(t *testing.T) {
 
 func doTestInstallers(t *testing.T, testFunc func(installFnFactory, *testing.T)) {
 	t.Helper()
+	// The fleet installer is not supported on AIX.
+	if runtime.GOOS == "aix" {
+		t.Skip("fleet installer is not supported on AIX")
+	}
 	installers := []installFnFactory{
 		func(manager *testPackageManager) installFn {
 			return manager.Install

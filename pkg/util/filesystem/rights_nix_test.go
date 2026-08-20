@@ -9,6 +9,7 @@ package filesystem
 
 import (
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,12 @@ func TestGroupOtherRights(t *testing.T) {
 
 	// owner have R&W but not X permission
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0600))
-	require.NotNil(t, CheckRights(tmpfile.Name(), allowGroupExec))
+	if runtime.GOOS == "aix" && os.Getuid() == 0 {
+		// On AIX, root access(X_OK) succeeds even without execute bits.
+		require.Nil(t, CheckRights(tmpfile.Name(), allowGroupExec))
+	} else {
+		require.NotNil(t, CheckRights(tmpfile.Name(), allowGroupExec))
+	}
 
 	// group should have no right
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0710))

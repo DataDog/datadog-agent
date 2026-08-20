@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // TODO(OASIS-79): fix data race then remove !race
-//go:build otlp && test && !race
+// OTel datadogextension is not supported on AIX.
+//go:build otlp && test && !race && !aix
 
 package integrationtest
 
