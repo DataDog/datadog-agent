@@ -6,6 +6,7 @@
 package remotequeriesimpl
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -603,13 +604,13 @@ func TestNewRemoteQueryCopyStreamExecuteRequestValidation(t *testing.T) {
 	target := RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}
 
 	t.Run("allows non proof query", func(t *testing.T) {
-		req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, "SELECT * FROM arbitrary_table", "csv", nil)
+		req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, "SELECT * FROM arbitrary_table", "csv", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "SELECT * FROM arbitrary_table", req.Query)
 	})
 
 	t.Run("empty query", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, "", "csv", nil)
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, "", "csv", nil, nil)
 		require.Error(t, err)
 		assert.EqualError(t, err, "query is required")
 	})
@@ -621,25 +622,25 @@ func TestNewRemoteQueryCopyStreamExecuteRequestValidation(t *testing.T) {
 	})
 
 	t.Run("bad target", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "", Port: 5432, DBName: "postgres"}, remoteQueryFixtureTableProofQuery, "csv", nil)
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "", Port: 5432, DBName: "postgres"}, remoteQueryFixtureTableProofQuery, "csv", nil, nil)
 		require.Error(t, err)
 		assert.EqualError(t, err, "target.host is required")
 	})
 
 	t.Run("bad database instance target", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: " rq-proof-a1-db1 "}, remoteQueryFixtureTableProofQuery, "csv", nil)
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: " rq-proof-a1-db1 "}, remoteQueryFixtureTableProofQuery, "csv", nil, nil)
 		require.Error(t, err)
 		assert.EqualError(t, err, "target.database_instance must not contain surrounding whitespace")
 	})
 
 	t.Run("bad format", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "json", nil)
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "json", nil, nil)
 		require.Error(t, err)
 		assert.EqualError(t, err, "format must be csv or binary")
 	})
 
 	t.Run("bad limits", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv", &RemoteQueryExecuteCopyLimits{ChunkBytes: 0, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000})
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv", &RemoteQueryExecuteCopyLimits{ChunkBytes: 0, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000}, nil)
 		require.Error(t, err)
 		assert.EqualError(t, err, "copyLimits.chunkBytes must be at least 1")
 	})
@@ -673,12 +674,12 @@ func TestRemoteQueryExecuteServiceCopyStreamDispatch(t *testing.T) {
 			{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
 		},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"}, "SELECT city, country FROM cities ORDER BY city", "csv", &RemoteQueryExecuteCopyLimits{ChunkBytes: 4, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000})
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
+	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"}, "SELECT city, country FROM cities ORDER BY city", "csv", &RemoteQueryExecuteCopyLimits{ChunkBytes: 4, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000}, nil)
 	require.NoError(t, err)
 
 	var events []check.RemoteQueryStreamEvent
-	result := service.ExecuteStream(req, func(event check.RemoteQueryStreamEvent) error {
+	result := service.ExecuteStream(context.Background(), req, func(event check.RemoteQueryStreamEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -695,11 +696,11 @@ func TestRemoteQueryExecuteServiceCopyStreamDispatchesDatabaseInstanceTarget(t *
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"}},
 		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1"}, "SELECT * FROM arbitrary_table", "csv", nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false, nil)
+	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1"}, "SELECT * FROM arbitrary_table", "csv", nil, nil)
 	require.NoError(t, err)
 
-	result := service.ExecuteStream(req, func(check.RemoteQueryStreamEvent) error { return nil })
+	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
 	require.Nil(t, result.Error)
 	assert.Equal(t, 1, runner.streamCalls)
@@ -711,11 +712,11 @@ func TestRemoteQueryExecuteServiceRejectsNonAllowlistedQueryByDefault(t *testing
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", "csv", nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
+	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", "csv", nil, nil)
 	require.NoError(t, err)
 
-	result := service.ExecuteStream(req, func(check.RemoteQueryStreamEvent) error { return nil })
+	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
 	require.NotNil(t, result.Error)
 	assert.Equal(t, http.StatusBadRequest, result.HTTPStatus)
@@ -729,11 +730,11 @@ func TestRemoteQueryExecuteServiceAllowsNonAllowlistedQueryWhenAllowlistDisabled
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
 		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", "csv", nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false, nil)
+	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", "csv", nil, nil)
 	require.NoError(t, err)
 
-	result := service.ExecuteStream(req, func(check.RemoteQueryStreamEvent) error { return nil })
+	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
 	require.Nil(t, result.Error)
 	assert.Equal(t, 1, runner.streamCalls)
