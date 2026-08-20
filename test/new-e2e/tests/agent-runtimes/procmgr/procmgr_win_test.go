@@ -165,6 +165,44 @@ func (s *procmgrWindowsSuite) TestProcmgrServiceRunsAsLocalSystem() {
 	}, 60*time.Second, 2*time.Second)
 }
 
+// Regression: mutating RPC auth must allow elevated Administrators over
+// identification-level named pipes (tokio default; same as COAT/go-winio).
+// CheckTokenMembership on the impersonated client token must not require
+// SecurityImpersonation pipe connection level.
+func (s *procmgrWindowsSuite) TestAdministratorCreateViaNamedPipe() {
+	host := s.Env().RemoteHost
+
+	caller, err := host.Execute(psRemote(`
+$ErrorActionPreference = 'Stop'
+$id = [Security.Principal.WindowsIdentity]::GetCurrent()
+if ($id.IsSystem) { throw 'test must not run as LocalSystem' }
+$principal = New-Object Security.Principal.WindowsPrincipal($id)
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  throw 'test requires an elevated Administrator caller'
+}
+$id.Name
+`))
+	require.NoError(s.T(), err)
+	assert.NotContains(s.T(), strings.ToUpper(caller), "SYSTEM")
+
+	const procName = "e2e-admin-pipe-create"
+	createOut, err := host.Execute(s.platform.cliCmd(fmt.Sprintf(
+		`create --name %s --command %s --args -NoProfile --args -NonInteractive --args -Command --args "Start-Sleep -Seconds 3600" --no-auto-start --description "E2E admin pipe auth"`,
+		procName, winSleepCommand,
+	)))
+	require.NoError(s.T(), err, "Create RPC should succeed for Administrator pipe client; output: %s", createOut)
+	assert.NotContains(s.T(), strings.ToLower(createOut), "permission denied")
+	assert.Contains(s.T(), createOut, "UUID:")
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		listOut := host.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, listOut, procName, map[string]string{
+			"STATE": "Created",
+			"PID":   "-",
+		})
+	}, 30*time.Second, 2*time.Second)
+}
+
 func (s *procmgrWindowsSuite) TestAgentProfileChildRunsAsAgentUser() {
 	host := s.Env().RemoteHost
 
