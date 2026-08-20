@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build linux && nvml
+
 // Package nvidia holds the logic to collect metrics from the NVIDIA Management Library (NVML).
 package nvidia
 

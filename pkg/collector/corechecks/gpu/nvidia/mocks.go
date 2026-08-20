@@ -2,6 +2,8 @@
 // github.com/vektra/mockery
 // template: testify
 
+//go:build linux && nvml
+
 package nvidia
 
 import (
