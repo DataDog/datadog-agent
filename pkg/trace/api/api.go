@@ -92,7 +92,14 @@ func (r *HTTPReceiver) reserveBodySize(buf *bytes.Buffer, req *http.Request) err
 	if bufferSize == 0 {
 		bufferSize = defaultReceiverBufferSize
 	}
-	buf.Grow(bufferSize)
+	// Reserve bytes.MinRead beyond the body itself: io.Copy ends in
+	// bytes.Buffer.ReadFrom, which needs MinRead spare capacity for the read that
+	// reports EOF, so reserving exactly bufferSize forces a realloc. The limit
+	// check above deliberately uses the unpadded size so MaxRequestBytes semantics
+	// are unchanged.
+	if need := bufferSize + bytes.MinRead; buf.Available() < need {
+		buf.Grow(need)
+	}
 	return nil
 }
 
@@ -548,12 +555,13 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *i
 // - tp is the decoded payload
 // - err is the first error encountered
 func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *pb.TracerPayload, err error) {
-	// Legacy decoders use pointer slices and may preserve nil wire entries.
-	// Establish the payload invariant here, before receiver metadata extraction
+	// Decoders vary in what they leave behind: legacy ones use pointer slices
+	// and may preserve nil wire entries, and v0.7 may leave chunk Tags nil.
+	// Establish the payload invariants here, before receiver metadata extraction
 	// or the payload is handed to the processing pipeline.
 	defer func() {
 		if err == nil && tp != nil {
-			removeNilEntries(tp)
+			normalizeDecodedPayload(tp)
 		}
 	}()
 
@@ -1310,17 +1318,28 @@ func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
 	return traceChunks
 }
 
-// removeNilEntries removes nil entries produced by legacy payload
-// decoders. After this function returns, every retained chunk, span, link,
-// event, event attribute, and attribute-array element is non-nil. Chunks with
-// no remaining spans are dropped because they carry no processable trace.
-func removeNilEntries(tp *pb.TracerPayload) {
+// normalizeDecodedPayload establishes the invariants the processing pipeline
+// relies on for a decoded payload.
+//
+// It removes nil entries produced by legacy payload decoders: after this
+// function returns, every retained chunk, span, link, event, event attribute,
+// and attribute-array element is non-nil. Chunks with no remaining spans are
+// dropped because they carry no processable trace.
+//
+// It also guarantees a non-nil Tags map on every retained chunk. The v0.7
+// decoder allocates Tags only when the wire payload carries a "tags" key, while
+// the v0.1/v0.4/v0.5 chunk builders always allocate one; normalizing here lets
+// downstream code write chunk tags without a nil check.
+func normalizeDecodedPayload(tp *pb.TracerPayload) {
 	chunks := compactNonNil(tp.Chunks)
 	keptChunks := chunks[:0]
 	for _, chunk := range chunks {
 		chunk.Spans = compactNonNil(chunk.Spans)
 		if len(chunk.Spans) == 0 {
 			continue
+		}
+		if chunk.Tags == nil {
+			chunk.Tags = make(map[string]string)
 		}
 		for _, span := range chunk.Spans {
 			span.SpanLinks = compactNonNil(span.SpanLinks)

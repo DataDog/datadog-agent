@@ -1,8 +1,9 @@
 # Global build settings
 # gazelle:dd_agent_go_test on
-# gazelle:go_canonical_test_tag_set docker kubelet
 # gazelle:go_canonical_test_tag_set cel clusterchecks kubeapiserver kubelet orchestrator
-# gazelle:go_canonical_test_tag_set linux_bpf
+# gazelle:go_canonical_test_tag_set bpf
+# gazelle:go_canonical_test_tag_set containerd cel
+# gazelle:go_canonical_test_tag_set docker kubelet cel
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
@@ -11,6 +12,7 @@ load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
+load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
@@ -48,8 +50,7 @@ exports_files(glob(
 
 exports_files(["go.mod"])
 
-# TODO(ABLD-519): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
-# gazelle:exclude cmd/serverless-init/*.go
+# TODO(ABLD-519): remove below `gazelle:exclude` directives
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
 # binary out of Bazel, consistent with testprogs binaries relying on the
@@ -66,64 +67,7 @@ exports_files(["go.mod"])
 # library.
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
-# gazelle:exclude test/new-e2e/examples
-# gazelle:exclude test/new-e2e/system-probe/config
-# gazelle:exclude test/new-e2e/system-probe/test
-# gazelle:exclude test/new-e2e/tests/agent-configuration
-# gazelle:exclude test/new-e2e/tests/agent-devx
-# gazelle:exclude test/new-e2e/tests/agent-health
-# gazelle:exclude test/new-e2e/tests/agent-log-pipelines
-# gazelle:exclude test/new-e2e/tests/agent-metric-pipelines
-# gazelle:exclude test/new-e2e/tests/agent-platform/common
-# gazelle:exclude test/new-e2e/tests/agent-platform/tests
-# gazelle:exclude test/new-e2e/tests/agent-runtimes
-# gazelle:exclude test/new-e2e/tests/agent-subcommands/check
-# gazelle:exclude test/new-e2e/tests/agent-subcommands/dogstatsdreplay
-# gazelle:exclude test/new-e2e/tests/agent-subcommands/status
-# gazelle:exclude test/new-e2e/tests/agent-telemetry
-# gazelle:exclude test/new-e2e/tests/anomalydetection
-# gazelle:exclude test/new-e2e/tests/apm
-# gazelle:exclude test/new-e2e/tests/autoscaling/spot
-# gazelle:exclude test/new-e2e/tests/containers
-# gazelle:exclude test/new-e2e/tests/cspm
-# gazelle:exclude test/new-e2e/tests/cws/api
-# gazelle:exclude test/new-e2e/tests/discovery
-# gazelle:exclude test/new-e2e/tests/ddot
-# gazelle:exclude test/new-e2e/tests/fips-compliance
-# gazelle:exclude test/new-e2e/tests/fleet
-# gazelle:exclude test/new-e2e/tests/gpu
-# gazelle:exclude test/new-e2e/tests/ha-agent
-# gazelle:exclude test/new-e2e/tests/installer/host
-# gazelle:exclude test/new-e2e/tests/installer/script
-# gazelle:exclude test/new-e2e/tests/installer/unix
-# gazelle:exclude test/new-e2e/tests/installer/windows/fixtures
-# gazelle:exclude test/new-e2e/tests/installer/windows/remote-host-assertions
-# gazelle:exclude test/new-e2e/tests/installer/windows/resources
-# gazelle:exclude test/new-e2e/tests/installer/windows/suite-assertions
-# gazelle:exclude test/new-e2e/tests/language-detection
-# gazelle:exclude test/new-e2e/tests/ndm
-# gazelle:exclude test/new-e2e/tests/netpath
-# gazelle:exclude test/new-e2e/tests/npm
-# gazelle:exclude test/new-e2e/tests/orchestrator
-# gazelle:exclude test/new-e2e/tests/otel
-# gazelle:exclude test/new-e2e/tests/privateactionrunner
-# gazelle:exclude test/new-e2e/tests/process
-# gazelle:exclude test/new-e2e/tests/remote-config
-# gazelle:exclude test/new-e2e/tests/sbom
-# gazelle:exclude test/new-e2e/tests/security-agent-functional
-# gazelle:exclude test/new-e2e/tests/ssi
-# gazelle:exclude test/new-e2e/tests/ssi-gradual-rollout
-# gazelle:exclude test/new-e2e/tests/sysprobe-functional
-# gazelle:exclude test/new-e2e/tests/usm
-# gazelle:exclude test/new-e2e/tests/windows/common/fixtures
-# gazelle:exclude test/new-e2e/tests/windows/domain-test
-# gazelle:exclude test/new-e2e/tests/windows/fips-test
-# gazelle:exclude test/new-e2e/tests/windows/install-test
-# gazelle:exclude test/new-e2e/tests/windows/scripts
-# gazelle:exclude test/new-e2e/tests/windows/service-test
-# gazelle:exclude test/new-e2e/tests/windows/windows-certificate
 # gazelle:exclude internal/qbranch/anomalydetection-testbench
-# gazelle:exclude tools/retry_file_dump
 # gazelle:exclude vendor
 
 # ======= TESTDATA EXCLUDES =======
@@ -179,9 +123,9 @@ alias(
 )
 
 # bazel run //:go_mod_tidy_all -- -x
-alias(
+go_shim(
     name = "go_mod_tidy_all",
-    actual = "//bazel/tools:go_mod_tidy_all",
+    tool = "//bazel/rules/go_mod_tidy_all",
 )
 
 run_binary(

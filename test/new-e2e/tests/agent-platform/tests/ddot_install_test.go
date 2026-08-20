@@ -78,6 +78,7 @@ func TestDDOTInstallScript(t *testing.T) {
 			}
 
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+			vmOpts = append(vmOpts, ec2.WithInternetAccess())
 
 			e2e.Run(tt,
 				&ddotInstallSuite{osVersion: version, osDesc: osDesc},
@@ -96,6 +97,10 @@ func (is *ddotInstallSuite) SetupSuite() {
 	defer is.CleanupOnSetupFailure()
 
 	is.host = host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	// CentOS 7 is EOL and its stock vault path 403s; repoint yum at the working vault
+	// archive/mirrors before the ddot RPM install refreshes CentOS base metadata. No-op on
+	// non-CentOS-7 flavors (e.g. the RedHat descriptor this job also runs).
+	is.host.ConfigureYumMirrors()
 }
 
 func (is *ddotInstallSuite) TestDDOTInstall() {
