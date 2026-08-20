@@ -170,7 +170,6 @@ anomaly_detection:
 			provides, err := NewComponent(Requires{
 				Lifecycle: &testLifecycle{},
 				Config:    cfg,
-				Log:       noopLogComponent{},
 			})
 			require.NoError(t, err)
 			obs, ok := provides.Comp.(*observerImpl)
