@@ -242,7 +242,6 @@ class GoModule:
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
         output = bazel(
-            ctx,
             "run",
             "//internal/tools/modparser",
             "--",

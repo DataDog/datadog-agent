@@ -23,7 +23,7 @@ require (
 	go.opentelemetry.io/collector/featuregate v1.64.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.1-0.20260622141720-fbe3d073ba93 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
