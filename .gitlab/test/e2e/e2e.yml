@@ -66,7 +66,7 @@
     - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
     - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
   variables:
-    GIT_DEPTH: 0  # Full history: --impacted tests use git merge-base
+    GIT_DEPTH: 0 # Full history: --impacted tests use git merge-base
     GIT_STRATEGY: "clone" # Needed because we use git merge-base
     DYNAMIC_TESTS_FLAG: "--impacted"
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
@@ -956,6 +956,12 @@ new-e2e-installer:
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestPackages/agent_"
+      - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
+      - EXTRA_PARAMS: --run "TestPackages/ddot_"
+      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -982,6 +988,11 @@ new-e2e-installer-ansible:
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestPackages/agent_"
+      - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
+      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
