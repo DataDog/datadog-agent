@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "config",
     srcs = [
@@ -115,19 +117,77 @@ go_library(
 )
 
 dd_agent_go_test(
+    name = "config_nix_test",
+    srcs = ["config_nix_test.go"],
+    embed = [":config"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
     name = "config_test",
-    srcs = [
-        "config_nix_test.go",
-        "config_test.go",
-        "config_windows_test.go",
-    ],
+    srcs = ["config_test.go"],
     embed = [":config"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@in_yaml_go_yaml_v2//:yaml",
-    ] + select({
+    ],
+)
+
+dd_agent_go_test(
+    name = "config_windows_test",
+    srcs = ["config_windows_test.go"],
+    embed = [":config"],
+    deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
+            "@com_github_stretchr_testify//assert",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
