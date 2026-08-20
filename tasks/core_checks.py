@@ -77,6 +77,7 @@ WINDOWS_CORECHECKS = [
 
 MACOS_CORECHECKS = [
     "battery",
+    "thermal",
     "wlan",
 ]
 

@@ -39,6 +39,7 @@ const (
 	redisConfigDir               = "/tmp/configfilesdiscovery-redis"
 	redisExplicitContainerName   = "redis-configfilesdiscovery-explicit"
 	redisDefaultContainerName    = "redis-configfilesdiscovery-default"
+	redisEnvContainerName        = "redis-env-configfilesdiscovery"
 	redisExplicitContainerPath   = "/configfilesdiscovery/redis-explicit.conf"
 	redisDefaultContainerPath    = "/etc/redis/redis.conf"
 	redisExplicitConfigFileName  = "redis-explicit.conf"
@@ -48,6 +49,7 @@ const (
 	redisExplicitConfigSentinel  = "configfilesdiscovery-explicit-e2e-sentinel"
 	redisDefaultConfigSentinel   = "configfilesdiscovery-default-e2e-sentinel"
 	redisIntegrationName         = "redisdb"
+	redisTLSCertFile             = "/etc/redis/tls.crt"
 )
 
 const (
@@ -274,7 +276,7 @@ func (s *configFilesDiscoveryDockerSuite) TestKafkaEnvVarsDiscoveredWithoutConfi
 		if !assert.NoError(c, err) {
 			return
 		}
-		kafkaPayloads := findKafkaEnvPayloads(payloads)
+		kafkaPayloads := findEnvPayloads(payloads, kafkaIntegrationName)
 		if !assert.NotEmpty(c, kafkaPayloads, "no kafka env payloads found in %+v", payloads) {
 			return
 		}
@@ -294,6 +296,48 @@ func (s *configFilesDiscoveryDockerSuite) TestKafkaEnvVarsDiscoveredWithoutConfi
 			assert.NotContains(c, envVars, "KAFKA_CFG_OAUTH_ACCESS_TOKEN")
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for kafka env var discovery payload")
+}
+
+func (s *configFilesDiscoveryDockerSuite) TestRedisEnvVarsDiscoveredWithoutConfigFile() {
+	t := s.T()
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName: redisIntegrationName,
+		configDir:       redisConfigDir,
+		containerNames: []string{
+			redisExplicitContainerName,
+			redisDefaultContainerName,
+			redisEnvContainerName,
+		},
+		startContainerNames: []string{redisEnvContainerName},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), redisIntegrationName))
+
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		redisPayloads := findEnvPayloads(payloads, redisIntegrationName)
+		if !assert.NotEmpty(c, redisPayloads, "no redis env payloads found in %+v", payloads) {
+			return
+		}
+
+		for _, payload := range redisPayloads {
+			assertAgentDiscoveryPayload(c, payload, redisIntegrationName)
+			assert.Empty(c, payload.ConfigFiles)
+
+			envVars := make(map[string]string, len(payload.EnvVars))
+			for _, envVar := range payload.EnvVars {
+				envVars[envVar.Name] = envVar.Value
+			}
+			assert.Equal(c, "yes", envVars["REDIS_AOF_ENABLED"])
+			assert.Equal(c, "6380", envVars["REDIS_PORT_NUMBER"])
+			assert.Equal(c, redisTLSCertFile, envVars["REDIS_TLS_CERT_FILE"])
+			assert.NotContains(c, envVars, "REDIS_PASSWORD")
+			assert.NotContains(c, envVars, "REDIS_REQUIREPASS")
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for redis env var discovery payload")
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestKafkaDefaultConfigFileDiscovered() {
@@ -369,7 +413,9 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilesDiscoveredAndHeart
 		containerNames: []string{
 			redisExplicitContainerName,
 			redisDefaultContainerName,
+			redisEnvContainerName,
 		},
+		startContainerNames: []string{redisExplicitContainerName, redisDefaultContainerName},
 	})
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -495,14 +541,14 @@ func findConfigFilePayloads(payloads []*aggregator.AgentDiscoveryPayload, integr
 	return configFilePayloads
 }
 
-func findKafkaEnvPayloads(payloads []*aggregator.AgentDiscoveryPayload) []*aggregator.AgentDiscoveryPayload {
-	var kafkaPayloads []*aggregator.AgentDiscoveryPayload
+func findEnvPayloads(payloads []*aggregator.AgentDiscoveryPayload, integrationName string) []*aggregator.AgentDiscoveryPayload {
+	var envPayloads []*aggregator.AgentDiscoveryPayload
 	for _, payload := range payloads {
-		if payload.Integration == kafkaIntegrationName && payload.Runtime == dockerRuntime && len(payload.EnvVars) > 0 {
-			kafkaPayloads = append(kafkaPayloads, payload)
+		if payload.Integration == integrationName && payload.Runtime == dockerRuntime && len(payload.EnvVars) > 0 {
+			envPayloads = append(envPayloads, payload)
 		}
 	}
-	return kafkaPayloads
+	return envPayloads
 }
 
 func (s *configFilesDiscoveryDockerSuite) logConfigFilesDiscoveryDebug(t *testing.T) {
