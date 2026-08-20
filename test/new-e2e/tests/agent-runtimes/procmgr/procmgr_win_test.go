@@ -48,28 +48,14 @@ restart: always
 description: E2E test process
 `
 
-	winUserProfileEnvMarkerPath = `C:/ProgramData/Datadog/procmgr-e2e-userprofile.txt`
-
-	winUserProfileEnvTestConfig = `command: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
-args:
-  - "-NoProfile"
-  - "-NonInteractive"
-  - "-Command"
-  - "$env:USERPROFILE | Set-Content -LiteralPath 'C:/ProgramData/Datadog/procmgr-e2e-userprofile.txt'"
-env:
-  SystemRoot: C:\Windows
-  PATH: C:\Windows\System32;C:\Windows
-auto_start: true
-restart: always
-description: E2E userprofile env check
-`
-
 	winMissingBinaryConfig = `command: C:\nonexistent\binary.exe
 condition_path_exists: C:\nonexistent\binary.exe
 auto_start: true
 restart: never
 description: should not start
 `
+
+	winUserProfileEnvMarkerDir = `C:/ProgramData/Datadog`
 
 	adpProcessName = "datadog-agent-data-plane"
 )
@@ -106,6 +92,20 @@ func joinWindowsPath(base string, elems ...string) string {
 	parts = append(parts, strings.TrimRight(toWindowsSlashPath(base), `/`))
 	parts = append(parts, elems...)
 	return strings.Join(parts, "/")
+}
+
+func windowsUserProfileEnvMarkerPath(runID int64) string {
+	return fmt.Sprintf("%s/procmgr-e2e-userprofile-%d.txt", winUserProfileEnvMarkerDir, runID)
+}
+
+func windowsUserProfileEnvCreateArgs(procName, markerPath string) string {
+	psCommand := fmt.Sprintf(`$env:USERPROFILE | Set-Content -LiteralPath '%s'`, markerPath)
+	return psRemote(
+		`create --name '%s' --command '%s' --args -NoProfile --args -NonInteractive --args -Command --args '%s' --env SystemRoot=C:\Windows --env 'PATH=C:\Windows\System32;C:\Windows' --restart-policy always --description 'E2E userprofile env check'`,
+		procName,
+		winSleepCommand,
+		psCommand,
+	)
 }
 
 func withADPEnabled() agentparams.Option {
@@ -149,7 +149,6 @@ func TestProcmgrSmokeWindowsSuite(t *testing.T) {
 				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(
 					agentparams.WithFile(winConfigDir+"/test-sleep.yaml", winTestProcessConfig, true),
-					agentparams.WithFile(winConfigDir+"/test-userprofile-env.yaml", winUserProfileEnvTestConfig, true),
 					agentparams.WithFile(winConfigDir+"/missing-binary.yaml", winMissingBinaryConfig, true),
 					withADPEnabled(),
 				),
@@ -273,18 +272,19 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildHasUserProfileEnv() {
 	_, agentUser, err := windowsagent.GetAgentUserFromRegistry(host)
 	require.NoError(s.T(), err)
 
-	// Same-host retries reuse the VM; drop any marker left by a prior attempt so
-	// Get-Content cannot pass without a fresh write from test-userprofile-env.
-	host.MustExecute(psRemote(
-		`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`,
-		winUserProfileEnvMarkerPath,
-	))
+	runID := time.Now().UnixNano()
+	procName := fmt.Sprintf("e2e-userprofile-env-%d", runID)
+	markerPath := windowsUserProfileEnvMarkerPath(runID)
+
+	createOut, err := host.Execute(s.platform.cliCmd(windowsUserProfileEnvCreateArgs(procName, markerPath)))
+	require.NoError(s.T(), err, "Create should spawn an agent-profile child; output: %s", createOut)
+	assert.Contains(s.T(), createOut, "UUID:")
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-userprofile-env"))
-		assertField(ct, desc, "State", "Running")
+		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		assertField(ct, desc, "Profile", "agent")
 
-		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, winUserProfileEnvMarkerPath))
+		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, markerPath))
 		userProfile := strings.TrimSpace(out)
 		assert.NotEmpty(ct, userProfile)
 		assert.NotContains(ct, strings.ToLower(userProfile), "systemprofile")
