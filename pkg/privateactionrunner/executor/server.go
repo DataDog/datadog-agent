@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"google.golang.org/grpc"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -40,14 +41,31 @@ type Server struct {
 
 	ready  atomic.Bool
 	active atomic.Int32
+
+	lastActivity atomic.Int64
+	clock        clock.Clock
 }
 
 // NewServer builds a gRPC server that dispatches actions to the given core.
 func NewServer(executor actionExecutor, version string) *Server {
-	return &Server{
+	s := &Server{
 		executor: executor,
 		version:  version,
+		clock:    clock.New(),
 	}
+	s.touch()
+	return s
+}
+
+func (s *Server) touch() {
+	s.lastActivity.Store(s.clock.Now().UnixNano())
+}
+
+func (s *Server) idleFor() time.Duration {
+	if s.active.Load() > 0 {
+		return 0
+	}
+	return s.clock.Since(time.Unix(0, s.lastActivity.Load()))
 }
 
 // SetReady marks the executor ready (or not) to accept actions.
@@ -77,8 +95,12 @@ func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActio
 		))
 	}
 
+	s.touch()
 	s.active.Add(1)
-	defer s.active.Add(-1)
+	defer func() {
+		s.touch()
+		s.active.Add(-1)
+	}()
 
 	// Raw bytes must stay unmodified for signature verification.
 	task := &types.Task{Raw: req.GetTask()}
@@ -128,10 +150,14 @@ func sendError(stream pb.Executor_RunActionServer, parErr util.PARError) error {
 	})
 }
 
-// ServeOptions tunes drain behavior; zero value waits forever.
+// ServeOptions tunes server shutdown.
 type ServeOptions struct {
-	DrainTimeout time.Duration // bounds graceful drain on stop; 0 waits forever
+	DrainTimeout  time.Duration
+	IdleTimeout   time.Duration
+	OnIdleTimeout func()
 }
+
+const idleCheckDivisor = 10
 
 // Serve serves the Executor on lis until ctx is cancelled, then stops gracefully
 // bounded by the drain timeout. Pass grpcOpts to secure the socket.
@@ -144,12 +170,34 @@ func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions
 		errCh <- grpcServer.Serve(lis)
 	}()
 
-	select {
-	case <-ctx.Done():
-		stopGracefully(grpcServer, opts.DrainTimeout)
-		return nil
-	case err := <-errCh:
-		return err
+	var idleCheck <-chan time.Time
+	if opts.IdleTimeout > 0 {
+		interval := opts.IdleTimeout / idleCheckDivisor
+		if interval == 0 {
+			interval = opts.IdleTimeout
+		}
+		ticker := srv.clock.Ticker(interval)
+		defer ticker.Stop()
+		idleCheck = ticker.C
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			stopGracefully(grpcServer, opts.DrainTimeout)
+			return nil
+		case <-idleCheck:
+			if srv.idleFor() < opts.IdleTimeout {
+				continue
+			}
+			stopGracefully(grpcServer, opts.DrainTimeout)
+			if opts.OnIdleTimeout != nil {
+				opts.OnIdleTimeout()
+			}
+			return nil
+		case err := <-errCh:
+			return err
+		}
 	}
 }
 

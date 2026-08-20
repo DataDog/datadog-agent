@@ -118,6 +118,11 @@ func New(
 	if err != nil {
 		return nil, err
 	}
+	// system-probe wires the no-op secrets component, so a secret-backed api_key only reaches it
+	// resolved via configsync.
+	if err := endpoint.CheckAPIKeysResolved(processAPIEndpoints); err != nil {
+		return nil, err
+	}
 	resolvers, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints))
 	if err != nil {
 		return nil, err
@@ -292,6 +297,8 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 				Domain:            getDNSNameForIP(conns, conn.Dest),
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.Pid == d.sysProbePID,
+				SentBytes:         conn.Last.SentBytes,
+				RecvBytes:         conn.Last.RecvBytes,
 			}
 			if !yield(npc) {
 				return
