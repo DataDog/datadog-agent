@@ -2175,7 +2175,7 @@ process_config:
             Some(false)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::Bool(true)),
+            value_as_bool(&serde_yaml::Value::Bool(true), agent_yaml),
             Some(true)
         );
     }

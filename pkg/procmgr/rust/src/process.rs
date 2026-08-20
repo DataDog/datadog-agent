@@ -150,6 +150,8 @@ pub struct ManagedProcess {
     restarts: RestartTracker,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
+    last_start_conditions_met: Option<bool>,
+    config_generation: u64,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
@@ -182,6 +184,8 @@ impl ManagedProcess {
             restarts,
             origin,
             last_exit_status: None,
+            last_start_conditions_met: None,
+            config_generation: 0,
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
@@ -213,6 +217,24 @@ impl ManagedProcess {
 
     pub fn config(&self) -> &ProcessConfig {
         &self.config
+    }
+
+    pub fn set_config(&mut self, config: ProcessConfig) {
+        self.config_generation += 1;
+        self.restarts = RestartTracker::new(config.restart_delay());
+        self.config = config;
+    }
+
+    pub(crate) fn config_generation(&self) -> u64 {
+        self.config_generation
+    }
+
+    pub(crate) fn record_config_gate_met(&mut self) {
+        self.last_start_conditions_met = Some(self.start_conditions_met());
+    }
+
+    pub(crate) fn last_start_conditions_met(&self) -> Option<bool> {
+        self.last_start_conditions_met
     }
 
     #[cfg(windows)]
@@ -348,6 +370,14 @@ impl ManagedProcess {
         }
         info!("[{}] condition_path_exists not met: {path}", self.name);
         false
+    }
+
+    #[must_use]
+    pub fn config_gate_met(&self) -> bool {
+        if self.config.condition_config_any.is_empty() {
+            return true;
+        }
+        crate::config_gate::condition_config_any_met(&self.config.condition_config_any)
     }
 
     #[must_use]
