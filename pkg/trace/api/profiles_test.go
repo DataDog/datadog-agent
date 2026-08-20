@@ -163,6 +163,24 @@ func TestProfilingEndpoints(t *testing.T) {
 		assert.Equal(t, []string{"api_key_1", "api_key_2"}, keys)
 	})
 
+	t.Run("pending delegated auth directive", func(t *testing.T) {
+		// Regression test: a still-unresolved DELA(...) directive must not be sent as a literal
+		// DD-API-KEY - the delegatedauth component resolves it asynchronously and writes the real
+		// key back into this same config slot, at which point a config reload picks it up.
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "main_api_key"
+		cfg.ProfilingProxy = config.ProfilingProxyConfig{
+			MainEndpointMode: config.ProfilingMainEndpointSkip,
+			AdditionalEndpoints: map[string][]string{
+				"https://ddstaging.datadoghq.com": {"DELA(some-org-uuid, aws)", "api_key_1"},
+			},
+		}
+		urls, keys, err := profilingEndpoints(cfg)
+		assert.NoError(t, err)
+		assert.Equal(t, makeURLs(t, "https://ddstaging.datadoghq.com"), urls)
+		assert.Equal(t, []string{"api_key_1"}, keys)
+	})
+
 	t.Run("skip_main_endpoint_without_additional_endpoints", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "main_api_key"

@@ -104,6 +104,37 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorOrchestratorEndpoints()
 	}
 }
 
+// TestExtractOrchestratorEndpointsFiltersPendingDelegatedAuth is a regression test: a still-pending
+// DELA(...) directive must never be submitted upstream as a literal API key - the delegatedauth
+// component resolves it asynchronously into the same config slot, and until then there's no real key.
+func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsFiltersPendingDelegatedAuth() {
+	var actualEndpoints []apicfg.Endpoint
+
+	suite.config.SetInTest("api_key", "wassupkey")
+	suite.config.SetInTest("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1", "DELA(some-org-uuid, aws)"]}`)
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+	suite.Len(actualEndpoints, 1)
+	suite.Equal("key1", actualEndpoints[0].APIKey)
+}
+
+// TestExtractOrchestratorEndpointsKeepsPlaceholderForFullyPendingDomain is a regression test: a
+// domain whose ONLY key is a pending DELA(...) directive must still get a placeholder endpoint
+// (empty API key) rather than being dropped entirely - resolver.OnUpdateConfig only watches
+// domains that already have a resolver, so a fully-dropped domain would never pick up the real
+// key once delegated auth resolves it and writes it back into this same config slot.
+func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsKeepsPlaceholderForFullyPendingDomain() {
+	var actualEndpoints []apicfg.Endpoint
+
+	suite.config.SetInTest("api_key", "wassupkey")
+	suite.config.SetInTest("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["DELA(some-org-uuid, aws)"]}`)
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+	suite.Len(actualEndpoints, 1)
+	suite.Equal("", actualEndpoints[0].APIKey)
+	suite.Equal("orchestrator1.com", actualEndpoints[0].Endpoint.Hostname())
+}
+
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	expected := make(map[string]string)
 	expected["key1"] = "orchestrator1.com"

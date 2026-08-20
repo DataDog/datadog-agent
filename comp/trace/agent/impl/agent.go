@@ -165,6 +165,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
 
 	c.config.OnUpdateAPIKey(c.UpdateAPIKey)
+	c.config.OnAdditionalEndpointsChanged(c.Agent.RebuildAdditionalEndpointSenders)
 
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.

@@ -178,6 +178,47 @@ func TestFormatTrace(t *testing.T) {
 	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
 }
 
+// RebuildAdditionalEndpointSenders dispatches to the writers through structural type assertions
+// (`interface{ RebuildSenders() }`) rather than through the writer interfaces. That means a writer
+// which stops implementing RebuildSenders does not fail to compile - the rebuild just silently
+// becomes a no-op, and a delegated-auth key that resolves after startup never reaches the writer's
+// senders. These compile-time assertions pin the real writer types against that.
+var (
+	_ interface{ RebuildSenders() } = (*writer.TraceWriter)(nil)
+	_ interface{ RebuildSenders() } = (*writer.TraceWriterV1)(nil)
+)
+
+// TestRebuildAdditionalEndpointSenders covers the runtime reload entry point that the trace
+// config component wires to its additional_endpoints OnUpdate callback. It runs against the real
+// writers built by NewAgent (not the mocks NewTestAgent substitutes), so it exercises the actual
+// RebuildSenders implementations, including their endpoint-validation guard.
+func TestRebuildAdditionalEndpointSenders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Endpoints[0].Host = srv.URL
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = t.TempDir() + "/trace-agent-test.sock"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	// A second endpoint appears at runtime, as it would when a DELA(...) directive resolves.
+	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "resolved-key", Host: srv.URL})
+	agnt.RebuildAdditionalEndpointSenders()
+
+	// A malformed host arriving from a later config push must not take the process down:
+	// newSenders would os.Exit(1) on it, so RebuildSenders validates first and keeps the
+	// senders it already has.
+	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "bad", Host: "\x7f"})
+	agnt.RebuildAdditionalEndpointSenders()
+}
+
 func TestStopWaits(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"

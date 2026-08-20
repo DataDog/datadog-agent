@@ -30,6 +30,7 @@ func NewMock(reqs Requires) (traceconfig.Component, error) {
 	}
 
 	c.SetMaxMemCPU(env.IsContainerized())
+	c.registerConfigUpdateListener()
 
 	return &c, nil
 }

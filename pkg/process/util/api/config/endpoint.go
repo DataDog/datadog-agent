@@ -21,6 +21,9 @@ type Endpoint struct {
 	// The path of the config used to get the API key. This path is used to listen for configuration updates from
 	// the config.
 	ConfigSettingPath string
+
+	// HasPendingDelegatedAuth keeps a resolver alive while delegated auth resolves this endpoint's key.
+	HasPendingDelegatedAuth bool
 }
 
 // KeysPerDomains turns a list of endpoints into a map of URL -> []APIKey
@@ -29,9 +32,21 @@ func KeysPerDomains(endpoints []Endpoint) map[string][]utils.APIKeys {
 
 	for _, ep := range endpoints {
 		domain := removePathIfPresent(ep.Endpoint)
+		// An endpoint whose key is still a pending DELA(...) directive arrives here with an empty
+		// APIKey. It must contribute NO key rather than an empty one: utils.DedupAPIKeys does not
+		// filter empty strings, so a `[]string{""}` here reaches the forwarder's authorizers and
+		// gets sent upstream as a literal `DD-Api-Key: ` header (403s and retry-queue churn until
+		// the key resolves). It would also make resolver.IsUsable() pass on key count rather than
+		// on HasPendingDelegatedAuth, defeating the flag. This matches utils.MakeEndpoints, which
+		// likewise drops empty keys while keeping the pending domain.
+		keys := []string{}
+		if ep.APIKey != "" {
+			keys = append(keys, ep.APIKey)
+		}
 		keysPerDomains[domain] = append(keysPerDomains[domain], utils.APIKeys{
-			ConfigSettingPath: ep.ConfigSettingPath,
-			Keys:              []string{ep.APIKey},
+			ConfigSettingPath:       ep.ConfigSettingPath,
+			Keys:                    keys,
+			HasPendingDelegatedAuth: ep.HasPendingDelegatedAuth,
 		})
 	}
 

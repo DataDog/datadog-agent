@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -91,6 +92,139 @@ func TestTraceWriter(t *testing.T) {
 			payloadsContain(t, srv.Payloads(), testSpans, tc.compressor)
 		})
 	}
+}
+
+func TestTraceWriterRebuildSenders(t *testing.T) {
+	first := newTestServer()
+	defer first.Close()
+	second := newTestServer()
+	defer second.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints:  []*config.Endpoint{{APIKey: "123", Host: first.URL}},
+		TraceWriter: &config.WriterConfig{
+			ConnectionLimit: 1,
+		},
+	}
+	writer := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer writer.Stop()
+
+	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "456", Host: second.URL})
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	require.Len(t, writer.senders, 2)
+	assert.Equal(t, second.URL+pathTraces, writer.senders[1].cfg.url.String())
+	assert.Equal(t, "456", writer.senders[1].apiKeyManager.Get())
+}
+
+// TestTraceWriterRebuildSendersRejectsMalformedHost is a regression test: a malformed
+// additional-endpoint host can reach RebuildSenders from a runtime config push (e.g. a bad
+// apm_config.additional_endpoints entry). newSenders would os.Exit(1) on it, taking down an
+// otherwise healthy trace-agent - RebuildSenders must instead keep the existing, working senders.
+func TestTraceWriterRebuildSendersRejectsMalformedHost(t *testing.T) {
+	first := newTestServer()
+	defer first.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints:  []*config.Endpoint{{APIKey: "123", Host: first.URL}},
+		TraceWriter: &config.WriterConfig{
+			ConnectionLimit: 1,
+		},
+	}
+	writer := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer writer.Stop()
+
+	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "456", Host: "\x7f"})
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	require.Len(t, writer.senders, 1, "the existing sender must survive a rejected rebuild")
+	assert.Equal(t, first.URL+pathTraces, writer.senders[0].cfg.url.String())
+}
+
+// sendBlockLatency is how long the test server holds a request open in the
+// assertSendHoldsSendersLock tests, giving them a wide, deterministic window in which a send is
+// known to be in flight.
+const sendBlockLatency = 500 * time.Millisecond
+
+// assertSendHoldsSendersLock pins the locking invariant that prevents a send-on-closed-channel
+// panic in the trace writers.
+//
+// RebuildSenders swaps the sender slice under the write lock and then calls stopSenders on the
+// old senders, which closes each sender's queue. sender.Push checks s.closed and sends on that
+// queue as two separate steps, and increments inflight only *after* the send - so
+// sender.Stop's WaitForInflight cannot see a pusher parked between those two steps, and closes
+// the queue underneath it. The writers prevent that by holding sendersMu for the whole of
+// sendPayloads rather than just while reading the slice, which keeps RebuildSenders out until
+// the send finishes.
+//
+// The panic window itself is only a few instructions wide and does not reproduce under stress,
+// and elapsed-time assertions can't distinguish the two implementations (RebuildSenders blocks
+// in WaitForInflight for the same duration either way). So this observes the lock directly: while
+// a send is in flight, the writer must be holding sendersMu. If someone releases the read lock
+// before sendPayloads again, the write lock is free here and this fails.
+func assertSendHoldsSendersLock(t *testing.T, srv *testServer, mu *sync.RWMutex, send func()) {
+	t.Helper()
+
+	sendDone := make(chan struct{})
+	go func() {
+		defer close(sendDone)
+		send()
+	}()
+
+	// The test server increments Total at the top of its handler, before sleeping for its
+	// latency, so this returns while the send is still genuinely in flight.
+	require.Eventually(t, func() bool { return srv.Total() > 0 }, 10*time.Second, time.Millisecond,
+		"payload never reached the test server")
+
+	acquired := mu.TryLock()
+	if acquired {
+		mu.Unlock()
+	}
+	<-sendDone
+
+	require.False(t, acquired,
+		"sendersMu was not held while a send was in flight: RebuildSenders could swap the sender "+
+			"slice and stopSenders (closing each queue) on senders still being pushed to")
+}
+
+func TestTraceWriterSendHoldsSendersLock(t *testing.T) {
+	srv := newTestServerWithLatency(sendBlockLatency)
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:            testHostname,
+		DefaultEnv:          testEnv,
+		Endpoints:           []*config.Endpoint{{APIKey: "123", Host: srv.URL}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 1},
+		SynchronousFlushing: true,
+	}
+	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer w.Stop()
+
+	assertSendHoldsSendersLock(t, srv, &w.sendersMu, func() { w.serialize(&pb.AgentPayload{}) })
+}
+
+func TestTraceWriterDoesNotRebuildAfterStop(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:    testHostname,
+		DefaultEnv:  testEnv,
+		Endpoints:   []*config.Endpoint{{APIKey: "123", Host: srv.URL}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 1},
+	}
+	writer := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	writer.Stop()
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	assert.Empty(t, writer.senders)
 }
 
 func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {

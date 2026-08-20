@@ -63,6 +63,10 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []s
 
 	for host, keys := range cfg.OpenLineageProxy.AdditionalEndpoints {
 		for _, key := range keys {
+			if isDelaDirective(key) {
+				// Pending DELA(...) directive - see IsDelaDirective's doc comment.
+				continue
+			}
 			urlStr := fmt.Sprintf(openlineageURLTemplate, host)
 			u, err := url.Parse(urlStr)
 			if err != nil {

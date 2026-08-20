@@ -81,6 +81,10 @@ func newForwardingTransport(
 			continue
 		}
 		for _, key := range keys {
+			if isDelaDirective(key) {
+				// Pending DELA(...) directive - see IsDelaDirective's doc comment.
+				continue
+			}
 			targets = append(targets, u)
 			apiKeys = append(apiKeys, strings.TrimSpace(key))
 		}

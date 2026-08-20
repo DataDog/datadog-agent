@@ -49,6 +49,10 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	endpoints := []config.Endpoint{{Host: endpoint, APIKey: apiKey}} // main endpoint
 	for host, keys := range conf.EVPProxy.AdditionalEndpoints {
 		for _, key := range keys {
+			if isDelaDirective(key) {
+				// Pending DELA(...) directive - see IsDelaDirective's doc comment.
+				continue
+			}
 			endpoints = append(endpoints, config.Endpoint{
 				Host:   host,
 				APIKey: key,

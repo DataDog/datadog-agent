@@ -193,6 +193,10 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			continue
 		}
 		for _, key := range keys {
+			if utils.IsDelaDirective(key) {
+				// Pending DELA(...) directive - see IsDelaDirective's doc comment.
+				continue
+			}
 			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)})
 		}
 	}

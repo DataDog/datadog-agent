@@ -519,6 +519,95 @@ func TestTraceWriterV1BytesMetricsMultipleSenders(t *testing.T) {
 	tw.Stop()
 }
 
+func TestTraceWriterV1RebuildSenders(t *testing.T) {
+	first := newTestServer()
+	defer first.Close()
+	second := newTestServer()
+	defer second.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints:  []*config.Endpoint{{APIKey: "123", Host: first.URL}},
+		TraceWriter: &config.WriterConfig{
+			ConnectionLimit: 1,
+		},
+	}
+	writer := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer writer.Stop()
+
+	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "456", Host: second.URL})
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	require.Len(t, writer.senders, 2)
+	assert.Equal(t, second.URL+pathTraces, writer.senders[1].cfg.url.String())
+	assert.Equal(t, "456", writer.senders[1].apiKeyManager.Get())
+}
+
+// TestTraceWriterV1RebuildSendersRejectsMalformedHost is a regression test: a malformed
+// additional-endpoint host can reach RebuildSenders from a runtime config push. newSenders would
+// os.Exit(1) on it, taking down an otherwise healthy trace-agent - RebuildSenders must instead
+// keep the existing, working senders.
+func TestTraceWriterV1RebuildSendersRejectsMalformedHost(t *testing.T) {
+	first := newTestServer()
+	defer first.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints:  []*config.Endpoint{{APIKey: "123", Host: first.URL}},
+		TraceWriter: &config.WriterConfig{
+			ConnectionLimit: 1,
+		},
+	}
+	writer := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer writer.Stop()
+
+	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "456", Host: "\x7f"})
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	require.Len(t, writer.senders, 1, "the existing sender must survive a rejected rebuild")
+	assert.Equal(t, first.URL+pathTraces, writer.senders[0].cfg.url.String())
+}
+
+// TestTraceWriterV1SendHoldsSendersLock pins the same locking invariant as the
+// TraceWriter test of the same name - see assertSendHoldsSendersLock for why.
+func TestTraceWriterV1SendHoldsSendersLock(t *testing.T) {
+	srv := newTestServerWithLatency(sendBlockLatency)
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:            testHostname,
+		DefaultEnv:          testEnv,
+		Endpoints:           []*config.Endpoint{{APIKey: "123", Host: srv.URL}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 1},
+		SynchronousFlushing: true,
+	}
+	w := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer w.Stop()
+
+	assertSendHoldsSendersLock(t, srv, &w.sendersMu, func() { w.serializePrepared(&pb.AgentPayload{}, nil) })
+}
+
+func TestTraceWriterV1DoesNotRebuildAfterStop(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:    testHostname,
+		DefaultEnv:  testEnv,
+		Endpoints:   []*config.Endpoint{{APIKey: "123", Host: srv.URL}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 1},
+	}
+	writer := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	writer.Stop()
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	assert.Empty(t, writer.senders)
+}
+
 func TestTraceWriterV1UpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
 	srv := newTestServer()

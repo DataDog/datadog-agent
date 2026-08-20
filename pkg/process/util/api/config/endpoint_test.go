@@ -85,6 +85,46 @@ func TestKeysPerDomain(t *testing.T) {
 				"http://bar.com": {utils.NewAPIKeys("path2", "key2")},
 			},
 		},
+		{
+			// An endpoint still waiting on delegated auth has an empty APIKey. It must yield an
+			// empty key list, NOT []string{""} - utils.DedupAPIKeys doesn't filter empty strings,
+			// so an empty key would reach the forwarder's authorizers and be sent upstream as a
+			// literal `DD-Api-Key: ` header. The domain is still kept, via HasPendingDelegatedAuth.
+			input: []Endpoint{{
+				Endpoint:                getEndpoint(t, "http://pending.example"),
+				ConfigSettingPath:       "process_config.additional_endpoints",
+				HasPendingDelegatedAuth: true,
+			}},
+			expected: map[string][]utils.APIKeys{
+				"http://pending.example": {{
+					ConfigSettingPath:       "process_config.additional_endpoints",
+					Keys:                    []string{},
+					HasPendingDelegatedAuth: true,
+				}},
+			},
+		},
+		{
+			// A real key alongside a pending one on the same domain: the real key survives, the
+			// pending entry contributes none, and the domain is marked pending.
+			input: []Endpoint{
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://mixed.example"), ConfigSettingPath: "path1"},
+				{
+					Endpoint:                getEndpoint(t, "http://mixed.example"),
+					ConfigSettingPath:       "process_config.additional_endpoints",
+					HasPendingDelegatedAuth: true,
+				},
+			},
+			expected: map[string][]utils.APIKeys{
+				"http://mixed.example": {
+					utils.NewAPIKeys("path1", "key1"),
+					{
+						ConfigSettingPath:       "process_config.additional_endpoints",
+						Keys:                    []string{},
+						HasPendingDelegatedAuth: true,
+					},
+				},
+			},
+		},
 	} {
 		assert.Equal(t, tt.expected, KeysPerDomains(tt.input))
 	}

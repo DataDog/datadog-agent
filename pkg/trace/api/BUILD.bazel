@@ -13,6 +13,7 @@ go_library(
         "debug_server.go",
         "debug_server_serverless.go",
         "debugger.go",
+        "dela.go",
         "dogstatsd.go",
         "endpoints.go",
         "evp_proxy.go",

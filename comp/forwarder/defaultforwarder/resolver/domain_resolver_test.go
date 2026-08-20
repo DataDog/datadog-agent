@@ -6,6 +6,7 @@
 package resolver
 
 import (
+	"net/url"
 	"testing"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -13,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -140,6 +142,38 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
 }
 
+func TestSingleDomainResolverUpdateAdditionalEndpointsAfterBaseDomainRewrite(t *testing.T) {
+	// Regression test: NewDefaultForwarder rewrites a resolver's base domain via SetBaseDomain
+	// (AddAgentVersionToDomain, e.g. "https://app.datadoghq.com" -> a version-prefixed host) for
+	// well-known Datadog domains, including additional_endpoints ones - but the additional_endpoints
+	// config map stays keyed by the original, unrewritten URL. updateAdditionalEndpoints must look
+	// up by GetConfigName() (unchanged by the rewrite), not GetBaseDomain(), or it silently discards
+	// every additional_endpoints update - including a key resolved by delegated auth - for any such
+	// domain.
+	apiKeys := []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "key1"),
+	}
+	resolver, err := NewSingleDomainResolver("https://app.datadoghq.com", apiKeys)
+	require.NoError(t, err)
+
+	// Simulate NewDefaultForwarder's AddAgentVersionToDomain rewrite: the base domain used for
+	// network requests diverges from the domain as configured.
+	resolver.SetBaseDomain("https://7-65-0.agent.datadoghq.com")
+	require.Equal(t, "https://app.datadoghq.com", resolver.GetConfigName())
+	require.Equal(t, "https://7-65-0.agent.datadoghq.com", resolver.GetBaseDomain())
+
+	log := logmock.New(t)
+	mockConfig := configmock.New(t)
+	// Keyed by the original configured URL, exactly as the user wrote it / as delegated auth
+	// would write a resolved key back into it - never by the rewritten base domain.
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://app.datadoghq.com": {"key2"},
+	})
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
+
+	assertKeys(t, []string{"key2"}, resolver)
+}
+
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
 		utils.NewAPIKeys("api_key", "key1"),
@@ -213,6 +247,66 @@ func TestMetricToVectorResolvesSeriesEndpoints(t *testing.T) {
 
 	// Unrelated endpoints stay on the main Datadog domain.
 	assert.Equal(t, mainEndpoint, vec.Resolve(endpoints.EventsEndpoint))
+}
+
+func TestLegacyEndpointConversionPreservesPendingDelegatedAuth(t *testing.T) {
+	endpoint, err := url.Parse("https://pending.example")
+	require.NoError(t, err)
+
+	resolvers, err := NewSingleDomainResolvers(apicfg.KeysPerDomains([]apicfg.Endpoint{{
+		Endpoint:                endpoint,
+		ConfigSettingPath:       "process_config.additional_endpoints",
+		HasPendingDelegatedAuth: true,
+	}}))
+	require.NoError(t, err)
+	resolver, ok := resolvers["https://pending.example"]
+	require.True(t, ok, "the pending domain must still get a resolver")
+	assert.True(t, resolver.IsUsable())
+
+	// The domain must be usable because it is pending, NOT because it carries a key. An endpoint
+	// awaiting delegated auth has an empty APIKey, and utils.DedupAPIKeys does not filter empty
+	// strings - so if that empty key were kept it would produce a `DD-Api-Key: ` authorizer and
+	// real payloads would be submitted against it (403s + retry-queue churn) until resolution.
+	assert.Empty(t, resolver.GetAPIKeys(), "a pending endpoint must contribute no API key")
+	assert.Empty(t, resolver.GetAuthorizers(), "a pending endpoint must produce no auth header")
+	assert.True(t, resolver.hasPendingDelegatedAuth)
+}
+
+func TestIsUsableWithNoKeysAndNoPendingDelegatedAuth(t *testing.T) {
+	// Baseline: a domain with no real keys and no pending delegated auth directive is not
+	// usable, same as before HasPendingDelegatedAuth existed.
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL:   "https://example.com",
+		APIKeySet: []utils.APIKeys{{ConfigSettingPath: "additional_endpoints", Keys: []string{}}},
+	})
+	require.NoError(t, err)
+
+	assert.False(t, resolver.IsUsable())
+}
+
+func TestIsUsableWithPendingDelegatedAuth(t *testing.T) {
+	// A domain with no real keys yet, but flagged as waiting on a delegatedauth-managed key
+	// (a DELA(...) directive in additional_endpoints), must still be usable so the forwarder
+	// builds a live domainForwarder for it instead of dropping it until an agent restart.
+	//
+	// The pending flag is derived from APIKeySet (hasPendingDelegatedAuthKeys), not from this
+	// descriptor's own HasPendingDelegatedAuth field - that field is only reliably populated via
+	// utils.newEndpointDescriptor's aggregation, so a resolver built from a directly-constructed
+	// descriptor (as here) must carry the flag on the APIKeys entry itself.
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL:                 "https://example.com",
+		APIKeySet:               []utils.APIKeys{{ConfigSettingPath: "additional_endpoints", Keys: []string{}, HasPendingDelegatedAuth: true}},
+		HasPendingDelegatedAuth: true,
+	})
+	require.NoError(t, err)
+
+	assert.True(t, resolver.IsUsable())
+
+	// Once delegated auth delivers a real key, the domain remains usable through the normal
+	// UpdateAPIKeys path (unrelated to hasPendingDelegatedAuth, which is only a startup fallback).
+	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", "real-key")})
+	assert.True(t, resolver.IsUsable())
+	assertKeys(t, []string{"real-key"}, resolver)
 }
 
 func TestScrubKeys(t *testing.T) {

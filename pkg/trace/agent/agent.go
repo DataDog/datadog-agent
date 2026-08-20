@@ -318,6 +318,19 @@ func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
 	a.StatsWriter.UpdateAPIKey(oldKey, newKey)
 }
 
+// RebuildAdditionalEndpointSenders updates proxy handlers and writer sender sets after an
+// additional endpoint is added or rotated at runtime.
+func (a *Agent) RebuildAdditionalEndpointSenders() {
+	a.Receiver.UpdateAPIKey()
+	if writer, ok := a.TraceWriter.(interface{ RebuildSenders() }); ok {
+		writer.RebuildSenders()
+	}
+	if writer, ok := a.TraceWriterV1.(interface{ RebuildSenders() }); ok {
+		writer.RebuildSenders()
+	}
+	a.StatsWriter.RebuildSenders()
+}
+
 func (a *Agent) work() {
 	defer a.processWg.Done()
 	for {

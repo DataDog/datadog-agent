@@ -69,6 +69,10 @@ func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []st
 				continue
 			}
 			for _, key := range extra[endpoint] {
+				if isDelaDirective(key) {
+					// Pending DELA(...) directive - see IsDelaDirective's doc comment.
+					continue
+				}
 				urls = append(urls, u)
 				apiKeys = append(apiKeys, key)
 			}

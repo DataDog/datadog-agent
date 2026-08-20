@@ -90,6 +90,57 @@ func TestGetAPIEndpoints(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Regression test: a still-pending DELA(...) directive must never be submitted
+			// upstream as a literal API key - the delegatedauth component resolves it
+			// asynchronously into the same config slot, and until then there's no real key.
+			name:   "pending delegated auth directive is filtered out",
+			apiKey: "test",
+			additionalEndpoints: map[string][]string{
+				"https://mock.datadoghq.com": {
+					"key1",
+					"DELA(some-org-uuid, aws)",
+				},
+			},
+			expected: []apicfg.Endpoint{
+				{
+					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
+					APIKey:            "test",
+					ConfigSettingPath: "api_key",
+				},
+				{
+					Endpoint:          mkurl("https://mock.datadoghq.com"),
+					APIKey:            "key1",
+					ConfigSettingPath: "process_config.additional_endpoints",
+				},
+			},
+		},
+		{
+			// Regression test: a domain whose ONLY key is a pending DELA(...) directive must
+			// still get a placeholder endpoint (empty API key) rather than being dropped
+			// entirely - resolver.OnUpdateConfig only watches domains that already have a
+			// resolver, so a fully-dropped domain would never pick up the real key once
+			// delegated auth resolves it and writes it back into this same config slot.
+			name:   "domain with only a pending directive keeps a placeholder endpoint",
+			apiKey: "test",
+			additionalEndpoints: map[string][]string{
+				"https://mock.datadoghq.com": {
+					"DELA(some-org-uuid, aws)",
+				},
+			},
+			expected: []apicfg.Endpoint{
+				{
+					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
+					APIKey:            "test",
+					ConfigSettingPath: "api_key",
+				},
+				{
+					Endpoint:          mkurl("https://mock.datadoghq.com"),
+					APIKey:            "",
+					ConfigSettingPath: "process_config.additional_endpoints",
+				},
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)

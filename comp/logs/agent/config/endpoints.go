@@ -53,6 +53,13 @@ const (
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
+	// isReliable is fixed at load time. An endpoint whose key is still a pending DELA(...)
+	// directive is forced unreliable (see delaAwareAPIKey's callers) and stays that way for the
+	// process lifetime, even after the key resolves: GetReliableEndpoints/GetUnReliableEndpoints
+	// are read once when the logs pipelines build their destinations, and those destinations bake
+	// the reliable/unreliable choice in, so there is nothing to flip afterwards. Its API key is
+	// still updated live, so the endpoint does deliver once resolved - just on the best-effort
+	// path rather than the blocking one.
 	isReliable bool
 	useSSL     bool
 
@@ -110,6 +117,17 @@ type unmarshalEndpoint struct {
 type EndpointCompressionOptions struct {
 	CompressionKind  string
 	CompressionLevel int
+}
+
+// delaAwareAPIKey returns ("", true) for a pending DELA(...) directive and (apiKey, false)
+// otherwise. Call this wherever a logs Endpoint's APIKey is set from config. The pending flag
+// tells the caller to mark the endpoint unreliable until the real key resolves - an empty key
+// would otherwise put a reliable destination in permanent error, blocking the pipeline.
+func delaAwareAPIKey(apiKey string) (resolvedAPIKey string, pending bool) {
+	if pkgconfigutils.IsDelaDirective(apiKey) {
+		return "", true
+	}
+	return apiKey, false
 }
 
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
@@ -184,7 +202,8 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
-		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, EmptyPathPrefix, false)
+		resolvedAPIKey, pending := delaAwareAPIKey(e.APIKey)
+		newE := NewEndpoint(resolvedAPIKey, configKeyUsed, e.Host, e.Port, EmptyPathPrefix, false)
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
@@ -192,7 +211,10 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 		newE.UseCompression = e.UseCompression
 		newE.CompressionLevel = e.CompressionLevel
 		newE.ProxyAddress = l.socks5ProxyAddress()
-		newE.isReliable = e.IsReliable == nil || *e.IsReliable
+		// A pending delegated-auth directive forces this unreliable regardless of the configured
+		// setting: a reliable destination with no API key puts the whole logs pipeline in a
+		// permanent error state. See Endpoint.isReliable for why this is not restored later.
+		newE.isReliable = !pending && (e.IsReliable == nil || *e.IsReliable)
 		if e.ConnectionResetIntervalSeconds != nil {
 			newE.ConnectionResetInterval = time.Duration(*e.ConnectionResetIntervalSeconds) * time.Second
 		} else {
@@ -229,7 +251,8 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
-		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, e.PathPrefix, false)
+		resolvedAPIKey, pending := delaAwareAPIKey(e.APIKey)
+		newE := NewEndpoint(resolvedAPIKey, configKeyUsed, e.Host, e.Port, e.PathPrefix, false)
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
@@ -237,7 +260,10 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		newE.CompressionKind = main.CompressionKind
 		newE.CompressionLevel = main.CompressionLevel
 		newE.ProxyAddress = e.ProxyAddress
-		newE.isReliable = e.IsReliable == nil || *e.IsReliable
+		// A pending delegated-auth directive forces this unreliable regardless of the configured
+		// setting: a reliable destination with no API key puts the whole logs pipeline in a
+		// permanent error state. See Endpoint.isReliable for why this is not restored later.
+		newE.isReliable = !pending && (e.IsReliable == nil || *e.IsReliable)
 		if e.ConnectionResetIntervalSeconds != nil {
 			newE.ConnectionResetInterval = time.Duration(*e.ConnectionResetIntervalSeconds) * time.Second
 		} else {
@@ -378,7 +404,9 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 			return
 		}
 
-		newAPIKey := newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey
+		// The pending flag is ignored here: isReliable is fixed at load time (see
+		// Endpoint.isReliable), so there is nothing to update besides the key itself.
+		newAPIKey, _ := delaAwareAPIKey(newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey)
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,
