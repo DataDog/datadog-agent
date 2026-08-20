@@ -99,7 +99,7 @@ fn query_token_is_local_system(token: HANDLE) -> Option<bool> {
         );
         return None;
     }
-    let token_user = ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>());
+    let token_user = unsafe { ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>()) };
     let sid = token_user.User.Sid;
     if sid.is_null() {
         return None;
