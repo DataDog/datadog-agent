@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -206,6 +207,10 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDo
 	// The failing logons happened once a minute and locked the account out after about 4 minutes, so
 	// watch for longer than that before concluding the loop is gone.
 	suite.Run("domain account is not locked out", func() {
+		// Count the queries that actually answered. Without this, a query that always fails, for
+		// example because the AD module or permissions are broken, would return "not locked out"
+		// every tick and the assertion below would pass without ever having been evaluated.
+		var answered atomic.Int32
 		suite.Never(func() bool {
 			out, err := host.Execute(fmt.Sprintf(
 				`[bool](Search-ADAccount -LockedOut | Where-Object { $_.SamAccountName -eq '%s' })`, TestUser))
@@ -213,8 +218,11 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDo
 				suite.T().Logf("could not query locked out accounts: %v", err)
 				return false
 			}
+			answered.Add(1)
 			return strings.EqualFold(strings.TrimSpace(out), "True")
 		}, 6*time.Minute, 30*time.Second, "the %s account must not be locked out after upgrading without a password", TestUser)
+		suite.Require().Positive(answered.Load(),
+			"no query for locked out accounts succeeded, so the lockout assertion was never evaluated")
 	})
 
 	// Checked after the window above so that it covers the whole period the retry loop would have run in.
