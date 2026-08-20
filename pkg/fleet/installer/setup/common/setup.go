@@ -222,15 +222,21 @@ func (s *Setup) Run() (err error) {
 	return nil
 }
 
-// reinstallAPMInjectorIfInstalled makes an Agent install refresh the APM
-// injector package hooks when the injector is already present. The current
-// invocation may omit the SSI environment variables used during the original
-// install, so the installed package is the durable signal. The hooks may depend
-// on the installer shipped by the new Agent stable version. When the current
-// invocation does not request an injector version, the existing stable version
-// is reused so a refresh cannot silently update a previously pinned injector.
+// reinstallAPMInjectorIfInstalled refreshes the APM injector package hooks when
+// the injector is already present and the current setup installs either the
+// Agent or the injector. On Unix, the public install script installs the Agent
+// through the system package manager before running the APM SSI setup, so the
+// latter explicitly requests the injector without including the Agent in its
+// package plan. The current invocation may omit the SSI environment variables
+// used during the original install, so the installed package is the durable
+// signal. The hooks may depend on the installer shipped by the new Agent stable
+// version. When the current invocation does not request an injector version,
+// the existing stable version is reused so a refresh cannot silently update a
+// previously pinned injector.
 func (s *Setup) reinstallAPMInjectorIfInstalled(ctx context.Context) error {
-	if _, installingAgent := s.Packages.install[DatadogAgentPackage]; !installingAgent {
+	injector, requested := s.Packages.install[DatadogAPMInjectPackage]
+	_, installingAgent := s.Packages.install[DatadogAgentPackage]
+	if !installingAgent && !requested {
 		return nil
 	}
 
@@ -242,7 +248,6 @@ func (s *Setup) reinstallAPMInjectorIfInstalled(ctx context.Context) error {
 		return nil
 	}
 
-	injector, requested := s.Packages.install[DatadogAPMInjectPackage]
 	versionOverride := s.Env.DefaultPackagesVersionOverride[DatadogAPMInjectPackage]
 	explicitInjectorUpdate := requested || versionOverride != ""
 	state, err := s.installer.State(ctx, DatadogAPMInjectPackage)

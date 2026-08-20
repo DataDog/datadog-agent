@@ -33,11 +33,19 @@ const crashyConstructorUnconditionalSrc = `#include <unistd.h>
 __attribute__((constructor)) static void crash(void) { _exit(1); }
 `
 
-// agentVersionWithoutAPMSystemdCommands is an Agent version whose embedded
-// installer does not expose `apm instrument-start` or
-// `apm instrument-stop`. A systemd unit rendered with the mutable Agent
-// `stable` path becomes unusable after downgrading to this version.
-const agentVersionWithoutAPMSystemdCommands = "7.80.4-1"
+const (
+	// agentMinorVersionWithoutAPMSystemdCommands is passed to the public install
+	// script through DD_AGENT_MINOR_VERSION to exercise a real package-manager
+	// downgrade.
+	agentMinorVersionWithoutAPMSystemdCommands = "80.4"
+
+	// agentVersionWithoutAPMSystemdCommands is the resulting installer repository
+	// version (the Debian package's -1 revision is not part of this directory
+	// name). Its embedded installer does not expose `apm instrument-start` or
+	// `apm instrument-stop`. A systemd unit rendered with the mutable Agent
+	// `stable` path becomes unusable after downgrading to this version.
+	agentVersionWithoutAPMSystemdCommands = "7." + agentMinorVersionWithoutAPMSystemdCommands
+)
 
 // captureBootID returns the current kernel boot id. Used as the source of
 // truth for "has this host actually rebooted?" — reboot-command exit status is
@@ -178,6 +186,10 @@ func (s *packageApmInjectSuite) TestAgentDowngradeAPMInjectService() {
 	s.requireSystemd()
 
 	host := s.Env().RemoteHost
+	// Purge uses the downgraded Agent installer, which predates the current APM
+	// cleanup commands. Always remove the preload entry last so a same-host retry
+	// does not start with a dangling /run launcher after the reboot.
+	defer host.Execute("sudo rm -f /etc/ld.so.preload") //nolint:errcheck
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -199,8 +211,13 @@ func (s *packageApmInjectSuite) TestAgentDowngradeAPMInjectService() {
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
-		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=install.datadoghq.com.internal.dda-testing.com",
-		envForceVersion("datadog-agent", agentVersionWithoutAPMSystemdCommands),
+		"TESTING_APT_URL=",
+		"TESTING_APT_REPO_VERSION=",
+		"TESTING_YUM_URL=",
+		"TESTING_YUM_VERSION_PATH=",
+		"DD_REPO_URL=datadoghq.com",
+		"DD_AGENT_MAJOR_VERSION=7",
+		"DD_AGENT_MINOR_VERSION="+agentMinorVersionWithoutAPMSystemdCommands,
 	)
 	require.Equal(s.T(), agentVersionWithoutAPMSystemdCommands, s.host.AgentStableVersion())
 

@@ -74,10 +74,20 @@ func (h *Host) GetPkgManager() string {
 }
 
 func (h *Host) setSystemdVersion() {
-	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
-	version, err := strconv.Atoi(strVersion)
+	output := h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'")
+	version, err := parseSystemdVersion(output)
 	require.NoError(h.t(), err)
 	h.systemdVersion = version
+}
+
+func parseSystemdVersion(output string) (int, error) {
+	for _, line := range strings.Split(output, "\n") {
+		version, err := strconv.Atoi(strings.TrimSpace(line))
+		if err == nil {
+			return version, nil
+		}
+	}
+	return 0, fmt.Errorf("could not parse systemd version from %q", output)
 }
 
 // ConfigureAptMirrors hardens apt against package-mirror outages on apt-based hosts.
