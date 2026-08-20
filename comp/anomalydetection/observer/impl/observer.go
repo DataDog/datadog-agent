@@ -71,6 +71,7 @@ type observation struct {
 // metricObs contains copied metric data and implements observerdef.MetricView.
 type metricObs struct {
 	name          string
+	host          string
 	value         float64
 	tags          []string
 	timestamp     int64
@@ -84,6 +85,7 @@ var _ observerdef.MetricView = (*metricObs)(nil)
 func (m *metricObs) GetName() string {
 	return m.name
 }
+func (m *metricObs) GetHost() string { return m.host }
 
 func (m *metricObs) GetValue() float64 {
 	return m.value
@@ -1037,6 +1039,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 
 func prepareMetricIngestWithContextKey(source string, sample observerdef.MetricView, filter *metricsFilterRules, contextKey observerdef.MetricContextKey, hasContextKey bool) metricIngestDecision {
 	name := sample.GetName()
+	host := sample.GetHost()
 	normalizedSource := normalizeMetricSource(name, source)
 	// Canonicalize once for rule matching and retained metadata.
 	tags := canonicalizeTags(sample.GetRawTags())
@@ -1052,6 +1055,7 @@ func prepareMetricIngestWithContextKey(source string, sample observerdef.MetricV
 		source: normalizedSource,
 		metric: &metricObs{
 			name:          name,
+			host:          host,
 			value:         sample.GetValue(),
 			tags:          tags,
 			timestamp:     timestamp,

@@ -451,7 +451,7 @@ func (d *TukeyBiweightDetector) scoreBiweight(state *tbSeriesState, series *obse
 	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
 		Type:                observer.AnomalyTypeMetric,
-		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
+		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Host: series.Host, Tags: series.Tags, Aggregate: agg},
 		DetectorName:        d.Name(),
 		Title:               "Tukey biweight: " + seriesName,
 		SamplingIntervalSec: medianPointInterval(d.windowPointsSnapshot(state)),

@@ -15,6 +15,7 @@ import (
 type sampleNoSource struct{ name string }
 
 func (s *sampleNoSource) GetName() string         { return s.name }
+func (s *sampleNoSource) GetHost() string         { return "" }
 func (s *sampleNoSource) GetValue() float64       { return 0 }
 func (s *sampleNoSource) GetRawTags() []string    { return nil }
 func (s *sampleNoSource) GetTimestampUnix() int64 { return 0 }

@@ -37,6 +37,7 @@ type MetricPattern struct {
 type seriesCompact struct {
 	Namespace string
 	Name      string
+	Host      string
 	Tags      []string
 }
 

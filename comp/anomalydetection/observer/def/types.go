@@ -47,6 +47,7 @@ type HandleFunc func(name string) Handle
 // store the MetricView itself. Copy any needed values synchronously.
 type MetricView interface {
 	GetName() string
+	GetHost() string
 	GetValue() float64
 	GetRawTags() []string
 	// GetTimestampUnix returns the sample timestamp in Unix seconds.
@@ -116,6 +117,8 @@ type SeriesDescriptor struct {
 	Namespace string
 	// Name is the base metric name (e.g. "log.pattern.<hash>.count", "cpu.user").
 	Name string
+	// Host is the resolved metric hostname used by ContextKey identity.
+	Host string
 	// Tags are the series-level tags (e.g. ["host:web-1", "env:prod"]).
 	Tags []string
 	// Aggregate is the aggregation applied when reading the series.
@@ -154,7 +157,7 @@ func (sd SeriesDescriptor) Key() string {
 		sort.Strings(sorted)
 		tagStr = strings.Join(sorted, ",")
 	}
-	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + tagStr
+	return sd.Namespace + "|" + sd.Name + "|" + sd.Host + ":" + aggStr + "|" + tagStr
 }
 
 // SeriesRef is a compact numeric handle for a stored time series.
@@ -260,6 +263,7 @@ type ReportOutput struct {
 type Series struct {
 	Namespace string
 	Name      string
+	Host      string
 	Tags      []string
 	Points    []Point
 }
@@ -481,6 +485,7 @@ type SeriesMeta struct {
 	Ref       SeriesRef
 	Namespace string
 	Name      string
+	Host      string
 	Tags      []string
 }
 

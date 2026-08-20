@@ -126,6 +126,7 @@ type tagInternEntry struct {
 type seriesStats struct {
 	Namespace  string
 	Name       string
+	Host       string
 	Tags       []string
 	storageKey uint64
 	tagsHash   uint64                  // tagset hash of Tags; 0 means not interned
@@ -252,6 +253,7 @@ func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
 	return observer.Series{
 		Namespace: s.Namespace,
 		Name:      s.Name,
+		Host:      s.Host,
 		Tags:      s.Tags,
 		Points:    points,
 	}
@@ -302,10 +304,14 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 // AddWithKey inserts a point using an aggregation context key already computed
 // by the metric pipeline. Equal context keys identify the same external series.
 func (s *timeSeriesStorage) AddWithKey(namespace, name string, value float64, timestamp int64, tags []string, key observer.MetricContextKey) AddResult {
-	return s.add(namespace, name, value, timestamp, tags, uint64(key))
+	return s.AddWithKeyAndHost(namespace, name, "", value, timestamp, tags, key)
 }
 
-func (s *timeSeriesStorage) add(namespace, name string, value float64, timestamp int64, tags []string, key uint64) AddResult {
+func (s *timeSeriesStorage) AddWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags []string, key observer.MetricContextKey) AddResult {
+	return s.add(namespace, name, host, value, timestamp, tags, uint64(key))
+}
+
+func (s *timeSeriesStorage) add(namespace, name, host string, value float64, timestamp int64, tags []string, key uint64) AddResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -331,6 +337,7 @@ func (s *timeSeriesStorage) add(namespace, name string, value float64, timestamp
 		stats = &seriesStats{
 			Namespace:  namespace,
 			Name:       name,
+			Host:       host,
 			Tags:       canonical,
 			storageKey: key,
 			tagsHash:   th,
@@ -833,6 +840,7 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 		Ref:       ref,
 		Namespace: ss.Namespace,
 		Name:      ss.Name,
+		Host:      ss.Host,
 		Tags:      ss.Tags,
 	}
 }
@@ -904,6 +912,7 @@ func (s *timeSeriesStorage) ListAllSeriesCompact() []seriesCompact {
 		result = append(result, seriesCompact{
 			Namespace: st.Namespace,
 			Name:      st.Name,
+			Host:      st.Host,
 			Tags:      st.Tags,
 		})
 	}
@@ -958,6 +967,7 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 	type dumpSeries struct {
 		Namespace string      `json:"namespace"`
 		Name      string      `json:"name"`
+		Host      string      `json:"host"`
 		Tags      []string    `json:"tags"`
 		Points    []dumpPoint `json:"points"`
 	}
@@ -970,6 +980,7 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 		ds := dumpSeries{
 			Namespace: st.Namespace,
 			Name:      st.Name,
+			Host:      st.Host,
 			Tags:      st.Tags,
 		}
 		n := st.pointCount()
@@ -1297,6 +1308,7 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 			Ref:       stats.ref,
 			Namespace: stats.Namespace,
 			Name:      stats.Name,
+			Host:      stats.Host,
 			Tags:      stats.Tags,
 		})
 	}

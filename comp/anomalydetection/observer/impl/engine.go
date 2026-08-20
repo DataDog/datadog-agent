@@ -293,7 +293,7 @@ func (e *engine) sourceTagForIngest(source string) string {
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 	if m.hasContextKey {
-		e.storage.AddWithKey(source, m.name, m.value, m.timestamp, m.tags, m.contextKey)
+		e.storage.AddWithKeyAndHost(source, m.name, m.host, m.value, m.timestamp, m.tags, m.contextKey)
 	} else {
 		e.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
 	}
@@ -349,7 +349,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 				continue
 			}
-			res := e.storage.AddWithKey(extractor.Name(), m.Name, m.Value, timestamp, tags, key)
+			res := e.storage.AddWithKeyAndHost(extractor.Name(), m.Name, l.hostname, m.Value, timestamp, tags, key)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
