@@ -5,10 +5,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
-    srcs = [
-        "agent_config.go",
-        "featuregate.go",
-    ],
+    srcs = ["agent_config.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/config",
     visibility = ["//visibility:public"],
     deps = [
@@ -31,7 +28,6 @@ go_library(
         "@io_opentelemetry_go_collector_confmap_provider_httpprovider//:httpprovider",
         "@io_opentelemetry_go_collector_confmap_provider_httpsprovider//:httpsprovider",
         "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:yamlprovider",
-        "@io_opentelemetry_go_collector_featuregate//:featuregate",
         "@io_opentelemetry_go_collector_service//:service",
     ],
 )
