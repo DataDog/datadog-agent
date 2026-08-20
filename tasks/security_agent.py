@@ -16,6 +16,7 @@ from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -496,7 +497,7 @@ def docker_functional_tests(
 
 @task
 def generate_cws_documentation(ctx):
-    bazel(ctx, "run", "//docs/cloud-workload-security:cws_docs")
+    bazel("run", "//docs/cloud-workload-security:cws_docs")
 
 
 @task
@@ -510,14 +511,14 @@ def cws_go_generate(ctx, verbose=False):
     # CWS codegens migrated to Bazel keep their //go:generate directives so a future
     # Gazelle extension can pick them up; we just skip them in `go generate` here.
     # See ABLD-420.
-    bazel(ctx, "run", "//pkg/security/secl/compiler/eval:eval_operators")
-    bazel(ctx, "run", "//pkg/security/secl/model:consts_map_names_linux")
-    bazel(ctx, "run", "//pkg/security/secl/model:accessors_unix")
-    bazel(ctx, "run", "//pkg/security/secl/model:accessors_windows")
-    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_unix")
-    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_windows")
-    bazel(ctx, "run", "//docs/cloud-workload-security:secl_linux")
-    bazel(ctx, "run", "//docs/cloud-workload-security:secl_windows")
+    bazel("run", "//pkg/security/secl/compiler/eval:eval_operators")
+    bazel("run", "//pkg/security/secl/model:consts_map_names_linux")
+    bazel("run", "//pkg/security/secl/model:accessors_unix")
+    bazel("run", "//pkg/security/secl/model:accessors_windows")
+    bazel("run", "//pkg/security/secl/model:event_deep_copy_unix")
+    bazel("run", "//pkg/security/secl/model:event_deep_copy_windows")
+    bazel("run", "//docs/cloud-workload-security:secl_linux")
+    bazel("run", "//docs/cloud-workload-security:secl_windows")
     skip = "operators|bpf_maps_generator|accessors|event_deep_copy"
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
@@ -540,8 +541,8 @@ def cws_go_generate(ctx, verbose=False):
     ctx.run(f"go generate -skip='{skip}' -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
-    bazel(ctx, "run", "//pkg/security/seclwin:sync")
-    bazel(ctx, "run", "//pkg/security/seclwin/model:sync")
+    bazel("run", "//pkg/security/seclwin:sync")
+    bazel("run", "//pkg/security/seclwin/model:sync")
 
     # generate documentation
     generate_cws_documentation(ctx)
@@ -576,7 +577,7 @@ def generate_syscall_table(ctx):
 def generate_utils_syscall_table(ctx):
     # The kernel files are fetched as `http_file` repos pinned in MODULE.bazel;
     # bumping the kernel version means updating those URLs and sha256 entries.
-    bazel(ctx, "run", "//pkg/security/utils:utils_syscall_table")
+    bazel("run", "//pkg/security/utils:utils_syscall_table")
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
@@ -635,7 +636,16 @@ def split_btfhub_constants(ctx):
 
 @task
 def generate_cws_proto(ctx):
-    bazel(ctx, "run", "//pkg/security/proto/api:write_pb_go")
+    print(
+        color_message(
+            """DEPRECATED - use one of the following instead:
+- bazel run //pkg/security/proto/api:write_pb_go
+- bazel run //:write_all
+""",
+            "orange",
+        )
+    )
+    bazel("run", "//pkg/security/proto/api:write_pb_go")
 
 
 def get_git_dirty_files():
