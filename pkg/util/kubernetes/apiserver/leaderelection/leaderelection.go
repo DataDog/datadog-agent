@@ -119,6 +119,32 @@ func GetLeaderEngine() (*LeaderEngine, error) {
 	return globalLeaderEngine, nil
 }
 
+// waitForLeaderEngineSleep is declared as a variable so we can mock it in tests.
+var waitForLeaderEngineSleep = time.After
+
+// WaitForLeaderEngine creates the global leader engine if needed and will block until the engine is initialized or fails permanently.
+func WaitForLeaderEngine(ctx context.Context) (*LeaderEngine, error) {
+	CreateGlobalLeaderEngine(ctx)
+
+	for {
+		_ = globalLeaderEngine.initRetry.TriggerRetry()
+		switch globalLeaderEngine.initRetry.RetryStatus() {
+		case retry.OK:
+			return globalLeaderEngine, nil
+		case retry.PermaFail:
+			return nil, errors.New("Permanent failure while waiting for Leader Election engine")
+		default:
+			sleepFor := globalLeaderEngine.initRetry.NextRetry().UTC().Sub(time.Now().UTC()) + time.Second
+			log.Debugf("Waiting for Leader Election engine, next retry: %v", sleepFor)
+			select {
+			case <-ctx.Done():
+				return nil, errors.New("Context deadline reached while waiting for Leader Election engine")
+			case <-waitForLeaderEngineSleep(sleepFor):
+			}
+		}
+	}
+}
+
 // CreateGlobalLeaderEngine returns a non initialized leader engine client
 func CreateGlobalLeaderEngine(ctx context.Context) *LeaderEngine {
 	if globalLeaderEngine == nil {

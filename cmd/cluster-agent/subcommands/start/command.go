@@ -355,13 +355,6 @@ func start(log log.Component,
 		}
 	}()
 
-	// Create the Leader election engine and initialize it
-	leaderelection.CreateGlobalLeaderEngine(mainCtx)
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return err
-	}
-
 	// Setup the leader forwarder for autoscaling failover store, language detection and cluster checks
 	if config.GetBool("cluster_checks.enabled") ||
 		(config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) ||
@@ -392,6 +385,12 @@ func start(log log.Component,
 		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
 	}
 	pkglog.Infof("Got APIClient connection")
+
+	// Initialize the leader election engine. 
+	le, err := leaderelection.WaitForLeaderEngine(mainCtx)
+	if err != nil {
+		return err
+	}
 
 	// Get hostname as aggregator requires hostname
 	hname, err := hostname.Get(mainCtx)
