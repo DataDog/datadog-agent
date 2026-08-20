@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	dogstatsdclientdropdetector "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/def"
+	dogstatsdclientdropdetectorfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/fx"
 	dogstatsdclienttelemetryfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
@@ -318,11 +320,13 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 	type appDeps struct {
 		fx.In
 		Observers []aggregator.FinalDogStatsDSerieObserver `group:"dogstatsd_final_serie_observers"`
+		Detector  dogstatsdclientdropdetector.Component
 	}
 
 	const tickInterval = 50 * time.Millisecond
 	deps := fxutil.Test[appDeps](t,
 		Bundle(),
+		dogstatsdclientdropdetectorfx.Module(),
 		dogstatsdclienttelemetryfx.Module(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
@@ -343,8 +347,6 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 
 	require.Len(t, deps.Observers, 1)
 	observer := deps.Observers[0]
-	flusher, ok := observer.(aggregator.FinalDogStatsDSerieObserverFlusher)
-	require.True(t, ok)
 	tags := tagset.CompositeTagsFromSlice([]string{"client_transport:uds"})
 	completeWindow := func(sent, dropped, queue, writer float64) {
 		for _, metric := range []struct {
@@ -364,7 +366,7 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 				Points: []metrics.Point{{Value: metric.value}},
 			})
 		}
-		flusher.CompleteFinalDogStatsDSerieFlush()
+		deps.Detector.CompleteFinalDogStatsDSerieFlush()
 	}
 
 	findIssue := func(state healthplatformpayload.IssueState) *healthplatformpayload.Issue {

@@ -92,6 +92,7 @@ func TestFinalDogStatsDSerieObserverCompletesAfterAllWorkers(t *testing.T) {
 	observer := &recordingFinalSerieFlushObserver{}
 	opts := demuxTestOptions()
 	opts.FinalDogStatsDSerieObservers = []FinalDogStatsDSerieObserver{observer}
+	opts.FinalDogStatsDSerieFlushListener = observer
 	deps := createDemuxDeps(t, opts, eventplatform.NewDefaultParams())
 	demux := deps.Demultiplexer
 	t.Cleanup(demux.Stop)
