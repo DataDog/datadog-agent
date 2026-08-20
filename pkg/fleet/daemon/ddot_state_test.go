@@ -98,6 +98,7 @@ func TestRefreshStateReportsDDOTProcessState(t *testing.T) {
 	rcc := newTestRemoteConfigClient(t)
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
 	require.NoError(t, err)
+	defer taskDB.Close()
 	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
