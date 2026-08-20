@@ -332,7 +332,7 @@ def build_functional_tests(
     build_tags.append("test")
     build_tags.append("seclmax")
     if not is_windows:
-        build_tags.append("linux_bpf")
+        build_tags.append("bpf")
         build_tags.append("trivy")
         build_tags.append("containerd")
 
@@ -538,7 +538,7 @@ def cws_go_generate(ctx, verbose=False):
 
     ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
     ctx.run("go generate ./pkg/security/probe/custom_events.go")
-    ctx.run(f"go generate -skip='{skip}' -tags=linux_bpf,cws_go_generate ./pkg/security/...")
+    ctx.run(f"go generate -skip='{skip}' -tags=bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
     bazel("run", "//pkg/security/seclwin:sync")
@@ -588,14 +588,14 @@ DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/consta
 @task
 def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     ctx.run(
-        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
+        f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
 
 
 @task
 def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     ctx.run(
-        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
+        f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
     )
 
 
