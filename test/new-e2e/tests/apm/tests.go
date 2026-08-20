@@ -28,84 +28,8 @@ import (
 // tracer payloads in the v1 string-indexed idx format (AgentPayload.IdxTracerPayloads).
 // Instead of the legacy tracerPayloads field, span/chunk/payload metadata is
 // carried as references into a per-payload string table, and tags/meta/metrics
-// live in a single attributes map keyed by string reference. The helpers below
-// resolve those references so the assertions can read the indexed payloads directly.
-
-// idxStr resolves a string-table reference to its value. Reference 0 is the
-// empty-string sentinel.
-func idxStr(strings []string, ref uint32) string {
-	if ref == 0 || int(ref) >= len(strings) {
-		return ""
-	}
-	return strings[ref]
-}
-
-// idxStrAttr returns the string value of the attribute named key, and whether a
-// string-valued attribute with that key was present.
-func idxStrAttr(strings []string, attrs map[uint32]*idx.AnyValue, key string) (string, bool) {
-	for k, v := range attrs {
-		if idxStr(strings, k) != key {
-			continue
-		}
-		if sv, ok := v.Value.(*idx.AnyValue_StringValueRef); ok {
-			return idxStr(strings, sv.StringValueRef), true
-		}
-		return "", false
-	}
-	return "", false
-}
-
-// idxNumAttr returns the numeric value of the attribute named key, and whether a
-// numeric-valued attribute with that key was present.
-func idxNumAttr(strings []string, attrs map[uint32]*idx.AnyValue, key string) (float64, bool) {
-	for k, v := range attrs {
-		if idxStr(strings, k) != key {
-			continue
-		}
-		switch val := v.Value.(type) {
-		case *idx.AnyValue_DoubleValue:
-			return val.DoubleValue, true
-		case *idx.AnyValue_IntValue:
-			return float64(val.IntValue), true
-		}
-		return 0, false
-	}
-	return 0, false
-}
-
-// idxHasAttr reports whether an attribute named key is present, regardless of type.
-func idxHasAttr(strings []string, attrs map[uint32]*idx.AnyValue, key string) bool {
-	for k := range attrs {
-		if idxStr(strings, k) == key {
-			return true
-		}
-	}
-	return false
-}
-
-// tracerPayloadHasService reports whether the tracer payload contains at least
-// one span for the given service.
-func tracerPayloadHasService(tp *idx.TracerPayload, service string) bool {
-	for _, chunk := range tp.Chunks {
-		for _, sp := range chunk.Spans {
-			if idxStr(tp.Strings, sp.ServiceRef) == service {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// tracePayloadHasService reports whether any tracer payload in the agent payload
-// contains a span for the given service.
-func tracePayloadHasService(p *aggregator.TracePayload, service string) bool {
-	for _, tp := range p.IdxTracerPayloads {
-		if tracerPayloadHasService(tp, service) {
-			return true
-		}
-	}
-	return false
-}
+// live in a single attributes map keyed by string reference. The assertions below
+// resolve those references with the fakeintake.Idx* accessors.
 
 // clientStatsHasService reports whether the client stats payload contains stats
 // for the given service.
@@ -137,7 +61,7 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	var hostName, env string
 	for _, tr := range traces {
 		for _, p := range tr.IdxTracerPayloads {
-			if tracerPayloadHasService(p, service) {
+			if fakeintake.IdxTracerPayloadHasService(p, service) {
 				tp, hostName, env = p, tr.HostName, tr.Env
 				break
 			}
@@ -152,8 +76,8 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	strs := tp.Strings
 	assert.Equal(c, agent.Hostname(), hostName)
 	assert.Equal(c, "none", env)
-	assert.Equal(c, "go", idxStr(strs, tp.LanguageNameRef))
-	assert.False(c, idxHasAttr(strs, tp.Attributes, "_dd.apm_mode"))
+	assert.Equal(c, "go", fakeintake.IdxStr(strs, tp.LanguageNameRef))
+	assert.False(c, fakeintake.IdxHasAttr(strs, tp.Attributes, "_dd.apm_mode"))
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}
@@ -162,16 +86,16 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(c, service, idxStr(strs, sp.ServiceRef))
-		assert.Contains(c, idxStr(strs, sp.NameRef), "tracegen")
-		language, ok := idxStrAttr(strs, sp.Attributes, "language")
+		assert.Equal(c, service, fakeintake.IdxStr(strs, sp.ServiceRef))
+		assert.Contains(c, fakeintake.IdxStr(strs, sp.NameRef), "tracegen")
+		language, ok := fakeintake.IdxStrAttr(strs, sp.Attributes, "language")
 		assert.True(c, ok, "span missing language attribute")
 		assert.Equal(c, "go", language)
-		assert.True(c, idxHasAttr(strs, sp.Attributes, "_sampling_priority_v1"))
+		assert.True(c, fakeintake.IdxHasAttr(strs, sp.Attributes, "_sampling_priority_v1"))
 		if sp.ParentID == 0 {
-			topLevel, _ := idxNumAttr(strs, sp.Attributes, "_dd.top_level")
+			topLevel, _ := fakeintake.IdxNumAttr(strs, sp.Attributes, "_dd.top_level")
 			assert.Equal(c, float64(1), topLevel)
-			legacyTopLevel, _ := idxNumAttr(strs, sp.Attributes, "_top_level")
+			legacyTopLevel, _ := fakeintake.IdxNumAttr(strs, sp.Attributes, "_top_level")
 			assert.Equal(c, float64(1), legacyTopLevel)
 		}
 	}
@@ -188,7 +112,7 @@ func testTPS(c *assert.CollectT, intake *components.FakeIntake, service string, 
 	// may hold unrelated payloads with a different TargetTPS.
 	found := false
 	for _, p := range traces {
-		if !tracePayloadHasService(p, service) {
+		if !fakeintake.IdxPayloadHasService(p, service) {
 			continue
 		}
 		found = true
@@ -230,7 +154,7 @@ func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, proces
 	found := false
 	for _, p := range traces {
 		for _, tp := range p.IdxTracerPayloads {
-			tags, ok := idxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.process")
+			tags, ok := fakeintake.IdxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.process")
 			if !ok {
 				continue
 			}
@@ -294,11 +218,11 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, service string, int
 	found := false
 	for _, tr := range traces {
 		for _, tp := range tr.IdxTracerPayloads {
-			if !tracerPayloadHasService(tp, service) {
+			if !fakeintake.IdxTracerPayloadHasService(tp, service) {
 				continue
 			}
 			found = true
-			containerTags, _ := idxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
+			containerTags, _ := fakeintake.IdxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
 			t.Log("Tracer Payload Tags:", containerTags)
 			ctags, ok := getContainerTags(t, tp)
 			assert.True(c, ok, "expected to find container tags at _dd.tags.container")
@@ -324,13 +248,13 @@ func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, service
 	found := false
 	for _, p := range traces {
 		for _, tp := range p.IdxTracerPayloads {
-			if !tracerPayloadHasService(tp, service) {
+			if !fakeintake.IdxTracerPayloadHasService(tp, service) {
 				continue
 			}
 			for _, chunk := range tp.Chunks {
 				found = true
 				if chunk.SamplingMechanism != probabilitySamplingMechanism {
-					t.Errorf("Expected chunk SamplingMechanism == %d, but got %d for service %s", probabilitySamplingMechanism, chunk.SamplingMechanism, idxStr(tp.Strings, chunk.Spans[0].ServiceRef))
+					t.Errorf("Expected chunk SamplingMechanism == %d, but got %d for service %s", probabilitySamplingMechanism, chunk.SamplingMechanism, fakeintake.IdxStr(tp.Strings, chunk.Spans[0].ServiceRef))
 				}
 			}
 		}
@@ -387,7 +311,7 @@ func testIsTraceRootTag(t *testing.T, c *assert.CollectT, service string, intake
 }
 
 func getContainerTags(t *testing.T, tp *idx.TracerPayload) (map[string]string, bool) {
-	ctags, ok := idxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
+	ctags, ok := fakeintake.IdxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
 	if !ok {
 		return nil, false
 	}
@@ -436,7 +360,7 @@ func hasPeerTagsStats(payloads []*aggregator.APMStatsPayload, fullTag string) bo
 func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 	for _, p := range payloads {
 		for _, tp := range p.IdxTracerPayloads {
-			tags, ok := idxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
+			tags, ok := fakeintake.IdxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
 			if ok && strings.Count(tags, tag) > 0 {
 				return true
 			}
@@ -555,7 +479,7 @@ func hasTraceForResource(payloads []*aggregator.TracePayload, resource string) b
 		for _, tp := range p.IdxTracerPayloads {
 			for _, c := range tp.Chunks {
 				for _, s := range c.Spans {
-					if idxStr(tp.Strings, s.ResourceRef) == resource {
+					if fakeintake.IdxStr(tp.Strings, s.ResourceRef) == resource {
 						return true
 					}
 				}
@@ -611,7 +535,7 @@ func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, service stri
 	}
 	found := false
 	for _, p := range traces {
-		if !tracePayloadHasService(p, service) {
+		if !fakeintake.IdxPayloadHasService(p, service) {
 			continue
 		}
 		found = true

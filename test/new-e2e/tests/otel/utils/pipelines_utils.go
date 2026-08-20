@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -99,18 +99,17 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 		if !assert.NotEmpty(c, traces) {
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		if !assert.NotEmpty(s.T(), traces[0].IdxTracerPayloads) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := traces[0].IdxTracerPayloads[0]
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, fakeintake.IdxStr(tp.Strings, tp.Chunks[0].Spans[0].ServiceRef))
 		if iaParams.InfraAttributes {
 			ctags, ok := getContainerTags(s.T(), tp)
 			assert.True(s.T(), ok)
@@ -121,32 +120,33 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
-	assert.Equal(s.T(), env, tp.Env)
-	assert.Equal(s.T(), version, tp.AppVersion)
+	require.NotEmpty(s.T(), traces[0].IdxTracerPayloads)
+	tp := traces[0].IdxTracerPayloads[0]
+	assert.Equal(s.T(), env, fakeintake.IdxStr(tp.Strings, tp.EnvRef))
+	assert.Equal(s.T(), version, fakeintake.IdxStr(tp.Strings, tp.AppVersionRef))
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(s.T(), CalendarService, sp.Service)
-		assert.Equal(s.T(), env, sp.Meta["env"])
-		assert.Equal(s.T(), version, sp.Meta["version"])
-		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
-		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
-		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+		assert.Equal(s.T(), CalendarService, fakeintake.IdxStr(tp.Strings, sp.ServiceRef))
+		assert.Equal(s.T(), env, fakeintake.IdxStr(tp.Strings, sp.EnvRef))
+		assert.Equal(s.T(), version, fakeintake.IdxStr(tp.Strings, sp.VersionRef))
+		assert.Equal(s.T(), customAttributeValue, spanAttr(tp, sp, customAttribute))
+		assert.Equal(s.T(), spanAttr(tp, sp, "k8s.node.name"), fakeintake.IdxStr(tp.Strings, tp.HostnameRef))
+		if sp.Kind == idx.SpanKind_SPAN_KIND_CLIENT {
+			assert.Equal(s.T(), "calendar-rest-go", spanAttr(tp, sp, "otel.library.name"))
 		} else {
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", spanAttr(tp, sp, "otel.library.name"))
 		}
 		ctags, ok := getContainerTags(s.T(), tp)
 		assert.True(s.T(), ok)
-		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
-		assert.Equal(s.T(), sp.Meta["k8s.namespace.name"], ctags["kube_namespace"])
-		assert.Equal(s.T(), sp.Meta["k8s.pod.name"], ctags["pod_name"])
+		assert.Equal(s.T(), spanAttr(tp, sp, "k8s.container.name"), ctags["kube_container_name"])
+		assert.Equal(s.T(), spanAttr(tp, sp, "k8s.namespace.name"), ctags["kube_namespace"])
+		assert.Equal(s.T(), spanAttr(tp, sp, "k8s.pod.name"), ctags["pod_name"])
 
 		// Verify container tags from infraattributes processor
 		if iaParams.InfraAttributes {
-			maps.Copy(ctags, sp.Meta)
+			maps.Copy(ctags, spanStringAttrs(tp, sp))
 			testInfraTags(s.T(), ctags, iaParams)
 		}
 	}
@@ -167,60 +167,58 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 			s.T().Log("Traces empty", s.T().Name())
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		if !assert.NotEmpty(s.T(), traces[0].IdxTracerPayloads) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := traces[0].IdxTracerPayloads[0]
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, fakeintake.IdxStr(tp.Strings, tp.Chunks[0].Spans[0].ServiceRef))
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
-	assert.Equal(s.T(), env, tp.Env)
-	assert.Equal(s.T(), version, tp.AppVersion)
+	require.NotEmpty(s.T(), traces[0].IdxTracerPayloads)
+	tp := traces[0].IdxTracerPayloads[0]
+	assert.Equal(s.T(), env, fakeintake.IdxStr(tp.Strings, tp.EnvRef))
+	assert.Equal(s.T(), version, fakeintake.IdxStr(tp.Strings, tp.AppVersionRef))
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
-	spans := tp.Chunks[0].Spans
+	chunk := tp.Chunks[0]
+	// The trace ID is carried once per chunk rather than on every span.
+	assert.NotZero(s.T(), fakeintake.IdxChunkTraceID(chunk))
 	ctags, ok := getContainerTags(s.T(), tp)
 
-	for _, sp := range spans {
-		assert.Equal(s.T(), CalendarService, sp.Service)
-		assert.Equal(s.T(), env, sp.Meta["env"])
-		assert.Equal(s.T(), version, sp.Meta["version"])
-		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
-		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "client.request", sp.Name)
-			assert.Equal(s.T(), "getDate", sp.Resource)
-			assert.Equal(s.T(), "http", sp.Type)
-			assert.IsType(s.T(), uint64(0), sp.ParentID)
+	for _, sp := range chunk.Spans {
+		assert.Equal(s.T(), CalendarService, fakeintake.IdxStr(tp.Strings, sp.ServiceRef))
+		assert.Equal(s.T(), env, fakeintake.IdxStr(tp.Strings, sp.EnvRef))
+		assert.Equal(s.T(), version, fakeintake.IdxStr(tp.Strings, sp.VersionRef))
+		assert.Equal(s.T(), customAttributeValue, spanAttr(tp, sp, customAttribute))
+		if sp.Kind == idx.SpanKind_SPAN_KIND_CLIENT {
+			assert.Equal(s.T(), "client.request", fakeintake.IdxStr(tp.Strings, sp.NameRef))
+			assert.Equal(s.T(), "getDate", fakeintake.IdxStr(tp.Strings, sp.ResourceRef))
+			assert.Equal(s.T(), "http", fakeintake.IdxStr(tp.Strings, sp.TypeRef))
 			assert.NotZero(s.T(), sp.ParentID)
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "calendar-rest-go", spanAttr(tp, sp, "otel.library.name"))
 		} else {
-			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
-			assert.Equal(s.T(), "http.server.request", sp.Name)
-			assert.Equal(s.T(), "GET", sp.Resource)
-			assert.Equal(s.T(), "web", sp.Type)
+			assert.Equal(s.T(), idx.SpanKind_SPAN_KIND_SERVER, sp.Kind)
+			assert.Equal(s.T(), "http.server.request", fakeintake.IdxStr(tp.Strings, sp.NameRef))
+			assert.Equal(s.T(), "GET", fakeintake.IdxStr(tp.Strings, sp.ResourceRef))
+			assert.Equal(s.T(), "web", fakeintake.IdxStr(tp.Strings, sp.TypeRef))
 			assert.Zero(s.T(), sp.ParentID)
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", spanAttr(tp, sp, "otel.library.name"))
 		}
-		assert.IsType(s.T(), uint64(0), sp.TraceID)
-		assert.NotZero(s.T(), sp.TraceID)
-		assert.IsType(s.T(), uint64(0), sp.SpanID)
 		assert.NotZero(s.T(), sp.SpanID)
-		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
+		assert.Equal(s.T(), spanAttr(tp, sp, "k8s.node.name"), fakeintake.IdxStr(tp.Strings, tp.HostnameRef))
 		assert.True(s.T(), ok)
-		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
-		assert.Equal(s.T(), sp.Meta["k8s.namespace.name"], ctags["kube_namespace"])
-		assert.Equal(s.T(), sp.Meta["k8s.pod.name"], ctags["pod_name"])
+		assert.Equal(s.T(), spanAttr(tp, sp, "k8s.container.name"), ctags["kube_container_name"])
+		assert.Equal(s.T(), spanAttr(tp, sp, "k8s.namespace.name"), ctags["kube_namespace"])
+		assert.Equal(s.T(), spanAttr(tp, sp, "k8s.pod.name"), ctags["pod_name"])
 	}
 }
 
@@ -245,35 +243,35 @@ func TestTracesWithOperationAndResourceName(
 			s.T().Log("Traces empty", s.T().Name())
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		if !assert.NotEmpty(s.T(), traces[0].IdxTracerPayloads) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := traces[0].IdxTracerPayloads[0]
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, fakeintake.IdxStr(tp.Strings, tp.Chunks[0].Spans[0].ServiceRef))
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
 
-	tp := traces[0].TracerPayloads[0]
+	require.NotEmpty(s.T(), traces[0].IdxTracerPayloads)
+	tp := traces[0].IdxTracerPayloads[0]
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 
 	for _, sp := range spans {
-		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), clientOperationName, sp.Name)
-			assert.Equal(s.T(), clientResourceName, sp.Resource)
+		if sp.Kind == idx.SpanKind_SPAN_KIND_CLIENT {
+			assert.Equal(s.T(), clientOperationName, fakeintake.IdxStr(tp.Strings, sp.NameRef))
+			assert.Equal(s.T(), clientResourceName, fakeintake.IdxStr(tp.Strings, sp.ResourceRef))
 		} else {
-			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
-			assert.Equal(s.T(), serverOperationName, sp.Name)
-			assert.Equal(s.T(), serverResourceName, sp.Resource)
+			assert.Equal(s.T(), idx.SpanKind_SPAN_KIND_SERVER, sp.Kind)
+			assert.Equal(s.T(), serverOperationName, fakeintake.IdxStr(tp.Strings, sp.NameRef))
+			assert.Equal(s.T(), serverResourceName, fakeintake.IdxStr(tp.Strings, sp.ResourceRef))
 		}
 	}
 }
@@ -387,10 +385,9 @@ func TestHosts(s OTelTestSuite) {
 		assert.NotEmpty(c, logs)
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got telemetry")
-	trace := traces[0]
-	require.NotEmpty(s.T(), trace.TracerPayloads)
-	tp := trace.TracerPayloads[0]
-	traceHostname := tp.Hostname
+	require.NotEmpty(s.T(), traces[0].IdxTracerPayloads)
+	tp := traces[0].IdxTracerPayloads[0]
+	traceHostname := fakeintake.IdxStr(tp.Strings, tp.HostnameRef)
 
 	var metricHostname string
 	metric := metrics[0]
@@ -691,26 +688,32 @@ func TestHostMetrics(s OTelTestSuite) {
 	}, 1*time.Minute, 10*time.Second)
 }
 
-func getLoadBalancingSpans(t require.TestingT, traces []*aggregator.TracePayload) map[string][]*trace.Span {
-	spanMap := make(map[string][]*trace.Span)
+// getLoadBalancingSpanBackends maps each service to the "backend" attribute of up
+// to three of its spans. The backend is resolved here rather than returning the
+// spans themselves, since an idx span's attributes are only readable through the
+// string table of the tracer payload that carries it.
+func getLoadBalancingSpanBackends(t require.TestingT, traces []*aggregator.TracePayload) map[string][]string {
+	backendMap := make(map[string][]string)
 	spans := 0
 	for _, tracePayload := range traces {
-		for _, tracerPayload := range tracePayload.TracerPayloads {
+		for _, tracerPayload := range tracePayload.IdxTracerPayloads {
 			for _, chunk := range tracerPayload.Chunks {
 				for _, span := range chunk.Spans {
-					if len(spanMap[span.Service]) < 3 {
-						spanMap[span.Service] = append(spanMap[span.Service], span)
+					service := fakeintake.IdxStr(tracerPayload.Strings, span.ServiceRef)
+					if len(backendMap[service]) < 3 {
+						backend, _ := fakeintake.IdxStrAttr(tracerPayload.Strings, span.Attributes, "backend")
+						backendMap[service] = append(backendMap[service], backend)
 						spans++
 					}
 					if spans == 12 {
-						return spanMap
+						return backendMap
 					}
 				}
 			}
 		}
 	}
 	require.Equal(t, 12, spans)
-	return spanMap
+	return backendMap
 }
 
 func getLoadBalancingLogs(c require.TestingT, s OTelTestSuite, service string) {
@@ -760,7 +763,7 @@ func getLoadBalancingMetrics(t require.TestingT, metrics []*aggregator.MetricSer
 func TestLoadBalancing(s OTelTestSuite) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
-	var spanMap map[string][]*trace.Span
+	var backendMap map[string][]string
 	var metricTagsMap map[string][]map[string]string
 
 	s.T().Log("Waiting for telemetry")
@@ -768,27 +771,27 @@ func TestLoadBalancing(s OTelTestSuite) {
 		traces, err := s.Env().FakeIntake.Client().GetTraces()
 		require.NoError(c, err)
 		require.NotEmpty(c, traces)
-		spanMap = getLoadBalancingSpans(c, traces)
+		backendMap = getLoadBalancingSpanBackends(c, traces)
 
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter")
 		require.NoError(c, err)
 		require.NotEmpty(c, metrics)
 		metricTagsMap = getLoadBalancingMetrics(c, metrics)
 
-		for service := range spanMap {
+		for service := range backendMap {
 			getLoadBalancingLogs(c, s, service)
 		}
 	}, 5*time.Minute, 10*time.Second)
 	s.T().Log("Got telemetry", s.T().Name())
-	for service, spans := range spanMap {
+	for service, backends := range backendMap {
 		backend := ""
-		for _, span := range spans {
-			s.T().Log("Span service:", service+",", "Backend:", span.Meta["backend"])
+		for _, spanBackend := range backends {
+			s.T().Log("Span service:", service+",", "Backend:", spanBackend)
 			if backend == "" {
-				backend = span.Meta["backend"]
+				backend = spanBackend
 				continue
 			}
-			assert.Equal(s.T(), backend, span.Meta["backend"])
+			assert.Equal(s.T(), backend, spanBackend)
 		}
 	}
 	for service, metricTags := range metricTagsMap {
@@ -1034,13 +1037,37 @@ func testCustomLabelAsTag(t *testing.T, log *aggregator.Log, logsTagsAsDDTags bo
 	assert.Equal(t, customLabelValue, fmt.Sprint(attrs[customLabelTag]))
 }
 
-func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
-	ctags, ok := tp.Tags["_dd.tags.container"]
+func getContainerTags(t *testing.T, tp *idx.TracerPayload) (map[string]string, bool) {
+	ctags, ok := fakeintake.IdxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
 	if !ok {
 		return nil, false
 	}
 	splits := strings.Split(ctags, ",")
 	return getTagMapFromSlice(t, splits), true
+}
+
+// spanAttr returns the string-valued span attribute named key, or the empty string
+// if the span carries no such attribute.
+func spanAttr(tp *idx.TracerPayload, sp *idx.Span, key string) string {
+	v, _ := fakeintake.IdxStrAttr(tp.Strings, sp.Attributes, key)
+	return v
+}
+
+// spanStringAttrs returns all of the span's string-valued attributes as a plain
+// map, for the infra-tags check which asserts across the whole set rather than on
+// named keys.
+func spanStringAttrs(tp *idx.TracerPayload, sp *idx.Span) map[string]string {
+	m := make(map[string]string, len(sp.Attributes))
+	for k, v := range sp.Attributes {
+		key := fakeintake.IdxStr(tp.Strings, k)
+		if key == "" {
+			continue
+		}
+		if sv, ok := v.GetValue().(*idx.AnyValue_StringValueRef); ok {
+			m[key] = fakeintake.IdxStr(tp.Strings, sv.StringValueRef)
+		}
+	}
+	return m
 }
 
 func getLogTagsAndAttrs(t require.TestingT, log *aggregator.Log) map[string]string {
