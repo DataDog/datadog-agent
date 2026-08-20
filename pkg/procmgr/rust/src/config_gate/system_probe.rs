@@ -225,7 +225,7 @@ impl<'a> Cfg<'a> {
 fn discovery_enabled_platform_default() -> bool {
     #[cfg(not(target_os = "linux"))]
     {
-        return false;
+        false
     }
     #[cfg(target_os = "linux")]
     {
