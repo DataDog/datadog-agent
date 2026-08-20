@@ -20,9 +20,8 @@ import (
 
 func TestDeviceCache(t *testing.T) {
 	// Create mock with all symbols available
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
-		testutil.WithMIGDisabled(),
 	)
 
 	// Use WithMockNVML to set the mock
@@ -38,6 +37,10 @@ func TestDeviceCache(t *testing.T) {
 }
 
 func TestDeviceCachePartialFailure(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+	)
+
 	// Create a mock that returns 3 devices but only 2 succeed
 	baseDeviceGetCountFunc := func() (int, nvml.Return) {
 		return 3, nvml.SUCCESS
@@ -47,14 +50,8 @@ func TestDeviceCachePartialFailure(t *testing.T) {
 		if index == 2 {
 			return nil, nvml.ERROR_INVALID_ARGUMENT
 		}
-		return testutil.GetDeviceMock(index), nvml.SUCCESS
+		return mockNvml.Device(index), nvml.SUCCESS
 	}
-
-	// Create custom mock with specific config
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
-		testutil.WithSymbolsMock(allSymbols),
-		testutil.WithMIGDisabled(),
-	)
 
 	// Override device count and get by index funcs
 	mockNvml.DeviceGetCountFunc = baseDeviceGetCountFunc
@@ -88,9 +85,8 @@ func TestDeviceCachePartialFailure(t *testing.T) {
 
 func TestDeviceCacheGetByIndex(t *testing.T) {
 	// Create mock with all symbols available
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
-		testutil.WithMIGDisabled(),
 	)
 
 	// Use WithMockNVML to set the mock
@@ -119,9 +115,8 @@ func TestDeviceCacheGetByIndex(t *testing.T) {
 
 func TestDeviceCacheSMVersionSet(t *testing.T) {
 	// Create mock with all symbols available
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
-		testutil.WithMIGDisabled(),
 	)
 
 	// Use WithMockNVML to set the mock
@@ -142,8 +137,9 @@ func TestDeviceCacheSMVersionSet(t *testing.T) {
 
 func TestDeviceCacheAll(t *testing.T) {
 	// Create mock with all symbols available
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols), // Default mock, MIG enabled for configured devices
+		testutil.WithDefaultMIGDevices(),
 	)
 
 	// Use WithMockNVML to set the mock
@@ -168,9 +164,8 @@ func TestDeviceCacheAll(t *testing.T) {
 
 func TestDeviceCacheCores(t *testing.T) {
 	// Create mock with all symbols available
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
-		testutil.WithMIGDisabled(),
 	)
 
 	// Use WithMockNVML to set the mock
@@ -194,8 +189,9 @@ func TestDeviceCacheCores(t *testing.T) {
 
 func TestDeviceCacheAllPhysicalDevices(t *testing.T) {
 	// Test with MIG enabled
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDefaultMIGDevices(),
 	)
 	WithMockNVML(t, mockNvml)
 
@@ -217,8 +213,9 @@ func TestDeviceCacheAllPhysicalDevices(t *testing.T) {
 
 func TestDeviceCacheAllMigDevices(t *testing.T) {
 	// Test with MIG enabled
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDefaultMIGDevices(),
 	)
 	WithMockNVML(t, mockNvml)
 
@@ -241,9 +238,8 @@ func TestDeviceCacheAllMigDevices(t *testing.T) {
 }
 
 func TestDeviceCacheRefresh_Sequential(t *testing.T) {
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
-		testutil.WithMIGDisabled(),
 	)
 
 	// Override device count and get by index funcs
@@ -255,7 +251,7 @@ func TestDeviceCacheRefresh_Sequential(t *testing.T) {
 		if index >= numDevicesAvailable {
 			return nil, nvml.ERROR_INVALID_ARGUMENT
 		}
-		return testutil.GetDeviceMock(index), nvml.SUCCESS
+		return mockNvml.Device(index), nvml.SUCCESS
 	}
 
 	// create a cache with a custom mock lib
@@ -282,9 +278,8 @@ func TestDeviceCacheRefresh_Sequential(t *testing.T) {
 }
 
 func TestDeviceCacheRefresh_Concurrent(t *testing.T) {
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
-		testutil.WithMIGDisabled(),
 	)
 
 	numDevicesAvailable := atomic.Int32{}
@@ -296,7 +291,7 @@ func TestDeviceCacheRefresh_Concurrent(t *testing.T) {
 		if index >= int(numDevicesAvailable.Load()) {
 			return nil, nvml.ERROR_INVALID_ARGUMENT
 		}
-		return testutil.GetDeviceMock(index), nvml.SUCCESS
+		return mockNvml.Device(index), nvml.SUCCESS
 	}
 
 	// create a cache with a custom mock lib

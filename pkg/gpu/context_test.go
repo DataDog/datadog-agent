@@ -38,7 +38,7 @@ func getTestSystemContext(tb testing.TB, extraOpts ...systemContextOption) *syst
 }
 
 func TestFilterDevicesForContainer(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	sysCtx := getTestSystemContext(t, withWorkloadMeta(wmetaMock))
 
@@ -179,7 +179,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	})
 
 	// MIG makes the device selection more complex, so we disable it for these tests
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	sysCtx := getTestSystemContext(t, withProcRoot(procFs), withWorkloadMeta(wmetaMock))
 
