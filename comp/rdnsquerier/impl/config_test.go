@@ -348,7 +348,7 @@ func TestConfigEnabledForBaselineNetworkPathTests(t *testing.T) {
 	mockConfig := mock.NewFromYAML(t, `
 network_path:
   connections_monitoring:
-    baseline_tests_enabled: true
+    basic_tests_enabled: true
 `)
 
 	assert.True(t, newConfig(mockConfig).enabled)
