@@ -141,6 +141,7 @@ func (s *darwinPacketSidecar) stop() {
 	s.wg.Wait()
 }
 
+//nolint:unused // Runtime failure wiring is introduced in the integration commit.
 func (s *darwinPacketSidecar) setFailureCallback(callback func(error)) {
 	s.onFailure = callback
 }

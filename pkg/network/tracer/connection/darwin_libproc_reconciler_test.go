@@ -21,7 +21,7 @@ import (
 	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-func TestDarwinLibprocReconcilerScansImmediately(t *testing.T) {
+func TestDarwinLibprocReconcilerScansImmediately(_ *testing.T) {
 	scanner := &signalingLibprocScanner{scanned: make(chan struct{})}
 	reconciler := newDarwinLibprocReconciler(
 		scanner,

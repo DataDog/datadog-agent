@@ -63,7 +63,7 @@ func (s *fanoutTestPacketSource) Close() {
 
 type fanoutTestPacketInfo struct{}
 
-func (fanoutTestPacketInfo) PacketType() uint8                 { return PacketHost }
+func (fanoutTestPacketInfo) PacketType() uint8                 { return 0 }
 func (fanoutTestPacketInfo) LinkLayerType() gopacket.LayerType { return layers.LayerTypeEthernet }
 func (fanoutTestPacketInfo) OriginalLength() int               { return 3 }
 func (fanoutTestPacketInfo) CapturedLength() int               { return 3 }

@@ -23,10 +23,9 @@ import (
 )
 
 type darwinCompositeTracer struct {
-	primary      *nstatTracer
-	packet       *darwinPacketSidecar
-	packetFanout *filter.PacketSourceFanout
-	reconciler   *darwinLibprocReconciler
+	primary    *nstatTracer
+	packet     *darwinPacketSidecar
+	reconciler *darwinLibprocReconciler
 
 	mu                     sync.Mutex
 	started                bool
@@ -37,6 +36,8 @@ type darwinCompositeTracer struct {
 
 // newDarwinCompositeTracer constructs the complete backend without selecting
 // it from the production Darwin tracer path.
+//
+//nolint:unused // The production backend selection is introduced in the integration commit.
 func newDarwinCompositeTracer(cfg *config.Config) (*darwinCompositeTracer, error) {
 	primary, err := newNStatTracer(cfg)
 	if err != nil {
@@ -51,8 +52,8 @@ func newDarwinCompositeTracer(cfg *config.Config) (*darwinCompositeTracer, error
 	if packetErr != nil {
 		log.Warnf("Darwin NStat packet enrichment unavailable: %v", packetErr)
 	} else {
-		composite.packetFanout = filter.NewPacketSourceFanout(packetSource)
-		composite.packet = newDarwinPacketSidecar(composite.packetFanout, primary, int(cfg.MaxTrackedConnections))
+		packetFanout := filter.NewPacketSourceFanout(packetSource)
+		composite.packet = newDarwinPacketSidecar(packetFanout, primary, int(cfg.MaxTrackedConnections))
 	}
 
 	scanner, scannerErr := libproc.NewNativeScanner(libproc.DefaultLimits)
@@ -62,13 +63,6 @@ func newDarwinCompositeTracer(cfg *config.Config) (*darwinCompositeTracer, error
 		composite.reconciler = newDarwinLibprocReconciler(scanner, primary, darwinLibprocInterval)
 	}
 	return composite, nil
-}
-
-func (t *darwinCompositeTracer) subscribePackets(visitor filter.PacketVisitor) func() {
-	if t.packetFanout == nil {
-		return func() {}
-	}
-	return t.packetFanout.Subscribe(visitor)
 }
 
 func newDarwinCompositeTracerWithComponents(

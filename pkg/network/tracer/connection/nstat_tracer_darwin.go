@@ -137,6 +137,7 @@ type nstatTracer struct {
 	wg          sync.WaitGroup
 }
 
+//nolint:unused // The production backend selection is introduced in the integration commit.
 func newNStatTracer(cfg *config.Config) (*nstatTracer, error) {
 	control, err := nstat.OpenControl()
 	if err != nil {
