@@ -69,12 +69,12 @@ service_srcs = [
 # be embedded in the production library, not just in tmpl_test, or the shipped binary cannot read
 # them.
 # keep
-nocap_service_srcs = [
+nocap_service_srcs = glob([
     "tmpl/gen/pm/debrpm-nc/*.service",
     "tmpl/gen/pm/oci-nc/*.service",
     "tmpl/gen/sd/debrpm-nc/*.service",
     "tmpl/gen/sd/oci-nc/*.service",
-]
+])
 
 go_library(
     name = "embedded",
