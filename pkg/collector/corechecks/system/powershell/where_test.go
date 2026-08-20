@@ -8,6 +8,8 @@
 package powershell
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,6 +36,41 @@ where:
 	assert.Equal(t, "gt", inst.Where[1].Op)
 }
 
+// Operators are accepted in any casing. Both layers must agree, and schema
+// validation runs first in Configure, so exercise them in that order.
+func TestWhereOperatorCasingAccepted(t *testing.T) {
+	base := "cmdlet: Get-Service\nmetrics:\n  - [1, s]\nwhere:\n"
+	forms := map[string]string{
+		"tuple":   base + "  - [Status, %s, Running]\n",
+		"mapping": base + "  - property: Status\n    op: %s\n    value: Running\n",
+	}
+	for form, tmpl := range forms {
+		for _, op := range []string{"eq", "EQ", "Eq", "notlike", "NotLike", "NOTLIKE", "' gt '"} {
+			data := []byte(fmt.Sprintf(tmpl, op))
+			require.NoError(t, validateInstanceSchema(data), "%s form, op %s: schema", form, op)
+			inst, err := parseInstanceConfig(data)
+			require.NoError(t, err, "%s form, op %s: parse", form, op)
+			require.Len(t, inst.Where, 1)
+			assert.Equal(t, normalizeOp(strings.Trim(op, "'")), inst.Where[0].Op)
+		}
+	}
+}
+
+// Normalization must not widen the accepted set: an unknown operator still fails.
+func TestWhereOperatorCasingDoesNotWidenTheSet(t *testing.T) {
+	base := "cmdlet: Get-Service\nmetrics:\n  - [1, s]\nwhere:\n"
+	for _, op := range []string{"contains", "CONTAINS", "totallybogus"} {
+		mapping := []byte(base + "  - property: Status\n    op: " + op + "\n    value: x\n")
+		assert.Error(t, validateInstanceSchema(mapping), "mapping form, op %s", op)
+
+		// The tuple form's schema does not constrain the operator, so finalize is
+		// what rejects it there.
+		tuple := []byte(base + "  - [Status, " + op + ", x]\n")
+		_, err := parseInstanceConfig(tuple)
+		assert.Error(t, err, "tuple form, op %s", op)
+	}
+}
+
 func TestParseWhereMappingForm(t *testing.T) {
 	data := []byte(`
 cmdlet: Get-SmbShare
@@ -51,55 +88,64 @@ where:
 	assert.Equal(t, "notlike", inst.Where[0].Op) // normalized to lower case
 }
 
-// Every emitted form must be total: comparing a missing, null, or wrongly-typed
-// property has to drop the row rather than throw, because the script runs under
-// $ErrorActionPreference = 'Stop' and a throw would fail the whole check run.
-func TestWhereConditionForms(t *testing.T) {
+// Every operator emits the same shape, so comparison semantics are PowerShell's
+// own. Property and value are read from $cfg; only the switch varies with config.
+func TestWhereStageForms(t *testing.T) {
+	const refs = "$wp0 = @{ Property = $cfg.where[0].property; Value = $cfg.where[0].value; "
+
 	tests := []struct {
-		entry whereEntry
-		want  string
+		entry  whereEntry
+		wantSw string
 	}{
-		// String operators: PowerShell stringifies the left-hand side already.
-		{whereEntry{Property: "Path", Op: "notlike", Value: "*Locals*"}, `($_.Path -notlike '*Locals*')`},
-		{whereEntry{Property: "Path", Op: "like", Value: "*Microsoft*"}, `($_.Path -like '*Microsoft*')`},
-		{whereEntry{Property: "Name", Op: "match", Value: "^dd"}, `($_.Name -match '^dd')`},
-		{whereEntry{Property: "Name", Op: "notmatch", Value: "^dd"}, `($_.Name -notmatch '^dd')`},
-		// Equality casts explicitly, so a DateTime property compared against a
-		// non-date string yields false instead of throwing.
-		{whereEntry{Property: "State", Op: "eq", Value: "Running"}, `([string]$_.State -eq 'Running')`},
-		{whereEntry{Property: "State", Op: "ne", Value: "Running"}, `([string]$_.State -ne 'Running')`},
-		// Ordering coerces with -as [double] and guards against $null, because bare
-		// "$null -lt 1024" is TRUE in PowerShell.
-		{whereEntry{Property: "Length", Op: "gt", Value: 1024}, `(($_.Length -as [double]) -ne $null -and ($_.Length -as [double]) -gt 1024)`},
-		{whereEntry{Property: "Length", Op: "le", Value: 0}, `(($_.Length -as [double]) -ne $null -and ($_.Length -as [double]) -le 0)`},
+		{whereEntry{Property: "Path", Op: "notlike", Value: "*Locals*"}, "NotLike"},
+		{whereEntry{Property: "Path", Op: "like", Value: "*Microsoft*"}, "Like"},
+		{whereEntry{Property: "Name", Op: "match", Value: "^dd"}, "Match"},
+		{whereEntry{Property: "Name", Op: "notmatch", Value: "^dd"}, "NotMatch"},
+		{whereEntry{Property: "State", Op: "eq", Value: "Running"}, "EQ"},
+		{whereEntry{Property: "State", Op: "ne", Value: "Running"}, "NE"},
+		{whereEntry{Property: "Length", Op: "gt", Value: 1024}, "GT"},
+		{whereEntry{Property: "Length", Op: "ge", Value: 1024}, "GE"},
+		{whereEntry{Property: "Length", Op: "lt", Value: 1024}, "LT"},
+		{whereEntry{Property: "Length", Op: "le", Value: 0}, "LE"},
 	}
 	for _, tc := range tests {
-		got, err := tc.entry.condition()
-		require.NoError(t, err)
-		assert.Equal(t, tc.want, got, "op %s", tc.entry.Op)
+		var decls, pipe strings.Builder
+		require.NoError(t, tc.entry.writeStage(&decls, &pipe, 0))
+		assert.Equal(t, refs+tc.wantSw+" = $true }\n", decls.String(), "op %s", tc.entry.Op)
+		assert.Equal(t, " | & $w @wp0", pipe.String(), "op %s", tc.entry.Op)
 	}
 }
 
-func TestWhereClauseJoinsWithAnd(t *testing.T) {
-	clause, err := whereClause([]whereEntry{
-		{Property: "Path", Op: "notlike", Value: "*x*"},
-		{Property: "Name", Op: "like", Value: "dd*"},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, `($_.Path -notlike '*x*') -and ($_.Name -like 'dd*')`, clause)
-
-	// No entries means no Where-Object stage at all.
-	clause, err = whereClause(nil)
-	require.NoError(t, err)
-	assert.Equal(t, "", clause)
+// Stage variables are suffixed with the entry index so two stages cannot collide.
+func TestWhereStageIsIndexed(t *testing.T) {
+	var decls, pipe strings.Builder
+	require.NoError(t, (&whereEntry{Property: "Name", Op: "like", Value: "dd*"}).writeStage(&decls, &pipe, 3))
+	assert.Equal(t, "$wp3 = @{ Property = $cfg.where[3].property; Value = $cfg.where[3].value; Like = $true }\n", decls.String())
+	assert.Equal(t, " | & $w @wp3", pipe.String())
 }
 
-// The security-relevant case: a quote in the value must be doubled so it stays
-// inside the literal.
-func TestWhereQuoteEscaping(t *testing.T) {
-	got, err := (&whereEntry{Property: "Name", Op: "like", Value: "O'Brien*"}).condition()
-	require.NoError(t, err)
-	assert.Equal(t, `($_.Name -like 'O''Brien*')`, got)
+// schema.go duplicates this operator list, so pin the size and require every entry
+// to name a Where-Object switch.
+func TestWhereOpsTableIsConsistent(t *testing.T) {
+	require.Len(t, whereOps, 10)
+	for name, sw := range whereOps {
+		assert.NotEmpty(t, sw, "op %q needs a Where-Object switch", name)
+	}
+}
+
+// A hostile value must not appear in the emitted stage at all; it reaches the child
+// only through the payload.
+func TestWhereValueNeverEntersTheStage(t *testing.T) {
+	for _, value := range []string{
+		"O'Brien*",
+		"x\u2019 -or $(New-Item -Path C:/dd_test.txt) -or \u2019y",
+		"x\u2018 + $(New-Item -Path C:/dd_test.txt) + \u2018y",
+	} {
+		var decls, pipe strings.Builder
+		require.NoError(t, (&whereEntry{Property: "Name", Op: "like", Value: value}).writeStage(&decls, &pipe, 0))
+		assert.NotContains(t, decls.String(), value)
+		assert.NotContains(t, pipe.String(), value)
+	}
 }
 
 func TestWhereRejectsMalformedTuple(t *testing.T) {
@@ -130,22 +176,19 @@ func TestWhereRejectsNonScalarValue(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestWhereRejectsNonNumericOrderingValue(t *testing.T) {
-	// An ordering comparison against a non-numeric value could never match any
-	// row, so it is a configuration error rather than a silent no-data condition.
-	_, err := parseInstanceConfig([]byte(
-		"cmdlet: Get-SmbShare\nmetrics:\n  - [1, share]\nwhere:\n  - [Length, gt, abc]\n"))
-	assert.Error(t, err)
-
-	// A numeric string is still fine: toFloat accepts it, as it does for metrics.
-	inst, err := parseInstanceConfig([]byte(
-		"cmdlet: Get-SmbShare\nmetrics:\n  - [1, share]\nwhere:\n  - [Length, gt, '1024']\n"))
-	require.NoError(t, err)
-	require.Len(t, inst.Where, 1)
+// Ordering operators take any scalar, because PowerShell decides the comparison
+// from the property's type rather than from the configured value.
+func TestWhereOrderingAcceptsAnyScalar(t *testing.T) {
+	for _, value := range []string{"1024", "'1024'", "abc", "1.5"} {
+		inst, err := parseInstanceConfig([]byte(
+			"cmdlet: Get-SmbShare\nmetrics:\n  - [1, share]\nwhere:\n  - [Length, gt, " + value + "]\n"))
+		require.NoError(t, err, "value %s", value)
+		require.Len(t, inst.Where, 1)
+	}
 }
 
 func TestWhereRejectsBadPropertyIdentifier(t *testing.T) {
-	// The property name is emitted into the command, so it must be a safe
+	// The property name is bound to Where-Object -Property, so it must be a plain
 	// identifier — no dots, spaces, or expression syntax.
 	_, err := parseInstanceConfig([]byte(
 		"cmdlet: Get-SmbShare\nmetrics:\n  - [1, share]\nwhere:\n  - ['Path.Sub', like, x]\n"))

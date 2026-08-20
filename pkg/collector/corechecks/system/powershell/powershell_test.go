@@ -8,6 +8,9 @@
 package powershell
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -167,4 +170,85 @@ func TestSubmitMetricErrors(t *testing.T) {
 		require.Error(t, err)
 		m.AssertNotCalled(t, "Gauge")
 	})
+}
+
+// newExecTestCheck builds a check wired to spawn a real powershell.exe, with the
+// cmdlet allowlisted and its module unpinned.
+func newExecTestCheck(cmdlet string) *PowershellCheck {
+	return &PowershellCheck{
+		instance: &instanceConfig{Timeout: defaultTimeout},
+		allowlist: &allowlist{
+			Version:        allowlistVersion,
+			AllowedCmdlets: map[string]allowedCmdlet{cmdlet: {Module: "*"}},
+		},
+	}
+}
+
+func requirePowerShell(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("powershell.exe"); err != nil {
+		t.Skip("powershell.exe is not available")
+	}
+}
+
+// The three tests below spawn a real powershell.exe. They are the only coverage of
+// the stdin + explicit-UTF-8 + ConvertFrom-Json + -Command contract, which no
+// Go-only test can reach: a stub would assert our assumptions against themselves.
+
+// A non-ASCII value must survive the round-trip byte for byte. Decoding either
+// direction with the OEM codepage instead of UTF-8 makes this filter match nothing.
+func TestRunCmdletRoundTripsNonASCIIValues(t *testing.T) {
+	requirePowerShell(t)
+
+	dir := t.TempDir()
+	// A non-ASCII letter plus U+2019, which PowerShell treats as a quote character.
+	name := "café-’quoted’.txt"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600))
+	// A decoy, so a mangled or over-broad match cannot pass by accident.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "decoy.txt"), []byte("x"), 0o600))
+
+	c := newExecTestCheck("Get-ChildItem")
+	rows, err := c.runCmdlet("Get-ChildItem",
+		[]parameterEntry{{Name: "Path", Value: dir}},
+		[]whereEntry{{Property: "Name", Op: "eq", Value: name}},
+		[]string{"Name"})
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "the non-ASCII name must round-trip exactly")
+	assert.Equal(t, name, rows[0]["Name"])
+}
+
+// Ordering comparisons go through the same parameter set as the rest, so verify one
+// against real cmdlet output instead of only asserting on the generated text.
+func TestRunCmdletOrderingComparison(t *testing.T) {
+	requirePowerShell(t)
+
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "big.txt"), make([]byte, 4096), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "small.txt"), []byte("x"), 0o600))
+
+	c := newExecTestCheck("Get-ChildItem")
+	rows, err := c.runCmdlet("Get-ChildItem",
+		[]parameterEntry{{Name: "Path", Value: dir}},
+		[]whereEntry{{Property: "Length", Op: "gt", Value: 1024}},
+		[]string{"Name"})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "big.txt", rows[0]["Name"])
+}
+
+// End-to-end proof that a filter value reaches the cmdlet as data and can never
+// reach a code position, even when it is shaped to look like PowerShell.
+func TestRunCmdletBindsHostileWhereValueAsData(t *testing.T) {
+	requirePowerShell(t)
+
+	marker := filepath.ToSlash(filepath.Join(t.TempDir(), "pwned.txt"))
+	hostile := "Running’ -or $(New-Item -Path " + marker + " -ItemType File -Force) -or ’Running"
+
+	c := newExecTestCheck("Get-Service")
+	rows, err := c.runCmdlet("Get-Service", nil,
+		[]whereEntry{{Property: "Status", Op: "eq", Value: hostile}},
+		[]string{"Name"})
+	require.NoError(t, err)
+	assert.Empty(t, rows, "no service status equals the hostile string")
+	assert.NoFileExists(t, marker, "the payload must never execute")
 }

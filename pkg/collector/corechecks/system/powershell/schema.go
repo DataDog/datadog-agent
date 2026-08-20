@@ -123,6 +123,39 @@ func (tagQueryEntry) JSONSchemaBytes() ([]byte, error) {
 }`), nil
 }
 
+// normalizeOperators canonicalizes every `where` operator in a raw config document
+// so the schema's lower-case enum accepts any casing the caller wrote. On anything
+// unexpected it returns the input unchanged and lets the schema report the problem.
+func normalizeOperators(rawJSON []byte) []byte {
+	var doc map[string]interface{}
+	if err := json.Unmarshal(rawJSON, &doc); err != nil {
+		return rawJSON
+	}
+	entries, ok := doc["where"].([]interface{})
+	if !ok {
+		return rawJSON
+	}
+	for _, entry := range entries {
+		switch e := entry.(type) {
+		case map[string]interface{}: // {property: ..., op: ..., value: ...}
+			if op, ok := e["op"].(string); ok {
+				e["op"] = normalizeOp(op)
+			}
+		case []interface{}: // [Property, Op, Value]
+			if len(e) == 3 {
+				if op, ok := e[1].(string); ok {
+					e[1] = normalizeOp(op)
+				}
+			}
+		}
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return rawJSON
+	}
+	return out
+}
+
 // validateInstanceSchema validates a single instance's raw YAML against the
 // reflected schema. Every validation error is logged (so misconfigurations are
 // visible at configure time), and a single aggregated error is returned when the
@@ -140,7 +173,7 @@ func validateInstanceSchema(data []byte) error {
 
 	result, err := gojsonschema.Validate(
 		gojsonschema.NewBytesLoader(schema),
-		gojsonschema.NewBytesLoader(rawJSON),
+		gojsonschema.NewBytesLoader(normalizeOperators(rawJSON)),
 	)
 	if err != nil {
 		return fmt.Errorf("could not run config schema validation: %w", err)

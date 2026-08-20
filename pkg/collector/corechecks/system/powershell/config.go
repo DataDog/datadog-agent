@@ -194,10 +194,8 @@ func (p *parameterEntry) finalize() error {
 	if p.Name == "" {
 		return errors.New("parameter entry is missing a name")
 	}
-	// Values must be scalars. A value is validated against the allowlist as a
-	// string (scalarToString) and encoded into the command as a literal
-	// (powershellLiteral); those two encodings agree only for scalars, so
-	// rejecting lists/maps keeps validate == execute.
+	// Scalars only: the allowlist checks a value as a string while the payload
+	// carries JSON, and those two agree only for scalars.
 	switch p.Value.(type) {
 	case nil, bool, string, int, int64, float64:
 	default:
@@ -329,6 +327,11 @@ func parseInstanceConfig(data []byte) (*instanceConfig, error) {
 	}
 	if len(inst.Metrics) == 0 {
 		return nil, errors.New("at least one entry in 'metrics' is required")
+	}
+	// Rejected here so an over-long filter list is a clear config error rather than
+	// a cryptic "command line too long" from exec at collection time.
+	if len(inst.Where) > maxWhereEntries {
+		return nil, fmt.Errorf("'where' has %d entries, which exceeds the maximum of %d", len(inst.Where), maxWhereEntries)
 	}
 	// timeout is optional and defaults to defaultTimeout. A negative value is
 	// invalid; warn and fall back to the default rather than failing the check.

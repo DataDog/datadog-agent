@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,6 +43,10 @@ const (
 
 	// maxOutputBytes bounds the JSON captured from a single cmdlet invocation.
 	maxOutputBytes = 10 * 1024 * 1024
+
+	// waitDelay bounds how long Wait may block on the child's I/O pipes after the
+	// process itself has exited or been killed.
+	waitDelay = 5 * time.Second
 )
 
 // requiredEnvVars is the restricted environment passed to powershell.exe. It
@@ -206,15 +211,16 @@ func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[
 	return nil
 }
 
-// runCmdlet builds the injection-safe command, spawns a one-shot powershell.exe
-// under a timeout with a restricted environment, and parses the JSON output.
+// runCmdlet builds the command and its payload, spawns a one-shot powershell.exe
+// under a timeout with a restricted environment, and parses the JSON output. The
+// script is safe to log; the payload is not, since it carries configured values.
 func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, where []whereEntry, selectProps []string) ([]map[string]interface{}, error) {
 	// The allowlist may pin the cmdlet to a module; enforce it at runtime.
 	var module string
 	if c.allowlist != nil {
 		module = c.allowlist.AllowedCmdlets[cmdlet].Module
 	}
-	script, err := buildCommand(cmdlet, module, params, where, selectProps)
+	script, payload, err := buildCommand(cmdlet, module, params, where, selectProps)
 	if err != nil {
 		return nil, err
 	}
@@ -229,14 +235,24 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, wher
 		"-Command", script)
 	cmd.Env = restrictedEnv()
 
+	// Copied on a goroutine while the preamble reads to EOF, so neither side stalls.
+	cmd.Stdin = bytes.NewReader(payload)
+
 	stdout := &cappedBuffer{limit: maxOutputBytes}
 	var stderr bytes.Buffer
 	cmd.Stdout = stdout
 	cmd.Stderr = &stderr
 
+	// Wait blocks until every process holding the pipes closes them, so an
+	// auto-loaded module spawning a helper could otherwise wedge it past the deadline.
+	cmd.WaitDelay = waitDelay
+
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, fmt.Errorf("timed out after %ds", c.instance.Timeout)
+		}
+		if errors.Is(err, exec.ErrWaitDelay) {
+			return nil, fmt.Errorf("cmdlet exited but its output pipes stayed open for more than %s", waitDelay)
 		}
 		return nil, fmt.Errorf("%w (stderr: %s)", err, strings.TrimSpace(stderr.String()))
 	}
