@@ -208,11 +208,7 @@ mod tests {
 
         let mut procs: Vec<ManagedProcess> = (0..3)
             .map(|i| {
-                ManagedProcess::new_config(
-                    format!("p{i}"),
-                    test_helpers::test_uuid(),
-                    cfg.clone(),
-                )
+                ManagedProcess::new_config(format!("p{i}"), test_helpers::test_uuid(), cfg.clone())
             })
             .collect();
         for proc in &mut procs {
@@ -220,10 +216,8 @@ mod tests {
         }
 
         let signal_time = Instant::now();
-        let budget = ShutdownBudget::with_deadline(
-            signal_time,
-            signal_time + Duration::from_secs(5),
-        );
+        let budget =
+            ShutdownBudget::with_deadline(signal_time, signal_time + Duration::from_secs(5));
         for proc in &mut procs {
             proc.request_stop();
         }
