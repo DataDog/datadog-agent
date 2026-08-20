@@ -2139,6 +2139,41 @@ func TestDarwinCollectorStatsCountCapacityDeferrals(t *testing.T) {
 	assert.Equal(t, stats.PendingEventsMax, stats.PendingEvents)
 }
 
+// TestDarwinCollectorStatsCountPersistenceFailuresFromShutdownCause verifies a
+// bookmark save failure on the shutdown-cause path is as visible in Stats() as
+// one on the scan path, since publishShutdownCause saves independently of
+// scanOnce's commit path.
+func TestDarwinCollectorStatsCountPersistenceFailuresFromShutdownCause(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{saveErr: errors.New("disk full")}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+
+	runShutdownCheck(t, collector)
+
+	stats := collector.Stats()
+	assert.GreaterOrEqual(t, stats.PersistenceErrors, uint64(1))
+}
+
+// TestDarwinCollectorStatsCountCapacityDeferralsFromShutdownCause verifies a
+// shutdown-cause event withheld for lack of pending capacity is as visible in
+// Stats() as one withheld on the scan path, since publishShutdownCause checks
+// the queue independently of scanOnce's reconcile path.
+func TestDarwinCollectorStatsCountCapacityDeferralsFromShutdownCause(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	saturated := newDarwinBookmarkState()
+	for index := 0; index < maxDarwinPendingEvents; index++ {
+		event := validPersistedDarwinEvent(fmt.Sprintf("saturating-%03d", index))
+		saturated.Pending[event.ID] = event
+	}
+	store.state = saturated
+
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+	runShutdownCheck(t, collector)
+
+	stats := collector.Stats()
+	assert.GreaterOrEqual(t, stats.CapacityDeferrals, uint64(1))
+	assert.Equal(t, stats.PendingEventsMax, stats.PendingEvents)
+}
+
 // TestDarwinCollectorStatsSplitBaselineSuppression verifies suppressed reports
 // are attributed to first run or to saturation recovery, the latter being the
 // case where events that should have been delivered were lost.

@@ -601,6 +601,7 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 		firstWarning := !c.shutdownCauseSaturationWarned
 		c.shutdownCauseSaturationWarned = true
 		c.shutdownCauseDeferred = true
+		c.counters.capacityDeferrals.Add(1)
 		c.stateMu.Unlock()
 		if firstWarning {
 			// Warned once per saturation episode; the retry re-enters every
@@ -628,6 +629,7 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 		c.shutdownCauseDeferred = true
 		firstWarning := !c.shutdownCauseSaveWarned
 		c.shutdownCauseSaveWarned = true
+		c.counters.persistenceErrors.Add(1)
 		c.releaseCommitLocked(reservation)
 		c.stateMu.Unlock()
 		if firstWarning {
