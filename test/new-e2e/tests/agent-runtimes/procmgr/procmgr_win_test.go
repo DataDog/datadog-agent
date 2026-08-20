@@ -357,12 +357,20 @@ func (s *procmgrWindowsSuite) TestDDOTReloadAfterYamlChange() {
 
 func (s *procmgrWindowsSuite) waitWindowsADPRunning(timeout time.Duration) string {
 	s.T().Helper()
+	return s.waitWindowsADPRunningExcluding(timeout, "")
+}
+
+func (s *procmgrWindowsSuite) waitWindowsADPRunningExcluding(timeout time.Duration, excludePID string) string {
+	s.T().Helper()
 	var pid string
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+adpProcessName))
 		assertField(ct, out, "State", "Running")
 		p := fieldValue(out, "PID")
 		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
+			return
+		}
+		if excludePID != "" && !assert.NotEqual(ct, excludePID, p, "still reporting the pre-kill PID; procmgr has not observed the exit yet") {
 			return
 		}
 		cmd := fieldValue(out, "Command")
@@ -456,7 +464,7 @@ func (s *procmgrWindowsSuite) TestADPRestartAfterKill() {
 	require.NoError(s.T(), err)
 	s.Env().RemoteHost.MustExecute(s.platform.killPIDCmd(uint32(pid)))
 
-	newPID := s.waitWindowsADPRunning(60 * time.Second)
+	newPID := s.waitWindowsADPRunningExcluding(60*time.Second, originalPID)
 	require.NotEqual(s.T(), originalPID, newPID, "PID should differ after restart (was %s)", originalPID)
 	assert.Equal(s.T(), baselineRestarts+1, s.getWindowsRestartCount(adpProcessName),
 		"Restarts should have increased by 1 (baseline %d)", baselineRestarts)
