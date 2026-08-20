@@ -159,7 +159,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 }
 
 func TestNetworkPathConnectionsBytes(t *testing.T) {
-	d := mockDirectSender(t)
+	d := mockDirectSender(t, nil)
 	conn := makeConnection(1)
 	conn.Last.SentBytes = 5
 	conn.Last.RecvBytes = 6
