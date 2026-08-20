@@ -5,7 +5,12 @@
 
 package main
 
-import "unsafe"
+import (
+	"context"
+	"unsafe"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
 
 type structWithTwoValues struct {
 	a uint
@@ -109,7 +114,10 @@ type t []*t
 func testCycle(t *t) {}
 
 //nolint:all
-func executePointerFuncs() {
+func executePointerFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.pointers")
+	defer span.Finish()
+
 	var u64F uint64 = 5
 	swp := structWithPointer{a: &u64F}
 	testStructWithPointer(swp)
