@@ -25,7 +25,7 @@ __attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *p
     case EGRESS: {
         pid_route.addr[0] = pkt->translated_ns_flow.flow.saddr[0];
         pid_route.addr[1] = pkt->translated_ns_flow.flow.saddr[1];
-        pid_route.port = pkt->translated_ns_flow.flow.tcp_udp.sport;
+        // then we only support TCP, UDP and ICMP for now
         if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_TCP || pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_UDP) {
             pid_route.port = pkt->ns_flow.flow.tcp_udp.sport;
         } else if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_ICMP) {
@@ -38,6 +38,7 @@ __attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *p
     case INGRESS: {
         pid_route.addr[0] = pkt->translated_ns_flow.flow.daddr[0];
         pid_route.addr[1] = pkt->translated_ns_flow.flow.daddr[1];
+        // then we only support TCP, UDP and ICMP for now
         if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_TCP || pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_UDP) {
             pid_route.port = pkt->ns_flow.flow.tcp_udp.dport;
         } else if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_ICMP) {
