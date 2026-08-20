@@ -27,7 +27,7 @@ import (
 
 // metricsTriggeredSuite exercises the DSD-metrics path of the observer. It sends a
 // stable gauge baseline followed by a large spike to trip the BOCPD detector, then
-// asserts the canonical "[observer] report: pattern=" marker appears in the agent's
+// asserts the canonical "[anomalydetection] reporter anomaly detection report:" marker appears in the agent's
 // systemd journal (stdout → journald by default).
 type metricsTriggeredSuite struct {
 	e2e.BaseSuite[environments.Host]
