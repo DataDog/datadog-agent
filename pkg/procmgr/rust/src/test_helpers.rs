@@ -228,3 +228,14 @@ pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessCo
         ..Default::default()
     }
 }
+
+/// Expected `user` field for list/describe assertions (intended spawn account).
+pub fn expected_spawn_user(process_name: &str) -> String {
+    use crate::spawn::{profile_for, spawn_user_for};
+    spawn_user_for(process_name, profile_for(process_name))
+}
+
+/// Expected `runtime_user` for describe assertions (live OS lookup for `pid`).
+pub fn expected_runtime_user_for_pid(pid: u32) -> String {
+    crate::platform::runtime_user_for_pid(pid).unwrap_or_else(|| "unknown".to_string())
+}

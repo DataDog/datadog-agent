@@ -22,6 +22,7 @@ use super::{open_datadog_agent_key, registry_nonempty_string};
 
 const AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
+const NT_AUTHORITY: &str = "NT AUTHORITY";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AgentAccount {
@@ -42,6 +43,53 @@ pub(crate) enum AgentAccount {
 impl AgentAccount {
     pub(crate) fn inherits_supervisor_token(&self) -> bool {
         matches!(self, AgentAccount::LocalSystem)
+    }
+
+    /// Operator-facing account name for list/describe output.
+    pub(crate) fn display_name(&self) -> String {
+        self.account_name().display()
+    }
+
+    fn account_name(&self) -> AccountName {
+        match self {
+            AgentAccount::LocalSystem => AccountName::new(NT_AUTHORITY, "SYSTEM"),
+            AgentAccount::LocalService => AccountName::new(NT_AUTHORITY, "LocalService"),
+            AgentAccount::NetworkService => AccountName::new(NT_AUTHORITY, "NetworkService"),
+            AgentAccount::PasswordLogon { domain, user, .. }
+            | AgentAccount::ServiceAccountLogon { domain, user } => {
+                account_name_for_logon(domain, user)
+            }
+        }
+    }
+}
+
+/// Match registry-style local SAM display (`.\user`) when installer stored the computer name as domain.
+fn account_name_for_logon(domain: &str, user: &str) -> AccountName {
+    let display_domain = match lookup_account_sid(domain, user)
+        .ok()
+        .and_then(|sid| is_local_account(&sid).ok())
+    {
+        Some(true) => String::new(),
+        _ => domain.to_string(),
+    };
+    AccountName::new(display_domain, user)
+}
+
+/// Resolve the spawn account display string for a profile on Windows.
+#[cfg(any(test, feature = "test-helpers"))]
+pub(crate) fn spawn_user_for_profile(
+    process_name: &str,
+    profile: crate::spawn::SpawnProfile,
+) -> Result<String> {
+    match profile {
+        crate::spawn::SpawnProfile::Privileged => {
+            Ok(AccountName::new(NT_AUTHORITY, "SYSTEM").display())
+        }
+        crate::spawn::SpawnProfile::Agent => resolve_agent_account()
+            .with_context(|| {
+                format!("[{process_name}] resolve agent service account for spawn user")
+            })
+            .map(|account| account.display_name()),
     }
 }
 
@@ -154,6 +202,14 @@ fn well_known_from_sid(sid: &[u8]) -> Option<AgentAccount> {
     }
 }
 
+/// Canonical operator-facing name for built-in service SIDs.
+///
+/// `LookupAccountSidW` spells LocalService and NetworkService with spaces; installer
+/// state and spawn display use the compact forms instead.
+pub(crate) fn canonical_account_name_for_well_known_sid(sid: &[u8]) -> Option<AccountName> {
+    well_known_from_sid(sid).map(|account| account.account_name())
+}
+
 fn is_local_system_name(domain: &str, user: &str) -> bool {
     (domain.is_empty() && user.eq_ignore_ascii_case("LocalSystem"))
         || (domain.eq_ignore_ascii_case("NT AUTHORITY") && user.eq_ignore_ascii_case("SYSTEM"))
@@ -255,6 +311,7 @@ impl Drop for PolicyHandle {
 
 #[cfg(test)]
 mod tests {
+    use super::super::account_name::AccountName;
     use super::*;
 
     #[test]
@@ -327,6 +384,60 @@ mod tests {
                 domain: "CORP".to_string(),
                 user: "gmsa$".to_string(),
             }
+        );
+    }
+
+    #[test]
+    fn display_name_formats_accounts() {
+        assert_eq!(
+            AgentAccount::LocalSystem.display_name(),
+            AccountName::new(NT_AUTHORITY, "SYSTEM").display(),
+        );
+        assert_eq!(
+            AgentAccount::PasswordLogon {
+                domain: String::new(),
+                user: "ddagentuser".to_string(),
+                password: "secret".to_string(),
+            }
+            .display_name(),
+            AccountName::new("", "ddagentuser").display(),
+        );
+        assert_eq!(
+            AgentAccount::ServiceAccountLogon {
+                domain: "CORP".to_string(),
+                user: "gmsa$".to_string(),
+            }
+            .display_name(),
+            AccountName::new("CORP", "gmsa$").display(),
+        );
+    }
+
+    #[test]
+    fn display_name_normalizes_local_machine_domain() {
+        let username = "Administrator";
+        let sid =
+            match lookup_account_sid(".", username).or_else(|_| lookup_account_sid("", username)) {
+                Ok(sid) => sid,
+                Err(e) => {
+                    eprintln!("skipping: built-in Administrator not available: {e:#}");
+                    return;
+                }
+            };
+        if !is_local_account(&sid).unwrap_or(false) {
+            eprintln!("skipping: Administrator is not a local SAM account on this host");
+            return;
+        }
+
+        let computer = super::super::local_account::computer_name().expect("computer name");
+        assert_eq!(
+            AgentAccount::PasswordLogon {
+                domain: computer,
+                user: username.to_string(),
+                password: "secret".to_string(),
+            }
+            .display_name(),
+            AccountName::new("", username).display(),
+            "installer machine-name domain should display as .\\user for local SAM accounts"
         );
     }
 
