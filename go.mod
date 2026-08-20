@@ -486,7 +486,7 @@ require (
 	golang.org/x/tools v0.48.0
 	google.golang.org/grpc v1.83.0
 	google.golang.org/grpc/examples v0.0.0-20230512210959-5dcfb37c0b43
-	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/ini.v1 v1.67.3
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
