@@ -109,7 +109,21 @@ func requestAgentFlareAndFetchFromFakeIntake(v *baseFlareSuite, flareArgs ...age
 		assert.NoError(c, v.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
-	flareLog := v.Env().Agent.Client.Flare(flareArgs...)
+	const maxAttempts = 3
+	var flareLog string
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		flareLog, err = v.Env().Agent.Client.FlareWithError(flareArgs...)
+		if err == nil {
+			break
+		}
+		if attempt == maxAttempts {
+			require.NoError(v.T(), err, "flare command failed after %d attempts", maxAttempts)
+		}
+		v.T().Logf("flare command failed (attempt %d/%d): %v; flushing fakeintake before retrying", attempt, maxAttempts, err)
+		// Flush so a partial/failed attempt can't leave a stale payload for GetLatestFlare() to pick up later.
+		require.NoError(v.T(), v.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	}
 
 	flare, err := v.Env().FakeIntake.Client().GetLatestFlare()
 	require.NoError(v.T(), err)
