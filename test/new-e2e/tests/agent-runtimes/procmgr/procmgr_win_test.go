@@ -273,7 +273,17 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildHasUserProfileEnv() {
 	_, agentUser, err := windowsagent.GetAgentUserFromRegistry(host)
 	require.NoError(s.T(), err)
 
+	// Same-host retries reuse the VM; drop any marker left by a prior attempt so
+	// Get-Content cannot pass without a fresh write from test-userprofile-env.
+	host.MustExecute(psRemote(
+		`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`,
+		winUserProfileEnvMarkerPath,
+	))
+
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-userprofile-env"))
+		assertField(ct, desc, "State", "Running")
+
 		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, winUserProfileEnvMarkerPath))
 		userProfile := strings.TrimSpace(out)
 		assert.NotEmpty(ct, userProfile)
