@@ -7,13 +7,16 @@ package remotequeriesimpl
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
@@ -93,7 +96,8 @@ func remoteQueryStreamRunnerFor(chk check.Check) (remoteQueryStreamRunner, bool)
 // NewRemoteQueryExecuteEndpointProvider registers the remote query execute endpoint on the internal Agent API.
 func NewRemoteQueryExecuteEndpointProvider(reqs Requires) api.AgentEndpointProvider {
 	h := &remoteQueryExecuteHandler{
-		service: NewRemoteQueryExecuteService(reqs.Collector, reqs.Cfg.GetBool(RemoteQueriesExecuteEnabledConfig), RemoteQueriesQueryAllowlistEnabled(reqs.Cfg)),
+		service: NewRemoteQueryExecuteService(reqs.Collector, reqs.Cfg.GetBool(RemoteQueriesExecuteEnabledConfig), RemoteQueriesQueryAllowlistEnabled(reqs.Cfg), reqs.Cfg),
+		cfg:     reqs.Cfg,
 	}
 	return api.NewAgentEndpointProvider(h.handle, RemoteQueryExecuteEndpointPath, http.MethodPost)
 }
@@ -103,6 +107,7 @@ type remoteQueryExecuteHandler struct {
 	collector             RemoteQueryCollector
 	enabled               bool
 	queryAllowlistEnabled bool
+	cfg                   config.Component
 }
 
 // RemoteQueryExecuteService executes credential-free Remote Queries requests through loaded checks.
@@ -110,11 +115,12 @@ type RemoteQueryExecuteService struct {
 	collector             RemoteQueryCollector
 	enabled               bool
 	queryAllowlistEnabled bool
+	cfg                   config.Component
 }
 
 // NewRemoteQueryExecuteService creates the shared executor used by the HTTP POC endpoint and AgentSecure RPC.
-func NewRemoteQueryExecuteService(collector RemoteQueryCollector, enabled bool, queryAllowlistEnabled bool) *RemoteQueryExecuteService {
-	return &RemoteQueryExecuteService{collector: collector, enabled: enabled, queryAllowlistEnabled: queryAllowlistEnabled}
+func NewRemoteQueryExecuteService(collector RemoteQueryCollector, enabled bool, queryAllowlistEnabled bool, cfg config.Component) *RemoteQueryExecuteService {
+	return &RemoteQueryExecuteService{collector: collector, enabled: enabled, queryAllowlistEnabled: queryAllowlistEnabled, cfg: cfg}
 }
 
 // RemoteQueryExecuteTarget identifies the datastore target without carrying credentials.
@@ -140,19 +146,113 @@ type RemoteQueryExecuteCopyLimits struct {
 	TimeoutMs   int
 }
 
+// RemoteQueryResultDeliveryMode is the only currently supported result-delivery mode.
+const RemoteQueryResultDeliveryModeChunkedUpload = "POC_PUBLIC_CHUNKED_UPLOAD"
+
+// Caps for result-delivery upload instructions. The Agent forwards these to the integration,
+// which performs the HTTP upload; the Agent does no transport or URL allowlisting.
+const (
+	remoteQueryUploadDefaultFormat      = "csv"
+	remoteQueryUploadDefaultCompression = "none"
+	remoteQueryUploadMaxChunkBytes      = 64 << 20 // 64 MiB
+	remoteQueryUploadMaxTotalBytes      = 1 << 30  // 1 GiB
+)
+
+var remoteQueryUploadIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+// validateRemoteQueryResultDelivery validates an optional result-delivery instruction. The
+// Agent forwards baseUrl and token to the integration, which performs the HTTP upload itself;
+// the Agent performs no URL allowlisting or HTTP transport. A nil delivery leaves the inline
+// streaming path unchanged.
+func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery, copyLimits *remoteQueryExecuteCopyLimits, copyFormat string) (*RemoteQueryResultDelivery, error) {
+	if delivery == nil {
+		return nil, nil
+	}
+	if delivery.Mode != RemoteQueryResultDeliveryModeChunkedUpload {
+		return nil, fmt.Errorf("result_delivery.mode %q is not supported", delivery.Mode)
+	}
+	out := *delivery
+	if out.Format == "" {
+		out.Format = remoteQueryUploadDefaultFormat
+	}
+	if out.Compression == "" {
+		out.Compression = remoteQueryUploadDefaultCompression
+	}
+	if out.Format != "csv" {
+		return nil, errors.New("result_delivery.format must be csv")
+	}
+	if out.Compression != "none" {
+		return nil, errors.New("result_delivery.compression must be none")
+	}
+	if copyFormat != "" && copyFormat != out.Format {
+		return nil, errors.New("format must match result_delivery.format")
+	}
+	if out.UploadID == "" {
+		return nil, errors.New("result_delivery.uploadId is required")
+	}
+	if !remoteQueryUploadIDPattern.MatchString(out.UploadID) {
+		return nil, errors.New("result_delivery.uploadId contains invalid characters")
+	}
+	if out.BaseURL == "" {
+		return nil, errors.New("result_delivery.baseUrl is required")
+	}
+	if out.Token == "" {
+		return nil, errors.New("result_delivery.token is required")
+	}
+	if out.ChunkBytes < 1 {
+		return nil, errors.New("result_delivery.chunkBytes must be at least 1")
+	}
+	if out.ChunkBytes > remoteQueryUploadMaxChunkBytes {
+		return nil, fmt.Errorf("result_delivery.chunkBytes must not exceed %d", remoteQueryUploadMaxChunkBytes)
+	}
+	if out.MaxBytes < 1 {
+		return nil, errors.New("result_delivery.maxBytes must be at least 1")
+	}
+	if out.MaxBytes > remoteQueryUploadMaxTotalBytes {
+		return nil, fmt.Errorf("result_delivery.maxBytes must not exceed %d", remoteQueryUploadMaxTotalBytes)
+	}
+	if out.ChunkBytes > out.MaxBytes {
+		return nil, errors.New("result_delivery.chunkBytes must not exceed maxBytes")
+	}
+	if copyLimits != nil {
+		if out.ChunkBytes > copyLimits.ChunkBytes {
+			return nil, errors.New("result_delivery.chunkBytes must not exceed copyLimits.chunkBytes")
+		}
+		if out.MaxBytes > copyLimits.MaxBytes {
+			return nil, errors.New("result_delivery.maxBytes must not exceed copyLimits.maxBytes")
+		}
+	}
+	return &out, nil
+}
+
+// RemoteQueryResultDelivery carries optional upload-session instructions. The Agent forwards
+// the full handle (including BaseURL and Token) to the integration, which performs the HTTP
+// upload to its-agent-intake itself. A nil value leaves the inline streaming path unchanged.
+type RemoteQueryResultDelivery struct {
+	Mode        string
+	UploadID    string
+	BaseURL     string
+	Token       string
+	ChunkBytes  int
+	MaxBytes    int
+	Format      string
+	Compression string
+}
+
 // RemoteQueryExecuteRequest is the typed internal request shape shared by HTTP and gRPC callers.
 type RemoteQueryExecuteRequest struct {
-	Integration string
-	Operation   string
-	Target      RemoteQueryExecuteTarget
-	Query       string
-	Format      string
-	Limits      *RemoteQueryExecuteLimits
-	CopyLimits  *RemoteQueryExecuteCopyLimits
+	Integration    string
+	Operation      string
+	Target         RemoteQueryExecuteTarget
+	Query          string
+	Format         string
+	Limits         *RemoteQueryExecuteLimits
+	CopyLimits     *RemoteQueryExecuteCopyLimits
+	ResultDelivery *RemoteQueryResultDelivery
 }
 
 // NewRemoteQueryCopyStreamExecuteRequest validates and normalizes a typed COPY stream request.
-func NewRemoteQueryCopyStreamExecuteRequest(integration string, target RemoteQueryExecuteTarget, query string, format string, limits *RemoteQueryExecuteCopyLimits) (RemoteQueryExecuteRequest, error) {
+func NewRemoteQueryCopyStreamExecuteRequest(integration string, target RemoteQueryExecuteTarget, query string, format string, limits *RemoteQueryExecuteCopyLimits, resultDelivery *RemoteQueryResultDelivery) (RemoteQueryExecuteRequest, error) {
 	parsedIntegration, err := parseIntegration(integration)
 	if err != nil {
 		return RemoteQueryExecuteRequest{}, err
@@ -182,7 +282,13 @@ func NewRemoteQueryCopyStreamExecuteRequest(integration string, target RemoteQue
 			return RemoteQueryExecuteRequest{}, err
 		}
 	}
-	return remoteQueryExecuteRequestFromInternal(remoteQueryExecuteRequest{Integration: parsedIntegration, Operation: "copy_stream", Target: parsedTarget, Query: query, Format: format, CopyLimits: parsedLimits}), nil
+	normalizedDelivery, err := validateRemoteQueryResultDelivery(resultDelivery, parsedLimits, format)
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+	req := remoteQueryExecuteRequestFromInternal(remoteQueryExecuteRequest{Integration: parsedIntegration, Operation: "copy_stream", Target: parsedTarget, Query: query, Format: format, CopyLimits: parsedLimits})
+	req.ResultDelivery = normalizedDelivery
+	return req, nil
 }
 
 // RemoteQueryExecuteError is a sanitized remote query bridge error.
@@ -211,13 +317,28 @@ func NewRemoteQueryExecuteRequest(_ string, _ RemoteQueryExecuteTarget, _ string
 }
 
 type remoteQueryExecuteRequest struct {
-	Integration string
-	Operation   string
-	Target      remoteQueryTarget
-	Query       string
+	Integration    string
+	Operation      string
+	Target         remoteQueryTarget
+	Query          string
+	Format         string
+	Limits         *remoteQueryExecuteLimits
+	CopyLimits     *remoteQueryExecuteCopyLimits
+	ResultDelivery *remoteQueryResultDelivery
+}
+
+// remoteQueryResultDelivery is the result-delivery handle forwarded to the integration check.
+// It carries the intake base URL and scoped upload token so the integration can perform the
+// HTTP upload directly; the org API/application keys are read by the integration via get_config.
+type remoteQueryResultDelivery struct {
+	Mode        string
+	UploadID    string
+	BaseURL     string
+	Token       string
+	ChunkBytes  int
+	MaxBytes    int
 	Format      string
-	Limits      *remoteQueryExecuteLimits
-	CopyLimits  *remoteQueryExecuteCopyLimits
+	Compression string
 }
 
 type remoteQueryExecuteRequestJSON struct {
@@ -276,11 +397,25 @@ type remoteQueryExecuteCopyLimits struct {
 }
 
 type remoteQueryCopyExecutorRequestJSON struct {
-	Operation string                            `json:"operation"`
-	Target    remoteQueryTargetJSON             `json:"target"`
-	Query     string                            `json:"query"`
-	Format    string                            `json:"format"`
-	Limits    *remoteQueryExecuteCopyLimitsJSON `json:"limits,omitempty"`
+	Operation      string                            `json:"operation"`
+	Target         remoteQueryTargetJSON             `json:"target"`
+	Query          string                            `json:"query"`
+	Format         string                            `json:"format"`
+	Limits         *remoteQueryExecuteCopyLimitsJSON `json:"limits,omitempty"`
+	ResultDelivery *remoteQueryResultDeliveryJSON    `json:"resultDelivery,omitempty"`
+}
+
+// remoteQueryResultDeliveryJSON is the result-delivery handle marshaled to the integration
+// check. It carries baseUrl and token so the integration can upload directly to its-agent-intake.
+type remoteQueryResultDeliveryJSON struct {
+	Mode        string `json:"mode"`
+	UploadID    string `json:"uploadId"`
+	BaseURL     string `json:"baseUrl"`
+	Token       string `json:"token"`
+	ChunkBytes  int    `json:"chunkBytes"`
+	MaxBytes    int    `json:"maxBytes"`
+	Format      string `json:"format"`
+	Compression string `json:"compression"`
 }
 
 type remoteQueryExecuteCopyLimitsJSON struct {
@@ -302,7 +437,7 @@ func (h *remoteQueryExecuteHandler) handle(w http.ResponseWriter, r *http.Reques
 
 	service := h.service
 	if service == nil {
-		service = NewRemoteQueryExecuteService(h.collector, h.enabled, h.queryAllowlistEnabled)
+		service = NewRemoteQueryExecuteService(h.collector, h.enabled, h.queryAllowlistEnabled, h.cfg)
 	}
 	if service == nil || !service.enabled {
 		writeExecuteError(w, http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
@@ -475,7 +610,7 @@ func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQ
 }
 
 // ExecuteStream executes a COPY streaming request and emits binary-safe stream events without materializing the full result.
-func (s *RemoteQueryExecuteService) ExecuteStream(req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
+func (s *RemoteQueryExecuteService) ExecuteStream(_ctx context.Context, req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
 	if req.Operation != "copy_stream" {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "operation must be copy_stream")
 	}
@@ -508,7 +643,9 @@ func (s *RemoteQueryExecuteService) ExecuteStream(req RemoteQueryExecuteRequest,
 	if err != nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "malformed JSON request")
 	}
-	if err := runner.RunRemoteQueryStream(internal.Integration, requestJSON, emit); err != nil {
+
+	runErr := runner.RunRemoteQueryStream(internal.Integration, requestJSON, emit)
+	if runErr != nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, "remote query stream executor failed")
 	}
 	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, Status: "SUCCEEDED"}
@@ -548,6 +685,18 @@ func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
 	if r.CopyLimits != nil {
 		internal.CopyLimits = &remoteQueryExecuteCopyLimits{ChunkBytes: r.CopyLimits.ChunkBytes, MaxBytes: r.CopyLimits.MaxBytes, MaxRowBytes: r.CopyLimits.MaxRowBytes, TimeoutMs: r.CopyLimits.TimeoutMs}
 	}
+	if r.ResultDelivery != nil {
+		internal.ResultDelivery = &remoteQueryResultDelivery{
+			Mode:        r.ResultDelivery.Mode,
+			UploadID:    r.ResultDelivery.UploadID,
+			BaseURL:     r.ResultDelivery.BaseURL,
+			Token:       r.ResultDelivery.Token,
+			ChunkBytes:  r.ResultDelivery.ChunkBytes,
+			MaxBytes:    r.ResultDelivery.MaxBytes,
+			Format:      r.ResultDelivery.Format,
+			Compression: r.ResultDelivery.Compression,
+		}
+	}
 	return internal
 }
 
@@ -564,6 +713,18 @@ func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) Remote
 	}
 	if req.CopyLimits != nil {
 		out.CopyLimits = &RemoteQueryExecuteCopyLimits{ChunkBytes: req.CopyLimits.ChunkBytes, MaxBytes: req.CopyLimits.MaxBytes, MaxRowBytes: req.CopyLimits.MaxRowBytes, TimeoutMs: req.CopyLimits.TimeoutMs}
+	}
+	if req.ResultDelivery != nil {
+		out.ResultDelivery = &RemoteQueryResultDelivery{
+			Mode:        req.ResultDelivery.Mode,
+			UploadID:    req.ResultDelivery.UploadID,
+			BaseURL:     req.ResultDelivery.BaseURL,
+			Token:       req.ResultDelivery.Token,
+			ChunkBytes:  req.ResultDelivery.ChunkBytes,
+			MaxBytes:    req.ResultDelivery.MaxBytes,
+			Format:      req.ResultDelivery.Format,
+			Compression: req.ResultDelivery.Compression,
+		}
 	}
 	return out
 }
@@ -588,6 +749,18 @@ func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 			MaxBytes:    req.CopyLimits.MaxBytes,
 			MaxRowBytes: req.CopyLimits.MaxRowBytes,
 			TimeoutMs:   req.CopyLimits.TimeoutMs,
+		}
+	}
+	if req.ResultDelivery != nil {
+		wireReq.ResultDelivery = &remoteQueryResultDeliveryJSON{
+			Mode:        req.ResultDelivery.Mode,
+			UploadID:    req.ResultDelivery.UploadID,
+			BaseURL:     req.ResultDelivery.BaseURL,
+			Token:       req.ResultDelivery.Token,
+			ChunkBytes:  req.ResultDelivery.ChunkBytes,
+			MaxBytes:    req.ResultDelivery.MaxBytes,
+			Format:      req.ResultDelivery.Format,
+			Compression: req.ResultDelivery.Compression,
 		}
 	}
 	requestJSON, err := json.Marshal(wireReq)
