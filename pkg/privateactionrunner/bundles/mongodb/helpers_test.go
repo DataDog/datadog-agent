@@ -8,6 +8,8 @@ package com_datadoghq_mongodb
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetConnectionURITLS(t *testing.T) {
@@ -43,20 +45,12 @@ func TestGetConnectionURITLS(t *testing.T) {
 			}
 
 			got, err := getConnectionUri(credentials)
-			if err != nil {
-				t.Fatalf("getConnectionUri() returned an unexpected error: %v", err)
-			}
-			if got != tt.want {
-				t.Fatalf("getConnectionUri() = %q, want %q", got, tt.want)
-			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 
 			clientOptions, _, err := createMongoClientOptions(context.Background(), credentials)
-			if err != nil {
-				t.Fatalf("createMongoClientOptions() returned an unexpected error: %v", err)
-			}
-			if clientOptions == nil {
-				t.Fatal("createMongoClientOptions() returned nil client options")
-			}
+			require.NoError(t, err)
+			require.NotNil(t, clientOptions)
 		})
 	}
 }
@@ -74,11 +68,7 @@ func TestGetConnectionURIWithTLSAndAuthenticationOptions(t *testing.T) {
 	}
 
 	got, err := getConnectionUri(credentials)
-	if err != nil {
-		t.Fatalf("getConnectionUri() returned an unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	want := "mongodb://user:password@localhost:27017/admin?authSource=users&authMechanism=SCRAM-SHA-256&tls=true"
-	if got != want {
-		t.Fatalf("getConnectionUri() = %q, want %q", got, want)
-	}
+	require.Equal(t, want, got)
 }

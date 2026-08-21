@@ -36,4 +36,5 @@ dd_agent_go_test(
     name = "mongodb_test",
     srcs = ["helpers_test.go"],
     embed = [":mongodb"],
+    deps = ["@com_github_stretchr_testify//require"],
 )
