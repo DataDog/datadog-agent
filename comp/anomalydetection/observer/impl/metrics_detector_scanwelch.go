@@ -67,7 +67,8 @@ type ScanWelchDetector struct {
 	series map[scanwelchStateKey]*scanwelchSeriesState
 	// scanBuf is shared by this single-writer detector instead of being retained
 	// once per live series and aggregation.
-	scanBuf []observer.Point
+	scanBuf   []observer.Point
+	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef
@@ -219,10 +220,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
 
-	values := make([]float64, n)
-	for i, p := range points {
-		values[i] = p.Value
-	}
+	values := d.workspace.valuesFromPoints(points)
 
 	// Phase 1: Scan using Welch's t-statistic. Keep the total moments and
 	// advance the left-side moments as the split moves, instead of retaining a
@@ -282,7 +280,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	}
 
 	// Phase 2: Verify using Mann-Whitney at the best split point.
-	ranks, tieCorrection := assignRanks(values)
+	ranks, tieCorrection := d.workspace.assignRanks(values)
 	var R1 float64
 	for i := 0; i < bestK; i++ {
 		R1 += ranks[i]
@@ -324,9 +322,9 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	// Phase 3: Robust deviation check
 	preVals := values[:bestK]
 	postVals := values[bestK:]
-	preMedian := detectorMedian(preVals)
-	postMedian := detectorMedian(postVals)
-	preMAD := detectorMAD(preVals, preMedian, false)
+	preMedian := d.workspace.median(preVals)
+	postMedian := d.workspace.median(postVals)
+	preMAD := d.workspace.mad(preVals, preMedian)
 
 	denom := preMAD
 	if denom < 1e-10 {
@@ -358,7 +356,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 			seriesName, direction, preMedian, postMedian, bestTAbs, pValue, effectSize, deviation),
 		Timestamp:           changePtTime,
 		Score:               &score,
-		SamplingIntervalSec: medianPointInterval(points),
+		SamplingIntervalSec: d.workspace.medianPointInterval(points),
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: preMedian,
 			BaselineMAD:    preMAD,
