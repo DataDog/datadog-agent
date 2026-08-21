@@ -77,7 +77,7 @@ dd_agent_go_test(
     srcs = ["nvml_mock_test.go"],
     embed = [":testutil"],
     gotags_sets = [
-        ["linux_bpf"],
+        ["bpf"],
         ["nvml"],
     ],
     include_default = False,
