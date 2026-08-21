@@ -137,7 +137,7 @@ func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string
 		return args[0].(string)
 	}).(pulumi.StringOutput)
 
-	return vm, privateIP, windowsAdminPassword.Result, nil
+	return vm, privateIP, secretPassword, nil
 }
 
 func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, enableAcceleratedNetworking bool, osProfile compute.OSProfilePtrInput, opts ...pulumi.ResourceOption) (*compute.VirtualMachine, *network.NetworkInterface, error) {
