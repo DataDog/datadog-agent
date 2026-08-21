@@ -7,10 +7,13 @@ package run
 
 import (
 	"context"
+	"os"
+	"runtime/debug"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
@@ -59,8 +62,14 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			settings settings.Component,
 			deps module.FactoryDependencies,
 		) error {
+			f, err := os.OpenFile(common.DefaultLogFile(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+			if err == nil {
+				_ = debug.SetCrashOutput(f, debug.CrashOptions{})
+				f.Close()
+			}
+
 			defer stopSystemProbe()
-			err := startSystemProbe(rcclient, settings, deps)
+			err = startSystemProbe(rcclient, settings, deps)
 			if err != nil {
 				return err
 			}
