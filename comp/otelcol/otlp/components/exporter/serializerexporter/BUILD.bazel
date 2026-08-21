@@ -112,6 +112,8 @@ dd_agent_go_test(
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
         "//pkg/opentelemetry-mapping-go/otlp/metrics",
+        "//pkg/opentelemetry-mapping-go/otlp/metrics/tracestats",
+        "//pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb",
         "//pkg/proto/pbgo/trace",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",

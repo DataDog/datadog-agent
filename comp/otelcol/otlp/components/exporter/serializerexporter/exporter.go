@@ -179,6 +179,7 @@ func translatorFromConfig(
 	cfg datadogconfig.MetricsConfig,
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
+	otlpStatsIn chan []byte,
 	extraOptions ...metrics.TranslatorOption,
 ) (metrics.Provider, error) {
 	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
@@ -197,6 +198,9 @@ func translatorFromConfig(
 
 	if statsIn != nil {
 		options = append(options, metrics.WithStatsOut(statsIn))
+	}
+	if otlpStatsIn != nil {
+		options = append(options, metrics.WithOTLPStatsOut(otlpStatsIn))
 	}
 
 	if cfg.HistConfig.SendAggregations {

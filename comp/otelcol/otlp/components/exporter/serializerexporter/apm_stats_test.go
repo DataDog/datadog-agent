@@ -9,19 +9,31 @@ package serializerexporter
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/exportertest"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats"
+	otlpstatspb "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -78,6 +90,24 @@ func testAPMStatsMetric(t *testing.T) pmetric.Metrics {
 	return m
 }
 
+func sdkTraceStatsMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	rm.Resource().Attributes().PutStr("service.name", "checkout")
+	rm.Resource().Attributes().PutStr("telemetry.sdk.name", "datadog")
+	metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	metric.SetName(tracestats.SDKTraceMetricName)
+	metric.SetUnit("s")
+	histogram := metric.SetEmptyHistogram()
+	histogram.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp := histogram.DataPoints().AppendEmpty()
+	dp.SetCount(2)
+	dp.SetSum(1)
+	dp.BucketCounts().FromRaw([]uint64{2})
+	dp.Attributes().PutStr("datadog.operation.name", "http.request")
+	return md
+}
+
 func TestAPMStats_OSS(t *testing.T) {
 	statsIn := make(chan []byte, 1000)
 	factory := NewFactoryForOSSExporter(component.MustNewType("datadog"), statsIn)
@@ -88,8 +118,64 @@ func TestAPMStats_OTelAgent(t *testing.T) {
 	statsIn := make(chan []byte, 1000)
 	factory := NewFactoryForOTelAgent(&metricRecorder{}, func(context.Context) (string, error) {
 		return "", nil
-	}, statsIn, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+	}, statsIn, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 	testAPMStats(t, factory, statsIn)
+}
+
+func TestSDKTraceStats_AgentOTLPIngest(t *testing.T) {
+	results := make(chan *otlpstatspb.OTLPIntakeStatsPayload, 1)
+	var requests atomic.Int64
+	var fail atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		requests.Add(1)
+		if fail.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer req.Body.Close()
+		assert.Equal(t, "/v0.6/stats", req.URL.Path)
+		assert.Equal(t, "application/x-protobuf", req.Header.Get("Content-Type"))
+		assert.Equal(t, "otlp", req.Header.Get("Dd-Protocol"))
+		payload := &otlpstatspb.OTLPIntakeStatsPayload{}
+		body, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+		assert.NoError(t, proto.Unmarshal(body, payload))
+		results <- payload
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	registry := featuregate.GlobalRegistry()
+	previous := featuregates.DisableMetricRemappingFeatureGate.IsEnabled()
+	require.NoError(t, registry.Set(featuregates.DisableMetricRemappingFeatureGate.ID(), true))
+	t.Cleanup(func() {
+		require.NoError(t, registry.Set(featuregates.DisableMetricRemappingFeatureGate.ID(), previous))
+	})
+	factory := NewFactoryForAgent(&metricRecorder{}, func(context.Context) (string, error) { return "agent-host", nil }, TelemetryStore{})
+	cfg := factory.CreateDefaultConfig().(*ExporterConfig)
+	cfg.Metrics.APMStatsReceiverAddr = server.URL + "/v0.6/stats"
+	cfg.QueueBatchConfig = configoptional.None[exporterhelper.QueueBatchConfig]()
+	cfg.RetryConfig.InitialInterval = time.Millisecond
+	cfg.RetryConfig.MaxInterval = time.Millisecond
+	cfg.RetryConfig.MaxElapsedTime = 20 * time.Millisecond
+	ctx := context.Background()
+	exp, err := factory.CreateMetrics(ctx, exportertest.NewNopSettings(factory.Type()), cfg)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+	t.Cleanup(func() { require.NoError(t, exp.Shutdown(ctx)) })
+
+	require.NoError(t, exp.ConsumeMetrics(ctx, sdkTraceStatsMetrics()))
+	got := <-results
+	require.Equal(t, "otlp-intake-metrics", got.Source)
+	require.NotContains(t, got.HostTags, "span_source:datadog")
+	require.Len(t, got.Stats, 1)
+	require.Len(t, got.Stats[0].Stats, 1)
+	require.Equal(t, "http.request", got.Stats[0].Stats[0].Name)
+	require.Equal(t, uint64(2), got.Stats[0].Stats[0].Hits)
+
+	fail.Store(true)
+	require.NoError(t, exp.ConsumeMetrics(ctx, sdkTraceStatsMetrics()))
+	require.Equal(t, int64(2), requests.Load(), "failed APM export must not retry the metrics batch")
 }
 
 func testAPMStats(t *testing.T, factory exporter.Factory, statsIn chan []byte) {

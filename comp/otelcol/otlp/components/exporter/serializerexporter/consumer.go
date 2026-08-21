@@ -95,6 +95,7 @@ type serializerConsumer struct {
 	series          metrics.Series
 	sketches        metrics.SketchSeriesList
 	apmstats        []io.Reader
+	otlpstats       [][]byte
 	apmReceiverAddr string
 	ipath           ingestionPath
 	hosts           map[string]struct{}
@@ -127,6 +128,10 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 		return
 	}
 	c.apmstats = append(c.apmstats, body)
+}
+
+func (c *serializerConsumer) ConsumeOTLPStats(payload []byte) {
+	c.otlpstats = append(c.otlpstats, payload)
 }
 
 func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
@@ -298,8 +303,14 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 			sketchesErr = s.SendSketch(sketchesSource)
 		},
 	)
-	apmErr := c.sendAPMStats()
-	return multierr.Combine(serieErr, sketchesErr, apmErr)
+	metricsErr := multierr.Combine(serieErr, sketchesErr, c.sendAPMStats())
+	if metricsErr != nil {
+		return metricsErr
+	}
+	if err := c.sendOTLPStats(); err != nil {
+		log.Errorf("Failed to export OTLP APM stats: %v", err)
+	}
+	return nil
 }
 
 func (c *serializerConsumer) sendAPMStats() error {
@@ -315,6 +326,30 @@ func (c *serializerConsumer) sendAPMStats() error {
 			n, _ := resp.Body.Read(peek)
 			return fmt.Errorf("could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
 		}
+	}
+	return nil
+}
+
+func (c *serializerConsumer) sendOTLPStats() error {
+	log.Debugf("Exporting %d OTLP APM stats payloads", len(c.otlpstats))
+	for _, payload := range c.otlpstats {
+		req, err := http.NewRequest(http.MethodPost, c.apmReceiverAddr, bytes.NewReader(payload))
+		if err != nil {
+			return fmt.Errorf("could not create OTLP stats request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/x-protobuf")
+		req.Header.Set("Dd-Protocol", "otlp")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("could not flush OTLP stats payload: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			peek := make([]byte, 1024)
+			n, _ := resp.Body.Read(peek)
+			_ = resp.Body.Close()
+			return fmt.Errorf("could not flush OTLP stats payload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
+		}
+		_ = resp.Body.Close()
 	}
 	return nil
 }

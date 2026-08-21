@@ -8,6 +8,7 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
+	"io"
 	"math"
 	"net/url"
 	"os"
@@ -65,6 +66,25 @@ func assertPayload(assert *assert.Assertions, testSets []*pb.StatsPayload, paylo
 	for i, p := range decoded {
 		assert.Equal(testSets[i].String(), p.String())
 	}
+}
+
+func TestSendOTLPIntakePayload(t *testing.T) {
+	sw, srv := testStatsWriter()
+	go sw.Run()
+	want := []byte{1, 2, 3}
+	sw.SendOTLPIntakePayload(want)
+	sw.Stop()
+
+	require.Len(t, srv.Payloads(), 1)
+	payload := srv.Payloads()[0]
+	assert.Equal(t, "application/x-protobuf", payload.headers["Content-Type"])
+	assert.Equal(t, "gzip", payload.headers["Content-Encoding"])
+	assert.Equal(t, "otlp", payload.headers["Dd-Protocol"])
+	r, err := gzip.NewReader(payload.body)
+	require.NoError(t, err)
+	got, err := io.ReadAll(r)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
 }
 
 func TestStatsWriter(t *testing.T) {

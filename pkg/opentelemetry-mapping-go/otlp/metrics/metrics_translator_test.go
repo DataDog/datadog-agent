@@ -31,6 +31,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats"
+	otlpstatspb "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
@@ -2516,6 +2518,37 @@ func createTestHistogramMetric(metricName string) pmetric.Metrics {
 	hpCount.SetMin(-100)
 	hpCount.SetMax(100)
 	return md
+}
+
+func TestSDKTraceMetricRemapping(t *testing.T) {
+	md := createTestHistogramMetric(tracestats.SDKTraceMetricName)
+	rm := md.ResourceMetrics().At(0)
+	rm.Resource().Attributes().PutStr("host.name", "host")
+	metric := rm.ScopeMetrics().At(0).Metrics().At(0)
+	metric.SetUnit("s")
+	dp := metric.Histogram().DataPoints().At(0)
+	dp.Attributes().PutStr("datadog.operation.name", "op")
+	dp.Attributes().PutStr("custom", "tag")
+	statsOut := make(chan []byte, 1)
+	translator := NewTestTranslator(t, WithSDKTraceMetricsRemapping(), WithOTLPStatsOut(statsOut))
+	consumer := newTestConsumer()
+	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
+	require.NoError(t, err)
+
+	var payload otlpstatspb.OTLPIntakeStatsPayload
+	require.NoError(t, proto.Unmarshal(<-statsOut, &payload))
+	require.Equal(t, "op", payload.Stats[0].Stats[0].Name)
+	assert.Empty(t, consumer.data.Metrics.Sketches)
+	assert.Empty(t, consumer.data.Hosts)
+
+	dp.Attributes().PutStr("datadog.operation.name", "\xff")
+	_, err = translator.MapMetrics(context.Background(), md, &consumer, nil)
+	require.NoError(t, err)
+	dp.SetMin(math.NaN())
+	_, err = translator.MapMetrics(context.Background(), md, &consumer, nil)
+	require.NoError(t, err)
+	_, err = NewTestTranslator(t, WithSDKTraceMetricsRemapping()).MapMetrics(context.Background(), md, &consumer, nil)
+	require.NoError(t, err)
 }
 
 func createTestMetricWithAttributes(metricName string, metricType pmetric.MetricType, attributes []runtimeMetricAttribute, dataPoints int) pmetric.Metrics {
