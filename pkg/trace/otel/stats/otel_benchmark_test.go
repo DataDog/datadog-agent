@@ -29,6 +29,29 @@ func BenchmarkOTelStatsWithObfuscation(b *testing.B) {
 	benchmarkOTelObfuscation(b, true)
 }
 
+func BenchmarkOTelStatsClientComputed(b *testing.B) {
+	traces := ptrace.NewTraces()
+	for resourceIndex := 0; resourceIndex < 10; resourceIndex++ {
+		resourceSpans := traces.ResourceSpans().AppendEmpty()
+		resourceSpans.Resource().Attributes().PutBool(keyStatsComputed, true)
+		spans := resourceSpans.ScopeSpans().AppendEmpty().Spans()
+		for spanIndex := 0; spanIndex < 10; spanIndex++ {
+			span := spans.AppendEmpty()
+			span.SetTraceID(testTraceID)
+			span.SetSpanID(pcommon.SpanID{byte(resourceIndex), byte(spanIndex + 1)})
+		}
+	}
+
+	conf := config.New()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil); len(inputs) != 0 {
+			b.Fatalf("expected no inputs, got %d", len(inputs))
+		}
+	}
+}
+
 func benchmarkOTelObfuscation(b *testing.B, enableObfuscation bool) {
 	start := time.Now().Add(-1 * time.Second)
 	end := time.Now()

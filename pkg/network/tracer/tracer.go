@@ -494,6 +494,11 @@ func (t *Tracer) RegisterClient(clientID string) error {
 	return nil
 }
 
+// GetProcessCacheTags is not implemented on Linux
+func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
+	return nil
+}
+
 func (t *Tracer) removeClient(clientID string) {
 	t.state.RemoveClient(clientID)
 }
