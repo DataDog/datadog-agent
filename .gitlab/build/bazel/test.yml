@@ -16,6 +16,7 @@
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     BEP_FILE: $CI_PROJECT_DIR/bazel-bep.json
     RESULT_JSON: test_output.json
+    GIT_DEPTH: 1000  # Needed by datadog-ci to collect git metadata
   after_script:
     - dda inv -- -e bazel.process-test-results --bep-file=$BEP_FILE --junit-tar=junit-${CI_JOB_NAME}.tgz --result-json=$RESULT_JSON
     - !reference [.upload_junit_source]
@@ -34,8 +35,8 @@
 .bazel:test:reporting:ci_links:
   - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
 
-bazel:coverage:linux-amd64:
-  extends: [.bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test]
+.bazel:coverage:linux:
+  extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
     - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --jobs=$KUBERNETES_CPU_REQUEST --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
@@ -52,17 +53,23 @@ bazel:coverage:linux-amd64:
   variables:
     KUBERNETES_CPU_REQUEST: 16
 
-bazel:test:linux-amd64:
-  extends: [.bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test]
+bazel:coverage:linux-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux]
+
+bazel:coverage:linux-arm64:
+  extends: [.bazel:runner:linux-arm64, .bazel:coverage:linux]
+
+.bazel:test:linux:
+  extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+    - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+
+bazel:test:linux-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:test:linux]
 
 bazel:test:linux-arm64:
-  extends: [.bazel:test:reporting, .bazel:runner:linux-arm64, .bazel:test]
-  script:
-    - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+  extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
 
 bazel:test:macos-amd64:
   extends: [.bazel:test:reporting, .bazel:runner:macos-amd64, .bazel:test]

@@ -1,9 +1,11 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Include zlib && zstd tags so the config-driven metrics compressor
+// resolves to real compresor. Without them the selector links its noop
+// variant and metrics ship uncompressed ("identity") instead of zstd.
 // TODO(OASIS-79): fix data race then remove !race
-// OTel datadogextension is not supported on AIX.
-//go:build otlp && test && !race && !aix
+//go:build otlp && zlib && zstd && test && !race && !aix
 
 package integrationtest
 

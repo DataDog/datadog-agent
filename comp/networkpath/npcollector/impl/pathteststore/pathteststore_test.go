@@ -161,13 +161,14 @@ func TestPathtestStoreClearsStaleAttribution(t *testing.T) {
 		Interval:      time.Minute,
 	}, logmock.New(t), &statsd.NoOpClient{}, mockTimeNow)
 
-	initial := &common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-a", TestConfigSource: "remote", Tags: []string{"env:prod"}}
+	initial := &common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-a", TestConfigName: "Production paths", TestConfigSource: "remote", Tags: []string{"env:prod"}}
 	store.Add(initial)
 	setMockTimeNow(mockTimeJan2.Add(time.Minute))
 	store.Add(&common.Pathtest{Hostname: "api.example.com", Port: 443})
 
 	assert.Len(t, store.contexts, 1)
 	assert.Empty(t, store.contexts[initial.GetHash()].Pathtest.TestConfigID)
+	assert.Empty(t, store.contexts[initial.GetHash()].Pathtest.TestConfigName)
 	assert.Empty(t, store.contexts[initial.GetHash()].Pathtest.TestConfigSource)
 	assert.Empty(t, store.contexts[initial.GetHash()].Pathtest.Tags)
 	assert.Equal(t, mockTimeJan2.Add(11*time.Minute), store.contexts[initial.GetHash()].runUntil)
@@ -181,19 +182,52 @@ func TestPathtestStoreFlushReturnsImmutableSnapshot(t *testing.T) {
 		Interval:      time.Minute,
 	}, logmock.New(t), &statsd.NoOpClient{}, mockTimeNow)
 
-	initial := &common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-a", TestConfigSource: "remote", Tags: []string{"env:prod"}}
+	initial := &common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-a", TestConfigName: "Production paths", TestConfigSource: "remote", Tags: []string{"env:prod"}}
 	store.Add(initial)
 	flushed := store.Flush()
 	require.Len(t, flushed, 1)
 
-	store.Add(&common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-b", TestConfigSource: "remote", Tags: []string{"env:staging"}})
+	store.Add(&common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-b", TestConfigName: "Staging paths", TestConfigSource: "remote", Tags: []string{"env:staging"}})
 
 	assert.Equal(t, "dynamic-a", flushed[0].Pathtest.TestConfigID)
 	assert.Equal(t, "dynamic-b", store.contexts[initial.GetHash()].Pathtest.TestConfigID)
+	assert.Equal(t, "Production paths", flushed[0].Pathtest.TestConfigName)
+	assert.Equal(t, "Staging paths", store.contexts[initial.GetHash()].Pathtest.TestConfigName)
 	assert.Equal(t, []string{"env:prod"}, flushed[0].Pathtest.Tags)
 	assert.Equal(t, []string{"env:staging"}, store.contexts[initial.GetHash()].Pathtest.Tags)
 	assert.NotSame(t, flushed[0], store.contexts[initial.GetHash()])
 	assert.NotSame(t, flushed[0].Pathtest, store.contexts[initial.GetHash()].Pathtest)
+}
+
+func TestPathtestStoreRunsOneShotOnlyOnce(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	store := NewPathtestStore(Config{
+		ContextsLimit: 10,
+		TTL:           30 * time.Minute,
+		Interval:      10 * time.Minute,
+	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "one-shot", RunOnce: true})
+
+	require.Len(t, store.Flush(), 1)
+	assert.Zero(t, store.GetContextsCount())
+
+	now = now.Add(10 * time.Minute)
+	assert.Empty(t, store.Flush())
+}
+
+func TestPathtestStoreDoesNotRetryRateLimitedOneShot(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	store := NewPathtestStore(Config{
+		ContextsLimit:    10,
+		TTL:              30 * time.Minute,
+		Interval:         10 * time.Minute,
+		MaxPerMinute:     60,
+		MaxBurstDuration: 0,
+	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "one-shot", RunOnce: true})
+
+	assert.Empty(t, store.Flush())
+	assert.Zero(t, store.GetContextsCount())
 }
 
 func Test_pathtestStore_flush(t *testing.T) {
