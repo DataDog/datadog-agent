@@ -9,8 +9,6 @@ package coat
 import (
 	"os"
 	"runtime"
-
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
 
 const (
@@ -47,8 +45,9 @@ type DaemonSnapshot struct {
 
 // ProcessSnapshot captures a single managed process reported by dd-procmgrd.
 type ProcessSnapshot struct {
-	Name  string
-	State pb.ProcessState
+	Name string
+	// State is one of the ProcessState* constants, already normalized by the client.
+	State string
 }
 
 // ServiceSnapshot captures install and supervision state for a migratable agent service.
@@ -56,8 +55,9 @@ type ServiceSnapshot struct {
 	ID                string
 	Installed         bool
 	ProcmgrConfigured bool
-	ProcmgrState      pb.ProcessState
-	ManagementMode    ManagementMode
+	// ProcmgrState is one of the ProcessState* constants, already normalized by the client.
+	ProcmgrState   string
+	ManagementMode ManagementMode
 }
 
 // Snapshot aggregates procmgr daemon and per-service supervision state.

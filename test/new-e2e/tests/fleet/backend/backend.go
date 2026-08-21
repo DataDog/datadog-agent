@@ -44,6 +44,7 @@ type RemoteConfigStatePackage struct {
 	ExperimentVersion       string `json:"experiment_version"`
 	StableConfigVersion     string `json:"stable_config_version"`
 	ExperimentConfigVersion string `json:"experiment_config_version"`
+	DdotProcessState        string `json:"ddot_process_state"`
 }
 
 // Backend is the fake fleet backend.
