@@ -106,7 +106,7 @@ pub(crate) fn spawn_user_for_profile(
     process_name: &str,
     profile: crate::spawn::SpawnProfile,
 ) -> Result<String> {
-    use super::spawn::credential::SpawnCredential;
+    use super::spawn::SpawnCredential;
 
     SpawnCredential::resolve(profile)
         .with_context(|| format!("[{process_name}] resolve spawn credential for spawn user"))
