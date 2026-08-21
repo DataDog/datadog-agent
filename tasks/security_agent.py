@@ -4,6 +4,7 @@ import datetime
 import errno
 import json
 import os
+import shlex
 import shutil
 import sys
 from subprocess import check_output
@@ -271,6 +272,134 @@ def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
     )
 
 
+# The TLS access models the agent's resolver has to handle, built the way the
+# upstream profiler builds them for its own integration tests
+# (processcontext/integrationtests/testdata/Makefile in
+# open-telemetry/opentelemetry-ebpf-profiler#1229): both dialects of
+# general-dynamic, initial-exec, and local-dynamic, which only appears when the
+# TLS symbol is hidden.
+def otel_tls_dso_flavors(arch: Arch):
+    dialect, alt_dialect = ("gnu2", "gnu") if arch == ARCH_AMD64 else ("desc", "trad")
+    return {
+        "": [f"-mtls-dialect={dialect}"],
+        "_gnu": [f"-mtls-dialect={alt_dialect}"],
+        "_ie": ["-ftls-model=initial-exec"],
+        "_ld": ["-DOTEL_TLS_HIDDEN", "-ftls-model=local-dynamic", f"-mtls-dialect={alt_dialect}"],
+    }
+
+
+# otel_tls_build_steps pairs each artifact with the command building it, so a
+# caller can drop the ones its toolchain cannot produce: -mtls-dialect is a GCC
+# option clang rejects on some targets, and a build image whose linker cannot
+# link against the system libc produces none of the dynamic ones.
+def otel_tls_build_steps(build_dir, libc, cc, arch: Arch):
+    c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
+    lib_c = os.path.join(c_dir, "otel_tls_lib.c")
+    driver_c = os.path.join(c_dir, "otel_tls_driver.c")
+    isystem = f"-isystem/usr/include/{os.uname().machine}-linux-gnu"
+
+    def artifact(name):
+        return os.path.join(build_dir, name)
+
+    # The variable lives in the executable's own static TLS block: local-exec,
+    # from .dynsym when the executable is dynamic and from .symtab when it is
+    # the fully static build.
+    exe = artifact(f"otel_tls_exe_{libc}")
+    static_exe = artifact(f"otel_tls_exe_static_{libc}")
+    dlopen = artifact(f"otel_tls_dlopen_{libc}")
+    steps = [
+        ([exe], f"{cc} {isystem} -Wl,--export-dynamic {driver_c} {lib_c} -o {exe} -pthread"),
+        ([static_exe], f"{cc} {isystem} -static -no-pie {driver_c} {lib_c} -o {static_exe} -pthread"),
+        ([dlopen], f"{cc} {isystem} -DUSE_DLOPEN {driver_c} -o {dlopen} -ldl"),
+    ]
+
+    for suffix, flags in otel_tls_dso_flavors(arch).items():
+        so_name = f"libotel_tls_{libc}{suffix}.so"
+        so = artifact(so_name)
+        linked = artifact(f"otel_tls_linked_{libc}{suffix}")
+        steps.append(
+            (
+                [so],
+                f"{cc} {isystem} -shared -fPIC {' '.join(flags)} -Wl,-soname,{so_name} {lib_c} -o {so} -pthread",
+            )
+        )
+        # $ORIGIN, not the build directory: the test harness copies every
+        # artifact into one directory of its own before running them.
+        steps.append(
+            (
+                [linked],
+                f"{cc} {isystem} {driver_c} -o {linked} {so} '-Wl,-rpath,$ORIGIN'",
+            )
+        )
+
+    return steps
+
+
+def remove_otel_tls_artifacts(artifacts):
+    for artifact in artifacts:
+        for path in (artifact, artifact + ".d"):
+            if os.path.exists(path):
+                os.remove(path)
+
+
+def build_otel_tls_glibc_artifacts(ctx, build_dir, arch: Arch):
+    # gcc by name rather than cc: -mtls-dialect is a GCC option, and a build
+    # image whose cc is clang would silently produce no dialect variant at all.
+    steps = otel_tls_build_steps(build_dir, "glibc", shutil.which("gcc") or "cc", arch)
+    remove_otel_tls_artifacts([artifact for artifacts, _ in steps for artifact in artifacts])
+
+    if arch.is_cross_compiling():
+        print("Skipping the OTel TLS glibc testers while cross-compiling")
+        return
+
+    for artifacts, command in steps:
+        try:
+            ctx.run(command)
+        except Exception as e:
+            print(f"Failed to build {', '.join(os.path.basename(a) for a in artifacts)} ({e}); skipping those variants")
+            remove_otel_tls_artifacts(artifacts)
+
+
+def build_otel_tls_musl_artifacts(ctx, build_dir, arch: Arch):
+    steps = otel_tls_build_steps(build_dir, "musl", "cc", arch)
+    remove_otel_tls_artifacts([artifact for artifacts, _ in steps for artifact in artifacts])
+
+    if arch.is_cross_compiling():
+        print("Skipping the OTel TLS musl testers while cross-compiling")
+        return
+
+    docker = shutil.which("docker")
+    if docker is None:
+        print("docker not found; skipping the OTel TLS musl testers")
+        return
+
+    # Each command is allowed to fail on its own, as in the glibc build above,
+    # and the artifacts that did get built are handed back to the calling user.
+    script = " ; ".join(
+        ["apk add --no-cache build-base"]
+        + [f"{{ {command} ; }} || true" for _, command in steps]
+        + [f"chown -R {os.getuid()}:{os.getgid()} {build_dir}"]
+    )
+
+    ctx.run(
+        " ".join(
+            [
+                shlex.quote(docker),
+                "run",
+                "--rm",
+                "-v",
+                f"{shlex.quote(os.getcwd())}:/work",
+                "-w",
+                "/work",
+                "alpine:3.18.2",
+                "sh",
+                "-c",
+                shlex.quote(script),
+            ]
+        )
+    )
+
+
 def create_dir_if_needed(dir):
     try:
         os.makedirs(dir)
@@ -299,6 +428,8 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
+    build_otel_tls_glibc_artifacts(ctx, build_dir, arch)
+    build_otel_tls_musl_artifacts(ctx, build_dir, arch)
     build_go_syscall_tester(ctx, build_dir, arch=arch)
 
 
