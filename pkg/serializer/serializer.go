@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -127,7 +126,8 @@ type Serializer struct {
 	hostname             string
 	logger               log.Component
 
-	zlibV3WarnOnce sync.Once
+	zlibV3WarnOnce   sync.Once
+	v1FilterWarnOnce sync.Once
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -258,6 +258,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	var err error
 
 	if useV1API {
+		s.warnEndpointFilterListsIgnored()
 		seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 		if err != nil {
 			return fmt.Errorf("dropping series payload: %s", err)
@@ -336,11 +337,33 @@ func (s *Serializer) getEndpointFilterLists() map[string]metricsserializer.Filte
 			continue
 		}
 
-		matcher := utilstrings.NewMatcher(metricNames, false)
-		filters[endpoint] = metricsserializer.NewExcludeFilter(&matcher, endpoint)
+		excluded := make(map[string]struct{}, len(metricNames))
+		for _, name := range metricNames {
+			excluded[name] = struct{}{}
+		}
+		filters[endpoint] = metricsserializer.NewExcludeFilter(excluded, endpoint)
 	}
 
 	return filters
+}
+
+// warnEndpointFilterListsIgnored reports, once per serializer, that
+// metric_filterlist_endpoints has no effect on the v1 series path.
+//
+// The v1 path builds a single payload and the forwarder copies it to every
+// destination, so there is no point at which a per-endpoint filter could be
+// applied. Sketches are unaffected: they always go through buildPipelines.
+func (s *Serializer) warnEndpointFilterListsIgnored() {
+	if len(s.config.GetStringMapStringSlice("metric_filterlist_endpoints")) == 0 {
+		return
+	}
+
+	s.v1FilterWarnOnce.Do(func() {
+		s.logger.Warn(
+			"metric_filterlist_endpoints is set but use_v2_api.series is false; " +
+				"per-endpoint filter lists are not applied to series on the v1 API. " +
+				"Set use_v2_api.series to true to enable them.")
+	})
 }
 
 // AreSketchesEnabled returns whether sketches are enabled for serialization

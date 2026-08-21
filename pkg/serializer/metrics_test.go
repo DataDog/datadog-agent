@@ -316,6 +316,37 @@ func TestBuildPipelinesWithEndpointFilterList(t *testing.T) {
 	}
 }
 
+func TestEndpointFilterListsIgnoredOnV1Series(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	// The v1 series API builds one payload for every destination, so the
+	// per-endpoint lists cannot be applied and must not silently appear to work.
+	config.SetInTest("use_v2_api.series", false)
+	config.SetInTest("metric_filterlist_endpoints", map[string][]string{
+		"http://example.test": {"datadog.agent.running"},
+	})
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	// The warning is emitted once and must not panic or alter the pipelines that
+	// other payload kinds still build.
+	s.warnEndpointFilterListsIgnored()
+	s.warnEndpointFilterListsIgnored()
+
+	pipelines := s.buildPipelines(metricsKindSketches)
+	require.Len(t, pipelines, 1)
+	for conf := range pipelines {
+		assert.False(t, conf.Filter.Filter(filterableMetric("datadog.agent.running")),
+			"sketches still honour the endpoint filter list")
+	}
+}
+
 func TestBuildPipelinesWithEndpointFilterListUnknownEndpoint(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)

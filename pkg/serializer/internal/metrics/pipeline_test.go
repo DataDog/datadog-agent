@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -103,8 +102,7 @@ type filterableMetric string
 func (m filterableMetric) GetName() string { return string(m) }
 
 func TestExcludeFilter(t *testing.T) {
-	matcher := utilstrings.NewMatcher([]string{"foo.bar", "foo.baz"}, false)
-	filter := NewExcludeFilter(&matcher, "http://example.test")
+	filter := NewExcludeFilter(map[string]struct{}{"foo.bar": {}, "foo.baz": {}}, "http://example.test")
 
 	require.False(t, filter.Filter(filterableMetric("foo.bar")))
 	require.False(t, filter.Filter(filterableMetric("foo.baz")))
@@ -115,8 +113,7 @@ func TestExcludeFilter(t *testing.T) {
 }
 
 func TestExcludeFilterEmptyMatcher(t *testing.T) {
-	matcher := utilstrings.NewMatcher(nil, false)
-	filter := NewExcludeFilter(&matcher, "http://example.test")
+	filter := NewExcludeFilter(map[string]struct{}{}, "http://example.test")
 
 	require.True(t, filter.Filter(filterableMetric("foo.bar")))
 }
