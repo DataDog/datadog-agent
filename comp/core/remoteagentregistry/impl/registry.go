@@ -396,8 +396,6 @@ func (ra *remoteAgentRegistry) ExecuteCommand(agentFlavor string, req *pb.Execut
 	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
 
 	ra.agentMapMu.Lock()
-	defer ra.agentMapMu.Unlock()
-
 	var target *remoteAgentClient
 	for _, remoteAgent := range ra.agentMap {
 		if !slices.Contains(remoteAgent.services, CommandProviderServiceName) {
@@ -409,6 +407,7 @@ func (ra *remoteAgentRegistry) ExecuteCommand(agentFlavor string, req *pb.Execut
 		target = remoteAgent
 		break
 	}
+	ra.agentMapMu.Unlock()
 
 	if target == nil {
 		if agentFlavor != "" {
