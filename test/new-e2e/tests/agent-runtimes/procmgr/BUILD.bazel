@@ -12,6 +12,7 @@ dd_agent_go_test(
     name = "procmgr_test",
     srcs = [
         "par_procmgr_win_test.go",
+        "process_procmgr_win_test.go",
         "procmgr_cli_test.go",
         "procmgr_common_test.go",
         "procmgr_nix_test.go",
@@ -29,6 +30,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/new-e2e/tests/privateactionrunner",
+        "//test/new-e2e/tests/windows/common",
         "//test/new-e2e/tests/windows/common/agent",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",

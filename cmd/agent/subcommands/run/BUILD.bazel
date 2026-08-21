@@ -317,6 +317,7 @@ dd_agent_go_test(
             "//pkg/config/mock",
             "//pkg/config/model",
             "@com_github_stretchr_testify//assert",
+            "@org_golang_x_sys//windows/svc",
         ],
         "//conditions:default": [],
     }),
