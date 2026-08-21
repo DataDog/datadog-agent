@@ -310,17 +310,6 @@ filters:
 			expectedCustomFilterCount: 0,
 		},
 		{
-			name:   "default datadog intake ELB excluded",
-			config: ``,
-			expectedMatches: []expectedMatch{
-				{domain: "l4-metrics-agent-s0-7c551d28c9ca34fc.elb.us-east-1.amazonaws.com", shouldMatch: false},
-				{domain: "l4-metrics-agent-s1-56401ca284db905a.elb.eu-west-1.amazonaws.com", shouldMatch: false},
-				{domain: "my-app-lb-1234567890.elb.us-east-1.amazonaws.com", shouldMatch: true},
-				{domain: "l4-metrics-agent.example.com", shouldMatch: true},
-			},
-			expectedCustomFilterCount: 0,
-		},
-		{
 			name: "include all domain",
 			config: `
 filters:
@@ -497,9 +486,10 @@ func TestEvaluateDomains(t *testing.T) {
 			wantIncluded: false,
 		},
 		{
-			name:         "ELB name alone is excluded by Network Path default",
-			domains:      []string{elbName},
-			wantIncluded: false,
+			name:          "ELB name alone receives no special treatment",
+			domains:       []string{elbName},
+			wantIncluded:  true,
+			wantHostnames: []string{elbName},
 		},
 		{
 			name:          "unrelated names are included",
@@ -523,17 +513,6 @@ filters:
 			domains:       []string{elbName, ddName},
 			wantIncluded:  true,
 			wantHostnames: []string{ddName},
-		},
-		{
-			name: "customer include can re-enable the intake ELB directly",
-			config: `
-filters:
-  - match_domain: 'l4-metrics-agent-*.elb.*.amazonaws.com'
-    type: include
-`,
-			domains:       []string{ddName, elbName},
-			wantIncluded:  true,
-			wantHostnames: []string{elbName},
 		},
 		{
 			name: "last customer rule wins across different aliases",

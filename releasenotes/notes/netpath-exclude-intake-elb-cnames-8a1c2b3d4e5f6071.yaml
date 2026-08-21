@@ -7,6 +7,4 @@ fixes:
     of only the first), so a connection whose IP also resolves to a Datadog
     domain is excluded regardless of DNS cache ordering. Customer ``include``
     filters continue to override the defaults across all names, so Datadog
-    domains can still be re-enabled if desired. Network Path also excludes the
-    ``l4-metrics-agent-*`` intake load balancer hostnames when only the ELB name
-    remains in the shared reverse-DNS cache.
+    domains can still be re-enabled if desired.
