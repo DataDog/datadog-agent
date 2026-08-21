@@ -64,7 +64,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		) error {
 			f, err := os.OpenFile(common.DefaultLogFile(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 			if err == nil {
-				debug.SetCrashOutput(f, debug.CrashOptions{})
+				_ = debug.SetCrashOutput(f, debug.CrashOptions{})
 				f.Close()
 			}
 
