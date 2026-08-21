@@ -10,6 +10,7 @@ import (
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // scanwelchStateKey identifies per-series state by ref and aggregation.
@@ -47,7 +48,9 @@ type ScanWelchDetector struct {
 	MinSegment int
 
 	// MinPoints is the minimum total points before detection runs.
-	MinPoints int
+	MinPoints int `json:"min_points"`
+	// MaxPoints bounds the scan window. Default: 120.
+	MaxPoints int `json:"max_points"`
 
 	// MinTStatistic is the minimum |t| for the candidate selection phase.
 	MinTStatistic float64
@@ -77,6 +80,7 @@ func NewScanWelchDetector() *ScanWelchDetector {
 	return &ScanWelchDetector{
 		MinSegment:            12,
 		MinPoints:             30,
+		MaxPoints:             scanMaxPoints,
 		MinTStatistic:         8.0,
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
@@ -95,6 +99,12 @@ func (d *ScanWelchDetector) Name() string {
 }
 
 func (d *ScanWelchDetector) Ready() bool { return d.ready }
+
+// DetectorPointWindow implements observer.DetectorPointWindowRequirement.
+func (d *ScanWelchDetector) DetectorPointWindow() observer.DetectorPointWindow {
+	d.ensureDefaults()
+	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: d.MaxPoints}
+}
 
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanWelchDetector) Reset() {
@@ -149,6 +159,10 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			sk := scanwelchStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
+			if !exists && status.pointCount < d.MinPoints {
+				continue
+			}
+			activated := !exists
 			if !exists {
 				state = &scanwelchSeriesState{}
 				d.series[sk] = state
@@ -174,7 +188,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 					sCopy := *s
 					seriesMeta = &sCopy
 				}
-				state.buf = append(state.buf, p)
+				state.buf = appendPointWindow(state.buf, d.MaxPoints, p)
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
@@ -191,7 +205,11 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
-			state.lastProcessedCount = status.pointCount
+			if activated {
+				state.lastProcessedCount = 1 + ((status.pointCount-1)/d.MinSegment)*d.MinSegment
+			} else {
+				state.lastProcessedCount = status.pointCount
+			}
 			state.lastWriteGen = status.writeGeneration
 		}
 	}
@@ -350,6 +368,13 @@ func (d *ScanWelchDetector) ensureDefaults() {
 	}
 	if d.MinPoints <= 0 {
 		d.MinPoints = 30
+	}
+	if d.MaxPoints <= 0 {
+		d.MaxPoints = scanMaxPoints
+	}
+	if d.MaxPoints < d.MinPoints {
+		pkglog.Warnf("[observer] ScanWelch max_points=%d is below min_points=%d; using %d", d.MaxPoints, d.MinPoints, d.MinPoints)
+		d.MaxPoints = d.MinPoints
 	}
 	if d.MinTStatistic <= 0 {
 		d.MinTStatistic = 8.0

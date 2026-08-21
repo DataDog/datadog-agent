@@ -90,7 +90,7 @@ func TestTukeyBiweight_IncrementalMatchesBatch(t *testing.T) {
 func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 	d := testTukeyBiweightDetector()
 	d.WindowSize = 4
-	d.MinPoints = 4
+	d.MinPoints = 1
 	d.ScoreEvery = 100
 	storage := newDetectorTestStorage()
 
@@ -124,7 +124,7 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	d := testTukeyBiweightDetector()
 	d.WindowSize = 4
-	d.MinPoints = 4
+	d.MinPoints = 1
 	d.ScoreEvery = 100
 	storage := newDetectorTestStorage()
 
@@ -155,7 +155,7 @@ func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	d := testTukeyBiweightDetector()
 	d.WindowSize = 4
-	d.MinPoints = 4
+	d.MinPoints = 1
 	d.ScoreEvery = 100
 	storage := newDetectorTestStorage()
 
@@ -185,6 +185,54 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	assert.Equal(t, 40.0, state.ring[1].Value)
 	assert.Equal(t, 2, state.lastProcessedCount)
 	assert.Equal(t, int64(11), state.lastProcessedTime)
+}
+
+func TestTukeyBiweight_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T) {
+	d := testTukeyBiweightDetector()
+	d.MinPoints = 1
+	d.WindowSize = 4
+	d.ScoreEvery = 100
+	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
+
+	for timestamp := int64(1); timestamp <= 3; timestamp++ {
+		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+	d.Detect(storage, 3)
+
+	ref := storage.ListSeries(observer.WorkloadSeriesFilter())[0].Ref
+	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, 3, state.lastProcessedCount)
+
+	storage.Add("ns", "metric", 4, 4, nil)
+	d.Detect(storage, 4)
+
+	require.Same(t, state, d.series[key])
+	assert.Equal(t, int64(4), state.lastProcessedTime)
+	assert.Equal(t, 3, state.lastProcessedCount)
+}
+
+func TestTukeyBiweight_ContinuesAfterRetentionDropsBelowMinimum(t *testing.T) {
+	d := testTukeyBiweightDetector()
+	d.WindowSize = 4
+	d.MinPoints = 3
+	d.ScoreEvery = 100
+	storage := newDetectorTestStorage()
+
+	for timestamp := int64(1); timestamp <= 3; timestamp++ {
+		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+	d.Detect(storage, 3)
+	key := tbStateKey{ref: 0, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+
+	storage.cfg.PointRetentionSecs = 1
+	storage.Add("ns", "metric", 4, 4, nil)
+	d.Detect(storage, 4)
+	require.Same(t, state, d.series[key])
+	require.Equal(t, int64(4), state.lastProcessedTime)
 }
 
 // TestTukeyBiweight_NoFireOnStableGaussian verifies that 200 deterministic
@@ -373,6 +421,7 @@ func TestTukeyBiweight_IRLSConverges(t *testing.T) {
 // grow unbounded as storage evicts series.
 func TestTukeyBiweight_RemoveSeries(t *testing.T) {
 	d := NewTukeyBiweightDetector() // exercise the default [Average, Count] aggregations
+	d.MinPoints = 8
 	storage := newDetectorTestStorage()
 
 	// Three series, each populated with enough points to allocate state.

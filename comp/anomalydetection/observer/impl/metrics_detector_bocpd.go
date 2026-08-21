@@ -10,6 +10,12 @@ import (
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	defaultBOCPDWarmupPoints = 60
+	defaultBOCPDMaxRunLength = 120
 )
 
 // bocpdStateKey uniquely identifies a (series, aggregation) pair for BOCPD state.
@@ -60,7 +66,7 @@ type bocpdSeriesState struct {
 type BOCPDConfig struct {
 	// WarmupPoints is the number of initial points used for baseline estimation.
 	// A longer warmup captures more of the metric's natural variability, reducing
-	// false positives from normal fluctuation. Default: 120 (~2 minutes at 1Hz).
+	// false positives from normal fluctuation. Default: 60 (~1 minute at 1Hz).
 	WarmupPoints int `json:"warmup_points"`
 
 	// Hazard is the constant changepoint hazard probability.
@@ -79,8 +85,8 @@ type BOCPDConfig struct {
 	// Default: 0.7
 	CPMassThreshold float64 `json:"cp_mass_threshold"`
 
-	// MaxRunLength caps tracked run-length hypotheses for bounded compute.
-	// Default: 200
+	// MaxRunLength caps tracked run-length hypotheses and raw history.
+	// It must be at least WarmupPoints. Default: 120.
 	MaxRunLength int `json:"max_run_length"`
 
 	// PriorVarianceScale controls prior variance over the mean relative to observed variance.
@@ -103,12 +109,12 @@ type BOCPDConfig struct {
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
 func DefaultBOCPDConfig() BOCPDConfig {
 	return BOCPDConfig{
-		WarmupPoints:       120,
+		WarmupPoints:       defaultBOCPDWarmupPoints,
 		Hazard:             0.05,
 		CPThreshold:        0.6,
 		ShortRunLength:     5,
 		CPMassThreshold:    0.7,
-		MaxRunLength:       200,
+		MaxRunLength:       defaultBOCPDMaxRunLength,
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
@@ -159,6 +165,10 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	if config.MaxRunLength <= 0 {
 		config.MaxRunLength = defaults.MaxRunLength
 	}
+	if config.MaxRunLength < config.WarmupPoints {
+		pkglog.Warnf("[observer] BOCPD max_run_length=%d is below warmup_points=%d; using %d", config.MaxRunLength, config.WarmupPoints, config.WarmupPoints)
+		config.MaxRunLength = config.WarmupPoints
+	}
 	if config.PriorVarianceScale <= 0 {
 		config.PriorVarianceScale = defaults.PriorVarianceScale
 	}
@@ -184,6 +194,11 @@ func (b *BOCPDDetector) Name() string {
 
 func (b *BOCPDDetector) Ready() bool { return b.ready }
 
+// DetectorPointWindow implements observer.DetectorPointWindowRequirement.
+func (b *BOCPDDetector) DetectorPointWindow() observer.DetectorPointWindow {
+	return observer.DetectorPointWindow{MinPoints: b.config.WarmupPoints, MaxPoints: b.config.MaxRunLength}
+}
+
 // Detect implements Detector. It discovers series, reads only newly visible
 // points, and updates per-series BOCPD posterior state incrementally.
 //
@@ -200,6 +215,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 	var allAnomalies []observer.Anomaly
 
 	for _, ref := range b.cachedRefs {
+		visibleCount := storage.PointCountUpTo(ref, dataTime)
 		for _, agg := range b.config.Aggregations {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
@@ -207,6 +223,9 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			sk := bocpdStateKey{ref: ref, agg: agg}
 
 			state, exists := b.series[sk]
+			if !exists && visibleCount < b.config.WarmupPoints {
+				continue
+			}
 			if !exists {
 				state = &bocpdSeriesState{}
 				b.series[sk] = state
@@ -217,7 +236,6 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			// advances) and the common live case. WriteGeneration catches
 			// same-bucket merges and retention-churn scenarios where point
 			// count stays constant but stored values changed.
-			visibleCount := storage.PointCountUpTo(ref, dataTime)
 			writeGen := storage.WriteGeneration(ref)
 			if visibleCount <= state.lastProcessedCount && writeGen == state.lastWriteGen {
 				continue
@@ -225,7 +243,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 
 			prevLen := len(allAnomalies)
 			storage.ForEachPoint(ref, state.lastProcessedTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
-				anomaly := b.processPoint(state, p, series, agg)
+				anomaly := b.processPoint(state, p, series, agg, visibleCount >= b.config.WarmupPoints)
 				if anomaly != nil {
 					allAnomalies = append(allAnomalies, *anomaly)
 				}
@@ -275,13 +293,18 @@ func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
 
 // processPoint handles a single new observation for a series.
 // Returns an anomaly pointer if this point triggers a new alert onset.
-func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
+func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, allowAlert bool) *observer.Anomaly {
 	x := p.Value
 
 	if !state.initialized {
 		return b.warmupPoint(state, x)
 	}
 	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
+	if !allowAlert {
+		state.inAlert = false
+		state.recoveryCount = 0
+		return nil
+	}
 
 	if triggered {
 		state.recoveryCount = 0
