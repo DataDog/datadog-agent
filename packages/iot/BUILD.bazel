@@ -17,14 +17,11 @@ package_name_variables(
     name = "variables",
 )
 
-# TODO: Add the iot-agent binary and component targets here, analogous to
-# //packages/agent/dependencies:all_files and //packages/install_dir:embedded.
 # The main build dependency from iot-agent.rb is 'datadog-iot-agent'.
 pkg_filegroup(
     name = "iot_components",
     srcs = [
-        # TODO: //packages/iot/dependencies:all_files
-        # TODO: //packages/install_dir:embedded (iot-specific variant)
+        "//packages/agent/iot:all_files",
     ],
     prefix = "/opt/datadog-agent",
 )
@@ -42,6 +39,7 @@ pkg_filegroup(
 package_licenses(
     name = "license_files",
     src = ":everything",
+    prefix = "/opt/datadog-agent",
 )
 
 pkg_filegroup(
@@ -52,13 +50,28 @@ pkg_filegroup(
     ],
 )
 
+# Only a source for the debian package, which requires a single tar as input.
 pkg_tar(
-    name = "whole_distro_tar",
-    srcs = [":whole_distro"],
+    name = "whole_distro_deb_tar",
+    srcs = [
+        ":whole_distro",
+        "//cmd/agent/dist/conf.d:all_files",
+        "//packages/agent/iot:example_config",
+        "//packages/agent/iot:system_dirs",
+        "//packages/agent/iot/debian:all_files",
+    ],
     compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
+    visibility = ["//visibility:private"],
 )
+
+# Packages needed during the rpm's %pre scriptlet (from iot-agent.rb
+# runtime_script_dependency), common to RHEL and SUSE.
+_RPM_PRE_DEPS_COMMON = [
+    "coreutils",
+    "grep",
+]
 
 _DESCRIPTION = """Datadog IoT Agent
 The Datadog IoT Agent is a lightweight process that monitors system
@@ -73,7 +86,7 @@ See http://www.datadoghq.com/ for more information
 pkg_deb(
     name = "debian",
     conflicts = ["datadog-agent"],
-    data = ":whole_distro_tar",
+    data = ":whole_distro_deb_tar",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     # epoch 1
@@ -96,7 +109,15 @@ pkg_deb(
 pkg_rpm(
     name = "rpm",
     package_name = "datadog-iot-agent",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//cmd/agent/dist/conf.d:all_files",
+        "//packages/agent/iot:example_config",
+        "//packages/agent/iot:system_dirs",
+    ] + select({
+        "//packages/rules:suse": ["//packages/agent/iot/redhat:systemd_gen"],
+        "//conditions:default": ["//packages/agent/iot/redhat:all_files"],
+    }),
     conflicts = ["datadog-agent"],
     description = _DESCRIPTION,
     epoch = "1",
@@ -111,18 +132,18 @@ pkg_rpm(
     preun_scriptlet_file = "//omnibus:package-scripts/iot-agent-rpm/prerm",
     # TODO: Stamp in pipeline: 7.77.0~devel.git.394.fe0d0bb.pipeline.95313893
     release = "1",
-    # Packages needed during %pre scriptlet execution (from iot-agent.rb runtime_script_dependency).
-    # coreutils and grep are common to RHEL and SUSE.
-    # glibc-common and shadow-utils are RHEL-specific; SUSE uses glibc and shadow.
-    # TODO: use select() when a RHEL vs SUSE constraint is defined.
-    requires_contextual = {
-        "pre": [
-            "coreutils",
+    # requires_contextual can't select() a single dict value, so the whole dict
+    # is select()ed, with _RPM_PRE_DEPS_COMMON factored out of each branch.
+    requires_contextual = select({
+        "//packages/rules:suse": {"pre": _RPM_PRE_DEPS_COMMON + [
+            "glibc",
+            "shadow",
+        ]},
+        "//conditions:default": {"pre": _RPM_PRE_DEPS_COMMON + [
             "glibc-common",
-            "grep",
             "shadow-utils",
-        ],
-    },
+        ]},
+    }),
     summary = "Datadog IoT Agent",
     url = "http://www.datadoghq.com",
     version = "7",

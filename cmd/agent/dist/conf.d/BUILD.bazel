@@ -85,5 +85,6 @@ pkg_filegroup(
     visibility = [
         "//cmd/agent/dist:__pkg__",
         "//packages/agent:__subpackages__",
+        "//packages/iot:__pkg__",
     ],
 )
