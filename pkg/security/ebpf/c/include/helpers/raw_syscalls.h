@@ -43,6 +43,16 @@ __attribute__((always_inline)) struct syscall_monitor_entry_t *fetch_sycall_moni
     return entry;
 }
 
+// Lookup without insert. See sys_enter() for why the send blocks re-derive
+// their entry instead of holding on to it.
+static struct syscall_monitor_entry_t * __attribute__((always_inline)) peek_syscall_monitor_entry(u32 pid, u8 syscall_monitor_type) {
+    struct syscall_monitor_key_t key = {
+        .type = syscall_monitor_type,
+        .pid = pid,
+    };
+    return bpf_map_lookup_elem(&syscall_monitor, &key);
+}
+
 __attribute__((always_inline)) void delete_syscall_monitor_entry(u32 pid, u8 syscall_monitor_type) {
     struct syscall_monitor_key_t key = {
         .type = syscall_monitor_type,
@@ -51,55 +61,52 @@ __attribute__((always_inline)) void delete_syscall_monitor_entry(u32 pid, u8 sys
     bpf_map_delete_elem(&syscall_monitor, &key);
 }
 
-__attribute__((always_inline)) void send_or_skip_syscall_monitor_event(struct _tracepoint_raw_syscalls_sys_enter *args, struct syscall_monitor_event_t *event, struct syscall_monitor_entry_t *entry, struct syscall_monitor_entry_t *zero, u8 syscall_monitor_type) {
-    u8 should_send = 0;
-    u64 now = bpf_ktime_get_ns();
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = pid_tgid >> 32;
+// Returns the reason to send an event for `entry` now, or 0 for nothing to send.
+static u8 __attribute__((always_inline)) syscall_monitor_should_send(struct _tracepoint_raw_syscalls_sys_enter *args, struct syscall_monitor_entry_t *entry, u64 now) {
+    if (!entry->dirty) {
+        return 0;
+    }
+
+    if (now > entry->last_sent + get_syscall_monitor_event_period()) {
+        // it's been a while since we last sent something and the list of syscalls is dirty, send now
+        return 1;
+    }
 
     struct syscall_table_key_t key = {
         .id = args->id,
     };
-    if (entry->dirty) {
-        if (now > entry->last_sent + get_syscall_monitor_event_period()) {
-            // it's been a while since we last sent something and the list of syscalls is dirty, send now
-            should_send = 1;
-            goto shoud_send_event;
-        }
-        key.syscall_key = EXIT_SYSCALL_KEY;
-        if (is_syscall(&key)) {
-            // a thread is about to exit and the list of syscalls is dirty, send now
-            should_send = 2;
-            goto shoud_send_event;
-        }
-        key.syscall_key = EXECVE_SYSCALL_KEY;
-        if (is_syscall(&key)) {
-            // a new process is about to exec, flush the existing syscalls now
-            should_send = 3;
-        }
+    key.syscall_key = EXIT_SYSCALL_KEY;
+    if (is_syscall(&key)) {
+        // a thread is about to exit and the list of syscalls is dirty, send now
+        return 2;
+    }
+    key.syscall_key = EXECVE_SYSCALL_KEY;
+    if (is_syscall(&key)) {
+        // a new process is about to exec, flush the existing syscalls now
+        return 3;
+    }
+    return 0;
+}
+
+// Stages the entry's syscall mask into the event; the caller sends it.
+static void __attribute__((always_inline)) syscall_monitor_flush_entry(struct syscall_monitor_event_t *event, struct syscall_monitor_entry_t *entry, struct syscall_monitor_entry_t *zero, u64 now, u8 syscall_monitor_type) {
+    bpf_probe_read(event->syscalls, sizeof(event->syscalls), entry->syscalls);
+
+    // reset the syscalls mask for the drift monitor type
+    if (syscall_monitor_type == SYSCALL_MONITOR_TYPE_DRIFT) {
+        *entry = *zero;
     }
 
-shoud_send_event:
-    if (should_send > 0) {
-        // send an event now
-        event->event_reason = should_send;
-        bpf_probe_read(event->syscalls, sizeof(event->syscalls), entry->syscalls);
+    // regardless if we successfully send the event, update the "last_sent" field to avoid spamming the perf map
+    entry->last_sent = now;
+    entry->dirty = 0;
+}
 
-        // reset the syscalls mask for the drift monitor type
-        if (syscall_monitor_type == SYSCALL_MONITOR_TYPE_DRIFT) {
-            *entry = *zero;
-        }
-
-        // regardless if we successfully send the event, update the "last_sent" field to avoid spamming the perf map
-        entry->last_sent = now;
-        entry->dirty = 0;
-
-        // fill span context
-        fill_span_context(&event->span, &event->go_labels);
-
-        // remove last_sent and dirty from the event size, we don't care about these fields
-        send_event_ptr(args, EVENT_SYSCALLS, event);
-    }
+// Bookkeeping that must run whether or not an event was sent.
+static void __attribute__((always_inline)) syscall_monitor_post_syscall(struct _tracepoint_raw_syscalls_sys_enter *args, struct syscall_monitor_entry_t *entry, struct syscall_monitor_entry_t *zero, u64 now, u8 syscall_monitor_type) {
+    struct syscall_table_key_t key = {
+        .id = args->id,
+    };
 
     key.syscall_key = EXECVE_SYSCALL_KEY;
     if (is_syscall(&key)) {
@@ -111,6 +118,8 @@ shoud_send_event:
     key.syscall_key = EXIT_SYSCALL_KEY;
     if (is_syscall(&key)) {
         // is the process exiting ?
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 pid = pid_tgid >> 32;
         if (pid == (u32)pid_tgid) {
             // delete entry from map
             delete_syscall_monitor_entry(pid, syscall_monitor_type);
