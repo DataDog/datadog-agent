@@ -54,10 +54,9 @@ func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		cfg.ProtocolClassificationEnabled = false
-	}
 	if ebpftest.GetBuildMode() == ebpftest.SK {
+		// protocol classification not yet supported on the SK tracer
+		// (protocol_stack is still a TODO in sk_conn.h)
 		cfg.ProtocolClassificationEnabled = false
 	}
 
