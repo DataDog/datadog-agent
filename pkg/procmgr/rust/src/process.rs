@@ -9,7 +9,7 @@ use crate::handle::ProcessHandle;
 #[cfg(windows)]
 use crate::handle::ProcessWaitControl;
 use crate::platform;
-use crate::shutdown::ShutdownBudget;
+use crate::shutdown::{self, ShutdownBudget};
 use crate::spawn::{SpawnProfile, profile_for};
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
@@ -1133,7 +1133,7 @@ impl ManagedProcess {
     }
 
     pub async fn wait_for_stop(&mut self) {
-        self.wait_for_stop_since(ShutdownBudget::unlimited(Instant::now().into()))
+        self.wait_for_stop_since(ShutdownBudget::unlimited(Instant::now()))
             .await;
     }
 

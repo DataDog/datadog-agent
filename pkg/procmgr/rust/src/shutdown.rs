@@ -26,6 +26,27 @@ impl ShutdownBudget {
         }
     }
 
+    /// Prefer the SCM-anchored budget when a Windows service stop is in progress.
+    pub(crate) fn prefer_service_stop(fallback: Self) -> Self {
+        #[cfg(windows)]
+        {
+            if let Some(signal_time) = crate::platform::service_stop_signal_time() {
+                return Self::service_stop(signal_time);
+            }
+        }
+        fallback
+    }
+
+    /// Re-read the active service stop signal (for example after graceful wait).
+    pub(crate) fn refresh(self) -> Self {
+        Self::prefer_service_stop(self)
+    }
+
+    /// Budget for a single Stop RPC or child teardown outside ordered shutdown.
+    pub(crate) fn for_single_stop() -> Self {
+        Self::prefer_service_stop(Self::unlimited(Instant::now()))
+    }
+
     /// Budget for ordered shutdown after a service stop signal.
     pub(crate) fn service_stop(signal_time: Instant) -> Self {
         #[cfg(windows)]
@@ -66,6 +87,26 @@ impl ShutdownBudget {
     }
 }
 
+/// Wait for graceful child exit, or cut short when SCM requests service shutdown.
+pub(crate) async fn wait_graceful_or_shutdown<T, F: std::future::Future<Output = T>>(
+    graceful_budget: Duration,
+    fut: F,
+) -> Result<T, tokio::time::error::Elapsed> {
+    #[cfg(windows)]
+    {
+        tokio::select! {
+            _ = crate::platform::shutdown_notify().notified() => {
+                Err(tokio::time::error::Elapsed(()))
+            }
+            result = tokio::time::timeout(graceful_budget, fut) => result,
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        tokio::time::timeout(graceful_budget, fut).await
+    }
+}
+
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();
@@ -93,6 +134,17 @@ mod tests {
     fn sleep_config() -> crate::config::ProcessConfig {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         test_helpers::make_config(cmd, args)
+    }
+
+    #[test]
+    fn test_prefer_service_stop_without_signal_preserves_fallback() {
+        let signal_time = Instant::now();
+        let fallback = ShutdownBudget::unlimited(signal_time);
+        let budget = ShutdownBudget::prefer_service_stop(fallback);
+        assert_eq!(
+            budget.graceful_budget(Duration::from_secs(90)),
+            Duration::from_secs(90)
+        );
     }
 
     #[tokio::test]
