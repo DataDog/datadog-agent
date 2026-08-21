@@ -30,6 +30,7 @@ func (m *mockInventoryAgent) Set(name string, value interface{}) {
 func (m *mockInventoryAgent) Get() map[string]interface{} {
 	return m.data
 }
+func (m *mockInventoryAgent) ForceCollect() error { return nil }
 
 // Mock simple pour le lifecycle
 type mockLifecycle struct {
