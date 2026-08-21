@@ -112,7 +112,7 @@ func (s *packageApmInjectSuite) requireSystemd() {
 // /etc/ld.so.preload, and tracer injection still produces traces end-to-end.
 //
 // Without the service, /etc/ld.so.preload would only be written at install
-// time and rebooting after a clean shutdown (which clears it via ExecStop)
+// time and rebooting after a clean shutdown (which clears it via ExecStopPost)
 // would leave the host uninstrumented until the next install action.
 func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 	s.requireSystemd()
@@ -125,7 +125,7 @@ func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 
 	s.reboot()
 
-	// After reboot, ExecStop ran during shutdown (clearing ld.so.preload) and
+	// After reboot, ExecStopPost ran during shutdown (clearing ld.so.preload) and
 	// ExecStart ran on boot (re-adding the entry). The service unit must be
 	// active and the file must contain the injector path again.
 	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
@@ -156,10 +156,11 @@ func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 // boot. After the reboot that symlink is gone, so the ld.so.preload entry
 // resolves to a missing file and ld.so silently skips it — init(1) and every
 // other process come up normally. Crucially this holds even if shutdown-time
-// cleanup (ExecStop) never ran: recovery does not depend on any binary
+// cleanup (ExecStopPost) never ran: recovery does not depend on any binary
 // executing successfully during shutdown. On the next boot ExecStart's
 // verifySharedLib detects the broken lib (via LD_PRELOAD=lib echo 1), refuses
-// to recreate the symlink, and leaves the service in failed state.
+// to recreate the symlink, and leaves the service in failed state. Docker must
+// start only after that stale preload entry has been cleaned up.
 //
 // Reboot mechanism: the test uses shutdown(8) to schedule a graceful reboot
 // ONE MINUTE before installing the crashy lib. At T+1min systemd activates
@@ -171,6 +172,11 @@ func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 func (s *packageApmInjectSuite) TestSystemdServiceRebootBrokenInjector() {
 	s.requireSystemd()
 
+	s.host.InstallDocker()
+	// InstallDocker starts the daemon but some packages, notably SUSE's, do
+	// not enable it. Enable it explicitly so Docker and datadog-apm-inject are
+	// part of the same boot transaction and exercise the service ordering.
+	s.Env().RemoteHost.MustExecute("sudo systemctl enable docker.service")
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -240,5 +246,9 @@ func (s *packageApmInjectSuite) TestSystemdServiceRebootBrokenInjector() {
 
 	// The agent itself is unaffected — it does not depend on the inject
 	// service for its own operation.
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+	// Docker is ordered after datadog-apm-inject so it starts only after the
+	// failed ExecStart has removed the stale /run entry from ld.so.preload.
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service", "docker.service")
+	_, err = host.Execute("sudo docker info")
+	require.NoError(s.T(), err, "Docker daemon is not usable after reboot with a stale injector entry")
 }

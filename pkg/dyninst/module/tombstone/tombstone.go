@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package tombstone implements a simple mechanism to protect against repeated
 // crashes when placing probes by writing a file to disk while loading a program

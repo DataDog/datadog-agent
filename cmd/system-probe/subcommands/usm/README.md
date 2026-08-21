@@ -228,7 +228,7 @@ See the [eBPF subcommands README](../ebpf/README.md) for full documentation on e
 - Filters connections based on protocol flags (`--tcp`, `--udp`)
 - Connections sorted by protocol and local port
 - Use standard Unix tools like `grep` for additional filtering (e.g., `| grep LISTEN`)
-- Linux with eBPF support only (requires `linux_bpf` build tag)
+- Linux with eBPF support only (requires `bpf` build tag on Linux)
 
 ### Symbols Ls Command
 - Parses ELF binaries using `pkg/util/safeelf` package for safe symbol table reading

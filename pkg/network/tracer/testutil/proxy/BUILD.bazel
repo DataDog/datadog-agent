@@ -116,11 +116,18 @@ dd_agent_go_test(
     name = "proxy_test",
     srcs = ["unix_transparent_proxy_test.go"],
     embed = [":proxy"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
-    deps = [
-        "//pkg/network/protocols/http/testutil",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/protocols/http/testutil",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

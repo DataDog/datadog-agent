@@ -45,7 +45,6 @@ logs_config:
 	provides, err := NewComponent(Requires{
 		Lifecycle: lc,
 		Config:    cfg,
-		Log:       &noopLogComponent{},
 		Recorder:  option.None[recorderdef.Component](),
 	})
 	require.NoError(t, err)

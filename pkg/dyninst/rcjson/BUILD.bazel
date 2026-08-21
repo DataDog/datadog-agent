@@ -18,7 +18,7 @@ go_library(
 go_stringer(
     name = "type_string",
     src = "type.go",
-    build_tags = ["linux_bpf"],
+    build_tags = ["bpf"],
     linecomment = True,
     output = "type_string.go",
     types = ["Type"],

@@ -87,6 +87,7 @@ var (
 		string(semconv1_27.K8SCronJobNameKey):     "kube_cronjob",
 		string(semconv1_27.K8SNamespaceNameKey):   "kube_namespace",
 		string(semconv1_27.K8SPodNameKey):         "pod_name",
+		string(semconv1_27.K8SNodeNameKey):        "kube_node",
 	}
 
 	containerDDTags = (func() map[string]struct{} {

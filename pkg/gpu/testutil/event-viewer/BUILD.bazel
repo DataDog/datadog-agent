@@ -5,15 +5,24 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/testutil/event-viewer",
     visibility = ["//visibility:private"],
-    deps = ["//pkg/gpu/testutil"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/gpu/testutil",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/gpu/testutil",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_binary(
     name = "event-viewer",
     embed = [":event-viewer_lib"],
     gotags = [
-        "linux_bpf",
+        "bpf",
         "test",
     ],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )

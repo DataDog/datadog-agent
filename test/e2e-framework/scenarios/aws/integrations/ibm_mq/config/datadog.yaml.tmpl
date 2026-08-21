@@ -1,0 +1,16 @@
+## datadog.yaml overlay, rendered only when profiling is requested.
+## Capture BOTH Python/ddtrace integration profiling and Go internal
+## profiling so per-check CPU-sec / execution-time cost can be measured.
+{{- if .IntegrationProfiling }}
+integration_profiling: true
+integration_tracing: true
+integration_tracing_exhaustive: true
+{{- end }}
+{{- if .InternalProfiling }}
+internal_profiling:
+  enabled: true
+  period: 30s
+  cpu_duration: 15s
+telemetry:
+  enabled: true
+{{- end }}

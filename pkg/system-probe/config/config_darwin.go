@@ -9,7 +9,7 @@ package config
 
 import "github.com/DataDog/datadog-agent/pkg/config/model"
 
-// eBPFMapPreallocationSupported returns false on non linux_bpf systems.
+// eBPFMapPreallocationSupported returns false on non bpf systems.
 func eBPFMapPreallocationSupported() bool {
 	return false
 }

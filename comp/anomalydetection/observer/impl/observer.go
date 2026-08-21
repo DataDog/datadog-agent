@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -21,13 +20,13 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 
@@ -39,7 +38,6 @@ import (
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 	Config    config.Component
-	Log       log.Component
 	Telemetry telemetry.Component
 
 	// Recorder is an optional component for transparent metric recording.
@@ -205,17 +203,17 @@ func logCountBucketConfigFromAgent(cfg config.Component) LogCountBucketConfig {
 	if width := cfg.GetDuration("anomaly_detection.logs.time_buckets.bucket_width"); width > 0 {
 		config.BucketSeconds = int64(width.Seconds())
 	} else if config.Enabled {
-		pkglog.Warnf("anomaly_detection.logs.time_buckets.bucket_width must be > 0, got %s; using 5s", width)
+		logging.Warnf("anomaly_detection.logs.time_buckets.bucket_width must be > 0, got %s; using 5s", width)
 	}
 	if ttl := cfg.GetDuration("anomaly_detection.logs.time_buckets.idle_ttl"); ttl >= 0 {
 		config.IdleTTLSeconds = int64(ttl.Seconds())
 	} else if config.Enabled {
-		pkglog.Warnf("anomaly_detection.logs.time_buckets.idle_ttl must be >= 0, got %s; using 5m", ttl)
+		logging.Warnf("anomaly_detection.logs.time_buckets.idle_ttl must be >= 0, got %s; using 5m", ttl)
 	}
 	if retention := cfg.GetDuration("anomaly_detection.logs.time_buckets.retention"); retention >= 0 {
 		config.RetentionSeconds = int64(retention.Seconds())
 	} else if config.Enabled {
-		pkglog.Warnf("anomaly_detection.logs.time_buckets.retention must be >= 0, got %s; using 10m", retention)
+		logging.Warnf("anomaly_detection.logs.time_buckets.retention must be >= 0, got %s; using 10m", retention)
 	}
 	return config
 }
@@ -242,7 +240,6 @@ func NewComponent(deps Requires) (Provides, error) {
 	if cfg == nil {
 		return Provides{Comp: &disabledObserver{}}, nil
 	}
-
 	// Off-by-default fast path: when neither analysis nor recording is active the
 	// live observer noops every handle (see handleFunc below) and installs no log
 	// tap, so skip building the catalog, engine, storage, 1000-cap channel, and
@@ -269,7 +266,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
 			d := cfg.GetDuration("anomaly_detection.storage.point_retention")
 			if d < 0 {
-				pkglog.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s — using default", d)
+				logging.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s — using default", d)
 			} else {
 				storageCfg.PointRetentionSecs = int64(d.Seconds())
 			}
@@ -310,7 +307,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	var scorer *anomalyScorer
 	if rawScorer != nil {
 		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerSeverity, obsTelemetry.scorerEwma)
-		pkglog.Infof("[observer] anomaly_scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
+		logging.Infof("anomaly scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
 	}
 
@@ -371,7 +368,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	if !obs.ingestMetricsEnabled {
-		pkglog.Warn("[observer] anomaly_detection.metrics.enabled=false: externally-ingested metrics will be dropped at the handle factory")
+		logging.Warn("anomaly_detection.metrics.enabled=false: externally-ingested metrics will be dropped at the handle factory")
 	}
 
 	// Set up handle function based on recording and analysis configuration.
@@ -398,7 +395,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			digestPath := filepath.Join(parquetDir, detectDigestFileName)
 			cleanup, err := enableDetectDigestRecordingToFile(eng, digestPath)
 			if err != nil {
-				deps.Log.Warnf("[observer] detect digest recording disabled: %v", err)
+				logging.Warnf("detect digest recording disabled: %v", err)
 			} else {
 				obs.digestCleanup = cleanup
 			}
@@ -406,7 +403,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			advPath := filepath.Join(parquetDir, advanceLogFileName)
 			advRec, err := newAdvanceLogRecorder(advPath)
 			if err != nil {
-				deps.Log.Warnf("[observer] advance log recording disabled: %v", err)
+				logging.Warnf("advance log recording disabled: %v", err)
 			} else {
 				eng.onAdvance = advRec.record
 				obs.advanceLogCleanup = func() {
@@ -429,7 +426,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
 	logsRules, err := logsfilter.LoadRules(cfg, logsProcessingRulesKey)
 	if err != nil {
-		deps.Log.Warnf("[observer] %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
+		logging.Warnf("%s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
 		logsRules = &logsfilter.Rules{}
 	}
 
@@ -461,9 +458,9 @@ func NewComponent(deps Requires) (Provides, error) {
 			defer ticker.Stop()
 			for range ticker.C {
 				if err := obs.DumpMetrics(dumpPath); err != nil {
-					fmt.Fprintf(os.Stderr, "[observer] dump error: %v\n", err)
+					logging.Errorf("dump error: %v", err)
 				} else {
-					fmt.Printf("[observer] dumped metrics to %s\n", dumpPath)
+					logging.Debugf("dumped metrics to %s", dumpPath)
 				}
 			}
 		}()
@@ -709,7 +706,7 @@ func (o *observerImpl) UniqueAnomalySourceCount() int {
 // GetHandle returns a lightweight handle for a named source.
 // If a recorder is configured, the handle will be wrapped to record metrics.
 func (o *observerImpl) GetHandle(name string) observerdef.Handle {
-	pkglog.Infof("[observer] getting handle for %s", name)
+	logging.Infof("getting handle for %s", name)
 	return o.handleFunc(name)
 }
 

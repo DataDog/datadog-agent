@@ -17,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/config",
+        "//comp/anomalydetection/internal/logging",
         "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/logssource/def",
         "//comp/anomalydetection/observer/def",
@@ -24,7 +25,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/hostname",
         "//comp/core/hostname/hostnameinterface/def",
-        "//comp/core/log/def",
         "//comp/core/tagger/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/util/workloadmeta",
@@ -50,7 +50,6 @@ go_library(
         "//pkg/logs/tailers/file",
         "//pkg/logs/types",
         "//pkg/logs/util/opener",
-        "//pkg/util/log",
         "//pkg/util/option",
     ],
 )

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // This file uses the DWARF and cilium/ebpf libraries to build a source map for an eBPF object file.
 // This map links each instruction in the program to the source line in the original C code. This task

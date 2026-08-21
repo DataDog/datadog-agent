@@ -39,7 +39,7 @@ func ValidateSocketAddress(sockAddress string) error {
 	return nil
 }
 
-// eBPFMapPreallocationSupported returns false on non linux_bpf systems.
+// eBPFMapPreallocationSupported returns false on non bpf systems.
 func eBPFMapPreallocationSupported() bool {
 	return false
 }

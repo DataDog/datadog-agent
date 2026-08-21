@@ -169,19 +169,19 @@ func TestReplaceGoTests_NoApplicableTagSetKeepsManualGoTest(t *testing.T) {
 
 func TestReplaceGoTests_LinuxBPFStillUsesMacro(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "pkg_test.go"), []byte("//go:build linux_bpf\n\npackage x\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "pkg_test.go"), []byte("//go:build linux && bpf\n\npackage x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	orig := rule.NewRule("go_test", "pkg_test")
 	orig.SetAttr("srcs", []string{"pkg_test.go"})
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("linux_bpf")})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("bpf")})
 
 	if len(result.Gen) != 1 || result.Gen[0].Kind() != "dd_agent_go_test" {
 		t.Fatalf("expected one dd_agent_go_test, got %v", result.Gen)
 	}
-	if got := attrGotagsSets(result.Gen[0]); !tagSetsEqual(got, [][]string{tagsList("linux_bpf")}) {
-		t.Errorf("gotags_sets = %v, want [[linux_bpf]]", got)
+	if got := attrGotagsSets(result.Gen[0]); !tagSetsEqual(got, [][]string{tagsList("bpf")}) {
+		t.Errorf("gotags_sets = %v, want [[bpf]]", got)
 	}
 	if len(result.Empty) != 1 || result.Empty[0].Kind() != "go_test" {
 		t.Errorf("expected replaced go_test in empty rules, got %v", result.Empty)
@@ -698,7 +698,7 @@ func TestApplicableTagSets(t *testing.T) {
 	}
 
 	noConstraint := write("plain_test.go", "")
-	linuxBpf := write("bpf_test.go", "//go:build linux_bpf")
+	linuxBpf := write("bpf_test.go", "//go:build linux && bpf")
 	requireFips := write("fips_test.go", "//go:build requirefips")
 	windowsOnly := write("win_test.go", "//go:build windows")
 	platformAlternative := write("platform_alternative_test.go", "//go:build trivy || windows")
@@ -714,7 +714,7 @@ func TestApplicableTagSets(t *testing.T) {
 	alternatives := write("alternatives_test.go", "//go:build docker || containerd")
 	depOnly := write("dep_only_test.go", "//go:build trivy_no_javadb")
 	taggedLibrary := write("tagged.go", "//go:build kubeapiserver")
-	linuxBpfLibrary := write("bpf.go", "//go:build linux_bpf")
+	linuxBpfLibrary := write("bpf.go", "//go:build linux && bpf")
 	orchestrator := write("orchestrator_test.go", "//go:build orchestrator")
 	kubeAPIServerWithoutKubelet := write("kube_no_kubelet_test.go", "//go:build kubeapiserver && !kubelet")
 	kubernetesTagSet := tagsList("cel", "clusterchecks", "kubeapiserver", "kubelet", "orchestrator")
@@ -751,9 +751,9 @@ func TestApplicableTagSets(t *testing.T) {
 			wantDefault: true,
 		},
 		{
-			name:        "linux_bpf gets focused variant",
+			name:        "bpf gets focused variant",
 			srcs:        []string{linuxBpf},
-			wantTagSets: [][]string{tagsList("linux_bpf")},
+			wantTagSets: [][]string{tagsList("bpf")},
 		},
 		{
 			name:        "requirefips gets focused variant",
@@ -790,12 +790,12 @@ func TestApplicableTagSets(t *testing.T) {
 			name:        "unconstrained and tagged files need both targets",
 			srcs:        []string{linuxBpf, noConstraint},
 			wantDefault: true,
-			wantTagSets: [][]string{tagsList("linux_bpf")},
+			wantTagSets: [][]string{tagsList("bpf")},
 		},
 		{
 			name:        "independent tagged files get independent variants",
 			srcs:        []string{linuxBpf, requireFips},
-			wantTagSets: [][]string{tagsList("linux_bpf"), tagsList("requirefips")},
+			wantTagSets: [][]string{tagsList("bpf"), tagsList("requirefips")},
 		},
 		{
 			name:        "and expression gets combined variant",
@@ -825,7 +825,7 @@ func TestApplicableTagSets(t *testing.T) {
 		{
 			name:        "unreadable source does not hide later variants",
 			srcs:        []string{"missing_test.go", linuxBpf},
-			wantTagSets: [][]string{tagsList("linux_bpf")},
+			wantTagSets: [][]string{tagsList("bpf")},
 		},
 		{
 			name:        "large expression uses bounded combined variant",
@@ -862,7 +862,7 @@ func TestApplicableTagSets(t *testing.T) {
 			name:              "unrelated tags still derive focused variants",
 			srcs:              []string{linuxBpf},
 			configuredTagSets: [][]string{kubernetesTagSet},
-			wantTagSets:       [][]string{tagsList("linux_bpf")},
+			wantTagSets:       [][]string{tagsList("bpf")},
 		},
 		{
 			name:              "configured set grows to cover tags it does not name",
@@ -891,12 +891,12 @@ func TestApplicableTagSets(t *testing.T) {
 			wantTagSets:       [][]string{kubernetesTagSet},
 		},
 		{
-			name:              "untagged test embedding linux_bpf library selects configured set",
+			name:              "untagged test embedding bpf library selects configured set",
 			srcs:              []string{noConstraint},
 			librarySrcs:       []string{linuxBpfLibrary},
-			configuredTagSets: [][]string{tagsList("linux_bpf")},
+			configuredTagSets: [][]string{tagsList("bpf")},
 			wantDefault:       true,
-			wantTagSets:       [][]string{tagsList("linux_bpf")},
+			wantTagSets:       [][]string{tagsList("bpf")},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
