@@ -69,6 +69,8 @@ func WaitForFakeRunnerKeyAcknowledged(t *testing.T, client *fakeintakeclient.Cli
 		assert.NoError(c, err)
 		for _, applyState := range stats.ApplyStates {
 			if applyState.Product == runnerKeysRCProduct && applyState.ConfigID == fakeRunnerKeyConfigID {
+				assert.Equal(c, stats.Version, applyState.Version,
+					"PAR acknowledged a stale signing key version")
 				assert.Equal(c, uint64(remoteconfigstate.ApplyStateAcknowledged), applyState.ApplyState,
 					"PAR did not acknowledge the signing key: %s", applyState.ApplyError)
 				return
