@@ -744,7 +744,7 @@ func TestJetsonAgxOrinNoVoltageFields(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertMetricMissing(t, "Gauge", "nvidia.jetson.power.instant")
 	mock.AssertMetricMissing(t, "Gauge", "nvidia.jetson.power.average")
-	mock.AssertNumberOfCalls(t, "Gauge", 13)
+	mock.AssertNumberOfCalls(t, "Gauge", 14)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
