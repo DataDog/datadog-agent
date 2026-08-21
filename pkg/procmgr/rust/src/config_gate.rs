@@ -1004,6 +1004,24 @@ process_config:
         });
     }
 
+    #[test]
+    fn legacy_enabled_negative_prefixed_hex_enables_container_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: -0x1\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(
+                condition_config_any_met(&process_agent_conditions(agent)),
+                "process_config.enabled: -0x1 must normalize to containers-only like Go GetString(\"-1\")"
+            );
+        });
+    }
+
     /// Mirrors `TestProcConfigEnabledTransformPrecedence` in pkg/config/setup/process_test.go.
     #[test]
     fn explicit_container_collection_wins_over_legacy_enabled() {
