@@ -3,9 +3,10 @@ name: "Code review"
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, ready_for_review]
     branches:
       - main
+      - "[0-9]+.[0-9]+.x"
   issue_comment:
     types: [created]
 
@@ -13,6 +14,7 @@ permissions: {}
 
 jobs:
   review:
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.draft == false || !contains(github.event.pull_request.labels.*.name, 'no-draft-review'))) }}
     permissions:
       contents: read
       pull-requests: write
@@ -20,9 +22,8 @@ jobs:
     uses: DataDog/code-review-action/.github/workflows/code-review.yml@56d6862711348b11ec2603edfb29c52c09f4b84c # v1.1.0
     with:
       provider: codex
-      # 'always'    → runs automatically on pull_request events above
-      # 'on_demand' → runs when a write-access collaborator comments /dd-review
-      trigger_mode: on_demand
+      # Review PRs when they are opened or transition out of draft. Use on_demand for issue_comments
+      trigger_mode: ${{ github.event_name == 'pull_request' && 'always' || 'on_demand' }}
       # Root-level files apply to every PR.
       # Sub-directory files apply only when the PR touches files under that prefix.
       prompt_file_pattern: "**/codereview_guideline.md"
