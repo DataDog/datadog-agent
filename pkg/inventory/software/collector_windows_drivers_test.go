@@ -9,6 +9,7 @@ package software
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -675,8 +676,9 @@ func TestDeviceDriverIdentityUsesDeviceDescription(t *testing.T) {
 	})
 
 	t.Run("an empty description is a warning naming the instance id, not a friendly-name fallback", func(t *testing.T) {
+		const instanceID = `PCI\NO_DESCRIPTION`
 		collector := deviceDriverCollectorFor([]winutil.DeviceDriver{{
-			InstanceID: `PCI\NO_DESCRIPTION`, DriverVersion: "1.0.0.0", InfName: "oem1.inf",
+			InstanceID: instanceID, DriverVersion: "1.0.0.0", InfName: "oem1.inf",
 		}})
 
 		entries, warnings, err := collector.Collect()
@@ -684,7 +686,9 @@ func TestDeviceDriverIdentityUsesDeviceDescription(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, entries)
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0].Message, `PCI\NO_DESCRIPTION`)
+		// The warning is built with %q, which renders the instance id's backslash as \\, so the
+		// expected fragment is derived the same way rather than hardcoded with the wrong escaping.
+		assert.Contains(t, warnings[0].Message, fmt.Sprintf("%q", instanceID))
 	})
 }
 

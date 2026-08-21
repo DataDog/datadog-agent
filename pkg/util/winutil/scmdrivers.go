@@ -113,18 +113,27 @@ func queryDriverImagePath(manager *mgr.Mgr, name string) string {
 		}
 	}()
 
-	buf := make([]byte, 4096)
+	// The buffer is []uint64, not []byte: QUERY_SERVICE_CONFIG holds *uint16 fields, which
+	// require 8-byte alignment on amd64, and Go only guarantees that alignment for the backing
+	// array of a []uint64 -- a []byte's first element is not provably aligned for a pointer-
+	// containing struct. Casting a []byte buffer this way fails checkptr under race builds
+	// ("misaligned pointer conversion") and can crash the real QueryServiceConfigW call with an
+	// access violation otherwise, both observed in CI.
+	const initialWords = 4096 / 8
+	words := initialWords
 	for {
+		buf := make([]uint64, words)
+		bufSize := uint32(words) * 8
 		var bytesNeeded uint32
 		config := (*windows.QUERY_SERVICE_CONFIG)(unsafe.Pointer(&buf[0]))
-		err = windows.QueryServiceConfig(handle, config, uint32(len(buf)), &bytesNeeded)
+		err = windows.QueryServiceConfig(handle, config, bufSize, &bytesNeeded)
 		if err == nil {
 			return windows.UTF16PtrToString(config.BinaryPathName)
 		}
-		if err != windows.ERROR_INSUFFICIENT_BUFFER || bytesNeeded <= uint32(len(buf)) {
+		if err != windows.ERROR_INSUFFICIENT_BUFFER || bytesNeeded <= bufSize {
 			log.Debugf("failed to query config for driver service %q: %v", name, err)
 			return ""
 		}
-		buf = make([]byte, bytesNeeded)
+		words = int((bytesNeeded + 7) / 8)
 	}
 }
