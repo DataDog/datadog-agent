@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -23,8 +22,9 @@ import (
 )
 
 const (
-	privateActionRunnerStartedLogLine     = "Private action runner starting"
-	privateActionRunnerKeysManagerLogLine = "Keys manager ready"
+	privateActionRunnerStartedLogLine      = "Private action runner starting"
+	privateActionRunnerRCSubscribedLogLine = "Subscribing to remote config updates"
+	privateActionRunnerKeysManagerLogLine  = "Keys manager ready"
 )
 
 func generateTestPrivateActionRunnerConfig(t *testing.T) string {
@@ -52,21 +52,8 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 	svcManager := common.GetServiceManager(host)
 	s.Require().NotNil(svcManager)
 
-	// Keep the core Agent from fetching the signing key before PAR has subscribed.
-	_, err := svcManager.Stop(coreAgentServiceName)
-	s.Require().NoError(err)
-	s.T().Cleanup(func() {
-		_, _ = svcManager.Start(coreAgentServiceName)
-	})
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		_, statusErr := svcManager.Status(coreAgentServiceName)
-		require.Error(c, statusErr)
-	}, 30*time.Second, time.Second, "core Agent should be stopped")
-
-	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
-
 	// Start the private action runner service
-	_, err = svcManager.Start(privateActionRunnerServiceName)
+	_, err := svcManager.Start(privateActionRunnerServiceName)
 	s.Require().NoError(err)
 
 	// Verify the service is running
@@ -93,15 +80,12 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
 
-	// PAR is now running and subscribed. Restart the core Agent so its first
-	// remote-config fetch includes AP_RUNNER_KEYS and delivers the signing key.
-	_, err = svcManager.Start(coreAgentServiceName)
-	s.Require().NoError(err)
+	// Push the key only after PAR has subscribed. This bumps the fakeintake RC
+	// version after the Core Agent knows about the AP_RUNNER_KEYS client.
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		status, statusErr := svcManager.Status(coreAgentServiceName)
-		require.NoError(c, statusErr)
-		require.Contains(c, status, "active")
-	}, 2*time.Minute, 5*time.Second, "core Agent should be active")
+		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerRCSubscribedLogLine, privateActionRunnerLogFile))
+	}, 2*time.Minute, 5*time.Second, "private action runner should subscribe to remote config")
+	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerKeysManagerLogLine, privateActionRunnerLogFile))
