@@ -1393,6 +1393,49 @@ pub mod tests {
     }
 
     #[test]
+    fn test_short_run_timestamp_consumed_prevents_downtime_false_reset() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.restart_sec = Some(1.0);
+        cfg.runtime_success_sec = Some(30);
+        let mut proc =
+            ManagedProcess::new_config("short-run".into(), test_helpers::test_uuid(), cfg);
+
+        proc.restarts.last_spawn_time = Some(Instant::now() - Duration::from_secs(1));
+        proc.restarts.current_delay = 8.0;
+        proc.restarts.count = 3;
+
+        assert!(
+            !proc
+                .restarts
+                .record(proc.config.restart_delay(), proc.config.runtime_success()),
+            "short run should not count as runtime success"
+        );
+        assert_eq!(proc.restarts.count, 4);
+        assert!(
+            (proc.restarts.current_delay - 8.0).abs() < 0.001,
+            "backoff should not reset after short run"
+        );
+        assert!(
+            proc.restarts.last_spawn_time.is_none(),
+            "spawn timestamp must be consumed on first record"
+        );
+
+        proc.restarts.advance_backoff(10.0);
+        proc.restarts
+            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert_eq!(
+            proc.restarts.count, 5,
+            "failed respawn after delay should not reset count"
+        );
+        assert!(
+            (proc.restarts.current_delay - 10.0).abs() < 0.001,
+            "failed respawn after delay should preserve advanced backoff"
+        );
+    }
+
+    #[test]
     fn test_runtime_success_reset_applies_once_per_successful_run() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
