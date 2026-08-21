@@ -203,6 +203,12 @@ func parseText(text string, contentType string) (string, error) {
 	}
 	switch mediaType {
 	case "application/openmetrics-text":
+		// Intermediate chunks from feedPrometheusParser won't have # EOF.
+		// The OpenMetrics parser requires it, so append it when missing.
+		trimmed := strings.TrimRight(text, " \t\n\r")
+		if !strings.HasSuffix(trimmed, "# EOF") {
+			data = append(data, "\n# EOF\n"...)
+		}
 		parser = textparse.NewOpenMetricsParser(data, st)
 	default:
 		parser = textparse.NewPromParser(data, st, false)
