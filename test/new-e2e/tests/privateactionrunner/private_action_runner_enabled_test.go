@@ -80,16 +80,28 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
 
-	// Push the key only after PAR has subscribed. This bumps the fakeintake RC
-	// version after the Core Agent knows about the AP_RUNNER_KEYS client.
+	// Push the key only after PAR has subscribed and the Core Agent has had time
+	// to report the AP_RUNNER_KEYS client in its backend requests.
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerRCSubscribedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner should subscribe to remote config")
-	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
+
+	client := s.Env().FakeIntake.Client()
+	stats, err := client.RCStats()
+	s.Require().NoError(err)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		current, statsErr := client.RCStats()
+		assert.NoError(c, statsErr)
+		if statsErr == nil {
+			assert.GreaterOrEqual(c, current.Polls, stats.Polls+2)
+		}
+	}, 45*time.Second, time.Second, "Core Agent should poll after PAR subscribes")
+	PushFakeRunnerKeysConfig(s.T(), client)
+	WaitForFakeRunnerKeyAcknowledged(s.T(), client, 5*time.Minute)
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerKeysManagerLogLine, privateActionRunnerLogFile))
-	}, 5*time.Minute, 5*time.Second, "private action runner log should report the keys manager ready")
+	}, 30*time.Second, time.Second, "private action runner log should report the keys manager ready")
 }
 
 func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerServiceRestart() {
