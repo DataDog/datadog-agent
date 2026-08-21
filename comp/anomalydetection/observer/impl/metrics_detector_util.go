@@ -12,6 +12,18 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
+const scanMaxPoints = 120
+
+// appendPointWindow retains the newest maxPoints points in buf.
+func appendPointWindow(buf []observer.Point, maxPoints int, point observer.Point) []observer.Point {
+	if len(buf) < maxPoints {
+		return append(buf, point)
+	}
+	copy(buf, buf[1:])
+	buf[len(buf)-1] = point
+	return buf
+}
+
 func parseAggregateConfig(names []string) []observer.Aggregate {
 	if len(names) == 0 {
 		return nil
