@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
@@ -70,9 +71,10 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 
 func (s statusProvider) populateStatus() map[string]interface{} {
 	port := s.Config.GetInt("apm_config.debug.port")
+	timeout := s.Config.GetDuration("server_timeout") * time.Second
 
 	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection)
+	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout))
 	if err != nil {
 		return map[string]interface{}{
 			"port":  port,

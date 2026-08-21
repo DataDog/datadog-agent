@@ -220,6 +220,7 @@ use_repo(
     "com_github_masterminds_sprig_v3",
     "com_github_mattn_go_sqlite3",
     "com_github_mdlayher_netlink",
+    "com_github_mdlayher_socket",
     "com_github_mdlayher_vsock",
     "com_github_microsoft_go_winio",
     "com_github_microsoft_hcsshim",

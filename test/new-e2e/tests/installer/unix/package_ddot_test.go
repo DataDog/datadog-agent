@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/stretchr/testify/require"
@@ -18,9 +19,12 @@ import (
 
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/ddot"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
+
+var ReplacedByProcmgr = map[string]string{
+	ddotUnit: ddotProcess,
+}
 
 type packageDDOTSuite struct {
 	packageBaseSuite
@@ -74,12 +78,15 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 
 	// Wait for services to be active
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	if s.host.ProcmgrEnabled() {
+		s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+		s.host.WaitForProcessesRunning(s.T(), ddotProcess)
+	} else {
+		s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, ddotUnit)
+	}
 
 	state := s.host.State()
-	s.assertCoreUnits(state, false)
-	state.AssertUnitsLoaded(ddotUnit)
-	state.AssertUnitsDead(ddotUnit)
+	s.assertCoreUnits(state, false, true)
 
 	// Verify configuration files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
@@ -87,18 +94,19 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 
 	// Verify otelcollector configuration is present in datadog.yaml
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
-
-	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
-	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
-	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 }
 
-func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
+func (s *packageDDOTSuite) TestInstallDDOTLegacyPackageInstaller() {
 	// Install datadog-agent (base infrastructure)
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+
+	if s.host.ProcmgrEnabled() {
+		s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	} else {
+		s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	}
 
 	// Install ddot
 	s.host.Run("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
@@ -107,10 +115,16 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit, ddotUnit)
+	// datadog-agent-ddot.service here is the legacy standalone package's own systemd unit (a real
+	// unit regardless of ProcmgrEnabled, unlike the agent-embedded extension's procmgr process).
+	waitUnits := []string{agentUnit, traceUnit, ddotUnit}
+	if s.host.ProcmgrEnabled() {
+		waitUnits = append(waitUnits, procmgrUnit)
+	}
+	s.host.WaitForUnitActive(s.T(), waitUnits...)
 
 	state := s.host.State()
-	s.assertCoreUnits(state, true)
+	s.assertCoreUnits(state, true, false)
 	s.assertDDOTUnits(state, false)
 
 	// Verify files exist
@@ -168,33 +182,24 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 		s.T().Fatalf("unsupported package manager: %s", s.host.GetPkgManager())
 	}
 
-	// Step 5: ddot must NOT have started — there is no datadog.yaml to enable it.
+	// Step 5: otel-config.yaml must exist and contain the api_key and site from env vars.
 	state := s.host.State()
-	state.AssertUnitsDead(ddotUnit)
-
-	// Step 6: otel-config.yaml must exist and contain the api_key and site from env vars.
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 	s.host.Run(fmt.Sprintf("sudo grep -q '%s' /etc/datadog-agent/otel-config.yaml", testAPIKey))
 	s.host.Run(fmt.Sprintf("sudo grep -q '%s' /etc/datadog-agent/otel-config.yaml", testSite))
 	state.AssertPathDoesNotExist("/etc/datadog-agent/datadog.yaml")
 
-	// Step 7: restore datadog.yaml and append the otelcollector activation stanza.
+	// Step 6: restore datadog.yaml and append the otelcollector activation stanza.
 	s.Env().RemoteHost.MustExecute("sudo mv /etc/datadog-agent/datadog.yaml.bak /etc/datadog-agent/datadog.yaml")
 	s.Env().RemoteHost.MustExecute(`sudo sh -c "printf 'otelcollector:\n  enabled: true\n  agent_ipc:\n    port: 5009\n    config_refresh_interval: 60\n' >> /etc/datadog-agent/datadog.yaml"`)
 
-	// Step 8: restart the agent so it picks up the updated configuration.
+	// Step 7: restart the agent so it picks up the updated configuration.
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent.service")
 
-	// Step 9: verify the agent and ddot are both running.
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	// Step 8: verify the agent and ddot are both running.
+	s.host.WaitForUnitActive(s.T(), agentUnit)
 	state = s.host.State()
-	s.assertCoreUnits(state, true)
-	state.AssertUnitsLoaded(ddotUnit)
-	state.AssertUnitsDead(ddotUnit)
-
-	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
-	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
-	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
+	s.assertCoreUnits(state, true, true)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
@@ -202,39 +207,72 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.RunInstallScript()
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	if s.host.ProcmgrEnabled() {
+		s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	} else {
+		s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	}
 
 	// Install the ddot extension via the new datadog-agent otel subcommand.
 	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
 	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
 
-	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
-	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
-	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
-	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
+	if s.host.ProcmgrEnabled() {
+		s.host.WaitForProcessesRunning(s.T(), ddotProcess)
+	} else {
+		s.host.WaitForUnitActive(s.T(), ddotUnit)
+	}
 
 	state := s.host.State()
-	s.assertCoreUnits(state, true)
-	state.AssertUnitsLoaded(ddotUnit)
-	state.AssertUnitsDead(ddotUnit)
+	s.assertCoreUnits(state, true, true)
+	if s.host.ProcmgrEnabled() {
+		s.host.AssertProcmgrTelemetry(s.T(), "ddot", "datadog-agent-ddot")
+	}
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
 
 	// Remove the ddot extension and verify the service stops.
 	s.host.Run("sudo datadog-agent otel remove")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit)
 	state = s.host.State()
-	state.AssertUnitsDead(ddotUnit)
-	ddot.AssertDDOTNotManagedByProcmgr(s.T(), s.Env().RemoteHost)
-	s.assertCoreUnits(state, true)
+	s.assertCoreUnits(state, true, false)
 }
 
-func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(agentUnit, traceUnit, procmgrUnit, processUnit, probeUnit, securityUnit)
+func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool, ddot bool) {
+	loadedUnits := []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit}
+	if ddot {
+		loadedUnits = append(loadedUnits, ddotUnit)
+	}
+	loadedProcesses := []string{}
+	if s.host.ProcmgrEnabled() {
+		for unit, process := range ReplacedByProcmgr {
+			if slices.Contains(loadedUnits, unit) {
+				loadedUnits = slices.DeleteFunc(loadedUnits, func(value string) bool { return value == unit })
+				loadedProcesses = append(loadedProcesses, process)
+			}
+		}
+	}
+	state.AssertUnitsLoaded(loadedUnits...)
+	state.AssertProcessesLoaded(loadedProcesses...)
 	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, traceUnit, procmgrUnit) //cannot assert process-agent and system-probe because they may be running or dead based on timing
+
+	runningUnits := []string{agentUnit, traceUnit} //cannot assert process-agent and system-probe because they may be running or dead based on timing
+	if ddot {
+		runningUnits = append(runningUnits, ddotUnit)
+	}
+	runningProcesses := []string{}
+	if s.host.ProcmgrEnabled() {
+		for unit, process := range ReplacedByProcmgr {
+			if slices.Contains(runningUnits, unit) {
+				runningUnits = slices.DeleteFunc(runningUnits, func(value string) bool { return value == unit })
+				runningProcesses = append(runningProcesses, process)
+			}
+		}
+	}
+	state.AssertUnitsRunning(runningUnits...)
 	state.AssertUnitsDead(securityUnit)
+	state.AssertProcessesRunning(runningProcesses...)
 
 	systemdPath := "/etc/systemd/system"
 	if oldUnits {
@@ -254,8 +292,12 @@ func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 		}
 	}
 
-	for _, unit := range []string{agentUnit, traceUnit, procmgrUnit, processUnit, probeUnit, securityUnit} {
+	for _, unit := range loadedUnits {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
+	}
+
+	for _, process := range loadedProcesses {
+		state.AssertFileExists(filepath.Join("/opt/datadog-packages/datadog-agent/stable/processes.d", process), 0644, "dd-agent", "dd-agent")
 	}
 }
 

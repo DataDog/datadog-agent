@@ -38,10 +38,9 @@ type NetworkDeviceConfig struct {
 
 // InventoryEntry contains the metadata about the configs stored locally on the agent
 type InventoryEntry struct {
-	Namespace  string `json:"namespace"`
-	ConfigID   string `json:"config_id"`
-	DeviceID   string `json:"device_id"`
-	ReportedAt int64  `json:"reported_at"`
+	Namespace string `json:"namespace"`
+	ConfigID  string `json:"config_id"`
+	DeviceID  string `json:"device_id"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
