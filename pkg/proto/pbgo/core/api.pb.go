@@ -231,10 +231,11 @@ type RemoteQueryExecuteRequest struct {
 	CopyLimits  *RemoteQueryExecuteCopyLimits `protobuf:"bytes,7,opt,name=copy_limits,json=copyLimits,proto3" json:"copy_limits,omitempty"`
 	// Optional result-delivery instructions. When omitted, the existing inline
 	// streaming event path is unchanged. When present with mode
-	// POC_PUBLIC_CHUNKED_UPLOAD, the Agent Go side intercepts COPY stream data
-	// events and uploads bounded chunks directly to the Datadog intake service,
-	// suppressing bulk data from crossing the AgentSecure boundary; only the
-	// compact upload receipt is surfaced downstream.
+	// POC_PUBLIC_MULTIPART_UPLOAD, the Agent Go side forwards the upload handle
+	// to the integration check, which uploads bounded parts directly to the
+	// Datadog intake service, suppressing bulk data from crossing the
+	// AgentSecure boundary; only the compact upload receipt is surfaced
+	// downstream.
 	ResultDelivery *RemoteQueryResultDelivery `protobuf:"bytes,8,opt,name=result_delivery,json=resultDelivery,proto3" json:"result_delivery,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -335,7 +336,7 @@ type RemoteQueryResultDelivery struct {
 	UploadId      string                 `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	BaseUrl       string                 `protobuf:"bytes,3,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
 	Token         string                 `protobuf:"bytes,4,opt,name=token,proto3" json:"token,omitempty"`
-	ChunkBytes    int32                  `protobuf:"varint,5,opt,name=chunk_bytes,json=chunkBytes,proto3" json:"chunk_bytes,omitempty"`
+	PartBytes     int32                  `protobuf:"varint,5,opt,name=part_bytes,json=partBytes,proto3" json:"part_bytes,omitempty"`
 	MaxBytes      int32                  `protobuf:"varint,6,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
 	Format        string                 `protobuf:"bytes,7,opt,name=format,proto3" json:"format,omitempty"`
 	Compression   string                 `protobuf:"bytes,8,opt,name=compression,proto3" json:"compression,omitempty"`
@@ -401,9 +402,9 @@ func (x *RemoteQueryResultDelivery) GetToken() string {
 	return ""
 }
 
-func (x *RemoteQueryResultDelivery) GetChunkBytes() int32 {
+func (x *RemoteQueryResultDelivery) GetPartBytes() int32 {
 	if x != nil {
-		return x.ChunkBytes
+		return x.PartBytes
 	}
 	return 0
 }
@@ -699,8 +700,8 @@ type RemoteQueryStreamFinal struct {
 	BytesEmitted  uint64                 `protobuf:"varint,2,opt,name=bytes_emitted,json=bytesEmitted,proto3" json:"bytes_emitted,omitempty"`
 	ChunksEmitted uint64                 `protobuf:"varint,3,opt,name=chunks_emitted,json=chunksEmitted,proto3" json:"chunks_emitted,omitempty"`
 	Attributes    map[string]string      `protobuf:"bytes,4,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// upload_receipt is set only in POC_PUBLIC_CHUNKED_UPLOAD mode, after the
-	// Agent Go side finalizes the upload session. It carries the compact final
+	// upload_receipt is set only in POC_PUBLIC_MULTIPART_UPLOAD mode, after the
+	// integration finalizes the upload session. It carries the compact final
 	// metadata that replaces the bulk data crossing the AgentSecure boundary.
 	UploadReceipt *RemoteQueryUploadReceipt `protobuf:"bytes,5,opt,name=upload_receipt,json=uploadReceipt,proto3" json:"upload_receipt,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -772,16 +773,16 @@ func (x *RemoteQueryStreamFinal) GetUploadReceipt() *RemoteQueryUploadReceipt {
 	return nil
 }
 
-// RemoteQueryUploadReceipt is the compact final metadata for a chunked upload.
+// RemoteQueryUploadReceipt is the compact final metadata for a multipart upload.
 type RemoteQueryUploadReceipt struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mode          string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	UploadId      string                 `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	BucketName    string                 `protobuf:"bytes,3,opt,name=bucket_name,json=bucketName,proto3" json:"bucket_name,omitempty"`
-	ManifestPath  string                 `protobuf:"bytes,4,opt,name=manifest_path,json=manifestPath,proto3" json:"manifest_path,omitempty"`
+	ObjectPath    string                 `protobuf:"bytes,4,opt,name=object_path,json=objectPath,proto3" json:"object_path,omitempty"`
 	TotalBytes    int64                  `protobuf:"varint,5,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
 	TotalRows     int64                  `protobuf:"varint,6,opt,name=total_rows,json=totalRows,proto3" json:"total_rows,omitempty"`
-	ChunkCount    int32                  `protobuf:"varint,7,opt,name=chunk_count,json=chunkCount,proto3" json:"chunk_count,omitempty"`
+	PartCount     int32                  `protobuf:"varint,7,opt,name=part_count,json=partCount,proto3" json:"part_count,omitempty"`
 	Sha256        string                 `protobuf:"bytes,8,opt,name=sha256,proto3" json:"sha256,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -838,9 +839,9 @@ func (x *RemoteQueryUploadReceipt) GetBucketName() string {
 	return ""
 }
 
-func (x *RemoteQueryUploadReceipt) GetManifestPath() string {
+func (x *RemoteQueryUploadReceipt) GetObjectPath() string {
 	if x != nil {
-		return x.ManifestPath
+		return x.ObjectPath
 	}
 	return ""
 }
@@ -859,9 +860,9 @@ func (x *RemoteQueryUploadReceipt) GetTotalRows() int64 {
 	return 0
 }
 
-func (x *RemoteQueryUploadReceipt) GetChunkCount() int32 {
+func (x *RemoteQueryUploadReceipt) GetPartCount() int32 {
 	if x != nil {
-		return x.ChunkCount
+		return x.PartCount
 	}
 	return 0
 }
@@ -1269,14 +1270,14 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x06format\x18\x06 \x01(\tR\x06format\x12M\n" +
 	"\vcopy_limits\x18\a \x01(\v2,.datadog.api.v1.RemoteQueryExecuteCopyLimitsR\n" +
 	"copyLimits\x12R\n" +
-	"\x0fresult_delivery\x18\b \x01(\v2).datadog.api.v1.RemoteQueryResultDeliveryR\x0eresultDelivery\"\xf5\x01\n" +
+	"\x0fresult_delivery\x18\b \x01(\v2).datadog.api.v1.RemoteQueryResultDeliveryR\x0eresultDelivery\"\xf3\x01\n" +
 	"\x19RemoteQueryResultDelivery\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x1b\n" +
 	"\tupload_id\x18\x02 \x01(\tR\buploadId\x12\x19\n" +
 	"\bbase_url\x18\x03 \x01(\tR\abaseUrl\x12\x14\n" +
-	"\x05token\x18\x04 \x01(\tR\x05token\x12\x1f\n" +
-	"\vchunk_bytes\x18\x05 \x01(\x05R\n" +
-	"chunkBytes\x12\x1b\n" +
+	"\x05token\x18\x04 \x01(\tR\x05token\x12\x1d\n" +
+	"\n" +
+	"part_bytes\x18\x05 \x01(\x05R\tpartBytes\x12\x1b\n" +
 	"\tmax_bytes\x18\x06 \x01(\x05R\bmaxBytes\x12\x16\n" +
 	"\x06format\x18\a \x01(\tR\x06format\x12 \n" +
 	"\vcompression\x18\b \x01(\tR\vcompression\"G\n" +
@@ -1314,19 +1315,20 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x0eupload_receipt\x18\x05 \x01(\v2(.datadog.api.v1.RemoteQueryUploadReceiptR\ruploadReceipt\x1a=\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8a\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x84\x02\n" +
 	"\x18RemoteQueryUploadReceipt\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x1b\n" +
 	"\tupload_id\x18\x02 \x01(\tR\buploadId\x12\x1f\n" +
 	"\vbucket_name\x18\x03 \x01(\tR\n" +
-	"bucketName\x12#\n" +
-	"\rmanifest_path\x18\x04 \x01(\tR\fmanifestPath\x12\x1f\n" +
+	"bucketName\x12\x1f\n" +
+	"\vobject_path\x18\x04 \x01(\tR\n" +
+	"objectPath\x12\x1f\n" +
 	"\vtotal_bytes\x18\x05 \x01(\x03R\n" +
 	"totalBytes\x12\x1d\n" +
 	"\n" +
-	"total_rows\x18\x06 \x01(\x03R\ttotalRows\x12\x1f\n" +
-	"\vchunk_count\x18\a \x01(\x05R\n" +
-	"chunkCount\x12\x16\n" +
+	"total_rows\x18\x06 \x01(\x03R\ttotalRows\x12\x1d\n" +
+	"\n" +
+	"part_count\x18\a \x01(\x05R\tpartCount\x12\x16\n" +
 	"\x06sha256\x18\b \x01(\tR\x06sha256\"\xfb\x01\n" +
 	"\x16RemoteQueryStreamError\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +

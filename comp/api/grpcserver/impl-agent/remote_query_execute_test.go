@@ -163,16 +163,16 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesResultDelivery(t *testing.T)
 		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
 		Query:          "SELECT city, country FROM cities ORDER BY city",
 		CopyLimits:     &pb.RemoteQueryExecuteCopyLimits{ChunkBytes: 8, MaxBytes: 24, MaxRowBytes: 32, TimeoutMs: 1000},
-		ResultDelivery: &pb.RemoteQueryResultDelivery{Mode: "POC_PUBLIC_CHUNKED_UPLOAD", UploadId: "upload-01k", BaseUrl: "https://dd.datad0g.com/api/intake/its-agent-intake", Token: "scoped-upload-token", ChunkBytes: 8, MaxBytes: 24, Format: "csv", Compression: "none"},
+		ResultDelivery: &pb.RemoteQueryResultDelivery{Mode: "POC_PUBLIC_MULTIPART_UPLOAD", UploadId: "upload-01k", BaseUrl: "https://dd.datad0g.com/api/intake/its-agent-intake", Token: "scoped-upload-token", PartBytes: 8, MaxBytes: 24, Format: "csv", Compression: "none"},
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, req.ResultDelivery)
-	assert.Equal(t, "POC_PUBLIC_CHUNKED_UPLOAD", req.ResultDelivery.Mode)
+	assert.Equal(t, "POC_PUBLIC_MULTIPART_UPLOAD", req.ResultDelivery.Mode)
 	assert.Equal(t, "upload-01k", req.ResultDelivery.UploadID)
 	assert.Equal(t, "https://dd.datad0g.com/api/intake/its-agent-intake", req.ResultDelivery.BaseURL)
 	assert.Equal(t, "scoped-upload-token", req.ResultDelivery.Token)
-	assert.Equal(t, 8, req.ResultDelivery.ChunkBytes)
+	assert.Equal(t, 8, req.ResultDelivery.PartBytes)
 	assert.Equal(t, 24, req.ResultDelivery.MaxBytes)
 }
 
@@ -184,7 +184,7 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesResultDeliveryBaseURL(t *tes
 		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
 		Query:          "SELECT city, country FROM cities ORDER BY city",
 		CopyLimits:     &pb.RemoteQueryExecuteCopyLimits{ChunkBytes: 8, MaxBytes: 24, MaxRowBytes: 32, TimeoutMs: 1000},
-		ResultDelivery: &pb.RemoteQueryResultDelivery{Mode: "POC_PUBLIC_CHUNKED_UPLOAD", UploadId: "upload-01k", BaseUrl: "https://dd.datad0g.com/api/unstable/its-agent-intake", Token: "scoped-upload-token", ChunkBytes: 8, MaxBytes: 24, Format: "csv", Compression: "none"},
+		ResultDelivery: &pb.RemoteQueryResultDelivery{Mode: "POC_PUBLIC_MULTIPART_UPLOAD", UploadId: "upload-01k", BaseUrl: "https://dd.datad0g.com/api/unstable/its-agent-intake", Token: "scoped-upload-token", PartBytes: 8, MaxBytes: 24, Format: "csv", Compression: "none"},
 	})
 
 	require.NoError(t, err)
@@ -199,19 +199,19 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesResultDeliveryBaseURL(t *tes
 func TestRemoteQueryStreamEventFromCheckEventSurfacesUploadReceipt(t *testing.T) {
 	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
 		Type:         "final",
-		MetadataJSON: `{"status":"SUCCEEDED","bytes_emitted":18,"chunks_emitted":3,"upload_receipt":{"mode":"POC_PUBLIC_CHUNKED_UPLOAD","uploadId":"upload-01k","bucketName":"rq-bucket","manifestPath":"manifests/upload-01k.json","totalBytes":18,"totalRows":2,"chunkCount":3,"sha256":"abc123"}}`,
+		MetadataJSON: `{"status":"SUCCEEDED","bytes_emitted":18,"chunks_emitted":3,"upload_receipt":{"mode":"POC_PUBLIC_MULTIPART_UPLOAD","uploadId":"upload-01k","bucketName":"rq-bucket","objectPath":"manifests/upload-01k.json","totalBytes":18,"totalRows":2,"partCount":3,"sha256":"abc123"}}`,
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, event.GetFinal())
 	receipt := event.GetFinal().GetUploadReceipt()
 	require.NotNil(t, receipt)
-	assert.Equal(t, "POC_PUBLIC_CHUNKED_UPLOAD", receipt.GetMode())
+	assert.Equal(t, "POC_PUBLIC_MULTIPART_UPLOAD", receipt.GetMode())
 	assert.Equal(t, "upload-01k", receipt.GetUploadId())
 	assert.Equal(t, "rq-bucket", receipt.GetBucketName())
-	assert.Equal(t, "manifests/upload-01k.json", receipt.GetManifestPath())
+	assert.Equal(t, "manifests/upload-01k.json", receipt.GetObjectPath())
 	assert.Equal(t, int64(18), receipt.GetTotalBytes())
 	assert.Equal(t, int64(2), receipt.GetTotalRows())
-	assert.Equal(t, int32(3), receipt.GetChunkCount())
+	assert.Equal(t, int32(3), receipt.GetPartCount())
 	assert.Equal(t, "abc123", receipt.GetSha256())
 }

@@ -17,11 +17,11 @@ import (
 
 // Synthetic producer proof for the M3 Agent role after the Go upload relay was removed.
 //
-// The Agent no longer owns an HTTP upload transport. In POC_PUBLIC_CHUNKED_UPLOAD mode it is a
+// The Agent no longer owns an HTTP upload transport. In POC_PUBLIC_MULTIPART_UPLOAD mode it is a
 // control-plane forwarder only: it carries resultDelivery (including baseUrl and token) through
 // to the integration request JSON, exposes the org API key and POC application key to the
 // integration via datadog_agent.get_config, and passes the downstream emit callback straight
-// through without intercepting bulk data events. The integration uploads bounded COPY chunks
+// through without intercepting bulk data events. The integration uploads bounded multipart parts
 // directly to its-agent-intake over HTTP; only metadata/final/error events come back through
 // the stream.
 //
@@ -54,11 +54,11 @@ func newSyntheticForwardRunner(events []check.RemoteQueryStreamEvent) *fakeStrea
 
 func syntheticForwardDelivery() *RemoteQueryResultDelivery {
 	return &RemoteQueryResultDelivery{
-		Mode:        RemoteQueryResultDeliveryModeChunkedUpload,
+		Mode:        RemoteQueryResultDeliveryModeMultipartUpload,
 		UploadID:    syntheticForwardUploadID,
 		BaseURL:     syntheticForwardBaseURL,
 		Token:       syntheticForwardToken,
-		ChunkBytes:  1 << 20,  // 1 MiB
+		PartBytes:   1 << 20,  // 1 MiB
 		MaxBytes:    32 << 20, // 32 MiB
 		Format:      "csv",
 		Compression: "none",
@@ -70,7 +70,7 @@ func syntheticForwardDelivery() *RemoteQueryResultDelivery {
 func TestExecuteStreamForwardsResultDeliveryCredentialsToIntegration(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
 		{Type: "metadata", MetadataJSON: `{"status":"STARTED"}`},
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"mode":"POC_PUBLIC_CHUNKED_UPLOAD","uploadId":"upload-243021","bucketName":"rq-bucket","manifestPath":"its-agent-intake/poc/upload-243021/manifest.json","totalBytes":33554432,"totalRows":0,"chunkCount":32,"sha256":"aggregate-sha"}}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"mode":"POC_PUBLIC_MULTIPART_UPLOAD","uploadId":"upload-243021","bucketName":"rq-bucket","objectPath":"its-agent-intake/poc/upload-243021/result.csv","totalBytes":33554432,"totalRows":0,"partCount":32,"sha256":"aggregate-sha"}}`},
 	})
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
 	req, err := NewRemoteQueryCopyStreamExecuteRequest(
@@ -107,7 +107,7 @@ func TestExecuteStreamForwardsResultDeliveryCredentialsToIntegration(t *testing.
 	assert.Equal(t, "metadata", seen[0].Type)
 	assert.Equal(t, "final", seen[1].Type)
 	assert.Contains(t, seen[1].MetadataJSON, `"uploadId":"upload-243021"`)
-	assert.Contains(t, seen[1].MetadataJSON, `"manifestPath":"its-agent-intake/poc/upload-243021/manifest.json"`)
+	assert.Contains(t, seen[1].MetadataJSON, `"objectPath":"its-agent-intake/poc/upload-243021/result.csv"`)
 }
 
 // TestExecuteStreamPassesDataEventsStraightThrough proves the Agent does not intercept bulk
@@ -123,7 +123,7 @@ func TestExecuteStreamPassesDataEventsStraightThrough(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
 		{Type: "metadata", MetadataJSON: `{"status":"STARTED"}`},
 		{Type: "data", MetadataJSON: `{"sequence":0,"offset":0,"bytes":1048576}`, Payload: payload},
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","chunkCount":1,"totalBytes":1048576}}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","partCount":1,"totalBytes":1048576}}`},
 	})
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
 	req, err := NewRemoteQueryCopyStreamExecuteRequest(

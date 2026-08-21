@@ -57,7 +57,7 @@ type ResultDeliveryInputs struct {
 	UploadID    string `json:"uploadId"`
 	BaseURL     string `json:"baseUrl"`
 	Token       string `json:"token"`
-	ChunkBytes  int    `json:"chunkBytes"`
+	PartBytes   int    `json:"partBytes"`
 	MaxBytes    int    `json:"maxBytes"`
 	Format      string `json:"format"`
 	Compression string `json:"compression"`
@@ -232,7 +232,7 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 			UploadId:    inputs.ResultDelivery.UploadID,
 			BaseUrl:     inputs.ResultDelivery.BaseURL,
 			Token:       inputs.ResultDelivery.Token,
-			ChunkBytes:  int32(inputs.ResultDelivery.ChunkBytes),
+			PartBytes:   int32(inputs.ResultDelivery.PartBytes),
 			MaxBytes:    int32(inputs.ResultDelivery.MaxBytes),
 			Format:      inputs.ResultDelivery.Format,
 			Compression: inputs.ResultDelivery.Compression,
@@ -379,14 +379,14 @@ func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (m
 		out["chunks_emitted"] = e.Final.GetChunksEmitted()
 		if receipt := e.Final.GetUploadReceipt(); receipt != nil {
 			out["upload_receipt"] = map[string]interface{}{
-				"mode":         receipt.GetMode(),
-				"uploadId":     receipt.GetUploadId(),
-				"bucketName":   receipt.GetBucketName(),
-				"manifestPath": receipt.GetManifestPath(),
-				"totalBytes":   receipt.GetTotalBytes(),
-				"totalRows":    receipt.GetTotalRows(),
-				"chunkCount":   receipt.GetChunkCount(),
-				"sha256":       receipt.GetSha256(),
+				"mode":       receipt.GetMode(),
+				"uploadId":   receipt.GetUploadId(),
+				"bucketName": receipt.GetBucketName(),
+				"objectPath": receipt.GetObjectPath(),
+				"totalBytes": receipt.GetTotalBytes(),
+				"totalRows":  receipt.GetTotalRows(),
+				"partCount":  receipt.GetPartCount(),
+				"sha256":     receipt.GetSha256(),
 			}
 		}
 		if len(e.Final.GetAttributes()) > 0 {
@@ -481,14 +481,14 @@ func remoteQueryUploadOutput(finalEvent map[string]interface{}, receipt map[stri
 		// utf-8; compression is reported separately by the intake receipt, not here.
 		"encoding": "utf-8",
 		"uploadReceipt": map[string]interface{}{
-			"mode":         receipt["mode"],
-			"uploadId":     receipt["uploadId"],
-			"bucketName":   receipt["bucketName"],
-			"manifestPath": receipt["manifestPath"],
-			"totalBytes":   receipt["totalBytes"],
-			"totalRows":    receipt["totalRows"],
-			"chunkCount":   receipt["chunkCount"],
-			"sha256":       receipt["sha256"],
+			"mode":       receipt["mode"],
+			"uploadId":   receipt["uploadId"],
+			"bucketName": receipt["bucketName"],
+			"objectPath": receipt["objectPath"],
+			"totalBytes": receipt["totalBytes"],
+			"totalRows":  receipt["totalRows"],
+			"partCount":  receipt["partCount"],
+			"sha256":     receipt["sha256"],
 		},
 	}
 }
