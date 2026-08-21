@@ -554,6 +554,59 @@ properties:
 
           Please note that enabling the Network Module, on Windows, of the System
           Probe will result in a kernel driver being loaded.
+      darwin_connection_tracer_backend:
+        node_type: setting
+        type: string
+        default: ebpfless
+        env_vars:
+        - DD_NETWORK_CONFIG_DARWIN_CONNECTION_TRACER_BACKEND
+        description: |-
+          Selects the macOS connection tracer backend. "ebpfless" retains the
+          existing packet-owned tracer, "nstat" enables the NStat primary
+          without packet enrichment, "nstat-pcap" enables the full composite
+          backend, and "auto" tries the full composite backend before falling
+          back to ebpfless.
+      darwin_connection_tracer_packet_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        description: Enables non-owning libpcap enrichment for the macOS NStat backend.
+      darwin_connection_tracer_libproc_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        description: Enables bounded libproc identity reconciliation for the macOS NStat backend.
+      darwin_connection_tracer_packet_snaplen:
+        node_type: setting
+        type: integer
+        default: 8192
+        description: Maximum bytes captured from each packet for macOS NStat enrichment.
+      darwin_connection_tracer_packet_buffer_size:
+        node_type: setting
+        type: integer
+        default: 16777216
+        description: Per-interface libpcap buffer size for macOS NStat enrichment.
+      darwin_connection_tracer_libproc_interval:
+        node_type: setting
+        type: string
+        default: 10s
+        format: duration
+        description: Interval between bounded macOS libproc reconciliation scans.
+      darwin_connection_tracer_libproc_max_pids:
+        node_type: setting
+        type: integer
+        default: 4096
+        description: Maximum process IDs inspected by one macOS libproc reconciliation scan.
+      darwin_connection_tracer_libproc_max_fds_per_pid:
+        node_type: setting
+        type: integer
+        default: 4096
+        description: Maximum file descriptors inspected per process by macOS libproc reconciliation.
+      darwin_connection_tracer_libproc_max_observations:
+        node_type: setting
+        type: integer
+        default: 65536
+        description: Maximum socket observations retained by one macOS libproc reconciliation scan.
       dns_monitoring_ports:
         node_type: setting
         type: array

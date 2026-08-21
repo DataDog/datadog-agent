@@ -29,6 +29,31 @@ const (
 
 	// Must stay in sync with DNS_PORTS_MAX in pkg/network/ebpf/c/prebuilt/dns.c.
 	DNSPortsMax = 8
+
+	// DarwinConnectionTracerEbpfless selects the existing packet-owned tracer.
+	DarwinConnectionTracerEbpfless = "ebpfless"
+	// DarwinConnectionTracerNStat selects NStat without packet enrichment.
+	DarwinConnectionTracerNStat = "nstat"
+	// DarwinConnectionTracerNStatPcap selects the full composite backend.
+	DarwinConnectionTracerNStatPcap = "nstat-pcap"
+	// DarwinConnectionTracerAuto tries the composite backend before falling back.
+	DarwinConnectionTracerAuto = "auto"
+
+	darwinPacketSnaplenMin           = 512
+	darwinPacketSnaplenMax           = 65535
+	darwinPacketSnaplenDefault       = 8192
+	darwinPacketBufferSizeMin        = 64 * 1024
+	darwinPacketBufferSizeMax        = 256 * 1024 * 1024
+	darwinPacketBufferSizeDefault    = 16 * 1024 * 1024
+	minDarwinLibprocInterval         = time.Second
+	maxDarwinLibprocInterval         = time.Minute
+	darwinLibprocIntervalDefault     = 10 * time.Second
+	darwinLibprocMaxPIDsMax          = 65536
+	darwinLibprocMaxFDsPerPIDMax     = 65536
+	darwinLibprocObservationsMax     = 1 << 20
+	darwinLibprocMaxPIDsDefault      = 4096
+	darwinLibprocMaxFDsPerPIDDefault = 4096
+	darwinLibprocObservationsDefault = 65536
 )
 
 // Config stores all flags used by the network eBPF tracer
@@ -206,6 +231,23 @@ type Config struct {
 	// EnableEbpfless enables the use of network tracing without eBPF using packet capture.
 	EnableEbpfless bool
 
+	// DarwinConnectionTracerBackend selects the macOS connection backend.
+	DarwinConnectionTracerBackend string
+	// DarwinConnectionTracerPacketEnabled enables non-owning packet enrichment.
+	DarwinConnectionTracerPacketEnabled bool
+	// DarwinConnectionTracerLibprocEnabled enables bounded identity reconciliation.
+	DarwinConnectionTracerLibprocEnabled bool
+	// DarwinConnectionTracerPacketSnaplen bounds packet prefix capture.
+	DarwinConnectionTracerPacketSnaplen int
+	// DarwinConnectionTracerPacketBufferSize bounds each libpcap ring.
+	DarwinConnectionTracerPacketBufferSize int
+	// DarwinConnectionTracerLibprocInterval controls reconciliation frequency.
+	DarwinConnectionTracerLibprocInterval time.Duration
+	// DarwinConnectionTracerLibprocLimits bound one host scan.
+	DarwinConnectionTracerLibprocMaxPIDs         int
+	DarwinConnectionTracerLibprocMaxFDsPerPID    int
+	DarwinConnectionTracerLibprocMaxObservations int
+
 	// EnableFentry enables the experimental fentry tracer (disabled by default)
 	EnableFentry bool
 
@@ -309,6 +351,16 @@ func New() *Config {
 		EnableFentry:     cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
 		EnableSKTracer:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_sk_tracer")),
 
+		DarwinConnectionTracerBackend:                cfg.GetString(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_backend")),
+		DarwinConnectionTracerPacketEnabled:          cfg.GetBool(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_packet_enabled")),
+		DarwinConnectionTracerLibprocEnabled:         cfg.GetBool(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_libproc_enabled")),
+		DarwinConnectionTracerPacketSnaplen:          cfg.GetInt(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_packet_snaplen")),
+		DarwinConnectionTracerPacketBufferSize:       cfg.GetInt(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_packet_buffer_size")),
+		DarwinConnectionTracerLibprocInterval:        cfg.GetDuration(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_libproc_interval")),
+		DarwinConnectionTracerLibprocMaxPIDs:         cfg.GetInt(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_libproc_max_pids")),
+		DarwinConnectionTracerLibprocMaxFDsPerPID:    cfg.GetInt(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_libproc_max_fds_per_pid")),
+		DarwinConnectionTracerLibprocMaxObservations: cfg.GetInt(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_libproc_max_observations")),
+
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
 
 		EnableCertCollection:             cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cert_collection")),
@@ -316,6 +368,7 @@ func New() *Config {
 
 		DirectSend: cfg.GetBool(sysconfig.FullKeyPath(netNS, "direct_send")),
 	}
+	c.normalizeDarwinConnectionTracerConfig()
 
 	if !c.CollectTCPv4Conns {
 		log.Info("network tracer TCPv4 tracing disabled")
@@ -372,6 +425,50 @@ func New() *Config {
 	}
 
 	return c
+}
+
+func (c *Config) normalizeDarwinConnectionTracerConfig() {
+	c.DarwinConnectionTracerPacketSnaplen = boundedDarwinInt(
+		c.DarwinConnectionTracerPacketSnaplen,
+		darwinPacketSnaplenMin,
+		darwinPacketSnaplenMax,
+		darwinPacketSnaplenDefault,
+	)
+	c.DarwinConnectionTracerPacketBufferSize = boundedDarwinInt(
+		c.DarwinConnectionTracerPacketBufferSize,
+		darwinPacketBufferSizeMin,
+		darwinPacketBufferSizeMax,
+		darwinPacketBufferSizeDefault,
+	)
+	if c.DarwinConnectionTracerLibprocInterval < minDarwinLibprocInterval ||
+		c.DarwinConnectionTracerLibprocInterval > maxDarwinLibprocInterval {
+		c.DarwinConnectionTracerLibprocInterval = darwinLibprocIntervalDefault
+	}
+	c.DarwinConnectionTracerLibprocMaxPIDs = boundedDarwinInt(
+		c.DarwinConnectionTracerLibprocMaxPIDs,
+		1,
+		darwinLibprocMaxPIDsMax,
+		darwinLibprocMaxPIDsDefault,
+	)
+	c.DarwinConnectionTracerLibprocMaxFDsPerPID = boundedDarwinInt(
+		c.DarwinConnectionTracerLibprocMaxFDsPerPID,
+		1,
+		darwinLibprocMaxFDsPerPIDMax,
+		darwinLibprocMaxFDsPerPIDDefault,
+	)
+	c.DarwinConnectionTracerLibprocMaxObservations = boundedDarwinInt(
+		c.DarwinConnectionTracerLibprocMaxObservations,
+		1,
+		darwinLibprocObservationsMax,
+		darwinLibprocObservationsDefault,
+	)
+}
+
+func boundedDarwinInt(value, minimum, maximum, fallback int) int {
+	if value < minimum || value > maximum {
+		return fallback
+	}
+	return value
 }
 
 // FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled

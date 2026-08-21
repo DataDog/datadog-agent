@@ -31,15 +31,15 @@ import (
 )
 
 const (
-	nstatQueryInterval       = time.Second
-	nstatPollInterval        = 250 * time.Millisecond
-	nstatPendingRemovalTTL   = 2 * darwinLibprocInterval
-	nstatDescriptionRetry    = 100 * time.Millisecond
-	nstatDescriptionBatch    = 8
-	nstatSubscriptionTimeout = 2 * time.Second
-	nstatDatagramBufferSize  = 65535
-	nstatTCPRTTScale         = 32
-	nstatTCPRTTVarianceScale = 16
+	nstatQueryInterval         = time.Second
+	nstatPollInterval          = 250 * time.Millisecond
+	nstatPendingRemovalMinimum = 2 * time.Second
+	nstatDescriptionRetry      = 100 * time.Millisecond
+	nstatDescriptionBatch      = 8
+	nstatSubscriptionTimeout   = 2 * time.Second
+	nstatDatagramBufferSize    = 65535
+	nstatTCPRTTScale           = 32
+	nstatTCPRTTVarianceScale   = 16
 
 	tcpStateClosed      = 0
 	tcpStateSynSent     = 2
@@ -124,13 +124,14 @@ type nstatTracer struct {
 	subscriptionErrors   chan error
 	subscriptionOnce     sync.Once
 
-	closeCallback func(*network.ConnectionStats)
-	cookieHasher  *cookieHasher
-	now           func() time.Time
-	subscribed    bool
-	started       bool
-	stopped       bool
-	runtimeErr    error
+	closeCallback     func(*network.ConnectionStats)
+	cookieHasher      *cookieHasher
+	now               func() time.Time
+	subscribed        bool
+	started           bool
+	stopped           bool
+	runtimeErr        error
+	pendingRemovalTTL time.Duration
 
 	runtimeFailureCallback func(error)
 
@@ -167,6 +168,7 @@ func newNStatTracerWithControl(cfg *config.Config, control nstatControl) *nstatT
 		subscriptionErrors:   make(chan error, 1),
 		cookieHasher:         newCookieHasher(),
 		now:                  time.Now,
+		pendingRemovalTTL:    max(nstatPendingRemovalMinimum, 2*cfg.DarwinConnectionTracerLibprocInterval),
 		exit:                 make(chan struct{}),
 	}
 }
@@ -852,7 +854,7 @@ func (t *nstatTracer) expirePendingRemovals(now time.Time) {
 
 func (t *nstatTracer) expirePendingRemovalsLocked(now time.Time) {
 	for sourceRef, source := range t.sources {
-		if source.removed && now.Sub(source.removedAt) >= nstatPendingRemovalTTL {
+		if source.removed && now.Sub(source.removedAt) >= t.pendingRemovalTTL {
 			delete(t.sources, sourceRef)
 			delete(t.descriptionQueued, sourceRef)
 			nstatTracerTelemetry.removals.Inc("unresolved")
@@ -930,6 +932,15 @@ func (t *nstatTracer) DumpMaps(_ io.Writer, _ ...string) error {
 }
 
 func (t *nstatTracer) Type() TracerType { return TracerTypeNStat }
+
+func (t *nstatTracer) darwinStatus() DarwinTracerStatus {
+	status := nstatStatus()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	status.SourceHealthy = t.runtimeErr == nil
+	status.LastError = boundedDarwinStatusError(t.runtimeErr)
+	return status
+}
 
 func (t *nstatTracer) Pause() error  { return errors.New("not implemented") }
 func (t *nstatTracer) Resume() error { return errors.New("not implemented") }
