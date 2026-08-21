@@ -31,8 +31,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats"
-	otlpstatspb "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats"
+	otlpstatspb "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
@@ -2521,7 +2521,7 @@ func createTestHistogramMetric(metricName string) pmetric.Metrics {
 }
 
 func TestSDKTraceMetricRemapping(t *testing.T) {
-	md := createTestHistogramMetric(sdktracestats.SDKTraceMetricName)
+	md := createTestHistogramMetric(tracestats.SDKTraceMetricName)
 	rm := md.ResourceMetrics().At(0)
 	rm.Resource().Attributes().PutStr("host.name", "host")
 	metric := rm.ScopeMetrics().At(0).Metrics().At(0)

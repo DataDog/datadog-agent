@@ -32,8 +32,8 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats"
-	otlpstatspb "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats"
+	otlpstatspb "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -96,7 +96,7 @@ func sdkTraceStatsMetrics() pmetric.Metrics {
 	rm.Resource().Attributes().PutStr("service.name", "checkout")
 	rm.Resource().Attributes().PutStr("telemetry.sdk.name", "datadog")
 	metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
-	metric.SetName(sdktracestats.SDKTraceMetricName)
+	metric.SetName(tracestats.SDKTraceMetricName)
 	metric.SetUnit("s")
 	histogram := metric.SetEmptyHistogram()
 	histogram.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)

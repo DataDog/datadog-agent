@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats"
 )
 
 const sdkTraceStatsSource = "otlp-intake-metrics"
@@ -31,7 +31,7 @@ func remapSDKTraceMetrics(logger *zap.Logger, consumer Consumer, otlpStatsOut ch
 		return
 	}
 
-	payload, conversionErrors := sdktracestats.BuildSDKTraceStatsPayload(host, sdkTraceStatsSource, rattrs, metric)
+	payload, conversionErrors := tracestats.BuildSDKTraceStatsPayload(host, sdkTraceStatsSource, rattrs, metric)
 	for _, conversionError := range conversionErrors {
 		logger.Debug("Failed to build SDK trace duration stats",
 			zap.Int("datapoint_index", conversionError.DataPointIndex),
@@ -42,7 +42,7 @@ func remapSDKTraceMetrics(logger *zap.Logger, consumer Consumer, otlpStatsOut ch
 		return
 	}
 
-	raw, err := sdktracestats.MarshalStatsPayload(payload)
+	raw, err := tracestats.MarshalStatsPayload(payload)
 	if err != nil {
 		logger.Debug("Failed to marshal SDK trace stats payload", zap.Error(err))
 		return

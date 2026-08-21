@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationlibrary"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationscope"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats"
 )
 
 const (
@@ -576,14 +576,14 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 						}
 					}
 				}
-				if sdktracestats.IsSDKTraceMetric(md.Name()) && t.cfg.withSDKTraceMetrics {
+				if tracestats.IsSDKTraceMetric(md.Name()) && t.cfg.withSDKTraceMetrics {
 					remapSDKTraceMetrics(t.logger, consumer, t.cfg.otlpStatsOut, host, rattrs, md)
 					continue
 				}
 				// A non-APM metric (not a stats, runtime, or SDK trace metric) marks the host
 				// billable. The SDK trace metric is APM-only, so it never bills — even opted out,
 				// when it passes through as a raw sketch.
-				if !isRuntimeMetric(md.Name()) && !sdktracestats.IsSDKTraceMetric(md.Name()) {
+				if !isRuntimeMetric(md.Name()) && !tracestats.IsSDKTraceMetric(md.Name()) {
 					seenNonAPMMetrics = true
 				}
 				if t.cfg.withRemapping {
