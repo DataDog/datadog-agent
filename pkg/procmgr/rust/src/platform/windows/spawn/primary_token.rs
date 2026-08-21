@@ -136,9 +136,9 @@ fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {
     let process_token = open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE).map_err(|e| {
         anyhow!("[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}")
     })?;
-    if !token_user_is_local_system(process_token.as_handle()).map_err(|e| {
-        anyhow!("[{process_name}] verify supervisor token is LocalSystem: {e}")
-    })? {
+    if !token_user_is_local_system(process_token.as_handle())
+        .map_err(|e| anyhow!("[{process_name}] verify supervisor token is LocalSystem: {e}"))?
+    {
         bail!(
             "[{process_name}] privileged spawn requires dd-procmgrd to run as LocalSystem; \
              supervisor token is not LocalSystem (for example console fallback)"
