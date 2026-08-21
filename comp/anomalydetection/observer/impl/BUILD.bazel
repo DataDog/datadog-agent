@@ -91,6 +91,7 @@ dd_agent_go_test(
         "metrics_detector_holt_residual_test.go",
         "metrics_detector_scanmw_test.go",
         "metrics_detector_scanwelch_test.go",
+        "metrics_detector_storage_backed_parity_test.go",
         "metrics_detector_tukey_biweight_test.go",
         "metrics_detector_util_test.go",
         "observer_disabled_test.go",
