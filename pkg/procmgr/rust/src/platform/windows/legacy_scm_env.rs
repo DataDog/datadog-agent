@@ -36,6 +36,11 @@ fn core_agent_scm_env_map() -> std::sync::MutexGuard<'static, Option<HashMap<Str
     guard
 }
 
+pub(crate) fn refresh_core_agent_scm_environment() {
+    let mut guard = CORE_AGENT_SCM_ENV.lock().expect("core agent scm env lock");
+    *guard = Some(load_core_agent_scm_environment());
+}
+
 fn scm_env_lookup(env: &HashMap<String, String>, name: &str) -> Option<String> {
     env.iter()
         .find(|(key, _)| key.eq_ignore_ascii_case(name))
@@ -76,6 +81,39 @@ const LEGACY_SCM_ENV_DENYLIST: &[&str] = &[
     "DD_FLEET_POLICIES_DIR",
     "DD_OTELCOLLECTOR_INSTALLATION_METHOD",
 ];
+
+pub(crate) fn merge_core_agent_scm_env(vars: &mut HashMap<String, String>) {
+    let overrides = core_agent_scm_env_overrides();
+    if overrides.is_empty() {
+        return;
+    }
+    merge_env_overrides(vars, &overrides);
+}
+
+pub(crate) fn build_secret_backend_env_vars(
+    baseline: HashMap<String, String>,
+) -> HashMap<String, String> {
+    let mut vars = baseline;
+    merge_core_agent_scm_env(&mut vars);
+    vars
+}
+
+fn core_agent_scm_env_overrides() -> Vec<(String, String)> {
+    #[cfg(test)]
+    if let Ok(guard) = TEST_CORE_AGENT_SCM_ENV.lock()
+        && let Some(map) = guard.as_ref()
+    {
+        return map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    }
+
+    let guard = core_agent_scm_env_map();
+    guard
+        .as_ref()
+        .expect("initialized scm env")
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect()
+}
 
 pub(crate) fn build_child_env_vars(
     process_name: &str,
@@ -256,6 +294,49 @@ mod tests {
             Some("false".to_string())
         );
         set_test_core_agent_scm_env(None);
+    }
+
+    #[test]
+    fn build_secret_backend_env_vars_merges_core_agent_scm_over_baseline() {
+        set_test_core_agent_scm_env(Some(HashMap::from([
+            ("DD_SECRET_PATH".to_string(), r"C:\secrets".to_string()),
+            ("path".to_string(), r"C:\agent\bin".to_string()),
+        ])));
+        let baseline = HashMap::from([
+            ("BASE".to_string(), "1".to_string()),
+            ("Path".to_string(), "baseline".to_string()),
+        ]);
+        let vars = build_secret_backend_env_vars(baseline);
+        assert_eq!(vars.get("BASE").unwrap(), "1");
+        assert_eq!(vars.get("DD_SECRET_PATH").unwrap(), r"C:\secrets");
+        assert_eq!(vars.get("path").unwrap(), r"C:\agent\bin");
+        assert_eq!(vars.len(), 3);
+        set_test_core_agent_scm_env(None);
+    }
+
+    #[test]
+    fn refresh_core_agent_scm_environment_replaces_stale_cache() {
+        set_test_core_agent_scm_env(None);
+        {
+            let mut guard = CORE_AGENT_SCM_ENV.lock().expect("core agent scm env lock");
+            *guard = Some(HashMap::from([(
+                "DD_STALE_PROCMGR_SCM_CACHE".to_string(),
+                "stale".to_string(),
+            )]));
+        }
+        assert_eq!(
+            core_agent_scm_env_var("DD_STALE_PROCMGR_SCM_CACHE"),
+            Some("stale".to_string())
+        );
+
+        refresh_core_agent_scm_environment();
+
+        assert_ne!(
+            core_agent_scm_env_var("DD_STALE_PROCMGR_SCM_CACHE"),
+            Some("stale".to_string()),
+            "reload refresh should replace the cached SCM Environment map"
+        );
+        *CORE_AGENT_SCM_ENV.lock().expect("core agent scm env lock") = None;
     }
 
     #[test]
