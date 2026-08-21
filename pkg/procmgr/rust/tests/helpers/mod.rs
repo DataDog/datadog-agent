@@ -482,9 +482,9 @@ impl TestEnv {
             "--command".into(),
             cmd.into(),
         ];
-        if !args.is_empty() {
+        for arg in args {
             cli_args.push("--args".into());
-            cli_args.extend(args);
+            cli_args.push(arg);
         }
         cli_args.extend(extra_args.iter().map(|s| s.to_string()));
         let refs: Vec<&str> = cli_args.iter().map(String::as_str).collect();
