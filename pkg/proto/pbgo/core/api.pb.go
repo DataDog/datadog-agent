@@ -153,11 +153,13 @@ func (x *RemoteQueryExecuteLimits) GetTimeoutMs() int32 {
 }
 
 type RemoteQueryExecuteCopyLimits struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ChunkBytes    int32                  `protobuf:"varint,1,opt,name=chunk_bytes,json=chunkBytes,proto3" json:"chunk_bytes,omitempty"`
-	MaxBytes      int32                  `protobuf:"varint,2,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
-	MaxRowBytes   int32                  `protobuf:"varint,3,opt,name=max_row_bytes,json=maxRowBytes,proto3" json:"max_row_bytes,omitempty"`
-	TimeoutMs     int32                  `protobuf:"varint,4,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	ChunkBytes int32                  `protobuf:"varint,1,opt,name=chunk_bytes,json=chunkBytes,proto3" json:"chunk_bytes,omitempty"`
+	// max_bytes is the overall extraction safety ceiling. It is int64 so the
+	// backend-owned 10 GiB result cap is representable without overflow.
+	MaxBytes      int64 `protobuf:"varint,2,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
+	MaxRowBytes   int32 `protobuf:"varint,3,opt,name=max_row_bytes,json=maxRowBytes,proto3" json:"max_row_bytes,omitempty"`
+	TimeoutMs     int32 `protobuf:"varint,4,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -199,7 +201,7 @@ func (x *RemoteQueryExecuteCopyLimits) GetChunkBytes() int32 {
 	return 0
 }
 
-func (x *RemoteQueryExecuteCopyLimits) GetMaxBytes() int32 {
+func (x *RemoteQueryExecuteCopyLimits) GetMaxBytes() int64 {
 	if x != nil {
 		return x.MaxBytes
 	}
@@ -331,15 +333,17 @@ func (x *RemoteQueryExecuteRequest) GetResultDelivery() *RemoteQueryResultDelive
 // Agent Go side retains base_url, token, and the org API key; only the
 // sanitized, non-secret fields are forwarded to the integration check.
 type RemoteQueryResultDelivery struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Mode          string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
-	UploadId      string                 `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
-	BaseUrl       string                 `protobuf:"bytes,3,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
-	Token         string                 `protobuf:"bytes,4,opt,name=token,proto3" json:"token,omitempty"`
-	PartBytes     int32                  `protobuf:"varint,5,opt,name=part_bytes,json=partBytes,proto3" json:"part_bytes,omitempty"`
-	MaxBytes      int32                  `protobuf:"varint,6,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
-	Format        string                 `protobuf:"bytes,7,opt,name=format,proto3" json:"format,omitempty"`
-	Compression   string                 `protobuf:"bytes,8,opt,name=compression,proto3" json:"compression,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Mode      string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	UploadId  string                 `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	BaseUrl   string                 `protobuf:"bytes,3,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	Token     string                 `protobuf:"bytes,4,opt,name=token,proto3" json:"token,omitempty"`
+	PartBytes int32                  `protobuf:"varint,5,opt,name=part_bytes,json=partBytes,proto3" json:"part_bytes,omitempty"`
+	// max_bytes is the multipart upload total cap. It is int64 so the
+	// backend-owned 10 GiB result cap is representable without overflow.
+	MaxBytes      int64  `protobuf:"varint,6,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
+	Format        string `protobuf:"bytes,7,opt,name=format,proto3" json:"format,omitempty"`
+	Compression   string `protobuf:"bytes,8,opt,name=compression,proto3" json:"compression,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -409,7 +413,7 @@ func (x *RemoteQueryResultDelivery) GetPartBytes() int32 {
 	return 0
 }
 
-func (x *RemoteQueryResultDelivery) GetMaxBytes() int32 {
+func (x *RemoteQueryResultDelivery) GetMaxBytes() int64 {
 	if x != nil {
 		return x.MaxBytes
 	}
@@ -1257,7 +1261,7 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x1cRemoteQueryExecuteCopyLimits\x12\x1f\n" +
 	"\vchunk_bytes\x18\x01 \x01(\x05R\n" +
 	"chunkBytes\x12\x1b\n" +
-	"\tmax_bytes\x18\x02 \x01(\x05R\bmaxBytes\x12\"\n" +
+	"\tmax_bytes\x18\x02 \x01(\x03R\bmaxBytes\x12\"\n" +
 	"\rmax_row_bytes\x18\x03 \x01(\x05R\vmaxRowBytes\x12\x1d\n" +
 	"\n" +
 	"timeout_ms\x18\x04 \x01(\x05R\ttimeoutMs\"\xa9\x03\n" +
@@ -1278,7 +1282,7 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x05token\x18\x04 \x01(\tR\x05token\x12\x1d\n" +
 	"\n" +
 	"part_bytes\x18\x05 \x01(\x05R\tpartBytes\x12\x1b\n" +
-	"\tmax_bytes\x18\x06 \x01(\x05R\bmaxBytes\x12\x16\n" +
+	"\tmax_bytes\x18\x06 \x01(\x03R\bmaxBytes\x12\x16\n" +
 	"\x06format\x18\a \x01(\tR\x06format\x12 \n" +
 	"\vcompression\x18\b \x01(\tR\vcompression\"G\n" +
 	"\x17RemoteQueryExecuteError\x12\x12\n" +

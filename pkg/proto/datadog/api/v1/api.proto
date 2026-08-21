@@ -37,7 +37,9 @@ message RemoteQueryExecuteLimits {
 
 message RemoteQueryExecuteCopyLimits {
     int32 chunk_bytes = 1;
-    int32 max_bytes = 2;
+    // max_bytes is the overall extraction safety ceiling. It is int64 so the
+    // backend-owned 10 GiB result cap is representable without overflow.
+    int64 max_bytes = 2;
     int32 max_row_bytes = 3;
     int32 timeout_ms = 4;
 }
@@ -69,7 +71,9 @@ message RemoteQueryResultDelivery {
     string base_url = 3;
     string token = 4;
     int32 part_bytes = 5;
-    int32 max_bytes = 6;
+    // max_bytes is the multipart upload total cap. It is int64 so the
+    // backend-owned 10 GiB result cap is representable without overflow.
+    int64 max_bytes = 6;
     string format = 7;
     string compression = 8;
 }
