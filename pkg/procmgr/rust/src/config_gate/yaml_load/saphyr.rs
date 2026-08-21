@@ -57,9 +57,10 @@ fn plain_scalar_to_value(text: &str) -> Value {
     }
 }
 
-/// Integers first (decimal, then yaml.v2 `0x`/`0b`/`0o` prefixes), then finite
-/// floats. Matches yaml.v2 unmarshalling into `interface{}` so `cast.ToBoolE`
-/// can treat a non-zero number as true.
+/// Integers first (decimal, then yaml.v2 `0x`/`0b`/`0o` prefixes), then YAML 1.1
+/// special floats (`.inf`, `-.inf`, `.nan`), then finite decimal/scientific floats.
+/// Matches yaml.v2 unmarshalling into `interface{}` so `cast.ToBoolE` can treat a
+/// non-zero number as true.
 fn yaml_v2_plain_number(text: &str) -> Option<Value> {
     let plain: String = text.chars().filter(|c| *c != '_').collect();
     if let Ok(n) = plain.parse::<i64>() {
@@ -71,6 +72,9 @@ fn yaml_v2_plain_number(text: &str) -> Option<Value> {
     if let Some(n) = parse_yaml_v2_prefixed_int(&plain) {
         return Some(n);
     }
+    if let Some(n) = parse_yaml_v2_special_float(&plain) {
+        return Some(Value::Number(n.into()));
+    }
     if !looks_like_yaml_11_float(&plain) {
         return None;
     }
@@ -79,6 +83,34 @@ fn yaml_v2_plain_number(text: &str) -> Option<Value> {
         .ok()
         .filter(|n| n.is_finite())
         .map(|n| Value::Number(n.into()))
+}
+
+/// YAML 1.1 special floats resolved by go.yaml.in/yaml/v2 (must include a leading `.`).
+fn parse_yaml_v2_special_float(text: &str) -> Option<f64> {
+    if let Some(rest) = text.strip_prefix('+') {
+        return parse_yaml_v2_special_float_unsigned(rest);
+    }
+    if let Some(rest) = text.strip_prefix('-') {
+        return parse_yaml_v2_special_float_unsigned(rest).and_then(|n| {
+            if n.is_infinite() {
+                Some(-n)
+            } else {
+                None
+            }
+        });
+    }
+    parse_yaml_v2_special_float_unsigned(text)
+}
+
+fn parse_yaml_v2_special_float_unsigned(text: &str) -> Option<f64> {
+    let suffix = text.strip_prefix('.')?;
+    if suffix.eq_ignore_ascii_case("inf") {
+        Some(f64::INFINITY)
+    } else if suffix.eq_ignore_ascii_case("nan") {
+        Some(f64::NAN)
+    } else {
+        None
+    }
 }
 
 /// `strconv.ParseInt`/`ParseUint` with base 0: `0x` hex, `0b` binary, `0o` octal.
@@ -114,8 +146,8 @@ fn parse_yaml_v2_prefixed_int(plain: &str) -> Option<Value> {
     Some(Value::Number(n.into()))
 }
 
-/// Digit-based decimal or scientific form (`1.0`, `1e0`). Rejects Rust-only
-/// spellings such as `inf` that yaml.v2 would leave as strings.
+/// Digit-based decimal or scientific form (`1.0`, `1e0`). Plain `inf` without a
+/// leading dot stays a string in yaml.v2.
 fn looks_like_yaml_11_float(text: &str) -> bool {
     let mut rest = text.as_bytes();
     if rest.first().is_some_and(|c| *c == b'+' || *c == b'-') {
@@ -315,6 +347,24 @@ mod tests {
     fn quoted_float_stays_string() {
         let root = load("enabled: \"1.0\"\n").unwrap();
         assert_eq!(root.get("enabled"), Some(&Value::String("1.0".into())));
+    }
+
+    #[test]
+    fn plain_dot_inf_is_number() {
+        let root = load("enabled: .inf\n").unwrap();
+        assert!(root.get("enabled").and_then(Value::as_f64).unwrap().is_infinite());
+    }
+
+    #[test]
+    fn plain_dot_nan_is_number() {
+        let root = load("enabled: .nan\n").unwrap();
+        assert!(root.get("enabled").and_then(Value::as_f64).unwrap().is_nan());
+    }
+
+    #[test]
+    fn negative_dot_nan_stays_string() {
+        let root = load("enabled: -.nan\n").unwrap();
+        assert_eq!(root.get("enabled"), Some(&Value::String("-.nan".into())));
     }
 
     #[test]
