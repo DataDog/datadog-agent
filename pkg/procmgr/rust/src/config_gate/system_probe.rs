@@ -180,7 +180,7 @@ impl<'a> Cfg<'a> {
         {
             return Ok(Some(enabled));
         }
-        if let Some(enabled) = env_bool_for_config_key(key) {
+        if let Some(enabled) = env_bool_for_config_key(key, self.agent) {
             return Ok(Some(enabled));
         }
         self.yaml.bool_key_if_exists(self.agent, key)
