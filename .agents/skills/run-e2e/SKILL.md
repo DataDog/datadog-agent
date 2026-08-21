@@ -47,7 +47,8 @@ python .agents/skills/run-e2e/scripts/devenv_e2e.py up --json
 
 Starts a dev env at id `e2e-run` if needed, gives it the host's E2E config and keypair, establishes
 Pulumi's backend, checks AWS access, and prints the `run_prefix` for step 5. Idempotent, so a reused env
-pays the setup cost once. Add `--no-aws-check` when the target provisions locally.
+pays the setup cost once. Add `--no-aws-check` for a locally-provisioned target to skip the SSO
+acceptance; the host still needs AWS config, because the run task requires it whatever the target is.
 
 The AWS check needs the user present — authorizing a new container means completing an SSO flow whose
 browser tab opens on their desktop. Warn them, and if it gives up, relay the `aws-vault login` it prints

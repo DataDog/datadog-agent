@@ -218,7 +218,7 @@ def restrict_to_owner(path: Path) -> None:
 
     user = os.environ.get("USERNAME") or getpass.getuser()
     # SYSTEM and Administrators are named by SID because their names are localized.
-    run(
+    result = run(
         [
             "icacls",
             str(path),
@@ -229,6 +229,13 @@ def restrict_to_owner(path: Path) -> None:
             "*S-1-5-32-544:(F)",
         ]
     )
+    if result.returncode != 0:
+        fail(
+            ERROR,
+            f"Could not restrict {path} to your account, so it would keep the ACLs it inherited —\n"
+            "and it is about to hold the Pulumi passphrase and the Datadog API and app keys.\n"
+            f"icacls said:\n{result.stderr.strip() or result.stdout.strip()}",
+        )
 
 
 def container_key(section: str, path: Path) -> str:
@@ -380,7 +387,10 @@ def check_repo_revision(instance: str, root: Path) -> None:
     revision_args = ("rev-parse", "HEAD", "--is-shallow-repository")
     host = run(["git", *revision_args], cwd=root).stdout.split()
     result = run(env_command(instance, "run", "--", "git", "-C", CONTAINER_REPO, *revision_args))
-    # `dda env dev run` prefixes its own output, so take the last two fields rather than the first.
+    # Tolerate any leading output from the wrapper by taking the last two fields rather than the
+    # first. Whether it ever emits any has not been established — `live_stacks` parses this same
+    # wrapper's stdout as JSON without stripping anything, and that works — so read this as defensive
+    # slicing, not as a documented property of `dda env dev run`.
     container, shallow = (result.stdout.split()[-2:] + ["", ""])[:2] if result.returncode == 0 else ("", "")
     host_revision = host[0] if host else ""
 
@@ -548,9 +558,11 @@ def command_up(args: argparse.Namespace) -> None:
     install_config(args.id)
     ensure_pulumi_backend(args.id)
     if args.no_aws_check:
-        # A target on the framework's local provisioners needs no cloud credentials, and the check
-        # below costs an interactive SSO acceptance, so gating a local run behind it would be a
-        # toll for nothing. The caller has to opt out because `up` never sees the target.
+        # A locally-provisioned target needs no AWS *session*, and the check below costs an
+        # interactive SSO acceptance, so this lets someone whose session has lapsed still run one.
+        # It does not remove the need for AWS *config*: both `load_host_config` above and the run
+        # task's own preflight require `configParams.aws.keyPairName` whatever the target is. The
+        # caller has to opt out because `up` never sees the target.
         print("Skipping the AWS access check; the run will fail late if the target needs it.", file=sys.stderr)
     else:
         check_aws(args.id)
@@ -637,7 +649,7 @@ def main() -> None:
     up.add_argument(
         "--no-aws-check",
         action="store_true",
-        help="skip the AWS access check, for a target that provisions locally and needs no cloud credentials",
+        help="skip the AWS access check for a locally-provisioned target; AWS config is still required",
     )
     up.set_defaults(func=command_up)
 
