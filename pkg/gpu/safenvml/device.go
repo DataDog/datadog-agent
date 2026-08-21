@@ -52,6 +52,9 @@ type SafeDevice interface {
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
 	//nolint:revive // Maintaining consistency with go-nvml API naming
 	GetGpuInstanceId() (int, error)
+	// GetComputeInstanceId returns the compute instance ID for MIG devices
+	//nolint:revive // Maintaining consistency with go-nvml API naming
+	GetComputeInstanceId() (int, error)
 	// GetGpuInstanceProfileInfo returns the profile info for the given GPU instance profile ID
 	GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error)
 	// GetGpuFabricInfo returns the NVLink fabric information for the device.
@@ -192,6 +195,11 @@ type MIGDevice struct {
 
 	// MIGInstanceID is the instance ID of the MIG device
 	MIGInstanceID int
+
+	// ComputeInstanceID is the compute instance ID of the MIG device. -1 when
+	// the driver does not expose it (older drivers / non-critical API missing);
+	// 0 is a real compute instance ID (the first CI), never "unknown".
+	ComputeInstanceID int
 }
 
 var _ Device = &MIGDevice{}
@@ -310,6 +318,20 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		}
 		migChildDevice.MIGInstanceID = gpuInstanceID
 
+		// Compute instance ID is a non-critical API: on drivers where the symbol
+		// is unavailable (or the call fails) we must degrade gracefully rather
+		// than abort the whole MIG enumeration — GetGpuInstanceId above is
+		// critical, this one is not. Mark it -1 ("unknown") and log; callers
+		// that need CI (e.g. the DRA Container<->GPU resolution) then fall back
+		// to GI-only matching for that child. 0 is a real compute instance ID,
+		// never used as the unknown marker.
+		if computeInstanceID, err := migChildDevice.GetComputeInstanceId(); err == nil {
+			migChildDevice.ComputeInstanceID = computeInstanceID
+		} else {
+			migChildDevice.ComputeInstanceID = -1
+			log.Debugf("MIG device %s: cannot get compute instance ID: %s", migChildDevice.GetDeviceInfo().UUID, err)
+		}
+
 		d.MIGChildren = append(d.MIGChildren, migChildDevice)
 	}
 
@@ -325,6 +347,10 @@ func (d *PhysicalDevice) GetDeviceInfo() *DeviceInfo {
 func NewMIGDevice(dev SafeDevice) (*MIGDevice, error) {
 	device := &MIGDevice{
 		SafeDevice: dev,
+		// "Unknown" until fillMigChildren queries it: 0 is a real compute
+		// instance ID, so the zero value would claim CI 0 rather than admit it
+		// does not know.
+		ComputeInstanceID: -1,
 	}
 
 	if err := device.fillBasicDataFromNVML(dev); err != nil {

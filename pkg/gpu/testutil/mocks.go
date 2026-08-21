@@ -228,24 +228,25 @@ func DefaultDevicesWithMIGChildren() []int {
 }
 
 type deviceOptions struct {
-	compatibilityHooks  []func(*nvmlmock.Device)
-	mode                DeviceFeatureMode
-	migDisabled         bool
-	migChildIndex       *int
-	archSet             bool
-	architecture        nvml.DeviceArchitecture
-	computeMajor        int
-	computeMinor        int
-	processDataCallback func(uuid string) (MockProcessInfoList, nvml.Return)
-	gpmSupported        *bool
-	nvlinkGeneration    int
-	nvlinkLinkCount     int
-	fieldValues         map[uint32]MockFieldValue
-	scopedFieldValues   map[uint32]map[uint32]MockFieldValue
-	nvlinkStates        []nvml.EnableState
-	nvlinkStateErrors   map[int]nvml.Return
-	migChildUUIDs       map[int]map[int]string
-	parentUUIDs         []string
+	compatibilityHooks      []func(*nvmlmock.Device)
+	mode                    DeviceFeatureMode
+	migDisabled             bool
+	migChildIndex           *int
+	migComputeInstanceIndex *int
+	archSet                 bool
+	architecture            nvml.DeviceArchitecture
+	computeMajor            int
+	computeMinor            int
+	processDataCallback     func(uuid string) (MockProcessInfoList, nvml.Return)
+	gpmSupported            *bool
+	nvlinkGeneration        int
+	nvlinkLinkCount         int
+	fieldValues             map[uint32]MockFieldValue
+	scopedFieldValues       map[uint32]map[uint32]MockFieldValue
+	nvlinkStates            []nvml.EnableState
+	nvlinkStateErrors       map[int]nvml.Return
+	migChildUUIDs           map[int]map[int]string
+	parentUUIDs             []string
 
 	fieldValuesReturn  *nvml.Return
 	samplesUnsupported bool
@@ -627,6 +628,15 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return *opts.migChildIndex, nvml.SUCCESS
 		},
+		GetComputeInstanceIdFunc: func() (int, nvml.Return) {
+			if !opts.isMIGChild() {
+				return 0, nvml.ERROR_INVALID_ARGUMENT
+			}
+			if opts.migComputeInstanceIndex != nil {
+				return *opts.migComputeInstanceIndex, nvml.SUCCESS
+			}
+			return 0, nvml.SUCCESS
+		},
 		GetProcessUtilizationFunc: func(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 			if isMIGUnsupported {
 				return nil, nvml.ERROR_NOT_FOUND
@@ -828,6 +838,15 @@ type NvmlMockOption func(*nvmlMockOptions)
 func WithMIGDisabled() NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions.migDisabled = true
+	}
+}
+
+// WithMIGComputeInstance sets the compute instance ID that MIG child devices
+// report from GetComputeInstanceId (the default is 0, the 1-CI-per-GI case).
+// Use it to exercise multi-CI GPU instances, e.g. 3g.71gb split into 3x 1c.3g.
+func WithMIGComputeInstance(ci int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.migComputeInstanceIndex = &ci
 	}
 }
 

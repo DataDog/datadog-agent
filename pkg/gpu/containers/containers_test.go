@@ -656,12 +656,14 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 	})
 
 	t.Run("GPUDeviceIDsTakesPrecedenceOverResolvedAllocatedResources", func(t *testing.T) {
-		// GPUDeviceIDs should be used even if ResolvedAllocatedResources is set
+		// On the Docker runtime -- which is what ECS uses -- GPUDeviceIDs is
+		// authoritative and the Kubernetes resource list is not consulted.
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
 				ID:   "test-precedence-container",
 			},
+			Runtime:      workloadmeta.ContainerRuntimeDocker,
 			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]}, // Should use this
 			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 				{
@@ -675,6 +677,83 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 1)
 		assert.Equal(t, devices[0], filteredDevices[0]) // Should be device 0, not device 2
+	})
+
+	t.Run("KubernetesUnionsTheMappingWithAllocatedResources", func(t *testing.T) {
+		// A Kubernetes container can hold a DRA device and a device-plugin
+		// device at once: only the DRA half reaches GPUDeviceIDs (the nvml
+		// collector resolves CDI device names), so treating the mapping as
+		// authoritative would drop the device-plugin card entirely.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-mixed-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeContainerd,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]}, // resolved from a DRA claim
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[2], // handed out by the device plugin
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 2)
+		assert.Equal(t, devices[0], filteredDevices[0])
+		assert.Equal(t, devices[2], filteredDevices[1])
+	})
+
+	t.Run("KubernetesDoesNotDuplicateADeviceResolvedByBothPaths", func(t *testing.T) {
+		// A whole-card DRA claim resolves through the mapping and, on a node
+		// with no MIG devices, through the legacy index guess as well. It is
+		// one device and must be reported once.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-dedup-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeContainerd,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[1]},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaDRA),
+					ID:   "gpu-1",
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("KubernetesReportsAnUnresolvableResourceEvenWhenTheMappingIsPresent", func(t *testing.T) {
+		// Error suppression must be scoped to the resources the mapping can
+		// account for. A DRA resource the mapping did not resolve has to keep
+		// surfacing, otherwise a half-attributed pod looks healthy.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-partial-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeContainerd,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "GPU-does-not-exist",
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.Error(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[0], filteredDevices[0])
 	})
 }
 
