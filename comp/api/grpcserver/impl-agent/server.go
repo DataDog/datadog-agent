@@ -398,7 +398,10 @@ func (s *remoteCommandProviderServer) ListCommands(_ context.Context, _ *pb.List
 	agentCommands := s.remoteAgentRegistry.ListCommands()
 	var allCommands []*pb.Command
 	for _, ac := range agentCommands {
-		allCommands = append(allCommands, ac.Commands...)
+		for _, cmd := range ac.Commands {
+			cmd.AgentFlavor = ac.Flavor
+			allCommands = append(allCommands, cmd)
+		}
 	}
 
 	return &pb.ListCommandsResponse{Commands: allCommands}, nil

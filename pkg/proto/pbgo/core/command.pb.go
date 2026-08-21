@@ -210,7 +210,12 @@ type Command struct {
 	Children []*Command `protobuf:"bytes,6,rep,name=children,proto3" json:"children,omitempty"`
 	// Whether this command can be executed (has a Run function). Non-runnable commands
 	// serve as grouping nodes for child commands (e.g., a "dogstatsd" parent).
-	IsRunnable    bool `protobuf:"varint,7,opt,name=is_runnable,json=isRunnable,proto3" json:"is_runnable,omitempty"`
+	IsRunnable bool `protobuf:"varint,7,opt,name=is_runnable,json=isRunnable,proto3" json:"is_runnable,omitempty"`
+	// The flavor of the remote agent that owns this command.
+	//
+	// Populated by the Core Agent when aggregating commands from multiple remote agents.
+	// The CLI uses this to route ExecuteCommand requests to the correct agent.
+	AgentFlavor   string `protobuf:"bytes,8,opt,name=agent_flavor,json=agentFlavor,proto3" json:"agent_flavor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -292,6 +297,13 @@ func (x *Command) GetIsRunnable() bool {
 		return x.IsRunnable
 	}
 	return false
+}
+
+func (x *Command) GetAgentFlavor() string {
+	if x != nil {
+		return x.AgentFlavor
+	}
+	return ""
 }
 
 type ListCommandsRequest struct {
@@ -546,7 +558,7 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\x0e2-.datadog.remoteagent.command.v1.ParameterTypeR\x04type\x12\x1a\n" +
 	"\brequired\x18\x05 \x01(\bR\brequired\x12\x17\n" +
 	"\ais_flag\x18\x06 \x01(\bR\x06isFlag\x12#\n" +
-	"\ris_persistent\x18\a \x01(\bR\fisPersistent\"\xb7\x02\n" +
+	"\ris_persistent\x18\a \x01(\bR\fisPersistent\"\xda\x02\n" +
 	"\aCommand\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -558,7 +570,8 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"parameters\x12C\n" +
 	"\bchildren\x18\x06 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bchildren\x12\x1f\n" +
 	"\vis_runnable\x18\a \x01(\bR\n" +
-	"isRunnable\"\x15\n" +
+	"isRunnable\x12!\n" +
+	"\fagent_flavor\x18\b \x01(\tR\vagentFlavor\"\x15\n" +
 	"\x13ListCommandsRequest\"[\n" +
 	"\x14ListCommandsResponse\x12C\n" +
 	"\bcommands\x18\x01 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands\"\xcf\x01\n" +
