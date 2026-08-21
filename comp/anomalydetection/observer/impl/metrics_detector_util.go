@@ -12,6 +12,18 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
+const scanMaxPoints = 120
+
+// appendPointWindow retains the newest maxPoints points in buf.
+func appendPointWindow(buf []observer.Point, maxPoints int, point observer.Point) []observer.Point {
+	if len(buf) < maxPoints {
+		return append(buf, point)
+	}
+	copy(buf, buf[1:])
+	buf[len(buf)-1] = point
+	return buf
+}
+
 func parseAggregateConfig(names []string) []observer.Aggregate {
 	if len(names) == 0 {
 		return nil
@@ -23,6 +35,23 @@ func parseAggregateConfig(names []string) []observer.Aggregate {
 		}
 	}
 	return aggregations
+}
+
+func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
+	switch s {
+	case "avg":
+		return observer.AggregateAverage, true
+	case "sum":
+		return observer.AggregateSum, true
+	case "count":
+		return observer.AggregateCount, true
+	case "min":
+		return observer.AggregateMin, true
+	case "max":
+		return observer.AggregateMax, true
+	default:
+		return 0, false
+	}
 }
 
 // seriesStatus holds point count and write generation for a single series.

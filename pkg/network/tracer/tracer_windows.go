@@ -342,6 +342,9 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 
 // GetProcessCacheTags returns a map of PID -> []string tags from the process cache.
 func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
+	if t.processCache == nil {
+		return nil
+	}
 	return t.processCache.GetAllPIDTags()
 }
 
