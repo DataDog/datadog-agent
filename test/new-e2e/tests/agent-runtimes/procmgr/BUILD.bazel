@@ -12,6 +12,7 @@ dd_agent_go_test(
     name = "procmgr_test",
     srcs = [
         "par_procmgr_win_test.go",
+        "procmgr_cli_test.go",
         "procmgr_common_test.go",
         "procmgr_nix_test.go",
         "procmgr_win_test.go",
