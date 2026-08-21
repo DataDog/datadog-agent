@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use std::ptr;
 use windows_sys::Win32::Foundation::{HANDLE, TRUE};
 use windows_sys::Win32::Security::{
-    AllocateAndInitializeSid, CheckTokenMembership, FreeSid, GetTokenInformation, IsWellKnownSid,
-    RevertToSelf, SECURITY_NT_AUTHORITY, TOKEN_QUERY, TOKEN_USER, TokenUser, WinLocalSystemSid,
+    AllocateAndInitializeSid, CheckTokenMembership, FreeSid, RevertToSelf, SECURITY_NT_AUTHORITY,
+    TOKEN_QUERY,
 };
 use windows_sys::Win32::System::Pipes::ImpersonateNamedPipeClient;
 use windows_sys::Win32::System::SystemServices::{
@@ -68,41 +67,20 @@ fn impersonated_client_may_mutate() -> Option<bool> {
 }
 
 fn token_may_mutate(token: HANDLE) -> Option<bool> {
-    if token_is_local_system(token)? {
+    if query_token_is_local_system(token)? {
         return Some(true);
     }
     token_is_builtin_admin(token)
 }
 
-fn token_is_local_system(token: HANDLE) -> Option<bool> {
-    let mut size = 0u32;
-    let _ = unsafe { GetTokenInformation(token, TokenUser, std::ptr::null_mut(), 0, &mut size) };
-    if size == 0 {
-        return None;
+fn query_token_is_local_system(token: HANDLE) -> Option<bool> {
+    match super::token_identity::token_user_is_local_system(token) {
+        Ok(is_local_system) => Some(is_local_system),
+        Err(err) => {
+            log::warn!("token_user_is_local_system failed: {err}");
+            None
+        }
     }
-    let mut buffer = vec![0u8; size as usize];
-    let ok = unsafe {
-        GetTokenInformation(
-            token,
-            TokenUser,
-            buffer.as_mut_ptr().cast(),
-            size,
-            &mut size,
-        )
-    };
-    if ok == 0 {
-        log::warn!(
-            "GetTokenInformation(TokenUser) failed: {}",
-            std::io::Error::last_os_error()
-        );
-        return None;
-    }
-    let token_user = unsafe { ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>()) };
-    let sid = token_user.User.Sid;
-    if sid.is_null() {
-        return None;
-    }
-    Some(unsafe { IsWellKnownSid(sid, WinLocalSystemSid) != 0 })
 }
 
 fn token_is_builtin_admin(token: HANDLE) -> Option<bool> {
