@@ -66,12 +66,19 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 	eventSubscribers := append([]*remoteagentregistry.EventSubscriber{}, reqs.EventSubscribers...)
 	eventSubscribers = append(eventSubscribers, newSecretsRefreshEventSubscriber(reqs.Secrets))
 	registry := &remoteAgentRegistry{
-		conf:             reqs.Config,
-		ipc:              reqs.Ipc,
-		agentMap:         make(map[string]*remoteAgentClient),
-		shutdownChan:     shutdownChan,
-		telemetry:        reqs.Telemetry,
-		telemetryStore:   newTelemetryStore(reqs.Telemetry),
+		conf:           reqs.Config,
+		ipc:            reqs.Ipc,
+		agentMap:       make(map[string]*remoteAgentClient),
+		shutdownChan:   shutdownChan,
+		telemetry:      reqs.Telemetry,
+		telemetryStore: newTelemetryStore(reqs.Telemetry),
+		// Services currently supported by the remote agent registry
+		remoteAgentServices: map[remoteAgentServiceName]struct{}{
+			StatusServiceName:          {},
+			FlareServiceName:           {},
+			TelemetryServiceName:       {},
+			CommandProviderServiceName: {},
+		},
 		eventSubscribers: eventSubscribers,
 	}
 

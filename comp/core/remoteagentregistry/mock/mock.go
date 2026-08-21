@@ -12,9 +12,30 @@ import (
 	"testing"
 
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // Mock returns a mock for remoteagentregistry component.
 func Mock(_ *testing.T) remoteagentregistry.Component {
-	return nil
+	return &mockRegistry{}
+}
+
+type mockRegistry struct{}
+
+func (m *mockRegistry) RegisterRemoteAgent(_ *remoteagentregistry.RegistrationData) (string, uint32, error) {
+	return "", 0, nil
+}
+
+func (m *mockRegistry) RefreshRemoteAgent(_ string) bool { return false }
+
+func (m *mockRegistry) ReportRemoteAgentEvent(_ string, _ []remoteagentregistry.RemoteAgentEvent) error { return nil }
+
+func (m *mockRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent { return nil }
+
+func (m *mockRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData { return nil }
+
+func (m *mockRegistry) ListCommands() []remoteagentregistry.AgentCommands { return nil }
+
+func (m *mockRegistry) ExecuteCommand(_ string, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+	return nil, nil
 }

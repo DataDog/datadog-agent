@@ -71,6 +71,13 @@ type remoteAgentServer struct {
 	remoteAgentRegistry remoteagentregistry.Component
 }
 
+// remoteCommandProviderServer implements the RemoteCommandProvider gRPC service, which allows the Core Agent CLI
+// to discover and execute commands exposed by registered remote agents.
+type remoteCommandProviderServer struct {
+	pb.UnimplementedRemoteCommandProviderServer
+	remoteAgentRegistry remoteagentregistry.Component
+}
+
 func (s *agentServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
 	h, err := s.hostname.Get(ctx)
 	if err != nil {
@@ -380,4 +387,36 @@ func (s *serverSecure) CreateConfigSubscription(stream pb.AgentSecure_CreateConf
 
 func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.WorkloadFilterEvaluateRequest) (*pb.WorkloadFilterEvaluateResponse, error) {
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
+}
+
+// ListCommands returns all commands exposed by registered remote agents that advertise the command provider service.
+func (s *remoteCommandProviderServer) ListCommands(_ context.Context, _ *pb.ListCommandsRequest) (*pb.ListCommandsResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	agentCommands := s.remoteAgentRegistry.ListCommands()
+	var allCommands []*pb.Command
+	for _, ac := range agentCommands {
+		allCommands = append(allCommands, ac.Commands...)
+	}
+
+	return &pb.ListCommandsResponse{Commands: allCommands}, nil
+}
+
+// ExecuteCommand routes a command execution request to the registered remote agent that owns the command.
+func (s *remoteCommandProviderServer) ExecuteCommand(_ context.Context, in *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	if in.GetCommandPath() == "" {
+		return nil, status.Error(codes.InvalidArgument, "command_path is required")
+	}
+
+	resp, err := s.remoteAgentRegistry.ExecuteCommand(in.GetAgentFlavor(), in)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to execute command: %v", err)
+	}
+	return resp, nil
 }

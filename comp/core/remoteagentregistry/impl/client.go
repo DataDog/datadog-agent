@@ -41,6 +41,9 @@ const FlareServiceName = "datadog.remoteagent.flare.v1.FlareProvider"
 // TelemetryServiceName is the service name for remote agent telemetry provider
 const TelemetryServiceName = "datadog.remoteagent.telemetry.v1.TelemetryProvider"
 
+// CommandProviderServiceName is the service name for the remote agent command provider.
+const CommandProviderServiceName = "datadog.remoteagent.command.v1.RemoteCommandProvider"
+
 type remoteAgentClient struct {
 	// agent variables
 	remoteagentregistry.RegisteredAgent
@@ -53,6 +56,7 @@ type remoteAgentClient struct {
 	pb.FlareProviderClient
 	pb.StatusProviderClient
 	pb.TelemetryProviderClient
+	pb.RemoteCommandProviderClient
 	services []remoteAgentServiceName
 	conn     *grpc.ClientConn
 }
@@ -90,9 +94,10 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 		},
 		// gRPC relative
 		conn:                    conn,
-		StatusProviderClient:    pb.NewStatusProviderClient(conn),
-		FlareProviderClient:     pb.NewFlareProviderClient(conn),
-		TelemetryProviderClient: pb.NewTelemetryProviderClient(conn),
+		StatusProviderClient:           pb.NewStatusProviderClient(conn),
+		FlareProviderClient:            pb.NewFlareProviderClient(conn),
+		TelemetryProviderClient:        pb.NewTelemetryProviderClient(conn),
+		RemoteCommandProviderClient:    pb.NewRemoteCommandProviderClient(conn),
 	}
 
 	client.services = registration.Services
