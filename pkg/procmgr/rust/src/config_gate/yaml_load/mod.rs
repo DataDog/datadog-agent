@@ -47,6 +47,16 @@ mod tests {
     }
 
     #[test]
+    fn multi_document_stream_uses_first_document() {
+        let yaml = "process_config:\n  process_collection:\n    enabled: true\n---\nprocess_config:\n  process_collection:\n    enabled: false\n";
+        let root = load_yaml(yaml).unwrap();
+        assert_eq!(
+            dotted(&root, "process_config.process_collection.enabled"),
+            Some(&Value::Bool(true))
+        );
+    }
+
+    #[test]
     fn strict_parse_used_when_no_duplicates() {
         let root = load_yaml("process_config:\n  enabled: true\n").unwrap();
         assert_eq!(
