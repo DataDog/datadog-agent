@@ -175,6 +175,19 @@ func TestSpanKindFromAttr(t *testing.T) {
 	}
 }
 
+func TestSDKIsErrorStatus(t *testing.T) {
+	for _, status := range []string{"2", "ERROR", "Error", "error", "STATUS_CODE_ERROR", "status_code_error"} {
+		t.Run(status, func(t *testing.T) {
+			assert.True(t, sdkIsErrorStatus(status))
+		})
+	}
+	for _, status := range []string{"", "0", "1", "OK", "STATUS_CODE_OK"} {
+		t.Run(status, func(t *testing.T) {
+			assert.False(t, sdkIsErrorStatus(status))
+		})
+	}
+}
+
 func TestBuildSDKTraceStatsPayloadPreservesExplicitHistogram(t *testing.T) {
 	metric := sdkTraceMetric("ms", 6, 500, map[string]string{"datadog.operation.name": "op"})
 	datapoint := metric.Histogram().DataPoints().At(0)

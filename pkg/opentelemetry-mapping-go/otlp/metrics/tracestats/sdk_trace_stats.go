@@ -116,7 +116,7 @@ func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric p
 func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoint, unit string) (*stats.StatsBucketV3_GroupedStats, error) {
 	attrs := dp.Attributes()
 	hits := dp.Count()
-	isError := attributes.GetOTelAttrVal(attrs, false, "status.code") == "STATUS_CODE_ERROR"
+	isError := sdkIsErrorStatus(attributes.GetOTelAttrVal(attrs, false, "status.code"))
 
 	if svc := attributes.GetOTelAttrVal(attrs, false, "service.name"); svc != "" {
 		service, _ = normalizeutil.NormalizeService(svc, "")
@@ -171,6 +171,10 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 		groupedStats.OkSparseSketch = sketch
 	}
 	return groupedStats, nil
+}
+
+func sdkIsErrorStatus(status string) bool {
+	return status == "2" || strings.EqualFold(status, "error") || strings.EqualFold(status, "status_code_error")
 }
 
 func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) ([]byte, error) {
