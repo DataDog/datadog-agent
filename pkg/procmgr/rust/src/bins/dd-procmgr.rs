@@ -59,7 +59,7 @@ enum Commands {
         #[arg(long)]
         command: String,
         /// Command arguments (repeatable)
-        #[arg(long, num_args = 1..)]
+        #[arg(long, num_args = 1.., allow_hyphen_values = true)]
         args: Vec<String>,
         /// Environment variable KEY=VALUE (repeatable)
         #[arg(long, value_name = "KEY=VALUE")]
@@ -748,5 +748,38 @@ mod tests {
         let err = parse_env_args(&args).unwrap_err();
         assert!(err.contains("INVALID"));
         assert!(err.contains("KEY=VALUE"));
+    }
+
+    #[test]
+    fn test_create_parses_powershell_hyphen_args() {
+        let cli = Cli::try_parse_from([
+            "dd-procmgr",
+            "create",
+            "--name",
+            "test",
+            "--command",
+            r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+            "--args",
+            "-NoProfile",
+            "--args",
+            "-NonInteractive",
+            "--args",
+            "-Command",
+            "--args",
+            "Write-Output ok",
+        ])
+        .unwrap();
+        let Commands::Create { args, .. } = cli.command else {
+            panic!("expected create subcommand");
+        };
+        assert_eq!(
+            args,
+            vec![
+                "-NoProfile".to_string(),
+                "-NonInteractive".to_string(),
+                "-Command".to_string(),
+                "Write-Output ok".to_string(),
+            ]
+        );
     }
 }

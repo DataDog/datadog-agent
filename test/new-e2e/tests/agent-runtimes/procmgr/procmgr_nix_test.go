@@ -170,7 +170,7 @@ func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 	s.requireDDOT()
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(t, s.platform.cliCmd("describe datadog-agent-ddot"))
+		out := s.Env().RemoteHost.MustExecuteOn(t, s.cliDescribe("datadog-agent-ddot"))
 		assertField(t, out, "Name", "datadog-agent-ddot")
 		assertField(t, out, "State", "Running")
 		assertField(t, out, "Command", ddotExtBinaryPath)
@@ -184,7 +184,7 @@ func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, t
 	s.T().Helper()
 	var pid string
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(t, s.platform.cliCmd("describe "+name))
+		out := s.Env().RemoteHost.MustExecuteOn(t, s.cliDescribe(name))
 		assertField(t, out, "State", "Running")
 		p := fieldValue(out, "PID")
 		if !assert.NotEmpty(t, p, "PID should be present for a Running process") ||
@@ -199,7 +199,7 @@ func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, t
 
 func (s *procmgrLinuxSuite) getRestartCount(name string) int {
 	s.T().Helper()
-	out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe " + name))
+	out := s.Env().RemoteHost.MustExecute(s.cliDescribe(name))
 	count, err := strconv.Atoi(fieldValue(out, "Restarts"))
 	require.NoError(s.T(), err, "Restarts field for %s should be a number", name)
 	return count
