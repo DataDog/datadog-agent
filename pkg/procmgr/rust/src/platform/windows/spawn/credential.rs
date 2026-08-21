@@ -11,9 +11,7 @@ use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 
 use crate::spawn::SpawnProfile;
 
-use super::super::agent_credentials::AgentAccount;
-#[cfg(not(test))]
-use super::super::agent_credentials::resolve_agent_account;
+use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::super::token_identity::{open_current_process_token, token_user_is_local_system};
 use super::logon::{logon_user_credentials, logon_user_token};
 use super::win32::duplicate_primary_token;
@@ -25,14 +23,12 @@ const SYSTEM_DISPLAY: &str = "NT AUTHORITY\\SYSTEM";
 /// Every spawn uses one of two paths:
 /// - [`Self::InheritSupervisor`]: duplicate dd-procmgrd's token (LocalSystem service or test harness)
 /// - [`Self::Logon`]: LogonUserW for a distinct installer account (ddagentuser / gMSA)
-#[derive(Debug)]
 pub(crate) enum SpawnCredential {
     InheritSupervisor {
         display_name: String,
         /// Privileged spawn and production LocalSystem agent spawn require this.
         require_local_system: bool,
     },
-    #[cfg_attr(test, allow(dead_code))]
     Logon(AgentAccount),
 }
 
@@ -53,15 +49,11 @@ impl SpawnCredential {
 
     fn resolve_agent_profile() -> Result<Self> {
         #[cfg(test)]
-        {
-            super::test_harness::agent_profile_credential()
-        }
-        #[cfg(not(test))]
-        {
-            match resolve_agent_account()? {
-                AgentAccount::LocalSystem => Ok(Self::privileged_local_system()),
-                account => Ok(Self::Logon(account)),
-            }
+        return super::test_harness::agent_profile_credential();
+
+        match resolve_agent_account()? {
+            AgentAccount::LocalSystem => Ok(Self::privileged_local_system()),
+            account => Ok(Self::Logon(account)),
         }
     }
 

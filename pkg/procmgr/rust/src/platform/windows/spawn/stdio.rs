@@ -231,8 +231,13 @@ mod tests {
             display_name: r"NT AUTHORITY\SYSTEM".to_string(),
             require_local_system: true,
         };
-        let handle = map_stdio_setting("test-proc", &bad_path, STD_OUTPUT_HANDLE, &credential)
-            .expect("map_stdio_setting should fall back instead of failing spawn");
+        let handle = map_stdio_setting(
+            "test-proc",
+            &bad_path,
+            STD_OUTPUT_HANDLE,
+            &credential,
+        )
+        .expect("map_stdio_setting should fall back instead of failing spawn");
         assert!(!handle.raw().is_null());
     }
 }

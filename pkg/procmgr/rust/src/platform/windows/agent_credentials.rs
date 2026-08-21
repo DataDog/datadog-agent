@@ -106,62 +106,13 @@ pub(crate) fn spawn_user_for_profile(
     process_name: &str,
     profile: crate::spawn::SpawnProfile,
 ) -> Result<String> {
-    match profile {
-        crate::spawn::SpawnProfile::Privileged => {
-            Ok(AccountName::new(NT_AUTHORITY, "SYSTEM").display())
-        }
-        crate::spawn::SpawnProfile::Agent => resolve_agent_account()
-            .with_context(|| {
-                format!("[{process_name}] resolve agent service account for spawn user")
-            })
-            .map(|account| account.display_name()),
-    }
-}
-
-    /// Operator-facing account name for list/describe output.
-    pub(crate) fn display_name(&self) -> String {
-        self.account_name().display()
-    }
-
-    fn account_name(&self) -> AccountName {
-        match self {
-            AgentAccount::LocalSystem => AccountName::new(NT_AUTHORITY, "SYSTEM"),
-            AgentAccount::LocalService => AccountName::new(NT_AUTHORITY, "LocalService"),
-            AgentAccount::NetworkService => AccountName::new(NT_AUTHORITY, "NetworkService"),
-            AgentAccount::PasswordLogon { domain, user, .. }
-            | AgentAccount::ServiceAccountLogon { domain, user } => {
-                account_name_for_logon(domain, user)
-            }
-        }
-    }
-}
-
-/// Match registry-style local SAM display (`.\user`) when installer stored the computer name as domain.
-fn account_name_for_logon(domain: &str, user: &str) -> AccountName {
-    let display_domain = match lookup_account_sid(domain, user)
-        .ok()
-        .and_then(|sid| is_local_account(&sid).ok())
-    {
-        Some(true) => String::new(),
-        _ => domain.to_string(),
-    };
-    AccountName::new(display_domain, user)
-}
-
-/// Resolve the spawn account display string for a profile on Windows.
-#[cfg(any(test, feature = "test-helpers"))]
-pub(crate) fn spawn_user_for_profile(
-    process_name: &str,
-    profile: crate::spawn::SpawnProfile,
-) -> Result<String> {
-    use super::spawn::SpawnCredential;
+    use super::spawn::credential::SpawnCredential;
 
     SpawnCredential::resolve(profile)
         .with_context(|| format!("[{process_name}] resolve spawn credential for spawn user"))
         .map(|credential| credential.display_name())
 }
 
-#[cfg(not(test))]
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     let Some(key) = open_datadog_agent_key() else {
         bail!("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent");
@@ -441,112 +392,6 @@ mod tests {
         assert_eq!(well_known_from_names("CORP", "gmsa$"), None);
         assert_eq!(well_known_from_names("CORP", "LocalSystem"), None);
         assert_eq!(well_known_from_names("CORP", "LocalService"), None);
-    }
-
-    #[test]
-    fn scm_agent_password_uses_scm_when_service_account_matches() {
-        assert_eq!(
-            scm_agent_password(Some("scm"), true),
-            Some("scm".to_string())
-        );
-        assert_eq!(scm_agent_password(Some(""), true), None);
-    }
-
-    #[test]
-    fn scm_agent_password_ignores_scm_when_service_account_mismatch() {
-        assert_eq!(scm_agent_password(Some("scm"), false), None);
-    }
-
-    #[test]
-    fn installed_gmsa_takes_precedence_over_stale_agent_password() {
-        let account = agent_account_from_msa_and_password(
-            "CORP".to_string(),
-            "gmsa$".to_string(),
-            Some("stale-password-from-previous-ddagentuser"),
-            false,
-            ManagedServiceAccountState::Installed,
-        )
-        .expect("installed gMSA should ignore stale agent password");
-        assert_eq!(
-            account,
-            AgentAccount::ServiceAccountLogon {
-                domain: "CORP".to_string(),
-                user: "gmsa$".to_string(),
-            }
-        );
-    }
-
-    #[test]
-    fn agent_password_used_when_account_is_not_gmsa() {
-        let account = agent_account_from_msa_and_password(
-            "CORP".to_string(),
-            "ddagent".to_string(),
-            Some("secret"),
-            false,
-            ManagedServiceAccountState::NotService,
-        )
-        .expect("regular domain account should use stored agent password");
-        assert_eq!(
-            account,
-            AgentAccount::PasswordLogon {
-                domain: "CORP".to_string(),
-                user: "ddagent".to_string(),
-                password: "secret".to_string(),
-            }
-        );
-    }
-
-    #[test]
-    fn agent_password_used_when_gmsa_classification_unavailable_for_regular_domain_account() {
-        let account = agent_account_from_msa_and_password(
-            "CORP".to_string(),
-            "ddagent".to_string(),
-            Some("secret"),
-            false,
-            ManagedServiceAccountState::ClassificationUnavailable,
-        )
-        .expect("regular domain account should fall back to LSA when DC is unavailable");
-        assert_eq!(
-            account,
-            AgentAccount::PasswordLogon {
-                domain: "CORP".to_string(),
-                user: "ddagent".to_string(),
-                password: "secret".to_string(),
-            }
-        );
-    }
-
-    #[test]
-    fn stale_lsa_ignored_when_gmsa_candidate_and_classification_unavailable() {
-        let account = agent_account_from_msa_and_password(
-            "CORP".to_string(),
-            "gmsa$".to_string(),
-            Some("stale-password-from-previous-ddagentuser"),
-            false,
-            ManagedServiceAccountState::ClassificationUnavailable,
-        )
-        .expect("gMSA candidate should not use stale agent password when DC is unavailable");
-        assert_eq!(
-            account,
-            AgentAccount::ServiceAccountLogon {
-                domain: "CORP".to_string(),
-                user: "gmsa$".to_string(),
-            }
-        );
-    }
-
-    #[test]
-    fn should_query_managed_service_account_skips_dc_for_password_backed_domain_accounts() {
-        assert!(!should_query_managed_service_account(
-            "ddagent",
-            Some("secret")
-        ));
-        assert!(should_query_managed_service_account("ddagent", None));
-        assert!(should_query_managed_service_account("ddagent", Some("")));
-        assert!(should_query_managed_service_account(
-            "gmsa$",
-            Some("secret")
-        ));
     }
 
     #[test]
