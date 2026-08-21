@@ -841,6 +841,35 @@ func readIntFile(filePath string, fs afero.Fs) (int, error) {
 	return value, nil
 }
 
+func runCommand(cmd []string, env []string) (string, error) {
+	execCmd := exec.Command(cmd[0], cmd[1:]...)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	execCmd.Env = append(execCmd.Environ(), env...)
+	execCmd.Stdout = &out
+	execCmd.Stderr = &stderr
+	err := execCmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("error executing command: %v, stderr: %s", err, stderr.String())
+	}
+	return out.String(), nil
+}
+
+type conntrackStat struct {
+	cpuID         string
+	Found         float64
+	Invalid       float64
+	Ignore        float64
+	Insert        float64
+	InsertFailed  float64
+	Drop          float64
+	EarlyDrop     float64
+	Error         float64
+	SearchRestart float64
+	ClashResolve  float64
+	ChainTooLong  float64
+}
+
 func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
 	if conntrackPath == "" {
 		return
@@ -863,15 +892,17 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 	//       drop=1 early_drop=0 error=0 search_restart=39936711
 	// cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 insert_failed=1 \
 	//       drop=1 early_drop=0 error=0 search_restart=36983181
-	lines := strings.SplitSeq(output, "\n")
-	for line := range lines {
+	lines := strings.Split(output, "\n")
+	stats := make([]*conntrackStat, 0, len(lines))
+	for _, line := range lines {
 		if line == "" {
 			continue
 		}
 		cols := strings.Fields(line)
 		cpuNum := strings.Split(cols[0], "=")[1]
-		cpuTag := []string{"cpu:" + cpuNum}
 		cols = cols[1:]
+
+		stat := &conntrackStat{cpuID: cpuNum}
 
 		for _, cell := range cols {
 			parts := strings.Split(cell, "=")
@@ -884,27 +915,168 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 				log.Debugf("Error converting value %s for metric %s: %v", valueStr, metric, err)
 				continue
 			}
-			sender.MonotonicCount("system.net.conntrack."+metric, valueFloat, "", cpuTag)
+
+			switch metric {
+			case "found":
+				stat.Found = valueFloat
+			case "invalid":
+				stat.Invalid = valueFloat
+			case "ignore":
+				stat.Ignore = valueFloat
+			case "insert":
+				stat.Insert = valueFloat
+			case "insert_failed":
+				stat.InsertFailed = valueFloat
+			case "drop":
+				stat.Drop = valueFloat
+			case "early_drop":
+				stat.EarlyDrop = valueFloat
+			case "error":
+				stat.Error = valueFloat
+			case "search_restart":
+				stat.SearchRestart = valueFloat
+			case "clash_resolve":
+				stat.ClashResolve = valueFloat
+			case "chaintoolong":
+				stat.ChainTooLong = valueFloat
+			default:
+				continue
+			}
+			stats = append(stats, stat)
 		}
 	}
+	return stats
 }
 
-func runCommand(cmd []string, env []string) (string, error) {
-	execCmd := exec.Command(cmd[0], cmd[1:]...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	execCmd.Env = append(execCmd.Environ(), env...)
-	execCmd.Stdout = &out
-	execCmd.Stderr = &stderr
-	err := execCmd.Run()
+func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) {
+	statFilePath := filepath.Join(procfsPath, "net", "stat", "nf_conntrack")
+
+	f, err := fs.Open(statFilePath)
 	if err != nil {
-		return "", fmt.Errorf("error executing command: %v, stderr: %s", err, stderr.String())
+		return nil, err
 	}
-	return out.String(), nil
+	defer f.Close()
+
+	lineNum := 0
+	headers := []string{}
+	stats := []*conntrackStat{}
+
+	// entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+	// 00000002  000000cd 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if lineNum == 0 {
+			headers = strings.Split(line, " ")
+		} else {
+			// each line is a cpu stat, top line is headers
+			stat := &conntrackStat{cpuID: lineNum - 1}
+			for i, hexVal := range strings.Fields(line) {
+				val, err := strconv.ParseInt(hexVal, 16, 64)
+				if err != nil {
+					return nil, err
+				}
+
+				switch headers[i] {
+				case "found":
+					stat.Found = float64(val)
+				case "invalid":
+					stat.Invalid = float64(val)
+				case "ignore":
+					stat.Ignore = float64(val)
+				case "insert":
+					stat.Insert = float64(val)
+				case "insert_failed":
+					stat.InsertFailed = float64(val)
+				case "drop":
+					stat.Drop = float64(val)
+				case "early_drop":
+					stat.EarlyDrop = float64(val)
+				// procfile header string is different depending on version
+				case "error", "icmp_error":
+					stat.Error = float64(val)
+				case "search_restart":
+					stat.SearchRestart = float64(val)
+				case "clash_resolve":
+					stat.ClashResolve = float64(val)
+				case "chaintoolong":
+					stat.ChainTooLong = float64(val)
+				default:
+					continue
+				}
+
+			}
+			stats = append(stats, stat)
+		}
+
+		lineNum += 1
+	}
+
+	return stats, nil
 }
 
 func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
-	addConntrackStatsMetrics(sender, conntrackPath, useSudo)
+	stats := addConntrackStatsMetrics(sender, conntrackPath, useSudo)
+	procStats, err := addConntrackStatsFromProcFile(procfsPath)
+	if err != nil {
+		log.Debugf("Unable to acquire conntrack stats from procfile: %v", err)
+	}
+
+	for i, stat := range stats {
+		cpuTag := []string{"cpu:" + stat.cpuID}
+		sender.MonotonicCount("system.net.conntrack.found", stat.Found, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.invalid", stat.Invalid, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.ignore", stat.Ignore, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.insert", stat.Insert, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.insert_failed", stat.InsertFailed, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.drop", stat.Drop, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.early_drop", stat.EarlyDrop, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.error", stat.Error, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.search_restart", stat.SearchRestart, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.clash_resolve", stat.ClashResolve, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.chaintoolong", stat.ChainTooLong, "", cpuTag)
+
+		if procStats != nil {
+			procStat := procStats[i]
+
+			sender.MonotonicCount("system.net.conntrack_v2.found", procStat.Found, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.invalid", procStat.Invalid, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.ignore", procStat.Ignore, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.insert", procStat.Insert, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.insert_failed", procStat.InsertFailed, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.drop", procStat.Drop, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.early_drop", procStat.EarlyDrop, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.error", procStat.Error, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.search_restart", procStat.SearchRestart, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.clash_resolve", procStat.ClashResolve, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.chaintoolong", procStat.ChainTooLong, "", cpuTag)
+
+			diff := float64(stat.Found - procStat.Found)
+			sender.MonotonicCount("system.net.conntrack_diff.found", diff, "", cpuTag)
+			diff = float64(stat.Invalid - procStat.Invalid)
+			sender.MonotonicCount("system.net.conntrack_diff.invalid", diff, "", cpuTag)
+			diff = float64(stat.Ignore - procStat.Ignore)
+			sender.MonotonicCount("system.net.conntrack_diff.ignore", diff, "", cpuTag)
+			diff = float64(stat.Insert - procStat.Insert)
+			sender.MonotonicCount("system.net.conntrack_diff.insert", diff, "", cpuTag)
+			diff = float64(stat.InsertFailed - procStat.InsertFailed)
+			sender.MonotonicCount("system.net.conntrack_diff.insert_failed", diff, "", cpuTag)
+			diff = float64(stat.Drop - procStat.Drop)
+			sender.MonotonicCount("system.net.conntrack_diff.drop", diff, "", cpuTag)
+			diff = float64(stat.EarlyDrop - procStat.EarlyDrop)
+			sender.MonotonicCount("system.net.conntrack_diff.early_drop", diff, "", cpuTag)
+			diff = float64(stat.Error - procStat.Error)
+			sender.MonotonicCount("system.net.conntrack_diff.error", diff, "", cpuTag)
+			diff = float64(stat.SearchRestart - procStat.SearchRestart)
+			sender.MonotonicCount("system.net.conntrack_diff.search_restart", diff, "", cpuTag)
+			diff = float64(stat.ClashResolve - procStat.ClashResolve)
+			sender.MonotonicCount("system.net.conntrack_diff.clash_resolve", diff, "", cpuTag)
+			diff = float64(stat.ChainTooLong - procStat.ChainTooLong)
+			sender.MonotonicCount("system.net.conntrack_diff.chaintoolong", diff, "", cpuTag)
+		}
+	}
 
 	conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
 	var availableFiles []string
