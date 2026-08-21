@@ -72,4 +72,42 @@ struct go_labels_scratch_t {
     };
 };
 
+// --- OTel Thread Local Context Record support (OTEP 4947) ---
+
+// Fixed header of a record, as the instrumented process publishes it.
+struct otel_thread_ctx_record_t {
+    u8 trace_id[16];     // W3C Trace Context byte order (big-endian)
+    u8 span_id[8];       // W3C Trace Context byte order (big-endian)
+    u8 valid;            // must be 1 for the record to be considered valid
+    u8 _reserved;        // padding for alignment
+    u16 attrs_data_size; // size of custom attributes data following this header
+};
+
+// Offset of otel_thread_ctx_record_t.valid from the record base.
+#define OTEL_THREAD_CTX_VALID_OFFSET 24
+
+// otel_dtv_info_t describes how to walk the Dynamic Thread Vector (DTV) for a
+// process's libc. DTV access is always indirect: the thread pointer plus
+// otel_dtv_info_t.offset yields a pointer to the DTV array, which must itself
+// be dereferenced (indexed by module_id) before reading the module's TLS
+// block. Mirrors DTVInfo in DataDog's opentelemetry-ebpf-profiler fork
+// (support/ebpf/types.h, PR #1229).
+struct otel_dtv_info_t {
+    s64 offset;     // offset of the DTV pointer from the thread pointer
+    u32 multiplier; // size of one DTV entry in bytes (16 glibc / 8 musl)
+    u32 _pad;
+};
+
+// OTel TLS registration for a process, written once by user-space after
+// classifying the otel_thread_ctx_v1 TLS variable's access model via static
+// ELF relocation analysis, and reading the (loader-resolved) GOT/TLSDESC slot
+// from the live process once.
+struct otel_tls_t {
+    u32 runtime;                     // enum otel_runtime_language
+    u32 module_id;                   // TLS module ID for dynamic TLS, or 0 for static TLS
+    s64 tls_offset;                  // TP-relative (static TLS, module_id==0) or
+                                      // in-module offset (dynamic TLS, module_id!=0)
+    struct otel_dtv_info_t dtv_info; // unused when module_id == 0
+};
+
 #endif
