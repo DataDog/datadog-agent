@@ -549,6 +549,7 @@ func (c *Collector) checkShutdownCauseOnce() {
 		// Truncating a fault payload would publish something misleading, so the
 		// whole event is abandoned instead.
 		log.Warnf("Dropping oversized macOS shutdown fault event for boot %s", bootUUID)
+		c.publishShutdownCause(bootUUID, nil)
 		return
 	}
 	c.publishShutdownCause(bootUUID, &event)
