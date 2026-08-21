@@ -2391,6 +2391,8 @@ process_config:
                 !condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe)),
                 "fleet software_inventory.enabled=false should beat the retained EUD default"
             );
+            #[cfg(not(any(windows, target_os = "macos")))]
+            let _ = (agent, sysprobe);
         });
     }
 
