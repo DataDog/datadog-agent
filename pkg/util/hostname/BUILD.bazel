@@ -74,6 +74,7 @@ dd_agent_go_test(
     ],
     embed = [":hostname"],
     deps = [
+        "//comp/core/telemetry/impl",
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/util/cache",

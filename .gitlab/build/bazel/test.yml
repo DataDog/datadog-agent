@@ -14,17 +14,20 @@
       aud: ci-identities
   variables:
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
-    FLAVOR: base
-    BEP_FILE: $CI_PROJECT_DIR/bazel-bep-$FLAVOR.json
+    BEP_FILE: $CI_PROJECT_DIR/bazel-bep.json
+    RESULT_JSON: test_output.json
+    GIT_DEPTH: 1000  # Needed by datadog-ci to collect git metadata
   after_script:
-    - dda inv -- -e bazel.collect-junit --flavor=$FLAVOR --output-tgz=junit-${CI_JOB_NAME}.tgz --bep-file=$BEP_FILE || true
+    - dda inv -- -e bazel.process-test-results --bep-file=$BEP_FILE --junit-tar=junit-${CI_JOB_NAME}.tgz --result-json=$RESULT_JSON
     - !reference [.upload_junit_source]
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
+      - $RESULT_JSON
+      - test_output_unified.json
       - junit-*.tgz
-      - bazel-bep-*.json
+      - bazel-bep.json
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
@@ -32,8 +35,8 @@
 .bazel:test:reporting:ci_links:
   - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
 
-bazel:coverage:linux-amd64:
-  extends: [.bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test]
+.bazel:coverage:linux:
+  extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
     - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --jobs=$KUBERNETES_CPU_REQUEST --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
@@ -42,23 +45,31 @@ bazel:coverage:linux-amd64:
     - cp "$(bazel info output_path)/_coverage/_coverage_report.dat" "$CI_PROJECT_DIR/coverage-bazel-$CI_JOB_NAME_SLUG.out"
   artifacts:
     paths:
+      - $RESULT_JSON
+      - test_output_unified.json
       - junit-*.tgz
-      - bazel-bep-*.json
+      - bazel-bep.json
       - coverage-bazel-*.out
   variables:
     KUBERNETES_CPU_REQUEST: 16
 
-bazel:test:linux-amd64:
-  extends: [.bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test]
+bazel:coverage:linux-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux]
+
+bazel:coverage:linux-arm64:
+  extends: [.bazel:runner:linux-arm64, .bazel:coverage:linux]
+
+.bazel:test:linux:
+  extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+    - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+
+bazel:test:linux-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:test:linux]
 
 bazel:test:linux-arm64:
-  extends: [.bazel:test:reporting, .bazel:runner:linux-arm64, .bazel:test]
-  script:
-    - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+  extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
 
 bazel:test:macos-amd64:
   extends: [.bazel:test:reporting, .bazel:runner:macos-amd64, .bazel:test]
@@ -81,8 +92,10 @@ bazel:test:macos-arm64:
     - !reference [.bazel:test:reporting, after_script]
   artifacts:
     paths:
+      - $RESULT_JSON
+      - test_output_unified.json
       - junit-*.tgz
-      - bazel-bep-*.json
+      - bazel-bep.json
       - bazel-exec.log
 
 # Windows splits the build from the Go tests, unlike the other platforms: the

@@ -160,6 +160,12 @@ func (d *TukeyBiweightDetector) Name() string { return "tukey_biweight" }
 
 func (d *TukeyBiweightDetector) Ready() bool { return d.ready }
 
+// DetectorPointWindow implements observer.DetectorPointWindowRequirement.
+func (d *TukeyBiweightDetector) DetectorPointWindow() observer.DetectorPointWindow {
+	d.ensureDefaults()
+	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: d.WindowSize}
+}
+
 // Reset clears all per-series state for replay/reanalysis.
 func (d *TukeyBiweightDetector) Reset() {
 	d.series = make(map[tbStateKey]*tbSeriesState)
@@ -217,21 +223,25 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 			sk := tbStateKey{ref: meta.Ref, agg: agg}
 
 			state, exists := d.series[sk]
+			if !exists && status.pointCount < d.MinPoints {
+				continue
+			}
 			if !exists {
 				state = &tbSeriesState{}
 				d.series[sk] = state
 			}
 
-			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
-			if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
+			if status.pointCount <= state.lastProcessedCount && status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 			startTime := state.lastProcessedTime
 			countIncreased := status.pointCount > state.lastProcessedCount
-			prefixCount := state.lastProcessedCount
-			if countIncreased {
-				prefixCount = storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
-			}
+			prefixCount := storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
+			// A full point window can evict an old bucket while appending a new
+			// one. That changes the generation without changing the total count;
+			// the smaller prefix shows the lost bucket was before our cursor.
+			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen &&
+				prefixCount >= state.lastProcessedCount
 			cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
 				prefixCount == state.lastProcessedCount && d.cursorPointChanged(storage, meta.Ref, agg, state)
 			if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
@@ -257,7 +267,7 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				}
 				state.ticksSinceScore++
 
-				if state.count >= d.MinPoints && state.cooldownLeft == 0 && state.ticksSinceScore >= d.ScoreEvery {
+				if status.pointCount >= d.MinPoints && state.count >= d.MinPoints && state.cooldownLeft == 0 && state.ticksSinceScore >= d.ScoreEvery {
 					d.ready = true
 					state.ticksSinceScore = 0
 					if anomaly, fired := d.scoreBiweight(state, seriesMeta, agg, p.Timestamp); fired {
@@ -271,7 +281,8 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				state.lastProcessedTime = p.Timestamp
 			})
 
-			if !pointsSeen && mergeOccurred {
+			if !pointsSeen && status.writeGeneration != state.lastWriteGen {
+				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}

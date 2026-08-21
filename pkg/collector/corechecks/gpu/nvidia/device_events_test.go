@@ -193,9 +193,23 @@ func TestDeviceEventsCollector(t *testing.T) {
 	require.Empty(t, mm)
 
 	// add event to cache and check that metrics are properly computed.
-	// since we don't change events between subsequent calls, we check
-	// that the counter is increased
-	xidErrorsMetricName := "errors.xid.total"
+	// GetEvents is idempotent until Refresh, so subsequent Collect calls with
+	// the same cached events increase the lifetime gauge and re-emit the
+	// interval count as the number of events in that Collect call.
+	xid31Tags := []string{"type:31", "origin:hardware"}
+	xid12Tags := []string{"type:12", "origin:driver"}
+	xid31Total := func(value float64) *Metric {
+		return &Metric{Name: xidErrorsTotalMetricName, Value: value, Type: metrics.GaugeType, Priority: Medium, Tags: xid31Tags}
+	}
+	xid31Count := func(value float64) *Metric {
+		return &Metric{Name: xidErrorsCountMetricName, Value: value, Type: metrics.CountType, Priority: Medium, Tags: xid31Tags}
+	}
+	xid12Total := func(value float64) *Metric {
+		return &Metric{Name: xidErrorsTotalMetricName, Value: value, Type: metrics.GaugeType, Priority: Medium, Tags: xid12Tags}
+	}
+	xid12Count := func(value float64) *Metric {
+		return &Metric{Name: xidErrorsCountMetricName, Value: value, Type: metrics.CountType, Priority: Medium, Tags: xid12Tags}
+	}
 	cache.events = []safenvml.DeviceEventData{
 		{
 			DeviceUUID: uuid,
@@ -205,19 +219,11 @@ func TestDeviceEventsCollector(t *testing.T) {
 	}
 	mm, err = collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, mm, 1)
-	assert.Equal(t, &Metric{
-		Name:     xidErrorsMetricName,
-		Value:    1,
-		Type:     metrics.GaugeType,
-		Priority: Medium,
-		Tags:     []string{"type:31", "origin:hardware"},
-	}, mm[0])
+	assert.ElementsMatch(t, []*Metric{xid31Total(1), xid31Count(1)}, mm)
 
 	mm, err = collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, mm, 1)
-	assert.Equal(t, float64(2), mm[0].Value)
+	assert.ElementsMatch(t, []*Metric{xid31Total(2), xid31Count(1)}, mm)
 
 	// make sure different xid errors produce distinct metric contexts
 	cache.events = []safenvml.DeviceEventData{
@@ -229,27 +235,43 @@ func TestDeviceEventsCollector(t *testing.T) {
 	}
 	mm2, err := collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, mm2, 2)
 	assert.ElementsMatch(t, []*Metric{
-		{
-			Name:     xidErrorsMetricName,
-			Value:    1,
-			Type:     metrics.GaugeType,
-			Priority: Medium,
-			Tags:     []string{"type:12", "origin:driver"},
-		},
-		{
-			Name:     xidErrorsMetricName,
-			Value:    2,
-			Type:     metrics.GaugeType,
-			Priority: Medium,
-			Tags:     []string{"type:31", "origin:hardware"},
-		},
+		xid12Total(1),
+		xid12Count(1),
+		xid31Total(2),
+		xid31Count(0),
 	}, mm2)
 
-	// make sure there's no update in case we have no cached events
+	// no new events: lifetime gauges stay, interval counts are emitted as zero
 	cache.events = nil
 	mm3, err := collector.Collect()
 	require.NoError(t, err)
-	require.ElementsMatch(t, mm2, mm3)
+	assert.ElementsMatch(t, []*Metric{
+		xid12Total(1),
+		xid12Count(0),
+		xid31Total(2),
+		xid31Count(0),
+	}, mm3)
+
+	// multiple events of the same xid in one interval increase the count by that amount
+	cache.events = []safenvml.DeviceEventData{
+		{
+			DeviceUUID: uuid,
+			EventType:  nvml.EventTypeXidCriticalError,
+			EventData:  31,
+		},
+		{
+			DeviceUUID: uuid,
+			EventType:  nvml.EventTypeXidCriticalError,
+			EventData:  31,
+		},
+	}
+	mm4, err := collector.Collect()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []*Metric{
+		xid31Total(4),
+		xid31Count(2),
+		xid12Total(1),
+		xid12Count(0),
+	}, mm4)
 }
