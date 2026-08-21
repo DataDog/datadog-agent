@@ -398,8 +398,7 @@ func (n *NetworkFilterDefinition) PreCheck(opts PolicyLoaderOpts) error {
 		return err
 	}
 
-	// default scope to process
-	if n.Scope != "" && n.Scope != "process" && n.Scope != "cgroup" {
+	if n.Scope != "process" && n.Scope != "cgroup" {
 		return fmt.Errorf("invalid scope '%s'", n.Scope)
 	}
 
