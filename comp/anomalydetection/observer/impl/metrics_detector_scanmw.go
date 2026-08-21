@@ -11,6 +11,7 @@ import (
 	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // scanmwStateKey identifies per-series state by ref and aggregation.
@@ -54,7 +55,9 @@ type ScanMWDetector struct {
 
 	// MinPoints is the minimum total points before detection runs.
 	// Default: 30
-	MinPoints int
+	MinPoints int `json:"min_points"`
+	// MaxPoints bounds the scan window. Default: 120.
+	MaxPoints int `json:"max_points"`
 
 	// SignificanceThreshold is the maximum p-value for the best split to be
 	// considered a changepoint. Default: 1e-8
@@ -84,6 +87,7 @@ func NewScanMWDetector() *ScanMWDetector {
 	return &ScanMWDetector{
 		MinSegment:            12,
 		MinPoints:             30,
+		MaxPoints:             scanMaxPoints,
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
 		MinDeviationMAD:       3.0,
@@ -101,6 +105,12 @@ func (d *ScanMWDetector) Name() string {
 }
 
 func (d *ScanMWDetector) Ready() bool { return d.ready }
+
+// DetectorPointWindow implements observer.DetectorPointWindowRequirement.
+func (d *ScanMWDetector) DetectorPointWindow() observer.DetectorPointWindow {
+	d.ensureDefaults()
+	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: d.MaxPoints}
+}
 
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanMWDetector) Reset() {
@@ -159,6 +169,10 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			sk := scanmwStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
+			if !exists && status.pointCount < d.MinPoints {
+				continue
+			}
+			activated := !exists
 			if !exists {
 				state = &scanmwSeriesState{}
 				d.series[sk] = state
@@ -184,7 +198,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 					sCopy := *s
 					seriesMeta = &sCopy
 				}
-				state.buf = append(state.buf, p)
+				state.buf = appendPointWindow(state.buf, d.MaxPoints, p)
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
@@ -201,7 +215,11 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
-			state.lastProcessedCount = status.pointCount
+			if activated {
+				state.lastProcessedCount = 1 + ((status.pointCount-1)/d.MinSegment)*d.MinSegment
+			} else {
+				state.lastProcessedCount = status.pointCount
+			}
 			state.lastWriteGen = status.writeGeneration
 		}
 	}
@@ -344,6 +362,13 @@ func (d *ScanMWDetector) ensureDefaults() {
 	}
 	if d.MinPoints <= 0 {
 		d.MinPoints = 30
+	}
+	if d.MaxPoints <= 0 {
+		d.MaxPoints = scanMaxPoints
+	}
+	if d.MaxPoints < d.MinPoints {
+		pkglog.Warnf("[observer] ScanMW max_points=%d is below min_points=%d; using %d", d.MaxPoints, d.MinPoints, d.MinPoints)
+		d.MaxPoints = d.MinPoints
 	}
 	if d.SignificanceThreshold <= 0 {
 		d.SignificanceThreshold = 1e-8
