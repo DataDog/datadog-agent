@@ -2304,6 +2304,78 @@ process_config:
     }
 
     #[test]
+    fn fleet_infra_mode_change_retains_eud_agent_module_overrides() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(&fleet_dir, "datadog.yaml", "infrastructure_mode: full\n");
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "infrastructure_mode: end_user_device\nprocess_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  enabled: false\n",
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            let met = condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe));
+            #[cfg(any(windows, target_os = "macos"))]
+            assert!(
+                met,
+                "pre-fleet EUD infra-mode overrides should survive a fleet infrastructure_mode change"
+            );
+            #[cfg(not(any(windows, target_os = "macos")))]
+            assert!(
+                !met,
+                "Linux has no EUD software_inventory / notable_events modules"
+            );
+        });
+    }
+
+    #[test]
+    fn fleet_can_disable_eud_software_inventory_override() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "infrastructure_mode: full\nsoftware_inventory:\n  enabled: false\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "infrastructure_mode: end_user_device\nprocess_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  enabled: false\n",
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            #[cfg(any(windows, target_os = "macos"))]
+            assert!(
+                !condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe)),
+                "fleet software_inventory.enabled=false should beat the retained EUD default"
+            );
+        });
+    }
+
+    #[test]
     fn derived_notable_events_matches_go_os_gate() {
         with_env_lock(|| {
             clear_gated_env_vars();
