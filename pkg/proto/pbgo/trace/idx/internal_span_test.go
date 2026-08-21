@@ -944,3 +944,32 @@ func TestLegacyTraceIDShortIsZeroPadded(t *testing.T) {
 		})
 	}
 }
+
+func TestInternalSpanString(t *testing.T) {
+	strs := NewStringTable()
+	span := &InternalSpan{
+		Strings: strs,
+		span: &Span{
+			ServiceRef:  strs.Add("pylons"),
+			NameRef:     strs.Add("server.request"),
+			ResourceRef: strs.Add("/path"),
+			TypeRef:     strs.Add("web"),
+			SpanID:      1234,
+			Attributes:  make(map[uint32]*AnyValue),
+		},
+	}
+	span.SetStringAttribute("http.url", "secret-token")
+
+	// The "span=" prefix keeps this a genuine fmt round-trip (a bare "%s" would be
+	// rewritten to a direct String() call by staticcheck's S1025).
+	formatted := fmt.Sprintf("span=%s", span)
+	assert.Equal(t, "span="+span.String(), formatted)
+	// %s must resolve the string table rather than dumping the struct.
+	assert.NotContains(t, formatted, "%!s")
+	assert.Equal(t, "span=Span {Service: pylons, Name: server.request, Resource: /path, Type: web, SpanID: 1234}", formatted)
+
+	// Attributes are intentionally left out of String: they are unbounded and may
+	// carry request data. DebugString remains the verbose form that includes them.
+	assert.NotContains(t, formatted, "secret-token")
+	assert.Contains(t, span.DebugString(), "secret-token")
+}

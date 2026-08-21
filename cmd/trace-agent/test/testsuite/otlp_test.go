@@ -15,9 +15,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -133,10 +135,13 @@ apm_config:
 		waitForTrace(t, &r, func(p *pb.AgentPayload) {
 			assert := assert.New(t)
 			assert.Equal(p.Env, "my-env")
-			assert.Len(p.TracerPayloads, 1)
-			assert.Len(p.TracerPayloads[0].Chunks, 1)
-			assert.Len(p.TracerPayloads[0].Chunks[0].Spans, 1)
-			assert.Equal(p.TracerPayloads[0].Chunks[0].Spans[0].Meta["name"], "john")
+			require.Len(t, p.IdxTracerPayloads, 1)
+			tp := p.IdxTracerPayloads[0]
+			require.Len(t, tp.Chunks, 1)
+			require.Len(t, tp.Chunks[0].Spans, 1)
+			name, ok := idxStrAttr(tp.Strings, tp.Chunks[0].Spans[0].Attributes, "name")
+			assert.True(ok, "span is missing the name attribute")
+			assert.Equal("john", name)
 		})
 	})
 
@@ -201,7 +206,7 @@ apm_config:
 				t.Fatal("Timed out waiting for duplicate SpanID warning.")
 			default:
 				time.Sleep(10 * time.Millisecond)
-				if strings.Contains(r.AgentLog(), `Found malformed trace with duplicate span ID (reason:duplicate_span_id): service:"pylons"`) {
+				if hasDuplicateSpanIDWarning(r.AgentLog(), "pylons") {
 					break loop
 				}
 			}
@@ -210,10 +215,16 @@ apm_config:
 
 	// topLevelSpansAgentFn checks that the given agent payload matches with the testSpans input
 	topLevelSpansAgentFn := func(v *pb.AgentPayload) {
-		var serverSpan, internalSpan, clientSpan, producerSpan *pb.Span
-		for _, chunk := range v.TracerPayloads[0].Chunks {
+		assert.Equal(t, "my-env", v.Env)
+		require.Len(t, v.IdxTracerPayloads, 1)
+		tp := v.IdxTracerPayloads[0]
+		require.Len(t, tp.Chunks, 2)
+
+		var serverSpan, internalSpan, clientSpan, producerSpan *idx.Span
+		for _, chunk := range tp.Chunks {
 			for _, span := range chunk.Spans {
-				switch span.Meta["name"] {
+				name, _ := idxStrAttr(tp.Strings, span.Attributes, "name")
+				switch name {
 				case "server":
 					assert.Len(t, chunk.Spans, 3)
 					serverSpan = span
@@ -229,9 +240,6 @@ apm_config:
 				}
 			}
 		}
-		assert.Equal(t, "my-env", v.Env)
-		assert.Len(t, v.TracerPayloads, 1)
-		assert.Len(t, v.TracerPayloads[0].Chunks, 2)
 		assert.True(t, serverSpan != nil && internalSpan != nil && clientSpan != nil && producerSpan != nil)
 	}
 
@@ -388,4 +396,22 @@ func waitForStatsAndTraces(t *testing.T, runner *test.Runner, wait time.Duration
 			t.Fatalf("timed out, log was:\n%s", runner.AgentLog())
 		}
 	}
+}
+
+// hasDuplicateSpanIDWarning reports whether the agent log contains a
+// duplicate-span-ID warning naming the given service.
+//
+// The V1 normalizer logs the offending idx span itself, and the rendering is not
+// fixed: passing the span to %s goes through InternalSpan.String, while logging
+// its fields individually spells them out. Both name the service, so this matches
+// the stable message prefix and then requires the service on that same line,
+// rather than pinning one particular rendering.
+func hasDuplicateSpanIDWarning(agentLog, service string) bool {
+	const msg = "Found malformed trace with duplicate span ID (reason:duplicate_span_id):"
+	for _, line := range strings.Split(agentLog, "\n") {
+		if strings.Contains(line, msg) && strings.Contains(line, service) {
+			return true
+		}
+	}
+	return false
 }

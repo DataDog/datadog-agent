@@ -163,6 +163,9 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		deps.Compressor,
 	)
 	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
+	if m, ok := deps.TracerPayloadModifier.(pkgagent.TracerPayloadModifierV1); ok {
+		c.Agent.TracerPayloadModifierV1 = m
+	}
 
 	c.config.OnUpdateAPIKey(c.UpdateAPIKey)
 

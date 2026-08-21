@@ -203,7 +203,7 @@ func (v *ssiSuite) TestInjectionMode() {
 
 			require.Eventually(v.T(), func() bool {
 				traces := FindTracesForService(v.T(), intake, tc.name)
-				return len(traces) != 0
+				return traces != 0
 			}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", tc.name)
 		})
 	}
@@ -273,7 +273,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "local-sdk-injection-app")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "local-sdk-injection-app")
 	})
 
@@ -346,7 +346,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "namespace-selection-inject")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "namespace-selection-inject")
 	})
 	v.Run("ExpectNoInjection", func() {
@@ -421,7 +421,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "workload-selection-inject")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "workload-selection-inject")
 	})
 
@@ -506,7 +506,7 @@ func (v *ssiSuite) TestRegistryAllowList() {
 
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "registry-allow-list-allowed")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "registry-allow-list-allowed")
 	})
 

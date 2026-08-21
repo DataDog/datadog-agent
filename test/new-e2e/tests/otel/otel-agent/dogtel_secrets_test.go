@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	provlocal "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -152,12 +153,18 @@ func (s *dogtelSecretsTestSuite) TestDogtelSecretsResolution() {
 		traces, err := s.Env().FakeIntake.Client().GetTraces()
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traces)
+		// Assert on the payloads themselves, not just on the agent payloads:
+		// an agent payload with no tracer payload would make the loop below
+		// vacuously true.
+		var tracerPayloads int
 		for _, trace := range traces {
-			for _, tp := range trace.TracerPayloads {
-				assert.Equal(c, dogtelResolvedHostname, tp.Hostname,
+			for _, tp := range trace.IdxTracerPayloads {
+				tracerPayloads++
+				assert.Equal(c, dogtelResolvedHostname, fakeintakeclient.IdxStr(tp.Strings, tp.HostnameRef),
 					"hostname should be the resolved ENC[] value, not the raw handle; "+
 						"raw value would indicate secretsnoopfx is wired instead of secretsfx")
 			}
 		}
+		assert.NotZero(c, tracerPayloads)
 	}, 5*time.Minute, 10*time.Second)
 }

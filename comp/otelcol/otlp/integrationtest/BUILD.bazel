@@ -68,6 +68,7 @@ dd_agent_go_test(
         "//pkg/config/env",
         "//pkg/config/model",
         "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//pkg/serializer",
         "//pkg/trace/telemetry",
         "//pkg/util/compression",

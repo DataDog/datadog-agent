@@ -17,7 +17,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
@@ -120,26 +120,69 @@ func hasAPMInjectionAnnotation(pod *corev1.Pod) bool {
 	return false
 }
 
-func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName string) []*trace.TracerPayload {
-	filtered := []*trace.TracerPayload{}
+// FindTracesForService returns the number of tracer payloads at the fake intake
+// whose container tags (`_dd.tags.container`) contain `service:<serviceName>`.
+//
+// It handles both trace-payload serialization formats: the legacy
+// AgentPayload.TracerPayloads and the v1 string-indexed idx format
+// (AgentPayload.IdxTracerPayloads). The convert-traces feature is enabled by
+// default, so real traffic now lands in IdxTracerPayloads, but checking both
+// keeps the helper correct regardless of the `disable-convert-traces` flag.
+func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName string) int {
 	serviceNameTag := "service:" + serviceName
 
+	// containerTagsMatch reports whether the given comma-separated container tags
+	// string contains the service:<name> tag we are looking for.
+	containerTagsMatch := func(extracted string) bool {
+		for tag := range strings.SplitSeq(extracted, ",") {
+			if tag == serviceNameTag {
+				return true
+			}
+		}
+		return false
+	}
+
+	found := 0
 	payloads, err := intake.GetTraces()
 	require.NoError(t, err, "got error fetching traces from fake intake")
 	for _, payload := range payloads {
-		for _, trace := range payload.TracerPayloads {
-			extracted, ok := trace.Tags["_dd.tags.container"]
-			if !ok {
-				continue
+		// Legacy format.
+		for _, tp := range payload.TracerPayloads {
+			if extracted, ok := tp.Tags["_dd.tags.container"]; ok && containerTagsMatch(extracted) {
+				found++
 			}
-			tags := strings.SplitSeq(extracted, ",")
-			for tag := range tags {
-				if tag == serviceNameTag {
-					filtered = append(filtered, trace)
-				}
+		}
+		// v1 string-indexed idx format (convert-traces).
+		for _, tp := range payload.IdxTracerPayloads {
+			if extracted, ok := idxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container"); ok && containerTagsMatch(extracted) {
+				found++
 			}
 		}
 	}
 
-	return filtered
+	return found
+}
+
+// idxStr resolves a string-table reference to its value. Reference 0 is the
+// empty-string sentinel.
+func idxStr(strs []string, ref uint32) string {
+	if ref == 0 || int(ref) >= len(strs) {
+		return ""
+	}
+	return strs[ref]
+}
+
+// idxStrAttr returns the string value of the attribute named key, and whether a
+// string-valued attribute with that key was present in the idx attribute map.
+func idxStrAttr(strs []string, attrs map[uint32]*idx.AnyValue, key string) (string, bool) {
+	for k, v := range attrs {
+		if idxStr(strs, k) != key {
+			continue
+		}
+		if sv, ok := v.Value.(*idx.AnyValue_StringValueRef); ok {
+			return idxStr(strs, sv.StringValueRef), true
+		}
+		return "", false
+	}
+	return "", false
 }

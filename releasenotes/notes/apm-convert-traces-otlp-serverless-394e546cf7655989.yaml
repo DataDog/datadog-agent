@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    APM : The "v1.0" trace payload conversion, enabled by default for tracer payloads,
+    now also applies to traces received over OTLP and to the serverless trace agent.
+    These traces are converted to the string-indexed format before processing, matching
+    the behavior of the native trace endpoints. To revert all paths to the previous
+    behavior, add the feature flag ``disable-convert-traces`` to ``apm_config.features``.
