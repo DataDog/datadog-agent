@@ -802,6 +802,7 @@
 /comp/core/workloadmeta/collectors/internal/podman                    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences @DataDog/container-platform
 /comp/core/tagger/collectors                                          @DataDog/container-platform @DataDog/container-integrations
+/comp/core/tagger/types/entity_id.go                                  @DataDog/container-platform @DataDog/agent-data-plane
 /pkg/sbom/                                                            @DataDog/agent-security @DataDog/container-integrations
 /pkg/networkpath/                                                     @DataDog/network-path
 /pkg/networkpath/traceroute/                                          @DataDog/windows-products @DataDog/network-path
@@ -946,7 +947,6 @@
 /test/new-e2e/tests/containers/ecs_test.go                      @DataDog/ecs-experiences
 /test/new-e2e/tests/cspm                                        @DataDog/agent-cspm @DataDog/agent-security
 /test/new-e2e/tests/discovery                                   @DataDog/agent-discovery
-/test/new-e2e/tests/ddot                                        @DataDog/agent-runtimes
 /test/new-e2e/tests/fips-compliance                             @DataDog/agent-runtimes
 /test/new-e2e/tests/ha-agent                                    @DataDog/network-device-monitoring-core
 /test/new-e2e/tests/language-detection                          @DataDog/container-experiences
@@ -985,7 +985,7 @@
 /test/otel/                                                     @DataDog/opentelemetry-agent
 /test/static/                                                   @DataDog/agent-build
 # Also change the run-time check for approver at: tasks/static_quality_gates/decisions.py:EXCEPTION_APPROVERS
-/test/static/static_quality_gates.yml                           @DataDog/agent-build @DataDog/container-platform @cmourot @aiuto @quentinus95
+/test/static/static_quality_gates.yml                           @DataDog/agent-build @DataDog/agent-devx @DataDog/container-platform @cmourot
 /test/benchmarks/apm_scripts/                                   @DataDog/agent-apm
 /test/regression/                                               @DataDog/single-machine-performance
 /test/regression/ebpf                                           @DataDog/single-machine-performance @DataDog/ebpf-platform
