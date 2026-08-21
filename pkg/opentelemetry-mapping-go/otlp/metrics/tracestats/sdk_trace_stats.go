@@ -97,11 +97,16 @@ func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric p
 	if len(buckets) == 0 {
 		return nil, conversionErrors
 	}
+	languages := []string{}
+	if language := attributes.GetOTelAttrVal(rattrs, false, "telemetry.sdk.language"); language != "" {
+		languages = append(languages, language)
+	}
 
 	return &stats.OTLPIntakeStatsPayload{
 		HostName:    host,
 		Stats:       buckets,
 		HostTags:    attributes.TagsFromAttributes(rattrs),
+		Languages:   languages,
 		Source:      source,
 		Aggregate:   true,
 		ContainerId: attributes.GetContainerID(rattrs),
@@ -148,6 +153,7 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 		Duration:       duration,
 		HasDuration:    duration > 0,
 		Synthetics:     synthetics,
+		PeerTags:       sdkPeerTags(attrs),
 		OtherTags:      sdkOtherTags(attrs),
 	}
 	if isError {
@@ -317,10 +323,26 @@ var sdkGRPCStatusCodes = map[string]string{
 }
 
 var sdkGroupedStatsAttributeKeys = map[string]struct{}{
-	"datadog.is_trace_root": {}, "datadog.operation.name": {}, "datadog.span.top_level": {},
+	"datadog.is_trace_root": {}, "datadog.operation.name": {}, "datadog.peer_tags": {}, "datadog.span.top_level": {},
 	"datadog.span.type": {}, "http.request.method": {}, "http.response.status_code": {},
 	"http.route": {}, "rpc.response.status_code": {}, "service.name": {}, "span.kind": {},
 	"span.name": {}, "status.code": {},
+}
+
+func sdkPeerTags(attrs pcommon.Map) []string {
+	value, ok := attrs.Get("datadog.peer_tags")
+	if !ok || value.Type() != pcommon.ValueTypeSlice {
+		return nil
+	}
+	values := value.Slice()
+	tags := make([]string, 0, values.Len())
+	for i := 0; i < values.Len(); i++ {
+		value := values.At(i)
+		if value.Type() == pcommon.ValueTypeStr && value.Str() != "" {
+			tags = append(tags, value.Str())
+		}
+	}
+	return tags
 }
 
 func sdkAdditionalMetricTags(attrs pcommon.Map) []string {

@@ -82,6 +82,7 @@ func TestBuildSDKTraceStatsPayload(t *testing.T) {
 	resourceAttributes.PutStr("deployment.environment.name", "staging")
 	resourceAttributes.PutStr("service.version", "1.2.3")
 	resourceAttributes.PutStr("container.id", "container-123")
+	resourceAttributes.PutStr("telemetry.sdk.language", "java")
 
 	metric := sdkTraceMetric("s", 5, 2, map[string]string{
 		"datadog.operation.name":   "http.request",
@@ -99,6 +100,8 @@ func TestBuildSDKTraceStatsPayload(t *testing.T) {
 	})
 	datapoint := metric.Histogram().DataPoints().At(0)
 	datapoint.Attributes().PutInt("http.response.status_code", 500)
+	peerTags := datapoint.Attributes().PutEmptySlice("datadog.peer_tags")
+	peerTags.AppendEmpty().SetStr("db.hostname:users-db")
 	datapoint.SetStartTimestamp(pcommon.Timestamp(10))
 	datapoint.SetTimestamp(pcommon.Timestamp(20))
 
@@ -109,6 +112,7 @@ func TestBuildSDKTraceStatsPayload(t *testing.T) {
 	assert.Equal(t, "agent-host", payload.HostName)
 	assert.Equal(t, "test-source", payload.Source)
 	assert.Equal(t, "container-123", payload.ContainerId)
+	assert.Equal(t, []string{"java"}, payload.Languages)
 	assert.True(t, payload.Aggregate)
 	require.Len(t, payload.Stats, 1)
 	assert.Equal(t, int64(10), payload.Stats[0].Start)
@@ -132,6 +136,7 @@ func TestBuildSDKTraceStatsPayload(t *testing.T) {
 	assert.Equal(t, int32(500), groupedStats.HttpStatusCode)
 	assert.Equal(t, "5", groupedStats.GrpcStatusCode)
 	assert.Equal(t, stats.Trilean_TRUE, groupedStats.IsTraceRoot)
+	assert.Equal(t, []string{"db.hostname:users-db"}, groupedStats.PeerTags)
 	assert.Equal(t, []string{"origin:synthetics", "peer.service:users-db", "span.type:web"}, statsTags(groupedStats.OtherTags))
 	assert.Nil(t, groupedStats.OkSparseSketch)
 	assert.Equal(t, int64(5), sparseSketch(t, groupedStats.ErrorSparseSketch).Basic.Count)
