@@ -137,21 +137,12 @@ func TestRCConfigurationsServesSignedMetas(t *testing.T) {
 	}
 }
 
-func TestRCConfigurationsServesEmptyResponse(t *testing.T) {
+func TestRCConfigurationsServesSignedMetadataWithoutConfigs(t *testing.T) {
 	ts, fi := newRCTestServer(t)
 
-	reqProto := &core.LatestConfigsRequest{
-		Hostname:     "host",
-		AgentVersion: "test",
-		Products:     []string{"AP_RUNNER_KEYS"},
-		ActiveClients: []*core.Client{{
-			Id: "par-client",
-			State: &core.ClientState{ConfigStates: []*core.ConfigState{{
-				Id: "fake-runner-key", Product: "AP_RUNNER_KEYS", Version: 2, ApplyState: 2,
-			}}},
-		}},
-	}
-	body, err := proto.Marshal(reqProto)
+	body, err := proto.Marshal(&core.LatestConfigsRequest{
+		Hostname: "host", AgentVersion: "test", Products: []string{"AP_RUNNER_KEYS"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,6 +180,30 @@ func TestRCConfigurationsServesEmptyResponse(t *testing.T) {
 			t.Fatalf("verify %s: %v", name, err)
 		}
 	}
+}
+
+func TestRCConfigurationsRecordsApplyStates(t *testing.T) {
+	ts, _ := newRCTestServer(t)
+
+	body, err := proto.Marshal(&core.LatestConfigsRequest{
+		ActiveClients: []*core.Client{{
+			Id: "par-client",
+			State: &core.ClientState{ConfigStates: []*core.ConfigState{{
+				Id: "fake-runner-key", Product: "AP_RUNNER_KEYS", Version: 2, ApplyState: 2,
+			}}},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.Post(ts.URL+"/api/v0.1/configurations", "application/x-protobuf", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
 
 	resp, err = http.Get(ts.URL + "/fakeintake/rc/stats")
 	if err != nil {
@@ -204,11 +219,6 @@ func TestRCConfigurationsServesEmptyResponse(t *testing.T) {
 	}
 }
 
-// A poll that does not request a product must still be served the full target
-// set. Fakeintake only bumps the TUF version when the config set changes, and
-// go-tuf ignores a timestamp.json whose version matches the trusted one, so a
-// product-filtered response would pin the agent to a version whose targets
-// never contain the config.
 func TestRCConfigurationsIgnoresRequestedProducts(t *testing.T) {
 	ts, fi := newRCTestServer(t)
 

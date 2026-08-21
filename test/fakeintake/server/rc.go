@@ -78,10 +78,6 @@ func (s *rcServerState) snapshot() []rcstore.Config {
 	return cfgs
 }
 
-// versionedSnapshot returns the config set together with the version it
-// corresponds to. Both must be read under the same lock: serving one version
-// with the contents of another makes the version no longer identify the target
-// set, and go-tuf ignores a repeat version even when its contents changed.
 func (s *rcServerState) versionedSnapshot() ([]rcstore.Config, uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -299,13 +295,7 @@ func (fi *Server) handleRCConfigurations(w http.ResponseWriter, r *http.Request)
 	}
 	rc.recordPoll(fi.clock.Now().UTC(), req.GetActiveClients())
 
-	// Every config is served regardless of the products the agent asked for.
-	// TUF metadata versions only change when the config set changes, and go-tuf
-	// silently ignores a timestamp.json whose version equals the trusted one
-	// (see decodeTimestamp). Filtering targets per request would therefore let
-	// an early poll that omits a product pin the agent to a target set that
-	// never contains it. Per-product delivery is the core Agent's job: it
-	// filters targets by each RC client's subscribed products.
+	// Serve the complete repository.
 	cfgs, version := rc.versionedSnapshot()
 	if len(cfgs) == 0 {
 		log.Printf("Remote Config: serving empty response for products %v",
