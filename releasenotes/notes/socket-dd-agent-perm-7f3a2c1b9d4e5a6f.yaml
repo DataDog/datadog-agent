@@ -1,0 +1,7 @@
+---
+security:
+  - |
+    The ``agent_ipc.socket`` Unix socket is now created with mode ``0770`` and,
+    when the Core Agent runs as root, owned by the ``dd-agent`` user and group
+    when they exist. This allows non-root subagents such as the host profiler
+    (running as ``dd-agent``) to connect, while keeping unrelated users out.
