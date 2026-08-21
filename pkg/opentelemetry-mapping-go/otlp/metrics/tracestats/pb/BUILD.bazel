@@ -11,7 +11,7 @@ proto_library(
 
 go_proto_library(
     name = "pb_go_proto",
-    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb",
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb",
     proto = ":pb_proto",
     visibility = ["//visibility:public"],
 )
@@ -19,7 +19,7 @@ go_proto_library(
 go_library(
     name = "pb",
     embed = [":pb_go_proto"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb",
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb",
     visibility = ["//visibility:public"],
 )
 
