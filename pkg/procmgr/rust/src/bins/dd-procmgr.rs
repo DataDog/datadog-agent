@@ -59,7 +59,7 @@ enum Commands {
         #[arg(long)]
         command: String,
         /// Command arguments (repeatable). Use `--args=-Flag` for values starting with `-`.
-        #[arg(long, num_args = 1..)]
+        #[arg(long, action = clap::ArgAction::Append)]
         args: Vec<String>,
         /// Environment variable KEY=VALUE (repeatable)
         #[arg(long, value_name = "KEY=VALUE")]
