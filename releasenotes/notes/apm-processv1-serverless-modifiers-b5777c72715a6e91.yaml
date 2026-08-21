@@ -8,14 +8,6 @@
 ---
 fixes:
   - |
-    APM: The V1 trace processing pipeline (used when the ``convert-traces``
-    feature is enabled) now applies the serverless span discard filter, span
-    modifier, and tracer payload modifier that were previously only applied by
-    the legacy pipeline. This restores function tags, ``_dd.origin`` tagging,
+    APM: The V1 trace processing pipeline now supports function tags, ``_dd.origin`` tagging,
     and internal-infrastructure span filtering for serverless-init and Azure
-    App Services deployments running with trace conversion enabled.
-  - |
-    APM: The serverless span modifier now also sets the trace chunk ``origin``
-    (in addition to the ``_dd.origin`` span tag) when the tracer did not
-    already provide one, so that stats aggregation, which reads the origin
-    from the chunk, sees the serverless cloud origin.
+    App Services deployments running with ``convert-traces`` enabled.

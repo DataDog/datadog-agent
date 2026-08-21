@@ -191,12 +191,8 @@ type SpanModifier interface {
 // SpanModifierV1 is the V1 (idx) equivalent of SpanModifier, allowing spans to
 // be modified while they are processed by the agent's ProcessV1 method.
 //
-// Note that on the V1 path, span-level metadata is NOT promoted to the payload:
-// env, hostname, app version and _dd.apm_mode are synthesized from spans at
-// conversion time (idx.ApplyPromotedFields), which runs before ProcessV1 calls
-// any modifier. A modifier that needs such a value to reach the payload or the
-// chunk must set it there directly (idx.InternalTracerPayload.SetEnv,
-// InternalTraceChunk.SetOrigin, ...) rather than on the span.
+// Note that on the V1 path, payload level metadata should be set on the chunk or payload directly
+// and not just on individual spans.
 type SpanModifierV1 interface {
 	ModifySpanV1(*idx.InternalTraceChunk, *idx.InternalSpan)
 }
