@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result, bail};
-use saphyr_parser::{Event, Parser, ScalarStyle};
+use saphyr_parser::{Event, Parser, ScalarStyle, Tag};
 use serde_yaml::{Mapping, Sequence, Value};
 
 pub(super) fn load(contents: &str) -> Result<Value> {
@@ -21,11 +21,28 @@ pub(super) fn load(contents: &str) -> Result<Value> {
     builder.finish()
 }
 
-fn scalar_to_value(text: &str, style: ScalarStyle) -> Value {
+fn scalar_to_value(text: &str, style: ScalarStyle, tag: Option<&Tag>) -> Value {
+    if let Some(tag) = tag {
+        return tagged_scalar_to_value(text, tag);
+    }
     if style == ScalarStyle::Plain {
         plain_scalar_to_value(text)
     } else {
         Value::String(text.to_owned())
+    }
+}
+
+/// Explicit YAML tags disable implicit plain-scalar resolution (Go yaml.v2 parity).
+fn tagged_scalar_to_value(text: &str, tag: &Tag) -> Value {
+    if !tag.is_yaml_core_schema() {
+        return Value::String(text.to_owned());
+    }
+    match tag.suffix.as_str() {
+        "str" => Value::String(text.to_owned()),
+        "bool" => plain_scalar_to_value(text),
+        "int" | "float" => yaml_v2_plain_number(text).unwrap_or_else(|| Value::String(text.to_owned())),
+        "null" => Value::Null,
+        _ => Value::String(text.to_owned()),
     }
 }
 
@@ -162,8 +179,8 @@ impl Builder {
                 anchor,
             }),
             Event::SequenceEnd => self.finish_sequence()?,
-            Event::Scalar(text, style, anchor, _) => {
-                let value = scalar_to_value(&text, style);
+            Event::Scalar(text, style, anchor, tag) => {
+                let value = scalar_to_value(&text, style, tag.as_deref());
                 self.store_anchor(anchor, &value);
                 self.attach(value);
             }
@@ -251,6 +268,18 @@ mod tests {
     #[test]
     fn plain_yaml_11_bool_coerced_at_load() {
         let root = load("enabled: yes\n").unwrap();
+        assert_eq!(root.get("enabled"), Some(&Value::Bool(true)));
+    }
+
+    #[test]
+    fn tagged_str_yaml_11_bool_stays_string() {
+        let root = load("enabled: !!str yes\n").unwrap();
+        assert_eq!(root.get("enabled"), Some(&Value::String("yes".into())));
+    }
+
+    #[test]
+    fn tagged_bool_yaml_11_bool_coerced_at_load() {
+        let root = load("enabled: !!bool yes\n").unwrap();
         assert_eq!(root.get("enabled"), Some(&Value::Bool(true)));
     }
 

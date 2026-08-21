@@ -2133,6 +2133,25 @@ process_config:
     }
 
     #[test]
+    fn tagged_str_yaml_yes_does_not_enable_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_discovery:\n    enabled: !!str yes\n",
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_discovery.enabled".into()],
+            }];
+            assert!(!condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
     fn quoted_yaml_yes_does_not_enable_gate() {
         with_env_lock(|| {
             clear_gated_env_vars();
