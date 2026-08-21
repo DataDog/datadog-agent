@@ -944,6 +944,24 @@ func TestOTelSpan(t *testing.T) {
 		}
 	}
 
+	var initialExecTester string
+	initialExecOK := false
+	if _, err := loadSyscallTesterArtifact(test, "libotel_tls_initial_exec_fixture.so", 0o700); err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatal(err)
+		}
+		t.Log("libotel_tls_initial_exec_fixture.so not embedded; skipping initial-exec DSO OTel TLS variant")
+	} else {
+		var err error
+		initialExecTester, initialExecOK, err = loadOptionalSyscallTester(t, test, "otel_tls_initial_exec_tester")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !initialExecOK {
+			t.Log("otel_tls_initial_exec_tester not available; skipping initial-exec DSO OTel TLS variant")
+		}
+	}
+
 	fakeTraceID128b := "136272290892501783905308705057321818530"
 
 	assertOTelOpenSpan := func(t *testing.T, event *model.Event) {
@@ -1096,6 +1114,41 @@ func TestOTelSpan(t *testing.T) {
 				})
 			})
 		}
+	})
+
+	t.Run("valid_record_initial_exec_dso_old_glibc", func(t *testing.T) {
+		if !initialExecOK {
+			t.Skip("initial-exec DSO OTel TLS artifacts not embedded")
+		}
+
+		test.RunMultiMode(t, "open", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			if kind != dockerWrapperType && !isUbuntu2004Host() {
+				t.Skip("old-glibc initial-exec DSO coverage requires the Ubuntu 20.04 host KMT job or Ubuntu 20.04 docker wrapper")
+			}
+			if out, err := cmdFunc(initialExecTester, []string{"check"}, nil).CombinedOutput(); err != nil {
+				t.Fatalf("initial-exec DSO fixture is not runnable in the old-glibc test environment; it was likely built against a newer glibc: %s: %v", out, err)
+			}
+
+			testFile, _, err := test.Path("test-otel-span")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{"otel-span-open", fakeTraceID128b, "204", testFile}
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(initialExecTester, args, []string{})
+				out, err := cmd.CombinedOutput()
+				if err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_otel_span_rule_open")
+				assertOTelOpenSpan(t, event)
+			}, "test_otel_span_rule_open")
+		})
 	})
 
 	t.Run("invalid_record", func(t *testing.T) {
@@ -1321,4 +1374,15 @@ func TestOTelSpan(t *testing.T) {
 			})
 		}
 	})
+}
+
+func isUbuntu2004Host() bool {
+	data, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return false
+	}
+	osRelease := string(data)
+	return strings.Contains(osRelease, "\nID=ubuntu\n") &&
+		(strings.Contains(osRelease, "\nVERSION_ID=\"20.04\"\n") ||
+			strings.Contains(osRelease, "\nVERSION_ID=20.04\n"))
 }
