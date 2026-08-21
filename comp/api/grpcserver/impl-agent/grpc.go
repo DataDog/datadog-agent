@@ -31,6 +31,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	parsigningkeys "github.com/DataDog/datadog-agent/comp/privateactionrunner/signingkeys/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -64,6 +65,7 @@ type Requires struct {
 	Hostname            hostnameinterface.Component
 	ConfigStream        configstream.Component
 	HealthPlatformStore healthplatformstore.Component
+	PARSigningKeys      parsigningkeys.Component
 }
 
 type server struct {
@@ -84,6 +86,7 @@ type server struct {
 	hostname            hostnameinterface.Component
 	configStream        configstream.Component
 	healthPlatformStore healthplatformstore.Component
+	parSigningKeys      parsigningkeys.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -141,6 +144,7 @@ func (s *server) BuildServer() http.Handler {
 		configComp:           s.configComp,
 		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
 		healthPlatformStore:  s.healthPlatformStore,
+		parSigningKeys:       s.parSigningKeys,
 	})
 	pb.RegisterRemoteAgentServer(grpcServer, &remoteAgentServer{
 		remoteAgentRegistry: s.remoteAgentRegistry,
@@ -175,6 +179,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			hostname:            reqs.Hostname,
 			configStream:        reqs.ConfigStream,
 			healthPlatformStore: reqs.HealthPlatformStore,
+			parSigningKeys:      reqs.PARSigningKeys,
 		},
 	}
 	return provides, nil

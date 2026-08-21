@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -61,6 +62,14 @@ type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, er
 // RCListener is the generic type for components to register a callback for any product
 type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 
+// RCStatusListener receives the complete current snapshot and authoritative
+// status after every successful poll, plus connectivity state changes.
+type RCStatusListener struct {
+	Product       data.Product
+	OnStatus      func(map[string]state.RawConfig, pbgo.ConfigStatus, func(string, state.ApplyStatus))
+	OnStateChange func(bool)
+}
+
 // FilterListeners removes nil/zero values from an fx group of RCListener.
 func FilterListeners(group []RCListener) []RCListener {
 	return fxutil.GetAndFilterGroup(group)
@@ -68,6 +77,11 @@ func FilterListeners(group []RCListener) []RCListener {
 
 // FilterTaskListeners removes nil/zero values from an fx group of RCAgentTaskListener.
 func FilterTaskListeners(group []RCAgentTaskListener) []RCAgentTaskListener {
+	return fxutil.GetAndFilterGroup(group)
+}
+
+// FilterStatusListeners removes nil/zero values from an fx group of RCStatusListener.
+func FilterStatusListeners(group []RCStatusListener) []RCStatusListener {
 	return fxutil.GetAndFilterGroup(group)
 }
 
@@ -90,4 +104,11 @@ type ListenerProvider struct {
 	fx.Out
 
 	ListenerProvider RCListener `group:"rCListener"`
+}
+
+// StatusListenerProvider registers an authoritative status listener with the RC client.
+type StatusListenerProvider struct {
+	fx.Out
+
+	Listener RCStatusListener `group:"rCStatusListener"`
 }

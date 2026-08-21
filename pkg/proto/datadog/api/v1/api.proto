@@ -11,6 +11,7 @@ import "datadog/autodiscovery/autodiscovery.proto";
 import "datadog/kubemetadata/kubemetadata.proto";
 import "datadog/healthplatform/healthplatform.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
 
@@ -39,6 +40,9 @@ service AgentSecure {
     rpc DogstatsdSetTaggerState(datadog.model.v1.TaggerState) returns (datadog.model.v1.TaggerStateResponse);
 
     rpc ClientGetConfigs(datadog.config.ClientGetConfigsRequest) returns (datadog.config.ClientGetConfigsResponse);
+
+    // Returns the Core Agent's authoritative AP_RUNNER_KEYS snapshot.
+    rpc GetPARSigningKeys(GetPARSigningKeysRequest) returns (GetPARSigningKeysResponse);
 
     rpc GetConfigState(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse);
 
@@ -87,6 +91,25 @@ service AgentSecure {
     // Registered remote agents MUST supply remote_agent_session_id (same rules as
     // ReportHealthIssue).
     rpc ResolveHealthIssue(datadog.api.v1.ResolveHealthIssueRequest) returns (google.protobuf.Empty);
+}
+
+message GetPARSigningKeysRequest {
+    uint64 known_revision = 1;
+}
+
+message PARSigningKey {
+    string id = 1;
+    string key_type = 2;
+    bytes key = 3;
+}
+
+message GetPARSigningKeysResponse {
+    repeated PARSigningKey keys = 1;
+    uint64 revision = 2;
+    google.protobuf.Timestamp updated_at = 3;
+    bool initialized = 4;
+    datadog.config.ConfigStatus config_status = 5;
+    bool unchanged = 6;
 }
 
 // ReportHealthIssueRequest carries a health issue from a sub-agent or registered
