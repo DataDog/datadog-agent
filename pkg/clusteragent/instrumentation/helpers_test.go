@@ -66,6 +66,24 @@ type handleCall struct {
 	cr        *datadoghq.DatadogInstrumentation
 }
 
+type reconciliationRecord struct {
+	section string
+	success bool
+}
+
+type fakeTelemetryRecorder struct {
+	total           int
+	reconciliations []reconciliationRecord
+}
+
+func (f *fakeTelemetryRecorder) recordReconciliation(section string, success bool) {
+	f.reconciliations = append(f.reconciliations, reconciliationRecord{section: section, success: success})
+}
+
+func (f *fakeTelemetryRecorder) setResources(total int) {
+	f.total = total
+}
+
 type mockHandler struct {
 	name           string
 	hasSectionFunc func(*datadoghq.DatadogInstrumentation) bool

@@ -189,6 +189,71 @@ func TestReconcileMultipleHandlers(t *testing.T) {
 	assert.Empty(t, handlerB.getCalls(), "handler-b should not be called (no section)")
 }
 
+func TestUpdateResourceTelemetry(t *testing.T) {
+	recorder := &fakeTelemetryRecorder{}
+	c := &Controller{
+		lister: fakeLister(
+			newTestCR("checks-ddi", "default", 1, defaultChecks()),
+			newTestCR("logs-ddi", "default", 1, nil),
+		),
+		telemetry: recorder,
+	}
+
+	c.updateResourceTelemetry()
+
+	assert.Equal(t, 2, recorder.total)
+}
+
+func TestReconcileTelemetry(t *testing.T) {
+	tests := []struct {
+		name        string
+		status      HandlerStatus
+		handlerErr  error
+		wantSuccess bool
+	}{
+		{
+			name:        "ready status is successful",
+			status:      HandlerStatus{Status: metav1.ConditionTrue},
+			wantSuccess: true,
+		},
+		{
+			name:        "not ready status is an error",
+			status:      HandlerStatus{Status: metav1.ConditionFalse},
+			wantSuccess: false,
+		},
+		{
+			name:        "handler error is an error",
+			status:      HandlerStatus{Status: metav1.ConditionTrue},
+			handlerErr:  errors.New("handler failed"),
+			wantSuccess: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cr := newTestCR("test-ddi", "default", 1, defaultChecks())
+			handler := &mockHandler{
+				name:           "checks",
+				hasSectionFunc: func(cr *datadoghq.DatadogInstrumentation) bool { return cr != nil && len(cr.Spec.Config.Checks) > 0 },
+				handleStatus:   tt.status,
+				handleErr:      tt.handlerErr,
+			}
+			recorder := &fakeTelemetryRecorder{}
+			c := &Controller{
+				lister:    fakeLister(cr),
+				handlers:  []Handler{handler},
+				isLeader:  func() bool { return false },
+				lastSeen:  make(map[string]*datadoghq.DatadogInstrumentation),
+				telemetry: recorder,
+			}
+
+			_ = c.reconcile(t.Context(), "default/test-ddi")
+
+			require.Equal(t, []reconciliationRecord{{section: "checks", success: tt.wantSuccess}}, recorder.reconciliations)
+		})
+	}
+}
+
 func TestReconcile_UpdateStatusOnlyAsLeader(t *testing.T) {
 	tests := []struct {
 		name             string
