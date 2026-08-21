@@ -27,6 +27,8 @@ properties:
         env_vars:
         - DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED
         - DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED
+        comment: |-
+          env_vars for this key are duplicated in pkg/procmgr/rust/src/config_gate/env_bindings.rs (one of four process_config keys used for dd-procmgr process-agent startup).
         visibility: public
         description: Enables collection of information about running processes.
   container_collection:
@@ -44,6 +46,8 @@ properties:
         env_vars:
         - DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED
         - DD_PROCESS_AGENT_CONTAINER_COLLECTION_ENABLED
+        comment: |-
+          env_vars for this key are duplicated in pkg/procmgr/rust/src/config_gate/env_bindings.rs (one of four process_config keys used for dd-procmgr process-agent startup).
         visibility: public
         description: Enables collection of information about running containers.
   expvar_port:
@@ -149,6 +153,8 @@ properties:
         - DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED
         - DD_PROCESS_CONFIG_DISCOVERY_ENABLED
         - DD_PROCESS_AGENT_DISCOVERY_ENABLED
+        comment: |-
+          env_vars for this key are duplicated in pkg/procmgr/rust/src/config_gate/env_bindings.rs (one of four process_config keys used for dd-procmgr process-agent startup).
         visibility: public
         description: Toggles the `process_discovery` check. If enabled, this check
           gathers information about running integrations.
@@ -326,7 +332,8 @@ properties:
     - DD_PROCESS_CONFIG_ENABLED
     - DD_PROCESS_AGENT_ENABLED
     comment: |-
-      Env bindings below are mirrored in pkg/procmgr/rust/src/config_gate/env_bindings.rs.
+      env_vars for this key are duplicated in pkg/procmgr/rust/src/config_gate/env_bindings.rs (one of four process_config keys used for dd-procmgr process-agent startup).
+
       "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
       or container_collection.enabled and process_collection.enabled.
 
