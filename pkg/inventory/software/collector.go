@@ -18,7 +18,7 @@ import (
 
 // defaultCollectorTimeout bounds how long a single collector may run before the
 // snapshot gives up on it.
-const defaultCollectorTimeout = 90 * time.Second
+const defaultCollectorTimeout = 30 * time.Second
 
 // Collector defines the interface for collecting software entries
 // from a specific source or location on the system. Different collectors
@@ -214,8 +214,10 @@ var collectorsInFlight sync.Map
 // unknown state, and reporting a partial or missing family would look like the software
 // was uninstalled. The abandoned goroutine writes to a buffered channel, so it exits by
 // itself once the underlying call finally returns; until then the collector is treated as
-// in flight and is not started again, because the OS APIs behind these collectors (WMI in
-// particular) offer no way to cancel a call that has already blocked.
+// in flight and is not started again, because the OS APIs behind these collectors offer no
+// way to cancel a call that has already blocked — the SetupAPI device enumeration
+// (DIGCF_ALLCLASSES) that the Windows driver collector runs is one uninterruptible block from
+// start to finish, and there is no partial result to salvage from it.
 func runCollectorWithDeadline(c Collector, timeout time.Duration) ([]*Entry, []*Warning, error) {
 	key := fmt.Sprintf("%T", c)
 	if _, running := collectorsInFlight.LoadOrStore(key, struct{}{}); running {

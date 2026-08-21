@@ -38,10 +38,8 @@ go_library(
             "@com_github_mattn_go_sqlite3//:go-sqlite3",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/util/log",
             "//pkg/util/winutil",
             "//pkg/util/winutil/datadoginterop",
-            "@com_github_yusufpapurcu_wmi//:wmi",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],

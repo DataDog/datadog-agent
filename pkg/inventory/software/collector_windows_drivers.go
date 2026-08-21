@@ -15,10 +15,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/yusufpapurcu/wmi"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -29,144 +27,31 @@ var errEmptyImagePath = errors.New("empty image path")
 // resource but never set FILEVERSION. It carries no information, so it is treated as absent.
 const zeroVersion = "0.0.0.0"
 
-// win32SystemDriver is the narrow projection of the Win32_SystemDriver WMI class that the
-// collector needs. The class enumerates every registered kernel-mode driver service, which
-// is a superset of the drivers bound to a PnP device node: software-only drivers such as EDR
-// minifilters and network filters have no device node and appear only here.
-//
-// The class carries no version or vendor of its own — both come from the version resource of
-// the binary named by PathName.
-//
-// https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-systemdriver
-type win32SystemDriver struct {
-	// Name is the service name, e.g. "WdFilter". Windows guarantees it is unique on the
-	// host, since it is the key name under HKLM\SYSTEM\CurrentControlSet\Services.
-	Name string
-	// DisplayName is the human-readable name, e.g. "Microsoft Defender Antivirus
-	// Mini-Filter Driver". It may be empty or identical to Name.
-	DisplayName string
-	// PathName is the image path. It is not necessarily a Win32 path: it may be prefixed
-	// with \??\ or \SystemRoot\, or be relative to the Windows directory.
-	PathName string
-}
-
-// win32PnPSignedDriver is the narrow projection of the Win32_PnPSignedDriver WMI class that
-// the collector needs. The class enumerates the driver bound to each PnP device node, which
-// covers the drivers Win32_SystemDriver cannot see: a PnP driver package can be installed
-// and bound to a device without registering a kernel service of its own.
-//
-// Unlike Win32_SystemDriver the class carries its own version and vendor, both taken from
-// the INF, so no version resource has to be read.
-//
-// DriverName is deliberately absent from this projection: it is NULL on most hosts.
-//
-// https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa394354(v=vs.85)
-type win32PnPSignedDriver struct {
-	// DeviceID is the PnP instance path of the device the driver is bound to. It is what
-	// joins a record to win32PnPEntity.
-	DeviceID string
-	// DeviceName is the device description from the INF, e.g. "NVIDIA GeForce RTX 4060".
-	DeviceName string
-	// DriverVersion comes from the DriverVer directive of the INF.
-	DriverVersion string
-	// Manufacturer is the INF's manufacturer, e.g. "NVIDIA". It is reported as the
-	// publisher and is deliberately not used to filter: see collectPnPDrivers.
-	Manufacturer string
-	// InfName is the published name of the INF. Windows renames a package that did not
-	// ship inside Windows to "oemNN.inf" when it publishes it, which is what makes this
-	// the third-party signal.
-	InfName string
-}
-
-// win32PnPEntity is the narrow projection of the Win32_PnPEntity WMI class that the collector
-// needs. It is queried only to answer, for each device, whether a kernel service drives it.
-//
-// https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-pnpentity
-type win32PnPEntity struct {
-	// DeviceID is the PnP instance path, matching win32PnPSignedDriver.DeviceID.
-	DeviceID string
-	// Service is the name of the service driving the device, empty when it has none.
-	Service string
-}
-
-// driverCollector collects installed kernel-mode drivers via WMI.
+// driverCollector collects installed kernel-mode drivers.
 //
 // Only OEM and third-party drivers are reported. Microsoft's inbox drivers number in the
 // hundreds on any host and say nothing about it, so they would swamp the drivers that do.
 // The two sources need different tests for this, because they expose different fields:
-// Win32_SystemDriver is filtered on the vendor of the binary, Win32_PnPSignedDriver on
-// whether the INF was published as an OEM package.
+// the service source is filtered on the vendor of the binary, the device source on whether
+// the INF was published as an OEM package.
 //
 // Known limitations, both accepted:
 //   - user-mode (UMDF) drivers register no kernel service and are not reported;
 //   - a driver whose service entry is created, loaded and then deleted is invisible, so this
 //     is an inventory of registered drivers rather than of code currently in the kernel.
 type driverCollector struct {
-	// queryFn returns the raw driver records. It is a field so tests can supply fixtures
-	// instead of reaching WMI; nil means use the real query.
-	queryFn func() ([]win32SystemDriver, error)
-	// pnpDriverQueryFn returns the raw PnP driver records. It is a field so tests can supply
-	// fixtures instead of reaching WMI; nil means use the real query.
-	pnpDriverQueryFn func() ([]win32PnPSignedDriver, error)
-	// pnpEntityQueryFn returns the raw PnP device records. It is a field so tests can supply
-	// fixtures instead of reaching WMI; nil means use the real query.
-	pnpEntityQueryFn func() ([]win32PnPEntity, error)
+	// serviceQueryFn returns the raw driver service records. It is a field so tests can
+	// supply fixtures instead of reaching the SCM; nil means use the real query.
+	serviceQueryFn func() ([]winutil.DriverService, error)
+	// deviceQueryFn returns the raw device driver records. It is a field so tests can supply
+	// fixtures instead of reaching SetupAPI; nil means use the real query.
+	deviceQueryFn func() ([]winutil.DeviceDriver, error)
 	// versionInfoFn reads the version resource of a driver binary. It is a field so tests
 	// stay off the filesystem; nil means read the real file.
 	versionInfoFn func(path string) (winutil.FileVersionInfo, error)
 	// loadIndirectFn resolves an indirect string reference in a display name. It is a field
 	// so tests stay off the filesystem; nil means resolve against the real module.
 	loadIndirectFn func(source string) (string, error)
-}
-
-// queryWMI runs a query against the local machine and decodes the rows into dst, which must
-// be a pointer to a slice of the projection to decode into.
-func queryWMI(query string, dst any) error {
-	wmiClient := &wmi.Client{}
-	swbemServices, err := wmi.InitializeSWbemServices(wmiClient)
-	if err != nil {
-		return fmt.Errorf("failed to initialize WMI services: %w", err)
-	}
-	defer func() {
-		if closeErr := swbemServices.Close(); closeErr != nil {
-			log.Errorf("error closing SWbemServicesClient: %v", closeErr)
-		}
-	}()
-	wmiClient.SWbemServicesClient = swbemServices
-
-	if err := wmiClient.SWbemServicesClient.Query(query, dst); err != nil {
-		return fmt.Errorf("failed to run %q: %w", query, err)
-	}
-
-	return nil
-}
-
-// querySystemDrivers runs the WMI query against the local machine.
-func querySystemDrivers() ([]win32SystemDriver, error) {
-	var drivers []win32SystemDriver
-	err := queryWMI("SELECT Name, DisplayName, PathName FROM Win32_SystemDriver", &drivers)
-	return drivers, err
-}
-
-// queryPnPSignedDrivers runs the WMI query against the local machine.
-func queryPnPSignedDrivers() ([]win32PnPSignedDriver, error) {
-	var drivers []win32PnPSignedDriver
-	err := queryWMI(
-		"SELECT DeviceID, DeviceName, DriverVersion, Manufacturer, InfName FROM Win32_PnPSignedDriver",
-		&drivers,
-	)
-	return drivers, err
-}
-
-// queryPnPEntities runs the WMI query against the local machine.
-//
-// Every device is fetched in one query and joined in memory rather than looked up per device
-// id: both PnP classes are slow to enumerate, and one round trip per device would exhaust
-// the collector's whole time budget on the join.
-func queryPnPEntities() ([]win32PnPEntity, error) {
-	var entities []win32PnPEntity
-	err := queryWMI("SELECT DeviceID, Service FROM Win32_PnPEntity", &entities)
-	return entities, err
 }
 
 // resolveDriverPath turns the image path reported for a driver service into a Win32 path.
@@ -268,8 +153,8 @@ func cutPrefixFold(s, prefix string) (string, bool) {
 // Drivers spell it several ways — "Microsoft Corporation", "Microsoft Windows", plain
 // "Microsoft" — so the prefix is what is matched.
 //
-// This filters the Win32_SystemDriver source only. Win32_PnPSignedDriver carries an INF name,
-// which is a far better signal; see collectPnPDrivers.
+// This filters the service source only. The device source carries an INF name, which is a
+// far better signal; see collectDeviceDrivers.
 func isMicrosoftPublisher(publisher string) bool {
 	_, ok := cutPrefixFold(strings.TrimSpace(publisher), "microsoft")
 	return ok
@@ -299,11 +184,11 @@ func (c *driverCollector) Collect() ([]*Entry, []*Warning, error) {
 		return nil, nil, err
 	}
 
-	pnpWarnings, err := c.collectPnPDrivers(byProductCode)
+	deviceWarnings, err := c.collectDeviceDrivers(byProductCode)
 	if err != nil {
 		return nil, nil, err
 	}
-	warnings = append(warnings, pnpWarnings...)
+	warnings = append(warnings, deviceWarnings...)
 
 	entries := make([]*Entry, 0, len(byProductCode))
 	for _, entry := range byProductCode {
@@ -314,7 +199,8 @@ func (c *driverCollector) Collect() ([]*Entry, []*Warning, error) {
 	return entries, warnings, nil
 }
 
-// collectServiceDrivers adds the drivers registered as kernel services to byProductCode.
+// collectServiceDrivers adds the drivers registered as kernel services to byProductCode. The
+// source is the SCM (winutil.EnumDriverServices), not Win32_SystemDriver.
 //
 // The identity is the service name. It is both the identity and the grouping key: Windows keys
 // the Services registry on it, so it is unique on the host, and unlike the image path or the
@@ -322,9 +208,9 @@ func (c *driverCollector) Collect() ([]*Entry, []*Warning, error) {
 // identity is what lets a version bump read as an update rather than as an uninstall followed
 // by a fresh install.
 func (c *driverCollector) collectServiceDrivers(byProductCode map[string]*Entry) ([]*Warning, error) {
-	query := c.queryFn
+	query := c.serviceQueryFn
 	if query == nil {
-		query = querySystemDrivers
+		query = winutil.EnumDriverServices
 	}
 	versionInfo := c.versionInfoFn
 	if versionInfo == nil {
@@ -350,11 +236,11 @@ func (c *driverCollector) collectServiceDrivers(byProductCode map[string]*Entry)
 	for _, driver := range drivers {
 		name := strings.TrimSpace(driver.Name)
 		if name == "" {
-			warnings = append(warnings, warnf("skipping driver with no service name (path %q)", driver.PathName))
+			warnings = append(warnings, warnf("skipping driver with no service name (path %q)", driver.ImagePath))
 			continue
 		}
 
-		path, err := resolveDriverPath(driver.PathName, windowsDir)
+		path, err := resolveDriverPath(driver.ImagePath, windowsDir)
 		if err != nil {
 			warnings = append(warnings, warnf("skipping driver %q: %v", name, err))
 			continue
@@ -411,43 +297,35 @@ func (c *driverCollector) collectServiceDrivers(byProductCode map[string]*Entry)
 	return warnings, nil
 }
 
-// collectPnPDrivers adds the OEM driver packages that register no kernel service to
+// collectDeviceDrivers adds the OEM driver packages that register no kernel service to
 // byProductCode. Those are invisible to the service source, which is the gap this closes.
 //
-// The identity is the device name. The service name is not available here — its absence is
-// what selects these records in the first place — and of what the class does offer it is the
-// field that survives a driver update, which is the property the identity needs. Its one
-// failure mode is a vendor rewording the device description between package versions, which
-// costs one spurious uninstall and reinstall and then settles.
-func (c *driverCollector) collectPnPDrivers(byProductCode map[string]*Entry) ([]*Warning, error) {
-	driverQuery := c.pnpDriverQueryFn
-	if driverQuery == nil {
-		driverQuery = queryPnPSignedDrivers
-	}
-	entityQuery := c.pnpEntityQueryFn
-	if entityQuery == nil {
-		entityQuery = queryPnPEntities
+// The identity is the device description. The service name is not available here — its
+// absence is what selects these records in the first place — and of what the source does
+// offer it is the field that survives a driver update, which is the property the identity
+// needs. Its one failure mode is a vendor rewording the device description between package
+// versions, which costs one spurious uninstall and reinstall and then settles.
+func (c *driverCollector) collectDeviceDrivers(byProductCode map[string]*Entry) ([]*Warning, error) {
+	deviceQuery := c.deviceQueryFn
+	if deviceQuery == nil {
+		deviceQuery = winutil.EnumDeviceDrivers
 	}
 
-	drivers, err := driverQuery()
+	devices, err := deviceQuery()
 	if err != nil {
 		return nil, err
-	}
-	entities, err := entityQuery()
-	if err != nil {
-		return nil, err
-	}
-
-	// Instance paths are conventionally upper case, but nothing guarantees the two classes
-	// spell them the same way, so both sides of the join are normalised.
-	serviceByDeviceID := make(map[string]string, len(entities))
-	for _, entity := range entities {
-		serviceByDeviceID[strings.ToUpper(strings.TrimSpace(entity.DeviceID))] = strings.TrimSpace(entity.Service)
 	}
 
 	var warnings []*Warning
 
-	for _, driver := range drivers {
+	for _, driver := range devices {
+		// A device driven by a service is already reported by collectServiceDrivers under that
+		// service name. This is where the old WMI join between Win32_PnPSignedDriver and
+		// Win32_PnPEntity disappears: winutil already resolved it per device.
+		if strings.TrimSpace(driver.Service) != "" {
+			continue
+		}
+
 		// Only OEM and third-party drivers are reported. Windows renames a package that did
 		// not ship inside Windows to "oemNN.inf" when it publishes it, so the INF name is the
 		// test. The manufacturer is not: Microsoft's own inbox INFs mostly report vendor-shaped
@@ -462,17 +340,10 @@ func (c *driverCollector) collectPnPDrivers(byProductCode map[string]*Entry) ([]
 			continue
 		}
 
-		// A device driven by a service is already reported by collectServiceDrivers under that
-		// service name. A device id absent from the map is treated as having no service, which
-		// is the permissive choice, consistent with keeping a driver whose vendor is unknown.
-		if service := serviceByDeviceID[strings.ToUpper(strings.TrimSpace(driver.DeviceID))]; service != "" {
-			continue
-		}
-
-		name := strings.TrimSpace(driver.DeviceName)
+		name := strings.TrimSpace(driver.Description)
 		if name == "" {
-			warnings = append(warnings, warnf("skipping PnP driver with no device name (INF %q, device %q)",
-				driver.InfName, driver.DeviceID))
+			warnings = append(warnings, warnf("skipping device driver with no description (INF %q, device %q)",
+				driver.InfName, driver.InstanceID))
 			continue
 		}
 
@@ -488,7 +359,8 @@ func (c *driverCollector) collectPnPDrivers(byProductCode map[string]*Entry) ([]
 
 		productCode := strings.ToLower(name)
 		if _, ok := byProductCode[productCode]; ok {
-			// Two devices of the same model share a device name, and are one driver package.
+			// Two devices of the same model share a device description, and are one driver
+			// package.
 			continue
 		}
 
@@ -499,8 +371,8 @@ func (c *driverCollector) collectPnPDrivers(byProductCode map[string]*Entry) ([]
 			Publisher:   strings.TrimSpace(driver.Manufacturer),
 			Status:      "installed",
 			ProductCode: productCode,
-			// InstallPath is left empty: this class names no binary. It is also what tells the
-			// two sources apart in the integration test.
+			// InstallPath is left empty: this source names no binary. It is also what tells
+			// the two sources apart in the integration test.
 			InstallPath: "",
 			Is64Bit:     runtime.GOARCH != "386",
 			// InstallDate is left empty for the same reason as the service source: nothing

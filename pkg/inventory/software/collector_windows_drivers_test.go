@@ -27,10 +27,11 @@ var errNoVersionResource = errors.New("no version information")
 // Version information is keyed by resolved path and matched case-insensitively, the way the
 // filesystem would; a path with no entry behaves like a binary carrying no version resource.
 //
-// The PnP source is stubbed empty, so that a test of one source cannot reach WMI for the other.
-func driverCollectorFor(records []win32SystemDriver, versions map[string]winutil.FileVersionInfo) *driverCollector {
+// The device source is stubbed empty, so that a test of one source cannot reach the real
+// SetupAPI enumeration for the other.
+func driverCollectorFor(records []winutil.DriverService, versions map[string]winutil.FileVersionInfo) *driverCollector {
 	return &driverCollector{
-		queryFn: func() ([]win32SystemDriver, error) { return records, nil },
+		serviceQueryFn: func() ([]winutil.DriverService, error) { return records, nil },
 		versionInfoFn: func(path string) (winutil.FileVersionInfo, error) {
 			for candidate, info := range versions {
 				if strings.EqualFold(candidate, path) {
@@ -40,20 +41,17 @@ func driverCollectorFor(records []win32SystemDriver, versions map[string]winutil
 			return winutil.FileVersionInfo{}, errNoVersionResource
 		},
 		// Nothing resolves by default: fixtures that care supply their own resolver.
-		loadIndirectFn:   func(string) (string, error) { return "", errUnresolvedIndirectString },
-		pnpDriverQueryFn: func() ([]win32PnPSignedDriver, error) { return nil, nil },
-		pnpEntityQueryFn: func() ([]win32PnPEntity, error) { return nil, nil },
+		loadIndirectFn: func(string) (string, error) { return "", errUnresolvedIndirectString },
+		deviceQueryFn:  func() ([]winutil.DeviceDriver, error) { return nil, nil },
 	}
 }
 
-// pnpDriverCollectorFor builds a collector backed by fixture records for the PnP source, with
-// the service source stubbed empty. Devices absent from entities exercise the missing-device
-// path, where the driver is kept.
-func pnpDriverCollectorFor(records []win32PnPSignedDriver, entities []win32PnPEntity) *driverCollector {
+// deviceDriverCollectorFor builds a collector backed by fixture records for the device source,
+// with the service source stubbed empty.
+func deviceDriverCollectorFor(records []winutil.DeviceDriver) *driverCollector {
 	return &driverCollector{
-		queryFn:          func() ([]win32SystemDriver, error) { return nil, nil },
-		pnpDriverQueryFn: func() ([]win32PnPSignedDriver, error) { return records, nil },
-		pnpEntityQueryFn: func() ([]win32PnPEntity, error) { return entities, nil },
+		serviceQueryFn: func() ([]winutil.DriverService, error) { return nil, nil },
+		deviceQueryFn:  func() ([]winutil.DeviceDriver, error) { return records, nil },
 	}
 }
 
@@ -179,10 +177,10 @@ func TestDriverCollectorReportsRegisteredDrivers(t *testing.T) {
 	resolved := underWindowsDir(t, `system32\drivers\SentinelMonitor.sys`)
 
 	collector := driverCollectorFor(
-		[]win32SystemDriver{{
+		[]winutil.DriverService{{
 			Name:        "SentinelMonitor",
 			DisplayName: "SentinelOne Monitor Driver",
-			PathName:    `\SystemRoot\system32\drivers\SentinelMonitor.sys`,
+			ImagePath:   `\SystemRoot\system32\drivers\SentinelMonitor.sys`,
 		}},
 		map[string]winutil.FileVersionInfo{
 			resolved: {FileVersionNumeric: "23.4.2.377", CompanyName: "Sentinel Labs, Inc."},
@@ -209,14 +207,14 @@ func TestDriverCollectorReportsRegisteredDrivers(t *testing.T) {
 
 func TestDriverCollectorDropsMicrosoftPublishedDrivers(t *testing.T) {
 	// Inbox drivers number in the hundreds on any host and say nothing about it. CompanyName
-	// is the only vendor signal Win32_SystemDriver offers, and drivers spell it several ways.
+	// is the only vendor signal the service source offers, and drivers spell it several ways.
 	collector := driverCollectorFor(
-		[]win32SystemDriver{
-			{Name: "WdFilter", DisplayName: "Defender Mini-Filter", PathName: `C:\Windows\System32\drivers\WdFilter.sys`},
-			{Name: "tcpip", DisplayName: "TCP/IP Protocol Driver", PathName: `C:\Windows\System32\drivers\tcpip.sys`},
-			{Name: "acpi", DisplayName: "ACPI Driver", PathName: `C:\Windows\System32\drivers\acpi.sys`},
-			{Name: "Unattributed", DisplayName: "Unattributed Driver", PathName: `C:\Vendor\u.sys`},
-			{Name: "VendorFlt", DisplayName: "Vendor Filter", PathName: `C:\Vendor\flt.sys`},
+		[]winutil.DriverService{
+			{Name: "WdFilter", DisplayName: "Defender Mini-Filter", ImagePath: `C:\Windows\System32\drivers\WdFilter.sys`},
+			{Name: "tcpip", DisplayName: "TCP/IP Protocol Driver", ImagePath: `C:\Windows\System32\drivers\tcpip.sys`},
+			{Name: "acpi", DisplayName: "ACPI Driver", ImagePath: `C:\Windows\System32\drivers\acpi.sys`},
+			{Name: "Unattributed", DisplayName: "Unattributed Driver", ImagePath: `C:\Vendor\u.sys`},
+			{Name: "VendorFlt", DisplayName: "Vendor Filter", ImagePath: `C:\Vendor\flt.sys`},
 		},
 		map[string]winutil.FileVersionInfo{
 			`C:\Windows\System32\drivers\WdFilter.sys`: {FileVersionNumeric: "4.18.24090.11", CompanyName: "Microsoft Corporation"},
@@ -242,14 +240,14 @@ func TestDriverCollectorDropsMicrosoftPublishedDrivers(t *testing.T) {
 }
 
 func TestDriverCollectorReportsSoftwareOnlyDrivers(t *testing.T) {
-	// The reason this collector uses Win32_SystemDriver at all: a minifilter installed
-	// outside the driver store has no PnP device node and no OEM INF, so the PnP class
+	// The reason this collector queries the service source at all: a minifilter installed
+	// outside the driver store has no PnP device node and no OEM INF, so the device source
 	// cannot see it.
 	collector := driverCollectorFor(
-		[]win32SystemDriver{{
+		[]winutil.DriverService{{
 			Name:        "CSAgent",
 			DisplayName: "CrowdStrike Falcon Sensor Driver",
-			PathName:    `\??\C:\Program Files\CrowdStrike\csagent.sys`,
+			ImagePath:   `\??\C:\Program Files\CrowdStrike\csagent.sys`,
 		}},
 		map[string]winutil.FileVersionInfo{
 			`C:\Program Files\CrowdStrike\csagent.sys`: {
@@ -275,7 +273,7 @@ func TestDriverIdentitySurvivesVersionBump(t *testing.T) {
 	const displayName = "Vendor Filter Driver"
 
 	before, _, err := driverCollectorFor(
-		[]win32SystemDriver{{Name: "VendorFlt", DisplayName: displayName, PathName: `C:\Vendor\1.0\vendorflt.sys`}},
+		[]winutil.DriverService{{Name: "VendorFlt", DisplayName: displayName, ImagePath: `C:\Vendor\1.0\vendorflt.sys`}},
 		map[string]winutil.FileVersionInfo{
 			`C:\Vendor\1.0\vendorflt.sys`: {FileVersionNumeric: "1.0.0.1", CompanyName: "Vendor"},
 		},
@@ -284,7 +282,7 @@ func TestDriverIdentitySurvivesVersionBump(t *testing.T) {
 	require.Len(t, before, 1)
 
 	after, _, err := driverCollectorFor(
-		[]win32SystemDriver{{Name: "VendorFlt", DisplayName: displayName, PathName: `C:\Vendor\2.0\vendorflt.sys`}},
+		[]winutil.DriverService{{Name: "VendorFlt", DisplayName: displayName, ImagePath: `C:\Vendor\2.0\vendorflt.sys`}},
 		map[string]winutil.FileVersionInfo{
 			`C:\Vendor\2.0\vendorflt.sys`: {FileVersionNumeric: "2.0.0.0", CompanyName: "Vendor"},
 		},
@@ -301,10 +299,10 @@ func TestDriverCollectorRequiresANumericVersion(t *testing.T) {
 	// The FileVersion string is not accepted as a substitute: it is routinely decorated or
 	// comma-separated, and guessing at those formats is worse than reporting nothing.
 	collector := driverCollectorFor(
-		[]win32SystemDriver{
-			{Name: "NoResource", PathName: `C:\Windows\System32\drivers\noresource.sys`},
-			{Name: "ZeroVersion", PathName: `C:\Windows\System32\drivers\zero.sys`},
-			{Name: "Good", PathName: `C:\Windows\System32\drivers\good.sys`},
+		[]winutil.DriverService{
+			{Name: "NoResource", ImagePath: `C:\Windows\System32\drivers\noresource.sys`},
+			{Name: "ZeroVersion", ImagePath: `C:\Windows\System32\drivers\zero.sys`},
+			{Name: "Good", ImagePath: `C:\Windows\System32\drivers\good.sys`},
 		},
 		map[string]winutil.FileVersionInfo{
 			// A resource that was never given a FILEVERSION. The decorated string must not
@@ -328,10 +326,10 @@ func TestDriverCollectorRequiresANumericVersion(t *testing.T) {
 
 func TestDriverCollectorSkipsUnusableRecords(t *testing.T) {
 	collector := driverCollectorFor(
-		[]win32SystemDriver{
-			{Name: "", DisplayName: "No Service Name", PathName: `C:\Windows\System32\drivers\a.sys`},
-			{Name: "NoPath", DisplayName: "No Path", PathName: ""},
-			{Name: "Good", DisplayName: "Good Driver", PathName: `C:\Windows\System32\drivers\good.sys`},
+		[]winutil.DriverService{
+			{Name: "", DisplayName: "No Service Name", ImagePath: `C:\Windows\System32\drivers\a.sys`},
+			{Name: "NoPath", DisplayName: "No Path", ImagePath: ""},
+			{Name: "Good", DisplayName: "Good Driver", ImagePath: `C:\Windows\System32\drivers\good.sys`},
 		},
 		map[string]winutil.FileVersionInfo{
 			`C:\Windows\System32\drivers\a.sys`:    {FileVersionNumeric: "1.0.0.0"},
@@ -349,7 +347,7 @@ func TestDriverCollectorSkipsUnusableRecords(t *testing.T) {
 
 func TestDriverCollectorFallsBackToTheServiceName(t *testing.T) {
 	collector := driverCollectorFor(
-		[]win32SystemDriver{{Name: "ACPI", DisplayName: "", PathName: `C:\Windows\System32\drivers\acpi.sys`}},
+		[]winutil.DriverService{{Name: "ACPI", DisplayName: "", ImagePath: `C:\Windows\System32\drivers\acpi.sys`}},
 		map[string]winutil.FileVersionInfo{
 			`C:\Windows\System32\drivers\acpi.sys`: {FileVersionNumeric: "10.0.19041.1"},
 		},
@@ -430,9 +428,9 @@ func TestDriverCollectorNeverReportsARawResourceReference(t *testing.T) {
 	// Regression: these two shipped a file path and a module reference as the software name,
 	// which is also part of the backend's identity key.
 	collector := driverCollectorFor(
-		[]win32SystemDriver{
-			{Name: "tcpipreg", DisplayName: `@%SystemRoot%\System32\drivers\tcpipreg.sys,-10110,`, PathName: `C:\Windows\System32\drivers\tcpipreg.sys`},
-			{Name: "tcpip6", DisplayName: "@todo.dll,-100;Microsoft IPv6 Protocol Driver", PathName: `C:\Windows\System32\drivers\tcpip.sys`},
+		[]winutil.DriverService{
+			{Name: "tcpipreg", DisplayName: `@%SystemRoot%\System32\drivers\tcpipreg.sys,-10110,`, ImagePath: `C:\Windows\System32\drivers\tcpipreg.sys`},
+			{Name: "tcpip6", DisplayName: "@todo.dll,-100;Microsoft IPv6 Protocol Driver", ImagePath: `C:\Windows\System32\drivers\tcpip.sys`},
 		},
 		map[string]winutil.FileVersionInfo{
 			`C:\Windows\System32\drivers\tcpipreg.sys`: {FileVersionNumeric: "6.2.26100.9168"},
@@ -453,9 +451,9 @@ func TestDriverCollectorKeepsServicesSharingABinary(t *testing.T) {
 	// tcpip and tcpip6 are both served by tcpip.sys on a real host. Keying on the image path
 	// would merge them; the service name keeps them apart.
 	collector := driverCollectorFor(
-		[]win32SystemDriver{
-			{Name: "tcpip", DisplayName: "TCP/IP Protocol Driver", PathName: `C:\Windows\System32\drivers\tcpip.sys`},
-			{Name: "tcpip6", DisplayName: "Microsoft IPv6 Protocol Driver", PathName: `C:\Windows\System32\drivers\tcpip.sys`},
+		[]winutil.DriverService{
+			{Name: "tcpip", DisplayName: "TCP/IP Protocol Driver", ImagePath: `C:\Windows\System32\drivers\tcpip.sys`},
+			{Name: "tcpip6", DisplayName: "Microsoft IPv6 Protocol Driver", ImagePath: `C:\Windows\System32\drivers\tcpip.sys`},
 		},
 		map[string]winutil.FileVersionInfo{
 			`C:\Windows\System32\drivers\tcpip.sys`: {FileVersionNumeric: "6.2.26100.9168"},
@@ -474,7 +472,7 @@ func TestDriverCollectorEmitsAnEmptyPublisher(t *testing.T) {
 	// A driver with no CompanyName is still worth reporting: an unattributed kernel driver is
 	// exactly the kind of thing an operator wants to see.
 	collector := driverCollectorFor(
-		[]win32SystemDriver{{Name: "Unattributed", DisplayName: "Unattributed Driver", PathName: `C:\Windows\System32\drivers\u.sys`}},
+		[]winutil.DriverService{{Name: "Unattributed", DisplayName: "Unattributed Driver", ImagePath: `C:\Windows\System32\drivers\u.sys`}},
 		map[string]winutil.FileVersionInfo{
 			`C:\Windows\System32\drivers\u.sys`: {FileVersionNumeric: "1.0.0.0", CompanyName: ""},
 		},
@@ -491,9 +489,9 @@ func TestDriverCollectorEmitsAnEmptyPublisher(t *testing.T) {
 func TestDriverCollectorKeepsDriversSharingADisplayName(t *testing.T) {
 	// Vendors ship several drivers under one product name. The service name keeps them apart.
 	collector := driverCollectorFor(
-		[]win32SystemDriver{
-			{Name: "VendorFlt", DisplayName: "Vendor Endpoint Protection", PathName: `C:\Vendor\flt.sys`},
-			{Name: "VendorNet", DisplayName: "Vendor Endpoint Protection", PathName: `C:\Vendor\net.sys`},
+		[]winutil.DriverService{
+			{Name: "VendorFlt", DisplayName: "Vendor Endpoint Protection", ImagePath: `C:\Vendor\flt.sys`},
+			{Name: "VendorNet", DisplayName: "Vendor Endpoint Protection", ImagePath: `C:\Vendor\net.sys`},
 		},
 		map[string]winutil.FileVersionInfo{
 			`C:\Vendor\flt.sys`: {FileVersionNumeric: "1.0.0.0"},
@@ -513,23 +511,17 @@ func TestDriverCollectorKeepsDriversSharingADisplayName(t *testing.T) {
 	assert.Len(t, ids, 2, "entry IDs must stay unique")
 }
 
-func TestDriverCollectorReportsOEMPnPDriversWithoutAService(t *testing.T) {
-	// The reason this collector queries Win32_PnPSignedDriver at all: a driver package can be
+func TestDriverCollectorReportsOEMDeviceDriversWithoutAService(t *testing.T) {
+	// The reason this collector queries the device source at all: a driver package can be
 	// installed and bound to a device without registering a kernel service, so the service
 	// source cannot see it.
-	collector := pnpDriverCollectorFor(
-		[]win32PnPSignedDriver{{
-			DeviceID:      `PCI\VEN_1179&DEV_011A&SUBSYS_00011179\4&2A3B7C1D&0&00E4`,
-			DeviceName:    "KIOXIA KXG80ZNV1T02 NVMe",
-			DriverVersion: "2.2.1.14",
-			Manufacturer:  "KIOXIA Corporation",
-			InfName:       "oem42.inf",
-		}},
-		[]win32PnPEntity{{
-			DeviceID: `PCI\VEN_1179&DEV_011A&SUBSYS_00011179\4&2A3B7C1D&0&00E4`,
-			Service:  "",
-		}},
-	)
+	collector := deviceDriverCollectorFor([]winutil.DeviceDriver{{
+		InstanceID:    `PCI\VEN_1179&DEV_011A&SUBSYS_00011179\4&2A3B7C1D&0&00E4`,
+		Description:   "KIOXIA KXG80ZNV1T02 NVMe",
+		DriverVersion: "2.2.1.14",
+		Manufacturer:  "KIOXIA Corporation",
+		InfName:       "oem42.inf",
+	}})
 
 	entries, warnings, err := collector.Collect()
 
@@ -543,58 +535,43 @@ func TestDriverCollectorReportsOEMPnPDriversWithoutAService(t *testing.T) {
 	assert.Equal(t, "2.2.1.14", entry.Version)
 	assert.Equal(t, "KIOXIA Corporation", entry.Publisher)
 	assert.Equal(t, "installed", entry.Status)
-	assert.Equal(t, "kioxia kxg80znv1t02 nvme", entry.ProductCode, "the device name is the identity")
-	assert.Empty(t, entry.InstallPath, "this class names no binary")
+	assert.Equal(t, "kioxia kxg80znv1t02 nvme", entry.ProductCode, "the device description is the identity")
+	assert.Empty(t, entry.InstallPath, "this source names no binary")
 	assert.Empty(t, entry.InstallDate)
 }
 
-func TestDriverCollectorSkipsPnPDriversWithAService(t *testing.T) {
+func TestDriverCollectorSkipsDeviceDriversWithAService(t *testing.T) {
 	// A device driven by a service is already reported by the service source under that
-	// service name. A device absent from Win32_PnPEntity is kept: unknown is not the same as
-	// present, and the permissive choice matches keeping a driver whose vendor is unknown.
-	collector := pnpDriverCollectorFor(
-		[]win32PnPSignedDriver{
-			{DeviceID: `PCI\HAS_SERVICE`, DeviceName: "Bound To A Service", DriverVersion: "1.0", InfName: "oem1.inf"},
-			{DeviceID: `PCI\NO_SERVICE`, DeviceName: "No Service", DriverVersion: "1.0", InfName: "oem2.inf"},
-			{DeviceID: `PCI\NOT_A_DEVICE`, DeviceName: "Missing From Entities", DriverVersion: "1.0", InfName: "oem3.inf"},
-			// The join must survive the two classes disagreeing on case.
-			{DeviceID: `pci\has_service_lowercase`, DeviceName: "Case Mismatch", DriverVersion: "1.0", InfName: "oem4.inf"},
-		},
-		[]win32PnPEntity{
-			{DeviceID: `PCI\HAS_SERVICE`, Service: "vendorbus"},
-			{DeviceID: `PCI\NO_SERVICE`, Service: ""},
-			{DeviceID: `PCI\HAS_SERVICE_LOWERCASE`, Service: "vendorbus"},
-		},
-	)
+	// service name. The has-a-service fixture is otherwise a perfectly usable record — a
+	// description, a version and an OEM INF — so this only stays green if the Service check
+	// in collectDeviceDrivers is what drops it, not the OEM INF filter or the missing
+	// description/version checks.
+	collector := deviceDriverCollectorFor([]winutil.DeviceDriver{
+		{InstanceID: `PCI\HAS_SERVICE`, Service: "vendorbus", Description: "Bound To A Service", DriverVersion: "1.0", InfName: "oem1.inf"},
+		{InstanceID: `PCI\NO_SERVICE`, Description: "No Service", DriverVersion: "1.0", InfName: "oem2.inf"},
+	})
 
 	entries, warnings, err := collector.Collect()
 
 	require.NoError(t, err)
 	assert.Empty(t, warnings)
-
-	reported := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		reported = append(reported, entry.DisplayName)
-	}
-	assert.ElementsMatch(t, []string{"No Service", "Missing From Entities"}, reported)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "No Service", entries[0].DisplayName)
 }
 
-func TestDriverCollectorSkipsInboxPnPDrivers(t *testing.T) {
+func TestDriverCollectorSkipsInboxDeviceDrivers(t *testing.T) {
 	// Windows renames a package that did not ship inside Windows to "oemNN.inf", so the INF
 	// name is the third-party test. The manufacturer is not, and these two fixtures are why:
 	// Microsoft's own inbox INFs mostly report generic strings, and Windows ships inbox INFs
 	// authored by hardware vendors. Filtering on the manufacturer would keep both.
-	collector := pnpDriverCollectorFor(
-		[]win32PnPSignedDriver{
-			{DeviceID: `PCI\A`, DeviceName: "PCI Express Root Complex", DriverVersion: "10.0.26100.1",
-				Manufacturer: "(Standard system devices)", InfName: "machine.inf"},
-			{DeviceID: `PCI\B`, DeviceName: "Intel(R) Ethernet Connection I219-LM", DriverVersion: "12.19.2.60",
-				Manufacturer: "Intel", InfName: "e1d68x64.inf"},
-			{DeviceID: `PCI\C`, DeviceName: "Vendor Widget", DriverVersion: "3.1.0.0",
-				Manufacturer: "Vendor", InfName: "OEM7.INF"},
-		},
-		nil,
-	)
+	collector := deviceDriverCollectorFor([]winutil.DeviceDriver{
+		{InstanceID: `PCI\A`, Description: "PCI Express Root Complex", DriverVersion: "10.0.26100.1",
+			Manufacturer: "(Standard system devices)", InfName: "machine.inf"},
+		{InstanceID: `PCI\B`, Description: "Intel(R) Ethernet Connection I219-LM", DriverVersion: "12.19.2.60",
+			Manufacturer: "Intel", InfName: "e1d68x64.inf"},
+		{InstanceID: `PCI\C`, Description: "Vendor Widget", DriverVersion: "3.1.0.0",
+			Manufacturer: "Vendor", InfName: "OEM7.INF"},
+	})
 
 	entries, warnings, err := collector.Collect()
 
@@ -604,17 +581,14 @@ func TestDriverCollectorSkipsInboxPnPDrivers(t *testing.T) {
 	assert.Equal(t, "vendor widget", entries[0].ProductCode, "the INF prefix is matched case-insensitively")
 }
 
-func TestDriverCollectorReportsMicrosoftPnPDriversPublishedAsOEM(t *testing.T) {
+func TestDriverCollectorReportsMicrosoftDeviceDriversPublishedAsOEM(t *testing.T) {
 	// Deliberate asymmetry with the service source: a Microsoft package delivered out of band
 	// by Windows Update is published as an OEM INF, and is genuinely not inbox, so it is
 	// reported. This is not the bug it looks like.
-	collector := pnpDriverCollectorFor(
-		[]win32PnPSignedDriver{{
-			DeviceID: `USB\MS_SURFACE`, DeviceName: "Surface Touch Controller", DriverVersion: "1.5.139.0",
-			Manufacturer: "Microsoft", InfName: "oem19.inf",
-		}},
-		nil,
-	)
+	collector := deviceDriverCollectorFor([]winutil.DeviceDriver{{
+		InstanceID: `USB\MS_SURFACE`, Description: "Surface Touch Controller", DriverVersion: "1.5.139.0",
+		Manufacturer: "Microsoft", InfName: "oem19.inf",
+	}})
 
 	entries, _, err := collector.Collect()
 
@@ -623,19 +597,16 @@ func TestDriverCollectorReportsMicrosoftPnPDriversPublishedAsOEM(t *testing.T) {
 	assert.Equal(t, "Microsoft", entries[0].Publisher)
 }
 
-func TestDriverCollectorSkipsPnPDriversWithoutADeviceName(t *testing.T) {
-	// The device name is the identity, so a record without one is unusable rather than
+func TestDriverCollectorSkipsDeviceDriversWithoutADescription(t *testing.T) {
+	// The device description is the identity, so a record without one is unusable rather than
 	// deliberately excluded, and that difference is what earns it a warning.
-	collector := pnpDriverCollectorFor(
-		[]win32PnPSignedDriver{
-			{DeviceID: `PCI\A`, DeviceName: "   ", DriverVersion: "1.0", InfName: "oem1.inf"},
-			// A version is mandatory for a package to be signable, so this should never occur;
-			// it is dropped silently because an entry whose version can never advance is empty.
-			{DeviceID: `PCI\B`, DeviceName: "No Version", DriverVersion: "", InfName: "oem2.inf"},
-			{DeviceID: `PCI\C`, DeviceName: "Good", DriverVersion: "1.0", InfName: "oem3.inf"},
-		},
-		nil,
-	)
+	collector := deviceDriverCollectorFor([]winutil.DeviceDriver{
+		{InstanceID: `PCI\A`, Description: "   ", DriverVersion: "1.0", InfName: "oem1.inf"},
+		// A version is mandatory for a package to be signable, so this should never occur;
+		// it is dropped silently because an entry whose version can never advance is empty.
+		{InstanceID: `PCI\B`, Description: "No Version", DriverVersion: "", InfName: "oem2.inf"},
+		{InstanceID: `PCI\C`, Description: "Good", DriverVersion: "1.0", InfName: "oem3.inf"},
+	})
 
 	entries, warnings, err := collector.Collect()
 
@@ -645,29 +616,23 @@ func TestDriverCollectorSkipsPnPDriversWithoutADeviceName(t *testing.T) {
 	assert.Equal(t, "good", entries[0].ProductCode)
 }
 
-func TestPnPDriverIdentitySurvivesVersionBump(t *testing.T) {
-	// The same requirement the service source has, and the reason the device name rather than
-	// the INF name or the device id is the identity: oemNN.inf is renumbered when a package is
-	// republished, and a device id embeds the instance path.
-	const deviceName = "Vendor Widget"
+func TestDeviceDriverIdentitySurvivesVersionBump(t *testing.T) {
+	// The same requirement the service source has, and the reason the device description
+	// rather than the INF name or the instance id is the identity: oemNN.inf is renumbered
+	// when a package is republished, and an instance id embeds the device's slot.
+	const description = "Vendor Widget"
 
-	before, _, err := pnpDriverCollectorFor(
-		[]win32PnPSignedDriver{{
-			DeviceID: `PCI\VEN_1AF4&DEV_1000\3&11583659&0&08`, DeviceName: deviceName,
-			DriverVersion: "1.0.0.1", Manufacturer: "Vendor", InfName: "oem12.inf",
-		}},
-		nil,
-	).Collect()
+	before, _, err := deviceDriverCollectorFor([]winutil.DeviceDriver{{
+		InstanceID: `PCI\VEN_1AF4&DEV_1000\3&11583659&0&08`, Description: description,
+		DriverVersion: "1.0.0.1", Manufacturer: "Vendor", InfName: "oem12.inf",
+	}}).Collect()
 	require.NoError(t, err)
 	require.Len(t, before, 1)
 
-	after, _, err := pnpDriverCollectorFor(
-		[]win32PnPSignedDriver{{
-			DeviceID: `PCI\VEN_1AF4&DEV_1000\3&11583659&0&09`, DeviceName: deviceName,
-			DriverVersion: "2.0.0.0", Manufacturer: "Vendor", InfName: "oem31.inf",
-		}},
-		nil,
-	).Collect()
+	after, _, err := deviceDriverCollectorFor([]winutil.DeviceDriver{{
+		InstanceID: `PCI\VEN_1AF4&DEV_1000\3&11583659&0&09`, Description: description,
+		DriverVersion: "2.0.0.0", Manufacturer: "Vendor", InfName: "oem31.inf",
+	}}).Collect()
 	require.NoError(t, err)
 	require.Len(t, after, 1)
 
@@ -676,15 +641,12 @@ func TestPnPDriverIdentitySurvivesVersionBump(t *testing.T) {
 	assert.NotEqual(t, before[0].Version, after[0].Version)
 }
 
-func TestDriverCollectorCollapsesPnPDevicesOfTheSameModel(t *testing.T) {
+func TestDriverCollectorCollapsesDeviceDriversOfTheSameModel(t *testing.T) {
 	// Two identical devices are one driver package, so one entry is the right answer.
-	collector := pnpDriverCollectorFor(
-		[]win32PnPSignedDriver{
-			{DeviceID: `PCI\SLOT_1`, DeviceName: "Vendor 10G NIC", DriverVersion: "4.1.0.0", InfName: "oem5.inf"},
-			{DeviceID: `PCI\SLOT_2`, DeviceName: "Vendor 10G NIC", DriverVersion: "4.1.0.0", InfName: "oem5.inf"},
-		},
-		nil,
-	)
+	collector := deviceDriverCollectorFor([]winutil.DeviceDriver{
+		{InstanceID: `PCI\SLOT_1`, Description: "Vendor 10G NIC", DriverVersion: "4.1.0.0", InfName: "oem5.inf"},
+		{InstanceID: `PCI\SLOT_2`, Description: "Vendor 10G NIC", DriverVersion: "4.1.0.0", InfName: "oem5.inf"},
+	})
 
 	entries, _, err := collector.Collect()
 
@@ -692,16 +654,50 @@ func TestDriverCollectorCollapsesPnPDevicesOfTheSameModel(t *testing.T) {
 	assert.Len(t, entries, 1)
 }
 
+// TestDeviceDriverIdentityUsesDeviceDescription guards Research verified-item 1: the identity
+// and display name of a device driver come from SPDRP_DEVICEDESC (Description here), never
+// from SPDRP_FRIENDLYNAME. Reading the friendly name instead would change the product code of
+// every printer, NIC and vNIC on a driver update, which would read as a mass uninstall and
+// reinstall.
+func TestDeviceDriverIdentityUsesDeviceDescription(t *testing.T) {
+	t.Run("the description is the identity and the display name", func(t *testing.T) {
+		collector := deviceDriverCollectorFor([]winutil.DeviceDriver{{
+			InstanceID: `PCI\A`, Description: "Local Print Queue", DriverVersion: "1.0.0.0",
+			Manufacturer: "Vendor", InfName: "oem1.inf",
+		}})
+
+		entries, _, err := collector.Collect()
+
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		assert.Equal(t, "Local Print Queue", entries[0].DisplayName)
+		assert.Equal(t, "local print queue", entries[0].ProductCode)
+	})
+
+	t.Run("an empty description is a warning naming the instance id, not a friendly-name fallback", func(t *testing.T) {
+		collector := deviceDriverCollectorFor([]winutil.DeviceDriver{{
+			InstanceID: `PCI\NO_DESCRIPTION`, DriverVersion: "1.0.0.0", InfName: "oem1.inf",
+		}})
+
+		entries, warnings, err := collector.Collect()
+
+		require.NoError(t, err)
+		assert.Empty(t, entries)
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0].Message, `PCI\NO_DESCRIPTION`)
+	})
+}
+
 func TestDriverCollectorMergesBothSources(t *testing.T) {
 	collector := driverCollectorFor(
-		[]win32SystemDriver{{Name: "VendorFlt", DisplayName: "Vendor Filter", PathName: `C:\Vendor\flt.sys`}},
+		[]winutil.DriverService{{Name: "VendorFlt", DisplayName: "Vendor Filter", ImagePath: `C:\Vendor\flt.sys`}},
 		map[string]winutil.FileVersionInfo{
 			`C:\Vendor\flt.sys`: {FileVersionNumeric: "1.0.0.0", CompanyName: "Vendor"},
 		},
 	)
-	collector.pnpDriverQueryFn = func() ([]win32PnPSignedDriver, error) {
-		return []win32PnPSignedDriver{{
-			DeviceID: `PCI\A`, DeviceName: "Vendor Widget", DriverVersion: "3.1.0.0",
+	collector.deviceQueryFn = func() ([]winutil.DeviceDriver, error) {
+		return []winutil.DeviceDriver{{
+			InstanceID: `PCI\A`, Description: "Vendor Widget", DriverVersion: "3.1.0.0",
 			Manufacturer: "Vendor", InfName: "oem7.inf",
 		}}, nil
 	}
@@ -719,41 +715,23 @@ func TestDriverCollectorMergesBothSources(t *testing.T) {
 	assert.Len(t, ids, 2, "entry IDs must stay unique across the two sources")
 }
 
-func TestDriverCollectorPnPQueryFailureIsFatal(t *testing.T) {
+func TestDriverCollectorDeviceQueryFailureIsFatal(t *testing.T) {
 	// Same stance as the service source: a failed enumeration is an unknown state, not an
 	// empty one, and reporting a truncated driver family reads as an uninstall.
-	for _, test := range []struct {
-		name      string
-		collector *driverCollector
-	}{
-		{
-			name: "the signed driver query fails",
-			collector: &driverCollector{
-				queryFn:          func() ([]win32SystemDriver, error) { return nil, nil },
-				pnpDriverQueryFn: func() ([]win32PnPSignedDriver, error) { return nil, errors.New("WMI unavailable") },
-			},
-		},
-		{
-			name: "the device query fails",
-			collector: &driverCollector{
-				queryFn:          func() ([]win32SystemDriver, error) { return nil, nil },
-				pnpDriverQueryFn: func() ([]win32PnPSignedDriver, error) { return nil, nil },
-				pnpEntityQueryFn: func() ([]win32PnPEntity, error) { return nil, errors.New("WMI unavailable") },
-			},
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			entries, _, err := test.collector.Collect()
-
-			assert.Error(t, err)
-			assert.Empty(t, entries)
-		})
+	collector := &driverCollector{
+		serviceQueryFn: func() ([]winutil.DriverService, error) { return nil, nil },
+		deviceQueryFn:  func() ([]winutil.DeviceDriver, error) { return nil, errors.New("SetupAPI unavailable") },
 	}
+
+	entries, _, err := collector.Collect()
+
+	assert.Error(t, err)
+	assert.Empty(t, entries)
 }
 
 func TestDriverCollectorQueryFailureIsFatal(t *testing.T) {
 	collector := &driverCollector{
-		queryFn: func() ([]win32SystemDriver, error) { return nil, errors.New("WMI unavailable") },
+		serviceQueryFn: func() ([]winutil.DriverService, error) { return nil, errors.New("SCM unavailable") },
 	}
 
 	entries, _, err := collector.Collect()
