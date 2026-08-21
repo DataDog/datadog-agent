@@ -26,7 +26,7 @@ dd_agent_go_test(
     name = "helm_test",
     srcs = ["helm_test.go"],
     embed = [":helm"],
-    tags = ["manual"], # TODO: test is currently broken due to build failure: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/1968748415/raw
+    tags = ["manual"],  # TODO: test is currently broken due to build failure: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/1968748415/raw
     deps = [
         "//test/e2e-framework/components/datadog/fakeintake",
         "@com_github_stretchr_testify//assert",
