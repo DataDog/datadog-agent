@@ -102,7 +102,8 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 - Key docs: `test/e2e-framework/AGENTS.md` (framework), `test/fakeintake/AGENTS.md`
   (intake mock), `docs/public/how-to/test/e2e.md` (setup & running)
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests
-- Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`
+- Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`, or use the `/run-e2e`
+  skill, which runs the test in a `dda env dev` sandbox and triages setup failures
 
 ### Manual QA
 - When the agent needs to be inspected in a given environment (e.g. EKS, ECS, a cloud VM) that is not easily reproducible locally, use the manual QA infrastructure.

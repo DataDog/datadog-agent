@@ -105,6 +105,8 @@ func TestApplyTestbenchDefaults(t *testing.T) {
 func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
 		"bocpd":          json.RawMessage(`{"warmup_points": 42}`),
+		"scanmw":         json.RawMessage(`{"min_points": 42, "max_points": 84}`),
+		"scanwelch":      json.RawMessage(`{"min_points": 42, "max_points": 84}`),
 		"anomaly_scorer": json.RawMessage(`{"enabled":false}`),
 		"time_cluster":   json.RawMessage(`{"enabled":true}`),
 	})
@@ -112,6 +114,12 @@ func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 
 	settings = ApplyTestbenchDefaults(settings)
 	require.Equal(t, 42, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	scanMW := settings.configs["scanmw"].(*ScanMWDetector)
+	require.Equal(t, 42, scanMW.MinPoints)
+	require.Equal(t, 84, scanMW.MaxPoints)
+	scanWelch := settings.configs["scanwelch"].(*ScanWelchDetector)
+	require.Equal(t, 42, scanWelch.MinPoints)
+	require.Equal(t, 84, scanWelch.MaxPoints)
 	require.False(t, settings.Enabled["anomaly_scorer"])
 	require.True(t, settings.Enabled["time_cluster"])
 }

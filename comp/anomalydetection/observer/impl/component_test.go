@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -18,6 +19,40 @@ import (
 
 type testLifecycle struct {
 	hooks []compdef.Hook
+}
+
+func TestStorageConfigFromAgentConfigDerivesRetentionFromDetectorWindows(t *testing.T) {
+	detectors := []observerdef.Detector{NewBOCPDDetector(DefaultBOCPDConfig())}
+
+	for name, test := range map[string]struct {
+		yaml string
+		want int64
+	}{
+		"unset":      {want: 1816},
+		"zero":       {yaml: "anomaly_detection:\n  storage:\n    point_retention: 0s\n", want: 1816},
+		"short":      {yaml: "anomaly_detection:\n  storage:\n    point_retention: 30s\n", want: 1816},
+		"sufficient": {yaml: "anomaly_detection:\n  storage:\n    point_retention: 3200s\n", want: 3200},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, test.yaml)
+			storageCfg := storageConfigFromAgentConfig(cfg, detectors)
+			require.Equal(t, test.want, storageCfg.PointRetentionSecs)
+			require.Equal(t, 120, storageCfg.MaxPointsPerSeries)
+		})
+	}
+}
+
+func TestMaxDetectorPoints(t *testing.T) {
+	bocpdConfig := DefaultBOCPDConfig()
+	bocpdConfig.WarmupPoints = 40
+	detectors := []observerdef.Detector{
+		NewBOCPDDetector(bocpdConfig),
+		NewHoltResidualDetector(),
+		NewTukeyBiweightDetector(),
+		NewScanMWDetector(),
+		NewScanWelchDetector(),
+	}
+	require.Equal(t, 120, maxDetectorPoints(detectors))
 }
 
 func (l *testLifecycle) Append(h compdef.Hook) {

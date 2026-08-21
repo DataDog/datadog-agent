@@ -36,6 +36,7 @@ _PR_BUCKET_BRANCH = 'dev'
 _CI_PIPELINE_ID = '999999999'
 _CI_COMMIT_SHA = '1234567890abcdef'
 _ANCESTOR_SHA = 'ancestor-sha'
+_TEAM_MEMBER = 'aiuto'
 
 
 _PR_ENV_VARS = {
@@ -360,7 +361,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             number=12345,
             title="fix(somewhere): did something",
             user=SimpleNamespace(login="some-author"),
-            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login="cmourot"))],
+            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login=_TEAM_MEMBER))],
         )
         gate_scenarios = [
             GateScenario(
@@ -392,6 +393,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
             ) as mock_generate_reports,
+            patch(
+                "tasks.static_quality_gates.decisions.get_team_members",
+                return_value={_TEAM_MEMBER},
+            ),
         ):
             ctx = MockContext(
                 run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
@@ -402,7 +407,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], approved_pr)
             body = mock_pr_commenter.call_args.kwargs["body"]
             self.assertIn("per-PR threshold", body)
-            self.assertIn("Exception granted by @cmourot", body)
+            self.assertIn(f"Exception granted by @{_TEAM_MEMBER}", body)
 
     @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
     def test_gate_fails_per_pr_wire_threshold(self):
@@ -454,7 +459,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             number=12345,
             title="fix(somewhere): did something",
             user=SimpleNamespace(login="some-author"),
-            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login="cmourot"))],
+            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login=_TEAM_MEMBER))],
         )
         gate_scenarios = [
             GateScenario(
@@ -486,6 +491,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
             ) as mock_generate_reports,
+            patch(
+                "tasks.static_quality_gates.decisions.get_team_members",
+                return_value={_TEAM_MEMBER},
+            ),
         ):
             ctx = MockContext(
                 run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
@@ -496,7 +505,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], approved_pr)
             body = mock_pr_commenter.call_args.kwargs["body"]
             self.assertIn("per-PR wire threshold", body)
-            self.assertIn("Exception granted by @cmourot", body)
+            self.assertIn(f"Exception granted by @{_TEAM_MEMBER}", body)
 
     @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
     def test_gate_fails_absolute_limit_non_blocking_unchanged_from_ancestor(self):
