@@ -39,6 +39,7 @@ ARG CI
 LABEL org.opencontainers.image.title="DDOT Ebpf"
 # Copy the built full host profiler from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/host-profiler/host-profiler /opt/datadog-agent/embedded/bin/host-profiler
+COPY agent-rollout-gate /opt/datadog-agent/embedded/bin/agent-rollout-gate
 COPY --from=builder /workspace/datadog-agent/bin/host-profiler/dist/host-profiler-config.yaml /etc/datadog-agent/host-profiler-config.yaml
 COPY seccomp-profile.json /etc/dd-host-profiler/seccomp.json
 COPY logging-seccomp.json /etc/dd-host-profiler/logging-seccomp.json
