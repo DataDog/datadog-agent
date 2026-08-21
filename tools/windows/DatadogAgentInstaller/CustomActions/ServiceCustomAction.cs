@@ -222,9 +222,24 @@ namespace Datadog.CustomActions
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
+            EnableProcmgrService();
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
             _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+        }
+
+        private void EnableProcmgrService()
+        {
+            try
+            {
+                _session.Log($"Setting {Constants.ProcmgrServiceName} start type to {ServiceStartMode.Manual}");
+                _serviceController.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual);
+            }
+            catch (Exception e) when (IsServiceDoesNotExistError(e))
+            {
+                _session.Log(
+                    $"Service {Constants.ProcmgrServiceName} not found, not changing its start type: {e}");
+            }
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
