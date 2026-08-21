@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"golang.org/x/crypto/ssh"
 
@@ -35,21 +34,58 @@ func errorStr(e error) string {
 // Execute runs a command and validates the output with its validation rules.
 // The validation runs on the combined stdout and stderr of the command.
 func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	if len(cmd.SetupCommands) > 0 {
+		return executeWithSetup(ctx, client, cmd)
+	}
+	r, err := runMain(ctx, client, cmd)
+	if err != nil {
+		return nil, err
+	}
+	return r, r.FormattedError()
+}
+
+// executeWithSetup runs the setup commands and the main command on a single
+// connection. Setup commands (e.g. "terminal pager 0") run first, each in its
+// own exec session because many devices execute only the first command of a
+// multi-command exec.
+func executeWithSetup(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	var result *types.CommandResult
+	run := func(conn sshClient) error {
+		// Setup commands are best-effort, but honor cancellation.
+		for _, setup := range cmd.SetupCommands {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			_ = runExec(ctx, conn, setup)
+		}
+		r, err := runMain(ctx, conn, cmd)
+		result = r
+		return err
+	}
+	if rc, ok := client.(*RetryingSSHClient); ok {
+		if err := rc.Pinned(run); err != nil {
+			return nil, err
+		}
+	} else if err := run(client); err != nil {
+		return nil, err
+	}
+	return result, result.FormattedError()
+}
+
+// runMain runs the command, captures its output, and validates it.
+func runMain(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, err
 	}
 	defer session.Close()
 
-	command := cmd.Command
-	if len(cmd.SetupCommands) > 0 {
-		lines := append(append([]string{}, cmd.SetupCommands...), cmd.Command)
-		command = strings.Join(lines, "\n")
-	}
-
 	ch := make(chan *types.CommandResult, 1)
 	go func() {
-		output, err := session.CombinedOutput(command)
+		output, err := session.CombinedOutput(cmd.Command)
 		ch <- &types.CommandResult{
 			CommandStr: cmd.Command,
 			Output:     string(output),
@@ -59,9 +95,31 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 	select {
 	case r := <-ch:
 		cmd.Validator.ValidateResult(r)
-		return r, r.FormattedError()
+		return r, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	}
+}
+
+// runExec runs a command in its own session and discards its output, used for
+// setup commands whose only purpose is a side effect on the connection.
+func runExec(ctx context.Context, client sshClient, command string) error {
+	session, err := client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	ch := make(chan error, 1)
+	go func() {
+		_, err := session.CombinedOutput(command)
+		ch <- err
+	}()
+	select {
+	case err := <-ch:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

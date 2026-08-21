@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 )
@@ -217,7 +218,7 @@ func TestPagerCommand(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result.Error)
 	assert.Equal(t, config, result.Output)
-	assert.Equal(t, []string{"terminal pager 0\nmore system:running-config"}, srv.Received())
+	assert.Equal(t, []string{"terminal pager 0", "more system:running-config"}, srv.Received())
 }
 
 func TestPagerCommand_MoreMarkerRejected(t *testing.T) {
@@ -243,4 +244,47 @@ func TestPagerCommand_MoreMarkerRejected(t *testing.T) {
 
 	_, err := ExecuteCommand(context.Background(), client, cmd)
 	assert.ErrorContains(t, err, "matches failure regex")
+}
+
+// TestPagerCommand_ReconnectRerunsSetup ensures that when the connection is
+// replaced mid-collection, the setup commands are re-applied on the new
+// connection rather than being stranded on the old one.
+func TestPagerCommand_ReconnectRerunsSetup(t *testing.T) {
+	srv := StartFakeSSHServer(t, map[string]FakeResponse{
+		"terminal pager 0":           Ok(""),
+		"more system:running-config": Ok("from-srv1\n"),
+	})
+	config, err := srv.MakeConfig(MakeKnownHostsFile(t, srv))
+	require.NoError(t, err)
+	reconnect := func() (*ssh.Client, error) {
+		return ssh.Dial("tcp", srv.Addr(), config)
+	}
+
+	r, err := NewRetryingSSHClient(reconnect)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = r.Close() })
+
+	// Kill the first connection so the initial attempt fails transiently and
+	// Pinned must reconnect.
+	srv.Stop()
+	_ = r.Client.Wait()
+
+	// The reconnect lands on a fresh server: the pager setup must be re-applied
+	// here, on the same connection that serves the config.
+	srv = StartFakeSSHServer(t, map[string]FakeResponse{
+		"terminal pager 0":           Ok(""),
+		"more system:running-config": Ok("from-srv2\n"),
+	})
+	config, err = srv.MakeConfig(MakeKnownHostsFile(t, srv))
+	require.NoError(t, err)
+
+	cmd := &profile.PlainCommand{
+		Command:       "more system:running-config",
+		SetupCommands: []string{"terminal pager 0"},
+	}
+
+	result, err := ExecuteCommand(context.Background(), r, cmd)
+	require.NoError(t, err)
+	assert.Equal(t, "from-srv2\n", result.Output)
+	assert.Equal(t, []string{"terminal pager 0", "more system:running-config"}, srv.Received())
 }

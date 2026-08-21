@@ -54,8 +54,10 @@ type Command interface {
 type PlainCommand struct {
 	Command   string    `json:"command"`
 	Validator Validator `json:"validator"`
-	// SetupCommands run before Command in the same exec session. Note: if a setup
-	// command prints output, it may appear in the saved config.
+	// SetupCommands run before Command, each in its own exec session on the same
+	// connection (e.g. "terminal pager 0"). Their side effect must persist for
+	// the connection; their output is discarded and never appears in the saved
+	// config.
 	SetupCommands []string `json:"setup_commands,omitempty"`
 }
 
