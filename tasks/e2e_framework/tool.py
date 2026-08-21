@@ -210,17 +210,6 @@ def get_stack_json_outputs(ctx: Context, full_stack_name: str) -> Any:
     return json.loads(buffer.getvalue())
 
 
-def get_stack_json_resources(ctx: Context, full_stack_name: str) -> Any:
-    buffer = StringIO()
-    with ctx.cd(_get_root_path()):
-        ctx.run(
-            f"pulumi stack export -s {full_stack_name}",
-            out_stream=buffer,
-        )
-    out = json.loads(buffer.getvalue())
-    return out['deployment']['resources']
-
-
 def get_aws_wrapper(
     aws_account: str,
 ) -> str:
@@ -249,21 +238,6 @@ def is_linux():
 
 def is_wsl():
     return "microsoft" in platform.uname().release.lower()
-
-
-def get_aws_instance_password_data(
-    ctx: Context, vm_id: str, key_path: str, aws_account: str | None = None, use_aws_vault: bool | None = True
-) -> str:
-    buffer = StringIO()
-    with ctx.cd(_get_root_path()):
-        cmd = f'aws ec2 get-password-data --instance-id "{vm_id}" --priv-launch-key "{key_path}"'
-        if use_aws_vault:
-            if aws_account is None:
-                raise Exit("AWS account is required when using aws-vault.")
-            cmd = get_aws_wrapper(aws_account) + cmd
-        ctx.run(cmd, out_stream=buffer)
-    out = json.loads(buffer.getvalue())
-    return out["PasswordData"]
 
 
 def get_image_description(ctx: Context, ami_id: str) -> Any:
