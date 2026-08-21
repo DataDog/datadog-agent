@@ -1,6 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
-
-# gazelle:go_library on
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "remotecommand",
@@ -24,5 +23,15 @@ go_library(
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_protobuf//types/known/structpb",
         "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "remotecommand_test",
+    srcs = ["command_test.go"],
+    embed = [":remotecommand"],
+    deps = [
+        "//cmd/agent/command",
+        "//pkg/util/fxutil",
     ],
 )
