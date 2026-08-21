@@ -109,6 +109,7 @@ go_library(
         "//comp/forwarder/eventplatform/fx",
         "//comp/forwarder/eventplatform/impl",
         "//comp/forwarder/eventplatformreceiver/impl",
+        "//comp/forwarder/metricslogs/fx",
         "//comp/forwarder/orchestrator/def",
         "//comp/forwarder/orchestrator/fx",
         "//comp/haagent/fx",

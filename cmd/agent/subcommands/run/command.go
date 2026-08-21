@@ -134,6 +134,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	metricslogsfx "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/fx"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
@@ -533,6 +534,7 @@ func getSharedFxOption() fx.Option {
 		orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
+		metricslogsfx.Module(),
 
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
