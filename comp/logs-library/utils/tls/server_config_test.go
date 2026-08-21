@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestClientAuthRequiresVerification(t *testing.T) {
@@ -93,5 +94,30 @@ func TestValidate(t *testing.T) {
 			ClientAuth: tls.VerifyClientCertIfGiven,
 		}
 		assert.NoError(t, c.Validate())
+	})
+
+	t.Run("crl_file with client verification is OK", func(t *testing.T) {
+		c := &ServerConfig{
+			CertFile:   "/cert",
+			KeyFile:    "/key",
+			CAFile:     "/ca",
+			CRLFile:    "/crl",
+			ClientAuth: tls.RequireAndVerifyClientCert,
+		}
+		assert.NoError(t, c.Validate())
+	})
+
+	// Without client certificate verification there is nothing to revoke, so a
+	// configured CRL would be silently ignored.
+	t.Run("crl_file without client verification is rejected", func(t *testing.T) {
+		c := &ServerConfig{
+			CertFile:   "/cert",
+			KeyFile:    "/key",
+			CRLFile:    "/crl",
+			ClientAuth: tls.NoClientCert,
+		}
+		err := c.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "crl_file requires client_auth")
 	})
 }
