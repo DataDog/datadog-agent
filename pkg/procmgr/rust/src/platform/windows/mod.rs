@@ -21,6 +21,9 @@ mod win_handle;
 
 #[cfg(any(test, feature = "test-helpers"))]
 pub(crate) use agent_credentials::spawn_user_for_profile;
+pub(crate) use legacy_scm_env::core_agent_scm_env_var;
+#[cfg(test)]
+pub(crate) use legacy_scm_env::set_test_core_agent_scm_env;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use runtime_user::runtime_user_for_pid;
@@ -365,12 +368,15 @@ pub fn default_config_dir() -> PathBuf {
     install_root().join("processes.d")
 }
 
+/// Registry `fleet_policies_dir`, then the stable managed default.
+/// Config gates use this after env and the gated config file's `fleet_policies_dir`.
 pub fn fleet_policies_dir_fallback() -> Option<PathBuf> {
     fleet_policies_dir_from_registry()
         .map(PathBuf::from)
         .or_else(default_stable_fleet_policies_dir)
 }
 
+/// `DD_FLEET_POLICIES_DIR` when set, otherwise [`fleet_policies_dir_fallback`].
 pub fn resolve_fleet_policies_dir() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR")
         && !dir.is_empty()
