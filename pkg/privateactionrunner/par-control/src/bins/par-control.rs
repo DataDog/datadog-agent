@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use clap::Parser;
+use par_control::bootstrap;
 use par_control::config::Launch;
 use par_control::platform;
 use std::path::PathBuf;
@@ -15,6 +16,13 @@ use std::process::ExitCode;
 struct Cli {
     #[arg(short = 'c', long, default_value_os_t = platform::default_config_path())]
     config: PathBuf,
+
+    #[arg(
+        long = "ensure-enrollment-command",
+        num_args = 1..,
+        allow_hyphen_values = true
+    )]
+    ensure_enrollment_command: Vec<String>,
 }
 
 #[tokio::main]
@@ -52,6 +60,9 @@ async fn run() -> Result<()> {
         log::info!("private_action_runner split mode is disabled; par-control is exiting");
         return Ok(());
     }
+
+    let _config =
+        bootstrap::load_config_with_bootstrap(&cli.config, &cli.ensure_enrollment_command)?;
 
     log::info!("par-control started");
     shutdown_signal().await;

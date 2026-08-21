@@ -3,11 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-pub mod bootstrap;
-pub mod config;
-pub mod identity;
-pub mod platform;
-pub mod procmgr;
-
-#[cfg(all(test, unix))]
-pub mod test_support;
+fn main() {
+    println!("cargo::rustc-check-cfg=cfg(bazel)");
+}
