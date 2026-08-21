@@ -66,6 +66,7 @@ type Requires struct {
 	Config        config.Component
 	Log           log.Component
 	Lifecycle     compdef.Lifecycle
+	Shutdowner    compdef.Shutdowner
 	RcClient      rcclient.Component
 	Hostname      hostname.Component
 	Tagger        tagger.Component
@@ -105,6 +106,7 @@ type PrivateActionRunner struct {
 	executorServer  *executor.Server
 	encryptionStore *encryptioncontext.Store
 	executorDone    chan struct{}
+	shutdowner      compdef.Shutdowner
 
 	telemetry *telemetry.Telemetry
 
@@ -163,6 +165,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 	runner.ownsMetricsClient = true
+	runner.shutdowner = reqs.Shutdowner
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.StartExecutor,
 		OnStop:  runner.StopExecutor,
@@ -319,13 +322,19 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.logger.Info("Private action runner executor listening on " + socketPath)
 
 	p.executorDone = make(chan struct{})
-	// Drain bounded by the task timeout: that's the longest an in-flight action can run.
 	drainTimeout := 60 * time.Second
 	if cfg.TaskTimeoutSeconds != nil {
 		drainTimeout = time.Duration(*cfg.TaskTimeoutSeconds) * time.Second
 	}
 	serveOpts := executor.ServeOptions{
 		DrainTimeout: drainTimeout,
+		IdleTimeout:  executorIdleTimeout(p.coreConfig.GetInt(privateactionrunner.PARIdleTimeoutSeconds)),
+		OnIdleTimeout: func() {
+			p.logger.Info("Private action runner executor idle timeout elapsed; shutting down")
+			if err := p.shutdowner.Shutdown(); err != nil {
+				p.logger.Errorf("Private action runner executor failed to initiate shutdown: %v", err)
+			}
+		},
 	}
 	// mTLS via the agent IPC cert: only a client with a CA-signed cert can dispatch.
 	tlsConfig := p.ipc.GetTLSServerConfig()
@@ -339,6 +348,13 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+func executorIdleTimeout(idleSeconds int) time.Duration {
+	if idleSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(idleSeconds) * time.Second
 }
 
 // StopExecutor gracefully stops the executor gRPC server and releases resources.

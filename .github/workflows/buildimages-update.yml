@@ -1,4 +1,5 @@
-name: Update buildimages
+name: Update Go version and CI images after buildimages release
+run-name: "Update Go ${{ inputs.go_version }} | ${{ inputs.branch }} | ${{ inputs.images_id }}"
 
 on:
   workflow_dispatch:

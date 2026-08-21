@@ -139,7 +139,10 @@ func (e *WorkflowTaskExecutor) RunTask(
 		)
 	}
 	if !e.config.IsActionAllowed(bundleName, actionName) {
-		return nil, util.DefaultActionError(fmt.Errorf("action %s is not in the allow list", fqn))
+		return nil, util.DefaultActionError(fmt.Errorf(
+			"action %s is not allowlisted in the private action runner config. Update the agent config `actionsAllowlist` or the environment variable `DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST`",
+			fqn,
+		))
 	}
 
 	logger := log.FromContext(ctx)

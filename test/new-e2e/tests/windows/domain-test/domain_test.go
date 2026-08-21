@@ -32,6 +32,14 @@ const (
 	TestDomain   = "datadogqalab.com"
 	TestUser     = "TestUser"
 	TestPassword = "Test1234#"
+
+	// preLSASecretAgentVersion is an Agent version from before 7.66, which is when the installer
+	// started saving the Agent user password in the LSA secret store. Installing this version first
+	// reproduces the state of a host that has only ever been upgraded without re-providing the
+	// password.
+	preLSASecretAgentVersion = "7.65.2-1"
+
+	procmgrServiceName = "dd-procmgr-service"
 )
 
 func TestInstallsOnDomainController(t *testing.T) {
@@ -39,6 +47,7 @@ func TestInstallsOnDomainController(t *testing.T) {
 		&testBasicInstallSuite{},
 		&testUpgradeSuite{},
 		&testInstallUserSyntaxSuite{},
+		&testUpgradeWithoutStoredPasswordSuite{},
 	}
 
 	for _, suite := range suites {
@@ -143,4 +152,74 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, stats)
 	}, 5*time.Minute, 10*time.Second)
+}
+
+type testUpgradeWithoutStoredPasswordSuite struct {
+	windows.BaseAgentInstallerSuite[environments.WindowsHost]
+}
+
+// TestUpgradeWithoutPasswordDisablesProcessManager covers the regression where upgrading a host first
+// installed with Agent 7.65 or earlier, without providing DDAGENTUSER_PASSWORD, left dd-procmgr-service
+// failing to log on until the domain account locked out. It must now be disabled instead, and re-enabled
+// once a password is provided again.
+func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDisablesProcessManager() {
+	host := suite.Env().RemoteHost
+	username := fmt.Sprintf("%s\\%s", TestDomain, TestUser)
+
+	// 7.65 does not store the Agent user password in the LSA secret store, so the upgrade below has no
+	// password available to it.
+	previousAgentPackage, err := windowsAgent.NewPackage(windowsAgent.WithVersion(preLSASecretAgentVersion))
+	suite.Require().NoError(err, "should resolve the %s package", preLSASecretAgentVersion)
+
+	_, err = suite.InstallAgent(host,
+		windowsAgent.WithPackage(previousAgentPackage),
+		windowsAgent.WithAgentUser(username),
+		windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
+		windowsAgent.WithValidAPIKey(),
+		windowsAgent.WithFakeIntake(suite.Env().FakeIntake),
+		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "install_pre_lsa_secret.log")))
+	suite.Require().NoError(err, "should succeed to install Agent %s with a domain account & password", preLSASecretAgentVersion)
+
+	// Reset fakeintake so the post-upgrade payload check below can't pass on data sent by the pre-upgrade install.
+	suite.Require().NoError(suite.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
+	// Upgrade without providing the password.
+	_, err = suite.InstallAgent(host,
+		windowsAgent.WithPackage(suite.AgentPackage),
+		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "upgrade_without_password.log")))
+	suite.Require().NoError(err, "should succeed to upgrade the Agent without providing the password")
+
+	suite.Run("process manager is disabled", func() {
+		config, err := windowsCommon.GetServiceConfig(host, procmgrServiceName)
+		suite.Require().NoError(err)
+		suite.Assert().Equal(windowsCommon.SERVICE_DISABLED, config.StartType,
+			"%s must be disabled when the Agent user password is not available", procmgrServiceName)
+	})
+
+	suite.Run("core Agent is unaffected", func() {
+		tc := suite.NewTestClientForHost(host)
+		tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())
+		platformCommon.CheckAgentBehaviour(suite.T(), tc)
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			stats, err := suite.Env().FakeIntake.Client().RouteStats()
+			assert.NoError(c, err)
+			assert.NotEmpty(c, stats)
+		}, 5*time.Minute, 10*time.Second)
+	})
+
+	suite.Run("providing the password re-enables the process manager", func() {
+		_, err := suite.InstallAgent(host,
+			windowsAgent.WithPackage(suite.AgentPackage),
+			windowsAgent.WithAgentUser(username),
+			windowsAgent.WithAgentUserPassword(fmt.Sprintf("\"%s\"", TestPassword)),
+			windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "reinstall_with_password.log")))
+		suite.Require().NoError(err, "should succeed to reinstall the Agent with the password provided")
+
+		config, err := windowsCommon.GetServiceConfig(host, procmgrServiceName)
+		suite.Require().NoError(err)
+		suite.Assert().Equal(windowsCommon.SERVICE_DEMAND_START, config.StartType,
+			"%s must be enabled again once the Agent user password is available", procmgrServiceName)
+		suite.Assert().NoError(windowsCommon.StartService(host, procmgrServiceName),
+			"%s should start once the Agent user password is available", procmgrServiceName)
+	})
 }
