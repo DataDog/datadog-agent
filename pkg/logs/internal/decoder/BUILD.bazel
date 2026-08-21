@@ -33,6 +33,7 @@ go_library(
     deps = [
         "//comp/anomalydetection/severityevents/def",
         "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//comp/logs/severityprovider/def",

@@ -73,6 +73,13 @@ profiles:
       - name: logs.auto_multi_line_default_total_lines
       - name: logs.auto_multi_line_default_would_combine
       - name: logs.auto_multi_line_default_would_truncate
+      # Keep the initial COAT surface small: adoption plus aggregate pattern churn.
+      # log_source is deliberately stripped from the pattern metrics.
+      - name: logs_adaptive_sampler.enabled
+        preserve_tags:
+          - detection_only
+      - name: logs_adaptive_sampler.new_patterns
+      - name: logs_adaptive_sampler.evictions
       - name: logs_destination.destination_workers
       - name: point.sent
         preserve_tags:
