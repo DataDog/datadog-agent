@@ -224,27 +224,33 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 		values[i] = p.Value
 	}
 
-	// Phase 1: Scan using Welch's t-statistic (fast, O(n) with cumulative sums).
-	cumSum := make([]float64, n+1)
-	cumSumSq := make([]float64, n+1)
-	for i, v := range values {
-		cumSum[i+1] = cumSum[i] + v
-		cumSumSq[i+1] = cumSumSq[i] + v*v
+	// Phase 1: Scan using Welch's t-statistic. Keep the total moments and
+	// advance the left-side moments as the split moves, instead of retaining a
+	// prefix array for every candidate split.
+	minSeg := d.MinSegment
+	var totalSum, totalSumSq float64
+	for _, v := range values {
+		totalSum += v
+		totalSumSq += v * v
+	}
+	var leftSum, leftSumSq float64
+	for _, v := range values[:minSeg] {
+		leftSum += v
+		leftSumSq += v * v
 	}
 
 	bestTAbs := 0.0
 	bestK := -1
-
-	minSeg := d.MinSegment
 	for k := minSeg; k <= n-minSeg; k++ {
 		fk := float64(k)
 		fnk := float64(n - k)
 
-		leftMean := cumSum[k] / fk
-		rightMean := (cumSum[n] - cumSum[k]) / fnk
+		leftMean := leftSum / fk
+		rightSum := totalSum - leftSum
+		rightMean := rightSum / fnk
 
-		leftVar := cumSumSq[k]/fk - leftMean*leftMean
-		rightVar := (cumSumSq[n]-cumSumSq[k])/fnk - rightMean*rightMean
+		leftVar := leftSumSq/fk - leftMean*leftMean
+		rightVar := (totalSumSq-leftSumSq)/fnk - rightMean*rightMean
 
 		if leftVar < 1e-12 {
 			leftVar = 1e-12
@@ -262,6 +268,12 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 		if t > bestTAbs {
 			bestTAbs = t
 			bestK = k
+		}
+
+		if k < n-minSeg {
+			v := values[k]
+			leftSum += v
+			leftSumSq += v * v
 		}
 	}
 
