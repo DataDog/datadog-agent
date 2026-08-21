@@ -893,7 +893,7 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 	// cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 insert_failed=1 \
 	//       drop=1 early_drop=0 error=0 search_restart=36983181
 	lines := strings.Split(output, "\n")
-	stats := make([]*conntrackStat, len(lines))
+	stats := make([]*conntrackStat, 0, len(lines))
 	for _, line := range lines {
 		if line == "" {
 			continue
@@ -920,7 +920,7 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 			case "found":
 				stat.Found = valueFloat
 			case "invalid":
-				stat.Found = valueFloat
+				stat.Invalid = valueFloat
 			case "ignore":
 				stat.Ignore = valueFloat
 			case "insert":
@@ -973,7 +973,7 @@ func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) 
 		} else {
 			// each line is a cpu stat, top line is headers
 			stat := &conntrackStat{cpuID: lineNum - 1}
-			for i, hexVal := range strings.Split(line, " ") {
+			for i, hexVal := range strings.Fields(line) {
 				val, err := strconv.ParseInt(hexVal, 16, 64)
 				if err != nil {
 					return nil, err
@@ -983,7 +983,7 @@ func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) 
 				case "found":
 					stat.Found = float64(val)
 				case "invalid":
-					stat.Found = float64(val)
+					stat.Invalid = float64(val)
 				case "ignore":
 					stat.Ignore = float64(val)
 				case "insert":
@@ -1000,7 +1000,7 @@ func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) 
 				case "search_restart":
 					stat.SearchRestart = float64(val)
 				case "clash_resolve":
-					stat.ChainTooLong = float64(val)
+					stat.ClashResolve = float64(val)
 				case "chaintoolong":
 					stat.ChainTooLong = float64(val)
 				default:
@@ -1054,27 +1054,27 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 			sender.MonotonicCount("system.net.conntrack_v2.chaintoolong", procStat.ChainTooLong, "", cpuTag)
 
 			diff := float64(stat.Found - procStat.Found)
-			sender.MonotonicCount("system.net.conntrack_diff.found", stat.Found, "", cpuTag)
-			diff := float64(stat.Invalid - procStat.Invalid)
-			sender.MonotonicCount("system.net.conntrack_diff.invalid", stat.Invalid, "", cpuTag)
-			diff := float64(stat.Ignore - procStat.Ignore)
-			sender.MonotonicCount("system.net.conntrack_diff.ignore", stat.Ignore, "", cpuTag)
-			diff := float64(stat.Insert - procStat.Insert)
-			sender.MonotonicCount("system.net.conntrack_diff.insert", stat.Insert, "", cpuTag)
-			diff := float64(stat.InsertFailed - procStat.InsertFailed)
-			sender.MonotonicCount("system.net.conntrack_diff.insert_failed", stat.InsertFailed, "", cpuTag)
-			diff := float64(stat.Drop - procStat.Drop)
-			sender.MonotonicCount("system.net.conntrack_diff.drop", stat.Drop, "", cpuTag)
-			diff := float64(stat.EarlyDrop - procStat.EarlyDrop)
-			sender.MonotonicCount("system.net.conntrack_diff.early_drop", stat.EarlyDrop, "", cpuTag)
-			diff := float64(stat.Error - procStat.Error)
-			sender.MonotonicCount("system.net.conntrack_diff.error", stat.Error, "", cpuTag)
-			diff := float64(stat.SearchRestart - procStat.SearchRestart)
-			sender.MonotonicCount("system.net.conntrack_diff.search_restart", stat.SearchRestart, "", cpuTag)
-			diff := float64(stat.ClashResolve - procStat.ClashResolve)
-			sender.MonotonicCount("system.net.conntrack_diff.clash_resolve", stat.ClashResolve, "", cpuTag)
-			diff := float64(stat.ChainTooLong - procStat.ChainTooLong)
-			sender.MonotonicCount("system.net.conntrack_diff.chaintoolong", stat.ChainTooLong, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_diff.found", diff, "", cpuTag)
+			diff = float64(stat.Invalid - procStat.Invalid)
+			sender.MonotonicCount("system.net.conntrack_diff.invalid", diff, "", cpuTag)
+			diff = float64(stat.Ignore - procStat.Ignore)
+			sender.MonotonicCount("system.net.conntrack_diff.ignore", diff, "", cpuTag)
+			diff = float64(stat.Insert - procStat.Insert)
+			sender.MonotonicCount("system.net.conntrack_diff.insert", diff, "", cpuTag)
+			diff = float64(stat.InsertFailed - procStat.InsertFailed)
+			sender.MonotonicCount("system.net.conntrack_diff.insert_failed", diff, "", cpuTag)
+			diff = float64(stat.Drop - procStat.Drop)
+			sender.MonotonicCount("system.net.conntrack_diff.drop", diff, "", cpuTag)
+			diff = float64(stat.EarlyDrop - procStat.EarlyDrop)
+			sender.MonotonicCount("system.net.conntrack_diff.early_drop", diff, "", cpuTag)
+			diff = float64(stat.Error - procStat.Error)
+			sender.MonotonicCount("system.net.conntrack_diff.error", diff, "", cpuTag)
+			diff = float64(stat.SearchRestart - procStat.SearchRestart)
+			sender.MonotonicCount("system.net.conntrack_diff.search_restart", diff, "", cpuTag)
+			diff = float64(stat.ClashResolve - procStat.ClashResolve)
+			sender.MonotonicCount("system.net.conntrack_diff.clash_resolve", diff, "", cpuTag)
+			diff = float64(stat.ChainTooLong - procStat.ChainTooLong)
+			sender.MonotonicCount("system.net.conntrack_diff.chaintoolong", diff, "", cpuTag)
 		}
 	}
 
