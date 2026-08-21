@@ -234,6 +234,14 @@ type StatCounters struct {
 	TCPProbe0Count   uint32 // zero-window probe events (tcp_send_probe0 invocations)
 }
 
+// TCP failure map keys use Linux/POSIX errno values on every platform because
+// they are part of the cross-platform NPM payload contract.
+const (
+	TCPFailureErrnoConnReset   uint16 = 104
+	TCPFailureErrnoTimedOut    uint16 = 110
+	TCPFailureErrnoConnRefused uint16 = 111
+)
+
 // IsZero returns whether all the stat counter values are zeroes
 func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
