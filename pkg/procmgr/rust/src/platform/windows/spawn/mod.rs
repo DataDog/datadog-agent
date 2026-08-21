@@ -15,5 +15,6 @@ mod test_harness;
 pub(crate) mod user_profile;
 pub(crate) mod win32;
 
+#[cfg(any(test, feature = "test-helpers"))]
 pub(crate) use credential::SpawnCredential;
 pub(crate) use managed::spawn_child_handle;
