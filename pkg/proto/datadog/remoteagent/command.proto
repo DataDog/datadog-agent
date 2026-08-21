@@ -66,6 +66,11 @@ message Command {
   // Whether this command can be executed (has a Run function). Non-runnable commands
   // serve as grouping nodes for child commands (e.g., a "dogstatsd" parent).
   bool is_runnable = 7;
+  // The flavor of the remote agent that owns this command.
+  //
+  // Populated by the Core Agent when aggregating commands from multiple remote agents.
+  // The CLI uses this to route ExecuteCommand requests to the correct agent.
+  string agent_flavor = 8;
 }
 
 message ListCommandsRequest {}
