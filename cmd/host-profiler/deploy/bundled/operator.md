@@ -28,6 +28,11 @@ spec:
     nodeAgent:
       containers:
         host-profiler:
+          env:
+            # enable configstream consumption from the bundled core Agent.
+            # needed till 7.84 when it becomes a default
+            - name: DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED
+              value: "true"
           # Required for current Datadog Operator versions.
           # Future Operator versions are expected to configure the Host Profiler
           # security context automatically.
