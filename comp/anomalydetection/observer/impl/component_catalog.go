@@ -201,6 +201,9 @@ func defaultCatalog() *componentCatalog {
 					if key := prefix + "warmup_points"; reader.IsConfigured(key) {
 						cfg.WarmupPoints = reader.GetInt(key)
 					}
+					if key := prefix + "max_run_length"; reader.IsConfigured(key) {
+						cfg.MaxRunLength = reader.GetInt(key)
+					}
 					return cfg
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
@@ -227,18 +230,66 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			{
-				name:           "scanmw",
-				displayName:    "ScanMW",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewScanMWDetector() },
+				name:        "scanmw",
+				displayName: "ScanMW",
+				kind:        componentDetector,
+				factory: func(cfg any) any {
+					c := cfg.(*ScanMWDetector)
+					d := NewScanMWDetector()
+					d.MinPoints = c.MinPoints
+					d.MaxPoints = c.MaxPoints
+					return d
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := *defaults.(*ScanMWDetector)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("scanmw: failed to parse JSON config: %w", err)
+					}
+					return &cfg, nil
+				},
 				defaultEnabled: false,
+				defaultConfig:  NewScanMWDetector(),
+				readConfig: func(reader ConfigReader, prefix string) any {
+					d := NewScanMWDetector()
+					if k := prefix + "min_points"; reader.IsConfigured(k) {
+						d.MinPoints = reader.GetInt(k)
+					}
+					if k := prefix + "max_points"; reader.IsConfigured(k) {
+						d.MaxPoints = reader.GetInt(k)
+					}
+					return d
+				},
 			},
 			{
-				name:           "scanwelch",
-				displayName:    "ScanWelch",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewScanWelchDetector() },
+				name:        "scanwelch",
+				displayName: "ScanWelch",
+				kind:        componentDetector,
+				factory: func(cfg any) any {
+					c := cfg.(*ScanWelchDetector)
+					d := NewScanWelchDetector()
+					d.MinPoints = c.MinPoints
+					d.MaxPoints = c.MaxPoints
+					return d
+				},
 				defaultEnabled: false,
+				defaultConfig:  NewScanWelchDetector(),
+				readConfig: func(reader ConfigReader, prefix string) any {
+					d := NewScanWelchDetector()
+					if k := prefix + "min_points"; reader.IsConfigured(k) {
+						d.MinPoints = reader.GetInt(k)
+					}
+					if k := prefix + "max_points"; reader.IsConfigured(k) {
+						d.MaxPoints = reader.GetInt(k)
+					}
+					return d
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := *defaults.(*ScanWelchDetector)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("scanwelch: failed to parse JSON config: %w", err)
+					}
+					return &cfg, nil
+				},
 			},
 			{
 				name:           "holt_residual",
@@ -247,6 +298,16 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultHoltResidualConfig(),
 				factory:        func(cfg any) any { return NewHoltResidualDetectorWithConfig(cfg.(HoltResidualConfig)) },
 				defaultEnabled: false,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultHoltResidualConfig()
+					if key := prefix + "warmup_points"; reader.IsConfigured(key) {
+						cfg.WarmupPoints = reader.GetInt(key)
+					}
+					if key := prefix + "residual_window"; reader.IsConfigured(key) {
+						cfg.ResidualWindow = reader.GetInt(key)
+					}
+					return cfg
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(HoltResidualConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -262,6 +323,16 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultTukeyBiweightConfig(),
 				factory:        func(cfg any) any { return NewTukeyBiweightDetectorWithConfig(cfg.(TukeyBiweightConfig)) },
 				defaultEnabled: false,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultTukeyBiweightConfig()
+					if key := prefix + "min_points"; reader.IsConfigured(key) {
+						cfg.MinPoints = reader.GetInt(key)
+					}
+					if key := prefix + "window_size"; reader.IsConfigured(key) {
+						cfg.WindowSize = reader.GetInt(key)
+					}
+					return cfg
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(TukeyBiweightConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {

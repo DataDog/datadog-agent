@@ -116,6 +116,12 @@ type HTTPReceiver struct {
 	statsProcessor      StatsProcessor
 	containerIDProvider IDProvider
 
+	// tcpLn is the TCP listener the receiver serves on. Set via SetTCPListener
+	// before Start to inject a pre-bound listener (tests); otherwise Start
+	// binds apm_config.receiver_host:receiver_port itself and stores the
+	// result here.
+	tcpLn net.Listener
+
 	telemetryCollector telemetry.TelemetryCollector
 	telemetryForwarder *TelemetryForwarder
 
@@ -298,6 +304,26 @@ func getConfiguredProfilingRequestTimeoutDuration(conf *config.AgentConfig) time
 	return timeout
 }
 
+// SetTCPListener makes the receiver serve on ln instead of binding
+// apm_config.receiver_host:receiver_port itself. Must be called before Start.
+// apm_config.receiver_port must still be non-zero for Start to enter the TCP
+// branch; set it (and receiver_host) from ln.Addr() so the logged and served
+// addresses agree.
+func (r *HTTPReceiver) SetTCPListener(ln net.Listener) {
+	r.tcpLn = ln
+}
+
+// Addr returns the address the TCP listener is bound to, or nil if the
+// receiver is not serving TCP. Only valid once Start has returned.
+func (r *HTTPReceiver) Addr() net.Addr {
+	if r.tcpLn == nil || !r.conf.ReceiverEnabled || r.conf.ReceiverPort <= 0 {
+		// ReceiverEnabled false or ReceiverPort <= 0 means Start's TCP branch
+		// never ran, even if SetTCPListener preset r.tcpLn.
+		return nil
+	}
+	return r.tcpLn.Addr()
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	r.telemetryForwarder.start()
@@ -330,16 +356,21 @@ func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverPort > 0 {
 		addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
 
-		var ln net.Listener
+		// ln may already be set via SetTCPListener (tests); production never
+		// calls it, so ln starts nil there and the lookups below run exactly
+		// as before.
+		ln := r.tcpLn
 		var err error
-		// When using the trace-loader, the TCP listener might be provided as an already opened file descriptor
-		// so we try to get a listener from it, and fallback to listening on the given address if it fails
-		if tcpFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_FD"); ok {
-			ln, err = loader.GetListenerFromFD(tcpFDStr, "tcp_conn")
-			if err == nil {
-				log.Debugf("Using TCP listener from file descriptor %s", tcpFDStr)
-			} else {
-				log.Errorf("Error creating TCP listener from file descriptor %s: %v", tcpFDStr, err)
+		if ln == nil {
+			// When using the trace-loader, the TCP listener might be provided as an already opened file descriptor
+			// so we try to get a listener from it, and fallback to listening on the given address if it fails
+			if tcpFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_FD"); ok {
+				ln, err = loader.GetListenerFromFD(tcpFDStr, "tcp_conn")
+				if err == nil {
+					log.Debugf("Using TCP listener from file descriptor %s", tcpFDStr)
+				} else {
+					log.Errorf("Error creating TCP listener from file descriptor %s: %v", tcpFDStr, err)
+				}
 			}
 		}
 		if ln == nil {
@@ -363,6 +394,7 @@ func (r *HTTPReceiver) Start() {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 			killProcess("Error creating tcp listener: %v", err)
 		}
+		r.tcpLn = ln
 		go func() {
 			defer watchdog.LogOnPanic(r.statsd)
 			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {

@@ -56,6 +56,19 @@ def get_pr_number_from_commit(ctx) -> str | None:
         return None
 
 
+def get_team_members(team_slug: str) -> set[str]:
+    """
+    Get the GitHub logins of all members of a team.
+
+    Args:
+        team_slug: The team's slug (e.g. "agent-build")
+
+    Returns:
+        The set of member logins.
+    """
+    return {member.login for member in GithubAPI().get_team_members(team_slug)}
+
+
 def get_pr_author(pr_number: str) -> str | None:
     """
     Get the author (login) of a PR by its number.

@@ -90,8 +90,19 @@ go_library(
 )
 
 dd_agent_go_test(
+<<<<<<< HEAD
     name = "apm_inject_windows_test",
     srcs = ["apm_inject_windows_test.go"],
+=======
+    name = "packages_test",
+    srcs = [
+        "apm_inject_windows_test.go",
+        "datadog_agent_eudm_windows_test.go",
+        "datadog_agent_extensions_test.go",
+        "datadog_agent_windows_test.go",
+        "otel_config_common_test.go",
+    ],
+>>>>>>> main
     embed = [":packages"],
     deps = select({
         "@rules_go//go/platform:windows": [

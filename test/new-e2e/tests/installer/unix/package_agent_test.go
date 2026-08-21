@@ -38,6 +38,8 @@ const (
 	installerUnit   = "datadog-agent-installer.service"
 	procmgrUnit     = "datadog-agent-procmgr.service"
 	procmgrUnitXP   = "datadog-agent-procmgr-exp.service"
+
+	ddotProcess = "datadog-agent-ddot.yaml"
 )
 
 type packageAgentSuite struct {
@@ -50,11 +52,21 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMetho
 	}
 }
 
+// waitForCoreUnitsActive waits for the units assertUnits expects Running, including procmgrUnit
+// when procmgr is the active service manager (assertUnits checks it conditionally too).
+func (s *packageAgentSuite) waitForCoreUnitsActive() {
+	units := []string{agentUnit, traceUnit, probeUnit}
+	if s.host.ProcmgrEnabled() {
+		units = append(units, procmgrUnit)
+	}
+	s.host.WaitForUnitActive(s.T(), units...)
+}
+
 func (s *packageAgentSuite) TestInstall() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, probeUnit)
+	s.waitForCoreUnitsActive()
 	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
 
 	state := s.host.State()
@@ -71,6 +83,7 @@ func (s *packageAgentSuite) TestInstall() {
 
 	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
 
+	state.AssertFileExists(path.Join(agentDir, "processes.d/datadog-agent-ddot.yaml"), 0644, "dd-agent", "dd-agent")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
@@ -83,13 +96,27 @@ func (s *packageAgentSuite) TestInstall() {
 }
 
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit)
+	loadedUnits := []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit}
+	if s.host.ProcmgrEnabled() {
+		loadedUnits = append(loadedUnits, procmgrUnit)
+	}
+	state.AssertUnitsLoaded(loadedUnits...)
 	state.AssertUnitsEnabled(agentUnit)
+	if s.host.ProcmgrEnabled() {
+		state.AssertProcessesLoaded(ddotProcess)
+	}
 
 	// we cannot assert here on process-agent/agent-data-plane/system-probe being either running or dead due to timing issues,
 	// so it has to be checked prior (i.e., using WaitForUnitExited)
-	state.AssertUnitsRunning(agentUnit, traceUnit)
+	runningUnits := []string{agentUnit, traceUnit}
+	if s.host.ProcmgrEnabled() {
+		runningUnits = append(runningUnits, procmgrUnit)
+	}
+	state.AssertUnitsRunning(runningUnits...)
 	state.AssertUnitsDead(securityUnit)
+	if s.host.ProcmgrEnabled() {
+		state.AssertProcessesDead(ddotProcess)
+	}
 
 	systemdPath := "/etc/systemd/system"
 	if oldUnits || s.installMethod == InstallMethodAnsible {
@@ -109,7 +136,7 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 		}
 	}
 
-	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit} {
+	for _, unit := range loadedUnits {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
 }
@@ -534,7 +561,7 @@ func (s *packageAgentSuite) TestInstallFips() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_AGENT_FLAVOR=datadog-fips-agent")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-fips-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, probeUnit)
+	s.waitForCoreUnitsActive()
 	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
 
 	// Remote Config is disabled by default for FIPS/FED agents, so the RC client fails to init and the unit exits with code 255.
@@ -555,6 +582,7 @@ func (s *packageAgentSuite) TestInstallFips() {
 
 	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
 
+	state.AssertFileExists(path.Join(agentDir, "processes.d/datadog-agent-ddot.yaml"), 0644, "dd-agent", "dd-agent")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")

@@ -39,7 +39,7 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 			pulumi.String("--cpu-load=15"),
 		},
 		Cpu:    pulumi.IntPtr(200),
-		Memory: pulumi.IntPtr(64),
+		Memory: pulumi.IntPtr(128),
 	}
 
 	stressTaskDef, err := ecsClient.FargateTaskDefinitionWithAgent(e, "stress-ng-fg", pulumi.String("stress-ng-fg"), 1024, 2048,
