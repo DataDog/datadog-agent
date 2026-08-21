@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
+	"sync/atomic"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
