@@ -6,10 +6,11 @@
 package com_datadoghq_script
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
-	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	workflowjsonschema "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/workflowjsonschema"
 )
@@ -28,7 +29,18 @@ func validateParameters(params interface{}, parameterSchema map[string]interface
 		return fmt.Errorf("failed to marshal schema to JSON: %w", err)
 	}
 
-	schema, err := jsonschema.CompileString("parameter-schema.json", string(schemaJSON))
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
+	if err != nil {
+		return fmt.Errorf("failed to parse schema: %w", err)
+	}
+
+	const loc = "parameter-schema.json"
+	c := jsonschema.NewCompiler()
+	if err := c.AddResource(loc, doc); err != nil {
+		return fmt.Errorf("failed to add schema resource: %w", err)
+	}
+
+	schema, err := c.Compile(loc)
 	if err != nil {
 		return fmt.Errorf("failed to compile schema: %w", err)
 	}
