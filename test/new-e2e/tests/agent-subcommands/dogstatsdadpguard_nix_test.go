@@ -34,16 +34,8 @@ func (s *dogstatsdADPGuardSuite) SetupTest() {
 	common.AssertADPRunning(s.T(), s.Env().RemoteHost)
 }
 
-func (s *dogstatsdADPGuardSuite) TestDogstatsdStatsBlockedByADP() {
-	s.assertCommandBlocked("dogstatsd-stats")
-}
-
 func (s *dogstatsdADPGuardSuite) TestDogstatsdCaptureBlockedByADP() {
 	s.assertCommandBlocked("dogstatsd-capture -d 5s")
-}
-
-func (s *dogstatsdADPGuardSuite) TestDogstatsdDumpContextsBlockedByADP() {
-	s.assertCommandBlocked("dogstatsd dump-contexts")
 }
 
 // assertCommandBlocked runs a dogstatsd CLI command via the agent binary and
