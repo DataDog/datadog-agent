@@ -21,13 +21,56 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// FileInfo is a slim, profile-local subset of model.FileEvent.
+type FileInfo struct {
+	model.FileFields
+
+	PathnameStr string
+	BasenameStr string
+	Filesystem  string
+
+	PkgName       string
+	PkgVersion    string
+	PkgEpoch      int
+	PkgRelease    string
+	PkgSrcVersion string
+	PkgSrcEpoch   int
+	PkgSrcRelease string
+
+	HashState model.HashState
+	Hashes    []string
+}
+
+// newFileInfo builds the slim FileInfo from a model.FileEvent, keeping only the fields
+// serialized into the profile or read back while building/rendering the tree.
+func newFileInfo(fe *model.FileEvent) *FileInfo {
+	if fe == nil {
+		return nil
+	}
+	return &FileInfo{
+		FileFields:    fe.FileFields,
+		PathnameStr:   fe.PathnameStr,
+		BasenameStr:   fe.BasenameStr,
+		Filesystem:    fe.Filesystem,
+		PkgName:       fe.PkgName,
+		PkgVersion:    fe.PkgVersion,
+		PkgEpoch:      fe.PkgEpoch,
+		PkgRelease:    fe.PkgRelease,
+		PkgSrcVersion: fe.PkgSrcVersion,
+		PkgSrcEpoch:   fe.PkgSrcEpoch,
+		PkgSrcRelease: fe.PkgSrcRelease,
+		HashState:     fe.HashState,
+		Hashes:        fe.Hashes,
+	}
+}
+
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
 	IsPattern      bool
-	File           *model.FileEvent
+	File           *FileInfo
 	GenerationType NodeGenerationType
 	Open           *OpenNode
 
@@ -47,7 +90,7 @@ func (fn *FileNode) size() int64 {
 	s += seenBytes(fn.NodeBase)
 	s += int64(len(fn.Name))
 	if fn.File != nil {
-		s += fileEventStringsBytes(fn.File)
+		s += fileInfoStringsBytes(fn.File)
 	}
 	if fn.Open != nil {
 		s += int64(unsafe.Sizeof(*fn.Open))
@@ -75,8 +118,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		fan.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	}
 	if fileEvent != nil {
-		fileEventTmp := *fileEvent
-		fan.File = &fileEventTmp
+		fan.File = newFileInfo(fileEvent)
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
 	}

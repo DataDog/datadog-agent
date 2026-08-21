@@ -204,7 +204,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -236,7 +236,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -279,7 +279,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -311,7 +311,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -341,7 +341,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
@@ -377,7 +377,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
@@ -422,7 +422,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		protectedNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
@@ -433,7 +433,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		expiredNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
@@ -485,7 +485,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/multi-tag",
 				},
@@ -544,7 +544,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		node1 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node1",
 				},
@@ -555,7 +555,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		node2 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node2",
 				},
