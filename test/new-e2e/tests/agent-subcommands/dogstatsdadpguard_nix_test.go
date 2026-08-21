@@ -6,7 +6,6 @@
 package agentsubcommands
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +40,7 @@ func (s *dogstatsdADPGuardSuite) TestDogstatsdCaptureBlockedByADP() {
 // assertCommandBlocked runs a dogstatsd CLI command via the agent binary and
 // asserts that it fails with the ADP guard error message.
 func (s *dogstatsdADPGuardSuite) assertCommandBlocked(subcommand string) {
-	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo datadog-agent %s", subcommand))
+	output, err := s.Env().RemoteHost.Execute("sudo datadog-agent " + subcommand)
 	require.Error(s.T(), err, "command should fail when ADP owns DogStatsD")
 	combined := output + err.Error()
 	assert.Contains(s.T(), combined, "DogStatsD traffic is being served by the Agent Data Plane")
