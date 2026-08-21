@@ -59,6 +59,75 @@ func TestDetectorPointWindows(t *testing.T) {
 	}
 }
 
+func TestDetectorPointWindowActivation(t *testing.T) {
+	bocpdConfig := DefaultBOCPDConfig()
+	bocpdConfig.WarmupPoints = 4
+	bocpdConfig.MaxRunLength = 8
+	bocpdConfig.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
+	for name, detector := range map[string]observer.Detector{
+		"bocpd": NewBOCPDDetector(bocpdConfig),
+		"holt": &HoltResidualDetector{
+			WarmupPoints:   4,
+			ResidualWindow: 1,
+			Aggregations:   []observer.Aggregate{observer.AggregateAverage},
+		},
+		"tukey": &TukeyBiweightDetector{
+			WindowSize:   8,
+			MinPoints:    4,
+			ScoreEvery:   1,
+			Aggregations: []observer.Aggregate{observer.AggregateAverage},
+		},
+		"scanmw": &ScanMWDetector{
+			MinPoints:    4,
+			MinSegment:   2,
+			MaxPoints:    8,
+			Aggregations: []observer.Aggregate{observer.AggregateAverage},
+		},
+		"scanwelch": &ScanWelchDetector{
+			MinPoints:    4,
+			MinSegment:   2,
+			MaxPoints:    8,
+			Aggregations: []observer.Aggregate{observer.AggregateAverage},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			storage := newDetectorTestStorage()
+			for timestamp := int64(1); timestamp <= 3; timestamp++ {
+				storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
+				detector.Detect(storage, timestamp)
+				require.False(t, detector.Ready())
+				require.Zero(t, detectorStateCount(detector))
+			}
+
+			storage.Add("ns", "metric", 4, 4, nil)
+			detector.Detect(storage, 4)
+			require.Equal(t, 1, detectorStateCount(detector))
+
+			storage.Add("ns", "metric", 5, 5, nil)
+			detector.Detect(storage, 5)
+			require.True(t, detector.Ready())
+		})
+	}
+}
+
+func detectorStateCount(detector observer.Detector) int {
+	switch d := detector.(type) {
+	case *BOCPDDetector:
+		return len(d.series)
+	case *HoltResidualDetector:
+		return len(d.series)
+	case *TukeyBiweightDetector:
+		return len(d.series)
+	case *ScanMWDetector:
+		return len(d.series)
+	case *ScanWelchDetector:
+		return len(d.series)
+	default:
+		return 0
+	}
+}
+
 func TestAppendPointWindow(t *testing.T) {
 	points := make([]observer.Point, 0, 3)
 	for timestamp := int64(1); timestamp <= 5; timestamp++ {

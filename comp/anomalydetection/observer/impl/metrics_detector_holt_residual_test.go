@@ -437,6 +437,31 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	assert.Equal(t, int64(11), state.lastProcessedTime)
 }
 
+func TestHoltResidual_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T) {
+	d := testHoltResidualDetector()
+	d.WarmupPoints = 1
+	d.ResidualWindow = 4
+	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
+
+	for timestamp := int64(1); timestamp <= 3; timestamp++ {
+		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+	d.Detect(storage, 3)
+
+	ref := storage.ListSeries(observer.WorkloadSeriesFilter())[0].Ref
+	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, 3, state.lastProcessedCount)
+
+	storage.Add("ns", "metric", 4, 4, nil)
+	d.Detect(storage, 4)
+
+	require.Same(t, state, d.series[key])
+	assert.Equal(t, int64(4), state.lastProcessedTime)
+	assert.Equal(t, 3, state.lastProcessedCount)
+}
+
 func TestHoltResidual_ContinuesAfterRetentionDropsBelowWarmup(t *testing.T) {
 	d := testHoltResidualDetector()
 	d.WarmupPoints = 3

@@ -281,16 +281,17 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 			}
 
 			// Replay-gate: skip when no new bucket or in-place merge is visible.
-			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
 			if status.pointCount <= state.lastProcessedCount && status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 			startTime := state.lastProcessedTime
 			countIncreased := status.pointCount > state.lastProcessedCount
-			prefixCount := state.lastProcessedCount
-			if countIncreased {
-				prefixCount = storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
-			}
+			prefixCount := storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
+			// A full point window can evict an old bucket while appending a new
+			// one. That changes the generation without changing the total count;
+			// the smaller prefix shows the lost bucket was before our cursor.
+			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen &&
+				prefixCount >= state.lastProcessedCount
 			cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
 				prefixCount == state.lastProcessedCount && holtCursorPointChanged(storage, meta.Ref, agg, state)
 			if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {

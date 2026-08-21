@@ -44,9 +44,9 @@ type ScanWelchDetector struct {
 	MinSegment int
 
 	// MinPoints is the minimum total points before detection runs.
-	MinPoints int
+	MinPoints int `json:"min_points"`
 	// MaxPoints bounds the scan window. Default: 120.
-	MaxPoints int
+	MaxPoints int `json:"max_points"`
 
 	// MinTStatistic is the minimum |t| for the candidate selection phase.
 	MinTStatistic float64

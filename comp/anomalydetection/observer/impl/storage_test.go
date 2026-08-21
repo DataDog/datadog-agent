@@ -66,6 +66,12 @@ func TestTimeSeriesStorage_ForEachLastPoints_Boundaries(t *testing.T) {
 	assert.Equal(t, []int64{10, 20}, got)
 }
 
+func TestDefaultStorageConfigIncludesInactiveSeriesEviction(t *testing.T) {
+	cfg := DefaultStorageConfig()
+	assert.Equal(t, int64(5*60), cfg.InactiveSeriesTTLSeconds)
+	assert.Equal(t, int64(5*60), cfg.InactiveSeriesCheckIntervalSeconds)
+}
+
 func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {
 	s := newTimeSeriesStorage()
 
@@ -674,7 +680,7 @@ func TestTimeSeriesStorage_ListSeriesRefsInto_MatchesListSeriesFilters(t *testin
 			}
 
 			got := s.ListSeriesRefsInto(filter, []observer.SeriesRef{999})
-			require.Equal(t, want, got)
+			require.ElementsMatch(t, want, got)
 		})
 	}
 }
@@ -749,6 +755,38 @@ func TestTimeSeriesStorage_TotalSeriesCountTracksCapacityEviction(t *testing.T) 
 	require.Equal(t, 1, s.TotalSeriesCount())
 }
 
+func TestTimeSeriesStorage_EvictInactiveBefore(t *testing.T) {
+	s := newTimeSeriesStorage()
+	old := s.Add("workload", "old", 1, 100, []string{"env:test"}).Ref
+	exact := s.Add("workload", "exact", 1, 300, nil).Ref
+	newer := s.Add("workload", "newer", 1, 301, nil).Ref
+	telemetry := s.Add(observer.TelemetryNamespace, "internal", 1, 100, nil).Ref
+	genBefore := s.SeriesGeneration()
+
+	freed := s.EvictInactiveBefore(300)
+
+	require.ElementsMatch(t, []observer.SeriesRef{old, exact}, freed)
+	assert.Nil(t, s.GetSeriesMeta(old))
+	assert.Nil(t, s.GetSeriesMeta(exact))
+	assert.NotNil(t, s.GetSeriesMeta(newer))
+	assert.NotNil(t, s.GetSeriesMeta(telemetry), "telemetry series must not be evicted by inactivity")
+	assert.Equal(t, 1, s.TotalSeriesCount(), "only the newer non-telemetry series remains live")
+	assert.Greater(t, s.SeriesGeneration(), genBefore)
+}
+
+func TestTimeSeriesStorage_EvictToCapacityBreaksActivityTiesByRef(t *testing.T) {
+	s := newTimeSeriesStorage()
+	first := s.Add("workload", "first", 1, 100, nil).Ref
+	second := s.Add("workload", "second", 1, 100, nil).Ref
+	third := s.Add("workload", "third", 1, 100, nil).Ref
+
+	freed := s.EvictToCapacity(2, 2)
+	require.Equal(t, []observer.SeriesRef{first}, freed)
+	require.Nil(t, s.GetSeriesMeta(first))
+	require.NotNil(t, s.GetSeriesMeta(second))
+	require.NotNil(t, s.GetSeriesMeta(third))
+}
+
 func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	s := newTimeSeriesStorage()
 
@@ -776,6 +814,37 @@ func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	// Out-of-range refs (-1, 999) are silently skipped.
 	require.Empty(t, s.RemoveSeriesByRefs([]observer.SeriesRef{-1, 999}))
 	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
+}
+
+func TestTimeSeriesStorage_SeriesRefIndexBoundedUnderChurn(t *testing.T) {
+	s := newTimeSeriesStorage()
+	lastRef := observer.SeriesRef(-1)
+
+	for i := 0; i < 1_000; i++ {
+		res := s.Add("workload", fmt.Sprintf("churn-%d", i), 1, int64(i), nil)
+		require.Greater(t, res.Ref, lastRef, "new refs must be monotonic and never reused")
+		lastRef = res.Ref
+
+		switch i % 3 {
+		case 0:
+			require.Equal(t, []observer.SeriesRef{res.Ref}, s.RemoveSeriesByRefs([]observer.SeriesRef{res.Ref}))
+		case 1:
+			require.Equal(t, []observer.SeriesRef{res.Ref}, s.RemoveSeriesByMetricName("workload", fmt.Sprintf("churn-%d", i)))
+		case 2:
+			second := s.Add("workload", fmt.Sprintf("churn-extra-%d", i), 1, int64(i), nil)
+			require.Greater(t, second.Ref, lastRef, "capacity eviction must not cause ref reuse")
+			lastRef = second.Ref
+			require.Len(t, s.EvictToCapacity(1, 0), 2)
+		}
+
+		require.Empty(t, s.seriesIDStats, "ref index must retain only live series")
+		require.Zero(t, s.TotalSeriesCount())
+	}
+
+	newRef := s.Add("workload", "final", 1, 1_000, nil).Ref
+	require.Greater(t, newRef, lastRef)
+	require.Len(t, s.seriesIDStats, 1)
+	require.Nil(t, s.GetSeriesMeta(lastRef), "retired refs must remain invalid")
 }
 
 func TestTimeSeriesStorage_AddReturnsRef(t *testing.T) {

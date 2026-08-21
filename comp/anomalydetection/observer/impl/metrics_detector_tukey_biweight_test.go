@@ -175,6 +175,32 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	assert.Equal(t, int64(11), state.lastProcessedTime)
 }
 
+func TestTukeyBiweight_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T) {
+	d := testTukeyBiweightDetector()
+	d.MinPoints = 1
+	d.WindowSize = 4
+	d.ScoreEvery = 100
+	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
+
+	for timestamp := int64(1); timestamp <= 3; timestamp++ {
+		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+	d.Detect(storage, 3)
+
+	ref := storage.ListSeries(observer.WorkloadSeriesFilter())[0].Ref
+	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, 3, state.lastProcessedCount)
+
+	storage.Add("ns", "metric", 4, 4, nil)
+	d.Detect(storage, 4)
+
+	require.Same(t, state, d.series[key])
+	assert.Equal(t, int64(4), state.lastProcessedTime)
+	assert.Equal(t, 3, state.lastProcessedCount)
+}
+
 func TestTukeyBiweight_ContinuesAfterRetentionDropsBelowMinimum(t *testing.T) {
 	d := testTukeyBiweightDetector()
 	d.WindowSize = 4

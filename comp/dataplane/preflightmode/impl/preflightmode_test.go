@@ -264,13 +264,17 @@ func shortTempDir(t *testing.T) string {
 	return dir
 }
 
-// setPreflightModeDuration shortens (or lengthens) the run window for one test. preflightModeDuration
-// is read when the timer is armed, so this must be called before the lifecycle starts.
-func setPreflightModeDuration(t *testing.T, d time.Duration) {
+// setPreflightModeDuration shortens (or lengthens) the run window for one test. The window is
+// read when the timer is armed, so this must be called before the lifecycle starts.
+//
+// The floor moves with the setting because it is what a sub-90s window would otherwise be raised
+// to: leaving it in place would make every shortened test wait out the real window.
+func setPreflightModeDuration(t *testing.T, cfg pkgconfigmodel.Config, d time.Duration) {
 	t.Helper()
-	original := preflightModeDuration
-	preflightModeDuration = d
-	t.Cleanup(func() { preflightModeDuration = original })
+	original := minPreflightModeDuration
+	minPreflightModeDuration = d
+	t.Cleanup(func() { minPreflightModeDuration = original })
+	cfg.Set(DataPlanePreflightModeDuration, d.String(), pkgconfigmodel.SourceAgentRuntime)
 }
 
 // useFakeDataPlane points the component at this test binary and selects a behaviour.
@@ -297,10 +301,10 @@ type harness struct {
 func newHarness(t *testing.T, mode string, tweak func(pkgconfigmodel.Config)) *harness {
 	t.Helper()
 	useFakeDataPlane(t, mode)
-	// The real window is 90s; every lifecycle test would pay that in wall clock.
-	setPreflightModeDuration(t, 3*time.Second)
 
 	cfg := configmock.New(t)
+	// The real window is 90s; every lifecycle test would pay that in wall clock.
+	setPreflightModeDuration(t, cfg, 3*time.Second)
 	cfg.Set("run_path", shortTempDir(t), pkgconfigmodel.SourceAgentRuntime)
 	cfg.Set("api_key", "0123456789abcdef0123456789abcdef", pkgconfigmodel.SourceFile)
 	cfg.Set(DataPlaneStopTimeout, 2, pkgconfigmodel.SourceAgentRuntime)
@@ -522,7 +526,7 @@ func TestPreflightModeCleansUpWorkDir(t *testing.T) {
 // window: the pre-flight must unwind rather than leave an orphaned process behind.
 func TestPreflightModeStopDuringRun(t *testing.T) {
 	h := newHarness(t, modeNormal, nil)
-	setPreflightModeDuration(t, 120*time.Second)
+	setPreflightModeDuration(t, h.cfg, 120*time.Second)
 
 	h.lc.start(t)
 	// Wait until the process is actually up before pulling the rug out.
@@ -563,7 +567,7 @@ func TestPreflightModeStopDuringRun(t *testing.T) {
 // ended. Only the findings that are artefacts of us stopping it are suppressed.
 func TestPreflightModeInterruptedStillReportsRealErrors(t *testing.T) {
 	h := newHarness(t, modeErrors, nil)
-	setPreflightModeDuration(t, 120*time.Second)
+	setPreflightModeDuration(t, h.cfg, 120*time.Second)
 
 	h.lc.start(t)
 	require.Eventually(t, func() bool {
@@ -687,6 +691,35 @@ func TestPreflightModeInertWhenPreflightModeDisabled(t *testing.T) {
 	})
 	assert.Nil(t, h.comp.done)
 	assert.Empty(t, h.lc.hooks)
+}
+
+// TestPreflightModeDuration covers the clamp on data_plane.preflight_mode_duration. The floor is
+// the point of the setting's contract: the window may only be extended, because a shorter one
+// stops ADP mid-startup and reports a healthy host as a finding.
+func TestPreflightModeDuration(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value any
+		want  time.Duration
+	}{
+		{name: "unset", value: nil, want: minPreflightModeDuration},
+		{name: "longer is honoured", value: "15m", want: 15 * time.Minute},
+		{name: "shorter is raised to the floor", value: "30s", want: minPreflightModeDuration},
+		{name: "zero is raised to the floor", value: "0s", want: minPreflightModeDuration},
+		{name: "negative is raised to the floor", value: "-1m", want: minPreflightModeDuration},
+		// A bare number is read as nanoseconds, which is why the floor is not just a default.
+		{name: "unitless number is raised to the floor", value: 900, want: minPreflightModeDuration},
+		{name: "garbage is raised to the floor", value: "soon", want: minPreflightModeDuration},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			if tc.value != nil {
+				cfg.Set(DataPlanePreflightModeDuration, tc.value, pkgconfigmodel.SourceFile)
+			}
+			d := &preflightModeComponent{config: cfg}
+			assert.Equal(t, tc.want, d.duration())
+		})
+	}
 }
 
 // TestPreflightModeInertWhenBinaryMissing covers the common case on builds that do not ship
