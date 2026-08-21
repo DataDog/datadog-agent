@@ -27,7 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	servertags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // SetInventoryFields populates serverless-init-specific metadata in the
@@ -45,25 +47,24 @@ func SetInventoryFields(ia inventoryagent.Component, cs cloudservice.CloudServic
 	tags := cs.GetTags()
 
 	// --- Required identity (RFC primary key: resource_id + uuid) ---
-	// uuid is the Agent host UUID already present in the inventory payload; the
-	// decoder reads it from amd["uuid"]. resource_id is the full cloud resource
-	// identifier derived from cloudservice tags so it joins to crawler resources.
+	// uuid must be in agent_metadata (ia.data) so the EPRW decoder can read it
+	// from amd["uuid"] inside createServerlessAgentResource. The top-level
+	// Payload.UUID is a separate field and is NOT present in agent_metadata.
+	ia.Set("uuid", uuid.GetUUID())
 	if rid := resourceIDFromTags(origin, tags); rid != "" {
 		ia.Set("resource_id", rid)
 	}
 	if name := resourceNameFromOrigin(origin, tags); name != "" {
 		ia.Set("resource_name", name)
 	}
-	if wt := workloadTypeFromOrigin(origin); wt != "" {
+	if wt := workloadTypeFromOrigin(origin, tags); wt != "" {
 		ia.Set("workload_type", wt)
 	}
 
 	// --- Nullable serverless-init fields (canonical names) ---
-	// agent_version_base and serverless_init_version are both the serverless-init
-	// image version, which is the Agent version it ships with.
 	ia.Set("agent_version_base", pkgversion.AgentVersion)
 	ia.Set("agent_commit", pkgversion.Commit)
-	ia.Set("serverless_init_version", pkgversion.AgentVersion)
+	ia.Set("serverless_init_version", servertags.GetExtensionVersion())
 	ia.Set("deployment_model", deploymentModelFromConf(mc))
 	ia.Set("runtime", detectRuntime())
 	if !mc.SidecarMode {
@@ -124,11 +125,13 @@ func cloudProviderFromOrigin(origin string) string {
 // value matching the RFC canonical vocabulary. Values MUST match the
 // validServerlessWorkloadTypes allowlist in the EPRW agentmetadata decoder
 // (dd-go agentmetadata_decoder.go); unrecognised values are rejected there.
-func workloadTypeFromOrigin(origin string) string {
+func workloadTypeFromOrigin(origin string, tags map[string]string) string {
 	switch origin {
 	case cloudservice.CloudRunOrigin:
-		// Cloud Functions Gen2 run on Cloud Run but expose FUNCTION_TARGET.
-		if os.Getenv("FUNCTION_TARGET") != "" {
+		// Cloud Functions Gen2 run on Cloud Run. Detect via FUNCTION_TARGET env
+		// (available in init-container) or build_function_target tag (available
+		// in sidecar, set by the Cloud Run collector).
+		if os.Getenv("FUNCTION_TARGET") != "" || tags["build_function_target"] != "" {
 			return "cloud_function_gen2"
 		}
 		return "cloud_run_service"
@@ -143,23 +146,35 @@ func workloadTypeFromOrigin(origin string) string {
 	}
 }
 
-// resourceNameFromOrigin returns the human-readable resource name for Fleet
-// display, read from the cloudservice tags (which already collect it).
+// resourceNameFromOrigin returns the short human-readable resource name for
+// Fleet display (e.g. "nina-cloudrun-init", not the full GCP path).
 func resourceNameFromOrigin(origin string, tags map[string]string) string {
 	switch origin {
 	case cloudservice.CloudRunOrigin:
-		if os.Getenv("FUNCTION_TARGET") != "" {
-			return tags["gcrfx.resource_name"]
+		if os.Getenv("FUNCTION_TARGET") != "" || tags["build_function_target"] != "" {
+			return lastPathSegment(tags["gcrfx.resource_name"])
 		}
-		return tags["gcr.resource_name"]
+		return lastPathSegment(tags["gcr.resource_name"])
 	case cloudservice.CloudRunJobsOrigin:
-		return tags["gcrj.resource_name"]
+		return lastPathSegment(tags["gcrj.resource_name"])
 	case cloudservice.ContainerAppOrigin:
 		return os.Getenv(cloudservice.ContainerAppNameEnvVar)
 	case cloudservice.AppServiceOrigin:
 		return os.Getenv(cloudservice.WebsiteName)
 	}
 	return ""
+}
+
+// lastPathSegment returns the final slash-delimited component of a GCP resource
+// path, e.g. "projects/.../services/my-svc" → "my-svc".
+func lastPathSegment(path string) string {
+	if path == "" {
+		return ""
+	}
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		return path[i+1:]
+	}
+	return path
 }
 
 // resourceIDFromTags returns the full cloud resource identifier (CCRID) for
