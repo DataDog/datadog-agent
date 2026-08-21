@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/targets"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -38,6 +40,7 @@ type ChecksHandler struct {
 	checkStore           *CheckStore
 	templateStore        *ServiceCheckTemplateStore
 	serviceTargetEnabled bool
+	targetRegistry       *targets.Registry
 }
 
 // NewChecksHandler returns the checks DatadogInstrumentation handler.
@@ -46,6 +49,7 @@ func NewChecksHandler(dep *Deps) *ChecksHandler {
 		checkStore:           dep.CheckStore,
 		templateStore:        dep.ServiceCheckTemplateStore,
 		serviceTargetEnabled: apiserver.UseEndpointSlices(),
+		targetRegistry:       dep.TargetRegistry,
 	}
 }
 
@@ -61,9 +65,12 @@ func (h *ChecksHandler) HasSection(cr *datadoghq.DatadogInstrumentation) bool {
 
 // SupportsTarget returns whether Autodiscovery check delivery supports the target kind.
 func (h *ChecksHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
+	if h.targetRegistry != nil && h.targetRegistry.Supports(ref.APIVersion, ref.Kind) {
+		return true
+	}
 	switch ref.Kind {
 	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind, kubernetes.RolloutKind:
-		return true
+		return ref.APIVersion == ""
 	case kubernetes.ServiceKind:
 		// Service target support is backed by endpoint slices CR provider. If Endpointslice collection
 		// is disabled then service targets can't be supported.
@@ -188,7 +195,7 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 		ADIdentifiers: adIdentifiers,
 		InitConfig:    initConfig,
 		Instances:     instances,
-		CELSelector:   rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
+		CELSelector:   workloadTargetCELFilter(cr.Spec.TargetRef, cr.Namespace),
 		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
@@ -241,13 +248,57 @@ func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
 	return b, nil
 }
 
+func resolvedTargetCELFilter(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
+	group := ""
+	if gv, err := schema.ParseGroupVersion(ref.APIVersion); err == nil {
+		group = gv.Group
+	}
+	if ref.APIVersion == "" {
+		group = builtinTargetGroup(ref.Kind)
+	}
+	expr := fmt.Sprintf(
+		`container.pod.matched_owners.exists(target, target.group == %q && target.kind == %q && target.namespace == %q && target.name == %q) && container.image.reference != ""`,
+		group, ref.Kind, namespace, ref.Name,
+	)
+	return workloadfilter.Rules{
+		Containers: []string{expr},
+	}
+}
+
+func workloadTargetCELFilter(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
+	builtinGroup := builtinTargetGroup(ref.Kind)
+	if builtinGroup != "" && (ref.APIVersion == "" || builtinGroup == apiGroup(ref.APIVersion)) {
+		return rootOwnerCELFilter(ref, namespace)
+	}
+	return resolvedTargetCELFilter(ref, namespace)
+}
+
 func rootOwnerCELFilter(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
 	expr := fmt.Sprintf(
 		`container.pod.rootowner.kind == %q && container.pod.rootowner.name == %q && container.pod.namespace == %q && container.image.reference != ""`,
 		ref.Kind, ref.Name, namespace,
 	)
-	return workloadfilter.Rules{
-		Containers: []string{expr},
+	return workloadfilter.Rules{Containers: []string{expr}}
+}
+
+func apiGroup(apiVersion string) string {
+	gv, err := schema.ParseGroupVersion(apiVersion)
+	if err != nil {
+		return ""
+	}
+	return gv.Group
+}
+
+func builtinTargetGroup(kind string) string {
+	switch kind {
+	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind:
+		return "apps"
+	case kubernetes.CronJobKind, kubernetes.JobKind:
+		return "batch"
+	case kubernetes.RolloutKind:
+		return "argoproj.io"
+	default:
+		return ""
 	}
 }
 
