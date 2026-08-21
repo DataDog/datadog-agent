@@ -78,10 +78,16 @@ class TestCodeownerLinter(unittest.TestCase):
 
     def test_pkg_not_owned_by_noowner_glob_rule(self):
         # A glob rule with no owners (e.g. a "do not notify anyone" suppression) still matches
-        # the path structurally, but must not count as ownership.
-        open(os.path.join(self.pkg_dir, "BUILD.bazel"), "w").close()
-        codeowner = CodeOwners("\n".join(["/**/BUILD.bazel", *("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs)]))
+        # a package's path structurally, but must not count as ownership.
+        codeowner = CodeOwners("\n".join(["/**/fake_a", *("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs[1:])]))
         self.assertTrue(directory_has_packages_without_owner(codeowner))
+
+    def test_root_file_is_ignored(self):
+        # A single file directly under `pkg` (e.g. BUILD.bazel) isn't a package, so it doesn't
+        # need a dedicated CODEOWNERS entry even when otherwise unowned.
+        open(os.path.join(self.pkg_dir, "BUILD.bazel"), "w").close()
+        codeowner = CodeOwners("\n".join("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs))
+        self.assertFalse(directory_has_packages_without_owner(codeowner))
 
 
 class TestAIArtefactsHaveOwner(unittest.TestCase):
