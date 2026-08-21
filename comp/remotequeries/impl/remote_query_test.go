@@ -7,6 +7,7 @@ package remotequeriesimpl
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -848,4 +849,100 @@ func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, request
 		}
 	}
 	return nil
+}
+
+const (
+	remoteQueryMultipartPartCap  = 128 << 20 // 128 MiB hard part cap
+	remoteQueryMultipartTotalCap = 10 << 30  // 10 GiB hard total cap
+)
+
+// multipartDeliveryForCapTest builds a valid multipart result-delivery handle with the given
+// part/total sizes so cap and copyLimits-interaction tests only vary the fields under test.
+func multipartDeliveryForCapTest(partBytes, maxBytes int) *RemoteQueryResultDelivery {
+	return &RemoteQueryResultDelivery{
+		Mode:        RemoteQueryResultDeliveryModeMultipartUpload,
+		UploadID:    "upload-cap-test",
+		BaseURL:     "https://dd.datad0g.com/api/unstable/its-agent-intake",
+		Token:       "scoped-upload-token",
+		PartBytes:   partBytes,
+		MaxBytes:    maxBytes,
+		Format:      "csv",
+		Compression: "none",
+	}
+}
+
+func TestRemoteQueryResultDeliveryMultipartCaps(t *testing.T) {
+	target := RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}
+
+	t.Run("128 MiB part cap accepted", func(t *testing.T) {
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
+			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: remoteQueryMultipartTotalCap, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
+			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, remoteQueryMultipartTotalCap))
+		require.NoError(t, err)
+	})
+
+	t.Run("128 MiB plus one part rejected", func(t *testing.T) {
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
+			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: remoteQueryMultipartTotalCap, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
+			multipartDeliveryForCapTest(remoteQueryMultipartPartCap+1, remoteQueryMultipartTotalCap))
+		require.Error(t, err)
+		assert.EqualError(t, err, fmt.Sprintf("result_delivery.partBytes must not exceed %d", remoteQueryMultipartPartCap))
+	})
+
+	t.Run("10 GiB total cap accepted without copyLimits", func(t *testing.T) {
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv", nil,
+			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, remoteQueryMultipartTotalCap))
+		require.NoError(t, err)
+	})
+
+	t.Run("10 GiB plus one total rejected", func(t *testing.T) {
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv", nil,
+			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, remoteQueryMultipartTotalCap+1))
+		require.Error(t, err)
+		assert.EqualError(t, err, fmt.Sprintf("result_delivery.maxBytes must not exceed %d", remoteQueryMultipartTotalCap))
+	})
+
+	t.Run("partBytes may exceed copyLimits chunkBytes", func(t *testing.T) {
+		// COPY reads and multipart parts are independent: multiple 1 MiB COPY reads aggregate
+		// into one 64 MiB multipart part, so partBytes > copyLimits.chunkBytes is valid.
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
+			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: remoteQueryMultipartTotalCap, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
+			multipartDeliveryForCapTest(64<<20, remoteQueryMultipartTotalCap))
+		require.NoError(t, err)
+	})
+
+	t.Run("10 GiB upload accepted when extraction cap is 10 GiB", func(t *testing.T) {
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
+			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: remoteQueryMultipartTotalCap, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
+			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, remoteQueryMultipartTotalCap))
+		require.NoError(t, err)
+	})
+
+	t.Run("upload limit exceeding extraction cap rejected", func(t *testing.T) {
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
+			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: 5 << 30, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
+			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, 10<<30))
+		require.Error(t, err)
+		assert.EqualError(t, err, "result_delivery.maxBytes must not exceed copyLimits.maxBytes")
+	})
+}
+
+// TestRemoteQueryResultDelivery10GiBJSONFidelity proves the 10 GiB result cap survives the
+// Agent -> integration request JSON boundary as an exact JSON number. The Go int fields marshal
+// 10 GiB without truncation, so the integration receives the backend-owned cap verbatim.
+func TestRemoteQueryResultDelivery10GiBJSONFidelity(t *testing.T) {
+	const tenGiB = 10 << 30
+	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres",
+		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+		remoteQueryFixtureTableProofQuery, "csv",
+		&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: tenGiB, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
+		multipartDeliveryForCapTest(64<<20, tenGiB))
+	require.NoError(t, err)
+
+	requestJSON, err := marshalExecuteRequest(req.internal())
+	require.NoError(t, err)
+	assert.Contains(t, requestJSON, `"partBytes":67108864`)
+	assert.Contains(t, requestJSON, `"maxBytes":10737418240`)
+	assert.NotContains(t, requestJSON, "api_key")
+	assert.NotContains(t, requestJSON, "application_key")
 }
