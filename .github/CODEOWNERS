@@ -1031,5 +1031,4 @@
 
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
-/**/BUILD.bazel @DataDog/agent-build
 /**/*.bzl       @DataDog/agent-build
