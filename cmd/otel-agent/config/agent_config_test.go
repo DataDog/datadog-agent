@@ -61,6 +61,10 @@ func TestNoURIsProvided(t *testing.T) {
 // the forwarder resolver reports as its config name.
 func TestDDOTSeriesV3EnabledForDefaultEndpoint(t *testing.T) {
 	configmock.New(t)
+	// CI runners (Fabric Egress Gateway) set HTTP(S)_PROXY; DDOT keeps proxied Agents on
+	// v2, so clear proxy env to exercise the no-proxy enable path. DD_PROXY_* shadow HTTP(S)_PROXY.
+	t.Setenv("DD_PROXY_HTTP", "")
+	t.Setenv("DD_PROXY_HTTPS", "")
 	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
 	require.NoError(t, err)
 
