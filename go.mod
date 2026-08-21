@@ -314,7 +314,7 @@ require (
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/invopop/jsonschema v0.14.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/jarcoal/httpmock v1.4.1
+	github.com/jarcoal/httpmock v1.4.2
 	github.com/jellydator/ttlcache/v3 v3.4.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/jonboulle/clockwork v0.5.0
@@ -331,7 +331,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.1
-	github.com/mattn/go-sqlite3 v1.14.48
+	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/mdlayher/netlink v1.11.2
 	github.com/mdlayher/vsock v1.3.0
 	github.com/miekg/dns v1.1.72
@@ -360,7 +360,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pierrec/lz4/v4 v4.1.27
+	github.com/pierrec/lz4/v4 v4.1.28
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.24.1
@@ -409,7 +409,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.etcd.io/bbolt v1.5.0
-	go.etcd.io/etcd/client/v2 v2.305.32
+	go.etcd.io/etcd/client/v2 v2.305.33
 	go.mongodb.org/mongo-driver/v2 v2.8.0
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/component/componentstatus v0.158.0
@@ -456,7 +456,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.44.0
 	go.opentelemetry.io/otel/sdk/metric v1.44.1-0.20260622141720-fbe3d073ba93
 	go.opentelemetry.io/otel/trace v1.44.1-0.20260622141720-fbe3d073ba93
-	go.temporal.io/api v1.63.4
+	go.temporal.io/api v1.63.5
 	go.temporal.io/sdk v1.47.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
@@ -873,7 +873,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/mattn/go-shellwords v1.0.13 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
-	github.com/mdlayher/socket v0.6.0 // indirect
+	github.com/mdlayher/socket v0.6.1 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
