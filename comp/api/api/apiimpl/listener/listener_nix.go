@@ -13,9 +13,9 @@ import (
 	"os"
 	"os/user"
 	"strconv"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/unix"
 )
 
 // platformSpecificListener returns a unix net.Listener for linux platforms
@@ -30,8 +30,24 @@ func platformSpecificListener(address string) (net.Listener, error) {
 	// their permissions; the IPC/CMD sockets defaulted to 0755, which
 	// prevented non-root subagents (e.g. the host profiler) from
 	// connecting since connecting to a unix socket requires write access.
-	if err := os.Chmod(address, 0770); err != nil {
-		return nil, fmt.Errorf("unable to set permissions on socket %s: %w", address, err)
+	//
+	// The default run directory is writable by dd-agent, so a compromised
+	// dd-agent process could rename the freshly-created socket and replace
+	// it with a symlink between net.Listen and a path-based chmod/chown,
+	// redirecting those calls at an arbitrary root-owned file. Use the
+	// *at syscalls with AT_SYMLINK_NOFOLLOW so the calls act on the path
+	// entry itself and refuse to follow symlinks, closing that TOCTOU
+	// window. fchmodat2 (Linux 5.6+) honors the flag; on older kernels
+	// without it, unix.Fchmodat returns EOPNOTSUPP instead of following
+	// the symlink, so it is safe (the socket simply keeps its default
+	// mode and non-root subagents cannot connect).
+	if err := unix.Fchmodat(unix.AT_FDCWD, address, 0770, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		if err == unix.EOPNOTSUPP || err == unix.ENOTSUP {
+			log.Warnf("kernel does not support chmod without following symlinks, leaving socket %s with default permissions: %v", address, err)
+		} else {
+			ln.Close()
+			return nil, fmt.Errorf("unable to set permissions on socket %s: %w", address, err)
+		}
 	}
 
 	// When running as root, hand ownership to the dd-agent user/group when
@@ -39,7 +55,7 @@ func platformSpecificListener(address string) (net.Listener, error) {
 	// connect to the socket. Root can still access it regardless of owner.
 	if os.Geteuid() == 0 {
 		if uid, gid, ok := ddAgentIDs(); ok {
-			if err := syscall.Chown(address, uid, gid); err != nil {
+			if err := unix.Fchownat(unix.AT_FDCWD, address, uid, gid, unix.AT_SYMLINK_NOFOLLOW); err != nil {
 				log.Warnf("unable to set dd-agent ownership for socket %s: %v", address, err)
 			} else {
 				log.Debugf("set socket ownership to dd-agent (uid=%d, gid=%d): %s", uid, gid, address)
