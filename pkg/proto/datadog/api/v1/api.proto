@@ -52,10 +52,11 @@ message RemoteQueryExecuteRequest {
     RemoteQueryExecuteCopyLimits copy_limits = 7;
     // Optional result-delivery instructions. When omitted, the existing inline
     // streaming event path is unchanged. When present with mode
-    // POC_PUBLIC_CHUNKED_UPLOAD, the Agent Go side intercepts COPY stream data
-    // events and uploads bounded chunks directly to the Datadog intake service,
-    // suppressing bulk data from crossing the AgentSecure boundary; only the
-    // compact upload receipt is surfaced downstream.
+    // POC_PUBLIC_MULTIPART_UPLOAD, the Agent Go side forwards the upload handle
+    // to the integration check, which uploads bounded parts directly to the
+    // Datadog intake service, suppressing bulk data from crossing the
+    // AgentSecure boundary; only the compact upload receipt is surfaced
+    // downstream.
     RemoteQueryResultDelivery result_delivery = 8;
 }
 
@@ -67,7 +68,7 @@ message RemoteQueryResultDelivery {
     string upload_id = 2;
     string base_url = 3;
     string token = 4;
-    int32 chunk_bytes = 5;
+    int32 part_bytes = 5;
     int32 max_bytes = 6;
     string format = 7;
     string compression = 8;
@@ -105,21 +106,21 @@ message RemoteQueryStreamFinal {
     uint64 bytes_emitted = 2;
     uint64 chunks_emitted = 3;
     map<string, string> attributes = 4;
-    // upload_receipt is set only in POC_PUBLIC_CHUNKED_UPLOAD mode, after the
-    // Agent Go side finalizes the upload session. It carries the compact final
+    // upload_receipt is set only in POC_PUBLIC_MULTIPART_UPLOAD mode, after the
+    // integration finalizes the upload session. It carries the compact final
     // metadata that replaces the bulk data crossing the AgentSecure boundary.
     RemoteQueryUploadReceipt upload_receipt = 5;
 }
 
-// RemoteQueryUploadReceipt is the compact final metadata for a chunked upload.
+// RemoteQueryUploadReceipt is the compact final metadata for a multipart upload.
 message RemoteQueryUploadReceipt {
     string mode = 1;
     string upload_id = 2;
     string bucket_name = 3;
-    string manifest_path = 4;
+    string object_path = 4;
     int64 total_bytes = 5;
     int64 total_rows = 6;
-    int32 chunk_count = 7;
+    int32 part_count = 7;
     string sha256 = 8;
 }
 
