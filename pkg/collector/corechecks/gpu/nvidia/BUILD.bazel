@@ -27,6 +27,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadmeta/def",
+        "//pkg/aggregator/sender",
         "//pkg/metrics",
         "@com_github_stretchr_testify//mock",
     ] + select({
@@ -83,6 +84,7 @@ dd_agent_go_test(
         "nvlink_plr_test.go",
         "prm_cache_test.go",
         "rates_test.go",
+        "samples_test.go",
         "sampling_test.go",
         "stateless_test.go",
     ],

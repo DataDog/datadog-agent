@@ -112,8 +112,8 @@ func (c *nvlinkFieldsCollector) Name() CollectorName {
 	return nvlinkFields
 }
 
-func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
-	var metrics []*Metric
+func (c *nvlinkFieldsCollector) Collect() ([]Sample, error) {
+	var samples []Sample
 	var errs []error
 
 	// Prepare the totals map with the field value IDs of the metrics that require a total calculation.
@@ -121,13 +121,13 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 	c.totals = make(map[uint32]float64)
 
 	for _, port := range c.ports {
-		portMetrics, err := c.getPortMetrics(port)
+		portSamples, err := c.getPortMetrics(port)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to get port %d metrics: %w", port, err))
 			continue
 		}
 
-		metrics = append(metrics, portMetrics...)
+		samples = append(samples, portSamples...)
 	}
 
 	for _, metric := range c.metrics {
@@ -145,19 +145,19 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 			continue
 		}
 
-		metrics = append(metrics, &Metric{
+		samples = append(samples, &Metric{
+			baseSample:          baseSample{priority: metric.priority},
 			Name:                metric.name + ".total",
 			Value:               total,
 			Type:                metric.metricType,
-			Priority:            metric.priority,
 			RateCalculationMode: metric.rateCalculationMode,
 		})
 	}
 
-	return metrics, errors.Join(errs...)
+	return samples, errors.Join(errs...)
 }
 
-func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
+func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]Sample, error) {
 	// Metrics might have been removed in the previous run, so we check if there are any metrics to collect.
 	if len(c.metrics) == 0 {
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
@@ -179,7 +179,7 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 	}
 
 	portTag := nvlinkPortTag(port)
-	var metrics []*Metric
+	var samples []Sample
 	var errs []error
 	for _, val := range fields {
 		metricIdx := slices.IndexFunc(c.metrics, func(m nvlinkFieldValueMetric) bool {
@@ -212,13 +212,12 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 			continue
 		}
 
-		metrics = append(metrics, &Metric{
+		samples = append(samples, &Metric{
+			baseSample:          baseSample{priority: fieldValueMetric.priority, tags: []string{portTag}},
 			Name:                fieldValueMetric.name,
 			Value:               value,
 			Type:                fieldValueMetric.metricType,
-			Priority:            fieldValueMetric.priority,
 			RateCalculationMode: fieldValueMetric.rateCalculationMode,
-			Tags:                []string{portTag},
 		})
 
 		if fieldValueMetric.addTotalMetric {
@@ -231,5 +230,5 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
 	}
 
-	return metrics, errors.Join(errs...)
+	return samples, errors.Join(errs...)
 }
