@@ -387,7 +387,6 @@ func (s *parK8sSuite) waitForPARReady() {
 	}, 5*time.Minute, 3*time.Second, "PAR should start polling fakeintake")
 	pollingObserved = true
 	s.T().Logf("PAR started polling fakeintake %s after its container became Ready", time.Since(dequeueStarted))
-	s.logPARContainerLogs(selector, "dequeue polling started")
 }
 
 func (s *parK8sSuite) logPARContainerLogs(selector, reason string) {
