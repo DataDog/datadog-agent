@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package datadog.otlp.stats;
 
-option go_package = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb";
+option go_package = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb";
 
 // OTLPIntakeStatsPayload is the stats payload emitted by OTLP metric intakes.
 // Its field numbers match the backend StatsPayloadV3 wire contract.

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package sdktracestats maps Datadog SDK OTLP trace histograms to APM stats.
-package sdktracestats
+// Package tracestats maps OTLP trace metrics to APM stats.
+package tracestats
 
 import (
 	"errors"
@@ -29,7 +29,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	stats "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats/pb"
+	stats "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
