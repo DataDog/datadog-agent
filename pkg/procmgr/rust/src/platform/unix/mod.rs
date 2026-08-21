@@ -4,9 +4,15 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod runtime_user;
+mod secret_backend;
 mod spawn;
 
+pub(crate) fn embedded_secret_connector_path() -> std::path::PathBuf {
+    std::path::PathBuf::from("/opt/datadog-agent/embedded/bin/secret-generic-connector")
+}
+
 pub(crate) use runtime_user::runtime_user_for_pid;
+pub(crate) use secret_backend::exec_secret_backend;
 pub(crate) use spawn::spawn_managed_child;
 
 use nix::sys::signal::{self, Signal};
@@ -134,6 +140,7 @@ pub(crate) async fn wait_for_shutdown() {
     }
 }
 
+/// Wait for a shutdown trigger (SIGTERM or SIGINT).
 pub async fn shutdown_signal() {
     wait_for_shutdown().await;
 }

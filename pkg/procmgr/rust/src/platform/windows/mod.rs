@@ -11,10 +11,13 @@ mod local_account;
 mod managed_service_account;
 mod pipe_caller;
 mod pipe_security;
+mod resolve_executable;
 mod runtime_user;
 #[cfg(not(test))]
 mod scm_lsa_secret;
 mod scm_service;
+mod secret_backend;
+mod secret_backend_rights;
 mod sid;
 mod spawn;
 mod token_identity;
@@ -24,6 +27,7 @@ mod win_handle;
 #[cfg(any(test, feature = "test-helpers"))]
 pub(crate) use agent_credentials::spawn_user_for_profile;
 pub(crate) use legacy_scm_env::core_agent_scm_env_var;
+pub(crate) use legacy_scm_env::refresh_core_agent_scm_environment;
 #[cfg(test)]
 pub(crate) use legacy_scm_env::set_test_core_agent_scm_env;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
@@ -31,6 +35,13 @@ pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use runtime_user::runtime_user_for_pid;
 pub use scm_service::run_as_service;
 pub(crate) use scm_service::service_shutdown_deadline;
+pub(crate) fn embedded_secret_connector_path() -> PathBuf {
+    install_root()
+        .join("bin")
+        .join("secret-generic-connector.exe")
+}
+
+pub(crate) use secret_backend::exec_secret_backend;
 pub(crate) use spawn::spawn_managed_child;
 pub(crate) use spawn::user_profile::UserProfileGuard;
 
