@@ -8,12 +8,16 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	grpcStatus "google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -25,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,9 +79,10 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 		telemetryStore: newTelemetryStore(reqs.Telemetry),
 		// Services currently supported by the remote agent registry
 		remoteAgentServices: map[remoteAgentServiceName]struct{}{
-			StatusServiceName:    {},
-			FlareServiceName:     {},
-			TelemetryServiceName: {},
+			StatusServiceName:           {},
+			FlareServiceName:            {},
+			TelemetryServiceName:        {},
+			CommandProviderServiceName:  {},
 		},
 		eventSubscribers: eventSubscribers,
 	}
@@ -364,4 +370,69 @@ func grpcErrorMessage(err error) string {
 		errorString = status.Code().String()
 	}
 	return errorString
+}
+
+// ListCommands queries all registered remote agents that advertise the command provider service and returns a
+// slice of AgentCommands, one per agent that responded.
+func (ra *remoteAgentRegistry) ListCommands() []remoteagentregistry.AgentCommands {
+	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.ListCommandsResponse, error) {
+		return remoteAgent.ListCommands(ctx, &pb.ListCommandsRequest{}, opts...)
+	}
+	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.ListCommandsResponse, err error) remoteagentregistry.AgentCommands {
+		out := remoteagentregistry.AgentCommands{RegisteredAgent: details}
+		if err != nil {
+			log.Warnf("Failed to list commands from remote agent %q: %v", details.DisplayName, err)
+			return out
+		}
+		out.Commands = resp.GetCommands()
+		return out
+	}
+	return callAgentsForService(ra, CommandProviderServiceName, client, processor)
+}
+
+// ExecuteCommand routes a command execution request to the remote agent that owns the given command path.
+// If agentFlavor is empty, the registry selects the first agent that supports the command provider service.
+func (ra *remoteAgentRegistry) ExecuteCommand(agentFlavor string, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
+
+	ra.agentMapMu.Lock()
+	defer ra.agentMapMu.Unlock()
+
+	var target *remoteAgentClient
+	for _, remoteAgent := range ra.agentMap {
+		if !slices.Contains(remoteAgent.services, CommandProviderServiceName) {
+			continue
+		}
+		if agentFlavor != "" && remoteAgent.RegisteredAgent.Flavor != agentFlavor {
+			continue
+		}
+		target = remoteAgent
+		break
+	}
+
+	if target == nil {
+		if agentFlavor != "" {
+			return nil, fmt.Errorf("no remote agent with flavor %q found that supports the command provider service", agentFlavor)
+		}
+		return nil, errors.New("no remote agent found that supports the command provider service")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
+
+	var responseHeader metadata.MD
+	resp, err := target.ExecuteCommand(ctx, req, grpc.WaitForReady(true), grpc.Header(&responseHeader))
+	if err != nil {
+		ra.telemetryStore.remoteAgentActionError.Inc(target.RegisteredAgent.SanitizedDisplayName, CommandProviderServiceName, grpcErrorMessage(err))
+		return nil, err
+	}
+
+	if validationErr := target.validateSessionID(responseHeader); validationErr != nil {
+		ra.telemetryStore.remoteAgentActionError.Inc(target.RegisteredAgent.SanitizedDisplayName, CommandProviderServiceName, sessionIDMismatch)
+		target.unhealthy = true
+		target.unhealthyReason = validationErr
+		return nil, validationErr
+	}
+
+	return resp, nil
 }
