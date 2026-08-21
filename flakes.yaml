@@ -61,4 +61,4 @@ comp/core/flare/helpers:
 # locks onto the first-seen hostname and never reaches the required payload
 # count, failing with "not enough payloads".
 test/new-e2e/tests/npm:
-  - test: TestEC2VMWKitDirectSuite
+  - test: TestEC2VMWKitDirectSuite/Test00FakeIntakeNPM_HostRequests
