@@ -11,7 +11,7 @@ This package remaps the delta OTLP histogram `traces.span.sdk.metrics.duration` 
 | `telemetry.sdk.language` | Payload `Languages` |
 | `span.name` | `Resource` |
 | `span.kind` | `SpanKind` |
-| `status.code` | `Errors` and `HasErrors`; only `STATUS_CODE_ERROR` is an error |
+| `status.code` | `Errors` and `HasErrors`; accepts OTel error code `2` and case-insensitive `ERROR` / `STATUS_CODE_ERROR` |
 | `http.response.status_code` | `HttpStatusCode` |
 | `rpc.response.status_code` | `GrpcStatusCode` |
 | `datadog.operation.name`, or OTel semantic attributes as a fallback | `Name` |
