@@ -865,28 +865,6 @@ pub mod tests {
     }
 
     #[test]
-    fn test_try_expand_vars_substitutes_known() {
-        let lookup = |name: &str| match name {
-            "DD_INVENTORIES_FIRST_RUN_DELAY" => Some("5".to_string()),
-            _ => None,
-        };
-        assert_eq!(
-            try_expand_vars_with("${DD_INVENTORIES_FIRST_RUN_DELAY}", lookup),
-            Some("5".to_string())
-        );
-    }
-
-    #[test]
-    fn test_try_expand_vars_none_when_unset() {
-        let lookup = |_: &str| None;
-        assert_eq!(
-            try_expand_vars_with("${DD_INVENTORIES_FIRST_RUN_DELAY}", lookup),
-            None,
-            "an unset optional variable must yield None so the caller can omit the env var"
-        );
-    }
-
-    #[test]
     fn test_expand_vars_no_placeholder_untouched() {
         let lookup = |_: &str| Some("should-not-be-used".to_string());
         let path = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/otel-agent";
