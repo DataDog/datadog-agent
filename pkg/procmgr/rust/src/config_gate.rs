@@ -114,7 +114,7 @@ impl GatedKeySpec {
     /// Resolution order (most keys): legacy `process_config.enabled` transform
     /// (collection keys not already set in file/env; AgentRuntime, so it outranks
     /// fleet) → fleet policy → env → base YAML → infra-mode (`end_user_device`
-    /// enables process collection) → agent default.
+    /// enables process collection from pre-fleet env/base only) → agent default.
     ///
     /// `system_probe_config.enabled` is special: returns [`system_probe::derived_enabled`] only,
     /// mirroring post-`load()`/`Adjust` `GetBool` (module-derived runtime value).
@@ -203,7 +203,11 @@ impl GatedKeySpec {
     }
 
     /// `applyInfrastructureModeOverrides`: `end_user_device` enables process collection
-    /// at `SourceInfraMode` (above default, below file/env/fleet).
+    /// at `SourceInfraMode` (above default, below file/env).
+    ///
+    /// Runs in `LoadDatadog` before `MergeFleetPolicy` and is not re-run after fleet
+    /// merge (unlike ADP overrides), so `infrastructure_mode` is read from env/base
+    /// YAML only.
     fn infra_mode_process_collection_override(
         &self,
         base_path: &str,
@@ -213,7 +217,7 @@ impl GatedKeySpec {
             return Ok(false);
         }
         Ok(yaml
-            .resolve_string(base_path, "infrastructure_mode", self.fleet_policy_file)?
+            .resolve_string_pre_fleet(base_path, "infrastructure_mode")?
             .is_some_and(|mode| mode == "end_user_device"))
     }
 
@@ -318,6 +322,21 @@ impl YamlCache {
             return Ok(enabled);
         }
         Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(default))
+    }
+
+    /// Env → base YAML (no fleet). Used where Go override funcs run before MergeFleetPolicy.
+    pub(super) fn resolve_string_pre_fleet(
+        &mut self,
+        base_path: &str,
+        key: &str,
+    ) -> anyhow::Result<Option<String>> {
+        if let Some(text) = env_string_for_config_key(key) {
+            return Ok(Some(text));
+        }
+        match self.dotted_key_if_exists(base_path, key)? {
+            Some(value) => Self::string_value(value),
+            None => Ok(None),
+        }
     }
 
     pub(super) fn resolve_string(
@@ -1103,6 +1122,33 @@ process_config:
                 dir.path(),
                 "datadog.yaml",
                 "infrastructure_mode: end_user_device\nprocess_config:\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            assert_gate_key(&agent, "process_config.process_collection.enabled", false);
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_end_user_device_does_not_enable_process_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "infrastructure_mode: end_user_device\nprocess_config:\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
             );
             assert_gate_key(&agent, "process_config.process_collection.enabled", false);
             assert!(!condition_config_any_met(&process_agent_conditions(agent)));
