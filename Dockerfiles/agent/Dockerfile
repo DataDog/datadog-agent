@@ -90,7 +90,7 @@ RUN apt update \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser
+  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser libjemalloc2
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS
@@ -260,7 +260,11 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
-ENV LD_PRELOAD=/opt/lib/nosys.so
+# Swap the C/Python allocator to jemalloc to curb glibc arena fragmentation from
+# multi-threaded Python checks (postgres, kafka_consumer, ...). Stable arch-agnostic
+# symlink so LD_PRELOAD doesn't need the triple. Keep nosys.so in the preload list.
+RUN ln -sf "$(ls /usr/lib/*/libjemalloc.so.2 | head -1)" /opt/lib/libjemalloc.so.2
+ENV LD_PRELOAD=/opt/lib/libjemalloc.so.2:/opt/lib/nosys.so
 
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
