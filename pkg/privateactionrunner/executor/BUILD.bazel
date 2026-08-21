@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "executor",
     srcs = [
+        "agent_client.go",
+        "key_sync.go",
         "server.go",
         "transport_unix.go",
         "transport_windows.go",
@@ -13,12 +15,18 @@ go_library(
     deps = [
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/signingkeys",
+        "//pkg/privateactionrunner/task-verifier",
         "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/core",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/executor",
+        "//pkg/util/grpc",
         "@com_github_benbjohnson_clock//:clock",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//backoff",
+        "@org_golang_google_grpc//metadata",
     ] + select({
         "@rules_go//go/platform:windows": [
             "@com_github_microsoft_go_winio//:go-winio",
@@ -30,6 +38,7 @@ go_library(
 dd_agent_go_test(
     name = "executor_test",
     srcs = [
+        "key_sync_test.go",
         "server_test.go",
         "testaddr_unix_test.go",
         "testaddr_windows_test.go",
@@ -37,15 +46,20 @@ dd_agent_go_test(
     embed = [":executor"],
     deps = [
         "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/task-verifier",
         "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/core",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/executor",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
     ],
 )

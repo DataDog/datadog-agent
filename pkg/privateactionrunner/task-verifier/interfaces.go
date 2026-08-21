@@ -8,6 +8,7 @@ package taskverifier
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/signingkeys"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -16,9 +17,15 @@ type TaskVerifier interface {
 	UnwrapTask(task *types.Task) (*types.Task, error)
 }
 
+// SigningKey is the transport-safe form of a public verification key.
+type SigningKey = signingkeys.Key
+
 // KeysManager manages the signing keys used to verify task envelopes.
 type KeysManager interface {
 	Start(ctx context.Context)
-	GetKey(keyId string) types.DecodedKey
-	WaitForReady()
+	GetKey(keyID string) types.DecodedKey
+	WaitForReady(ctx context.Context) error
+	InstallAuthoritative(keys []SigningKey) error
+	MarkExpired()
+	IsReady() bool
 }
