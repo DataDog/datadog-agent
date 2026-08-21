@@ -11,17 +11,27 @@
 //! rule in `pkg/system-probe/config/adjust.go`. Sk-tracer disables USM in
 //! `pkg/system-probe/config/adjust_npm.go`; discovery conflicts in
 //! `pkg/system-probe/config/adjust_discovery.go`. Module knob resolution uses
-//! highest-priority configured source among fleet, secret (pre-fleet layers only),
-//! env, and YAML ([`super::env_bindings`], `pkg/config/model/types.go` precedence).
+//! highest-priority configured source among fleet, env, and YAML
+//! ([`super::env_bindings`], `pkg/config/model/types.go` precedence). EUD
+//! infra-mode defaults for core-agent keys use pre-fleet `infrastructure_mode`
+//! because `applyInfrastructureModeOverrides` runs before `MergeFleetPolicy`.
 //!
 //! **When module enablement changes in Go, update `derived_enabled` below.**
 
 use std::path::Path;
 
 use super::YamlCache;
+use super::env_bindings::env_bool_for_config_key;
 
 const SYSPROBE_FLEET: &str = "system-probe.yaml";
 const AGENT_FLEET: &str = "datadog.yaml";
+
+/// Keys set to true by `applyInfrastructureModeOverrides` for `end_user_device`.
+const EUD_INFRA_MODE_AGENT_KEYS: &[&str] = &[
+    "software_inventory.enabled",
+    "notable_events.enabled",
+    "logon_duration.enabled",
+];
 
 /// Returns whether any system-probe module would be enabled at runtime (post-`Adjust`).
 pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyhow::Result<bool> {
@@ -157,7 +167,36 @@ impl<'a> Cfg<'a> {
     }
 
     fn agent_bool(&mut self, key: &str) -> anyhow::Result<bool> {
-        self.yaml.resolve_bool(self.agent, key, Some(AGENT_FLEET))
+        if let Some(enabled) = self.agent_bool_if_set(key)? {
+            return Ok(enabled);
+        }
+        Ok(self.infra_mode_eud_agent_bool(key))
+    }
+
+    /// Fleet, env, or base YAML value when the key is explicitly set.
+    fn agent_bool_if_set(&mut self, key: &str) -> anyhow::Result<Option<bool>> {
+        if let Some(path) = self.yaml.fleet_policy_path(AGENT_FLEET, self.agent)?
+            && let Some(enabled) = self.yaml.bool_key_if_exists(&path, key)?
+        {
+            return Ok(Some(enabled));
+        }
+        if let Some(enabled) = env_bool_for_config_key(key) {
+            return Ok(Some(enabled));
+        }
+        self.yaml.bool_key_if_exists(self.agent, key)
+    }
+
+    /// `applyInfrastructureModeOverrides` runs before `MergeFleetPolicy` and is not
+    /// re-run after fleet merge, so retained EUD defaults use pre-fleet infra mode.
+    fn infra_mode_eud_agent_bool(&mut self, key: &str) -> bool {
+        if !EUD_INFRA_MODE_AGENT_KEYS.contains(&key) {
+            return false;
+        }
+        self.yaml
+            .resolve_string_pre_fleet(self.agent, "infrastructure_mode")
+            .ok()
+            .flatten()
+            .is_some_and(|mode| mode == "end_user_device")
     }
 
     fn agent_string(&mut self, key: &str) -> anyhow::Result<Option<String>> {
