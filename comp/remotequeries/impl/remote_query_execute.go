@@ -150,12 +150,14 @@ type RemoteQueryExecuteCopyLimits struct {
 const RemoteQueryResultDeliveryModeMultipartUpload = "POC_PUBLIC_MULTIPART_UPLOAD"
 
 // Caps for result-delivery upload instructions. The Agent forwards these to the integration,
-// which performs the HTTP upload; the Agent does no transport or URL allowlisting.
+// which performs the HTTP upload; the Agent does no transport or URL allowlisting. The part
+// hard cap leaves room to evaluate 100 MiB parts later without another schema change; the
+// total cap matches the backend-owned 10 GiB result ceiling.
 const (
 	remoteQueryUploadDefaultFormat      = "csv"
 	remoteQueryUploadDefaultCompression = "none"
-	remoteQueryUploadMaxPartBytes       = 64 << 20 // 64 MiB
-	remoteQueryUploadMaxTotalBytes      = 1 << 30  // 1 GiB
+	remoteQueryUploadMaxPartBytes       = 128 << 20 // 128 MiB hard part cap
+	remoteQueryUploadMaxTotalBytes      = 10 << 30  // 10 GiB hard total cap
 )
 
 var remoteQueryUploadIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
@@ -215,9 +217,9 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery, copy
 		return nil, errors.New("result_delivery.partBytes must not exceed maxBytes")
 	}
 	if copyLimits != nil {
-		if out.PartBytes > copyLimits.ChunkBytes {
-			return nil, errors.New("result_delivery.partBytes must not exceed copyLimits.chunkBytes")
-		}
+		// COPY read chunks and multipart parts are independent: multiple bounded COPY reads
+		// aggregate into one multipart part, so partBytes may exceed copyLimits.chunkBytes.
+		// copyLimits.maxBytes remains the overall extraction safety ceiling.
 		if out.MaxBytes > copyLimits.MaxBytes {
 			return nil, errors.New("result_delivery.maxBytes must not exceed copyLimits.maxBytes")
 		}

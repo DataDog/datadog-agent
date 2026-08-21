@@ -221,7 +221,7 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 	if inputs.CopyLimits != nil {
 		req.CopyLimits = &pb.RemoteQueryExecuteCopyLimits{
 			ChunkBytes:  int32(inputs.CopyLimits.ChunkBytes),
-			MaxBytes:    int32(inputs.CopyLimits.MaxBytes),
+			MaxBytes:    int64(inputs.CopyLimits.MaxBytes),
 			MaxRowBytes: int32(inputs.CopyLimits.MaxRowBytes),
 			TimeoutMs:   int32(inputs.CopyLimits.TimeoutMs),
 		}
@@ -233,7 +233,7 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 			BaseUrl:     inputs.ResultDelivery.BaseURL,
 			Token:       inputs.ResultDelivery.Token,
 			PartBytes:   int32(inputs.ResultDelivery.PartBytes),
-			MaxBytes:    int32(inputs.ResultDelivery.MaxBytes),
+			MaxBytes:    int64(inputs.ResultDelivery.MaxBytes),
 			Format:      inputs.ResultDelivery.Format,
 			Compression: inputs.ResultDelivery.Compression,
 		}
