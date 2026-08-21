@@ -1,0 +1,125 @@
+// Copyright The OpenTelemetry Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package datadog.otlp.stats;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb";
+
+// OTLPIntakeStatsPayload is the stats payload emitted by OTLP metric intakes.
+// Its field numbers match the backend StatsPayloadV3 wire contract.
+message OTLPIntakeStatsPayload {
+  reserved 1;
+  string host_name = 2;
+  reserved 3;
+  repeated StatsBucketV3 stats = 4;
+  repeated string host_tags = 5;
+  int32 org_id = 6;
+  repeated string languages = 7;
+  reserved 8, 9, 10;
+  string source = 11;
+  bool aggregate = 12;
+  string container_id = 13;
+  bool shadow = 14;
+  map<string, string> resource_by_hash = 15;
+  uint64 koutris_ng_tid = 16;
+  uint64 intake_time = 17;
+  string unique_id = 18;
+}
+
+message StatsBucketV3 {
+  int64 start = 1;
+  int64 duration = 2;
+  repeated GroupedStats stats = 3;
+
+  message GroupedStats {
+    string name = 1;
+    string env = 2;
+    string service = 3;
+    string resource = 4;
+    string version = 5;
+    int32 http_status_code = 6;
+    bool synthetics = 7;
+    repeated Tag other_tags = 8;
+    bool has_hits = 9;
+    bool has_errors = 10;
+    bool has_duration = 11;
+    uint64 hits = 12;
+    uint64 errors = 13;
+    uint64 duration = 14;
+    uint64 top_level_hits = 15;
+    bytes ok_sketch = 16;
+    bytes error_sketch = 17;
+    map<string, uint64> sublayers_by_type = 18;
+    map<string, uint64> sublayers_by_service = 19;
+    Histogram legacy_hit_sketch = 20;
+    Histogram legacy_error_sketch = 21;
+    reserved 22, 23, 24;
+    bool is_inferred = 25;
+    reserved 26;
+    string span_kind = 27;
+    repeated string peer_tags = 28;
+    string base_service = 29;
+    Trilean is_trace_root = 30;
+    repeated PrimaryTag primary_tags = 31;
+    string grpc_status_code = 32;
+    bytes ok_sparse_sketch = 33;
+    bytes error_sparse_sketch = 34;
+  }
+}
+
+enum Trilean {
+  NOT_SET = 0;
+  TRUE = 1;
+  FALSE = 2;
+}
+
+message Tag {
+  string name = 1;
+  string value = 2;
+}
+
+message PrimaryTag {
+  string name = 1;
+  string value = 2;
+  bool service_catalog_enabled = 3;
+  bool service_versions_enabled = 4;
+}
+
+message Histogram {
+  message Entry {
+    double v = 1;
+    int64 g = 2;
+    int64 delta = 3;
+  }
+
+  repeated Entry entries = 1;
+  int64 n = 2;
+}
+
+// SparseSketch is the lossless representation of an OTel explicit histogram.
+message SparseSketch {
+  repeated sint32 k = 1 [packed = true];
+  repeated uint32 n = 2 [packed = true];
+  SparseSketchBasic basic = 3;
+}
+
+message SparseSketchBasic {
+  double sum = 1;
+  double avg = 2;
+  int64 count = 3;
+  double min = 4;
+  double max = 5;
+}
