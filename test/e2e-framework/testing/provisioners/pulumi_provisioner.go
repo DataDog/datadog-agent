@@ -86,6 +86,7 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 	}
 
 	resources := make(RawResources, len(stackOutput.Outputs))
+	secretKeys := make(map[string]bool, len(stackOutput.Outputs))
 	for key, value := range stackOutput.Outputs {
 		// Skipping legacy outputs that are not maps
 		if reflect.TypeOf(value.Value).Kind() != reflect.Map {
@@ -99,9 +100,10 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 		}
 
 		resources[key] = marshalled
+		secretKeys[key] = value.Secret
 	}
 
-	_, err = logger.Write([]byte(fmt.Sprintf("Pulumi stack %s successfully provisioned\nResources:\n%v\n\n", stackName, dumpRawResources(resources))))
+	_, err = logger.Write([]byte(fmt.Sprintf("Pulumi stack %s successfully provisioned\nResources:\n%v\n\n", stackName, dumpRawResources(resources, secretKeys))))
 	if err != nil {
 		// Log the error but don't fail the provisioning
 		fmt.Printf("Failed to write log: %v\n", err)
@@ -110,9 +112,16 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 	return resources, nil
 }
 
-func dumpRawResources(resources RawResources) string {
+// dumpRawResources renders resources for logging, redacting any key marked secret in secretKeys
+// so Pulumi secrets (e.g. the Windows admin password) never appear in plain text in CI/test logs.
+// The real values are still returned via RawResources for in-process use.
+func dumpRawResources(resources RawResources, secretKeys map[string]bool) string {
 	var builder strings.Builder
 	for key, value := range resources {
+		if secretKeys[key] {
+			fmt.Fprintf(&builder, "%s: [secret value redacted from logs]\n", key)
+			continue
+		}
 		fmt.Fprintf(&builder, "%s: %s\n", key, value)
 	}
 	return builder.String()
