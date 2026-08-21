@@ -42,7 +42,6 @@ dd_agent_go_test(
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/datadog/agentparams",
-        "//test/e2e-framework/scenarios/aws/ec2",
         "//test/e2e-framework/scenarios/aws/ec2/windows",
         "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/e2e",
@@ -52,6 +51,8 @@ dd_agent_go_test(
         "//test/new-e2e/tests/windows/common",
         "//test/new-e2e/tests/windows/common/agent",
         "@com_github_cenkalti_backoff_v7//:backoff",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
     ],
 )
