@@ -130,6 +130,17 @@ The signing key is persisted at `~/.fakeintake/signing.key` by default — it mu
 match the agent's stored `remote-config.db`. Generating a new key requires
 flushing that DB.
 
+### TUF version invariant
+
+A TUF version must always identify exactly one target set. Fakeintake bumps its
+version only when a config is added or deleted, and every poll is answered with
+the complete config set — never a subset derived from the requested products.
+go-tuf's client bails out early when the served `timestamp.json` version equals
+the version it already trusts, so a second response at the same version is
+discarded even if its targets differ. Serving a filtered (or otherwise
+inconsistent) set at an already-used version permanently pins the agent to the
+first set it saw. Per-client, per-product delivery is the core Agent's job.
+
 ## CLI usage (`fakeintakectl`)
 
 Use `fakeintakectl` (built from `cmd/client/`) for non-Go callers — Python
