@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReaderV2(t *testing.T) {
@@ -46,7 +47,7 @@ func TestReaderV2(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
 
-	cgroups, err := r.parseCgroups()
+	cgroups, _, err := r.parseCgroups()
 	assert.NoError(t, err)
 
 	expected := map[string]Cgroup{
@@ -68,4 +69,47 @@ func TestReaderV2(t *testing.T) {
 	}
 
 	assert.Empty(t, cmp.Diff(expected, cgroups, cmp.AllowUnexported(cgroupV2{})))
+}
+
+// TestCRIOSubCgroupInodeResolution verifies that DogStatsD origin detection resolves
+// a container when the client reports the inode of a CRI-O sub-cgroup directory
+// (.scope/container/) rather than the parent .scope/ directory.
+func TestCRIOSubCgroupInodeResolution(t *testing.T) {
+	fakeFsPath := t.TempDir()
+
+	containerID := "2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40"
+	scopeRelPath := filepath.Join(
+		"kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-podb3922967_14e1_4867_9388_461bac94b37e.slice",
+		"crio-"+containerID+".scope",
+	)
+	containerPath := filepath.Join(fakeFsPath, scopeRelPath, "container")
+
+	require.NoError(t, os.MkdirAll(containerPath, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "cgroup.controllers"), []byte("cpu io memory"), 0o640))
+
+	// containerInode is the inode of .scope/container/ — what DogStatsD clients report
+	// from inside their cgroup namespace.
+	containerInode := inodeForPath(containerPath)
+	require.NotEqual(t, unknownInode, containerInode)
+
+	// Sanity: the parent .scope/ inode is distinct.
+	scopeInode := inodeForPath(filepath.Join(fakeFsPath, scopeRelPath))
+	require.NotEqual(t, unknownInode, scopeInode)
+	require.NotEqual(t, scopeInode, containerInode)
+
+	impl, err := newReaderV2("", fakeFsPath, ContainerFilter, "")
+	require.NoError(t, err)
+	impl.pidMapper = nil
+
+	reader := &Reader{impl: impl}
+	require.NoError(t, reader.RefreshCgroups(0))
+
+	// The parent container must be discoverable by its ID.
+	expectedCg := reader.GetCgroup(containerID)
+	require.NotNil(t, expectedCg, "container should be registered by ID")
+
+	// The sub-cgroup inode must resolve to the same container.
+	cg := reader.GetCgroupByInode(containerInode)
+	require.NotNil(t, cg, "container/ sub-cgroup inode should resolve to the parent container")
+	assert.Equal(t, expectedCg, cg)
 }
