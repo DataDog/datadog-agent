@@ -24,7 +24,10 @@ type Filter struct {
 	// identify the remote configuration responsible for admitting its path. It
 	// is empty for built-in and local filters.
 	TestConfigID string
-	Tags         []string
+	// TestConfigName is the user-facing name of the RC config. It is empty for
+	// built-in and local filters.
+	TestConfigName string
+	Tags           []string
 }
 
 // matches reports whether the filter matches the given domain and/or IP.
@@ -94,8 +97,9 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 			matchDomain: matchDomainRe,
 			matchIPCidr: matchIPCidr,
 
-			TestConfigID: cfg.TestConfigID,
-			Tags:         slices.Clone(cfg.Tags),
+			TestConfigID:   cfg.TestConfigID,
+			TestConfigName: cfg.TestConfigName,
+			Tags:           slices.Clone(cfg.Tags),
 		})
 	}
 	return &ConnFilter{
@@ -119,8 +123,16 @@ func (f *ConnFilter) Evaluate(domain string, ip netip.Addr) (bool, string) {
 // EvaluateWithTags also returns the config tags of the winning rule. The
 // returned tags are owned by the filter and must not be modified.
 func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, string, []string) {
+	included, testConfigID, _, tags := f.EvaluateWithConfig(domain, ip)
+	return included, testConfigID, tags
+}
+
+// EvaluateWithConfig also returns the name and tags of the remote config whose
+// rule won evaluation. The returned tags are owned by the filter and must not be modified.
+func (f *ConnFilter) EvaluateWithConfig(domain string, ip netip.Addr) (bool, string, string, []string) {
 	isIncluded := true
 	testConfigID := ""
+	testConfigName := ""
 	var tags []string
 	if domain == "" {
 		isIncluded = false
@@ -128,6 +140,7 @@ func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, strin
 	for _, filter := range f.filters {
 		if filter.matches(domain, ip) {
 			testConfigID = filter.TestConfigID
+			testConfigName = filter.TestConfigName
 			tags = filter.Tags
 			if filter.Type == FilterTypeExclude {
 				isIncluded = false
@@ -137,9 +150,9 @@ func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, strin
 		}
 	}
 	if !isIncluded {
-		return false, "", nil
+		return false, "", "", nil
 	}
-	return true, testConfigID, tags
+	return true, testConfigID, testConfigName, tags
 }
 
 // EvaluateDomains evaluates the ordered filter chain against all DNS names
@@ -149,7 +162,7 @@ func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, strin
 // cache ordering from deciding whether a connection is included. When an
 // include rule wins by domain, that matching domain is returned as the path
 // hostname.
-func (f *ConnFilter) EvaluateDomains(domains []string, ip netip.Addr) (bool, string, string, []string) {
+func (f *ConnFilter) EvaluateDomains(domains []string, ip netip.Addr) (bool, string, string, string, []string) {
 	if len(domains) == 0 {
 		domains = []string{""}
 	}
@@ -165,6 +178,7 @@ func (f *ConnFilter) EvaluateDomains(domains []string, ip netip.Addr) (bool, str
 	}
 	defaultHostname := hostname
 	var testConfigID string
+	var testConfigName string
 	var tags []string
 	for _, filter := range f.filters {
 		domainMatched := false
@@ -183,6 +197,7 @@ func (f *ConnFilter) EvaluateDomains(domains []string, ip netip.Addr) (bool, str
 
 		isIncluded = filter.Type == FilterTypeInclude
 		testConfigID = filter.TestConfigID
+		testConfigName = filter.TestConfigName
 		tags = filter.Tags
 		if isIncluded && domainMatched {
 			hostname = matchedDomain
@@ -192,7 +207,7 @@ func (f *ConnFilter) EvaluateDomains(domains []string, ip netip.Addr) (bool, str
 	}
 
 	if !isIncluded {
-		return false, "", "", nil
+		return false, "", "", "", nil
 	}
-	return true, hostname, testConfigID, tags
+	return true, hostname, testConfigID, testConfigName, tags
 }

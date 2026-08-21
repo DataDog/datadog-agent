@@ -32,4 +32,9 @@ type NetworkPathConnection struct {
 	Domains         []string
 	IntraHost       bool
 	SystemProbeConn bool
+
+	// SentBytes and RecvBytes are traffic observed since the previous CNM
+	// snapshot, not lifetime counters.
+	SentBytes uint64
+	RecvBytes uint64
 }

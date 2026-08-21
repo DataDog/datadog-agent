@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    On Windows, the ``wlan`` check no longer panics on hosts where
+    ``wlanapi.dll`` is unavailable. The library ships with the
+    ``Wireless-Networking`` feature, which is not installed by default on
+    Windows Server. Such hosts are now reported as having no active Wi-Fi
+    interface.

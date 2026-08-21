@@ -538,7 +538,7 @@ filters:
 			connFilter, err := getConnFilter(t, tt.config, "", false)
 			require.NoError(t, err)
 
-			included, hostname, _, _ := connFilter.EvaluateDomains(tt.domains, netip.Addr{})
+			included, hostname, _, _, _ := connFilter.EvaluateDomains(tt.domains, netip.Addr{})
 			assert.Equal(t, tt.wantIncluded, included)
 			if tt.wantIncluded && len(tt.wantHostnames) > 0 {
 				assert.Contains(t, tt.wantHostnames, hostname)
@@ -554,25 +554,27 @@ func TestEvaluateDomainsPrefersIncludeMatchedName(t *testing.T) {
 		}, "", false)
 		require.Empty(t, errs)
 
-		included, hostname, testConfigID, tags := filter.EvaluateDomains(
+		included, hostname, testConfigID, testConfigName, tags := filter.EvaluateDomains(
 			[]string{"host.other.test", "host.example.com"}, netip.Addr{})
 		assert.True(t, included)
 		assert.Equal(t, "host.example.com", hostname)
 		assert.Empty(t, testConfigID)
+		assert.Empty(t, testConfigName)
 		assert.Empty(t, tags)
 	})
 
 	t.Run("remote include", func(t *testing.T) {
 		filter, errs := NewConnFilter([]Config{
-			{Type: FilterTypeInclude, MatchDomain: "*.example.com", TestConfigID: "remote-a", Tags: []string{"team:payments"}},
+			{Type: FilterTypeInclude, MatchDomain: "*.example.com", TestConfigID: "remote-a", TestConfigName: "Production paths", Tags: []string{"team:payments"}},
 		}, "", false)
 		require.Empty(t, errs)
 
-		included, hostname, testConfigID, tags := filter.EvaluateDomains(
+		included, hostname, testConfigID, testConfigName, tags := filter.EvaluateDomains(
 			[]string{"host.other.test", "host.example.com"}, netip.Addr{})
 		assert.True(t, included)
 		assert.Equal(t, "host.example.com", hostname)
 		assert.Equal(t, "remote-a", testConfigID)
+		assert.Equal(t, "Production paths", testConfigName)
 		assert.Equal(t, []string{"team:payments"}, tags)
 	})
 }
