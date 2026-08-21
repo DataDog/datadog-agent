@@ -139,10 +139,10 @@ impl GatedKeySpec {
         if let Some(enabled) = self.fleet_policy_value(base_path, yaml)? {
             return Ok(enabled);
         }
-        if let Some(enabled) = self.env_override(base_path) {
+        if let Some(enabled) = self.env_override(base_path)? {
             return Ok(enabled);
         }
-        if let Some(enabled) = yaml.bool_key_if_exists(base_path, self.key)? {
+        if let Some(enabled) = yaml.bool_key_if_exists(base_path, self.key, true)? {
             return Ok(enabled);
         }
         if self.infra_mode_process_collection_override(base_path, yaml)? {
@@ -233,10 +233,10 @@ impl GatedKeySpec {
         let Some(path) = yaml.fleet_policy_path(filename, base_path)? else {
             return Ok(None);
         };
-        yaml.bool_key_if_exists(&path, self.key)
+        yaml.bool_key_if_exists(&path, self.key, false)
     }
 
-    fn env_override(&self, base_path: &str) -> Option<bool> {
+    fn env_override(&self, base_path: &str) -> anyhow::Result<Option<bool>> {
         env_bool_for_config_key(self.key, &agent_datadog_yaml(base_path))
     }
 }
@@ -264,13 +264,12 @@ fn resolve_fleet_policies_dir(raw: &str, agent_yaml: &str) -> Option<String> {
     Some(resolved)
 }
 
-fn resolve_config_scalar_string(text: &str, agent_yaml: &str) -> Option<String> {
-    let resolved = secrets::resolve_config_string(text, agent_yaml);
-    if secrets::is_enc(&resolved) {
-        None
-    } else {
-        Some(resolved)
+fn resolve_config_scalar_string(text: &str, agent_yaml: &str) -> anyhow::Result<Option<String>> {
+    if secrets::is_enc(text) {
+        let resolved = secrets::try_resolve_config_string(text, agent_yaml)?;
+        return Ok(Some(resolved));
     }
+    Ok(Some(text.to_owned()))
 }
 
 pub(super) struct YamlCache(HashMap<String, serde_yaml::Value>);
@@ -335,11 +334,11 @@ impl YamlCache {
         }
         if env_configured_for_key(key) {
             return Ok(
-                env_bool_for_config_key(key, &agent_datadog_yaml(base_path)).unwrap_or(false),
+                env_bool_for_config_key(key, &agent_datadog_yaml(base_path))?.unwrap_or(false),
             );
         }
         if self.dotted_key_if_exists(base_path, key)?.is_some() {
-            return self.get_bool_at(base_path, key);
+            return self.get_bool_at_resolving_secrets(base_path, key);
         }
         Ok(default)
     }
@@ -355,7 +354,16 @@ impl YamlCache {
 
     fn get_bool_at(&mut self, path: &str, key: &str) -> anyhow::Result<bool> {
         Ok(match self.dotted_key_if_exists(path, key)? {
-            Some(value) => value_as_bool(value, &agent_datadog_yaml(path)).unwrap_or(false),
+            Some(value) => try_value_as_bool(value, &agent_datadog_yaml(path), false)?
+                .unwrap_or(false),
+            None => false,
+        })
+    }
+
+    fn get_bool_at_resolving_secrets(&mut self, path: &str, key: &str) -> anyhow::Result<bool> {
+        Ok(match self.dotted_key_if_exists(path, key)? {
+            Some(value) => try_value_as_bool(value, &agent_datadog_yaml(path), true)?
+                .unwrap_or(false),
             None => false,
         })
     }
@@ -368,11 +376,15 @@ impl YamlCache {
     ) -> anyhow::Result<Option<String>> {
         let agent_yaml = agent_datadog_yaml(base_path);
         if let Some(text) = env_string_for_config_key(key) {
-            return Ok(resolve_config_scalar_string(&text, &agent_yaml));
+            return resolve_config_scalar_string(&text, &agent_yaml);
         }
         match self.dotted_key_if_exists(base_path, key)? {
-            Some(value) => Ok(Self::string_value(value)?
-                .and_then(|text| resolve_config_scalar_string(&text, &agent_yaml))),
+            Some(value) => {
+                let Some(text) = Self::string_value(value)? else {
+                    return Ok(None);
+                };
+                resolve_config_scalar_string(&text, &agent_yaml)
+            }
             None => Ok(None),
         }
     }
@@ -462,20 +474,30 @@ impl YamlCache {
         }
     }
 
-    fn bool_key(&mut self, path: &str, key: &str) -> anyhow::Result<Option<bool>> {
+    fn bool_key(
+        &mut self,
+        path: &str,
+        key: &str,
+        resolve_secrets: bool,
+    ) -> anyhow::Result<Option<bool>> {
         let Some(value) = self.dotted_key(path, key)? else {
             return Ok(None);
         };
-        value_as_bool(value, &agent_datadog_yaml(path))
+        try_value_as_bool(value, &agent_datadog_yaml(path), resolve_secrets)?
             .ok_or_else(|| anyhow::anyhow!("key {key} is not a bool"))
             .map(Some)
     }
 
-    fn bool_key_if_exists(&mut self, path: &str, key: &str) -> anyhow::Result<Option<bool>> {
+    fn bool_key_if_exists(
+        &mut self,
+        path: &str,
+        key: &str,
+        resolve_secrets: bool,
+    ) -> anyhow::Result<Option<bool>> {
         if !Path::new(path).is_file() {
             return Ok(None);
         }
-        self.bool_key(path, key)
+        self.bool_key(path, key, resolve_secrets)
     }
 
     fn dotted_key<'a>(
@@ -555,12 +577,9 @@ fn transform_time_bool(
     key: &str,
 ) -> anyhow::Result<Option<bool>> {
     if env_configured_for_key(key) {
-        Ok(env_bool_for_config_key(
-            key,
-            &agent_datadog_yaml(base_path),
-        ))
+        env_bool_for_config_key(key, &agent_datadog_yaml(base_path))
     } else if yaml.key_in_yaml(base_path, key)? {
-        yaml.bool_key_if_exists(base_path, key)
+        yaml.bool_key_if_exists(base_path, key, true)
     } else {
         Ok(None)
     }
@@ -679,22 +698,35 @@ fn lookup_dotted_key_in_mapping<'a>(
     lookup_dotted_key_in_mapping(next, rest)
 }
 
-fn value_as_bool(value: &serde_yaml::Value, agent_yaml: &str) -> Option<bool> {
+fn try_value_as_bool(
+    value: &serde_yaml::Value,
+    agent_yaml: &str,
+    resolve_secrets: bool,
+) -> anyhow::Result<Option<bool>> {
     match value {
         // Plain YAML 1.1 bools (`yes`/`on`/…) are coerced to bool at load time in [`yaml_load`].
-        serde_yaml::Value::Bool(enabled) => Some(*enabled),
+        serde_yaml::Value::Bool(enabled) => Ok(Some(*enabled)),
         // `cast.ToBoolE`: any non-zero number is true, including yaml.v2 floats such as `1.0`.
-        serde_yaml::Value::Number(number) => Some(number_as_bool(number)),
-        // Quoted scalars: secret resolution then `strconv.ParseBool`.
+        serde_yaml::Value::Number(number) => Ok(Some(number_as_bool(number))),
+        // Quoted scalars: optional secret resolution then `strconv.ParseBool`.
         serde_yaml::Value::String(text) => {
-            let resolved = secrets::resolve_config_string(text, agent_yaml);
-            if secrets::is_enc(&resolved) {
-                return None;
+            if secrets::is_enc(text) {
+                if !resolve_secrets {
+                    return Ok(None);
+                }
+                let resolved = secrets::try_resolve_config_string(text, agent_yaml)?;
+                return Ok(parse_agent_bool_string(&resolved));
             }
-            Some(parse_agent_bool_string(&resolved).unwrap_or(false))
+            Ok(parse_agent_bool_string(text).or(Some(false)))
         }
-        _ => None,
+        _ => Ok(None),
     }
+}
+
+fn value_as_bool(value: &serde_yaml::Value, agent_yaml: &str) -> Option<bool> {
+    try_value_as_bool(value, agent_yaml, true)
+        .ok()
+        .flatten()
 }
 
 fn number_as_bool(number: &serde_yaml::Number) -> bool {
@@ -1361,7 +1393,7 @@ process_config:
                     "process_config.process_discovery.enabled",
                     "/nonexistent/datadog.yaml",
                 ),
-                None
+                Ok(None)
             );
             assert!(!env_configured_for_key(
                 "process_config.process_discovery.enabled"
@@ -1381,7 +1413,7 @@ process_config:
                     "process_config.process_discovery.enabled",
                     "/nonexistent/datadog.yaml",
                 ),
-                Some(true)
+                Ok(Some(true))
             );
             assert!(env_configured_for_key(
                 "process_config.process_discovery.enabled"
@@ -1443,7 +1475,7 @@ process_config:
                     "process_config.container_collection.enabled",
                     "/nonexistent/datadog.yaml",
                 ),
-                Some(false)
+                Ok(Some(false))
             );
         });
     }
@@ -2101,7 +2133,7 @@ process_config:
             "process_config.container_collection.enabled",
             "process_config.process_discovery.enabled",
         ] {
-            cache.bool_key(&path, key).unwrap();
+            cache.bool_key(&path, key, true).unwrap();
         }
         assert_eq!(cache.loaded_file_count(), 1);
     }
@@ -3195,7 +3227,7 @@ process_config:
     }
 
     #[test]
-    fn env_bool_unresolved_secret_falls_through_instead_of_false() {
+    fn env_bool_unresolved_secret_errors_instead_of_falling_through() {
         with_env_lock(|| {
             clear_gated_env_vars();
             let _enc = EnvGuard::set(
@@ -3203,13 +3235,36 @@ process_config:
                 "ENC[missing_backend]",
             );
 
-            assert_eq!(
+            assert!(
                 env_bool_for_config_key(
                     "process_config.process_collection.enabled",
                     "/nonexistent/datadog.yaml",
-                ),
-                None
+                )
+                .is_err()
             );
+        });
+    }
+
+    #[test]
+    fn unresolved_env_secret_blocks_gate_despite_yaml_true() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _enc = EnvGuard::set(
+                "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
+                "ENC[missing_backend]",
+            );
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: true\n  process_discovery:\n    enabled: false\n",
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_collection.enabled".into()],
+            }];
+            assert!(!condition_config_any_met(&conditions));
         });
     }
 
@@ -3252,7 +3307,8 @@ process_config:
             );
 
             assert_eq!(
-                env_bool_for_config_key("process_config.process_collection.enabled", &agent),
+                env_bool_for_config_key("process_config.process_collection.enabled", &agent)
+                    .unwrap(),
                 Some(true)
             );
         });

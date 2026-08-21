@@ -178,13 +178,10 @@ impl<'a> Cfg<'a> {
         {
             return Ok(Some(self.yaml.get_bool_at(&path, key)?));
         }
-        if let Some(enabled) = env_bool_for_config_key(key, self.agent) {
+        if let Some(enabled) = env_bool_for_config_key(key, self.agent)? {
             return Ok(Some(enabled));
         }
-        if self.yaml.dotted_key_if_exists(self.agent, key)?.is_some() {
-            return Ok(Some(self.yaml.get_bool_at(self.agent, key)?));
-        }
-        Ok(None)
+        self.yaml.bool_key_if_exists(self.agent, key, true)
     }
 
     /// `applyInfrastructureModeOverrides` runs before `MergeFleetPolicy` and is not

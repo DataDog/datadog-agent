@@ -60,16 +60,24 @@ pub(super) fn is_enc(value: &str) -> bool {
 
 /// Resolve `ENC[handle]` through the Agent secret backend; return `raw` unchanged otherwise.
 pub(super) fn resolve_config_string(raw: &str, agent_yaml: &str) -> String {
-    let Some(handle) = enc_handle(raw) else {
-        return raw.to_owned();
-    };
-    match resolve_handle(&handle, agent_yaml) {
+    match try_resolve_config_string(raw, agent_yaml) {
         Ok(value) => value,
         Err(err) => {
-            debug!("config gate secret resolve failed for {handle}: {err:#}");
+            if let Some(handle) = enc_handle(raw) {
+                debug!("config gate secret resolve failed for {handle}: {err:#}");
+            }
             raw.to_owned()
         }
     }
+}
+
+/// Like [`resolve_config_string`], but returns an error when a configured backend cannot
+/// decrypt a pre-fleet `ENC[...]` value (mirrors Agent `LoadDatadog` secret resolution).
+pub(super) fn try_resolve_config_string(raw: &str, agent_yaml: &str) -> Result<String> {
+    let Some(handle) = enc_handle(raw) else {
+        return Ok(raw.to_owned());
+    };
+    resolve_handle(&handle, agent_yaml).with_context(|| format!("decrypt secret {handle}"))
 }
 
 fn enc_handle(value: &str) -> Option<String> {

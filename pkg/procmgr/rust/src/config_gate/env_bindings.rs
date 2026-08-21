@@ -103,7 +103,10 @@ pub(super) fn env_vars_for_key(key: &str) -> &'static [&'static str] {
         .unwrap_or(&[])
 }
 
-pub(super) fn env_bool_for_config_key(key: &str, agent_yaml: &str) -> Option<bool> {
+pub(super) fn env_bool_for_config_key(
+    key: &str,
+    agent_yaml: &str,
+) -> anyhow::Result<Option<bool>> {
     let names = env_vars_for_key(key);
     if !names.is_empty() {
         return env_bool_from_names(names, agent_yaml);
@@ -154,24 +157,21 @@ fn env_var_nonempty(name: &str) -> bool {
     env_var_value(name).is_some()
 }
 
-fn env_bool_from_names(names: &[&str], agent_yaml: &str) -> Option<bool> {
+fn env_bool_from_names(names: &[&str], agent_yaml: &str) -> anyhow::Result<Option<bool>> {
     for name in names {
         if let Some(value) = env_var_value(name) {
             return bool_from_env_string(&value, agent_yaml);
         }
     }
-    None
+    Ok(None)
 }
 
-fn bool_from_env_string(value: &str, agent_yaml: &str) -> Option<bool> {
-    let resolved = secrets::resolve_config_string(value, agent_yaml);
-    if let Some(enabled) = super::parse_agent_bool_string(&resolved) {
-        return Some(enabled);
-    }
+fn bool_from_env_string(value: &str, agent_yaml: &str) -> anyhow::Result<Option<bool>> {
     if secrets::is_enc(value) {
-        return None;
+        let resolved = secrets::try_resolve_config_string(value, agent_yaml)?;
+        return Ok(super::parse_agent_bool_string(&resolved));
     }
-    Some(super::parse_agent_bool_string(value).unwrap_or(false))
+    Ok(super::parse_agent_bool_string(value).or(Some(false)))
 }
 
 /// Core Agent SCM `Environment` overrides, then dd-procmgr process env.
