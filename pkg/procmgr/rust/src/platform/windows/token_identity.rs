@@ -12,16 +12,6 @@ use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken}
 
 use super::win_handle::WinHandle;
 
-#[cfg(test)]
-use windows_sys::Win32::Security::{GetLengthSid, LookupAccountSidW};
-
-#[cfg(test)]
-use super::account_name::AccountName;
-#[cfg(test)]
-use super::local_account::is_local_account;
-#[cfg(test)]
-use super::wide;
-
 /// Returns whether `token`'s user SID is the built-in LocalSystem account.
 pub(crate) fn token_user_is_local_system(token: HANDLE) -> std::io::Result<bool> {
     if token.is_null() {
@@ -61,111 +51,6 @@ pub(crate) fn token_user_is_local_system(token: HANDLE) -> std::io::Result<bool>
     }
 
     Ok(unsafe { IsWellKnownSid(sid, WinLocalSystemSid) != 0 })
-}
-
-/// Resolve `DOMAIN\user` for the current process primary token.
-#[cfg(test)]
-pub(crate) fn current_process_account_display() -> std::io::Result<String> {
-    let token = open_current_process_token(windows_sys::Win32::Security::TOKEN_QUERY)?;
-    let sid = token_user_sid(token.as_handle())?;
-    Ok(lookup_account_display(&sid)?.display())
-}
-
-#[cfg(test)]
-fn token_user_sid(token: HANDLE) -> std::io::Result<Vec<u8>> {
-    if token.is_null() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "null token handle",
-        ));
-    }
-
-    let mut size = 0u32;
-    let _ = unsafe { GetTokenInformation(token, TokenUser, ptr::null_mut(), 0, &mut size) };
-    if size == 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-
-    let mut buffer = vec![0u8; size as usize];
-    let ok = unsafe {
-        GetTokenInformation(
-            token,
-            TokenUser,
-            buffer.as_mut_ptr().cast(),
-            size,
-            &mut size,
-        )
-    };
-    if ok == 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-
-    let token_user = unsafe { ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>()) };
-    let sid_ptr = token_user.User.Sid;
-    if sid_ptr.is_null() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "TokenUser SID is null",
-        ));
-    }
-
-    let sid_len = unsafe { GetLengthSid(sid_ptr) };
-    if sid_len == 0 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "GetLengthSid returned 0",
-        ));
-    }
-    let mut sid = vec![0u8; sid_len as usize];
-    unsafe {
-        std::ptr::copy_nonoverlapping(sid_ptr as *const u8, sid.as_mut_ptr(), sid_len as usize);
-    }
-    Ok(sid)
-}
-
-#[cfg(test)]
-fn lookup_account_display(sid: &[u8]) -> std::io::Result<AccountName> {
-    unsafe {
-        let sid_ptr = sid.as_ptr().cast_mut().cast();
-        let mut name_size = 0u32;
-        let mut domain_size = 0u32;
-        let mut sid_type = 0i32;
-        let _ = LookupAccountSidW(
-            ptr::null(),
-            sid_ptr,
-            ptr::null_mut(),
-            &mut name_size,
-            ptr::null_mut(),
-            &mut domain_size,
-            &mut sid_type,
-        );
-
-        let mut name = vec![0u16; name_size as usize];
-        let mut domain = vec![0u16; domain_size as usize];
-        if LookupAccountSidW(
-            ptr::null(),
-            sid_ptr,
-            name.as_mut_ptr(),
-            &mut name_size,
-            domain.as_mut_ptr(),
-            &mut domain_size,
-            &mut sid_type,
-        ) == 0
-        {
-            return Err(std::io::Error::last_os_error());
-        }
-
-        name.truncate(name_size as usize);
-        domain.truncate(domain_size as usize);
-        let user = wide::from_slice(&name);
-        let domain = wide::from_slice(&domain);
-        let domain = if is_local_account(sid).unwrap_or(false) {
-            String::new()
-        } else {
-            domain
-        };
-        Ok(AccountName::new(domain, user))
-    }
 }
 
 /// Opens the current process token with the requested access rights.

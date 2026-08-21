@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
@@ -15,6 +15,8 @@ use windows_sys::Win32::System::Threading::{
 
 use crate::spawn::SpawnRequest;
 
+use super::super::agent_credentials::AgentAccount;
+use super::super::token_identity::{open_current_process_token, token_user_is_local_system};
 use super::super::wide;
 use super::credential::SpawnCredential;
 use super::logon::TokenHandle;
@@ -116,6 +118,21 @@ pub(super) fn spawn_as_primary_token(
         SuspendedChild::new(pi.dwProcessId, pi.hProcess, pi.hThread),
         profile_guard,
     ))
+}
+
+fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {
+    let process_token = open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE).map_err(|e| {
+        anyhow!("[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}")
+    })?;
+    if !token_user_is_local_system(process_token.as_handle()).map_err(|e| {
+        anyhow!("[{process_name}] verify supervisor token is LocalSystem: {e}")
+    })? {
+        bail!(
+            "[{process_name}] privileged spawn requires dd-procmgrd to run as LocalSystem; \
+             supervisor token is not LocalSystem (for example console fallback)"
+        );
+    }
+    duplicate_primary_token(process_name, process_token.as_handle())
 }
 
 #[cfg(test)]
