@@ -11,7 +11,9 @@ use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 
 use crate::spawn::SpawnProfile;
 
-use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
+use super::super::agent_credentials::AgentAccount;
+#[cfg(not(test))]
+use super::super::agent_credentials::resolve_agent_account;
 use super::super::token_identity::{open_current_process_token, token_user_is_local_system};
 use super::logon::{logon_user_credentials, logon_user_token};
 use super::win32::duplicate_primary_token;
@@ -30,6 +32,7 @@ pub(crate) enum SpawnCredential {
         /// Privileged spawn and production LocalSystem agent spawn require this.
         require_local_system: bool,
     },
+    #[cfg_attr(test, allow(dead_code))]
     Logon(AgentAccount),
 }
 
@@ -51,7 +54,7 @@ impl SpawnCredential {
     fn resolve_agent_profile() -> Result<Self> {
         #[cfg(test)]
         {
-            return super::test_harness::agent_profile_credential();
+            super::test_harness::agent_profile_credential()
         }
         #[cfg(not(test))]
         {

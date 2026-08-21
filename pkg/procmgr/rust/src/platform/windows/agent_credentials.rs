@@ -4,7 +4,13 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result, bail};
-use log::info;
+#[cfg(not(test))]
+use std::ptr;
+#[cfg(not(test))]
+use windows_sys::Win32::Security::Authentication::Identity::{
+    LSA_HANDLE, LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LsaClose, LsaFreeMemory, LsaOpenPolicy,
+    LsaRetrievePrivateData, POLICY_GET_PRIVATE_INFORMATION,
+};
 use windows_sys::Win32::Security::{
     IsWellKnownSid, WinLocalServiceSid, WinLocalSystemSid, WinNetworkServiceSid,
 };
@@ -18,13 +24,15 @@ use super::local_account::is_local_account;
 use super::managed_service_account::ManagedServiceAccountState;
 #[cfg(not(test))]
 use super::managed_service_account::query_managed_service_account;
-#[cfg(not(test))]
-use super::scm_lsa_secret::read_scm_service_password;
 use super::sid::lookup_account_sid;
+#[cfg(not(test))]
+use super::wide;
 #[cfg(not(test))]
 use super::{open_datadog_agent_key, registry_nonempty_string};
 
+#[cfg(not(test))]
 const AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
+#[cfg(not(test))]
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 const NT_AUTHORITY: &str = "NT AUTHORITY";
 
@@ -113,6 +121,7 @@ pub(crate) fn spawn_user_for_profile(
         .map(|credential| credential.display_name())
 }
 
+#[cfg(not(test))]
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     let Some(key) = open_datadog_agent_key() else {
         bail!("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent");
@@ -138,6 +147,7 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     resolve_domain_agent_account(domain, user, &sid)
 }
 
+#[cfg(not(test))]
 fn resolve_domain_agent_account(domain: String, user: String, sid: &[u8]) -> Result<AgentAccount> {
     let display = AccountName::new(&domain, &user).display();
     info!("resolving domain agent account for {display}");
@@ -317,42 +327,70 @@ fn is_well_known_sid(
     unsafe { IsWellKnownSid(sid.as_ptr() as *mut _, well_known) != 0 }
 }
 
-/// Return the SCM-stored agent password when datadogagent runs as that user.
-fn scm_agent_password(
-    scm_service_password: Option<&str>,
-    scm_service_matches_agent: bool,
-) -> Option<String> {
-    if scm_service_matches_agent {
-        scm_service_password
-            .filter(|password| !password.is_empty())
-            .map(str::to_string)
-    } else {
-        None
+#[cfg(not(test))]
+fn read_agent_password_from_lsa() -> Result<Option<String>> {
+    let mut key_w = wide::null_terminated(AGENT_PASSWORD_LSA_KEY);
+    let key_len = key_w.len().saturating_sub(1);
+    let key_name = LSA_UNICODE_STRING {
+        Length: (key_len * 2) as u16,
+        MaximumLength: (key_w.len() * 2) as u16,
+        Buffer: key_w.as_mut_ptr(),
+    };
+
+    unsafe {
+        let object_attributes: LSA_OBJECT_ATTRIBUTES = std::mem::zeroed();
+        let mut policy_handle: LSA_HANDLE = 0;
+
+        let status = LsaOpenPolicy(
+            ptr::null(),
+            &object_attributes,
+            POLICY_GET_PRIVATE_INFORMATION as u32,
+            &mut policy_handle,
+        );
+        if status != 0 {
+            bail!("LsaOpenPolicy: NTSTATUS {status:#010x}");
+        }
+
+        let policy = PolicyHandle(policy_handle);
+        let mut secret: *mut LSA_UNICODE_STRING = ptr::null_mut();
+        let status = LsaRetrievePrivateData(policy.0, &key_name, &mut secret);
+
+        if status == STATUS_OBJECT_NAME_NOT_FOUND {
+            return Ok(None);
+        }
+        if status != 0 {
+            bail!("LsaRetrievePrivateData: NTSTATUS {status:#010x}");
+        }
+        if secret.is_null() {
+            return Ok(None);
+        }
+
+        let secret_ref = &*secret;
+        let char_count = secret_ref.Length as usize / 2;
+        let password = if char_count == 0 {
+            String::new()
+        } else {
+            let slice = std::slice::from_raw_parts(secret_ref.Buffer, char_count);
+            String::from_utf16_lossy(slice)
+        };
+
+        LsaFreeMemory(secret as _);
+        Ok(Some(password))
     }
 }
 
 #[cfg(not(test))]
-fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
-    // dd-procmgrd runs as LocalSystem. Read the SCM-stored datadogagent password via a
-    // temporary LSA secret copy: direct LsaRetrievePrivateData on _SC_* names returns
-    // STATUS_ACCESS_DENIED even for SYSTEM.
-    let scm_service_matches_agent =
-        service_runs_as_agent_user(DATADOG_AGENT_SERVICE, domain, user)?;
-    let scm_password = if scm_service_matches_agent {
-        read_scm_service_password(DATADOG_AGENT_SERVICE)?
-    } else {
-        None
-    };
-    info!(
-        "agent SCM password for {domain}\\{user}: service_account_matches={scm_service_matches_agent}, password_present={}",
-        scm_password
-            .as_ref()
-            .is_some_and(|password| !password.is_empty())
-    );
-    Ok(scm_agent_password(
-        scm_password.as_deref(),
-        scm_service_matches_agent,
-    ))
+struct PolicyHandle(LSA_HANDLE);
+
+#[cfg(not(test))]
+impl Drop for PolicyHandle {
+    fn drop(&mut self) {
+        if self.0 != 0 {
+            unsafe {
+                LsaClose(self.0);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
