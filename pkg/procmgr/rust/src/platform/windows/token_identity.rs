@@ -6,15 +6,21 @@
 use std::ptr;
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{
-    GetLengthSid, GetTokenInformation, IsWellKnownSid, LookupAccountSidW, TOKEN_USER, TokenUser,
-    WinLocalSystemSid,
+    GetTokenInformation, IsWellKnownSid, TOKEN_USER, TokenUser, WinLocalSystemSid,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
-use super::account_name::AccountName;
-use super::local_account::is_local_account;
-use super::wide;
 use super::win_handle::WinHandle;
+
+#[cfg(test)]
+use windows_sys::Win32::Security::{GetLengthSid, LookupAccountSidW};
+
+#[cfg(test)]
+use super::account_name::AccountName;
+#[cfg(test)]
+use super::local_account::is_local_account;
+#[cfg(test)]
+use super::wide;
 
 /// Returns whether `token`'s user SID is the built-in LocalSystem account.
 pub(crate) fn token_user_is_local_system(token: HANDLE) -> std::io::Result<bool> {
