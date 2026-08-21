@@ -15,6 +15,7 @@ use std::time::Duration;
 
 const SKIP_TASK_VERIFICATION_ENV: &str = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION";
 const HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(30);
+const EXECUTOR_READY_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_MODE: &str = "pull";
 
 pub const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
@@ -45,7 +46,6 @@ pub struct Config {
     pub heartbeat_interval: Duration,
     pub health_check_interval: Duration,
     pub ready_timeout: Duration,
-    pub key_sync_timeout: Duration,
     pub opms_request_timeout: Duration,
     pub opms_extra_headers: HashMap<String, String>,
     pub proxy: ProxyConfig,
@@ -192,8 +192,7 @@ impl Config {
             loop_interval: Duration::from_secs(1),
             heartbeat_interval: HEARTBEAT_INTERVAL,
             health_check_interval: HEALTH_CHECK_INTERVAL,
-            ready_timeout: Duration::from_secs(10),
-            key_sync_timeout: Duration::from_secs(120),
+            ready_timeout: EXECUTOR_READY_TIMEOUT,
             opms_request_timeout: Duration::from_secs(30),
             opms_extra_headers: par.opms_extra_headers.unwrap_or_default(),
             proxy,
@@ -469,6 +468,7 @@ private_action_runner:
         assert_eq!(cfg.executor_process_name, EXECUTOR_PROCESS_NAME);
         assert_eq!(cfg.executor_socket, PathBuf::from(DEFAULT_EXECUTOR_SOCKET));
         assert_eq!(cfg.procmgr_socket, dd_procmgr_client::default_ipc_path());
+        assert_eq!(cfg.ready_timeout, EXECUTOR_READY_TIMEOUT);
         assert_eq!(cfg.ipc_cert_file, PathBuf::from("ipc_cert.pem"));
     }
 
