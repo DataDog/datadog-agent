@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -135,6 +136,33 @@ func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 	require.Empty(t, e.taggedClusterer.GetAllClusters(), "Reset must clear cluster state")
 }
 
+func TestLogPatternExtractorTelemetryTracksActivePatterns(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.SetObserverTelemetry(newObserverTelemetry(telComp))
+
+	// These use separate tag groups, so each creates one active pattern even
+	// though neither has reached the metric-emission threshold yet.
+	e.ProcessLog(&mockLogView{
+		content: "GET /users/123 returned 500",
+		status:  "warn",
+		tags:    []string{"service:api"},
+	})
+	e.ProcessLog(&mockLogView{
+		content: "GET /users/123 returned 500",
+		status:  "warn",
+		tags:    []string{"service:worker"},
+	})
+
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
+
+	e.Reset()
+	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
+}
+
 func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 
@@ -177,7 +205,12 @@ func TestLogPatternExtractor_ZeroConfigAppliesGCDefaults(t *testing.T) {
 }
 
 func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.SetObserverTelemetry(newObserverTelemetry(telComp))
 	e.config.MinClusterSizeBeforeEmit = 1
 	e.config.ClusterTimeToLiveSec = 10
 	// GC scheduling uses wall-clock seconds; 0 means the next ProcessLog can run
@@ -219,6 +252,8 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	// Only cluster B should remain in the tagged clusterer.
 	remaining := e.taggedClusterer.GetAllClusters()
 	require.Len(t, remaining, 1, "stale cluster should be removed from tagged clusterer")
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue(),
+		"active-pattern telemetry should remove the stale cluster before counting its replacement")
 }
 
 func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testing.T) {
@@ -318,6 +353,10 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 }
 
 func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
 	// Configure tight cap with MinClusterSizeBeforeEmit=1 so each new shape
 	// emits a metric (and therefore a context entry) on its first appearance.
 	cfg := DefaultLogPatternExtractorConfig()
@@ -325,6 +364,7 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 	cfg.MaxPatternsPerGroup = 2
 	cfg.MaxTagGroups = -1 // disable group cap so we test only per-group LRU
 	e := NewLogPatternExtractor(cfg)
+	e.SetObserverTelemetry(newObserverTelemetry(telComp))
 
 	tags := []string{"service:api"}
 	// Three distinct shapes (different token counts → different signatures →
@@ -359,6 +399,8 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 
 	require.Equal(t, 1, e.taggedClusterer.NumSubClusterers(), "single tag group across all messages")
 	require.Len(t, e.taggedClusterer.GetAllClusters(), 2, "cap holds at MaxPatternsPerGroup=2")
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue(),
+		"active-pattern telemetry should track the LRU-bounded resident set")
 }
 
 func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
