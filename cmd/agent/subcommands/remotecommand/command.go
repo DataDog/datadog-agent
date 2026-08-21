@@ -125,9 +125,12 @@ func runListCommands(params *cliParams) error {
 // runExecuteCommand calls ExecuteCommand on the Core Agent to proxy a command to a remote agent.
 func runExecuteCommand(params *cliParams, commandPath string, args []string) error {
 	arguments := &structpb.Struct{Fields: make(map[string]*structpb.Value)}
-	for _, arg := range args {
-		// Forward positional args as a string list.
-		arguments.Fields["args"] = structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{structpb.NewStringValue(arg)}})
+	if len(args) > 0 {
+		values := make([]*structpb.Value, 0, len(args))
+		for _, arg := range args {
+			values = append(values, structpb.NewStringValue(arg))
+		}
+		arguments.Fields["args"] = structpb.NewListValue(&structpb.ListValue{Values: values})
 	}
 
 	return fxutil.OneShot(

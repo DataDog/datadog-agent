@@ -22,7 +22,7 @@ type Component interface {
 	GetRegisteredAgentStatuses() []StatusData
 
 	// ListCommands queries all registered remote agents that advertise the command provider service and returns a
-	// map of agent flavor to the commands they expose.
+	// slice of AgentCommands, one per agent that responded.
 	ListCommands() []AgentCommands
 
 	// ExecuteCommand routes a command execution request to the remote agent that owns the given command path.
