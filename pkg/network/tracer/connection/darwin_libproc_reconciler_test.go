@@ -81,6 +81,117 @@ func TestDarwinLibprocReconcilerRejectsAmbiguousOwnership(t *testing.T) {
 	require.Zero(t, buffer.Connections()[0].Pid)
 }
 
+func TestDarwinLibprocReconcilerRejectsCandidateWithWrongPID(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	flow := testNStatTCPFlow(1234, tcpStateEstablished)
+	flow.Remote = nstat.Endpoint{}
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 1,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      flow,
+	})
+
+	resolved, ambiguous, reuseRejected := tracer.reconcileLibprocSnapshot(libproc.Snapshot{
+		Observations: []libproc.Observation{testDarwinLibprocObservation(5678, 1)},
+	})
+
+	require.Zero(t, resolved)
+	require.Zero(t, ambiguous)
+	require.Zero(t, reuseRejected)
+	require.Equal(t, uint32(1234), tracer.sources[1].flow.PID)
+	require.False(t, nstatEndpointComplete(tracer.sources[1].flow.Remote))
+}
+
+func TestDarwinLibprocReconcilerSelectsCandidateWithAuthoritativePID(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	flow := testNStatTCPFlow(1234, tcpStateEstablished)
+	flow.Remote = nstat.Endpoint{}
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 1,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      flow,
+	})
+	correct := testDarwinLibprocObservation(1234, 1)
+	wrong := testDarwinLibprocObservation(5678, 1)
+	wrong.Tuple.Dest.Addr = netip.MustParseAddr("198.51.100.21")
+	wrong.Tuple.DPort = 8443
+
+	resolved, ambiguous, reuseRejected := tracer.reconcileLibprocSnapshot(libproc.Snapshot{
+		Observations: []libproc.Observation{wrong, correct},
+	})
+
+	require.Equal(t, 1, resolved)
+	require.Zero(t, ambiguous)
+	require.Zero(t, reuseRejected)
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.Equal(t, uint32(1234), buffer.Connections()[0].Pid)
+	require.Equal(t, correct.Tuple.Dest.Addr, buffer.Connections()[0].Dest.Addr)
+	require.Equal(t, correct.Tuple.DPort, buffer.Connections()[0].DPort)
+}
+
+func TestDarwinLibprocReconcilerRejectsAmbiguousSocketsFromSameProcess(t *testing.T) {
+	first := testDarwinLibprocObservation(1234, 1)
+	second := first
+	second.Tuple.Dest.Addr = netip.MustParseAddr("198.51.100.21")
+	second.Tuple.DPort = 8443
+
+	for name, observations := range map[string][]libproc.Observation{
+		"forward scan order": {first, second},
+		"reverse scan order": {second, first},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+			flow := testNStatTCPFlow(0, tcpStateEstablished)
+			flow.Remote = nstat.Endpoint{}
+			tracer.processEvent(nstat.Event{
+				Kind:      nstat.EventDescription,
+				SourceRef: 1,
+				Provider:  nstat.ProviderTCPKernel,
+				Flow:      flow,
+			})
+
+			resolved, ambiguous, reuseRejected := tracer.reconcileLibprocSnapshot(libproc.Snapshot{
+				Observations: observations,
+			})
+
+			require.Zero(t, resolved)
+			require.Equal(t, 1, ambiguous)
+			require.Zero(t, reuseRejected)
+			require.False(t, nstatEndpointComplete(tracer.sources[1].flow.Remote))
+		})
+	}
+}
+
+func TestDarwinLibprocReconcilerDeduplicatesIdenticalSocketObservations(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	flow := testNStatTCPFlow(0, tcpStateEstablished)
+	flow.Remote = nstat.Endpoint{}
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 1,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      flow,
+	})
+	observation := testDarwinLibprocObservation(1234, 1)
+
+	resolved, ambiguous, reuseRejected := tracer.reconcileLibprocSnapshot(libproc.Snapshot{
+		Observations: []libproc.Observation{observation, observation},
+	})
+
+	require.Equal(t, 1, resolved)
+	require.Zero(t, ambiguous)
+	require.Zero(t, reuseRejected)
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.Equal(t, observation.Tuple.Dest.Addr, buffer.Connections()[0].Dest.Addr)
+	require.Equal(t, observation.Tuple.DPort, buffer.Connections()[0].DPort)
+}
+
 func TestDarwinLibprocEvidenceCannotOverwriteNStatTuple(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
 	flow := testNStatTCPFlow(0, tcpStateEstablished)

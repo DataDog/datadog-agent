@@ -115,9 +115,9 @@ type darwinProcessIdentity struct {
 	startTime uint64
 }
 
-type darwinLibprocCandidate struct {
-	observation libproc.Observation
-	score       int
+type darwinLibprocCandidateIdentity struct {
+	process darwinProcessIdentity
+	tuple   network.ConnectionTuple
 }
 
 func (t *nstatTracer) reconcileLibprocSnapshot(snapshot libproc.Snapshot) (resolved, ambiguous, reuseRejected int) {
@@ -252,8 +252,11 @@ const (
 func matchDarwinLibprocSource(source *nstatSource, observations []libproc.Observation) (libproc.Observation, darwinLibprocMatchStatus) {
 	target := tupleFromNStatFlow(source)
 	bestScore := -1
-	candidates := make(map[darwinProcessIdentity]darwinLibprocCandidate)
+	candidates := make(map[darwinLibprocCandidateIdentity]libproc.Observation)
 	for _, observation := range observations {
+		if source.flow.PID != 0 && observation.PID != source.flow.PID {
+			continue
+		}
 		forward := scoreDarwinLibprocTuple(observation.Tuple, target, false)
 		reverse := scoreDarwinLibprocTuple(observation.Tuple, target, true)
 		if forward < 0 || forward <= reverse {
@@ -266,14 +269,14 @@ func matchDarwinLibprocSource(source *nstatSource, observations []libproc.Observ
 		if forward != bestScore {
 			continue
 		}
-		identity := darwinProcessIdentity{
-			pid:       observation.PID,
-			startTime: observation.ProcessStartTime,
+		identity := darwinLibprocCandidateIdentity{
+			process: darwinProcessIdentity{
+				pid:       observation.PID,
+				startTime: observation.ProcessStartTime,
+			},
+			tuple: canonicalDarwinLibprocTuple(observation.Tuple),
 		}
-		candidates[identity] = darwinLibprocCandidate{
-			observation: observation,
-			score:       forward,
-		}
+		candidates[identity] = observation
 	}
 	if bestScore < 0 || len(candidates) == 0 {
 		return libproc.Observation{}, darwinLibprocNoMatch
@@ -282,9 +285,18 @@ func matchDarwinLibprocSource(source *nstatSource, observations []libproc.Observ
 		return libproc.Observation{}, darwinLibprocAmbiguous
 	}
 	for _, candidate := range candidates {
-		return candidate.observation, darwinLibprocMatched
+		return candidate, darwinLibprocMatched
 	}
 	return libproc.Observation{}, darwinLibprocNoMatch
+}
+
+func canonicalDarwinLibprocTuple(tuple network.ConnectionTuple) network.ConnectionTuple {
+	tuple.Source.Addr = normalizeDarwinAddress(tuple.Source.Addr)
+	tuple.Dest.Addr = normalizeDarwinAddress(tuple.Dest.Addr)
+	tuple.Pid = 0
+	tuple.NetNS = 0
+	tuple.Direction = network.UNKNOWN
+	return tuple
 }
 
 func tupleFromNStatFlow(source *nstatSource) network.ConnectionTuple {

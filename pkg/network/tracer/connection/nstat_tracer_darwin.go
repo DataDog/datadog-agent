@@ -42,6 +42,7 @@ const (
 	nstatTCPRTTVarianceScale = 16
 
 	tcpStateClosed      = 0
+	tcpStateSynSent     = 2
 	tcpStateEstablished = 4
 )
 
@@ -90,14 +91,16 @@ type nstatSource struct {
 	conn      *network.ConnectionStats
 	createdAt time.Time
 
-	descriptionRequested bool
-	nextDescription      time.Time
-	removed              bool
-	removedAt            time.Time
-	established          bool
-	closed               bool
-	connectAttempts      uint32
-	connectSuccesses     uint32
+	descriptionRequested     bool
+	nextDescription          time.Time
+	removed                  bool
+	removedAt                time.Time
+	tcpStateObserved         bool
+	tcpEstablished           bool
+	tcpEstablishedAfterStart bool
+	closed                   bool
+	connectAttempts          uint32
+	connectSuccesses         uint32
 }
 
 type nstatTracer struct {
@@ -209,6 +212,9 @@ func (t *nstatTracer) subscribe() error {
 		return nil
 	}
 	for _, provider := range nstatProviders {
+		if !nstatProviderEnabled(t.config, provider) {
+			continue
+		}
 		context, err := t.control.Subscribe(provider)
 		if err != nil {
 			return fmt.Errorf("subscribe to nstat provider %d: %w", provider, err)
@@ -517,6 +523,9 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 		source.provider = event.Provider
 	}
 	if event.Flow != nil {
+		if nstat.IsTCPProvider(source.provider) {
+			source.observeTCPState(event.Flow.TCPState)
+		}
 		source.flow = mergeNStatFlow(source.flow, event.Flow)
 	}
 	if event.Counts != nil {
@@ -531,9 +540,58 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 		if !nstatSourceResolved(source) {
 			return
 		}
+		if !nstatSourceEnabled(t.config, source) {
+			return
+		}
 		source.conn = t.newConnection(sourceRef, source)
 	}
 	t.applySource(source)
+}
+
+func (source *nstatSource) observeTCPState(state uint32) {
+	if !source.tcpStateObserved {
+		// NStat subscriptions enumerate pre-existing sources, so the first
+		// observed state is a baseline rather than a transition.
+		source.tcpStateObserved = true
+		source.tcpEstablished = state >= tcpStateEstablished
+		return
+	}
+	if !source.tcpEstablished && state >= tcpStateEstablished {
+		source.tcpEstablished = true
+		source.tcpEstablishedAfterStart = true
+	}
+}
+
+func nstatProviderEnabled(cfg *config.Config, provider uint32) bool {
+	switch {
+	case nstat.IsTCPProvider(provider):
+		return cfg.CollectTCPv4Conns || cfg.CollectTCPv6Conns
+	case nstat.IsUDPProvider(provider):
+		return cfg.CollectUDPv4Conns || cfg.CollectUDPv6Conns
+	default:
+		return false
+	}
+}
+
+func nstatSourceEnabled(cfg *config.Config, source *nstatSource) bool {
+	if source == nil || source.flow == nil {
+		return false
+	}
+	ipv6 := nstatFlowFamily(source.flow) == network.AFINET6
+	switch {
+	case nstat.IsTCPProvider(source.provider):
+		if ipv6 {
+			return cfg.CollectTCPv6Conns
+		}
+		return cfg.CollectTCPv4Conns
+	case nstat.IsUDPProvider(source.provider):
+		if ipv6 {
+			return cfg.CollectUDPv6Conns
+		}
+		return cfg.CollectUDPv4Conns
+	default:
+		return false
+	}
 }
 
 func nstatSourceResolved(source *nstatSource) bool {
@@ -620,17 +678,22 @@ func (t *nstatTracer) newConnection(sourceRef uint64, source *nstatSource) *netw
 	if nstat.IsTCPProvider(source.provider) {
 		conn.Type = network.TCP
 	}
+	conn.Family = nstatFlowFamily(flow)
+	t.cookieHasher.Hash(conn)
+	t.byCookie[conn.Cookie] = source
+	t.tuples.add(conn)
+	return conn
+}
+
+func nstatFlowFamily(flow *nstat.Flow) network.ConnectionFamily {
 	address := flow.Local.Address
 	if !address.IsValid() {
 		address = flow.Remote.Address
 	}
 	if address.Is6() {
-		conn.Family = network.AFINET6
+		return network.AFINET6
 	}
-	t.cookieHasher.Hash(conn)
-	t.byCookie[conn.Cookie] = source
-	t.tuples.add(conn)
-	return conn
+	return network.AFINET
 }
 
 func (t *nstatTracer) applySource(source *nstatSource) {
@@ -650,13 +713,11 @@ func (t *nstatTracer) applySource(source *nstatSource) {
 	}
 	conn.RTT = scaledMicroseconds(counts.AverageRTT, nstatTCPRTTScale)
 	conn.RTTVar = scaledMicroseconds(counts.RTTVariance, nstatTCPRTTVarianceScale)
-	if !source.established && flow.TCPState >= tcpStateEstablished {
-		source.established = true
+	if source.tcpEstablishedAfterStart {
 		conn.Monotonic.TCPEstablished = 1
 	}
 	if !source.closed && flow.TCPState == tcpStateClosed &&
 		source.connectAttempts > 0 && source.connectSuccesses == 0 {
-		conn.TCPFailures = map[uint16]uint32{network.TCPFailureErrnoTimedOut: 1}
 		t.markTCPClosed(source)
 	}
 }

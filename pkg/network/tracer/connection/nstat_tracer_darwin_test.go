@@ -43,10 +43,16 @@ func TestNStatTracerTCPActiveAndFinalLifecycle(t *testing.T) {
 	require.Equal(t, []uint64{7}, control.descriptions())
 
 	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 7,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(1234, tcpStateSynSent),
+	})
+	tracer.processEvent(nstat.Event{
 		Kind:      nstat.EventUpdate,
 		SourceRef: 7,
 		Provider:  nstat.ProviderTCPKernel,
-		Flow:      testNStatTCPFlow(1234, 4),
+		Flow:      testNStatTCPFlow(1234, tcpStateEstablished),
 		Counts: &nstat.Counts{
 			RXPackets:            11,
 			RXBytes:              1200,
@@ -88,7 +94,28 @@ func TestNStatTracerTCPActiveAndFinalLifecycle(t *testing.T) {
 	require.Empty(t, buffer.Connections())
 }
 
-func TestNStatTracerLatchesTimeoutAndDoesNotReplayClose(t *testing.T) {
+func TestNStatTracerDoesNotCountPreexistingTCPConnectionAsEstablished(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 17,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(1234, tcpStateEstablished),
+	})
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventUpdate,
+		SourceRef: 17,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(1234, tcpStateEstablished+1),
+	})
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.Zero(t, buffer.Connections()[0].Monotonic.TCPEstablished)
+}
+
+func TestNStatTracerClosesFailedAttemptWithoutOverwritingFailure(t *testing.T) {
 	control := newFakeNStatControl()
 	tracer := newNStatTracerWithControl(testNStatConfig(), control)
 	now := time.Unix(200, 0)
@@ -100,11 +127,15 @@ func TestNStatTracerLatchesTimeoutAndDoesNotReplayClose(t *testing.T) {
 		Kind:      nstat.EventUpdate,
 		SourceRef: 8,
 		Provider:  nstat.ProviderTCPKernel,
-		Flow:      testNStatTCPFlow(2345, 2),
+		Flow:      testNStatTCPFlow(2345, tcpStateSynSent),
 		Counts: &nstat.Counts{
 			ConnectAttempts: 1,
 		},
 	})
+	// Simulate a refusal already attributed by the packet sidecar.
+	tracer.sources[8].conn.TCPFailures = map[uint16]uint32{
+		network.TCPFailureErrnoConnRefused: 1,
+	}
 	tracer.processEvent(nstat.Event{
 		Kind:      nstat.EventUpdate,
 		SourceRef: 8,
@@ -117,7 +148,7 @@ func TestNStatTracerLatchesTimeoutAndDoesNotReplayClose(t *testing.T) {
 	require.NoError(t, tracer.GetConnections(&buffer, nil))
 	require.Len(t, buffer.Connections(), 1)
 	failed := buffer.Connections()[0]
-	require.Equal(t, map[uint16]uint32{network.TCPFailureErrnoTimedOut: 1}, failed.TCPFailures)
+	require.Equal(t, map[uint16]uint32{network.TCPFailureErrnoConnRefused: 1}, failed.TCPFailures)
 	require.Equal(t, uint16(1), failed.Monotonic.TCPClosed)
 	require.True(t, failed.IsClosed)
 
@@ -126,7 +157,7 @@ func TestNStatTracerLatchesTimeoutAndDoesNotReplayClose(t *testing.T) {
 
 	require.NotNil(t, closed)
 	require.Equal(t, uint16(1), closed.Monotonic.TCPClosed)
-	require.Equal(t, map[uint16]uint32{network.TCPFailureErrnoTimedOut: 1}, closed.TCPFailures)
+	require.Equal(t, map[uint16]uint32{network.TCPFailureErrnoConnRefused: 1}, closed.TCPFailures)
 }
 
 func TestNStatTracerDeliversLateDescriptionAfterRemoval(t *testing.T) {
@@ -201,7 +232,7 @@ func TestNStatTracerWaitsForCompleteTCPTuple(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), control)
 	now := time.Unix(360, 0)
 	tracer.now = func() time.Time { return now }
-	partial := testNStatTCPFlow(3333, tcpStateEstablished)
+	partial := testNStatTCPFlow(3333, tcpStateSynSent)
 	partial.Local.Address = netip.IPv4Unspecified()
 	partial.Remote.Address = netip.IPv4Unspecified()
 	partial.Remote.Port = 0
@@ -229,6 +260,7 @@ func TestNStatTracerWaitsForCompleteTCPTuple(t *testing.T) {
 	require.Len(t, buffer.Connections(), 1)
 	require.Equal(t, netip.MustParseAddr("192.0.2.10"), buffer.Connections()[0].Source.Addr)
 	require.Equal(t, netip.MustParseAddr("198.51.100.20"), buffer.Connections()[0].Dest.Addr)
+	require.Equal(t, uint16(1), buffer.Connections()[0].Monotonic.TCPEstablished)
 }
 
 func TestNStatTracerAppliesLateAuthoritativePID(t *testing.T) {
@@ -430,6 +462,119 @@ func TestNStatTracerStartAndStop(t *testing.T) {
 	require.True(t, control.isClosed())
 }
 
+func TestNStatTracerSubscribesOnlyToEnabledProtocols(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*config.Config)
+		expected  []uint32
+	}{
+		{
+			name: "tcp only",
+			configure: func(cfg *config.Config) {
+				cfg.CollectUDPv4Conns = false
+				cfg.CollectUDPv6Conns = false
+			},
+			expected: []uint32{nstat.ProviderTCPKernel, nstat.ProviderTCPUserland},
+		},
+		{
+			name: "udp only",
+			configure: func(cfg *config.Config) {
+				cfg.CollectTCPv4Conns = false
+				cfg.CollectTCPv6Conns = false
+			},
+			expected: []uint32{nstat.ProviderUDPKernel, nstat.ProviderUDPUserland},
+		},
+		{
+			name: "disabled",
+			configure: func(cfg *config.Config) {
+				cfg.CollectTCPv4Conns = false
+				cfg.CollectTCPv6Conns = false
+				cfg.CollectUDPv4Conns = false
+				cfg.CollectUDPv6Conns = false
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := testNStatConfig()
+			test.configure(cfg)
+			control := newFakeNStatControl()
+			tracer := newNStatTracerWithControl(cfg, control)
+
+			require.NoError(t, tracer.subscribe())
+			require.Equal(t, test.expected, control.subscriptions())
+		})
+	}
+}
+
+func TestNStatTracerHonorsProtocolAndFamilyConfiguration(t *testing.T) {
+	tests := []struct {
+		name      string
+		provider  uint32
+		flow      func() *nstat.Flow
+		configure func(*config.Config)
+	}{
+		{
+			name:     "tcp4 disabled",
+			provider: nstat.ProviderTCPKernel,
+			flow:     func() *nstat.Flow { return testNStatTCPFlow(1234, tcpStateEstablished) },
+			configure: func(cfg *config.Config) {
+				cfg.CollectTCPv4Conns = false
+			},
+		},
+		{
+			name:     "tcp6 disabled",
+			provider: nstat.ProviderTCPKernel,
+			flow:     func() *nstat.Flow { return testNStatTCPv6Flow(1234, tcpStateEstablished) },
+			configure: func(cfg *config.Config) {
+				cfg.CollectTCPv6Conns = false
+			},
+		},
+		{
+			name:     "udp4 disabled",
+			provider: nstat.ProviderUDPKernel,
+			flow:     func() *nstat.Flow { return testNStatUDPFlow(1234) },
+			configure: func(cfg *config.Config) {
+				cfg.CollectUDPv4Conns = false
+			},
+		},
+		{
+			name:     "udp6 disabled",
+			provider: nstat.ProviderUDPKernel,
+			flow:     func() *nstat.Flow { return testNStatUDPv6Flow(1234) },
+			configure: func(cfg *config.Config) {
+				cfg.CollectUDPv6Conns = false
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := testNStatConfig()
+			test.configure(cfg)
+			tracer := newNStatTracerWithControl(cfg, newFakeNStatControl())
+			var closed []*network.ConnectionStats
+			tracer.closeCallback = func(conn *network.ConnectionStats) {
+				closed = append(closed, conn)
+			}
+
+			tracer.processEvent(nstat.Event{
+				Kind:      nstat.EventDescription,
+				SourceRef: 1,
+				Provider:  test.provider,
+				Flow:      test.flow(),
+			})
+
+			var buffer network.ConnectionBuffer
+			require.NoError(t, tracer.GetConnections(&buffer, nil))
+			require.Empty(t, buffer.Connections())
+			tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 1})
+			require.Empty(t, closed)
+		})
+	}
+}
+
 func TestNStatConversions(t *testing.T) {
 	require.Equal(t, uint64(0), saturatingSubtract(10, 11))
 	require.Equal(t, uint64(0), saturatingSubtract(10, 10))
@@ -458,7 +603,13 @@ func TestNStatConversions(t *testing.T) {
 }
 
 func testNStatConfig() *config.Config {
-	return &config.Config{MaxTrackedConnections: 100}
+	return &config.Config{
+		CollectTCPv4Conns:     true,
+		CollectTCPv6Conns:     true,
+		CollectUDPv4Conns:     true,
+		CollectUDPv6Conns:     true,
+		MaxTrackedConnections: 100,
+	}
 }
 
 func testNStatTCPFlow(pid, state uint32) *nstat.Flow {
@@ -480,9 +631,20 @@ func testNStatTCPFlow(pid, state uint32) *nstat.Flow {
 	}
 }
 
+func testNStatTCPv6Flow(pid, state uint32) *nstat.Flow {
+	flow := testNStatTCPFlow(pid, state)
+	flow.Local.Address = netip.MustParseAddr("2001:db8::10")
+	flow.Remote.Address = netip.MustParseAddr("2001:db8::20")
+	return flow
+}
+
 func testNStatUDPFlow(pid uint32) *nstat.Flow {
 	flow := testNStatTCPFlow(pid, 0)
 	return flow
+}
+
+func testNStatUDPv6Flow(pid uint32) *nstat.Flow {
+	return testNStatTCPv6Flow(pid, 0)
 }
 
 type fakeNStatControl struct {
