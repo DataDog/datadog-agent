@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "postgresql",
+    srcs = [
+        "entrypoint.go",
+        "test_connection.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/postgresql",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+    ],
+)
