@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector
 
-go 1.25.7
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.82.0
