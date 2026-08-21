@@ -49,16 +49,12 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 			logger.Warnf("unable to store %s config: %v", mode, err)
 		}
 		if stored {
-			if needsEviction, err := configStore.NeedsEviction(); err != nil {
-				logger.Warnf("unable to check store size: %v", err)
-			} else if needsEviction {
-				evicted, err := configStore.EvictConfigs()
-				if err != nil {
-					logger.Warnf("unable to evict configs: %v", err)
-				}
-				if ncmSender != nil {
-					ncmSender.SendStoreEvictionMetrics(len(evicted), err)
-				}
+			evicted, err := configStore.EvictConfigs()
+			if err != nil {
+				logger.Warnf("unable to evict configs: %v", err)
+			}
+			if ncmSender != nil {
+				ncmSender.SendStoreEvictionMetrics(len(evicted), err)
 			}
 		}
 	}

@@ -387,14 +387,6 @@ func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice int, maxConfigsPerD
 	cs.maxRawConfigStoreBytes = maxRawConfigStoreBytes
 }
 
-func (cs *configStore) NeedsEviction() (bool, error) {
-	size, err := cs.Size()
-	if err != nil {
-		return false, err
-	}
-	return size > cs.maxRawConfigStoreBytes, nil
-}
-
 func (cs *configStore) EvictConfigs() ([]string, error) {
 	evicted := make([]string, 0)
 
