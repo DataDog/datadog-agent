@@ -8,6 +8,8 @@
 package model
 
 import (
+	"fmt"
+	"regexp"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,6 +17,19 @@ import (
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 )
+
+// goMemLimitPattern matches the GOMEMLIMIT format accepted by the Go runtime:
+// a non-negative integer with an optional IEC binary suffix (B, KiB, MiB, GiB, TiB, PiB, EiB)
+// or the special value "off".
+var goMemLimitPattern = regexp.MustCompile(`^([0-9]+(B|KiB|MiB|GiB|TiB|PiB|EiB)?|off)$`)
+
+// ValidateGoMemLimit returns an error if value is not a valid GOMEMLIMIT string.
+func ValidateGoMemLimit(value string) error {
+	if !goMemLimitPattern.MatchString(value) {
+		return fmt.Errorf("invalid GOMEMLIMIT value %q: must be a non-negative integer with optional IEC suffix (B, KiB, MiB, GiB, TiB, PiB, EiB) or \"off\"", value)
+	}
+	return nil
+}
 
 // ScalingValues represents the scaling values (horizontal and vertical) for a target
 type ScalingValues struct {
@@ -61,6 +76,12 @@ type HorizontalScalingValues struct {
 	UtilizationPct *float64 `json:"utilization_pct,omitempty"`
 }
 
+// ContainerRuntimeValues holds runtime configuration for a container
+type ContainerRuntimeValues struct {
+	// GoMemLimit is the value for the GOMEMLIMIT environment variable
+	GoMemLimit string `json:"gomemlimit,omitempty"`
+}
+
 // VerticalScalingValues holds the vertical scaling values for a target
 type VerticalScalingValues struct {
 	// Source is the source of the value
@@ -69,11 +90,14 @@ type VerticalScalingValues struct {
 	// Timestamp is the time at which the data was generated
 	Timestamp time.Time `json:"timestamp"`
 
-	// ResourcesHash is the hash of containerResources
+	// ResourcesHash is the hash of containerResources and runtimeValues
 	ResourcesHash string `json:"resources_hash"`
 
 	// ContainerResources holds the resources for a container
 	ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources `json:"container_resources"`
+
+	// RuntimeValues holds runtime configuration per container, keyed by container name
+	RuntimeValues map[string]ContainerRuntimeValues `json:"runtime_values,omitempty"`
 }
 
 // DeepCopy returns a deep copy of the VerticalScalingValues.
@@ -104,6 +128,12 @@ func (v *VerticalScalingValues) DeepCopy() *VerticalScalingValues {
 				}
 			}
 			out.ContainerResources[i] = cp
+		}
+	}
+	if v.RuntimeValues != nil {
+		out.RuntimeValues = make(map[string]ContainerRuntimeValues, len(v.RuntimeValues))
+		for k, rv := range v.RuntimeValues {
+			out.RuntimeValues[k] = rv
 		}
 	}
 	return out
