@@ -61,6 +61,10 @@ func getConnectionUri(credentialTokens map[string]string) (string, error) {
 	database := credentialTokens["database"]
 	authSource := credentialTokens["authSource"]
 	authMechanism := credentialTokens["authMechanism"]
+	tls := credentialTokens["tls"]
+	if tls == "" {
+		tls = "true"
+	}
 
 	if !userOk || username == "" {
 		return "", errors.New("invalid username: Username cannot be empty")
@@ -83,7 +87,7 @@ func getConnectionUri(credentialTokens map[string]string) (string, error) {
 		return "", errors.New("invalid port: Port cannot be empty")
 	}
 
-	return buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism)
+	return buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism, tls)
 }
 
 func buildSRVConnectionURI(username, password, srvHost, database, authSource string) (string, error) {
@@ -106,7 +110,7 @@ func buildSRVConnectionURI(username, password, srvHost, database, authSource str
 	return connectionUri, nil
 }
 
-func buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism string) (string, error) {
+func buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism, tls string) (string, error) {
 	escapedUsername := url.QueryEscape(username)
 	escapedPassword := url.QueryEscape(password)
 	hostPort := hostport.Join(host, port)
@@ -123,7 +127,13 @@ func buildStandardConnectionURI(username, password, host, port, database, authSo
 	if authMechanism != "" {
 		params = append(params, "authMechanism="+url.QueryEscape(authMechanism))
 	}
+	if tls != "" {
+		params = append(params, "tls="+url.QueryEscape(tls))
+	}
 	if len(params) > 0 {
+		if database == "" {
+			connectionUri += "/"
+		}
 		connectionUri = fmt.Sprintf("%s?%s", connectionUri, strings.Join(params, "&"))
 	}
 	return connectionUri, nil
