@@ -83,7 +83,29 @@ struct otel_thread_ctx_record_t {
     u16 attrs_data_size; // size of custom attributes data following this header
 };
 
-// Offset of otel_thread_ctx_record_t.valid from the record base.
+// Cap on the attrs_data bytes staged per record: the spec allows up to 65535,
+// but typical records are <= 64 bytes.
+#define OTEL_ATTRS_MAX_SIZE 256
+
+// Entry of the otel_span_attrs ring: a record's raw attrs_data bytes, encoded as
+// repeated [key(u8), length(u8), val(u8[length])] for user space to parse.
+//
+// id is stamped last, once the data is complete, and user space drops an entry
+// whose id no longer matches the one the event carried, meaning the ring slot has
+// been reused. Same scheme as go_labels_ctx_entry_t.
+//
+// padding is explicit because cilium/ebpf only reads a map value straight into
+// its Go mirror when the mirror's binary.Size matches its unsafe.Sizeof, and
+// otherwise falls back to binary.Decode, which rejects the value as
+// under-consumed.
+struct otel_span_attrs_t {
+    u32 id;                          // id of the staged snapshot, 0 while incomplete
+    u16 size;                        // actual size of attrs_data
+    u16 padding;                     // keeps the entry free of implicit padding
+    u8  data[OTEL_ATTRS_MAX_SIZE];   // raw attribute bytes
+};
+
+// Offset of otel_thread_ctx_record_t.valid (16-byte trace id + 8-byte span id).
 #define OTEL_THREAD_CTX_VALID_OFFSET 24
 
 // otel_dtv_info_t describes how to walk the Dynamic Thread Vector (DTV) for a
@@ -106,7 +128,7 @@ struct otel_tls_t {
     u32 runtime;                     // enum otel_runtime_language
     u32 module_id;                   // TLS module ID for dynamic TLS, or 0 for static TLS
     s64 tls_offset;                  // TP-relative (static TLS, module_id==0) or
-                                      // in-module offset (dynamic TLS, module_id!=0)
+                                     // in-module offset (dynamic TLS, module_id!=0)
     struct otel_dtv_info_t dtv_info; // unused when module_id == 0
 };
 
