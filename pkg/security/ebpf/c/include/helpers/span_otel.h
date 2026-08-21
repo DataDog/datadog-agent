@@ -56,9 +56,33 @@ static int __attribute__((always_inline)) otel_tls_read(
     return bpf_probe_read_user(out, sizeof(*out), (void *)(tls_block + otls->tls_offset));
 }
 
-// Try to fill span context from an OTel Thread Local Context Record.
-// Returns 1 on success, 0 otherwise.
-// Only attempts TLS resolution for native runtimes (not Go).
+// Mint an id for one staged otel_span_attrs entry, resolved from user space.
+// Mirrors mint_go_labels_id(), including why the __sync_fetch_and_add() result is
+// discarded; two cores can therefore mint the same id, at worst losing one of
+// the two snapshots.
+static u32 __attribute__((always_inline)) mint_otel_span_attrs_id(void) {
+    u32 key = 0;
+    u32 *id = bpf_map_lookup_elem(&otel_attrs_gen_id, &key);
+    if (!id) {
+        return 0;
+    }
+    __sync_fetch_and_add(id, 1);
+    u32 minted = *id;
+    if (minted == 0) {
+        // The u32 counter wrapped and 0 is the "no id" sentinel, skip it.
+        __sync_fetch_and_add(id, 1);
+        minted = *id;
+    }
+    return minted;
+}
+
+static struct otel_span_attrs_t * __attribute__((always_inline)) lookup_otel_span_attrs_entry(u32 id) {
+    u32 key = id % OTEL_SPAN_ATTRS_MAX_ENTRIES;
+    return bpf_map_lookup_elem(&otel_span_attrs, &key);
+}
+
+// Fills span from the current thread's OTel context record. Returns 1 on
+// success, 0 when there is nothing to read.
 int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t *span) {
     if (!span) {
         return 0;
@@ -109,11 +133,44 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
         return 0;
     }
 
-    // Convert W3C byte order (big-endian) to native-endian span_context_t.
-    // OTel trace-id: bytes[0..7] = high 64 bits, bytes[8..15] = low 64 bits.
+    // The W3C trace id is big-endian: bytes[0..7] are its high 64 bits.
     span->trace_id[1] = otel_bytes_to_u64(&record.trace_id[0]);  // Hi
     span->trace_id[0] = otel_bytes_to_u64(&record.trace_id[8]);  // Lo
     span->span_id = otel_bytes_to_u64(record.span_id);
+
+    if (record.attrs_data_size > 0) {
+        // Clamp, then re-derive through a mask, as in store_go_label(): clang
+        // otherwise folds the clamp away and the verifier only sees the u16 range,
+        // and the +1 keeps umin >= 1, which 4.14 requires.
+        u64 attrs_size = record.attrs_data_size;
+        if (attrs_size > OTEL_ATTRS_MAX_SIZE) {
+            attrs_size = OTEL_ATTRS_MAX_SIZE;
+        }
+        barrier_var(attrs_size);
+        attrs_size = ((attrs_size - 1) & (OTEL_ATTRS_MAX_SIZE - 1)) + 1;
+
+        // The attributes are read straight into the ring slot: handing the entry to
+        // bpf_map_update_elem() would not load before 4.18, where
+        // ARG_PTR_TO_MAP_VALUE had to be PTR_TO_STACK, and the entry is far too
+        // large to bounce through the 512-byte stack.
+        u32 attrs_id = mint_otel_span_attrs_id();
+        struct otel_span_attrs_t *entry = lookup_otel_span_attrs_entry(attrs_id);
+        if (attrs_id != 0 && entry != NULL) {
+            // id is cleared here and stamped below, so a reader never matches an
+            // entry whose data is still the previous snapshot's.
+            entry->id = 0;
+            entry->size = attrs_size;
+
+            // Bytes past attrs_size keep the previous snapshot's data; user space
+            // only ever reads data[:size].
+            ret = bpf_probe_read_user(entry->data, attrs_size,
+                                      record_ptr + sizeof(struct otel_thread_ctx_record_t));
+            if (ret >= 0) {
+                entry->id = attrs_id;
+                span->extra_attrs_id = attrs_id;
+            }
+        }
+    }
 
     return 1;
 }
