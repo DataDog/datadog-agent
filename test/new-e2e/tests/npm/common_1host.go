@@ -70,7 +70,6 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 	t.Helper()
 	t.Log(time.Now())
 
-	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		hostnameNetID, err := FakeIntake.Client().GetConnectionsNames()
@@ -78,7 +77,6 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
 			return
 		}
-		targetHostnameNetID = hostnameNetID[0]
 
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
 	}, 120*time.Second, time.Second, "no connections received")
@@ -88,11 +86,29 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 		cnx, err := FakeIntake.Client().GetConnections()
 		assert.NoError(t, err)
 
-		if !assert.GreaterOrEqual(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 5, "not enough payloads") {
+		// The reporting hostname can change during a run (e.g. a Windows EC2
+		// rename + reboot restarts system-probe under a new hostname), which
+		// splits payloads across several hostname+networkID keys. Track the key
+		// that currently has the most payloads instead of the first one seen, so
+		// we follow whichever host is actively reporting. On a stable
+		// single-host run this simply selects that host.
+		names := cnx.GetNames()
+		if !assert.NotEmpty(c, names, "no connections yet") {
 			return
 		}
-		var payloadsTimestamps []time.Time
-		for _, cc := range cnx.GetPayloadsByName(targetHostnameNetID) {
+		targetHostnameNetID := names[0]
+		for _, name := range names {
+			if len(cnx.GetPayloadsByName(name)) > len(cnx.GetPayloadsByName(targetHostnameNetID)) {
+				targetHostnameNetID = name
+			}
+		}
+
+		payloads := cnx.GetPayloadsByName(targetHostnameNetID)
+		if !assert.GreaterOrEqual(c, len(payloads), 5, "not enough payloads") {
+			return
+		}
+		payloadsTimestamps := make([]time.Time, 0, len(payloads))
+		for _, cc := range payloads {
 			payloadsTimestamps = append(payloadsTimestamps, cc.GetCollectedTime())
 		}
 		dt := payloadsTimestamps[4].Sub(payloadsTimestamps[3]).Seconds()
@@ -100,7 +116,7 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 
 		// we want the test fail now, not retrying on the next payloads
 		assert.Greater(t, 1.0, math.Abs(dt-30), "delta between collection is higher than 1s")
-	}, 150*time.Second, time.Second, "not enough connections received")
+	}, 240*time.Second, time.Second, "not enough connections received")
 }
 
 // test1HostFakeIntakeNPM600cnxBucket Validate the agent can communicate with the (fake) backend and send connections
