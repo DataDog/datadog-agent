@@ -9,17 +9,24 @@
 package tests
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
+	"math/big"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -33,6 +40,19 @@ func skipIfNoThreadPointer(t *testing.T) {
 	checkKernelCompatibility(t, "thread pointer offsets require kernel 4.7+", func(kv *kernel.Version) bool {
 		return kv.Code < kernel.Kernel4_7
 	})
+}
+
+// splitTraceID parses a decimal 128-bit trace id into (hi, lo) the same way
+// secl utils.TraceID stores them.
+func splitTraceID(decimalTraceID string) (hi, lo uint64, ok bool) {
+	v, parseOK := new(big.Int).SetString(decimalTraceID, 10)
+	if !parseOK {
+		return 0, 0, false
+	}
+	mask := new(big.Int).SetUint64(^uint64(0))
+	lo = new(big.Int).And(v, mask).Uint64()
+	hi = new(big.Int).Rsh(v, 64).Uint64()
+	return hi, lo, true
 }
 
 // traceJSON mirrors the shape of SpanContextSerializer in JSON.
@@ -773,5 +793,599 @@ func TestDDTraceGoSpan(t *testing.T) {
 				}
 			}, "test_ddtrace_span_rule_exec")
 		})
+	})
+}
+
+// TestOTelSpan covers OTel Thread Local Context Record span collection across
+// every TLS access model a tracer can publish the record through: local-exec
+// from a main executable, both dialects of general-dynamic, initial-exec and
+// local-dynamic from a shared object linked at startup or dlopen'd, against
+// both glibc and musl.
+func TestOTelSpan(t *testing.T) {
+	SkipIfNotAvailable(t)
+	skipIfNoThreadPointer(t)
+
+	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+		t.Skip("OTel TLSDESC span test only supported on amd64 and arm64")
+	}
+
+	executable := which(t, "touch")
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_otel_span_rule_open",
+			Expression: `open.file.path in [ "{{.Root}}/test-otel-span", "{{.Root}}/test-otel-span-ready" ]`,
+		},
+		{
+			ID:         "test_otel_span_rule_open_invalid",
+			Expression: `open.file.path == "{{.Root}}/test-otel-span-invalid"`,
+		},
+		{
+			ID:         "test_otel_span_rule_open_null_ptr",
+			Expression: `open.file.path == "{{.Root}}/test-otel-span-null-ptr"`,
+		},
+		{
+			// Shared by all the exec sub-tests, which run sequentially.
+			ID:         "test_otel_span_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path in [ "/bin/touch", "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	type otelTesterVariant struct {
+		name string
+		// binary and prefixArgs address the tester: the dlopen driver takes the
+		// shared object to load ahead of the otel-span-* command, the others
+		// take the command directly.
+		binary     string
+		prefixArgs []string
+	}
+
+	otelArgs := func(variant otelTesterVariant, args ...string) []string {
+		return append(append([]string{}, variant.prefixArgs...), args...)
+	}
+
+	// requireOTelTesterRuns skips the leg whose environment cannot start the
+	// tester. The testers link against the libc of the host that built them, so
+	// the docker legs, whose image is older than the build host, reach only the
+	// statically linked ones. Running the check through cmdFunc asks the very
+	// environment the sub-test is about to use.
+	requireOTelTesterRuns := func(t *testing.T, variant otelTesterVariant, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		t.Helper()
+		if out, err := cmdFunc(variant.binary, otelArgs(variant, "check"), nil).CombinedOutput(); err != nil {
+			t.Skipf("%s cannot run here: %v (output: %s)", variant.name, err, bytes.TrimSpace(out))
+		}
+	}
+
+	// otelTesterSpecs mirrors the matrix the upstream profiler builds for its own
+	// integration tests (processcontext/integrationtests in
+	// open-telemetry/opentelemetry-ebpf-profiler#1229): one tester per TLS access
+	// model the resolver has to handle, against both libcs. See
+	// otel_tls_build_steps in tasks/security_agent.py for how each is built.
+	type otelTesterSpec struct {
+		name string
+		// binary and fixture name artifacts of the syscall tester build; fixture
+		// is the shared object defining otel_thread_ctx_v1, which has to sit next
+		// to the binary whether the binary links it at startup or dlopens it.
+		binary  string
+		fixture string
+		dlopen  bool
+		// alpine runs the variant in an Alpine container, the only place the musl
+		// testers that need a runtime loader can start.
+		alpine bool
+		// execCoverage adds the variant to the exec sub-tests. Carrying a span
+		// across exec is independent of the access model the record was published
+		// through, so only a few variants need to prove it.
+		execCoverage bool
+		// negatives runs the invalid-record and NULL-pointer cases on this
+		// tester. They do not depend on the access model either, so they run on
+		// the one tester with no toolchain or runtime requirement of its own.
+		negatives bool
+	}
+
+	otelTesterSpecs := []otelTesterSpec{
+		// local-exec: the variable lives in the executable's own static TLS
+		// block, read from .dynsym for the dynamic build and from .symtab for
+		// the fully static ones.
+		{name: "exe-glibc", binary: "otel_tls_exe_glibc", execCoverage: true},
+		{name: "exe-static-glibc", binary: "otel_tls_exe_static_glibc", execCoverage: true, negatives: true},
+		{name: "exe-static-musl", binary: "otel_tls_exe_static_musl", execCoverage: true},
+		{name: "exe-musl", binary: "otel_tls_exe_musl", alpine: true},
+
+		// A shared object linked at startup, once per access model.
+		{name: "linked-glibc", binary: "otel_tls_linked_glibc", fixture: "libotel_tls_glibc.so"},
+		{name: "linked-glibc-gnu", binary: "otel_tls_linked_glibc_gnu", fixture: "libotel_tls_glibc_gnu.so", execCoverage: true},
+		{name: "linked-glibc-ie", binary: "otel_tls_linked_glibc_ie", fixture: "libotel_tls_glibc_ie.so"},
+		{name: "linked-glibc-ld", binary: "otel_tls_linked_glibc_ld", fixture: "libotel_tls_glibc_ld.so"},
+
+		// The same shared objects, dlopen'd once the process is already running.
+		{name: "dlopen-glibc", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc.so", dlopen: true, execCoverage: true},
+		{name: "dlopen-glibc-gnu", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_gnu.so", dlopen: true},
+		{name: "dlopen-glibc-ie", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ie.so", dlopen: true},
+		{name: "dlopen-glibc-ld", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ld.so", dlopen: true},
+
+		// musl only differs from glibc once the offset comes from the DTV, which
+		// it lays out its own way, so its dynamic variants are worth the
+		// container they need.
+		{name: "linked-musl", binary: "otel_tls_linked_musl", fixture: "libotel_tls_musl.so", alpine: true},
+		{name: "linked-musl-gnu", binary: "otel_tls_linked_musl_gnu", fixture: "libotel_tls_musl_gnu.so", alpine: true},
+		{name: "linked-musl-ie", binary: "otel_tls_linked_musl_ie", fixture: "libotel_tls_musl_ie.so", alpine: true},
+		{name: "linked-musl-ld", binary: "otel_tls_linked_musl_ld", fixture: "libotel_tls_musl_ld.so", alpine: true},
+		{name: "dlopen-musl", binary: "otel_tls_dlopen_musl", fixture: "libotel_tls_musl.so", dlopen: true, alpine: true},
+		{name: "dlopen-musl-gnu", binary: "otel_tls_dlopen_musl", fixture: "libotel_tls_musl_gnu.so", dlopen: true, alpine: true},
+	}
+
+	// loadOTelTesterVariant materializes a spec's artifacts, dropping the variant
+	// when the build could not produce them: the flags behind an access model are
+	// GCC options a clang-only build image rejects, and the dynamically linked
+	// testers need a toolchain able to link against the system libc.
+	loadOTelTesterVariant := func(t *testing.T, spec otelTesterSpec) (otelTesterVariant, bool) {
+		variant := otelTesterVariant{name: spec.name}
+
+		binary, err := loadSyscallTesterArtifact(test, spec.binary)
+		if err != nil {
+			if !errors.Is(err, fs.ErrNotExist) {
+				t.Fatal(err)
+			}
+			t.Logf("%s not embedded; skipping the %s OTel TLS variant", spec.binary, spec.name)
+			return otelTesterVariant{}, false
+		}
+		variant.binary = binary
+
+		if spec.fixture != "" {
+			fixture, err := loadSyscallTesterArtifact(test, spec.fixture)
+			if err != nil {
+				if !errors.Is(err, fs.ErrNotExist) {
+					t.Fatal(err)
+				}
+				t.Logf("%s not embedded; skipping the %s OTel TLS variant", spec.fixture, spec.name)
+				return otelTesterVariant{}, false
+			}
+			if spec.dlopen {
+				variant.prefixArgs = []string{fixture}
+			}
+		}
+
+		return variant, true
+	}
+
+	var alpineWrapper *dockerCmdWrapper
+	alpineUnavailable := false
+	var negativeTester string
+	var otelTesterVariants []otelTesterVariant
+	var otelExecVariants []otelTesterVariant
+	var alpineTesterVariants []otelTesterVariant
+
+	for _, spec := range otelTesterSpecs {
+		variant, ok := loadOTelTesterVariant(t, spec)
+		if !ok {
+			continue
+		}
+
+		if spec.alpine {
+			if alpineWrapper == nil && !alpineUnavailable {
+				alpineWrapper, err = newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
+				if err != nil {
+					t.Logf("skipping the OTel TLS variants needing an Alpine container: %v", err)
+					alpineUnavailable = true
+				}
+			}
+			if alpineWrapper == nil {
+				continue
+			}
+			alpineTesterVariants = append(alpineTesterVariants, variant)
+			continue
+		}
+
+		otelTesterVariants = append(otelTesterVariants, variant)
+		if spec.execCoverage {
+			otelExecVariants = append(otelExecVariants, variant)
+		}
+		if spec.negatives {
+			negativeTester = variant.binary
+		}
+	}
+
+	if negativeTester == "" {
+		// Producing no tester at all means the build was cross-compiling and
+		// never tried (see build_otel_tls_glibc_artifacts); producing some but
+		// not the one needing nothing more than a static link is an error worth
+		// failing on rather than a platform this cannot cover.
+		if len(otelTesterVariants) == 0 && len(alpineTesterVariants) == 0 {
+			t.Skip("no OTel TLS tester embedded")
+		}
+		t.Fatal("otel_tls_exe_static_glibc is missing while other OTel TLS testers were embedded")
+	}
+
+	fakeTraceID128b := "136272290892501783905308705057321818530"
+
+	assertOTelOpenSpan := func(t *testing.T, event *model.Event) {
+		t.Helper()
+		test.validateSpanSchema(t, event)
+
+		assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
+		assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+
+		assert.NotNil(t, event.SpanContext.Attributes, "attributes should be non-nil")
+		assert.Equal(t, "GET", event.SpanContext.Attributes["http.method"],
+			"http.method attribute should be GET")
+		assert.Equal(t, "/test", event.SpanContext.Attributes["http.target"],
+			"http.target attribute should be /test")
+		assert.Equal(t, "will@datadoghq.com", event.SpanContext.Attributes["http.user"],
+			"http.user attribute should be will@datadoghq.com")
+	}
+
+	// otelExecArgs returns the touch invocation the exec rule matches; std and
+	// docker modes reach touch through different paths.
+	otelExecArgs := func(kind wrapperType, testFile string) []string {
+		touchPath := "/usr/bin/touch"
+		if kind == stdWrapperType {
+			touchPath = executable
+		}
+		return []string{touchPath, "--reference", "/etc/passwd", testFile}
+	}
+
+	t.Run("valid_record", func(t *testing.T) {
+		for _, variant := range otelTesterVariants {
+			variant := variant
+			t.Run(variant.name, func(t *testing.T) {
+				test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+					requireOTelTesterRuns(t, variant, cmdFunc)
+
+					testFile, _, err := test.Path("test-otel-span")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer os.Remove(testFile)
+
+					args := otelArgs(variant, "otel-span-open", fakeTraceID128b, "204", testFile)
+					envs := []string{}
+
+					test.WaitSignalFromRule(t, func() error {
+						cmd := cmdFunc(variant.binary, args, envs)
+						out, err := cmd.CombinedOutput()
+
+						if err != nil {
+							return fmt.Errorf("%s: %w", out, err)
+						}
+
+						return nil
+					}, func(event *model.Event, rule *rules.Rule) {
+						assertTriggeredRule(t, rule, "test_otel_span_rule_open")
+						assertOTelOpenSpan(t, event)
+					}, "test_otel_span_rule_open")
+				})
+			})
+		}
+
+		// A tester running in a container was started before the agent could see
+		// it, so these variants publish the record behind a ready file and have
+		// the resolution driven by an explicit snapshot.
+		for _, variant := range alpineTesterVariants {
+			variant := variant
+			t.Run(variant.name, func(t *testing.T) {
+				ebpfProbe, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+				if !ok {
+					t.Skip("OTel TLS snapshot requires the eBPF probe")
+				}
+
+				alpineWrapper.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+					requireOTelTesterRuns(t, variant, cmdFunc)
+
+					testFile, _, err := test.Path("test-otel-span")
+					if err != nil {
+						t.Fatal(err)
+					}
+					readyFile, _, err := test.Path("test-otel-span-ready")
+					if err != nil {
+						t.Fatal(err)
+					}
+					continueFile, _, err := test.Path("test-otel-span-continue")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer os.Remove(testFile)
+					defer os.Remove(readyFile)
+					defer os.Remove(continueFile)
+
+					args := otelArgs(variant, "otel-span-open-wait", fakeTraceID128b, "204", readyFile, continueFile, testFile)
+					var out bytes.Buffer
+					var done chan error
+					commandWaited := false
+
+					releaseCommand := func() {
+						_ = os.WriteFile(continueFile, []byte("continue"), 0o600)
+					}
+					waitCommand := func(timeout time.Duration) error {
+						if done == nil || commandWaited {
+							return nil
+						}
+						select {
+						case err := <-done:
+							commandWaited = true
+							return err
+						case <-time.After(timeout):
+							return fmt.Errorf("timed out waiting for the %s tester", variant.name)
+						}
+					}
+					t.Cleanup(func() {
+						releaseCommand()
+						if err := waitCommand(time.Second); err != nil {
+							t.Logf("%s: %v", out.String(), err)
+						}
+					})
+
+					err = test.getSignalFromRule(t, func() error {
+						cmd := cmdFunc(variant.binary, args, []string{})
+						cmd.Stdout = &out
+						cmd.Stderr = &out
+						if err := cmd.Start(); err != nil {
+							return err
+						}
+						done = make(chan error, 1)
+						go func() {
+							done <- cmd.Wait()
+						}()
+						return nil
+					}, func(event *model.Event, rule *rules.Rule) error {
+						switch event.Open.File.PathnameStr {
+						case readyFile:
+							validateProcessContext(t, event)
+							ebpfProbe.Resolvers.ProcessResolver.SnapshotTracer(event.PIDContext.Pid)
+							releaseCommand()
+							return errSkipEvent
+						case testFile:
+							validateProcessContext(t, event)
+							assertTriggeredRule(t, rule, "test_otel_span_rule_open")
+							assertOTelOpenSpan(t, event)
+							return nil
+						default:
+							return errSkipEvent
+						}
+					}, "test_otel_span_rule_open")
+					if err != nil {
+						releaseCommand()
+						_ = waitCommand(time.Second)
+						t.Fatal(err)
+					}
+					if err := waitCommand(5 * time.Second); err != nil {
+						t.Fatalf("%s: %v", out.String(), err)
+					}
+				})
+			})
+		}
+	})
+
+	t.Run("invalid_record", func(t *testing.T) {
+		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-otel-span-invalid")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{"otel-span-open-invalid", fakeTraceID128b, "204", testFile}
+			envs := []string{}
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(negativeTester, args, envs)
+				out, err := cmd.CombinedOutput()
+
+				if err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_otel_span_rule_open_invalid")
+
+				// valid=0 -> no span context.
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_otel_span_rule_open_invalid")
+		})
+	})
+
+	t.Run("null_pointer", func(t *testing.T) {
+		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-otel-span-null-ptr")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{"otel-span-open-null-ptr", testFile}
+			envs := []string{}
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(negativeTester, args, envs)
+				out, err := cmd.CombinedOutput()
+
+				if err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_otel_span_rule_open_null_ptr")
+
+				// NULL TLS pointer -> no span context.
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_otel_span_rule_open_null_ptr")
+		})
+	})
+
+	t.Run("valid_record_exec", func(t *testing.T) {
+		// The record is published before execv, and fill_span_context runs at
+		// prepare_binprm, before the new image takes over, so the read still finds it.
+		for _, variant := range otelExecVariants {
+			variant := variant
+			t.Run(variant.name, func(t *testing.T) {
+				test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+					requireOTelTesterRuns(t, variant, cmdFunc)
+
+					testFile, _, err := test.Path("test-otel-span-exec")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer os.Remove(testFile)
+
+					args := otelArgs(variant, append([]string{"otel-span-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)...)
+
+					test.WaitSignalFromRule(t, func() error {
+						cmd := cmdFunc(variant.binary, args, []string{})
+						if out, err := cmd.CombinedOutput(); err != nil {
+							return fmt.Errorf("%s: %w", out, err)
+						}
+						return nil
+					}, func(event *model.Event, rule *rules.Rule) {
+						assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
+
+						test.validateSpanSchema(t, event)
+
+						assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
+						assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+
+						expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
+						if !assert.True(t, ok, "splitTraceID") {
+							return
+						}
+						jsonStr, err := test.marshalEvent(event)
+						if assert.NoError(t, err, "marshalEvent") {
+							assertSerializedSpanContext(t, jsonStr, "204",
+								utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(),
+								map[string]string{
+									"http.method": "GET",
+									"http.target": "/test",
+									"http.user":   "will@datadoghq.com",
+								},
+								spanLocations{onTopLevelProcess: true})
+						}
+					}, "test_otel_span_rule_exec")
+				})
+			})
+		}
+	})
+
+	t.Run("invalid_record_exec", func(t *testing.T) {
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-otel-span-exec-invalid")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := append([]string{"otel-span-exec-invalid", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(negativeTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
+
+				// valid=0 → no span context.
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_otel_span_rule_exec")
+		})
+	})
+
+	t.Run("null_pointer_exec", func(t *testing.T) {
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-otel-span-exec-null-ptr")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := append([]string{"otel-span-exec-null-ptr"}, otelExecArgs(kind, testFile)...)
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(negativeTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
+
+				// NULL TLS pointer → no span context.
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_otel_span_rule_exec")
+		})
+	})
+
+	t.Run("fork_exec_propagates_via_ancestor", func(t *testing.T) {
+		// At sched_process_fork the probe still runs in the parent's context, so the
+		// parent's record is captured onto the child's ProcessCacheEntry. The exec'd
+		// touch carries no record of its own, so the span only surfaces by walking
+		// the ancestor chain.
+		for _, variant := range otelExecVariants {
+			variant := variant
+			t.Run(variant.name, func(t *testing.T) {
+				test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+					requireOTelTesterRuns(t, variant, cmdFunc)
+
+					testFile, _, err := test.Path("test-otel-span-fork-exec")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer os.Remove(testFile)
+
+					args := otelArgs(variant, append([]string{"otel-span-fork-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)...)
+
+					test.WaitSignalFromRule(t, func() error {
+						cmd := cmdFunc(variant.binary, args, []string{})
+						if out, err := cmd.CombinedOutput(); err != nil {
+							return fmt.Errorf("%s: %w", out, err)
+						}
+						return nil
+					}, func(event *model.Event, rule *rules.Rule) {
+						assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
+
+						assert.Equal(t, uint64(0), event.SpanContext.SpanID,
+							"exec event should not carry a span context: touch has no tracer")
+						assert.Equal(t, "0", event.SpanContext.TraceID.String(),
+							"exec event should not carry a trace id: touch has no tracer")
+
+						var foundAncestor *model.ProcessCacheEntry
+						for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
+							if pce.Tracer.Trace.SpanID != 0 {
+								foundAncestor = pce
+								break
+							}
+						}
+						if assert.NotNil(t, foundAncestor,
+							"an ancestor should carry the parent's OTel TLS span captured at fork time") {
+							assert.Equal(t, uint64(204), foundAncestor.Tracer.Trace.SpanID,
+								"fork-parent ancestor SpanID should equal the OTel record span_id")
+							assert.Equal(t, fakeTraceID128b, foundAncestor.Tracer.Trace.TraceID.String(),
+								"fork-parent ancestor TraceID should equal the OTel record trace_id")
+						}
+
+						expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
+						if !assert.True(t, ok, "splitTraceID") {
+							return
+						}
+						jsonStr, err := test.marshalEvent(event)
+						if assert.NoError(t, err, "marshalEvent") {
+							assertSerializedSpanContext(t, jsonStr, "204",
+								utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(), nil,
+								spanLocations{onAncestor: true})
+						}
+					}, "test_otel_span_rule_exec")
+				})
+			})
+		}
 	})
 }
