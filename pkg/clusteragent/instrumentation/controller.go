@@ -15,6 +15,8 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
@@ -35,6 +37,7 @@ type Controller struct {
 	workqueue    workqueue.TypedRateLimitingInterface[string]
 	handlers     []Handler
 	isLeader     func() bool
+	telemetry    telemetryRecorder
 
 	lastSeenMu sync.Mutex
 	lastSeen   map[string]*datadoghq.DatadogInstrumentation
@@ -50,6 +53,7 @@ func NewController(statusClient dynamic.Interface, informer dynamicinformer.Dyna
 		workqueue:    workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedItemBasedRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{Name: "datadoginstrumentations"}),
 		handlers:     handlers,
 		isLeader:     isLeader,
+		telemetry:    defaultControllerTelemetry,
 		lastSeen:     make(map[string]*datadoghq.DatadogInstrumentation),
 	}
 
@@ -71,6 +75,7 @@ func (c *Controller) Run(ctx context.Context) {
 		log.Errorf("Failed to wait for DatadogInstrumentation caches to sync")
 		return
 	}
+	c.updateResourceTelemetry()
 
 	go c.worker(ctx)
 
@@ -109,6 +114,8 @@ func (c *Controller) process(ctx context.Context) bool {
 }
 
 func (c *Controller) reconcile(ctx context.Context, key string) error {
+	c.updateResourceTelemetry()
+
 	current, err := c.getCurrent(key)
 	if err != nil {
 		return err
@@ -132,6 +139,9 @@ func (c *Controller) reconcile(ctx context.Context, key string) error {
 			eventCR = old
 		}
 		status, err := handler.Handle(ctx, eventType, eventCR)
+		if c.telemetry != nil {
+			c.telemetry.recordReconciliation(handler.Name(), err == nil && status.Status == metav1.ConditionTrue)
+		}
 		if err != nil {
 			return err
 		}
@@ -147,6 +157,20 @@ func (c *Controller) reconcile(ctx context.Context, key string) error {
 		return nil
 	}
 	return updateStatusConditions(ctx, c.statusClient, current, statuses)
+}
+
+func (c *Controller) updateResourceTelemetry() {
+	if c.telemetry == nil {
+		return
+	}
+
+	objects, err := c.lister.List(labels.Everything())
+	if err != nil {
+		log.Warnf("Couldn't list DatadogInstrumentation resources for telemetry: %v", err)
+		return
+	}
+
+	c.telemetry.setResources(len(objects))
 }
 
 func (c *Controller) getCurrent(key string) (*datadoghq.DatadogInstrumentation, error) {
