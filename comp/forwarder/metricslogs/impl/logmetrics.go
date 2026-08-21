@@ -12,10 +12,16 @@ import (
 )
 
 // LogMetrics writes a batch of metrics as one structured JSON line to the
-// agent's local log at Debug level. It is a safe no-op for an empty batch.
-func (c *metricsLogsComponent) LogMetrics(ms []*metricslogs.Metric) error {
+// agent's local log, at Debug level unless overridden via WithLevel. It is
+// a safe no-op for an empty batch.
+func (c *metricsLogsComponent) LogMetrics(ms []*metricslogs.Metric, opts ...metricslogs.Option) error {
 	if len(ms) == 0 {
 		return nil
+	}
+
+	var cfg metricslogs.LogConfig
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
 	metricEntries := make([]map[string]any, 0, len(ms))
@@ -36,6 +42,10 @@ func (c *metricsLogsComponent) LogMetrics(ms []*metricslogs.Metric) error {
 		return err
 	}
 
-	c.log.Debugf("metricslogs: %s", data)
+	if cfg.Level == metricslogs.LevelTrace {
+		c.log.Tracef("metricslogs: %s", data)
+	} else {
+		c.log.Debugf("metricslogs: %s", data)
+	}
 	return nil
 }
