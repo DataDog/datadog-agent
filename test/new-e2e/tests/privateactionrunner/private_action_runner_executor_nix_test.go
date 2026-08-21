@@ -16,7 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -52,6 +54,21 @@ func TestLinuxPrivateActionRunnerExecutorSuite(t *testing.T) {
 // the log reports the server listening and ready.
 func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 	host := s.Env().RemoteHost
+	svcManager := common.GetServiceManager(host)
+	s.Require().NotNil(svcManager)
+
+	// The executor's remote-config client talks to the core Agent. Stop the Agent
+	// first so the executor has subscribed to AP_RUNNER_KEYS before the Agent's
+	// remote-config service performs its first fetch.
+	_, err := svcManager.Stop(coreAgentServiceName)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		_, _ = svcManager.Start(coreAgentServiceName)
+	})
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		_, statusErr := svcManager.Status(coreAgentServiceName)
+		require.Error(c, statusErr)
+	}, 30*time.Second, time.Second, "core Agent should be stopped")
 
 	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
@@ -86,6 +103,17 @@ func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorListeningLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "executor log should report listening")
+
+	// The executor is now listening but waiting for its first signing-key update.
+	// Start the core Agent only after the AP_RUNNER_KEYS subscription is in place;
+	// its first remote-config request can then include the product immediately.
+	_, err = svcManager.Start(coreAgentServiceName)
+	s.Require().NoError(err)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		status, statusErr := svcManager.Status(coreAgentServiceName)
+		require.NoError(c, statusErr)
+		require.Contains(c, status, "active")
+	}, 2*time.Minute, 5*time.Second, "core Agent should be active")
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorReadyLogLine, privateActionRunnerLogFile))
