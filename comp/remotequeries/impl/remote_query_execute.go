@@ -147,15 +147,17 @@ type RemoteQueryExecuteCopyLimits struct {
 }
 
 // RemoteQueryResultDeliveryMode is the only currently supported result-delivery mode.
-const RemoteQueryResultDeliveryModeChunkedUpload = "POC_PUBLIC_CHUNKED_UPLOAD"
+const RemoteQueryResultDeliveryModeMultipartUpload = "POC_PUBLIC_MULTIPART_UPLOAD"
 
 // Caps for result-delivery upload instructions. The Agent forwards these to the integration,
-// which performs the HTTP upload; the Agent does no transport or URL allowlisting.
+// which performs the HTTP upload; the Agent does no transport or URL allowlisting. The part
+// hard cap leaves room to evaluate 100 MiB parts later without another schema change; the
+// total cap matches the backend-owned 10 GiB result ceiling.
 const (
 	remoteQueryUploadDefaultFormat      = "csv"
 	remoteQueryUploadDefaultCompression = "none"
-	remoteQueryUploadMaxChunkBytes      = 64 << 20 // 64 MiB
-	remoteQueryUploadMaxTotalBytes      = 1 << 30  // 1 GiB
+	remoteQueryUploadMaxPartBytes       = 128 << 20 // 128 MiB hard part cap
+	remoteQueryUploadMaxTotalBytes      = 10 << 30  // 10 GiB hard total cap
 )
 
 var remoteQueryUploadIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
@@ -168,7 +170,7 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery, copy
 	if delivery == nil {
 		return nil, nil
 	}
-	if delivery.Mode != RemoteQueryResultDeliveryModeChunkedUpload {
+	if delivery.Mode != RemoteQueryResultDeliveryModeMultipartUpload {
 		return nil, fmt.Errorf("result_delivery.mode %q is not supported", delivery.Mode)
 	}
 	out := *delivery
@@ -199,11 +201,11 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery, copy
 	if out.Token == "" {
 		return nil, errors.New("result_delivery.token is required")
 	}
-	if out.ChunkBytes < 1 {
-		return nil, errors.New("result_delivery.chunkBytes must be at least 1")
+	if out.PartBytes < 1 {
+		return nil, errors.New("result_delivery.partBytes must be at least 1")
 	}
-	if out.ChunkBytes > remoteQueryUploadMaxChunkBytes {
-		return nil, fmt.Errorf("result_delivery.chunkBytes must not exceed %d", remoteQueryUploadMaxChunkBytes)
+	if out.PartBytes > remoteQueryUploadMaxPartBytes {
+		return nil, fmt.Errorf("result_delivery.partBytes must not exceed %d", remoteQueryUploadMaxPartBytes)
 	}
 	if out.MaxBytes < 1 {
 		return nil, errors.New("result_delivery.maxBytes must be at least 1")
@@ -211,13 +213,13 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery, copy
 	if out.MaxBytes > remoteQueryUploadMaxTotalBytes {
 		return nil, fmt.Errorf("result_delivery.maxBytes must not exceed %d", remoteQueryUploadMaxTotalBytes)
 	}
-	if out.ChunkBytes > out.MaxBytes {
-		return nil, errors.New("result_delivery.chunkBytes must not exceed maxBytes")
+	if out.PartBytes > out.MaxBytes {
+		return nil, errors.New("result_delivery.partBytes must not exceed maxBytes")
 	}
 	if copyLimits != nil {
-		if out.ChunkBytes > copyLimits.ChunkBytes {
-			return nil, errors.New("result_delivery.chunkBytes must not exceed copyLimits.chunkBytes")
-		}
+		// COPY read chunks and multipart parts are independent: multiple bounded COPY reads
+		// aggregate into one multipart part, so partBytes may exceed copyLimits.chunkBytes.
+		// copyLimits.maxBytes remains the overall extraction safety ceiling.
 		if out.MaxBytes > copyLimits.MaxBytes {
 			return nil, errors.New("result_delivery.maxBytes must not exceed copyLimits.maxBytes")
 		}
@@ -233,7 +235,7 @@ type RemoteQueryResultDelivery struct {
 	UploadID    string
 	BaseURL     string
 	Token       string
-	ChunkBytes  int
+	PartBytes   int
 	MaxBytes    int
 	Format      string
 	Compression string
@@ -335,7 +337,7 @@ type remoteQueryResultDelivery struct {
 	UploadID    string
 	BaseURL     string
 	Token       string
-	ChunkBytes  int
+	PartBytes   int
 	MaxBytes    int
 	Format      string
 	Compression string
@@ -412,7 +414,7 @@ type remoteQueryResultDeliveryJSON struct {
 	UploadID    string `json:"uploadId"`
 	BaseURL     string `json:"baseUrl"`
 	Token       string `json:"token"`
-	ChunkBytes  int    `json:"chunkBytes"`
+	PartBytes   int    `json:"partBytes"`
 	MaxBytes    int    `json:"maxBytes"`
 	Format      string `json:"format"`
 	Compression string `json:"compression"`
@@ -691,7 +693,7 @@ func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
 			UploadID:    r.ResultDelivery.UploadID,
 			BaseURL:     r.ResultDelivery.BaseURL,
 			Token:       r.ResultDelivery.Token,
-			ChunkBytes:  r.ResultDelivery.ChunkBytes,
+			PartBytes:   r.ResultDelivery.PartBytes,
 			MaxBytes:    r.ResultDelivery.MaxBytes,
 			Format:      r.ResultDelivery.Format,
 			Compression: r.ResultDelivery.Compression,
@@ -720,7 +722,7 @@ func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) Remote
 			UploadID:    req.ResultDelivery.UploadID,
 			BaseURL:     req.ResultDelivery.BaseURL,
 			Token:       req.ResultDelivery.Token,
-			ChunkBytes:  req.ResultDelivery.ChunkBytes,
+			PartBytes:   req.ResultDelivery.PartBytes,
 			MaxBytes:    req.ResultDelivery.MaxBytes,
 			Format:      req.ResultDelivery.Format,
 			Compression: req.ResultDelivery.Compression,
@@ -757,7 +759,7 @@ func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 			UploadID:    req.ResultDelivery.UploadID,
 			BaseURL:     req.ResultDelivery.BaseURL,
 			Token:       req.ResultDelivery.Token,
-			ChunkBytes:  req.ResultDelivery.ChunkBytes,
+			PartBytes:   req.ResultDelivery.PartBytes,
 			MaxBytes:    req.ResultDelivery.MaxBytes,
 			Format:      req.ResultDelivery.Format,
 			Compression: req.ResultDelivery.Compression,
