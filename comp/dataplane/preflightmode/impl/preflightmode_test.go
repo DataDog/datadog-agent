@@ -308,6 +308,10 @@ func newHarness(t *testing.T, mode string, tweak func(pkgconfigmodel.Config)) *h
 	cfg.Set("run_path", shortTempDir(t), pkgconfigmodel.SourceAgentRuntime)
 	cfg.Set("api_key", "0123456789abcdef0123456789abcdef", pkgconfigmodel.SourceFile)
 	cfg.Set(DataPlaneStopTimeout, 2, pkgconfigmodel.SourceAgentRuntime)
+	// data_plane.enabled defaults to true in this branch (ADP sweep), which makes isEligible
+	// return false and the component inert. Reset to false via SourceDefault so that the
+	// preflight-mode harness tests can exercise the component's behaviour.
+	cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 	if tweak != nil {
 		tweak(cfg)
 	}
@@ -758,6 +762,9 @@ func TestPreflightModeReportsUnusableBinary(t *testing.T) {
 
 	cfg := configmock.New(t)
 	cfg.Set("run_path", t.TempDir(), pkgconfigmodel.SourceAgentRuntime)
+	// Reset data_plane.enabled to false via SourceDefault so isEligible passes
+	// (data_plane.enabled defaults to true in this branch).
+	cfg.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceDefault)
 	lc := &testLifecycle{}
 	tlm := telemetrymock.New(t)
 

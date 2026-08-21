@@ -30,6 +30,7 @@ log_level: DEBUG
 dogstatsd_non_local_traffic: true
 dogstatsd_tag_cardinality: high
 dogstatsd_origin_detection: true
+dogstatsd_socket: /var/run/datadog/dsd.socket
 `),
 				),
 			),

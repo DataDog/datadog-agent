@@ -92,7 +92,21 @@ func fulfillDepsWithServerlessConfigOverride(t testing.TB, overrides map[string]
 	return fulfillDepsWithParamsAndConfigOverride(t, server.Params{Serverless: true}, overrides)
 }
 
+// withInternalDSDDefault ensures the internal DogStatsD server stays enabled by
+// default in tests. The full-suite ADP sweep (DADP-72) temporarily flips the
+// compiled data_plane.enabled default to true, which would otherwise route
+// DogStatsD to ADP and leave the internal server unstarted. Tests that
+// explicitly exercise the ADP path set data_plane.enabled themselves and are
+// left untouched.
+func withInternalDSDDefault(overrides map[string]interface{}) map[string]interface{} {
+	if _, ok := overrides["data_plane.enabled"]; !ok {
+		overrides["data_plane.enabled"] = false
+	}
+	return overrides
+}
+
 func fulfillDepsWithParamsAndConfigOverride(t testing.TB, params server.Params, overrides map[string]interface{}) serverDeps {
+	overrides = withInternalDSDDefault(overrides)
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
@@ -114,6 +128,9 @@ func fulfillDepsWithParamsAndConfigOverride(t testing.TB, params server.Params, 
 }
 
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
+	// Prepend the shipped default for data_plane.enabled so the internal DSD
+	// server starts. See withInternalDSDDefault for the rationale.
+	yaml = "data_plane:\n  enabled: false\n" + yaml
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
@@ -141,6 +158,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 }
 
 func fulfillDepsWithInactiveServerAndParams(t *testing.T, cfg map[string]interface{}, serverless bool) (depsWithoutServer, *dsdServer) {
+	cfg = withInternalDSDDefault(cfg)
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),

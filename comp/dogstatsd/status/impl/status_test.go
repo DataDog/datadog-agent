@@ -33,8 +33,12 @@ func TestStatusDisabledWhenADPEnabled(t *testing.T) {
 }
 
 func TestStatusOutputPresent(t *testing.T) {
+	cfg := configmock.New(t)
+	// The full-suite ADP sweep (DADP-72) temporarily flips data_plane.enabled to
+	// true. Pin the shipped default so the internal DSD status provider is present.
+	cfg.Set("data_plane.enabled", false, configmodel.SourceAgentRuntime)
 	deps := Requires{
-		Config: configmock.New(t),
+		Config: cfg,
 	}
 	provides := NewComponent(deps)
 

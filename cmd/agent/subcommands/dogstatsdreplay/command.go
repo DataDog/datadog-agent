@@ -12,7 +12,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"go.uber.org/fx"
@@ -31,6 +34,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -77,7 +81,23 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdReplayCmd}
 }
 
+func findADPBinary() (string, error) {
+	candidates := []string{
+		filepath.Join(defaultpaths.GetEmbeddedBinPath(), "agent-data-plane"),
+		filepath.Join(defaultpaths.GetInstallPath(), "bin", "agent", "agent-data-plane"),
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	return "", fmt.Errorf("agent-data-plane binary not found (tried: %v)", candidates)
+}
+
 func dogstatsdReplay(_ log.Component, _ config.Component, cliParams *cliParams, ipc ipc.Component) error {
+	if pkgconfigsetup.Datadog().GetBool("data_plane.enabled") && pkgconfigsetup.Datadog().GetBool("data_plane.dogstatsd.enabled") {
+		return replayViaADP(cliParams)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -210,4 +230,25 @@ func dogstatsdReplay(_ log.Component, _ config.Component, cliParams *cliParams, 
 
 	fmt.Println("replay done")
 	return err
+}
+
+func replayViaADP(cliParams *cliParams) error {
+	adpBin, err := findADPBinary()
+	if err != nil {
+		return fmt.Errorf("cannot delegate dogstatsd-replay to agent-data-plane: %w", err)
+	}
+
+	args := []string{"dogstatsd", "replay", "--file", cliParams.dsdReplayFilePath}
+	if cliParams.dsdReplayIterations != defaultIterations {
+		args = append(args, "--loops", strconv.Itoa(cliParams.dsdReplayIterations))
+	}
+
+	cmd := exec.Command(adpBin, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	fmt.Println("replay done")
+	return nil
 }

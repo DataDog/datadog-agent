@@ -83,7 +83,10 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 		statusOutput := client.AgentClient.Status().Content
 		require.Contains(tt, statusOutput, "Forwarder")
 		require.Contains(tt, statusOutput, "Host Info")
-		require.Contains(tt, statusOutput, "DogStatsD")
+		// When ADP (Agent Data Plane) handles DogStatsD, the "DogStatsD" status section is absent;
+		// the aggregator still surfaces "Dogstatsd Metric Sample" proving DSD is operational.
+		require.True(tt, strings.Contains(statusOutput, "DogStatsD") || strings.Contains(statusOutput, "Dogstatsd Metric Sample"),
+			"status should contain DogStatsD section or Dogstatsd Metric Sample (present when ADP handles DSD)")
 	})
 
 	t.Run("status command no errors", func(tt *testing.T) {

@@ -22,6 +22,10 @@ import (
 // preflight process is a separate short-lived child of the Core Agent, which is why this suite
 // asserts on the probe metric rather than on an agent-data-plane process being alive.
 func TestPreflightModeLinuxSuite(t *testing.T) {
+	// Preflight mode is ineligible when data_plane.enabled defaults to true (DADP-72 ADP sweep).
+	// The pre-flight is a "try ADP before it's GA" mechanism; when ADP is already the default
+	// there is nothing to pre-flight.
+	t.Skip("skipped for ADP-enabled CI sweep (DADP-72): data_plane.enabled=true by default disables preflight mode")
 	t.Parallel()
 
 	suite := &preflightModeSuite{
