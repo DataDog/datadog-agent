@@ -116,6 +116,16 @@ u32 __attribute__((always_inline)) get_ns_common_inum_offset(void) {
     return offset; // offsetof(struct ns_common, inum)
 }
 
+// get_mnt_namespace_inum reads the namespace ID out of a struct mnt_namespace. The embedded
+// ns_common is not at offset 0 on every kernel: it sits behind mnt_namespace.count below 5.11,
+// so both offsets are required.
+u32 __attribute__((always_inline)) get_mnt_namespace_inum(void *mnt_ns) {
+    u32 inum = 0;
+
+    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_ns_common_inum_offset());
+    return inum;
+}
+
 static int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     int mount_id;
     // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
@@ -178,15 +188,13 @@ u64 __attribute__((always_inline)) get_mount_mount_id_unique(void *mnt) {
 
 u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
     void* mnt_ns = NULL;
-    u32   inum = 0;
 
     bpf_probe_read(&mnt_ns, sizeof(mnt_ns), mnt + get_mount_offset_of_mount_ns());
     if (!mnt_ns) {
         return 0;
     }
 
-    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_ns_common_inum_offset());
-    return inum;
+    return get_mnt_namespace_inum(mnt_ns);
 }
 
 struct mount * __attribute__((always_inline)) get_mount_parent(void *mnt) {
