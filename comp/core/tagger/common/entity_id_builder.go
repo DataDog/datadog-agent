@@ -29,6 +29,8 @@ func BuildTaggerEntityID(entityID workloadmeta.EntityID) types.EntityID {
 		return types.NewEntityID(types.KubernetesDeployment, entityID.ID)
 	case workloadmeta.KindKubernetesMetadata:
 		return types.NewEntityID(types.KubernetesMetadata, entityID.ID)
+	case workloadmeta.KindKubernetesNode:
+		return types.NewEntityID(types.KubernetesNode, entityID.ID)
 	case workloadmeta.KindKubernetesKueueQueue:
 		return types.NewEntityID(types.KubernetesKueueQueue, entityID.ID)
 	case workloadmeta.KindKubernetesKueueResourceFlavor:

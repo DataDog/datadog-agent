@@ -68,6 +68,9 @@ type labelJoiner struct {
 	metricsToJoin map[string]metricToJoin
 }
 
+// argoRolloutLabelName is the KSM-normalized name of the rollouts-pod-template-hash label.
+const argoRolloutLabelName = "label_rollouts_pod_template_hash"
+
 type metricToJoin struct {
 	config *joinsConfig
 	tree   *node

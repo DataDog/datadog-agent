@@ -42,6 +42,61 @@ func TestNewDevice(t *testing.T) {
 	require.Equal(t, uint32(75), device.SMVersion) // 7*10 + 5
 }
 
+func TestNewDeviceNVLinkLinkCount(t *testing.T) {
+	tests := []struct {
+		name            string
+		options         []testutil.NvmlMockOption
+		expectedCount   int
+		expectedVersion string
+	}{
+		{
+			name: "links present",
+			options: []testutil.NvmlMockOption{
+				testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1, NvLinkLinkCount: 2}),
+			},
+			expectedCount:   2,
+			expectedVersion: "1.0",
+		},
+		{
+			name: "disabled link",
+			options: []testutil.NvmlMockOption{
+				testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1}),
+				testutil.WithNVLinkStates([]nvml.EnableState{nvml.FEATURE_DISABLED}, nil),
+			},
+			expectedCount:   1,
+			expectedVersion: "1.0",
+		},
+		{
+			name:          "no links",
+			options:       []testutil.NvmlMockOption{testutil.WithNVLinkLinkCount(0)},
+			expectedCount: 0,
+		},
+		{
+			name:          "unsupported link count field",
+			options:       []testutil.NvmlMockOption{testutil.WithUnsupportedFields(nvml.FI_DEV_NVLINK_LINK_COUNT)},
+			expectedCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockNvml := testutil.GetBasicNvmlMockWithOptions(
+				append(tt.options, testutil.WithSymbolsMock(allSymbols))...,
+			)
+			WithMockNVML(t, mockNvml)
+
+			nvmlDev, ret := mockNvml.DeviceGetHandleByIndex(0)
+			require.Equal(t, nvml.SUCCESS, ret)
+
+			device, err := NewPhysicalDevice(nvmlDev)
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedCount, device.NVLinkLinkCount)
+			require.Equal(t, tt.expectedVersion, device.NVLinkVersion)
+		})
+	}
+}
+
 func TestNewDeviceUUIDFailure(t *testing.T) {
 	// Create mock with all symbols available
 	mockNvml := testutil.GetBasicNvmlMockWithOptions(
@@ -140,4 +195,17 @@ func TestDeviceSafeMethodSuccess(t *testing.T) {
 	cores, err := device.GetNumGpuCores()
 	require.NoError(t, err)
 	require.Equal(t, testutil.DefaultGpuCores, cores)
+}
+
+func TestGetGpuFabricInfoRequiresVersionedAPISymbol(t *testing.T) {
+	symbols := maps.Clone(allSymbols)
+	delete(symbols, toNativeName("GetGpuFabricInfoV"))
+
+	device := &safeDeviceImpl{
+		lib: &safeNvml{capabilities: symbols},
+	}
+
+	_, err := device.GetGpuFabricInfo()
+	require.Error(t, err)
+	require.True(t, IsUnsupported(err))
 }

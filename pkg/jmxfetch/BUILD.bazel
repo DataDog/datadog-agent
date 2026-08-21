@@ -49,6 +49,7 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":jmxfetch"],
+    gotags_sets = [["jmx"]],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/config/mock",

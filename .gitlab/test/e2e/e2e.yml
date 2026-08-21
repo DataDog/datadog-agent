@@ -2,6 +2,7 @@
 # e2e stage
 # Contains test jobs based on the new-e2e tests framework
 .new_e2e_template:
+  extends: .bazel:defs:cache:progressive
   stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
@@ -65,6 +66,7 @@
     - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
     - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
   variables:
+    GIT_DEPTH: 0 # Full history: --impacted tests use git merge-base
     GIT_STRATEGY: "clone" # Needed because we use git merge-base
     DYNAMIC_TESTS_FLAG: "--impacted"
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
@@ -297,7 +299,6 @@ new-e2e-containers-k8s-rc-latest:
   extends:
     - .new_e2e_template_needs_container_deploy_linux
   rules:
-    - when: never # disabled — RC not newer than latest stable
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
@@ -305,7 +306,7 @@ new-e2e-containers-k8s-rc-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.0-rc.1@sha256:d7fcd0fa9939dd3d1f6691bd9ad9144aecc08e43b8888820a9a75017594644d6"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.37.0-rc.1@sha256:adc3f1a9ef8b768d311c0592f727c30e274a870c8f0f7713e949558d0275f8f1"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
@@ -464,6 +465,7 @@ new-e2e-agent-telemetry:
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
     - qa_agent_linux
+    - qa_agent_full
     - qa_dca
   rules:
     - !reference [.on_agenttelemetry_or_e2e_changes]
@@ -653,6 +655,21 @@ new-e2e-amp-adp:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+# Agent Data Plane preflight mode (comp/dataplane/preflightmode).
+#
+# One job per platform rather than one job running all three: preflight mode's eligibility rules
+# and DogStatsD transport differ per platform, so a shared job would leave it ambiguous which
+# platform regressed. The Windows job lives in .gitlab/windows/test/e2e/windows.yml.
+new-e2e-adp-preflight-mode:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_adp_preflight_mode_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-data-plane/preflight-mode
+    TEAM: agent-data-plane
+    EXTRA_PARAMS: --run "TestPreflightModeLinuxSuite"
+
 new-e2e-alp:
   extends: .new_e2e_template
   needs:
@@ -839,8 +856,6 @@ new-e2e-apm:
     - deploy_agent_oci
     - deploy_ddot_oci
     - qa_installer_script_linux
-    - job: qa_installer_script_windows
-      optional: true
   variables:
     TEAM: fleet
     E2E_USE_AWS_PROFILE: "false"
@@ -929,8 +944,6 @@ new-e2e-installer:
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_installer_script_linux
-    - job: qa_installer_script_windows
-      optional: true
     - deploy_ddot_oci
   variables:
     TARGETS: ./tests/installer/unix
@@ -939,6 +952,12 @@ new-e2e-installer:
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestPackages/agent_"
+      - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
+      - EXTRA_PARAMS: --run "TestPackages/ddot_"
+      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -957,14 +976,17 @@ new-e2e-installer-ansible:
       optional: true
     - deploy_installer_oci
     - deploy_agent_oci
-    - job: qa_installer_script_windows
-      optional: true
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestPackages/agent_"
+      - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
+      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
@@ -1016,7 +1038,6 @@ new-e2e-ha-agent-failover:
     TEAM: network-device-monitoring-core
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
-  allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-anomalydetection:

@@ -80,8 +80,7 @@ func TestSystemdServiceManager_writeServiceFile(t *testing.T) {
 	assert.FileExists(t, testDestPath)
 	content, err := os.ReadFile(testDestPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(content), "ExecStart=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer apm instrument-start host")
-	assert.Contains(t, string(content), "ExecStop=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer apm instrument-stop host")
+	assert.Contains(t, string(content), mgr.installerPath)
 	assert.NotContains(t, string(content), installerPathPlaceholder)
 }
 

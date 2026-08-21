@@ -3810,6 +3810,44 @@ func TestHandleContainerImage(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Registry hosts that include a port (e.g. `artifactory.local:443/...`)
+			// must not be split on the first colon, otherwise the image_tag value
+			// would incorrectly contain the port followed by the image path.
+			name: "registry with port",
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				RepoTags: []string{
+					"artifactory.local:443/team/service:2.54.3",
+				},
+				RepoDigests: []string{
+					"artifactory.local:443/team/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+				},
+				OS:           "linux",
+				OSVersion:    "1",
+				Architecture: "amd64",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               containerImageSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"architecture:amd64",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+						"image_tag:2.54.3",
+						"os_name:linux",
+						"os_version:1",
+						"short_image:service",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -3847,10 +3885,13 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: entityID.ID,
 				},
-				Vendor:   "nvidia",
-				Device:   "tesla-v100",
-				GPUType:  "v100",
-				PCIBusID: "0000:00:1e.0",
+				Vendor:            "nvidia",
+				Device:            "tesla-v100",
+				GPUType:           "v100",
+				PCIBusID:          "0000:00:1e.0",
+				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
+				FabricCliqueID:    7,
+				NVLinkVersion:     "3.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3866,6 +3907,10 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:3.0",
+						"gpu_nvlink_capable:true",
+						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
+						"gpu_fabric_clique_id:7",
 					},
 					StandardTags: []string{},
 				},
@@ -3881,10 +3926,11 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "GPU-1234",
 				},
-				Vendor:   "Nvidia",
-				Device:   "Tesla v100",
-				GPUType:  "V100",
-				PCIBusID: "0000:00:1E.0",
+				Vendor:        "Nvidia",
+				Device:        "Tesla v100",
+				GPUType:       "V100",
+				PCIBusID:      "0000:00:1E.0",
+				NVLinkVersion: "not_nvlink_capable",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3900,6 +3946,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
 					},
 					StandardTags: []string{},
 				},
@@ -3924,6 +3972,7 @@ func TestHandleGPU(t *testing.T) {
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
 				PCIBusID:           "0000:00:1e.0",
+				NVLinkVersion:      "not_nvlink_capable",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3940,6 +3989,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:a100",
 						"gpu_uuid:mig-432",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
 					},
@@ -3967,6 +4018,7 @@ func TestHandleGPU(t *testing.T) {
 				Architecture:       "ampere",
 				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
 				PCIBusID:           "0000:00:1e.0",
+				NVLinkVersion:      "not_nvlink_capable",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3983,6 +4035,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
 					},
@@ -4083,19 +4137,18 @@ func TestHandleDelete(t *testing.T) {
 }
 
 func TestHandleDeleteKubernetesNode(t *testing.T) {
-	// KubernetesNode entities carry no tags and are excluded from tagging in
-	// processEvents. Deleting one must not panic by falling through to
-	// common.BuildTaggerEntityID, which has no case for KindKubernetesNode.
-
+	nodeEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesNode,
+		ID:   "node-foobar",
+	}
 	node := &workloadmeta.KubernetesNode{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesNode,
-			ID:   "node-foobar",
-		},
+		EntityID: nodeEntityID,
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "node-foobar",
 		},
 	}
+
+	nodeTaggerEntityID := types.NewEntityID(types.KubernetesNode, nodeEntityID.ID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -4106,19 +4159,128 @@ func TestHandleDeleteKubernetesNode(t *testing.T) {
 	cfg := configmock.New(t)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
-	eventBundle := workloadmeta.EventBundle{
-		Events: []workloadmeta.Event{
-			{
-				Type:   workloadmeta.EventTypeUnset,
-				Entity: node,
-			},
+	expected := []*types.TagInfo{
+		{
+			Source:       nodeSource,
+			EntityID:     nodeTaggerEntityID,
+			DeleteEntity: true,
 		},
-		Ch: make(chan struct{}),
 	}
 
-	assert.NotPanics(t, func() {
-		collector.processEvents(eventBundle)
+	actual := collector.handleDelete(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeUnset,
+		Entity: node,
 	})
+
+	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandleKubeNode(t *testing.T) {
+	const nodeName = "node-foobar"
+
+	nodeEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesNode,
+		ID:   nodeName,
+	}
+
+	nodeTaggerEntityID := types.NewEntityID(types.KubernetesNode, nodeEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	tests := []struct {
+		name                          string
+		k8sResourcesAnnotationsAsTags map[string]map[string]string
+		k8sResourcesLabelsAsTags      map[string]map[string]string
+		node                          workloadmeta.KubernetesNode
+		expected                      []*types.TagInfo
+	}{
+		{
+			name: "node with no matching labels/annotations for annotations/labels as tags. should return nil to avoid empty tagger entity",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_tier": "node_tier",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_env": "node_env",
+				},
+			},
+			node: workloadmeta.KubernetesNode{
+				EntityID: nodeEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: nodeName,
+					Labels: map[string]string{
+						"a": "dev",
+					},
+					Annotations: map[string]string{
+						"b": "some_tier",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "node with generic labels/annotations as tags",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_tier": "node_tier",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_env": "node_env",
+				},
+			},
+			node: workloadmeta.KubernetesNode{
+				EntityID: nodeEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: nodeName,
+					Labels: map[string]string{
+						"node_env": "dev",
+						"foo":      "bar",
+					},
+					Annotations: map[string]string{
+						"node_tier":     "some_tier",
+						"node_security": "critical",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               nodeSource,
+					EntityID:             nodeTaggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"node_env:dev",
+						"node_tier:some_tier",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
+
+			actual := collector.handleKubeNode(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.node,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
 }
 
 type fakeProcessor struct {
@@ -4879,6 +5041,7 @@ func TestHandleProcess(t *testing.T) {
 				LowCardTags: []string{
 					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
 					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_nvlink_capable:false",
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
@@ -4920,6 +5083,7 @@ func TestHandleProcess(t *testing.T) {
 					"env:" + envFromDD,
 					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
 					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_nvlink_capable:false",
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,

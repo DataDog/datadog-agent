@@ -20,6 +20,7 @@ go_library(
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/impl",
             "//comp/core/workloadmeta/def",
+            "//pkg/config/helper",
             "//pkg/config/model",
             "//pkg/discovery/core",
             "//pkg/discovery/language",
@@ -63,6 +64,7 @@ go_library(
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/impl",
             "//comp/core/workloadmeta/def",
+            "//pkg/config/helper",
             "//pkg/config/model",
             "//pkg/discovery/core",
             "//pkg/discovery/language",
@@ -114,11 +116,8 @@ dd_agent_go_test(
         "process_service_collector_test.go",
     ],
     embed = [":process"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [["systemprobechecks"]],
+    include_default = False,
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",

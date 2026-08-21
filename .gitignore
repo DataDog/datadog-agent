@@ -269,3 +269,10 @@ flake.lock
 
 # NCM local config store (runtime artifact)
 .run/ncm_config.db
+
+# Code generated from the config schema
+pkg/config/schema/*_settings.go
+pkg/config/schema/*_generated.go
+pkg/config/setup/generated.go
+pkg/config/setup/all_settings.go
+pkg/config/setup/system_probe_settings.go

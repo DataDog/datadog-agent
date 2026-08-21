@@ -18,5 +18,6 @@ dd_agent_go_test(
     name = "fips_test",
     srcs = ["fips_test.go"],
     embed = [":fips"],
-    flavors = ["fips"],
+    gotags_sets = [["goexperiment.systemcrypto"]],
+    include_default = False,
 )
