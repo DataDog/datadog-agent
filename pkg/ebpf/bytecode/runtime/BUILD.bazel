@@ -73,19 +73,35 @@ go_library(
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
-    deps = [
-        "//comp/core/telemetry/def",
-        "//comp/core/telemetry/impl",
-        "//pkg/ebpf",
-        "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/compiler",
-        "//pkg/template/text",
-        "//pkg/util/kernel",
-        "//pkg/util/kernel/headers",
-        "//pkg/util/log",
-        "@com_github_datadog_agent_payload_v5//process",
-        "@com_github_justincormack_go_memfd//:go-memfd",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/compiler",
+            "//pkg/template/text",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/headers",
+            "//pkg/util/log",
+            "@com_github_datadog_agent_payload_v5//process",
+            "@com_github_justincormack_go_memfd//:go-memfd",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/compiler",
+            "//pkg/template/text",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/headers",
+            "//pkg/util/log",
+            "@com_github_datadog_agent_payload_v5//process",
+            "@com_github_justincormack_go_memfd//:go-memfd",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
@@ -95,7 +111,7 @@ dd_agent_go_test(
         "helpers_test.go",
     ],
     embed = [":runtime"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = [
@@ -111,23 +127,41 @@ dd_agent_go_test(
     name = "asset_test",
     srcs = ["asset_test.go"],
     embed = [":runtime"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "helpers_test",
     srcs = ["helpers_test.go"],
     embed = [":runtime"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
-    deps = [
-        "//pkg/ebpf",
-        "//pkg/util/kernel",
-        "//pkg/util/kernel/headers",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/headers",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/headers",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

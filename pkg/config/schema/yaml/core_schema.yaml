@@ -5406,7 +5406,7 @@ properties:
                 default: true
                 comment: |-
                   Stdout reporting verbosity.
-                  stdout.enabled: set to false to silence all [observer] stdout log lines.
+                  stdout.enabled: set to false to silence all [anomalydetection] reporter stdout log lines.
                   stdout.verbose: set to true to print individual anomaly series after the title line.
                   Default: title-only (stdout.enabled=true, stdout.verbose=false).
               verbose:
