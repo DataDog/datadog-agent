@@ -134,7 +134,7 @@ fn parse_yaml_v2_prefixed_int(plain: &str) -> Option<Value> {
     }
     if negative {
         let n = i64::from_str_radix(digits, base).ok()?;
-        return Some(Value::Number(n.into()));
+        return Some(Value::Number(n.checked_neg()?.into()));
     }
     if let Ok(n) = i64::from_str_radix(digits, base) {
         return Some(Value::Number(n.into()));
@@ -421,6 +421,13 @@ mod tests {
                 .get("enabled")
                 .and_then(Value::as_i64),
             Some(0)
+        );
+        assert_eq!(
+            load("enabled: -0x1\n")
+                .unwrap()
+                .get("enabled")
+                .and_then(Value::as_i64),
+            Some(-1)
         );
     }
 
