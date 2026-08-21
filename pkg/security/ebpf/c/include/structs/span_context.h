@@ -72,4 +72,56 @@ struct go_labels_scratch_t {
     };
 };
 
+// --- OTel Thread Local Context Record support (OTEP 4947) ---
+
+// Fixed header of a record, as the instrumented process publishes it.
+struct otel_thread_ctx_record_t {
+    u8 trace_id[16];     // W3C Trace Context byte order (big-endian)
+    u8 span_id[8];       // W3C Trace Context byte order (big-endian)
+    u8 valid;            // must be 1 for the record to be considered valid
+    u8 _reserved;        // padding for alignment
+    u16 attrs_data_size; // size of custom attributes data following this header
+};
+
+// Offset of otel_thread_ctx_record_t.valid from the record base.
+#define OTEL_THREAD_CTX_VALID_OFFSET 24
+
+// otel_dtv_info_t describes how to walk the Dynamic Thread Vector (DTV) for a
+// process's libc. DTV access is always indirect: the thread pointer plus
+// otel_dtv_info_t.offset yields a pointer to the DTV array, which must itself
+// be dereferenced (indexed by module_id) before reading the module's TLS
+// block. Mirrors DTVInfo in DataDog's opentelemetry-ebpf-profiler fork
+// (support/ebpf/types.h, PR #1229).
+// offset and tls_offset below are s64, not s32/s16: eBPF verifiers on older
+// kernels (e.g. the 4.15-class kernels CWS still supports) reject the
+// sign-extending sub-64-bit load instruction clang can fold a direct
+// struct-field read of a signed 8/16/32-bit value into ("BPF_STX/BPF_LDX uses
+// reserved fields") — that instruction encoding was only added to the BPF ISA
+// in a fairly recent LLVM/kernel pairing. A plain 64-bit load has no
+// extension semantics at all, so it can't hit this. Do not narrow these
+// fields back down without re-verifying against CWS's full supported kernel
+// range, not just recent ones.
+struct otel_dtv_info_t {
+    s64 offset;     // offset of the DTV pointer from the thread pointer
+    u32 multiplier; // size of one DTV entry in bytes (16 glibc / 8 musl)
+    u32 _pad;
+};
+
+// OTel TLS registration for a process, written once by user-space after
+// classifying the otel_thread_ctx_v1 TLS variable's access model via static
+// ELF relocation analysis, and reading the (loader-resolved) GOT/TLSDESC slot
+// from the live process once, at attach time. eBPF only needs these fields to
+// read the variable at trace time (see helpers/span_otel.h's otel_tls_read) —
+// no link_map walk, no thread_db, no hashing. Mirrors ThreadContextProcInfo
+// in DataDog's opentelemetry-ebpf-profiler fork (support/ebpf/types.h, PR
+// #1229), plus the runtime field for the Go-vs-native short-circuit this
+// codebase also needs.
+struct otel_tls_t {
+    u32 runtime;                     // enum otel_runtime_language
+    u32 module_id;                   // TLS module ID for dynamic TLS, or 0 for static TLS
+    s64 tls_offset;                  // TP-relative (static TLS, module_id==0) or
+                                      // in-module offset (dynamic TLS, module_id!=0)
+    struct otel_dtv_info_t dtv_info; // unused when module_id == 0
+};
+
 #endif
