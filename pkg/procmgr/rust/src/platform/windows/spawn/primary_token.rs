@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::Foundation::HANDLE;
@@ -11,13 +11,14 @@ use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_SUSPENDED,
-    CREATE_UNICODE_ENVIRONMENT, CreateProcessAsUserW, GetCurrentProcess, OpenProcessToken,
-    PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW,
+    CREATE_UNICODE_ENVIRONMENT, CreateProcessAsUserW, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
+    STARTUPINFOW,
 };
 
 use crate::spawn::SpawnRequest;
 
 use super::super::agent_credentials::AgentAccount;
+use super::super::token_identity::{open_current_process_token, token_user_is_local_system};
 use super::super::wide;
 use super::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
@@ -132,22 +133,18 @@ pub(super) fn spawn_as_primary_token(
 }
 
 fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {
-    let mut process_token: HANDLE = std::ptr::null_mut();
-    let ok = unsafe {
-        OpenProcessToken(
-            GetCurrentProcess(),
-            TOKEN_QUERY | TOKEN_DUPLICATE,
-            &mut process_token,
-        )
-    };
-    if ok == 0 {
+    let process_token = open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE).map_err(|e| {
+        anyhow!("[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}")
+    })?;
+    if !token_user_is_local_system(process_token.as_handle()).map_err(|e| {
+        anyhow!("[{process_name}] verify supervisor token is LocalSystem: {e}")
+    })? {
         bail!(
-            "[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {}",
-            std::io::Error::last_os_error()
+            "[{process_name}] privileged spawn requires dd-procmgrd to run as LocalSystem; \
+             supervisor token is not LocalSystem (for example console fallback)"
         );
     }
-    let process_token_guard = TokenHandle::new(process_token);
-    duplicate_primary_token(process_name, process_token_guard.raw())
+    duplicate_primary_token(process_name, process_token.as_handle())
 }
 
 #[cfg(test)]
