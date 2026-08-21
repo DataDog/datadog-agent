@@ -19,22 +19,22 @@ use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
 use crate::spawn::StdioSetting;
 
-use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
+use super::credential::SpawnCredential;
 use super::logon::{logon_user_credentials, logon_user_token, with_impersonated_token};
 
 pub(super) fn map_stdio_setting(
     process_name: &str,
     setting: &StdioSetting,
     kind: u32,
-    account: &AgentAccount,
+    credential: &SpawnCredential,
 ) -> Result<MappedStdioHandle> {
     match setting {
         StdioSetting::Null => MappedStdioHandle::nul(),
         StdioSetting::Inherit => map_stdio_inherit(kind),
         StdioSetting::File(path) => {
             let path = path.to_string_lossy();
-            match open_stdio_file_as_account(process_name, path.as_ref(), account) {
+            match open_stdio_file_as_account(process_name, path.as_ref(), credential) {
                 Ok(handle) => Ok(handle),
                 Err(e) => {
                     warn!(
@@ -97,12 +97,15 @@ impl Drop for MappedStdioHandle {
 fn open_stdio_file_as_account(
     process_name: &str,
     path: &str,
-    account: &AgentAccount,
+    credential: &SpawnCredential,
 ) -> Result<MappedStdioHandle> {
-    if matches!(account, AgentAccount::LocalSystem) {
+    if credential.inherits_supervisor_token() {
         return Ok(MappedStdioHandle(open_append_file(path)?));
     }
-    let creds = logon_user_credentials(account);
+    let agent_account = credential
+        .agent_account_for_interactive_logon()
+        .expect("inherit-supervisor credentials skip file stdio impersonation");
+    let creds = logon_user_credentials(agent_account);
     let token = logon_user_token(process_name, &creds)?;
     with_impersonated_token(process_name, token.raw(), || {
         Ok(MappedStdioHandle(open_append_file(path)?))
@@ -224,11 +227,15 @@ mod tests {
     #[test]
     fn unopenable_file_path_falls_back_to_inherit() {
         let bad_path = StdioSetting::File(PathBuf::from(r"C:\nonexistent_pmgr_stdio_dir\out.log"));
+        let credential = SpawnCredential::InheritSupervisor {
+            display_name: r"NT AUTHORITY\SYSTEM".to_string(),
+            require_local_system: true,
+        };
         let handle = map_stdio_setting(
             "test-proc",
             &bad_path,
             STD_OUTPUT_HANDLE,
-            &AgentAccount::LocalSystem,
+            &credential,
         )
         .expect("map_stdio_setting should fall back instead of failing spawn");
         assert!(!handle.raw().is_null());

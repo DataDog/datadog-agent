@@ -3,11 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, bail};
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
-use windows_sys::Win32::Foundation::HANDLE;
-use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_SUSPENDED,
@@ -17,33 +15,30 @@ use windows_sys::Win32::System::Threading::{
 
 use crate::spawn::SpawnRequest;
 
-use super::super::agent_credentials::AgentAccount;
-use super::super::token_identity::{open_current_process_token, token_user_is_local_system};
 use super::super::wide;
-use super::logon::{TokenHandle, logon_user_credentials, logon_user_token};
+use super::credential::SpawnCredential;
+use super::logon::TokenHandle;
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 use super::suspended::SuspendedChild;
 use super::user_profile::UserProfileGuard;
-use super::win32::{
-    build_windows_command_line, duplicate_primary_token, env_block_from_baseline_plus_overrides,
-};
+use super::win32::{build_windows_command_line, env_block_from_baseline_plus_overrides};
 
 pub(super) fn spawn_as_primary_token(
     process_name: &str,
     request: &SpawnRequest,
-    account: &AgentAccount,
+    credential: &SpawnCredential,
 ) -> Result<(SuspendedChild, Option<UserProfileGuard>)> {
     let stdout_handle = map_stdio_setting(
         process_name,
         &request.stdout_setting,
         windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE,
-        account,
+        credential,
     )?;
     let stderr_handle = map_stdio_setting(
         process_name,
         &request.stderr_setting,
         STD_ERROR_HANDLE,
-        account,
+        credential,
     )?;
     let stdin_handle = map_stdio_handle_nul()?;
 
@@ -59,23 +54,18 @@ pub(super) fn spawn_as_primary_token(
         .as_ref()
         .map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
 
-    let primary_token_guard = TokenHandle::new(match account {
-        AgentAccount::LocalSystem => local_system_primary_token(process_name)?,
-        _ => duplicate_primary_token(
-            process_name,
-            logon_user_token(process_name, &logon_user_credentials(account))?.raw(),
-        )?,
-    });
+    let primary_token_guard = TokenHandle::new(credential.duplicate_primary_token(process_name)?);
 
-    let profile_guard = if account.inherits_supervisor_token() {
-        None
-    } else {
-        Some(UserProfileGuard::load(
-            process_name,
-            primary_token_guard.raw(),
-            account,
-        )?)
-    };
+    let profile_guard = credential
+        .agent_account_for_interactive_logon()
+        .map(|agent_account| {
+            UserProfileGuard::load(
+                process_name,
+                primary_token_guard.raw(),
+                agent_account,
+            )
+        })
+        .transpose()?;
 
     let env_block = env_block_from_baseline_plus_overrides(
         process_name,
@@ -130,21 +120,6 @@ pub(super) fn spawn_as_primary_token(
         SuspendedChild::new(pi.dwProcessId, pi.hProcess, pi.hThread),
         profile_guard,
     ))
-}
-
-fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {
-    let process_token = open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE).map_err(|e| {
-        anyhow!("[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}")
-    })?;
-    if !token_user_is_local_system(process_token.as_handle())
-        .map_err(|e| anyhow!("[{process_name}] verify supervisor token is LocalSystem: {e}"))?
-    {
-        bail!(
-            "[{process_name}] privileged spawn requires dd-procmgrd to run as LocalSystem; \
-             supervisor token is not LocalSystem (for example console fallback)"
-        );
-    }
-    duplicate_primary_token(process_name, process_token.as_handle())
 }
 
 #[cfg(test)]
