@@ -37,14 +37,14 @@ const (
 	// Pending delivery is deliberately bounded so the 4 MiB bookmark remains
 	// durable under sustained intake: at most 128 events of at most 16 KiB each.
 	// Pending exposes 100 at a time to bound each poll payload.
-	maxDarwinPendingEvents     = 128
-	maxDarwinPendingBatch      = 100
-	maxDarwinEventWireSize     = notableeventtypes.MaxEventWireSize
-	maxDarwinDirectories       = 256
-	maxDarwinFilesPerDirectory = 128
-	maxDarwinTotalFiles        = 2048
-	maxDarwinDirectoryEntries  = 1024
-	maxDarwinFingerprintBytes  = 128
+	maxDarwinPendingEvents         = 128
+	maxDarwinPendingBatch          = 100
+	maxDarwinEventWireSize         = notableeventtypes.MaxEventWireSize
+	maxDarwinDirectories           = 256
+	maxDarwinFilesPerDirectory     = 128
+	maxDarwinTotalFiles            = 2048
+	maxDarwinDirectoryEntries      = 1024
+	maxDarwinFingerprintBytes      = 128
 	maxDarwinShutdownBootUUIDBytes = 64
 	diagnosticReportsDirName       = "Library/Logs/DiagnosticReports"
 	systemDiagnosticReportsDir     = "/Library/Logs/DiagnosticReports"
@@ -489,7 +489,7 @@ func (c *Collector) run(ctx context.Context) {
 }
 
 // checkShutdownCauseOnce reads and classifies the previous boot's PMU fault
-// payload once per collector lifetime. 
+// payload once per collector lifetime.
 func (c *Collector) checkShutdownCauseOnce() {
 	bootUUID, err := c.readBootUUID()
 	if err != nil || bootUUID == "" {

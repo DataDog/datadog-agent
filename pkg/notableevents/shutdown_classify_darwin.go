@@ -97,9 +97,9 @@ type shutdownCauseResult struct {
 	// PrimaryFamily is the lexicographically first family of Class present.
 	// Arbitrary but deterministic, which is what a stable title needs.
 	PrimaryFamily string
-	Tokens []string
-	Families []string
-	FaultTokens []string
+	Tokens        []string
+	Families      []string
+	FaultTokens   []string
 }
 
 // tokenFamily returns the family a PMU fault token belongs to: the prefix

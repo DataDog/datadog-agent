@@ -26,11 +26,11 @@ import (
 )
 
 const (
-	pmuBootFaultProperty = "IOPMUBootFaultInfo"
-	pmuTokenSeparator = "\x1f"
+	pmuBootFaultProperty          = "IOPMUBootFaultInfo"
+	pmuTokenSeparator             = "\x1f"
 	pmuBootFaultInitialBufferSize = C.DD_PMU_MAX_TOKENS_PER_SERVICE * C.DD_PMU_MAX_TOKEN_CHARS
-	maxShutdownTokens = C.DD_PMU_MAX_TOKENS_PER_SERVICE
-	maxShutdownTokenBytes = C.DD_PMU_MAX_TOKEN_CHARS - 1
+	maxShutdownTokens             = C.DD_PMU_MAX_TOKENS_PER_SERVICE
+	maxShutdownTokenBytes         = C.DD_PMU_MAX_TOKEN_CHARS - 1
 )
 
 var errShutdownCauseUnsupported = errors.New("shutdown cause reporting requires arm64 Darwin")

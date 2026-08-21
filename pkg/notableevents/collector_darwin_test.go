@@ -2069,6 +2069,7 @@ func TestDarwinCollectorShutdownEventUsesFallbackTimestamp(t *testing.T) {
 	require.True(t, ok)
 	assert.NotContains(t, payload, "boot_time")
 }
+
 // TestDarwinCollectorStatsReportSteadyState verifies the gauges follow live
 // bookmark contents and publish the limits they are measured against.
 func TestDarwinCollectorStatsReportSteadyState(t *testing.T) {
