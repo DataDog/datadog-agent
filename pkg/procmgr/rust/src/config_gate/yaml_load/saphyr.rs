@@ -65,8 +65,11 @@ fn yaml_v2_plain_number(text: &str) -> Option<Value> {
     if let Ok(n) = plain.parse::<i64>() {
         return Some(Value::Number(n.into()));
     }
-    if let Some(n) = parse_yaml_v2_prefixed_int(&plain) {
+    if let Ok(n) = plain.parse::<u64>() {
         return Some(Value::Number(n.into()));
+    }
+    if let Some(n) = parse_yaml_v2_prefixed_int(&plain) {
+        return Some(n);
     }
     if !looks_like_yaml_11_float(&plain) {
         return None;
@@ -81,7 +84,7 @@ fn yaml_v2_plain_number(text: &str) -> Option<Value> {
 /// `strconv.ParseInt`/`ParseUint` with base 0: `0x` hex, `0b` binary, `0o` octal.
 /// Leading-zero decimals stay decimal (`010` is 10) so `08` still parses as 8
 /// instead of failing octal and falling through to a string.
-fn parse_yaml_v2_prefixed_int(plain: &str) -> Option<i64> {
+fn parse_yaml_v2_prefixed_int(plain: &str) -> Option<Value> {
     let (negative, rest) = match plain.as_bytes().first() {
         Some(b'+') => (false, &plain[1..]),
         Some(b'-') => (true, &plain[1..]),
@@ -100,8 +103,15 @@ fn parse_yaml_v2_prefixed_int(plain: &str) -> Option<i64> {
     if digits.is_empty() {
         return None;
     }
-    let n = i64::from_str_radix(digits, base).ok()?;
-    if negative { n.checked_neg() } else { Some(n) }
+    if negative {
+        let n = i64::from_str_radix(digits, base).ok()?;
+        return Some(Value::Number(n.into()));
+    }
+    if let Ok(n) = i64::from_str_radix(digits, base) {
+        return Some(Value::Number(n.into()));
+    }
+    let n = u64::from_str_radix(digits, base).ok()?;
+    Some(Value::Number(n.into()))
 }
 
 /// Digit-based decimal or scientific form (`1.0`, `1e0`). Rejects Rust-only
@@ -311,6 +321,24 @@ mod tests {
     fn rust_inf_spelling_stays_string() {
         let root = load("enabled: inf\n").unwrap();
         assert_eq!(root.get("enabled"), Some(&Value::String("inf".into())));
+    }
+
+    #[test]
+    fn plain_u64_max_decimal_is_number() {
+        let root = load("enabled: 18446744073709551615\n").unwrap();
+        assert_eq!(
+            root.get("enabled").and_then(Value::as_u64),
+            Some(u64::MAX)
+        );
+    }
+
+    #[test]
+    fn plain_u64_max_hex_is_number() {
+        let root = load("enabled: 0xffffffffffffffff\n").unwrap();
+        assert_eq!(
+            root.get("enabled").and_then(Value::as_u64),
+            Some(u64::MAX)
+        );
     }
 
     #[test]
