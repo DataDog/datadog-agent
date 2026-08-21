@@ -4,7 +4,9 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result, bail};
+#[cfg(not(test))]
 use std::ptr;
+#[cfg(not(test))]
 use windows_sys::Win32::Security::Authentication::Identity::{
     LSA_HANDLE, LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LsaClose, LsaFreeMemory, LsaOpenPolicy,
     LsaRetrievePrivateData, POLICY_GET_PRIVATE_INFORMATION,
@@ -15,12 +17,18 @@ use windows_sys::Win32::Security::{
 
 use super::account_name::AccountName;
 use super::local_account::is_local_account;
-use super::managed_service_account::{ManagedServiceAccountState, query_managed_service_account};
+use super::managed_service_account::ManagedServiceAccountState;
+#[cfg(not(test))]
+use super::managed_service_account::query_managed_service_account;
 use super::sid::lookup_account_sid;
+#[cfg(not(test))]
 use super::wide;
+#[cfg(not(test))]
 use super::{open_datadog_agent_key, registry_nonempty_string};
 
+#[cfg(not(test))]
 const AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
+#[cfg(not(test))]
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 const NT_AUTHORITY: &str = "NT AUTHORITY";
 
@@ -88,6 +96,7 @@ pub(crate) fn spawn_user_for_profile(
         .map(|credential| credential.display_name())
 }
 
+#[cfg(not(test))]
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     let Some(key) = open_datadog_agent_key() else {
         bail!("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent");
@@ -113,6 +122,7 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     resolve_domain_agent_account(domain, user, &sid)
 }
 
+#[cfg(not(test))]
 fn resolve_domain_agent_account(domain: String, user: String, sid: &[u8]) -> Result<AgentAccount> {
     let display = AccountName::new(&domain, &user).display();
     let is_local =
@@ -288,6 +298,7 @@ fn is_well_known_sid(
     unsafe { IsWellKnownSid(sid.as_ptr() as *mut _, well_known) != 0 }
 }
 
+#[cfg(not(test))]
 fn read_agent_password_from_lsa() -> Result<Option<String>> {
     let mut key_w = wide::null_terminated(AGENT_PASSWORD_LSA_KEY);
     let key_len = key_w.len().saturating_sub(1);
@@ -339,8 +350,10 @@ fn read_agent_password_from_lsa() -> Result<Option<String>> {
     }
 }
 
+#[cfg(not(test))]
 struct PolicyHandle(LSA_HANDLE);
 
+#[cfg(not(test))]
 impl Drop for PolicyHandle {
     fn drop(&mut self) {
         if self.0 != 0 {

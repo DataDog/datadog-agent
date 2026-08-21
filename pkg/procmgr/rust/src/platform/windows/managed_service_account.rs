@@ -27,6 +27,7 @@ pub(crate) enum ManagedServiceAccountState {
     ClassificationUnavailable,
 }
 
+#[cfg(not(test))]
 pub(crate) fn query_managed_service_account(
     domain: &str,
     user: &str,
