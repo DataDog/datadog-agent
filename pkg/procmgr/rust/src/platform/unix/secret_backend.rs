@@ -10,10 +10,11 @@
 //! [`SpawnProfile::Privileged`] children run under a host-privileged supervisor, the
 //! backend is spawned with `setuid`/`setgid` to `dd-agent`.
 
+use std::ffi::CString;
 use std::os::unix::process::CommandExt;
 
 use anyhow::{Context, Result, bail};
-use nix::unistd::{Gid, Uid, User};
+use nix::unistd::{Gid, Uid, User, initgroups};
 
 use crate::secret_backend_exec::{BackendRun, exec_inherited_token, spawn_and_capture};
 
@@ -71,9 +72,18 @@ fn exec_as_agent_user(run: &BackendRun<'_>) -> Result<String> {
 }
 
 unsafe fn drop_to_agent_user(uid: Uid, gid: Gid) -> std::io::Result<()> {
+    let user = CString::new(AGENT_USER).map_err(|_| invalid_agent_user_name())?;
+    initgroups(&user, gid).map_err(io_error)?;
     nix::unistd::setgid(gid).map_err(io_error)?;
     nix::unistd::setuid(uid).map_err(io_error)?;
     Ok(())
+}
+
+fn invalid_agent_user_name() -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        format!("[{PROCESS_NAME}] agent user name {AGENT_USER:?} is invalid"),
+    )
 }
 
 fn io_error(err: nix::errno::Errno) -> std::io::Error {
