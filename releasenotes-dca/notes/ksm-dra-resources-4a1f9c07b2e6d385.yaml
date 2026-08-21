@@ -1,0 +1,18 @@
+---
+features:
+  - |
+    The ``kubernetes_state_core`` check can now collect Dynamic Resource
+    Allocation objects, reporting accelerator demand and supply as
+    ``kubernetes_state.resourceclaim.count`` (tagged by ``state``:
+    ``pending``, ``allocated`` or ``in_use``),
+    ``kubernetes_state.resourceclaim.pending.age``,
+    ``kubernetes_state.resourceclaim.devices.allocated``,
+    ``kubernetes_state.resourceslice.devices`` and
+    ``kubernetes_state.resourceslice.capacity`` (tagged by ``capacity`` name).
+    Set ``collect_dra_resources: true`` to enable it; it is off by default
+    because the ``resource.k8s.io`` API group is absent on most clusters. Use
+    ``dra_device_classes`` to restrict collection to specific DeviceClasses
+    (for example ``gpu.nvidia.com``). Collection requires ``list`` and
+    ``watch`` on ``resourceclaims`` and ``resourceslices`` in the
+    ``resource.k8s.io`` API group; the check registers nothing when the cluster
+    serves no supported version of that group.
