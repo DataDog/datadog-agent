@@ -103,6 +103,14 @@ func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 	return nil
 }
 
+func (m *mockRemoteAgentRegistry) ListCommands() []remoteagentregistry.AgentCommands {
+	return nil
+}
+
+func (m *mockRemoteAgentRegistry) ExecuteCommand(_ string, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+	return nil, nil
+}
+
 func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
 	server, comp, stream, eventsCh, _ := setupTestWithRegistry(ctx, t, sessionID, &mockRemoteAgentRegistry{})
 	return server, comp, stream, eventsCh

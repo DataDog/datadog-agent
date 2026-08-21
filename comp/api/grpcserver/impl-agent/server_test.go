@@ -43,6 +43,12 @@ func (f *fakeRemoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.Re
 func (f *fakeRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
 	return nil
 }
+func (f *fakeRemoteAgentRegistry) ListCommands() []remoteagentregistry.AgentCommands {
+	return nil
+}
+func (f *fakeRemoteAgentRegistry) ExecuteCommand(_ string, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+	return nil, nil
+}
 
 func TestReportRemoteAgentEventHandler(t *testing.T) {
 	t.Run("converts events and returns ok for known session", func(t *testing.T) {
