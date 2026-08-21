@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Result, bail};
 #[cfg(not(test))]
 use anyhow::Context;
+use anyhow::{Result, bail};
 #[cfg(not(test))]
 use std::ptr;
 use windows_sys::Win32::Foundation::{
