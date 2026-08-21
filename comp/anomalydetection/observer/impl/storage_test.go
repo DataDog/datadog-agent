@@ -116,6 +116,38 @@ func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 	assert.Equal(t, 30.0, series.Points[2].Value)
 }
 
+func TestTimeSeriesStorage_MaxPointsRetainsPendingBucket(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 3})
+	for timestamp := int64(1); timestamp <= 6; timestamp++ {
+		s.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+
+	series := s.GetSeriesRange(observer.SeriesRef(0), 0, 6, AggregateAverage)
+	require.NotNil(t, series)
+	require.Equal(t, []observer.Point{
+		{Timestamp: 3, Value: 3},
+		{Timestamp: 4, Value: 4},
+		{Timestamp: 5, Value: 5},
+		{Timestamp: 6, Value: 6},
+	}, series.Points)
+	assert.Equal(t, 3, s.PointCountUpTo(observer.SeriesRef(0), 5))
+}
+
+func TestTimeSeriesStorage_CombinesDurationAndPointRetention(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{PointRetentionSecs: 3, MaxPointsPerSeries: 2})
+	for timestamp := int64(1); timestamp <= 6; timestamp++ {
+		s.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+
+	series := s.GetSeriesRange(observer.SeriesRef(0), 0, 6, AggregateAverage)
+	require.NotNil(t, series)
+	require.Equal(t, []observer.Point{
+		{Timestamp: 4, Value: 4},
+		{Timestamp: 5, Value: 5},
+		{Timestamp: 6, Value: 6},
+	}, series.Points)
+}
+
 func TestTimeSeriesStorage_PreservesOutOfOrderBuckets(t *testing.T) {
 	s := newTimeSeriesStorage()
 
