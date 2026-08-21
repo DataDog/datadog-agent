@@ -1402,6 +1402,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - comp/core/workloadmeta/collectors/internal/remote/sbomcollector/**/*
         - pkg/sbom/**/*
         - pkg/security/resolvers/sbom/**/*
         - test/new-e2e/tests/sbom/**/*
