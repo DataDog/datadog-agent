@@ -94,11 +94,11 @@ type hostTrafficDynamicPathSuite struct {
 
 // TestHostTrafficDynamicPathSuite runs Network Path Dynamic Tests backed by host NPM traffic.
 func TestHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner()))
+	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("hostTrafficDynamicPath", hostTrafficDynamicPathAgentConfig)))
 }
 
-func hostTrafficDynamicPathProvisioner() provisioners.Provisioner {
-	return provisioners.NewTypedPulumiProvisioner[hostTrafficDynamicPathEnv]("hostTrafficDynamicPath", func(ctx *pulumi.Context, env *hostTrafficDynamicPathEnv) error {
+func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Provisioner {
+	return provisioners.NewTypedPulumiProvisioner[hostTrafficDynamicPathEnv](name, func(ctx *pulumi.Context, env *hostTrafficDynamicPathEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
@@ -107,7 +107,7 @@ func hostTrafficDynamicPathProvisioner() provisioners.Provisioner {
 		params := ec2.GetParams(
 			ec2.WithName("hosttrafficdynamicpathvm"),
 			ec2.WithAgentOptions(
-				agentparams.WithAgentConfig(hostTrafficDynamicPathAgentConfig),
+				agentparams.WithAgentConfig(agentConfig),
 				agentparams.WithSystemProbeConfig(hostTrafficSystemProbeConfig),
 			),
 		)

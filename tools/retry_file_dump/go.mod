@@ -9,7 +9,7 @@ go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.82.1
-	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
