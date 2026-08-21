@@ -10,13 +10,13 @@ package telemetry
 import (
 	"slices"
 	"strconv"
-	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddeebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 var (
@@ -25,7 +25,6 @@ var (
 
 type perfUsageCollector struct {
 	emitPerCPU bool
-	mtx        sync.Mutex
 	usage      *prometheus.GaugeVec
 	usagePct   *prometheus.GaugeVec
 	size       *prometheus.GaugeVec
@@ -106,8 +105,8 @@ func (p *perfUsageCollector) Describe(descs chan<- *prometheus.Desc) {
 
 // Collect implements prometheus.Collector.Collect
 func (p *perfUsageCollector) Collect(metrics chan<- prometheus.Metric) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
+	ddeebpf.TelemetryMu.Lock()
+	defer ddeebpf.TelemetryMu.Unlock()
 
 	for _, pm := range p.perfMaps {
 		mapName, mapType := pm.Name, ebpf.PerfEventArray.String()
@@ -213,8 +212,8 @@ func (p *perfUsageCollector) registerPerfMap(pm *manager.PerfMap) {
 	if !pm.TelemetryEnabled {
 		return
 	}
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
+	ddeebpf.TelemetryMu.Lock()
+	defer ddeebpf.TelemetryMu.Unlock()
 	p.perfMaps = append(p.perfMaps, pm)
 }
 
@@ -222,8 +221,8 @@ func (p *perfUsageCollector) registerPerfMapChannel(pm *manager.PerfMap, channel
 	if !pm.TelemetryEnabled {
 		return
 	}
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
+	ddeebpf.TelemetryMu.Lock()
+	defer ddeebpf.TelemetryMu.Unlock()
 	p.perfChannelLenFuncs[pm] = channelLenFunc
 }
 
@@ -231,8 +230,8 @@ func (p *perfUsageCollector) registerRingBuffer(rb *manager.RingBuffer) {
 	if !rb.TelemetryEnabled {
 		return
 	}
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
+	ddeebpf.TelemetryMu.Lock()
+	defer ddeebpf.TelemetryMu.Unlock()
 	p.ringBuffers = append(p.ringBuffers, rb)
 }
 
@@ -240,8 +239,8 @@ func (p *perfUsageCollector) registerRingBufferChannel(rb *manager.RingBuffer, c
 	if !rb.TelemetryEnabled {
 		return
 	}
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
+	ddeebpf.TelemetryMu.Lock()
+	defer ddeebpf.TelemetryMu.Unlock()
 	p.ringChannelLenFuncs[rb] = channelLenFunc
 }
 
@@ -253,8 +252,8 @@ func UnregisterTelemetry(m *manager.Manager) {
 }
 
 func (p *perfUsageCollector) unregisterTelemetry(m *manager.Manager) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
+	ddeebpf.TelemetryMu.Lock()
+	defer ddeebpf.TelemetryMu.Unlock()
 	p.perfMaps = slices.DeleteFunc(p.perfMaps, func(perfMap *manager.PerfMap) bool {
 		return slices.Contains(m.PerfMaps, perfMap)
 	})
