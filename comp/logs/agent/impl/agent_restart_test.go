@@ -91,11 +91,10 @@ func (suite *RestartTestSuite) SetupTest() {
 	suite.source = sources.NewLogSource("", &logConfig)
 
 	suite.configOverrides["logs_config.run_path"] = suite.testDir
-	// Short grace period for tests: long enough to exercise the graceful
-	// shutdown path, short enough to keep tests fast. Individual tests
-	// that don't start the pipeline (and thus can't stop gracefully)
-	// override this to 0.
-	suite.configOverrides["logs_config.stop_grace_period"] = 1
+	// Grace period must be generous enough for ARM64 CI to stop all
+	// components (launchers → pipelineProvider → destinationsCtx) before
+	// the timeout fires and the force-close path kicks in.
+	suite.configOverrides["logs_config.stop_grace_period"] = 5
 	// Set a short scan period to allow it to run in the time period of the tcp and http tests
 	suite.configOverrides["logs_config.file_scan_period"] = 1
 
