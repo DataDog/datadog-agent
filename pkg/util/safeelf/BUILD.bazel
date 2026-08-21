@@ -4,6 +4,7 @@ go_library(
     name = "safeelf",
     srcs = [
         "elf.go",
+        "reloc.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/safeelf",
