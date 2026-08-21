@@ -399,12 +399,20 @@ func (s *remoteCommandProviderServer) ListCommands(_ context.Context, _ *pb.List
 	var allCommands []*pb.Command
 	for _, ac := range agentCommands {
 		for _, cmd := range ac.Commands {
-			cmd.AgentFlavor = ac.Flavor
+			stampAgentFlavor(cmd, ac.Flavor)
 			allCommands = append(allCommands, cmd)
 		}
 	}
 
 	return &pb.ListCommandsResponse{Commands: allCommands}, nil
+}
+
+// stampAgentFlavor recursively sets agent_flavor on a command and all its children.
+func stampAgentFlavor(cmd *pb.Command, flavor string) {
+	cmd.AgentFlavor = flavor
+	for _, child := range cmd.GetChildren() {
+		stampAgentFlavor(child, flavor)
+	}
 }
 
 // ExecuteCommand routes a command execution request to the registered remote agent that owns the command.
