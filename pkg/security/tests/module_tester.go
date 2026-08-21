@@ -125,6 +125,27 @@ func (tm *testModule) RunMultiMode(t *testing.T, name string, fnc func(t *testin
 	tm.cmdWrapper.Run(t, name, fnc)
 }
 
+// RunStdMode executes the provided test function in -std mode only, keeping the
+// sub-test names RunMultiMode would have produced.
+func (tm *testModule) RunStdMode(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+	newStdCmdWrapper().Run(t, fmt.Sprintf("%s-%s", name, stdWrapperType), fnc)
+}
+
+// dockerWrapper returns the module's docker command wrapper, or nil if it has none.
+func (tm *testModule) dockerWrapper() *dockerCmdWrapper {
+	switch wrapper := tm.cmdWrapper.(type) {
+	case *dockerCmdWrapper:
+		return wrapper
+	case *multiCmdWrapper:
+		for _, sub := range wrapper.wrappers {
+			if docker, ok := sub.(*dockerCmdWrapper); ok {
+				return docker
+			}
+		}
+	}
+	return nil
+}
+
 func (tm *testModule) reloadPolicies() error {
 	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 

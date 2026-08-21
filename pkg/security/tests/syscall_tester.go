@@ -9,11 +9,15 @@
 package tests
 
 import (
+	"bytes"
 	"context"
 	"embed"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 )
 
@@ -21,12 +25,46 @@ import (
 var syscallTesterFS embed.FS
 
 func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, error) {
+	binPath, err := loadSyscallTesterArtifact(test, binary, 0o700)
+	if err != nil {
+		return "", err
+	}
+
+	if err := checkSyscallTester(t, binPath); err != nil {
+		return "", err
+	}
+
+	return binPath, nil
+}
+
+// loadOptionalSyscallTester loads a tester that may be missing or unusable here:
+// the OTel TLS variants are built best-effort (see build_otel_tls_dynamic_artifacts
+// in tasks/security_agent.py) and the dynamically linked ones only run where the
+// runtime libc is new enough. A false bool with a nil error means the caller
+// should skip that variant.
+func loadOptionalSyscallTester(t *testing.T, test *testModule, binary string) (string, bool, error) {
+	binPath, err := loadSyscallTesterArtifact(test, binary, 0o700)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+
+	if err := checkSyscallTester(t, binPath); err != nil {
+		t.Logf("skipping %s: %v", binary, err)
+		return "", false, nil
+	}
+
+	return binPath, true, nil
+}
+
+func loadSyscallTesterArtifact(test *testModule, binary string, perm int) (string, error) {
 	testerBin, err := syscallTesterFS.ReadFile("syscall_tester/bin/" + binary)
 	if err != nil {
 		return "", err
 	}
 
-	perm := 0o700
 	binPath, _, _ := test.CreateWithOptions(binary, -1, -1, perm)
 
 	f, err := os.OpenFile(binPath, os.O_WRONLY|os.O_CREATE, os.FileMode(perm))
@@ -40,18 +78,15 @@ func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, e
 	}
 	f.Close()
 
-	if err := checkSyscallTester(t, binPath); err != nil {
-		return "", err
-	}
-
 	return binPath, nil
 }
 
 func checkSyscallTester(t *testing.T, path string) error {
 	t.Helper()
 	sideTester := exec.Command(path, "check")
-	if _, err := sideTester.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run syscall tester check: %w", err)
+	output, err := sideTester.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("cannot run syscall tester check %s: %w (output: %s)", filepath.Base(path), err, bytes.TrimSpace(output))
 	}
 	return nil
 }
