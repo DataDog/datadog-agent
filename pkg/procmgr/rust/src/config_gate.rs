@@ -1033,11 +1033,7 @@ process_config:
                 "datadog.yaml",
                 "process_config:\n  process_collection:\n    enabled: true\n  process_discovery:\n    enabled: false\n---\nprocess_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
             );
-            assert_gate_key(
-                &agent,
-                "process_config.process_collection.enabled",
-                true,
-            );
+            assert_gate_key(&agent, "process_config.process_collection.enabled", true);
         });
     }
 
