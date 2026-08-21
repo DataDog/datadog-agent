@@ -184,6 +184,8 @@ struct Builder {
     stack: Vec<Frame>,
     anchors: HashMap<usize, Value>,
     root: Option<Value>,
+    /// After the first document is parsed, ignore later `---` documents (Go yaml.v2 parity).
+    ignore_remaining_documents: bool,
 }
 
 enum Frame {
@@ -200,10 +202,16 @@ enum Frame {
 
 impl Builder {
     fn push(&mut self, event: Event<'_>) -> Result<()> {
+        if self.ignore_remaining_documents {
+            return Ok(());
+        }
         match event {
             Event::Nothing | Event::StreamStart | Event::StreamEnd | Event::DocumentEnd => {}
             Event::DocumentStart(_) => {
-                self.root = None;
+                if self.root.is_some() {
+                    self.ignore_remaining_documents = true;
+                    return Ok(());
+                }
                 self.stack.clear();
                 self.anchors.clear();
             }
@@ -303,6 +311,19 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn multi_document_stream_uses_first_document() {
+        let yaml = "process_config:\n  process_collection:\n    enabled: true\n---\nprocess_config:\n  process_collection:\n    enabled: false\n";
+        let root = load(yaml).unwrap();
+        assert_eq!(
+            root.get("process_config")
+                .and_then(|pc| pc.get("process_collection"))
+                .and_then(|col| col.get("enabled"))
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+    }
 
     #[test]
     fn plain_yaml_11_bool_coerced_at_load() {
