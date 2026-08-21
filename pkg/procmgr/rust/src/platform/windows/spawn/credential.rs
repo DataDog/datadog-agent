@@ -23,6 +23,7 @@ const SYSTEM_DISPLAY: &str = "NT AUTHORITY\\SYSTEM";
 /// Every spawn uses one of two paths:
 /// - [`Self::InheritSupervisor`]: duplicate dd-procmgrd's token (LocalSystem service or test harness)
 /// - [`Self::Logon`]: LogonUserW for a distinct installer account (ddagentuser / gMSA)
+#[derive(Debug)]
 pub(crate) enum SpawnCredential {
     InheritSupervisor {
         display_name: String,
@@ -49,11 +50,15 @@ impl SpawnCredential {
 
     fn resolve_agent_profile() -> Result<Self> {
         #[cfg(test)]
-        return super::test_harness::agent_profile_credential();
-
-        match resolve_agent_account()? {
-            AgentAccount::LocalSystem => Ok(Self::privileged_local_system()),
-            account => Ok(Self::Logon(account)),
+        {
+            return super::test_harness::agent_profile_credential();
+        }
+        #[cfg(not(test))]
+        {
+            match resolve_agent_account()? {
+                AgentAccount::LocalSystem => Ok(Self::privileged_local_system()),
+                account => Ok(Self::Logon(account)),
+            }
         }
     }
 
