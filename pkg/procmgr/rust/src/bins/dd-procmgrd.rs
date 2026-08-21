@@ -19,7 +19,7 @@ fn main() {
 
 #[cfg(windows)]
 fn run() -> anyhow::Result<()> {
-    dd_procmgrd::service::run_as_service()
+    dd_procmgrd::platform::run_as_service()
 }
 
 #[cfg(not(windows))]
@@ -27,7 +27,6 @@ fn run() -> anyhow::Result<()> {
     use dd_procmgrd::config::YamlConfigLoader;
     use dd_procmgrd::manager::ProcessManager;
     use dd_procmgrd::uuid_gen::V4UuidGenerator;
-    use log::info;
     use std::sync::Arc;
 
     dd_agent_log::init(dd_agent_log::LogConfig {
@@ -35,12 +34,11 @@ fn run() -> anyhow::Result<()> {
         level: log::Level::Info,
         log_file: None,
     })?;
-    info!("dd-procmgrd starting");
 
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
-        mgr.run().await
+        mgr.supervisor().run().await
     })
 }
