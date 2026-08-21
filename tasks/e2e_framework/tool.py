@@ -154,6 +154,42 @@ def get_stack_name_prefix() -> str:
     return user_name.replace(".", "-").replace(" ", "-")
 
 
+CI_PULUMI_BACKEND_URL = "s3://dd-pulumi-state"
+CI_PULUMI_PASSPHRASE_SSM_PARAM = "ci.datadog-agent.pulumi_password"
+
+
+@contextlib.contextmanager
+def use_ci_pulumi_backend(ctx: Context):
+    """
+    Temporarily point the local Pulumi CLI at CI's S3 state backend and export
+    the CI Pulumi secrets passphrase (read from SSM), so a CI-created stack
+    (absent from the local file backend) can be queried. Always restores the
+    local backend on exit, even if an error occurs.
+
+    Must be run with AWS credentials that can read CI_PULUMI_BACKEND_URL and
+    decrypt CI_PULUMI_PASSPHRASE_SSM_PARAM, e.g.:
+        aws-vault exec sso-agent-qa-read-only -- dda inv aws.rdp-vm --stack-name=<ci-stack-name> --ci
+    """
+    import boto3
+
+    previous_passphrase = os.environ.get("PULUMI_CONFIG_PASSPHRASE")
+    ctx.run(f"pulumi login {CI_PULUMI_BACKEND_URL}", hide=True)
+    try:
+        ssm = boto3.client("ssm", region_name="us-east-1")
+        passphrase = ssm.get_parameter(Name=CI_PULUMI_PASSPHRASE_SSM_PARAM, WithDecryption=True)["Parameter"]["Value"]
+        os.environ["PULUMI_CONFIG_PASSPHRASE"] = passphrase
+        yield
+    finally:
+        # Always restore the local backend and passphrase env var, even if login, the
+        # SSM lookup, or the wrapped call failed, so a CI lookup never leaves the dev
+        # environment pointed at CI's S3 state or holding the CI passphrase.
+        if previous_passphrase is None:
+            os.environ.pop("PULUMI_CONFIG_PASSPHRASE", None)
+        else:
+            os.environ["PULUMI_CONFIG_PASSPHRASE"] = previous_passphrase
+        ctx.run("pulumi login --local", hide=True)
+
+
 def get_stack_json_outputs(ctx: Context, full_stack_name: str) -> Any:
     buffer = StringIO()
 

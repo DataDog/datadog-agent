@@ -1,3 +1,4 @@
+import contextlib
 import json
 
 from invoke.context import Context
@@ -276,6 +277,8 @@ def _get_windows_password(
         "use_aws_vault": doc.use_aws_vault,
         "ip": "Filter to VM with this IP address",
         "instance_id": "Filter to VM with this id",
+        "ci": "Look up a CI-created stack (state in CI's S3 backend) instead of a local one. "
+        "Run wrapped in `aws-vault exec sso-agent-qa-read-only --` and pass --no-use-aws-vault.",
     }
 )
 def get_vm_password(
@@ -285,6 +288,7 @@ def get_vm_password(
     ip: str | None = None,
     instance_id: str | None = None,
     use_aws_vault: bool | None = True,
+    ci: bool = False,
 ):
     """
     Get the password of a new virtual machine in a stack.
@@ -301,15 +305,16 @@ def get_vm_password(
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    out = _get_windows_password(
-        ctx,
-        cfg.get_aws().get_account(),
-        cfg.get_aws().privateKeyPath,
-        stack_name,
-        use_aws_vault=use_aws_vault,
-        instance_id=instance_id,
-        ip=ip,
-    )
+    with tool.use_ci_pulumi_backend(ctx) if ci else contextlib.nullcontext():
+        out = _get_windows_password(
+            ctx,
+            cfg.get_aws().get_account(),
+            cfg.get_aws().privateKeyPath,
+            stack_name,
+            use_aws_vault=use_aws_vault,
+            instance_id=instance_id,
+            ip=ip,
+        )
     if not out:
         raise Exit(
             "No VM found in the stack, or no password available. Verify that keyPairName and publicKeyPath are an RSA key. run `inv setup.debug` for automated help."
@@ -328,6 +333,8 @@ def get_vm_password(
         "use_aws_vault": doc.use_aws_vault,
         "ip": "Filter to VM with this IP address",
         "instance_id": "Filter to VM with this id",
+        "ci": "Look up a CI-created stack (state in CI's S3 backend) instead of a local one. "
+        "Run wrapped in `aws-vault exec sso-agent-qa-read-only --`.",
     }
 )
 def rdp_vm(
@@ -337,6 +344,7 @@ def rdp_vm(
     ip: str | None = None,
     instance_id: str | None = None,
     use_aws_vault: bool | None = True,
+    ci: bool = False,
 ):
     """
     Open an RDP connection to a new virtual machine in a stack.
@@ -345,7 +353,8 @@ def rdp_vm(
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    out = tool.get_stack_json_outputs(ctx, stack_name)
+    with tool.use_ci_pulumi_backend(ctx) if ci else contextlib.nullcontext():
+        out = tool.get_stack_json_outputs(ctx, stack_name)
     if not out:
         raise Exit("No VM found in the stack.")
 
