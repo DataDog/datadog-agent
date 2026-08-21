@@ -216,27 +216,27 @@ func TestRemoteQueryStreamEventFromCheckEventSurfacesUploadReceipt(t *testing.T)
 	assert.Equal(t, "abc123", receipt.GetSha256())
 }
 
-// TestRemoteQueryExecuteRequestFromProtoPreserves10GiBInt64Fidelity proves the 10 GiB result
+// TestRemoteQueryExecuteRequestFromProtoPreserves100GiBInt64Fidelity proves the 100 GiB result
 // cap survives the AgentSecure proto boundary and the integration request JSON without loss.
 // max_bytes is int64 on both RemoteQueryExecuteCopyLimits and RemoteQueryResultDelivery because
-// 10 GiB overflows int32; part_bytes stays int32 since the 128 MiB part cap fits comfortably.
-func TestRemoteQueryExecuteRequestFromProtoPreserves10GiBInt64Fidelity(t *testing.T) {
-	const tenGiB = int64(10) << 30
-	const tenGiBPlusOne = tenGiB + 1
+// 100 GiB overflows int32; part_bytes stays int32 since the 128 MiB part cap fits comfortably.
+func TestRemoteQueryExecuteRequestFromProtoPreserves100GiBInt64Fidelity(t *testing.T) {
+	const hundredGiB = int64(100) << 30
+	const hundredGiBPlusOne = hundredGiB + 1
 	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
 		Integration: "postgres",
 		Operation:   "copy_stream",
 		Format:      "csv",
 		Target:      &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
 		Query:       "SELECT city, country FROM cities ORDER BY city",
-		CopyLimits:  &pb.RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: tenGiB, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
+		CopyLimits:  &pb.RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: hundredGiB, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
 		ResultDelivery: &pb.RemoteQueryResultDelivery{
 			Mode:        "POC_PUBLIC_MULTIPART_UPLOAD",
-			UploadId:    "upload-10g",
+			UploadId:    "upload-100g",
 			BaseUrl:     "https://dd.datad0g.com/api/unstable/its-agent-intake",
 			Token:       "scoped-upload-token",
 			PartBytes:   64 << 20,
-			MaxBytes:    tenGiB,
+			MaxBytes:    hundredGiB,
 			Format:      "csv",
 			Compression: "none",
 		},
@@ -246,14 +246,14 @@ func TestRemoteQueryExecuteRequestFromProtoPreserves10GiBInt64Fidelity(t *testin
 	require.NotNil(t, req.ResultDelivery)
 	require.NotNil(t, req.CopyLimits)
 
-	// Proto int64 fidelity: the exact 10 GiB value round-trips through the AgentSecure proto
+	// Proto int64 fidelity: the exact 100 GiB value round-trips through the AgentSecure proto
 	// into the Go int fields without truncation or overflow. part_bytes stays int32 (64 MiB
-	// fits), while both max_bytes fields are int64 so 10 GiB is representable.
-	assert.Equal(t, int(tenGiB), req.ResultDelivery.MaxBytes)
-	assert.Equal(t, int(tenGiB), req.CopyLimits.MaxBytes)
+	// fits), while both max_bytes fields are int64 so 100 GiB is representable.
+	assert.Equal(t, int(hundredGiB), req.ResultDelivery.MaxBytes)
+	assert.Equal(t, int(hundredGiB), req.CopyLimits.MaxBytes)
 	assert.Equal(t, 64<<20, req.ResultDelivery.PartBytes)
 
-	// The plus-one byte exceeds the 10 GiB Agent cap and is rejected; the int64 field carries
+	// The plus-one byte exceeds the 100 GiB Agent cap and is rejected; the int64 field carries
 	// the overflowing value faithfully so the cap check fails closed rather than truncating it.
 	_, err = remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
 		Integration: "postgres",
@@ -261,18 +261,18 @@ func TestRemoteQueryExecuteRequestFromProtoPreserves10GiBInt64Fidelity(t *testin
 		Format:      "csv",
 		Target:      &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
 		Query:       "SELECT city, country FROM cities ORDER BY city",
-		CopyLimits:  &pb.RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: tenGiBPlusOne, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
+		CopyLimits:  &pb.RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: hundredGiBPlusOne, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
 		ResultDelivery: &pb.RemoteQueryResultDelivery{
 			Mode:        "POC_PUBLIC_MULTIPART_UPLOAD",
-			UploadId:    "upload-10g-overflow",
+			UploadId:    "upload-100g-overflow",
 			BaseUrl:     "https://dd.datad0g.com/api/unstable/its-agent-intake",
 			Token:       "scoped-upload-token",
 			PartBytes:   64 << 20,
-			MaxBytes:    tenGiBPlusOne,
+			MaxBytes:    hundredGiBPlusOne,
 			Format:      "csv",
 			Compression: "none",
 		},
 	})
 	require.Error(t, err)
-	assert.EqualError(t, err, "result_delivery.maxBytes must not exceed 10737418240")
+	assert.EqualError(t, err, "result_delivery.maxBytes must not exceed 107374182400")
 }

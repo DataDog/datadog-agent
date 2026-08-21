@@ -152,12 +152,12 @@ const RemoteQueryResultDeliveryModeMultipartUpload = "POC_PUBLIC_MULTIPART_UPLOA
 // Caps for result-delivery upload instructions. The Agent forwards these to the integration,
 // which performs the HTTP upload; the Agent does no transport or URL allowlisting. The part
 // hard cap leaves room to evaluate 100 MiB parts later without another schema change; the
-// total cap matches the backend-owned 10 GiB result ceiling.
+// total cap matches the backend-owned 100 GiB result ceiling.
 const (
 	remoteQueryUploadDefaultFormat      = "csv"
 	remoteQueryUploadDefaultCompression = "none"
 	remoteQueryUploadMaxPartBytes       = 128 << 20 // 128 MiB hard part cap
-	remoteQueryUploadMaxTotalBytes      = 10 << 30  // 10 GiB hard total cap
+	remoteQueryUploadMaxTotalBytes      = 100 << 30 // 100 GiB hard total cap
 )
 
 var remoteQueryUploadIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
