@@ -7,7 +7,7 @@ package gosymname
 
 // This file contains a copy of the regex-based symbol parser from
 // pkg/dyninst/symdb/func_name.go for benchmark comparison purposes.
-// The original has a linux_bpf build tag, so we copy it here to run
+// The original has a bpf build tag, so we copy it here to run
 // on all platforms.
 
 import (
