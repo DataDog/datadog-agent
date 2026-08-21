@@ -17,6 +17,8 @@ path = "src/bins/par-control.rs"
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
+chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 datadog-agent-commons.workspace = true
 dd-agent-log.workspace = true
@@ -24,9 +26,10 @@ dd-procmgr-client.workspace = true
 figment.workspace = true
 hyper-util.workspace = true
 log.workspace = true
+p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true
-rustls-pki-types.workspace = true
 reqwest.workspace = true
+rustls-pki-types.workspace = true
 saluki-config.workspace = true
 saluki-tls.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -42,6 +45,7 @@ tokio-stream = { workspace = true, features = ["net"] }
 tonic = { workspace = true, features = ["transport"] }
 tonic-prost.workspace = true
 tower.workspace = true
+uuid = { workspace = true, features = ["v4"] }
 
 [target.'cfg(not(windows))'.dependencies]
 rustls.workspace = true
