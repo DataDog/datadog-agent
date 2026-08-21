@@ -3,16 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
+#[cfg(not(test))]
+use anyhow::Context;
+#[cfg(not(test))]
 use std::ptr;
 use windows_sys::Win32::Foundation::{
     NTSTATUS, STATUS_INVALID_ACCOUNT_NAME, STATUS_NAME_TOO_LONG, STATUS_OPEN_FAILED,
 };
 use windows_sys::Win32::NetworkManagement::NetManagement::{
     MsaInfoCanInstall, MsaInfoCannotInstall, MsaInfoInstalled, MsaInfoNotExist, MsaInfoNotService,
+};
+#[cfg(not(test))]
+use windows_sys::Win32::NetworkManagement::NetManagement::{
     NetApiBufferFree, NetQueryServiceAccount,
 };
 
+#[cfg(not(test))]
 use super::wide;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
