@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -313,6 +314,33 @@ func (s *Serializer) getAutoscalingFailoverMetrics() metricsserializer.Filter {
 	}
 
 	return metricsserializer.NewMapFilter(allowlist)
+}
+
+// getEndpointFilterLists returns the per-endpoint exclusion filters, keyed by
+// the endpoint URL as it appears in the configuration. Endpoints without an
+// entry are absent from the map and receive every metric.
+//
+// Names are matched exactly. metric_filterlist_match_prefix is deliberately not
+// reused: Remote Config resets it whenever it pushes a metric filter list, so
+// honoring it here would make these lists change matching behavior as a side
+// effect of an unrelated remote update.
+func (s *Serializer) getEndpointFilterLists() map[string]metricsserializer.Filter {
+	rawLists := s.config.GetStringMapStringSlice("metric_filterlist_endpoints")
+	if len(rawLists) == 0 {
+		return nil
+	}
+
+	filters := make(map[string]metricsserializer.Filter, len(rawLists))
+	for endpoint, metricNames := range rawLists {
+		if len(metricNames) == 0 {
+			continue
+		}
+
+		matcher := utilstrings.NewMatcher(metricNames, false)
+		filters[endpoint] = metricsserializer.NewExcludeFilter(&matcher, endpoint)
+	}
+
+	return filters
 }
 
 // AreSketchesEnabled returns whether sketches are enabled for serialization

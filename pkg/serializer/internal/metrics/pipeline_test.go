@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -94,4 +95,28 @@ func TestPipelineSendValidate(t *testing.T) {
 			require.Empty(t, txn.Headers.Get("x-metrics-request-payload-len"))
 		},
 	)
+}
+
+// filterableMetric is a minimal Filterable used to exercise the filters.
+type filterableMetric string
+
+func (m filterableMetric) GetName() string { return string(m) }
+
+func TestExcludeFilter(t *testing.T) {
+	matcher := utilstrings.NewMatcher([]string{"foo.bar", "foo.baz"}, false)
+	filter := NewExcludeFilter(&matcher, "http://example.test")
+
+	require.False(t, filter.Filter(filterableMetric("foo.bar")))
+	require.False(t, filter.Filter(filterableMetric("foo.baz")))
+	require.True(t, filter.Filter(filterableMetric("foo.qux")))
+	require.True(t, filter.Filter(filterableMetric("foo")))
+	// Without prefix matching an entry only excludes the exact name.
+	require.True(t, filter.Filter(filterableMetric("foo.bar.count")))
+}
+
+func TestExcludeFilterEmptyMatcher(t *testing.T) {
+	matcher := utilstrings.NewMatcher(nil, false)
+	filter := NewExcludeFilter(&matcher, "http://example.test")
+
+	require.True(t, filter.Filter(filterableMetric("foo.bar")))
 }

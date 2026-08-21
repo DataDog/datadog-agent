@@ -8513,6 +8513,27 @@ properties:
       type: string
     tags:
     - full-agent-only:true
+  metric_filterlist_endpoints:
+    node_type: setting
+    type: object
+    default: {}
+    additionalProperties:
+      items:
+        type: string
+      type: array
+    comment: |-
+      Per-endpoint metric filter lists, keyed by the endpoint URL exactly as it is
+      configured under `dd_url` or `additional_endpoints`. Metrics named in an entry are
+      not sent to that endpoint, and every other endpoint keeps receiving them.
+
+      This differs from `metric_filterlist`, which is applied while metrics are sampled
+      and therefore removes them from every destination. This setting is applied when the
+      payload for each destination is built, so it can single out one endpoint.
+
+      Names are matched exactly. metric_filterlist_match_prefix does not apply, because
+      Remote Config resets that setting whenever it pushes a metric filter list.
+    tags:
+    - full-agent-only:true
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean

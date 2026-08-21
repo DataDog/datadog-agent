@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added the ``metric_filterlist_endpoints`` configuration option, which holds a
+    per-endpoint list of metric names to leave out of the payload built for that
+    endpoint. It is keyed by the endpoint URL as configured under ``dd_url`` or
+    ``additional_endpoints``, and endpoints without an entry keep receiving every
+    metric. Unlike ``metric_filterlist``, which drops metrics while they are
+    sampled and therefore removes them from every destination, this option makes
+    it possible to withhold metrics from one endpoint while still sending them to
+    the others. Names are matched exactly, and an Agent telemetry counter tagged
+    by endpoint reports how many metrics each list left out.

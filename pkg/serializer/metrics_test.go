@@ -269,6 +269,78 @@ func TestBuildPipelinesWithMRFActiveFilter(t *testing.T) {
 	}
 }
 
+// filterableMetric is a minimal metrics.Filterable used to exercise a pipeline
+// filter without building a full series.
+type filterableMetric string
+
+func (m filterableMetric) GetName() string { return string(m) }
+
+func TestBuildPipelinesWithEndpointFilterList(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("use_v3_api.series.enabled", "true")
+	config.SetInTest("additional_endpoints", map[string][]string{
+		"http://another.test": {"another_key"},
+	})
+	config.SetInTest("metric_filterlist_endpoints", map[string][]string{
+		"http://example.test": {"datadog.agent.running"},
+	})
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelines(metricsKindSeries)
+	// The filtered endpoint no longer shares a payload with the unfiltered one.
+	require.Len(t, pipelines, 2)
+
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		assert.True(t, conf.V3)
+		assert.Equal(t, endpoints.V3SeriesEndpoint, dest.Endpoint)
+
+		switch dest.Resolver.GetBaseDomain() {
+		case "http://example.test":
+			assert.False(t, conf.Filter.Filter(filterableMetric("datadog.agent.running")))
+			assert.True(t, conf.Filter.Filter(filterableMetric("datadog.agent.started")))
+		case "http://another.test":
+			assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+		default:
+			t.Fatal("unexpected destination address")
+		}
+	}
+}
+
+func TestBuildPipelinesWithEndpointFilterListUnknownEndpoint(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("use_v3_api.series.enabled", "true")
+	// An entry for an endpoint that is not configured must not affect anything.
+	config.SetInTest("metric_filterlist_endpoints", map[string][]string{
+		"http://absent.test": {"datadog.agent.running"},
+	})
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelines(metricsKindSeries)
+	require.Len(t, pipelines, 1)
+
+	for conf := range pipelines {
+		assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+	}
+}
+
 func TestBuildPipelinesSketches(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
