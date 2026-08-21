@@ -15,7 +15,17 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/system/socket",
         "@com_github_mdlayher_vsock//:vsock",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
