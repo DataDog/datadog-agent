@@ -574,8 +574,8 @@ type bocpdPosteriorForTest struct {
 	cpProb, shortRunMass        float64
 }
 
-// copyAndSwapPosteriorForTest is the pre-optimization recurrence. Keeping it
-// test-only makes the horizon and full-posterior trigger semantics explicit.
+// copyAndSwapPosteriorForTest is a reference recurrence used to make the
+// horizon and full-posterior trigger semantics explicit.
 func copyAndSwapPosteriorForTest(state *bocpdSeriesState, config BOCPDConfig, x float64) bocpdPosteriorForTest {
 	newLen := len(state.runProbs) + 1
 	runProbs := make([]float64, newLen)

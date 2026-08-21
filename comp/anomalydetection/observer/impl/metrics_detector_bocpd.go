@@ -413,9 +413,9 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	state.runProbs[0] = cpRaw
 	state.means[0], state.precisions[0] = normalPosterior(state.priorMean, state.priorPrecision, x, state.obsVar)
 
-	// Match the old implementation's first normalization over the full
-	// posterior (including a discarded horizon tail), then normalize the
-	// retained posterior after truncation.
+	// Normalize first over the full posterior (including a discarded horizon
+	// tail), then normalize the retained posterior after truncation. Trigger
+	// values intentionally use the full posterior distribution.
 	fullTotal := cpRaw
 	for r := 1; r < newLen; r++ {
 		fullTotal += state.runProbs[r]
