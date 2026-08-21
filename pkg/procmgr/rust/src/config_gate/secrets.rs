@@ -424,6 +424,7 @@ fn parse_secret_response(
         .get("value")
         .and_then(Value::as_str)
         .map(|value| normalize_secret_value(value, remove_trailing_line_break))
+        .filter(|value| !value.is_empty())
         .with_context(|| format!("secret backend response missing value for {handle}"))
 }
 
@@ -559,6 +560,17 @@ mod tests {
         let err = parse_secret_response(output, "process_enabled", false).unwrap_err();
         assert!(
             err.to_string().contains("backend failed"),
+            "unexpected error: {err:#}"
+        );
+    }
+
+    #[test]
+    fn parse_secret_response_rejects_empty_value() {
+        let output = r#"{"process_enabled":{"value":""}}"#;
+        let err = parse_secret_response(output, "process_enabled", false).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("secret backend response missing value for process_enabled"),
             "unexpected error: {err:#}"
         );
     }
