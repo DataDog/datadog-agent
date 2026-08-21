@@ -69,7 +69,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			}
 
 			defer stopSystemProbe()
-			err := startSystemProbe(rcclient, settings, deps)
+			err = startSystemProbe(rcclient, settings, deps)
 			if err != nil {
 				return err
 			}
