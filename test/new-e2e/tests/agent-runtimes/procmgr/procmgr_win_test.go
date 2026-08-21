@@ -108,7 +108,7 @@ func windowsUserProfileEnvCreateSpec(procName, markerPath string) procmgrCreateS
 	return procmgrCreateSpec{
 		Name:    procName,
 		Command: winSleepCommand,
-		Args: append(append([]string(nil), winPowerShellLaunchArgs...), psCommand),
+		Args:    append(append([]string(nil), winPowerShellLaunchArgs...), psCommand),
 		Env: map[string]string{
 			"SystemRoot": `C:\Windows`,
 			"PATH":       `C:\Windows\System32;C:\Windows`,
