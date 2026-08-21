@@ -238,8 +238,7 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 				dest.ValidationBatchID = s.genUUID()
 			}
 
-			// An endpoint with its own filter list only receives the metrics
-			// that list does not name. Every other endpoint is unaffected.
+			// Endpoints without a filter list receive every metric.
 			var filter metrics.Filter = metrics.AllowAllFilter{}
 			if endpointFilter, ok := endpointFilters[resolver.GetConfigName()]; ok {
 				filter = endpointFilter

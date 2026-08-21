@@ -8522,21 +8522,15 @@ properties:
         type: string
       type: array
     comment: |-
-      Per-endpoint metric filter lists, keyed by the endpoint URL exactly as it is
-      configured under `dd_url` or `additional_endpoints`. Metrics named in an entry are
-      not sent to that endpoint, and every other endpoint keeps receiving them.
+      Keyed by the endpoint URL exactly as configured under `dd_url` or
+      `additional_endpoints`. Unlike metric_filterlist, which drops during sampling and
+      so affects every destination, this is applied per destination as its payload is
+      built.
 
-      This differs from `metric_filterlist`, which is applied while metrics are sampled
-      and therefore removes them from every destination. This setting is applied when the
-      payload for each destination is built, so it can single out one endpoint.
-
-      Names are matched exactly. metric_filterlist_match_prefix does not apply, because
-      Remote Config resets that setting whenever it pushes a metric filter list.
-
-      Requires use_v2_api.series, which is the default. On the v1 series API a single
-      payload is built and copied to every destination, so there is no point at which a
-      per-endpoint filter can be applied; the Agent logs a warning if both are set.
-      Sketches are unaffected and always honour these lists.
+      Names are matched exactly; metric_filterlist_match_prefix does not apply, because
+      Remote Config resets that setting whenever it pushes a filter list. Requires
+      use_v2_api.series (the default): the v1 path builds one payload for all
+      destinations, so nothing can be filtered per endpoint there.
     tags:
     - full-agent-only:true
   metric_filterlist_match_prefix:

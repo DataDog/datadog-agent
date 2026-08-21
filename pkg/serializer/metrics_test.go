@@ -334,8 +334,7 @@ func TestEndpointFilterListsIgnoredOnV1Series(t *testing.T) {
 	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
-	// The warning is emitted once and must not panic or alter the pipelines that
-	// other payload kinds still build.
+	// Emitted once; sketches must still honor the list.
 	s.warnEndpointFilterListsIgnored()
 	s.warnEndpointFilterListsIgnored()
 
@@ -343,7 +342,7 @@ func TestEndpointFilterListsIgnoredOnV1Series(t *testing.T) {
 	require.Len(t, pipelines, 1)
 	for conf := range pipelines {
 		assert.False(t, conf.Filter.Filter(filterableMetric("datadog.agent.running")),
-			"sketches still honour the endpoint filter list")
+			"sketches still honor the endpoint filter list")
 	}
 }
 
