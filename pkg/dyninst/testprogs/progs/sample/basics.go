@@ -6,6 +6,12 @@
 // package main contains functions that dynamic instrumentation tests against
 package main
 
+import (
+	"context"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
+
 //nolint:all
 //go:noinline
 func testSingleByte(x byte) {}
@@ -73,7 +79,10 @@ type typeAlias uint16
 func testTypeAlias(x typeAlias) {}
 
 //nolint:all
-func executeBasicFuncs() {
+func executeBasicFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.basics")
+	defer span.Finish()
+
 	testSingleInt8(-8)
 	testSingleInt16(-16)
 	testSingleInt32(-32)

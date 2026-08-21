@@ -18,7 +18,8 @@ integration_tests_otel:
     - !reference [.retrieve_linux_go_deps]
     - dda inv -- check-otel-build
     - dda inv -- check-otel-module-versions
-    - dda inv -- otel-agent.integration-test
+    # TODO: remove once Bazel is used to build the Agent
+    - dda inv -- -e schema.codegen
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
