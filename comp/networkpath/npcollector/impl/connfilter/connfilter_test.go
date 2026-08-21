@@ -310,6 +310,17 @@ filters:
 			expectedCustomFilterCount: 0,
 		},
 		{
+			name:   "default datadog intake ELB excluded",
+			config: ``,
+			expectedMatches: []expectedMatch{
+				{domain: "l4-metrics-agent-s0-7c551d28c9ca34fc.elb.us-east-1.amazonaws.com", shouldMatch: false},
+				{domain: "l4-metrics-agent-s1-56401ca284db905a.elb.eu-west-1.amazonaws.com", shouldMatch: false},
+				{domain: "my-app-lb-1234567890.elb.us-east-1.amazonaws.com", shouldMatch: true},
+				{domain: "l4-metrics-agent.example.com", shouldMatch: true},
+			},
+			expectedCustomFilterCount: 0,
+		},
+		{
 			name: "include all domain",
 			config: `
 filters:
@@ -486,10 +497,9 @@ func TestEvaluateDomains(t *testing.T) {
 			wantIncluded: false,
 		},
 		{
-			name:          "ELB name alone is included (no datadoghq name to match)",
-			domains:       []string{elbName},
-			wantIncluded:  true,
-			wantHostnames: []string{elbName},
+			name:         "ELB name alone is excluded by Network Path default",
+			domains:      []string{elbName},
+			wantIncluded: false,
 		},
 		{
 			name:          "unrelated names are included",
@@ -498,15 +508,44 @@ func TestEvaluateDomains(t *testing.T) {
 			wantHostnames: []string{"api.example.com"},
 		},
 		{
-			name: "customer include re-enables a defaulted Datadog domain",
+			name:          "first non-empty name is used",
+			domains:       []string{"", "api.example.com"},
+			wantIncluded:  true,
+			wantHostnames: []string{"api.example.com"},
+		},
+		{
+			name: "customer include re-enables connection across all aliases",
 			config: `
 filters:
   - match_domain: '*.datadoghq.com'
     type: include
 `,
-			domains:       []string{ddName, "api.example.com"},
+			domains:       []string{elbName, ddName},
 			wantIncluded:  true,
-			wantHostnames: []string{ddName, "api.example.com"},
+			wantHostnames: []string{ddName},
+		},
+		{
+			name: "customer include can re-enable the intake ELB directly",
+			config: `
+filters:
+  - match_domain: 'l4-metrics-agent-*.elb.*.amazonaws.com'
+    type: include
+`,
+			domains:       []string{ddName, elbName},
+			wantIncluded:  true,
+			wantHostnames: []string{elbName},
+		},
+		{
+			name: "last customer rule wins across different aliases",
+			config: `
+filters:
+  - match_domain: '*.datadoghq.com'
+    type: include
+  - match_domain: 'blocked.example.com'
+    type: exclude
+`,
+			domains:      []string{ddName, "blocked.example.com"},
+			wantIncluded: false,
 		},
 		{
 			name:         "no domains is excluded",
@@ -530,17 +569,31 @@ filters:
 }
 
 func TestEvaluateDomainsPrefersIncludeMatchedName(t *testing.T) {
-	// An RC include rule marks its name as the preferred path test hostname,
-	// even when it is not the first name in the list.
-	filter, errs := NewConnFilter([]Config{
-		{Type: FilterTypeInclude, MatchDomain: "*.example.com", TestConfigID: "remote-a", Tags: []string{"team:payments"}},
-	}, "", false)
-	require.Empty(t, errs)
+	t.Run("local include", func(t *testing.T) {
+		filter, errs := NewConnFilter([]Config{
+			{Type: FilterTypeInclude, MatchDomain: "*.example.com"},
+		}, "", false)
+		require.Empty(t, errs)
 
-	included, hostname, testConfigID, tags := filter.EvaluateDomains(
-		[]string{"host.other.test", "host.example.com"}, netip.Addr{})
-	assert.True(t, included)
-	assert.Equal(t, "host.example.com", hostname)
-	assert.Equal(t, "remote-a", testConfigID)
-	assert.Equal(t, []string{"team:payments"}, tags)
+		included, hostname, testConfigID, tags := filter.EvaluateDomains(
+			[]string{"host.other.test", "host.example.com"}, netip.Addr{})
+		assert.True(t, included)
+		assert.Equal(t, "host.example.com", hostname)
+		assert.Empty(t, testConfigID)
+		assert.Empty(t, tags)
+	})
+
+	t.Run("remote include", func(t *testing.T) {
+		filter, errs := NewConnFilter([]Config{
+			{Type: FilterTypeInclude, MatchDomain: "*.example.com", TestConfigID: "remote-a", Tags: []string{"team:payments"}},
+		}, "", false)
+		require.Empty(t, errs)
+
+		included, hostname, testConfigID, tags := filter.EvaluateDomains(
+			[]string{"host.other.test", "host.example.com"}, netip.Addr{})
+		assert.True(t, included)
+		assert.Equal(t, "host.example.com", hostname)
+		assert.Equal(t, "remote-a", testConfigID)
+		assert.Equal(t, []string{"team:payments"}, tags)
+	})
 }

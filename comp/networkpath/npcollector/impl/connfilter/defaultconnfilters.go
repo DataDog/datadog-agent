@@ -28,6 +28,13 @@ func getDefaultConnFilters(site string, monitorIPWithoutDomain bool) []Config {
 			Type:        FilterTypeExclude,
 			MatchDomain: "*.internal",
 		},
+		// Datadog intake endpoints are CNAME'd to these AWS ELBs. Exclude the
+		// Network Path-specific load balancer names when the original Datadog
+		// domain is no longer present in the shared reverse-DNS cache.
+		{
+			Type:        FilterTypeExclude,
+			MatchDomain: "l4-metrics-agent-*.elb.*.amazonaws.com",
+		},
 	}
 	if site != "" {
 		defaultConfig = append(defaultConfig, Config{

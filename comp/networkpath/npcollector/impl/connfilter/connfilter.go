@@ -142,57 +142,57 @@ func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, strin
 	return true, testConfigID, tags
 }
 
-// EvaluateDomains evaluates the filter across every DNS name mapped to a
-// destination IP, rather than a single pre-selected name. It exists because a
-// destination IP can be reverse-resolved to more than one name (e.g. a Datadog
-// intake endpoint CNAME'd to an AWS ELB, where both the datadoghq.com name and
-// the ELB name are cached for the same IP). Evaluating only the first name lets
-// Datadog infrastructure slip past the default excludes depending on cache
-// ordering.
-//
-// Semantics:
-//   - Every name is evaluated through the full filter chain. Because the chain
-//     is last-match-wins, a customer include rule still overrides a default
-//     exclude for a given name — customers can re-enable Datadog domains.
-//   - The connection is excluded if any name evaluates to excluded. This is what
-//     closes the CNAME gap: a name that resolves to Datadog intake excludes the
-//     connection even when another cached name for the same IP does not.
-//   - When included, the returned hostname is the preferred name for the path
-//     test: a name admitted by an include rule if any, else the first included
-//     name.
+// EvaluateDomains evaluates the ordered filter chain against all DNS names
+// mapped to a destination IP. A filter matches the connection when its IP
+// condition or any of its domain conditions match, and the last matching filter
+// wins. This preserves the precedence of EvaluateWithTags while preventing DNS
+// cache ordering from deciding whether a connection is included. When an
+// include rule wins by domain, that matching domain is returned as the path
+// hostname.
 func (f *ConnFilter) EvaluateDomains(domains []string, ip netip.Addr) (bool, string, string, []string) {
 	if len(domains) == 0 {
 		domains = []string{""}
 	}
 
-	firstIncluded := -1
-	includeMatched := -1
+	isIncluded := false
+	hostname := domains[0]
+	for _, domain := range domains {
+		if domain != "" {
+			isIncluded = true
+			hostname = domain
+			break
+		}
+	}
+	defaultHostname := hostname
 	var testConfigID string
 	var tags []string
-	for i, domain := range domains {
-		included, id, t := f.EvaluateWithTags(domain, ip)
-		if !included {
-			// Any excluded name excludes the whole connection. A customer
-			// include rule flips a name back to included (last-match-wins in
-			// EvaluateWithTags), which is how defaults are overridden.
-			return false, "", "", nil
+	for _, filter := range f.filters {
+		domainMatched := false
+		matchedDomain := ""
+		for _, domain := range domains {
+			if filter.matchDomain != nil && filter.matchDomain.MatchString(domain) {
+				domainMatched = true
+				matchedDomain = domain
+				break
+			}
 		}
-		if firstIncluded == -1 {
-			firstIncluded, testConfigID, tags = i, id, t
+		matchedIP := filter.matchIPCidr.IsValid() && ip.IsValid() && filter.matchIPCidr.Contains(ip)
+		if !domainMatched && !matchedIP {
+			continue
 		}
-		// A non-empty TestConfigID means an RC include rule admitted this name;
-		// prefer it as the path test hostname.
-		if id != "" && includeMatched == -1 {
-			includeMatched, testConfigID, tags = i, id, t
+
+		isIncluded = filter.Type == FilterTypeInclude
+		testConfigID = filter.TestConfigID
+		tags = filter.Tags
+		if isIncluded && domainMatched {
+			hostname = matchedDomain
+		} else if isIncluded {
+			hostname = defaultHostname
 		}
 	}
 
-	if firstIncluded == -1 {
+	if !isIncluded {
 		return false, "", "", nil
-	}
-	hostname := domains[firstIncluded]
-	if includeMatched != -1 {
-		hostname = domains[includeMatched]
 	}
 	return true, hostname, testConfigID, tags
 }

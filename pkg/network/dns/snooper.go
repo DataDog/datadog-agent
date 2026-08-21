@@ -246,6 +246,5 @@ func (s *socketFilterSnooper) getCachedTranslation() *translation {
 	for k := range t.ips {
 		delete(t.ips, k)
 	}
-	t.cnames = t.cnames[:0]
 	return t
 }

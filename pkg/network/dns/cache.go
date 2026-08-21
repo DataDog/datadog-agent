@@ -43,14 +43,6 @@ type reverseDNSCache struct {
 	exit chan struct{}
 	size int
 
-	// cnames maps a CNAME target back to the owner names that point at it, each
-	// with its own expiry (the CNAME record's TTL). CNAME records typically carry
-	// a longer TTL than the terminal name's A records, so when only the terminal
-	// name is re-resolved we can still re-associate the destination IP with the
-	// originally queried names (whose shorter-lived reverse mappings would
-	// otherwise expire).
-	cnames map[Hostname]map[Hostname]time.Time
-
 	// maxDomainsPerIP is the maximum number of domains mapped to a single IP
 	maxDomainsPerIP   int
 	oversizedLogLimit *log.Limit
@@ -59,7 +51,6 @@ type reverseDNSCache struct {
 func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
 		data:              make(map[util.Address]*dnsCacheVal),
-		cnames:            make(map[Hostname]map[Hostname]time.Time),
 		exit:              make(chan struct{}),
 		size:              size,
 		oversizedLogLimit: log.NewLogLimit(10, time.Minute*10),
@@ -88,24 +79,20 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 
 	c.mux.Lock()
 	defer c.mux.Unlock()
-
-	// Learn CNAME owner->target edges even if the data map is full, so a later
-	// terminal-name refresh can still be mapped back to the queried names.
-	c.addCNAMEs(translation)
-
 	if len(c.data) >= c.size {
 		return false
 	}
 
-	// Any owner name that resolves (directly or transitively) to translation.dns
-	// via a still-valid CNAME edge. For a terminal ELB name this recovers the
-	// original *.datadoghq.com name; for a full response the terminal name is the
-	// queried name and this is empty.
-	owners := c.cnameOwners(translation.dns)
 	for addr, deadline := range translation.ips {
-		c.addName(addr, translation.dns, deadline)
-		for _, owner := range owners {
-			c.addName(addr, owner, deadline)
+		val, ok := c.data[addr]
+		if ok {
+			if rejected := val.merge(translation.dns, deadline, c.maxDomainsPerIP); rejected && c.oversizedLogLimit.ShouldLog() {
+				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
+			}
+		} else {
+			cacheTelemetry.added.Inc()
+			// flag as in use, so mapping survives until next time connections are queried, in case TTL is shorter
+			c.data[addr] = &dnsCacheVal{names: map[Hostname]time.Time{translation.dns: deadline}, inUse: true}
 		}
 	}
 
@@ -113,69 +100,6 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 	cacheTelemetry.length.Set(int64(len(c.data)))
 
 	return true
-}
-
-// addName maps addr to name with the given deadline, creating or merging the
-// cache entry. The caller must hold c.mux.
-func (c *reverseDNSCache) addName(addr util.Address, name Hostname, deadline time.Time) {
-	val, ok := c.data[addr]
-	if ok {
-		if rejected := val.merge(name, deadline, c.maxDomainsPerIP); rejected && c.oversizedLogLimit.ShouldLog() {
-			log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
-		}
-		return
-	}
-	cacheTelemetry.added.Inc()
-	// flag as in use, so mapping survives until next time connections are queried, in case TTL is shorter
-	c.data[addr] = &dnsCacheVal{names: map[Hostname]time.Time{name: deadline}, inUse: true}
-}
-
-// addCNAMEs records the translation's CNAME edges in the owner graph. The caller
-// must hold c.mux.
-func (c *reverseDNSCache) addCNAMEs(translation *translation) {
-	now := time.Now()
-	for _, edge := range translation.cnames {
-		if edge.owner == edge.target {
-			continue
-		}
-		deadline := now.Add(edge.ttl)
-		owners, ok := c.cnames[edge.target]
-		if !ok {
-			if len(c.cnames) >= c.size {
-				continue
-			}
-			owners = make(map[Hostname]time.Time)
-			c.cnames[edge.target] = owners
-		}
-		if exp, ok := owners[edge.owner]; !ok || deadline.After(exp) {
-			owners[edge.owner] = deadline
-		}
-	}
-}
-
-// cnameOwners walks the CNAME graph upward from target and returns every owner
-// name that reaches it, following chains (e.g. datadoghq.com -> cloudfront ->
-// ELB). The caller must hold c.mux.
-func (c *reverseDNSCache) cnameOwners(target Hostname) []Hostname {
-	if len(c.cnames) == 0 {
-		return nil
-	}
-	var owners []Hostname
-	visited := map[Hostname]struct{}{target: {}}
-	queue := []Hostname{target}
-	for len(queue) > 0 && len(owners) < c.maxDomainsPerIP {
-		cur := queue[0]
-		queue = queue[1:]
-		for owner := range c.cnames[cur] {
-			if _, seen := visited[owner]; seen {
-				continue
-			}
-			visited[owner] = struct{}{}
-			owners = append(owners, owner)
-			queue = append(queue, owner)
-		}
-	}
-	return owners
 }
 
 func (c *reverseDNSCache) Get(ips map[util.Address]struct{}) map[util.Address][]Hostname {
@@ -261,20 +185,6 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 		expired++
 		delete(c.data, addr)
 	}
-
-	// Prune expired CNAME edges. These are never held "in use"; they are cheap to
-	// relearn from the next full response and must not outlive their TTL.
-	for target, owners := range c.cnames {
-		for owner, deadline := range owners {
-			if deadline.Before(now) {
-				delete(owners, owner)
-			}
-		}
-		if len(owners) == 0 {
-			delete(c.cnames, target)
-		}
-	}
-
 	total := len(c.data)
 	c.mux.Unlock()
 
@@ -330,16 +240,8 @@ func (v *dnsCacheVal) copy() []Hostname {
 }
 
 type translation struct {
-	dns    Hostname
-	ips    map[util.Address]time.Time
-	cnames []cnameEdge
-}
-
-// cnameEdge is a single owner->target CNAME record observed in a response.
-type cnameEdge struct {
-	owner  Hostname
-	target Hostname
-	ttl    time.Duration
+	dns Hostname
+	ips map[util.Address]time.Time
 }
 
 func (t *translation) add(addr util.Address, ttl time.Duration) {
@@ -347,8 +249,4 @@ func (t *translation) add(addr util.Address, ttl time.Duration) {
 		return
 	}
 	t.ips[addr] = time.Now().Add(ttl)
-}
-
-func (t *translation) addCNAME(owner, target Hostname, ttl time.Duration) {
-	t.cnames = append(t.cnames, cnameEdge{owner: owner, target: target, ttl: ttl})
 }
