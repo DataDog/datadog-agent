@@ -122,7 +122,16 @@ func feedPrometheusParser(id int64, chunk string) (string, error) {
 	// the tail of the buffer (the most recently appended chunk) for a metric-name
 	// transition. This bounds the scan to O(chunk size) per call rather than
 	// O(buffer size), avoiding quadratic growth on large exporters.
-	if lastBoundary <= 0 {
+	//
+	// When the buffer contains TYPE/HELP directives, skip this fallback.
+	// The primary detection above handles directive-based splitting; if it
+	// found no valid split point (e.g. the only directive is at the buffer
+	// start with no preceding samples), we must keep buffering until the
+	// next directive arrives rather than splitting on metric-name changes,
+	// which would incorrectly separate histogram _bucket/_sum/_count or
+	// summary _sum/_count samples into different families.
+	bufferHasDirectives := strings.Contains(state.buffer, "# TYPE ") || strings.Contains(state.buffer, "# HELP ")
+	if lastBoundary <= 0 && !bufferHasDirectives {
 		chunkLines := strings.Count(chunk, "\n") + 2
 		scanFrom := len(lines) - chunkLines
 		if scanFrom < 0 {

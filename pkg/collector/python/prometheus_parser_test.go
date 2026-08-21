@@ -174,6 +174,37 @@ metric_a 1`
 	assert.Equal(t, "metric_a", families[0].Name)
 }
 
+func TestFeedHistogramNotSplitAcrossChunks(t *testing.T) {
+	id := newPrometheusParser("text/plain")
+
+	// TYPE + buckets in first chunk
+	chunk1 := "# TYPE foo histogram\nfoo_bucket{le=\"1\"} 10\nfoo_bucket{le=\"2\"} 20"
+
+	result, err := feedPrometheusParser(id, chunk1)
+	require.NoError(t, err)
+	assert.Empty(t, result)
+
+	// _sum and _count arrive in a later chunk without a new TYPE line.
+	// The fallback boundary detector must NOT split these from the histogram.
+	chunk2 := "foo_sum 30\nfoo_count 2"
+
+	result, err = feedPrometheusParser(id, chunk2)
+	require.NoError(t, err)
+	assert.Empty(t, result, "_sum and _count must not be split from the histogram family")
+
+	// Finish returns the complete histogram
+	result, err = finishPrometheusParser(id)
+	require.NoError(t, err)
+	require.NotEmpty(t, result)
+
+	var families []jsonMetricFamily
+	require.NoError(t, json.Unmarshal([]byte(result), &families))
+	require.Len(t, families, 1)
+	assert.Equal(t, "foo", families[0].Name)
+	assert.Equal(t, "histogram", families[0].Type)
+	assert.Len(t, families[0].Samples, 4) // 2 buckets + sum + count
+}
+
 func TestFinishUnknownID(t *testing.T) {
 	_, err := finishPrometheusParser(99999)
 	assert.Error(t, err)
