@@ -9,10 +9,13 @@
 
 use std::io::{Read, Write};
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
+
+const STDOUT_READER_JOIN_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(crate) struct BackendRun<'a> {
     pub command: &'a str,
@@ -39,6 +42,11 @@ pub(crate) fn spawn_and_capture(
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
     configure(&mut child).with_context(|| format!("configure secret backend {}", run.command))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        child.process_group(0);
+    }
     let mut child = child
         .spawn()
         .with_context(|| format!("spawn secret backend {}", run.command))?;
@@ -58,7 +66,7 @@ pub(crate) fn spawn_and_capture(
     wait_with_stdout_drain(
         stdout,
         run.max_output_bytes,
-        move || kill_process_by_pid(pid),
+        move || kill_process_tree(pid),
         move || wait_for_command_child(&mut child, deadline, command, timeout_secs),
     )
 }
@@ -77,16 +85,28 @@ pub(crate) fn wait_with_stdout_drain<R, K, W>(
 ) -> Result<String>
 where
     R: Read + Send + 'static,
-    K: Fn() + Send + 'static,
+    K: Fn() + Send + Sync + 'static + Clone,
     W: FnOnce() -> Result<()>,
 {
+    let (tx, rx) = mpsc::channel();
     thread::scope(|scope| {
-        let reader = scope.spawn(move || read_stdout_or_kill(stdout, max_output_bytes, kill_child));
+        let kill_on_timeout = kill_child.clone();
+        scope.spawn(move || {
+            let result = read_stdout_or_kill(stdout, max_output_bytes, kill_child);
+            let _ = tx.send(result);
+        });
 
         let wait_result = wait_for_child();
-        let output = reader
-            .join()
-            .map_err(|_| anyhow::anyhow!("secret backend stdout reader panicked"))??;
+        let output = match rx.recv_timeout(STDOUT_READER_JOIN_TIMEOUT) {
+            Ok(result) => result?,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                kill_on_timeout();
+                bail!("secret backend stdout reader timed out after child exit");
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                bail!("secret backend stdout reader exited without sending output");
+            }
+        };
         wait_result?;
         Ok(output)
     })
@@ -117,7 +137,7 @@ fn wait_for_command_child(
         match child.try_wait().context("poll secret backend")? {
             Some(status) => break status,
             None if Instant::now() >= deadline => {
-                let _ = child.kill();
+                kill_process_tree(child.id());
                 let _ = child.wait();
                 bail!("secret backend {command} timed out after {timeout_secs} seconds");
             }
@@ -157,14 +177,17 @@ pub(crate) fn read_limited_stdout(
 }
 
 #[cfg(unix)]
-fn kill_process_by_pid(pid: u32) {
+fn kill_process_tree(pid: u32) {
     use nix::sys::signal::{Signal, kill};
     use nix::unistd::Pid;
-    let _ = kill(Pid::from_raw(pid as i32), Signal::SIGKILL);
+
+    let raw = pid as i32;
+    let _ = kill(Pid::from_raw(-raw), Signal::SIGKILL);
+    let _ = kill(Pid::from_raw(raw), Signal::SIGKILL);
 }
 
 #[cfg(windows)]
-fn kill_process_by_pid(pid: u32) {
+fn kill_process_tree(pid: u32) {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
 
