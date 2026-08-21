@@ -11,7 +11,9 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 # Expose repos for legacy rules, inspired by https://github.com/bazel-contrib/bazel-gazelle/pull/2361
 inject_repo(
     go_deps,
-    protobuf = "protobuf",
+    gazelle = "gazelle",  # used by com_github_lestrrat_go_jwx_v3
+    protobuf = "protobuf",  # used by com_github_datadog_agent_payload_v5
+    rules_go = "rules_go",  # used by com_github_lestrrat_go_jwx_v3
 )
 
 go_deps.from_file(go_work = "//:go.work")
