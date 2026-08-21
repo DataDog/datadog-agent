@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -51,10 +52,21 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 	svcManager := common.GetServiceManager(host)
 	s.Require().NotNil(svcManager)
 
+	// Keep the core Agent from fetching the signing key before PAR has subscribed.
+	_, err := svcManager.Stop(coreAgentServiceName)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		_, _ = svcManager.Start(coreAgentServiceName)
+	})
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		_, statusErr := svcManager.Status(coreAgentServiceName)
+		require.Error(c, statusErr)
+	}, 30*time.Second, time.Second, "core Agent should be stopped")
+
 	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
 	// Start the private action runner service
-	_, err := svcManager.Start(privateActionRunnerServiceName)
+	_, err = svcManager.Start(privateActionRunnerServiceName)
 	s.Require().NoError(err)
 
 	// Verify the service is running
@@ -81,11 +93,16 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
 
-	// Readiness depends on the KeysManager receiving its first AP_RUNNER_KEYS
-	// remote-config update. The backend director's first fetch of a brand-new
-	// product can take well over 2 minutes regardless of the client's poll
-	// interval (observed ~2m10s in CI), so this needs a longer budget than the
-	// other checks in this test.
+	// PAR is now running and subscribed. Restart the core Agent so its first
+	// remote-config fetch includes AP_RUNNER_KEYS and delivers the signing key.
+	_, err = svcManager.Start(coreAgentServiceName)
+	s.Require().NoError(err)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		status, statusErr := svcManager.Status(coreAgentServiceName)
+		require.NoError(c, statusErr)
+		require.Contains(c, status, "active")
+	}, 2*time.Minute, 5*time.Second, "core Agent should be active")
+
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerKeysManagerLogLine, privateActionRunnerLogFile))
 	}, 5*time.Minute, 5*time.Second, "private action runner log should report the keys manager ready")
