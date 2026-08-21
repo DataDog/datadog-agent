@@ -70,7 +70,7 @@ var conntrackerTelemetry = struct {
 	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
-	atomic.Uint64{}
+	atomic.Uint64{},
 }
 
 type ebpfConntracker struct {
