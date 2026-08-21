@@ -363,7 +363,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         struct exit_event_t *event = SPAN_FILL_EVENT(struct exit_event_t, EVENT_EXIT);
         if (!event) {
             // tear down the process state even if the event can't be staged
-            unregister_go_labels();
+            unregister_span_context();
             cleanup_traced_state(tgid);
             pop_syscall(EVENT_ANY);
             return 0;
@@ -895,7 +895,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
-    unregister_go_labels();
+    unregister_span_context();
 
     return 0;
 }
