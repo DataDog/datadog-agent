@@ -55,9 +55,9 @@ type ScanMWDetector struct {
 
 	// MinPoints is the minimum total points before detection runs.
 	// Default: 30
-	MinPoints int
+	MinPoints int `json:"min_points"`
 	// MaxPoints bounds the scan window. Default: 120.
-	MaxPoints int
+	MaxPoints int `json:"max_points"`
 
 	// SignificanceThreshold is the maximum p-value for the best split to be
 	// considered a changepoint. Default: 1e-8
