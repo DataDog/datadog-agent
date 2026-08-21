@@ -473,6 +473,7 @@
 
 # pkg
 /pkg/                                                                 @DataDog/agent-runtimes
+/pkg/BUILD.bazel                                                      @DataDog/agent-build
 /pkg/metriclookback/                                                  @DataDog/q-branch
 /pkg/metriclookback/dogstatsd/                                        @DataDog/q-branch @DataDog/agent-metric-pipelines
 /pkg/api/                                                             @DataDog/agent-runtimes
