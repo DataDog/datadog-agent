@@ -99,6 +99,9 @@ char* ObfuscateMongoDBString(char *, char **);
 void EmitAgentTelemetry(char *, char *, double, char *);
 void ReportIssue(char *, char *, char **);
 void ResolveIssue(char *, char **);
+long NewPrometheusParser(char *);
+void FeedPrometheusParser(long, char *, char **, char **);
+void FinishPrometheusParser(long, char **, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -120,6 +123,9 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_emit_agent_telemetry_cb(rtloader, EmitAgentTelemetry);
 	set_report_issue_cb(rtloader, ReportIssue);
 	set_resolve_issue_cb(rtloader, ResolveIssue);
+	set_new_prometheus_parser_cb(rtloader, NewPrometheusParser);
+	set_feed_prometheus_parser_cb(rtloader, FeedPrometheusParser);
+	set_finish_prometheus_parser_cb(rtloader, FinishPrometheusParser);
 }
 
 //

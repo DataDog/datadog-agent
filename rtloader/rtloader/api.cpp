@@ -607,6 +607,21 @@ void set_resolve_issue_cb(rtloader_t *rtloader, cb_resolve_issue_t cb)
     AS_TYPE(RtLoader, rtloader)->setResolveIssueCb(cb);
 }
 
+void set_new_prometheus_parser_cb(rtloader_t *rtloader, cb_new_prometheus_parser_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setNewPrometheusParserCb(cb);
+}
+
+void set_feed_prometheus_parser_cb(rtloader_t *rtloader, cb_feed_prometheus_parser_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setFeedPrometheusParserCb(cb);
+}
+
+void set_finish_prometheus_parser_cb(rtloader_t *rtloader, cb_finish_prometheus_parser_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setFinishPrometheusParserCb(cb);
+}
+
 /*
  * _util API
  */

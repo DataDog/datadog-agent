@@ -29,6 +29,9 @@ static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
 static cb_report_issue_t cb_report_issue = NULL;
 static cb_resolve_issue_t cb_resolve_issue = NULL;
+static cb_new_prometheus_parser_t cb_new_prometheus_parser = NULL;
+static cb_feed_prometheus_parser_t cb_feed_prometheus_parser = NULL;
+static cb_finish_prometheus_parser_t cb_finish_prometheus_parser = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -51,6 +54,9 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *new_prometheus_parser(PyObject *self, PyObject *args);
+static PyObject *feed_prometheus_parser(PyObject *self, PyObject *args);
+static PyObject *finish_prometheus_parser(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -73,6 +79,9 @@ static PyMethodDef methods[] = {
     { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
     { "report_issue", (PyCFunction)report_issue, METH_VARARGS|METH_KEYWORDS, "Report a health platform issue." },
     { "resolve_issue", (PyCFunction)resolve_issue, METH_VARARGS|METH_KEYWORDS, "Resolve a health platform issue by issue id." },
+    { "new_prometheus_parser", new_prometheus_parser, METH_VARARGS, "Create a new incremental Prometheus text parser." },
+    { "feed_prometheus_parser", feed_prometheus_parser, METH_VARARGS, "Feed a chunk of lines to a Prometheus parser." },
+    { "finish_prometheus_parser", finish_prometheus_parser, METH_VARARGS, "Finish parsing and release a Prometheus parser." },
     { NULL, NULL } // guards
 };
 
@@ -174,6 +183,21 @@ void _set_report_issue_cb(cb_report_issue_t cb)
 void _set_resolve_issue_cb(cb_resolve_issue_t cb)
 {
     cb_resolve_issue = cb;
+}
+
+void _set_new_prometheus_parser_cb(cb_new_prometheus_parser_t cb)
+{
+    cb_new_prometheus_parser = cb;
+}
+
+void _set_feed_prometheus_parser_cb(cb_feed_prometheus_parser_t cb)
+{
+    cb_feed_prometheus_parser = cb;
+}
+
+void _set_finish_prometheus_parser_cb(cb_finish_prometheus_parser_t cb)
+{
+    cb_finish_prometheus_parser = cb;
 }
 
 
@@ -1042,7 +1066,7 @@ static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
     if (err != NULL) {
         PyErr_SetString(PyExc_RuntimeError, err);
     }
-    
+
     cgo_free(err);
     PyGILState_Release(gstate);
     // we need to return NULL to raise the exception set by PyErr_SetString
@@ -1050,4 +1074,89 @@ static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     Py_RETURN_NONE;
+}
+
+static PyObject *new_prometheus_parser(PyObject *self, PyObject *args)
+{
+    if (cb_new_prometheus_parser == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "new_prometheus_parser callback not set");
+        return NULL;
+    }
+
+    char *content_type = NULL;
+    if (!PyArg_ParseTuple(args, "s", &content_type)) {
+        return NULL;
+    }
+
+    long parser_id = cb_new_prometheus_parser(content_type);
+    return PyLong_FromLong(parser_id);
+}
+
+static PyObject *feed_prometheus_parser(PyObject *self, PyObject *args)
+{
+    if (cb_feed_prometheus_parser == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "feed_prometheus_parser callback not set");
+        return NULL;
+    }
+
+    long parser_id;
+    char *chunk = NULL;
+    if (!PyArg_ParseTuple(args, "ls", &parser_id, &chunk)) {
+        return NULL;
+    }
+
+    char *result = NULL;
+    char *err = NULL;
+    cb_feed_prometheus_parser(parser_id, chunk, &result, &err);
+
+    if (err != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, err);
+        cgo_free(err);
+        cgo_free(result);
+        return NULL;
+    }
+
+    PyObject *retval;
+    if (result != NULL) {
+        retval = PyUnicode_FromString(result);
+        cgo_free(result);
+    } else {
+        retval = PyUnicode_FromString("");
+    }
+
+    return retval;
+}
+
+static PyObject *finish_prometheus_parser(PyObject *self, PyObject *args)
+{
+    if (cb_finish_prometheus_parser == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "finish_prometheus_parser callback not set");
+        return NULL;
+    }
+
+    long parser_id;
+    if (!PyArg_ParseTuple(args, "l", &parser_id)) {
+        return NULL;
+    }
+
+    char *result = NULL;
+    char *err = NULL;
+    cb_finish_prometheus_parser(parser_id, &result, &err);
+
+    if (err != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, err);
+        cgo_free(err);
+        cgo_free(result);
+        return NULL;
+    }
+
+    PyObject *retval;
+    if (result != NULL) {
+        retval = PyUnicode_FromString(result);
+        cgo_free(result);
+    } else {
+        retval = PyUnicode_FromString("");
+    }
+
+    return retval;
 }
