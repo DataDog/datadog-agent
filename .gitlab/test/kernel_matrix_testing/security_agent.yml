@@ -9,7 +9,7 @@ upload_dependencies_secagent_x64:
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
-    INSTANCE_TYPE: m5d.metal
+    INSTANCE_TYPE: z1d.metal
     TEST_COMPONENT: security-agent
 
 upload_dependencies_secagent_arm64:
@@ -42,7 +42,7 @@ kmt_setup_env_secagent_x64:
     - .kmt_setup_env
   rules: !reference [.on_security_agent_changes_or_manual]
   variables:
-    INSTANCE_TYPE: "m5d.metal"
+    INSTANCE_TYPE: "z1d.metal"
     INSTANCE_TYPE_ARG: "--instance-type-x86=$INSTANCE_TYPE"
     ARCH: x86_64
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
@@ -97,7 +97,7 @@ upload_secagent_tests_x64:
   tags: ["arch:amd64", "specific:true"]
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: m5d.metal
+    INSTANCE_TYPE: z1d.metal
 
 upload_secagent_tests_arm64:
   extends:
@@ -545,7 +545,7 @@ kmt_secagent_cleanup_x64:
     - upload_secagent_tests_x64
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: "m5d.metal"
+    INSTANCE_TYPE: "z1d.metal"
 
 # Manual cleanup jobs, these will be used to cleanup the instances after the tests
 # if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
@@ -564,4 +564,4 @@ kmt_secagent_cleanup_x64_manual:
     - .kmt_cleanup_manual
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: "m5d.metal"
+    INSTANCE_TYPE: "z1d.metal"
