@@ -62,7 +62,7 @@ var conntrackerTelemetry = struct {
 	getsTotal           telemetryComp.Counter
 	unregistersTotal    telemetryComp.Counter
 	registersTotal      *prometheus.Desc
-	lastRegisters       uint64
+	lastRegisters       atomic.Uint64
 }{
 	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
@@ -411,9 +411,23 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	if err := e.telemetryMap.Lookup(&zero, ebpfTelemetry); err != nil {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
-		delta := ebpfTelemetry.Registers - conntrackerTelemetry.lastRegisters
-		conntrackerTelemetry.lastRegisters = ebpfTelemetry.Registers
+		delta := computeRegistersDelta(ebpfTelemetry.Registers)
 		ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.registersTotal, prometheus.CounterValue, float64(delta))
+	}
+}
+
+// computeRegistersDelta atomically computes the delta between the current
+// and last-seen register count, and updates the last-seen value. Safe to
+// call concurrently (e.g. when two Prometheus Gather ticks overlap).
+func computeRegistersDelta(currentRegisters uint64) uint64 {
+	for {
+		last := conntrackerTelemetry.lastRegisters.Load()
+		if currentRegisters <= last {
+			return 0
+		}
+		if conntrackerTelemetry.lastRegisters.CompareAndSwap(last, currentRegisters) {
+			return currentRegisters - last
+		}
 	}
 }
 
