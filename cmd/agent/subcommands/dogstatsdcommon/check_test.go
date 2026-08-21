@@ -50,13 +50,13 @@ func TestCheckDataPlaneOwnsDogstatsd(t *testing.T) {
 		},
 		{
 			name:      "deprecated DD_ADP_ENABLED env var",
-			setupCfg:  func(cfg cconfig.Component) {},
+			setupCfg:  func(_ cconfig.Component) {},
 			setEnv:    "true",
 			wantOwned: true,
 		},
 		{
 			name:      "defaults (no data plane, no env var)",
-			setupCfg:  func(cfg cconfig.Component) {},
+			setupCfg:  func(_ cconfig.Component) {},
 			wantOwned: false,
 		},
 	}
