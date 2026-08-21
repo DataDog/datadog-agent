@@ -186,5 +186,10 @@ func (m *Manager) Start() error {
 		return err
 	}
 
+	// Hold the telemetry lock so concurrent Collect calls don't read
+	// PerfMap/RingBuffer fields while Start initializes them.
+	TelemetryMu.Lock()
+	defer TelemetryMu.Unlock()
+
 	return m.Manager.Start()
 }

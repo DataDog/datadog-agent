@@ -200,6 +200,7 @@ go_library(
         "probes.go",
         "rc_btf.go",
         "status_codes.go",
+        "telemetry_mu_linux.go",
         "time.go",
         "types_linux.go",
     ],
