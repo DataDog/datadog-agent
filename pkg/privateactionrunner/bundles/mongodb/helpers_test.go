@@ -72,3 +72,40 @@ func TestGetConnectionURIWithTLSAndAuthenticationOptions(t *testing.T) {
 	want := "mongodb://user:password@localhost:27017/admin?authSource=users&authMechanism=SCRAM-SHA-256&tls=true"
 	require.Equal(t, want, got)
 }
+
+func TestGetSRVConnectionURITLS(t *testing.T) {
+	tests := []struct {
+		name string
+		tls  string
+		want string
+	}{
+		{
+			name: "TLS disabled",
+			tls:  "false",
+			want: "mongodb+srv://user:password@mongodb.example.com/?tls=false",
+		},
+		{
+			name: "TLS defaults to enabled",
+			want: "mongodb+srv://user:password@mongodb.example.com/?tls=true",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			credentials := map[string]string{
+				"username": "user",
+				"password": "password",
+				"srvHost":  "mongodb.example.com",
+				"tls":      tt.tls,
+			}
+
+			got, err := getConnectionUri(credentials)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+
+			clientOptions, _, err := createMongoClientOptions(context.Background(), credentials)
+			require.NoError(t, err)
+			require.NotNil(t, clientOptions)
+		})
+	}
+}

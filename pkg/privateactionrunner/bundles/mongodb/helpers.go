@@ -77,7 +77,7 @@ func getConnectionUri(credentialTokens map[string]string) (string, error) {
 		if srvHost == "" {
 			return "", errors.New("invalid SRV host: SRV host cannot be empty")
 		}
-		return buildSRVConnectionURI(username, password, srvHost, database, authSource)
+		return buildSRVConnectionURI(username, password, srvHost, database, authSource, tls)
 	}
 
 	if !hostOk || host == "" {
@@ -90,7 +90,7 @@ func getConnectionUri(credentialTokens map[string]string) (string, error) {
 	return buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism, tls)
 }
 
-func buildSRVConnectionURI(username, password, srvHost, database, authSource string) (string, error) {
+func buildSRVConnectionURI(username, password, srvHost, database, authSource, tls string) (string, error) {
 	escapedUsername := url.QueryEscape(username)
 	escapedPassword := url.QueryEscape(password)
 	escapedSrvHost := url.QueryEscape(srvHost)
@@ -104,7 +104,13 @@ func buildSRVConnectionURI(username, password, srvHost, database, authSource str
 	if authSource != "" {
 		params = append(params, "authSource="+url.QueryEscape(authSource))
 	}
+	if tls != "" {
+		params = append(params, "tls="+url.QueryEscape(tls))
+	}
 	if len(params) > 0 {
+		if database == "" {
+			connectionUri += "/"
+		}
 		connectionUri = fmt.Sprintf("%s?%s", connectionUri, strings.Join(params, "&"))
 	}
 	return connectionUri, nil
