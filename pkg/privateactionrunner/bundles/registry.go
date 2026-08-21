@@ -48,6 +48,7 @@ import (
 	com_datadoghq_kubernetes_discovery "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/discovery"
 	com_datadoghq_kubernetes_networking "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/networking"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
+	com_datadoghq_postgresql "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/postgresql"
 	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
 	com_datadoghq_remoteaction_datadogagent "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/datadogagent"
 	com_datadoghq_remoteaction_internal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/internalactions"
@@ -108,6 +109,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.kubernetes.discovery":                 com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.kubernetes.networking":                com_datadoghq_kubernetes_networking.NewKubernetesNetworking(),
 			"com.datadoghq.mongodb":                              com_datadoghq_mongodb.NewMongoDB(),
+			"com.datadoghq.postgresql":                           com_datadoghq_postgresql.NewPostgreSQL(),
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),
 			"com.datadoghq.remoteaction.datadogagent":            com_datadoghq_remoteaction_datadogagent.NewAgent(ipcClient),
 			"com.datadoghq.remoteaction.internal":                com_datadoghq_remoteaction_internal.NewInternal(encryptionStore),
