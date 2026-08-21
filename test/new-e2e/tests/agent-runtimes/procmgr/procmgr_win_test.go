@@ -48,6 +48,9 @@ restart: always
 description: E2E test process
 `
 
+	// Static suite fixtures live under processes.d as YAML (see TestProcmgrSmokeWindowsSuite).
+	// Runtime create is for per-test definitions (unique names, RPC auth checks, etc.).
+
 	winMissingBinaryConfig = `command: C:\nonexistent\binary.exe
 condition_path_exists: C:\nonexistent\binary.exe
 auto_start: true
@@ -59,6 +62,8 @@ description: should not start
 
 	adpProcessName = "datadog-agent-data-plane"
 )
+
+var winPowerShellLaunchArgs = []string{"-NoProfile", "-NonInteractive", "-Command"}
 
 func psRemote(format string, args ...any) string {
 	for i, a := range args {
@@ -98,14 +103,19 @@ func windowsUserProfileEnvMarkerPath(runID int64) string {
 	return fmt.Sprintf("%s/procmgr-e2e-userprofile-%d.txt", winUserProfileEnvMarkerDir, runID)
 }
 
-func windowsUserProfileEnvCreateArgs(procName, markerPath string) string {
+func windowsUserProfileEnvCreateSpec(procName, markerPath string) procmgrCreateSpec {
 	psCommand := fmt.Sprintf(`$env:USERPROFILE | Set-Content -LiteralPath '%s'`, markerPath)
-	return psRemote(
-		`create --name '%s' --command '%s' --args '-NoProfile' --args '-NonInteractive' --args '-Command' --args '%s' --env SystemRoot=C:\Windows --env 'PATH=C:\Windows\System32;C:\Windows' --restart-policy always --description 'E2E userprofile env check'`,
-		procName,
-		winSleepCommand,
-		psCommand,
-	)
+	return procmgrCreateSpec{
+		Name:    procName,
+		Command: winSleepCommand,
+		Args: append(append([]string(nil), winPowerShellLaunchArgs...), psCommand),
+		Env: map[string]string{
+			"SystemRoot": `C:\Windows`,
+			"PATH":       `C:\Windows\System32;C:\Windows`,
+		},
+		RestartPolicy: "always",
+		Description:   "E2E userprofile env check",
+	}
 }
 
 func withADPEnabled() agentparams.Option {
@@ -207,16 +217,19 @@ $id.Name
 	assert.NotContains(s.T(), strings.ToUpper(caller), "SYSTEM")
 
 	procName := fmt.Sprintf("e2e-admin-pipe-create-%d", time.Now().UnixNano())
-	createOut, err := host.Execute(s.platform.cliCmd(fmt.Sprintf(
-		`create --name %s --command C:\Windows\System32\cmd.exe --args /c --args exit --no-auto-start --description 'E2E admin pipe auth'`,
-		procName,
-	)))
+	createOut, err := host.Execute(s.cliCreate(procmgrCreateSpec{
+		Name:        procName,
+		Command:     `C:\Windows\System32\cmd.exe`,
+		Args:        []string{"/c", "exit"},
+		Description: "E2E admin pipe auth",
+		NoAutoStart: true,
+	}))
 	require.NoError(s.T(), err, "Create RPC should succeed for Administrator pipe client; output: %s", createOut)
 	assert.NotContains(s.T(), strings.ToLower(createOut), "permission denied")
 	assert.Contains(s.T(), createOut, "UUID:")
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		listOut := host.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		listOut := host.MustExecuteOn(ct, s.cliList())
 		assertTableRow(ct, listOut, procName, map[string]string{
 			"STATE": "Created",
 			"PID":   "-",
@@ -228,7 +241,7 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildRunsAsAgentUser() {
 	host := s.Env().RemoteHost
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		desc := host.MustExecuteOn(ct, s.cliDescribe("test-sleep"))
 		assertField(ct, desc, "State", "Running")
 		pid := fieldValue(desc, "PID")
 		if !assert.NotEmpty(ct, pid) {
@@ -247,7 +260,7 @@ func (s *procmgrWindowsSuite) TestAgentProfileDescribeUserMatchesRuntimeUser() {
 	require.NoError(s.T(), err)
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		desc := host.MustExecuteOn(ct, s.cliDescribe("test-sleep"))
 		assertField(ct, desc, "State", "Running")
 		assertField(ct, desc, "Profile", "agent")
 		assertHasField(ct, desc, "User")
@@ -276,12 +289,12 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildHasUserProfileEnv() {
 	procName := fmt.Sprintf("e2e-userprofile-env-%d", runID)
 	markerPath := windowsUserProfileEnvMarkerPath(runID)
 
-	createOut, err := host.Execute(s.platform.cliCmd(windowsUserProfileEnvCreateArgs(procName, markerPath)))
+	createOut, err := host.Execute(s.cliCreate(windowsUserProfileEnvCreateSpec(procName, markerPath)))
 	require.NoError(s.T(), err, "Create should spawn an agent-profile child; output: %s", createOut)
 	assert.Contains(s.T(), createOut, "UUID:")
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		desc := host.MustExecuteOn(ct, s.cliDescribe(procName))
 		assertField(ct, desc, "Profile", "agent")
 
 		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, markerPath))
@@ -296,7 +309,7 @@ func (s *procmgrWindowsSuite) waitWindowsADPRunning(timeout time.Duration) strin
 	s.T().Helper()
 	var pid string
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+adpProcessName))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe(adpProcessName))
 		assertField(ct, out, "State", "Running")
 		p := fieldValue(out, "PID")
 		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
@@ -311,7 +324,7 @@ func (s *procmgrWindowsSuite) waitWindowsADPRunning(timeout time.Duration) strin
 
 func (s *procmgrWindowsSuite) getWindowsRestartCount(name string) int {
 	s.T().Helper()
-	out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe " + name))
+	out := s.Env().RemoteHost.MustExecute(s.cliDescribe(name))
 	count, err := strconv.Atoi(fieldValue(out, "Restarts"))
 	require.NoError(s.T(), err, "Restarts field for %s should be a number", name)
 	return count
@@ -401,7 +414,7 @@ func (s *procmgrWindowsSuite) TestADPProcessDescribe() {
 	require.NoError(s.T(), err)
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+adpProcessName))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe(adpProcessName))
 		assertField(ct, out, "Name", adpProcessName)
 		assertField(ct, out, "State", "Running")
 		assert.Equal(ct,
