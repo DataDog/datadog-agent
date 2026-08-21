@@ -5,6 +5,7 @@
 
 mod runtime_user;
 mod secret_backend;
+mod secret_backend_rights;
 mod spawn;
 
 pub(crate) fn embedded_secret_connector_path() -> std::path::PathBuf {

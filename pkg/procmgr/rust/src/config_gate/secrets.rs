@@ -43,6 +43,7 @@ struct Backend {
     command: String,
     arguments: Vec<String>,
     skip_acl_check: bool,
+    command_allow_group_exec_perm: bool,
     multi_backends: Option<HashMap<String, MultiBackendEntry>>,
     global_backend_type: Option<String>,
     global_backend_config: Option<Value>,
@@ -197,6 +198,7 @@ fn load_backend(agent_yaml: &str) -> Result<Option<Backend>> {
             command,
             arguments: load_arguments(root.as_ref()),
             skip_acl_check: false,
+            command_allow_group_exec_perm: settings.command_allow_group_exec_perm,
             multi_backends: None,
             global_backend_type: None,
             global_backend_config: None,
@@ -232,6 +234,7 @@ fn embedded_backend(
             .into_owned(),
         arguments: settings.arguments,
         skip_acl_check: true,
+        command_allow_group_exec_perm: settings.command_allow_group_exec_perm,
         multi_backends,
         global_backend_type,
         global_backend_config,
@@ -246,6 +249,13 @@ fn common_backend_settings(root: Option<&serde_yaml::Value>) -> Result<Backend> 
         command: String::new(),
         arguments: load_arguments(root),
         skip_acl_check: false,
+        command_allow_group_exec_perm: env_bool("DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM")
+            .or_else(|| {
+                root.and_then(|yaml| {
+                    yaml_bool(yaml, "secret_backend_command_allow_group_exec_perm")
+                })
+            })
+            .unwrap_or(false),
         multi_backends: None,
         global_backend_type: None,
         global_backend_config: None,
@@ -402,6 +412,7 @@ fn exec_backend(backend: &Backend, payload: &str) -> Result<String> {
         Duration::from_secs(backend.timeout_secs),
         backend.max_output_bytes,
         backend.skip_acl_check,
+        backend.command_allow_group_exec_perm,
     )
 }
 
@@ -860,6 +871,7 @@ mod tests {
             command: "ignored".into(),
             arguments: Vec::new(),
             skip_acl_check: true,
+            command_allow_group_exec_perm: false,
             multi_backends: Some(HashMap::from([(
                 "file".to_string(),
                 MultiBackendEntry {
@@ -890,6 +902,7 @@ mod tests {
             command: "ignored".into(),
             arguments: Vec::new(),
             skip_acl_check: true,
+            command_allow_group_exec_perm: false,
             multi_backends: Some(HashMap::from([(
                 "file".to_string(),
                 MultiBackendEntry {
