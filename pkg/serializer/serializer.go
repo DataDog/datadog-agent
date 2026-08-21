@@ -126,7 +126,8 @@ type Serializer struct {
 	hostname             string
 	logger               log.Component
 
-	zlibV3WarnOnce sync.Once
+	zlibV3WarnOnce   sync.Once
+	v1FilterWarnOnce sync.Once
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -257,6 +258,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	var err error
 
 	if useV1API {
+		s.warnEndpointFilterListsIgnored()
 		seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 		if err != nil {
 			return fmt.Errorf("dropping series payload: %s", err)
@@ -313,6 +315,55 @@ func (s *Serializer) getAutoscalingFailoverMetrics() metricsserializer.Filter {
 	}
 
 	return metricsserializer.NewMapFilter(allowlist)
+}
+
+// getEndpointFilterLists returns the per-endpoint exclusion filters, keyed by
+// the endpoint URL as it appears in the configuration. Endpoints without an
+// entry are absent from the map and receive every metric.
+//
+// Names are matched exactly. metric_filterlist_match_prefix is deliberately not
+// reused: Remote Config resets it whenever it pushes a metric filter list, so
+// honoring it here would make these lists change matching behavior as a side
+// effect of an unrelated remote update.
+func (s *Serializer) getEndpointFilterLists() map[string]metricsserializer.Filter {
+	rawLists := s.config.GetStringMapStringSlice("metric_filterlist_endpoints")
+	if len(rawLists) == 0 {
+		return nil
+	}
+
+	filters := make(map[string]metricsserializer.Filter, len(rawLists))
+	for endpoint, metricNames := range rawLists {
+		if len(metricNames) == 0 {
+			continue
+		}
+
+		excluded := make(map[string]struct{}, len(metricNames))
+		for _, name := range metricNames {
+			excluded[name] = struct{}{}
+		}
+		filters[endpoint] = metricsserializer.NewExcludeFilter(excluded, endpoint)
+	}
+
+	return filters
+}
+
+// warnEndpointFilterListsIgnored reports, once per serializer, that
+// metric_filterlist_endpoints has no effect on the v1 series path.
+//
+// The v1 path builds a single payload and the forwarder copies it to every
+// destination, so there is no point at which a per-endpoint filter could be
+// applied. Sketches are unaffected: they always go through buildPipelines.
+func (s *Serializer) warnEndpointFilterListsIgnored() {
+	if len(s.config.GetStringMapStringSlice("metric_filterlist_endpoints")) == 0 {
+		return
+	}
+
+	s.v1FilterWarnOnce.Do(func() {
+		s.logger.Warn(
+			"metric_filterlist_endpoints is set but use_v2_api.series is false; " +
+				"per-endpoint filter lists are not applied to series on the v1 API. " +
+				"Set use_v2_api.series to true to enable them.")
+	})
 }
 
 // AreSketchesEnabled returns whether sketches are enabled for serialization

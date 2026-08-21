@@ -8513,6 +8513,26 @@ properties:
       type: string
     tags:
     - full-agent-only:true
+  metric_filterlist_endpoints:
+    node_type: setting
+    type: object
+    default: {}
+    additionalProperties:
+      items:
+        type: string
+      type: array
+    comment: |-
+      Keyed by the endpoint URL exactly as configured under `dd_url` or
+      `additional_endpoints`. Unlike metric_filterlist, which drops during sampling and
+      so affects every destination, this is applied per destination as its payload is
+      built.
+
+      Names are matched exactly; metric_filterlist_match_prefix does not apply, because
+      Remote Config resets that setting whenever it pushes a filter list. Requires
+      use_v2_api.series (the default): the v1 path builds one payload for all
+      destinations, so nothing can be filtered per endpoint there.
+    tags:
+    - full-agent-only:true
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean

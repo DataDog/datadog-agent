@@ -190,6 +190,7 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 
 	mrfFilter := s.getFailoverAllowlist()
 	autoscalingFilter := s.getAutoscalingFailoverMetrics()
+	endpointFilters := s.getEndpointFilterLists()
 	shadowRate := metricsShadowSampleRate(s.config, kind)
 	shadowSites := metricsShadowSites(s.config, kind)
 
@@ -237,17 +238,25 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 				dest.ValidationBatchID = s.genUUID()
 			}
 
+			// Endpoints without a filter list receive every metric.
+			var filter metrics.Filter = metrics.AllowAllFilter{}
+			if endpointFilter, ok := endpointFilters[resolver.GetConfigName()]; ok {
+				filter = endpointFilter
+			}
+
 			conf := metrics.PipelineConfig{
-				Filter: metrics.AllowAllFilter{},
+				Filter: filter,
 				V3:     useV3,
 			}
 			pipelines.Add(conf, dest)
 
 			// On a regular v2 route, send a sampled shadow copy to v3beta for
 			// intake-side validation. The same batchID correlates v2 and v3beta.
+			// The shadow uses the same filter so that the two payloads stay
+			// comparable.
 			if shadowV3 {
 				sconf := metrics.PipelineConfig{
-					Filter: metrics.AllowAllFilter{},
+					Filter: filter,
 					V3:     true,
 				}
 				sdest := metrics.PipelineDestination{

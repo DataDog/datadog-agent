@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
@@ -56,6 +57,41 @@ func (mf MapFilter) Filter(f Filterable) bool {
 // ToList returns a sorted list of allowed metric names.
 func (mf MapFilter) ToList() []string {
 	return slices.Sorted(maps.Keys(*mf.m))
+}
+
+var tlmEndpointFilteredMetrics = telemetryimpl.GetCompatComponent().NewCounter(
+	"serializer", "endpoint_filtered_metrics",
+	[]string{"endpoint"},
+	"Number of metrics left out of a payload by a per-endpoint filter list",
+)
+
+// ExcludeFilter admits every metric except those whose name is present in the
+// map.
+//
+// A map is used rather than pkg/util/strings.Matcher because that package
+// belongs to the root module, and pkg/serializer depends only on submodules.
+type ExcludeFilter struct {
+	m *map[string]struct{}
+	// endpoint labels the telemetry counter so that each destination's
+	// exclusions can be read separately.
+	endpoint string
+}
+
+// NewExcludeFilter creates a new filter using the supplied map.
+//
+// The map is not copied and is shared with the filter. A pointer is held so
+// that the filter stays comparable, which PipelineConfig requires.
+func NewExcludeFilter(m map[string]struct{}, endpoint string) ExcludeFilter {
+	return ExcludeFilter{m: &m, endpoint: endpoint}
+}
+
+// Filter implements Filter interface.
+func (ef ExcludeFilter) Filter(f Filterable) bool {
+	if _, excluded := (*ef.m)[f.GetName()]; excluded {
+		tlmEndpointFilteredMetrics.Inc(ef.endpoint)
+		return false
+	}
+	return true
 }
 
 // PipelineConfig contains properties that determine how a payload is
