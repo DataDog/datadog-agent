@@ -80,7 +80,7 @@ func (s *baseProcmgrSuite) TestCLIStatus() {
 
 func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
 		assertTableRow(ct, out, "test-sleep", map[string]string{
 			"STATE":   "Running",
 			"COMMAND": s.platform.sleepCommand,
@@ -90,7 +90,7 @@ func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
 
 func (s *baseProcmgrSuite) TestCLIDescribe() {
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe("test-sleep"))
 		assertField(ct, out, "Name", "test-sleep")
 		assertField(ct, out, "State", "Running")
 		assertField(ct, out, "Command", s.platform.sleepCommand)
@@ -102,16 +102,16 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 	const procName = "test-sleep"
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
 		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
 	}, 30*time.Second, 2*time.Second)
 
-	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("stop " + procName))
-	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("start " + procName))
+	s.Env().RemoteHost.MustExecute(s.cliStop(procName))
+	s.Env().RemoteHost.MustExecute(s.cliStart(procName))
 
 	var pidBeforeKill uint64
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe(procName))
 		assertField(ct, out, "State", "Running")
 		pidStr := fieldValue(out, "PID")
 		require.NotEmpty(ct, pidStr)
@@ -124,9 +124,9 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 	s.Env().RemoteHost.MustExecute(s.platform.killPIDCmd(uint32(pidBeforeKill)))
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
 		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
-		desc := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		desc := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe(procName))
 		pidAfter := fieldValue(desc, "PID")
 		require.NotEmpty(ct, pidAfter)
 		require.NotEqual(ct, "-", pidAfter)
@@ -141,7 +141,7 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 
 func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
 		assertTableRow(ct, out, "missing-binary", map[string]string{
 			"STATE": "Created",
 			"PID":   "-",
