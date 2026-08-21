@@ -15,6 +15,7 @@ mod runtime_user;
 mod scm_service;
 mod sid;
 mod spawn;
+mod token_identity;
 mod wide;
 mod win_handle;
 
