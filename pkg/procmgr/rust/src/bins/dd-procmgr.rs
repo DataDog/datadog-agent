@@ -58,8 +58,8 @@ enum Commands {
         /// Executable path
         #[arg(long)]
         command: String,
-        /// Command arguments (repeatable)
-        #[arg(long, num_args = 1.., allow_hyphen_values = true)]
+        /// Command arguments (repeatable). Use `--args=-Flag` for values starting with `-`.
+        #[arg(long, num_args = 1..)]
         args: Vec<String>,
         /// Environment variable KEY=VALUE (repeatable)
         #[arg(long, value_name = "KEY=VALUE")]
@@ -759,14 +759,10 @@ mod tests {
             "test",
             "--command",
             r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
-            "--args",
-            "-NoProfile",
-            "--args",
-            "-NonInteractive",
-            "--args",
-            "-Command",
-            "--args",
-            "Write-Output ok",
+            "--args=-NoProfile",
+            "--args=-NonInteractive",
+            "--args=-Command",
+            "--args=Write-Output ok",
         ])
         .unwrap();
         let Commands::Create { args, .. } = cli.command else {
