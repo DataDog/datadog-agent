@@ -4,7 +4,7 @@ This package remaps the delta OTLP histogram `traces.span.sdk.metrics.duration` 
 
 | OTLP input | Datadog stats output |
 | --- | --- |
-| Histogram count, sum, and buckets | `Hits`, `Duration`, and the OK or error sparse sketch |
+| Histogram count, sum, and buckets | `Hits`, `Duration`, and either `ok_sparse_sketch` or `error_sparse_sketch` |
 | `service.name` | `Service` (a data-point value overrides the resource value) |
 | `deployment.environment.name` | `Env` |
 | `service.version` | `Version` |
@@ -15,6 +15,8 @@ This package remaps the delta OTLP histogram `traces.span.sdk.metrics.duration` 
 | `rpc.response.status_code` | `GrpcStatusCode` |
 | `datadog.operation.name`, or OTel semantic attributes as a fallback | `Name` |
 | `datadog.span.top_level` / `datadog.is_trace_root` | `TopLevelHits` / `IsTraceRoot` |
-| `datadog.span.type`, `datadog.origin`, and other unmapped attributes | Normalized `OtherTags`; origin also sets `Synthetics` when applicable |
+| `datadog.span.type`, `datadog.origin`, peer-related attributes, and other additional metric attributes | Normalized `OtherTags`; origin also sets `Synthetics` when applicable |
+| Dedicated peer tags | `PeerTags` exists in the protobuf but is not populated; peer-related attributes remain in `OtherTags` |
+| Base service | `BaseService` exists in the protobuf but is not populated |
 
-Only delta histograms with the exact SDK metric name are remapped. Invalid data points are skipped independently.
+Only delta histograms with the exact SDK metric name are remapped. Invalid data points are skipped independently. The package owns the stats protobuf definitions and serializes the complete `OTLPIntakeStatsPayload` with protobuf.
