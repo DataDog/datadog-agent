@@ -16,6 +16,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"sync"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -188,7 +189,13 @@ var collectorTelemetryTagNames = []string{
 	"gpu_slicing_mode",
 	"gpu_nvlink_capable",
 	"gpu_nvlink_version",
+	"gpu_driver_version",
 }
+
+var (
+	cachedDriverVersion     string
+	cachedDriverVersionOnce sync.Once
+)
 
 var collectorCreationTelemetryTagNames = append([]string{"status"}, collectorTelemetryTagNames...)
 
@@ -207,7 +214,27 @@ func collectorTelemetryTags(name CollectorName, device ddnvml.Device) []string {
 		slicingModeTag(device),
 		strconv.FormatBool(deviceInfo.NVLinkLinkCount > 0),
 		deviceInfo.NVLinkVersion,
+		driverVersionForTelemetry(),
 	}
+}
+
+func driverVersionForTelemetry() string {
+	cachedDriverVersionOnce.Do(func() {
+		lib, err := ddnvml.GetSafeNvmlLib()
+		if err != nil {
+			return
+		}
+
+		driverVersion, err := lib.SystemGetDriverVersion()
+		if err != nil {
+			log.Debugf("failed to get driver version for collector telemetry: %v", err)
+			return
+		}
+
+		cachedDriverVersion = driverVersion
+	})
+
+	return cachedDriverVersion
 }
 
 func slicingModeTag(device ddnvml.Device) string {
