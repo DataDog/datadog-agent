@@ -1022,6 +1022,25 @@ process_config:
         });
     }
 
+    #[test]
+    fn multi_document_yaml_uses_first_document_for_gates() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: true\n  process_discovery:\n    enabled: false\n---\nprocess_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            assert_gate_key(
+                &agent,
+                "process_config.process_collection.enabled",
+                true,
+            );
+        });
+    }
+
     /// Mirrors `TestProcConfigEnabledTransformPrecedence` in pkg/config/setup/process_test.go.
     #[test]
     fn explicit_container_collection_wins_over_legacy_enabled() {
