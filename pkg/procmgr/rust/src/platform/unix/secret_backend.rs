@@ -28,8 +28,15 @@ pub(crate) fn exec_secret_backend(
     payload: &str,
     timeout: std::time::Duration,
     max_output_bytes: usize,
-    _skip_acl_check: bool,
+    skip_acl_check: bool,
+    allow_group_exec_perm: bool,
 ) -> Result<String> {
+    if !skip_acl_check {
+        super::secret_backend_rights::check_secret_backend_command_rights(
+            command,
+            allow_group_exec_perm,
+        )?;
+    }
     let run = BackendRun {
         command,
         arguments,

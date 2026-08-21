@@ -57,6 +57,7 @@ pub(crate) fn exec_secret_backend(
     timeout: Duration,
     max_output_bytes: usize,
     skip_acl_check: bool,
+    _allow_group_exec_perm: bool,
 ) -> Result<String> {
     let account =
         resolve_agent_account().context("resolve agent service account for secret backend")?;
