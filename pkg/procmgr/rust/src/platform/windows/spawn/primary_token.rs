@@ -59,11 +59,7 @@ pub(super) fn spawn_as_primary_token(
     let profile_guard = credential
         .agent_account_for_interactive_logon()
         .map(|agent_account| {
-            UserProfileGuard::load(
-                process_name,
-                primary_token_guard.raw(),
-                agent_account,
-            )
+            UserProfileGuard::load(process_name, primary_token_guard.raw(), agent_account)
         })
         .transpose()?;
 
