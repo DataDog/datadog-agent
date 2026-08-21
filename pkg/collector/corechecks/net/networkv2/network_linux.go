@@ -1040,9 +1040,21 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 
 		if procStats != nil {
 			procStat := procStats[i]
+
+			sender.MonotonicCount("system.net.conntrack_v2.found", procStat.Found, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.invalid", procStat.Invalid, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.ignore", procStat.Ignore, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.insert", procStat.Insert, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.insert_failed", procStat.InsertFailed, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.drop", procStat.Drop, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.early_drop", procStat.EarlyDrop, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.error", procStat.Error, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.search_restart", procStat.SearchRestart, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.clash_resolve", procStat.ClashResolve, "", cpuTag)
+			sender.MonotonicCount("system.net.conntrack_v2.chaintoolong", procStat.ChainTooLong, "", cpuTag)
+
 			diff := float64(stat.Found - procStat.Found)
 			sender.MonotonicCount("system.net.conntrack_diff.found", stat.Found, "", cpuTag)
-
 			diff := float64(stat.Invalid - procStat.Invalid)
 			sender.MonotonicCount("system.net.conntrack_diff.invalid", stat.Invalid, "", cpuTag)
 			diff := float64(stat.Ignore - procStat.Ignore)
