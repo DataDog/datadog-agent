@@ -32,6 +32,18 @@
     The returned C-string is allocated by this function and should subsequently be freed by
     the caller. This function should not set errors on the python interpreter.
 */
+/*! \fn char *as_string_lossy(PyObject * object)
+    \brief Returns a C string representation of the supplied Python string, escaping
+    unencodable Unicode instead of returning NULL.
+    \param object The Python string object to convert.
+    \return char * representation of the supplied string. In case of error NULL is returned.
+
+    Like `as_string`, but Unicode code points that cannot be encoded as strict UTF-8 (for
+    example lone surrogates) are escaped with the backslashreplace error handler instead
+    of returning NULL. The returned C-string is allocated by this function and should
+    subsequently be freed by the caller. This function should not set errors on the python
+    interpreter.
+*/
 /*! \fn PyObject *from_json(const char * data)
     \brief Returns a Python object representation for the supplied JSON C-string.
     \param data The JSON C-string representation of the object we wish to deserialize.
@@ -59,6 +71,7 @@ extern "C" {
 
 int init_stringutils(void);
 char *as_string(PyObject *);
+char *as_string_lossy(PyObject *);
 PyObject *from_json(const char *);
 char *as_json(PyObject *);
 

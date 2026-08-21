@@ -23,6 +23,7 @@ profiles:
       - name: health_platform.issues_detected
         preserve_tags:
           - issue_type
+          - severity
   schedule:
     start_after: 30
     iterations: 0

@@ -1,21 +1,20 @@
-From efa6a5f60fdff0102a2f71993358efd1993a1e9b Mon Sep 17 00:00:00 2001
+From 429eb6aecc882620e4afad0d7a868f202b1eec93 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
-Date: Wed, 15 Oct 2025 09:57:35 +0200
-Subject: [PATCH 2/3] fix c++ x86_64 header locations with our ctng toolchain
+Date: Fri, 21 Aug 2026 08:15:31 +0200
+Subject: [PATCH 2/4] fix c++ x86_64 header locations with our ctng toolchain
 
-We always prefix the headers with the triplet, not only for arm
 ---
  toolchain/defs.bzl | 36 +++++++++++-------------------------
  1 file changed, 11 insertions(+), 25 deletions(-)
 
 diff --git a/toolchain/defs.bzl b/toolchain/defs.bzl
-index 7c8787f..2560783 100644
+index b6b2be2..f3a94a7 100644
 --- a/toolchain/defs.bzl
 +++ b/toolchain/defs.bzl
-@@ -75,31 +75,17 @@ def _gcc_toolchain_impl(rctx):
+@@ -108,31 +108,17 @@ def _gcc_toolchain_impl(rctx):
          ]
      ]
- 
+
 -    cxx_builtin_includes = []
 -    if target_arch == ARCHS.x86_64:
 -        cxx_builtin_includes.extend([
@@ -52,9 +51,8 @@ index 7c8787f..2560783 100644
 +            "%workspace%/{include_prefix}include/c++/{gcc_version}/backward",
 +        ]
 +    ]
- 
+
      f_builtin_includes = [
          include.format(
--- 
-2.43.0
-
+--
+2.52.0
