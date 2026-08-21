@@ -141,6 +141,8 @@ enum TC_RAWPACKET_KEYS {
 #define GO_LABELS_CTX_MAX_PAIRS 10
 #define GO_LABELS_CTX_MAX_ENTRIES 4096
 
+#define OTEL_SPAN_ATTRS_MAX_ENTRIES 4096
+
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
     u64 cgroup_activity_dumps_enabled;
     LOAD_CONSTANT("cgroup_activity_dumps_enabled", cgroup_activity_dumps_enabled);
