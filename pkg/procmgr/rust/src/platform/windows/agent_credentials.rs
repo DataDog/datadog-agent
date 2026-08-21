@@ -81,23 +81,14 @@ pub(crate) fn spawn_user_for_profile(
     process_name: &str,
     profile: crate::spawn::SpawnProfile,
 ) -> Result<String> {
-    match profile {
-        crate::spawn::SpawnProfile::Privileged => {
-            Ok(AccountName::new(NT_AUTHORITY, "SYSTEM").display())
-        }
-        crate::spawn::SpawnProfile::Agent => resolve_agent_account()
-            .with_context(|| {
-                format!("[{process_name}] resolve agent service account for spawn user")
-            })
-            .map(|account| account.display_name()),
-    }
+    use super::spawn::credential::SpawnCredential;
+
+    SpawnCredential::resolve(profile)
+        .with_context(|| format!("[{process_name}] resolve spawn credential for spawn user"))
+        .map(|credential| credential.display_name())
 }
 
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
-    if cfg!(test) {
-        return Ok(AgentAccount::LocalSystem);
-    }
-
     let Some(key) = open_datadog_agent_key() else {
         bail!("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent");
     };
@@ -397,12 +388,6 @@ mod tests {
         assert_eq!(well_known_from_names("CORP", "gmsa$"), None);
         assert_eq!(well_known_from_names("CORP", "LocalSystem"), None);
         assert_eq!(well_known_from_names("CORP", "LocalService"), None);
-    }
-
-    #[test]
-    fn resolve_uses_supervisor_token_in_unit_tests() {
-        let account = resolve_agent_account().expect("unit tests use LocalSystem");
-        assert_eq!(account, AgentAccount::LocalSystem);
     }
 
     #[test]

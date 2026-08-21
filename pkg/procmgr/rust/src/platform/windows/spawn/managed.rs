@@ -11,7 +11,7 @@ use crate::process::ManagedProcess;
 use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 
 use super::super::JobObject;
-use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
+use super::credential::SpawnCredential;
 use super::primary_token::spawn_as_primary_token;
 use super::privileged;
 
@@ -28,14 +28,11 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
     let job = JobObject::new()
         .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
 
-    let account = match profile {
-        SpawnProfile::Agent => resolve_agent_account()
-            .with_context(|| format!("[{process_name}] resolve agent service account for spawn"))?,
-        SpawnProfile::Privileged => AgentAccount::LocalSystem,
-    };
-    process.set_intended_user(account.display_name());
+    let credential = SpawnCredential::resolve(profile)
+        .with_context(|| format!("[{process_name}] resolve spawn credential"))?;
+    process.set_intended_user(credential.display_name());
 
-    let (suspended, user_profile) = spawn_as_primary_token(&process_name, &request, &account)
+    let (suspended, user_profile) = spawn_as_primary_token(&process_name, &request, &credential)
         .with_context(|| format!("[{process_name}] CreateProcessAsUserW spawn failed"))?;
     if let Some(profile) = user_profile {
         process.set_user_profile_guard(profile);
