@@ -40,7 +40,9 @@ fn tagged_scalar_to_value(text: &str, tag: &Tag) -> Value {
     match tag.suffix.as_str() {
         "str" => Value::String(text.to_owned()),
         "bool" => plain_scalar_to_value(text),
-        "int" | "float" => yaml_v2_plain_number(text).unwrap_or_else(|| Value::String(text.to_owned())),
+        "int" | "float" => {
+            yaml_v2_plain_number(text).unwrap_or_else(|| Value::String(text.to_owned()))
+        }
         "null" => Value::Null,
         _ => Value::String(text.to_owned()),
     }
@@ -91,13 +93,8 @@ fn parse_yaml_v2_special_float(text: &str) -> Option<f64> {
         return parse_yaml_v2_special_float_unsigned(rest);
     }
     if let Some(rest) = text.strip_prefix('-') {
-        return parse_yaml_v2_special_float_unsigned(rest).and_then(|n| {
-            if n.is_infinite() {
-                Some(-n)
-            } else {
-                None
-            }
-        });
+        return parse_yaml_v2_special_float_unsigned(rest)
+            .and_then(|n| if n.is_infinite() { Some(-n) } else { None });
     }
     parse_yaml_v2_special_float_unsigned(text)
 }
@@ -352,13 +349,23 @@ mod tests {
     #[test]
     fn plain_dot_inf_is_number() {
         let root = load("enabled: .inf\n").unwrap();
-        assert!(root.get("enabled").and_then(Value::as_f64).unwrap().is_infinite());
+        assert!(
+            root.get("enabled")
+                .and_then(Value::as_f64)
+                .unwrap()
+                .is_infinite()
+        );
     }
 
     #[test]
     fn plain_dot_nan_is_number() {
         let root = load("enabled: .nan\n").unwrap();
-        assert!(root.get("enabled").and_then(Value::as_f64).unwrap().is_nan());
+        assert!(
+            root.get("enabled")
+                .and_then(Value::as_f64)
+                .unwrap()
+                .is_nan()
+        );
     }
 
     #[test]
@@ -376,19 +383,13 @@ mod tests {
     #[test]
     fn plain_u64_max_decimal_is_number() {
         let root = load("enabled: 18446744073709551615\n").unwrap();
-        assert_eq!(
-            root.get("enabled").and_then(Value::as_u64),
-            Some(u64::MAX)
-        );
+        assert_eq!(root.get("enabled").and_then(Value::as_u64), Some(u64::MAX));
     }
 
     #[test]
     fn plain_u64_max_hex_is_number() {
         let root = load("enabled: 0xffffffffffffffff\n").unwrap();
-        assert_eq!(
-            root.get("enabled").and_then(Value::as_u64),
-            Some(u64::MAX)
-        );
+        assert_eq!(root.get("enabled").and_then(Value::as_u64), Some(u64::MAX));
     }
 
     #[test]
