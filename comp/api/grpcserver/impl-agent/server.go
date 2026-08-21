@@ -613,7 +613,7 @@ func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) 
 		UploadID:    delivery.GetUploadId(),
 		BaseURL:     delivery.GetBaseUrl(),
 		Token:       delivery.GetToken(),
-		ChunkBytes:  int(delivery.GetChunkBytes()),
+		PartBytes:   int(delivery.GetPartBytes()),
 		MaxBytes:    int(delivery.GetMaxBytes()),
 		Format:      delivery.GetFormat(),
 		Compression: delivery.GetCompression(),
@@ -760,14 +760,14 @@ func uploadReceiptFromMetadata(metadata map[string]interface{}) *pb.RemoteQueryU
 		return nil
 	}
 	return &pb.RemoteQueryUploadReceipt{
-		Mode:         stringFromMetadata(raw, "mode"),
-		UploadId:     stringFromMetadata(raw, "uploadId"),
-		BucketName:   stringFromMetadata(raw, "bucketName"),
-		ManifestPath: stringFromMetadata(raw, "manifestPath"),
-		TotalBytes:   int64FromMetadata(raw, "totalBytes"),
-		TotalRows:    int64FromMetadata(raw, "totalRows"),
-		ChunkCount:   int32FromMetadata(raw, "chunkCount"),
-		Sha256:       stringFromMetadata(raw, "sha256"),
+		Mode:       stringFromMetadata(raw, "mode"),
+		UploadId:   stringFromMetadata(raw, "uploadId"),
+		BucketName: stringFromMetadata(raw, "bucketName"),
+		ObjectPath: stringFromMetadata(raw, "objectPath"),
+		TotalBytes: int64FromMetadata(raw, "totalBytes"),
+		TotalRows:  int64FromMetadata(raw, "totalRows"),
+		PartCount:  int32FromMetadata(raw, "partCount"),
+		Sha256:     stringFromMetadata(raw, "sha256"),
 	}
 }
 
