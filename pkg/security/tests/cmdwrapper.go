@@ -163,6 +163,17 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
+// CanRun reports whether bin, invoked with args, runs inside the wrapper's
+// image. The image is usually older than the host, so a binary linked
+// dynamically against the system libc can pass a host-side probe and still be
+// unable to start in the container.
+func (d *dockerCmdWrapper) CanRun(bin string, args ...string) ([]byte, error) {
+	dockerArgs := []string{"run", "--rm", "-v", d.mountSrc + ":" + d.mountDest, d.image, bin}
+	dockerArgs = append(dockerArgs, args...)
+
+	return exec.Command(d.executable, dockerArgs...).CombinedOutput()
+}
+
 func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
 	var err error
 	var output []byte

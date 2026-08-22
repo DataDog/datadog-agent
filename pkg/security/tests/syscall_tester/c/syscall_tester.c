@@ -30,6 +30,8 @@
 #include <sys/resource.h>
 #include <stdatomic.h>
 
+#include "otel_tls_common.h"
+
 #ifndef CLONE_INTO_CGROUP
 #define CLONE_INTO_CGROUP 0x200000000ULL
 #endif
@@ -38,6 +40,437 @@
 #ifndef DD_TRACER_MEMFD_SEALS
 #define DD_TRACER_MEMFD_SEALS (F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL)
 #endif
+
+// The TLS access model comes from the command line (-ftls-model /
+// -mtls-dialect), so one source covers every dialect the resolver handles.
+// -DHIDDEN_TLS is what makes -ftls-model=local-dynamic take effect, and it also
+// keeps the symbol out of .dynsym so the resolver's .symtab fallback is
+// exercised.
+#ifdef HIDDEN_TLS
+__attribute__((visibility("hidden")))
+#endif
+__thread struct otel_thread_ctx_record *otel_thread_ctx_v1 = NULL;
+
+struct otel_thread_opts {
+    char **argv;
+    int memfd; // kept open for the agent to read
+};
+
+static void *thread_otel_open(void *data) {
+    struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
+
+#if defined(__x86_64__) || defined(__aarch64__)
+    opts->memfd = otel_create_tracer_memfd();
+    if (opts->memfd < 0) {
+        fprintf(stderr, "Failed to create tracer memfd\n");
+        return NULL;
+    }
+    usleep(500000);
+
+    otel_thread_ctx_v1 = NULL;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    struct otel_record_with_attrs full_record;
+    otel_fill_record(&full_record, opts->argv[1], opts->argv[2]);
+
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+    otel_thread_ctx_v1 = &full_record.header;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    int fd = open(opts->argv[3], O_CREAT);
+    if (fd < 0) {
+        fprintf(stderr, "Unable to create file `%s`\n", opts->argv[3]);
+        otel_thread_ctx_v1 = NULL;
+        return NULL;
+    }
+    close(fd);
+    unlink(opts->argv[3]);
+
+    otel_thread_ctx_v1 = NULL;
+#else
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+#endif
+
+    return NULL;
+}
+
+int otel_span_open(int argc, char **argv) {
+    if (argc < 4) {
+        fprintf(stderr, "Usage: otel-span-open <trace_id> <span_id> <file_path>\n");
+        return EXIT_FAILURE;
+    }
+
+#if !defined(__x86_64__) && !defined(__aarch64__)
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+    return EXIT_FAILURE;
+#endif
+
+    struct otel_thread_opts opts = { .argv = argv, .memfd = -1 };
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_otel_open, &opts) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    if (opts.memfd >= 0) close(opts.memfd);
+    return EXIT_SUCCESS;
+}
+
+// Negative test: the reader must reject a record whose valid byte is 0.
+static void *thread_otel_open_invalid(void *data) {
+    struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
+
+#if defined(__x86_64__) || defined(__aarch64__)
+    opts->memfd = otel_create_tracer_memfd();
+    if (opts->memfd < 0) {
+        fprintf(stderr, "Failed to create tracer memfd\n");
+        return NULL;
+    }
+    usleep(500000);
+
+    otel_thread_ctx_v1 = NULL;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    __int128_t trace_id = otel_atouint128(opts->argv[1]);
+    uint64_t span_id = (uint64_t)atol(opts->argv[2]);
+
+    struct otel_thread_ctx_record record;
+    memset(&record, 0, sizeof(record));
+
+    uint64_t trace_hi = (uint64_t)(trace_id >> 64);
+    uint64_t trace_lo = (uint64_t)(trace_id);
+    otel_u64_to_be_bytes(trace_hi, &record.trace_id[0]);
+    otel_u64_to_be_bytes(trace_lo, &record.trace_id[8]);
+    otel_u64_to_be_bytes(span_id, record.span_id);
+    record.attrs_data_size = 0;
+
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+    record.valid = 0;
+
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+    otel_thread_ctx_v1 = &record;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    int fd = open(opts->argv[3], O_CREAT);
+    if (fd < 0) {
+        fprintf(stderr, "Unable to create file `%s`\n", opts->argv[3]);
+        otel_thread_ctx_v1 = NULL;
+        return NULL;
+    }
+    close(fd);
+    unlink(opts->argv[3]);
+
+    otel_thread_ctx_v1 = NULL;
+#else
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+#endif
+
+    return NULL;
+}
+
+int otel_span_open_invalid(int argc, char **argv) {
+    if (argc < 4) {
+        fprintf(stderr, "Usage: otel-span-open-invalid <trace_id> <span_id> <file_path>\n");
+        return EXIT_FAILURE;
+    }
+
+#if !defined(__x86_64__) && !defined(__aarch64__)
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+    return EXIT_FAILURE;
+#endif
+
+    struct otel_thread_opts opts = { .argv = argv, .memfd = -1 };
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_otel_open_invalid, &opts) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    if (opts.memfd >= 0) close(opts.memfd);
+    return EXIT_SUCCESS;
+}
+
+// Negative test: the reader must find a NULL pointer and produce no span context.
+static void *thread_otel_open_null_ptr(void *data) {
+    struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
+
+#if defined(__x86_64__) || defined(__aarch64__)
+    opts->memfd = otel_create_tracer_memfd();
+    if (opts->memfd < 0) {
+        fprintf(stderr, "Failed to create tracer memfd\n");
+        return NULL;
+    }
+    usleep(500000);
+
+    int fd = open(opts->argv[1], O_CREAT);
+    if (fd < 0) {
+        fprintf(stderr, "Unable to create file `%s`\n", opts->argv[1]);
+        return NULL;
+    }
+    close(fd);
+    unlink(opts->argv[1]);
+#else
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+#endif
+
+    return NULL;
+}
+
+int otel_span_open_null_ptr(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: otel-span-open-null-ptr <file_path>\n");
+        return EXIT_FAILURE;
+    }
+
+#if !defined(__x86_64__) && !defined(__aarch64__)
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+    return EXIT_FAILURE;
+#endif
+
+    struct otel_thread_opts opts = { .argv = argv, .memfd = -1 };
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_otel_open_null_ptr, &opts) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    if (opts.memfd >= 0) close(opts.memfd);
+
+    return EXIT_SUCCESS;
+}
+
+// The exec hook fires at prepare_binprm, before the image is replaced, so the
+// calling thread's TLS is still intact when the eBPF probe reads it.
+static void *thread_otel_exec(void *data) {
+    struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
+
+#if defined(__x86_64__) || defined(__aarch64__)
+    opts->memfd = otel_create_tracer_memfd();
+    if (opts->memfd < 0) {
+        fprintf(stderr, "Failed to create tracer memfd\n");
+        return NULL;
+    }
+    usleep(500000);
+
+    otel_thread_ctx_v1 = NULL;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    struct otel_record_with_attrs full_record;
+    otel_fill_record(&full_record, opts->argv[1], opts->argv[2]);
+
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+    otel_thread_ctx_v1 = &full_record.header;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    execv(opts->argv[3], opts->argv + 3);
+    fprintf(stderr, "execv failed for %s\n", opts->argv[3]);
+    otel_thread_ctx_v1 = NULL;
+#else
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+#endif
+
+    return NULL;
+}
+
+int otel_span_exec(int argc, char **argv) {
+    if (argc < 4) {
+        fprintf(stderr, "Usage: otel-span-exec <trace_id> <span_id> <exec_path> [args...]\n");
+        return EXIT_FAILURE;
+    }
+
+#if !defined(__x86_64__) && !defined(__aarch64__)
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+    return EXIT_FAILURE;
+#endif
+
+    struct otel_thread_opts opts = { .argv = argv, .memfd = -1 };
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_otel_exec, &opts) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    if (opts.memfd >= 0) close(opts.memfd);
+    return EXIT_SUCCESS;
+}
+
+// Exec variant of the invalid-record (valid=0) negative test.
+static void *thread_otel_exec_invalid(void *data) {
+    struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
+
+#if defined(__x86_64__) || defined(__aarch64__)
+    opts->memfd = otel_create_tracer_memfd();
+    if (opts->memfd < 0) {
+        fprintf(stderr, "Failed to create tracer memfd\n");
+        return NULL;
+    }
+    usleep(500000);
+
+    otel_thread_ctx_v1 = NULL;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    __int128_t trace_id = otel_atouint128(opts->argv[1]);
+    uint64_t span_id = (uint64_t)atol(opts->argv[2]);
+
+    struct otel_thread_ctx_record record;
+    memset(&record, 0, sizeof(record));
+
+    uint64_t trace_hi = (uint64_t)(trace_id >> 64);
+    uint64_t trace_lo = (uint64_t)(trace_id);
+    otel_u64_to_be_bytes(trace_hi, &record.trace_id[0]);
+    otel_u64_to_be_bytes(trace_lo, &record.trace_id[8]);
+    otel_u64_to_be_bytes(span_id, record.span_id);
+    record.attrs_data_size = 0;
+    record.valid = 0;
+
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+    otel_thread_ctx_v1 = &record;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    execv(opts->argv[3], opts->argv + 3);
+    fprintf(stderr, "execv failed for %s\n", opts->argv[3]);
+    otel_thread_ctx_v1 = NULL;
+#else
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+#endif
+
+    return NULL;
+}
+
+int otel_span_exec_invalid(int argc, char **argv) {
+    if (argc < 4) {
+        fprintf(stderr, "Usage: otel-span-exec-invalid <trace_id> <span_id> <exec_path> [args...]\n");
+        return EXIT_FAILURE;
+    }
+
+#if !defined(__x86_64__) && !defined(__aarch64__)
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+    return EXIT_FAILURE;
+#endif
+
+    struct otel_thread_opts opts = { .argv = argv, .memfd = -1 };
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_otel_exec_invalid, &opts) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    if (opts.memfd >= 0) close(opts.memfd);
+    return EXIT_SUCCESS;
+}
+
+// Exec variant of the null-pointer negative test.
+static void *thread_otel_exec_null_ptr(void *data) {
+    struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
+
+#if defined(__x86_64__) || defined(__aarch64__)
+    opts->memfd = otel_create_tracer_memfd();
+    if (opts->memfd < 0) {
+        fprintf(stderr, "Failed to create tracer memfd\n");
+        return NULL;
+    }
+    usleep(500000);
+
+    execv(opts->argv[1], opts->argv + 1);
+    fprintf(stderr, "execv failed for %s\n", opts->argv[1]);
+#else
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+#endif
+
+    return NULL;
+}
+
+int otel_span_exec_null_ptr(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: otel-span-exec-null-ptr <exec_path> [args...]\n");
+        return EXIT_FAILURE;
+    }
+
+#if !defined(__x86_64__) && !defined(__aarch64__)
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+    return EXIT_FAILURE;
+#endif
+
+    struct otel_thread_opts opts = { .argv = argv, .memfd = -1 };
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_otel_exec_null_ptr, &opts) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    if (opts.memfd >= 0) close(opts.memfd);
+    return EXIT_SUCCESS;
+}
+
+// At sched_process_fork the probe reads the record from the parent, so the span
+// reaches the child through its ancestor lineage: the child's own exec event
+// carries no span context, its new tgid having no OTel TLS entry of its own.
+int otel_span_fork_exec(int argc, char **argv) {
+    if (argc < 4) {
+        fprintf(stderr, "Usage: otel-span-fork-exec <trace_id> <span_id> <exec_path> [args...]\n");
+        return EXIT_FAILURE;
+    }
+
+#if !defined(__x86_64__) && !defined(__aarch64__)
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+    return EXIT_FAILURE;
+#else
+    int memfd = otel_create_tracer_memfd();
+    if (memfd < 0) {
+        fprintf(stderr, "Failed to create tracer memfd\n");
+        return EXIT_FAILURE;
+    }
+    usleep(500000);
+
+    otel_thread_ctx_v1 = NULL;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    __int128_t trace_id = otel_atouint128(argv[1]);
+    uint64_t span_id = (uint64_t)atol(argv[2]);
+
+    struct otel_record_with_attrs full_record;
+    memset(&full_record, 0, sizeof(full_record));
+
+    uint64_t trace_hi = (uint64_t)(trace_id >> 64);
+    uint64_t trace_lo = (uint64_t)(trace_id);
+    otel_u64_to_be_bytes(trace_hi, &full_record.header.trace_id[0]);
+    otel_u64_to_be_bytes(trace_lo, &full_record.header.trace_id[8]);
+    otel_u64_to_be_bytes(span_id, full_record.header.span_id);
+    full_record.header.attrs_data_size = 0;
+
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+    full_record.header.valid = 1;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+    otel_thread_ctx_v1 = &full_record.header;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    pid_t child = fork();
+    if (child < 0) {
+        fprintf(stderr, "fork failed\n");
+        otel_thread_ctx_v1 = NULL;
+        close(memfd);
+        return EXIT_FAILURE;
+    }
+    if (child == 0) {
+        execv(argv[3], argv + 3);
+        fprintf(stderr, "execv failed in child: %s\n", argv[3]);
+        _exit(EXIT_FAILURE);
+    }
+
+    int status;
+    waitpid(child, &status, 0);
+
+    otel_thread_ctx_v1 = NULL;
+    close(memfd);
+    return EXIT_SUCCESS;
+#endif
+}
 
 int ptrace_traceme() {
     int child = fork();
@@ -2016,6 +2449,20 @@ int main(int argc, char **argv) {
             exit_code = prlimit64_stack();
         } else if (strcmp(cmd, "setrlimit-core") == 0) {
             exit_code = setrlimit_core();
+        } else if (strcmp(cmd, "otel-span-open") == 0) {
+            exit_code = otel_span_open(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "otel-span-open-invalid") == 0) {
+            exit_code = otel_span_open_invalid(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "otel-span-open-null-ptr") == 0) {
+            exit_code = otel_span_open_null_ptr(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "otel-span-exec") == 0) {
+            exit_code = otel_span_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "otel-span-exec-invalid") == 0) {
+            exit_code = otel_span_exec_invalid(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "otel-span-exec-null-ptr") == 0) {
+            exit_code = otel_span_exec_null_ptr(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "otel-span-fork-exec") == 0) {
+            exit_code = otel_span_fork_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {
             exit_code = test_pipe_chown();
         } else if (strcmp(cmd, "signal") == 0) {

@@ -4,6 +4,7 @@ import datetime
 import errno
 import json
 import os
+import shlex
 import shutil
 import sys
 from subprocess import check_output
@@ -231,7 +232,9 @@ def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     return exe_files
 
 
-def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
+def ninja_c_syscall_tester_common(
+    nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang', output_name=None
+):
     if flags is None:
         flags = []
     if libs is None:
@@ -239,7 +242,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
 
     syscall_tester_c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
     syscall_tester_c_file = os.path.join(syscall_tester_c_dir, f"{file_name}.c")
-    syscall_tester_exe_file = os.path.join(build_dir, file_name)
+    syscall_tester_exe_file = os.path.join(build_dir, output_name or file_name)
     uname_m = os.uname().machine
 
     if static:
@@ -270,6 +273,199 @@ def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
     )
 
 
+def ninja_otel_tls_static_nopie_tester(ctx, build_dir, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx,
+        "otel_tls_static_pie_tester",
+        build_dir,
+        flags=["-no-pie"],
+        libs=["-lpthread"],
+        static=True,
+        compiler=compiler,
+        output_name="otel_tls_static_nopie_tester",
+    )
+
+
+def ninja_otel_tls_fixture_so(ctx, build_dir, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx,
+        "syscall_tester",
+        build_dir,
+        flags=["-shared", "-fPIC"],
+        libs=["-lpthread"],
+        static=False,
+        compiler=compiler,
+        output_name="libotel_tls_fixture.so",
+    )
+
+
+def remove_otel_tls_dynamic_artifacts(build_dir):
+    for artifact in [
+        "otel_tls_dynamic_tester",
+        "otel_tls_dynamic_tester.d",
+        "otel_tls_dlopen_loader",
+        "otel_tls_dlopen_loader.d",
+    ]:
+        path = os.path.join(build_dir, artifact)
+        if os.path.exists(path):
+            os.remove(path)
+
+
+def build_otel_tls_dynamic_artifacts(ctx, build_dir, compiler='clang'):
+    # Unlike every other C syscall_tester binary, these two link dynamically against
+    # the system libc, which not every toolchain we build on can do: the arm64 CI
+    # image pairs a modern glibc with an old /opt/toolchains ld.bfd that leaves
+    # libc.so.6's GLIBC_PRIVATE references to ld-linux-aarch64.so.1 unresolved.
+    # They are therefore built best-effort, and span_test.go skips the variants
+    # whose binaries are missing.
+    remove_otel_tls_dynamic_artifacts(build_dir)
+
+    c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
+    isystem = f"-isystem/usr/include/{os.uname().machine}-linux-gnu"
+    commands = [
+        (
+            f"{compiler} -Wl,--export-dynamic {isystem} {os.path.join(c_dir, 'syscall_tester.c')} "
+            f"-o {os.path.join(build_dir, 'otel_tls_dynamic_tester')} -lpthread"
+        ),
+        (
+            f"{compiler} {isystem} {os.path.join(c_dir, 'otel_tls_dlopen_loader.c')} "
+            f"-o {os.path.join(build_dir, 'otel_tls_dlopen_loader')} -ldl"
+        ),
+    ]
+
+    try:
+        for command in commands:
+            ctx.run(command)
+    except Exception as e:
+        print(f"Failed to link the dynamic OTel TLS testers ({e}); skipping dynamic-main/dlopen-dso variants")
+        remove_otel_tls_dynamic_artifacts(build_dir)
+
+
+def remove_otel_tls_musl_artifacts(build_dir):
+    for artifact in [
+        "otel_tls_static_musl_tester",
+        "otel_tls_static_musl_tester.d",
+        "libotel_tls_musl_fixture.so",
+        "otel_tls_musl_dlopen_loader",
+    ]:
+        path = os.path.join(build_dir, artifact)
+        if os.path.exists(path):
+            os.remove(path)
+
+
+def build_otel_tls_musl_artifacts(ctx, build_dir, arch: Arch):
+    remove_otel_tls_musl_artifacts(build_dir)
+
+    if arch.is_cross_compiling():
+        print("Skipping musl OTel TLS artifacts while cross-compiling")
+        return
+
+    docker = shutil.which("docker")
+    if docker is None:
+        print("docker not found; skipping musl OTel TLS artifacts")
+        return
+
+    c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
+    c_file = os.path.join(c_dir, "otel_tls_static_pie_tester.c")
+    loader_c_file = os.path.join(c_dir, "otel_tls_dlopen_loader.c")
+    static_tester = os.path.join(build_dir, "otel_tls_static_musl_tester")
+    fixture = os.path.join(build_dir, "libotel_tls_musl_fixture.so")
+    loader = os.path.join(build_dir, "otel_tls_musl_dlopen_loader")
+    workdir = os.getcwd()
+    uid = os.getuid()
+    gid = os.getgid()
+
+    script = " && ".join(
+        [
+            "apk add --no-cache build-base",
+            f"cc -static -no-pie {c_file} -o {static_tester} -pthread",
+            f"cc -shared -fPIC {c_file} -o {fixture} -pthread",
+            (f"cc -DOTEL_TLS_FIXTURE_SO='\"{os.path.basename(fixture)}\"' " f"{loader_c_file} -o {loader} -ldl"),
+            f"chown {uid}:{gid} {static_tester} {fixture} {loader}",
+        ]
+    )
+
+    ctx.run(
+        " ".join(
+            [
+                shlex.quote(docker),
+                "run",
+                "--rm",
+                "-v",
+                f"{shlex.quote(workdir)}:/work",
+                "-w",
+                "/work",
+                "alpine:3.18.2",
+                "sh",
+                "-c",
+                shlex.quote(script),
+            ]
+        )
+    )
+
+
+def remove_otel_tls_initial_exec_artifacts(build_dir):
+    for artifact in [
+        "libotel_tls_initial_exec_fixture.so",
+        "libotel_tls_initial_exec_fixture.so.d",
+        "otel_tls_initial_exec_tester",
+        "otel_tls_initial_exec_tester.d",
+    ]:
+        path = os.path.join(build_dir, artifact)
+        if os.path.exists(path):
+            os.remove(path)
+
+
+def build_otel_tls_initial_exec_focal_artifacts(ctx, build_dir, arch: Arch):
+    remove_otel_tls_initial_exec_artifacts(build_dir)
+
+    if arch.is_cross_compiling():
+        print("Skipping Ubuntu 20.04 OTel initial-exec TLS artifacts while cross-compiling")
+        return
+
+    docker = shutil.which("docker")
+    if docker is None:
+        print("docker not found; skipping Ubuntu 20.04 OTel initial-exec TLS artifacts")
+        return
+
+    c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
+    fixture = os.path.join(build_dir, "libotel_tls_initial_exec_fixture.so")
+    tester = os.path.join(build_dir, "otel_tls_initial_exec_tester")
+    workdir = os.getcwd()
+    uid = os.getuid()
+    gid = os.getgid()
+
+    script = " && ".join(
+        [
+            "apt-get update",
+            "apt-get install -y --no-install-recommends gcc libc6-dev",
+            f"cc -shared -fPIC {c_dir}/otel_tls_initial_exec_fixture.c -o {fixture}",
+            (f"cc -pthread {c_dir}/otel_tls_initial_exec_tester.c -o {tester} " "-ldl -pthread"),
+            f"chown {uid}:{gid} {fixture} {tester}",
+        ]
+    )
+
+    ctx.run(
+        " ".join(
+            [
+                shlex.quote(docker),
+                "run",
+                "--rm",
+                "-e",
+                "DEBIAN_FRONTEND=noninteractive",
+                "-v",
+                f"{shlex.quote(workdir)}:/work",
+                "-w",
+                "/work",
+                "ubuntu:20.04",
+                "sh",
+                "-c",
+                shlex.quote(script),
+            ]
+        )
+    )
+
+
 def create_dir_if_needed(dir):
     try:
         os.makedirs(dir)
@@ -293,11 +489,16 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_define_exe_compiler(nw, compiler=compiler)
 
         ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
+        ninja_otel_tls_static_nopie_tester(nw, build_dir, compiler=compiler)
+        ninja_otel_tls_fixture_so(nw, build_dir, compiler=compiler)
         if arch == ARCH_AMD64:
             ninja_syscall_x86_tester(nw, build_dir, static=static, compiler=compiler)
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
+    build_otel_tls_dynamic_artifacts(ctx, build_dir, compiler=compiler)
+    build_otel_tls_musl_artifacts(ctx, build_dir, arch)
+    build_otel_tls_initial_exec_focal_artifacts(ctx, build_dir, arch)
     build_go_syscall_tester(ctx, build_dir, arch=arch)
 
 

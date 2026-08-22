@@ -4,6 +4,7 @@
 #include "structs/security_profile.h"
 #include "helpers/activity_dump.h"
 #include "helpers/raw_syscalls.h"
+#include "helpers/span.h"
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
@@ -17,8 +18,9 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     send_signal(pid);
 
     // syscall_monitor_event_t lives in a per-CPU map rather than on the stack.
-    // We're reusing the SPAN_FILL per-CPU map instead of using another one, but we're not tail calling span_fill here.
-    // The tailcall can't be done here because there are two consecutive calls to send_or_skip_syscall_monitor_event bellow.
+    // We're reusing the SPAN_FILL per-CPU map instead of using another one, but we're
+    // not tail calling span_fill here: a tail call never returns, and this program may
+    // have to send two events.
     struct syscall_monitor_event_t *event = SPAN_FILL_EVENT(struct syscall_monitor_event_t, EVENT_SYSCALLS);
     if (!event) {
         return 0;
@@ -26,6 +28,19 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 
     struct proc_cache_t *proc_cache_entry = fill_process_context(&event->process);
     fill_cgroup_context(proc_cache_entry, &event->cgroup);
+
+    // Both monitor types are decided before anything is sent, so the single
+    // fill_span_context() below can serve both events (the span context is per-thread,
+    // hence identical for both): inlining that helper at two send sites pushes
+    // sys_enter past the 4096-instruction ceiling kernels before 5.2 enforce.
+    //
+    // Only these flags may cross into the send blocks: on 4.14 a map value that merges
+    // with a NULL initializer loses its pointer type, so each block re-derives its
+    // entry.
+    u8 drift_active = 0;
+    u8 dump_active = 0;
+    u8 drift_reason = 0;
+    u8 dump_reason = 0;
 
     // check if this event should trigger a syscall drift event
     if (is_anomaly_syscalls_enabled()) {
@@ -41,13 +56,12 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
                     // should never happen
                     return 0;
                 }
+                drift_active = 1;
                 // is the current syscall in the profile ?
                 if (!syscall_mask_contains(syscalls->syscalls, args->id)) {
                     syscall_monitor_entry_insert(entry, args->id);
                 }
-                // send an event if need be
-                event->event.flags = EVENT_FLAGS_ANOMALY_DETECTION_EVENT;
-                send_or_skip_syscall_monitor_event(args, event, entry, &zero, SYSCALL_MONITOR_TYPE_DRIFT);
+                drift_reason = syscall_monitor_should_send(args, entry, now);
             }
         }
     }
@@ -62,11 +76,41 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
                 // should never happen
                 return 0;
             }
+            dump_active = 1;
             // insert the current syscall in the map
             syscall_monitor_entry_insert(entry, args->id);
-            // send an event if need be
-            event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-            send_or_skip_syscall_monitor_event(args, event, entry, &zero, SYSCALL_MONITOR_TYPE_DUMP);
+            dump_reason = syscall_monitor_should_send(args, entry, now);
+        }
+    }
+
+    if (drift_reason || dump_reason) {
+        fill_span_context(&event->span, &event->go_labels);
+    }
+
+    // A NULL peek means another thread exited and dropped the entry: nothing to flush.
+    if (drift_active) {
+        struct syscall_monitor_entry_t *drift_entry = peek_syscall_monitor_entry(pid, SYSCALL_MONITOR_TYPE_DRIFT);
+        if (drift_entry != NULL) {
+            if (drift_reason) {
+                event->event.flags = EVENT_FLAGS_ANOMALY_DETECTION_EVENT;
+                event->event_reason = drift_reason;
+                syscall_monitor_flush_entry(event, drift_entry, &zero, now, SYSCALL_MONITOR_TYPE_DRIFT);
+                send_event_ptr(args, EVENT_SYSCALLS, event);
+            }
+            syscall_monitor_post_syscall(args, drift_entry, &zero, now, SYSCALL_MONITOR_TYPE_DRIFT);
+        }
+    }
+
+    if (dump_active) {
+        struct syscall_monitor_entry_t *dump_entry = peek_syscall_monitor_entry(pid, SYSCALL_MONITOR_TYPE_DUMP);
+        if (dump_entry != NULL) {
+            if (dump_reason) {
+                event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+                event->event_reason = dump_reason;
+                syscall_monitor_flush_entry(event, dump_entry, &zero, now, SYSCALL_MONITOR_TYPE_DUMP);
+                send_event_ptr(args, EVENT_SYSCALLS, event);
+            }
+            syscall_monitor_post_syscall(args, dump_entry, &zero, now, SYSCALL_MONITOR_TYPE_DUMP);
         }
     }
 
