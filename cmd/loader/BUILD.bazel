@@ -6,6 +6,7 @@ load(
     "pkg_attributes",
     "pkg_files",
 )
+load("//bazel/rules/dd_strip:dd_strip.bzl", "dd_strip_debug")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "LOADER_TAGS")
 
@@ -116,15 +117,22 @@ go_library(
 
 # TODO(ABLD-294): Rename to trace-loader and use this instead of @trace_loader_binary//:trace_loader
 dd_agent_go_binary(
-    name = "loader",
+    name = "loader_unstripped",
     embed = [":loader_lib"],
     # LOADER_TAGS is actually empty. We're including it to keep a consistent style.
     exact_gotags = list(LOADER_TAGS) + select({
         "@platforms//os:linux": ["bpf"],
         "//conditions:default": [],
     }),
+    tags = ["manual"],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:private"],
+)
+
+dd_strip_debug(
+    name = "loader",
+    input = ":loader_unstripped",
 )
