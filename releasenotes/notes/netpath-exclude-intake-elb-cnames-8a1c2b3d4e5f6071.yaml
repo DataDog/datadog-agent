@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Network Path: dynamic tests no longer traceroute Datadog's own intake
+    endpoints when those endpoints are CNAME'd to AWS ELB hostnames. Filtering
+    now evaluates every DNS name a destination IP reverse-resolves to (instead
+    of only the first), so a connection whose IP also resolves to a Datadog
+    domain is excluded regardless of DNS cache ordering. Customer ``include``
+    filters continue to override the defaults across all names, so Datadog
+    domains can still be re-enabled if desired.
