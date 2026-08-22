@@ -356,6 +356,9 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 					ADIdentifiers: []string{adID},
 				},
 			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring ad.datadoghq.com/foobar.check_names, service-discovery.datadoghq.com/foobar.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
 		},
 		{
 			name: "v2 annotations with ignore_ad_tags",
@@ -381,6 +384,9 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 					IgnoreAutodiscoveryTags: true,
 				},
 			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring ad.datadoghq.com/foobar.check_names, service-discovery.datadoghq.com/foobar.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
 		},
 		{
 			name: "v2 annotations with adv1 ignore_ad_tags",
@@ -405,6 +411,9 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 					ADIdentifiers:           []string{adID},
 					IgnoreAutodiscoveryTags: false,
 				},
+			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring ad.datadoghq.com/foobar.check_names, service-discovery.datadoghq.com/foobar.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
 			},
 		},
 		{
@@ -471,6 +480,56 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 					ADIdentifiers: []string{adID},
 					InitConfig:    integration.Data("{}"),
 				},
+			},
+		},
+		{
+			name: "complete v1 and v2 check configurations on the same identifier",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.checks": `{
+					"apache": {
+						"instances": [
+							{"apache_status_url":"http://%%host%%/server-status?auto"}
+						]
+					}
+				}`,
+				"ad.datadoghq.com/foobar.check_names":  `["http_check"]`,
+				"ad.datadoghq.com/foobar.init_configs": `[{}]`,
+				"ad.datadoghq.com/foobar.instances":    `[{"name":"My service","url":"http://%%host%%"}]`,
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto"}`)},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring ad.datadoghq.com/foobar.check_names, ad.datadoghq.com/foobar.init_configs, ad.datadoghq.com/foobar.instances: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
+		},
+		{
+			name: "complete v1 and legacy check configurations on the same identifier",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.check_names":                 `["apache"]`,
+				"ad.datadoghq.com/foobar.init_configs":                `[{}]`,
+				"ad.datadoghq.com/foobar.instances":                   `[{"apache_status_url":"http://%%host%%/server-status?auto"}]`,
+				"service-discovery.datadoghq.com/foobar.check_names":  `["http_check"]`,
+				"service-discovery.datadoghq.com/foobar.init_configs": `[{}]`,
+				"service-discovery.datadoghq.com/foobar.instances":    `[{"name":"My service","url":"http://%%host%%"}]`,
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto"}`)},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.check_names takes precedence, ignoring service-discovery.datadoghq.com/foobar.check_names, service-discovery.datadoghq.com/foobar.init_configs, service-discovery.datadoghq.com/foobar.instances: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
 			},
 		},
 	}
