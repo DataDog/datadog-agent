@@ -406,6 +406,45 @@ pub async fn shutdown_signal() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Spawn token environment block (`CreateProcessAsUserW`)
+// ---------------------------------------------------------------------------
+
+/// Keys copied from the supervisor process when `CreateEnvironmentBlock` fails.
+const FALLBACK_ENV_KEYS: &[&str] = &[
+    "SystemRoot",
+    "WINDIR",
+    "SystemDrive",
+    "ProgramData",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramW6432",
+    "CommonProgramFiles",
+    "CommonProgramFiles(x86)",
+    "CommonProgramW6432",
+    "PUBLIC",
+    "TEMP",
+    "TMP",
+    "Path",
+    "PATHEXT",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "USERPROFILE",
+    "ComSpec",
+];
+
+pub(crate) fn baseline_env_vars_for_spawn(process_name: &str, token: HANDLE) -> HashMap<String, String> {
+    match baseline_env_vars_from_token(token) {
+        Ok(vars) => vars,
+        Err(e) => {
+            log::warn!(
+                "[{process_name}] CreateEnvironmentBlock failed ({e:#}); using allowlisted process-env fallback"
+            );
+            fallback_process_env_vars()
+        }
+    }
+}
+
 pub(crate) fn baseline_env_vars_from_token(token: HANDLE) -> Result<HashMap<String, String>> {
     if token.is_null() {
         anyhow::bail!("baseline_env_vars_from_token: null token handle");
@@ -486,10 +525,35 @@ fn split_env_entry_wide(wide: &[u16]) -> Option<(std::ffi::OsString, std::ffi::O
     ))
 }
 
+fn fallback_process_env_vars() -> HashMap<String, String> {
+    let mut vars = HashMap::new();
+    for &key in FALLBACK_ENV_KEYS {
+        if let Ok(val) = std::env::var(key)
+            && !val.is_empty()
+        {
+            vars.insert(key.to_string(), val);
+        }
+    }
+    vars
+}
+
 #[cfg(test)]
 mod env_override_tests {
     use super::*;
     use std::collections::HashMap;
+
+    #[test]
+    fn fallback_process_env_vars_only_includes_allowlisted_keys() {
+        let vars = fallback_process_env_vars();
+        for key in vars.keys() {
+            assert!(
+                FALLBACK_ENV_KEYS
+                    .iter()
+                    .any(|allowed| allowed.eq_ignore_ascii_case(key)),
+                "unexpected fallback env key: {key}"
+            );
+        }
+    }
 
     #[test]
     fn merge_env_overrides_replaces_case_insensitive_baseline_key() {
