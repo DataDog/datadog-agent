@@ -373,6 +373,7 @@ type FilterPod struct {
 	Namespace     string                 `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	Annotations   map[string]string      `protobuf:"bytes,4,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Rootowner     *FilterRootOwner       `protobuf:"bytes,5,opt,name=rootowner,proto3" json:"rootowner,omitempty"`
+	MatchedOwners []*FilterMatchedOwner  `protobuf:"bytes,6,rep,name=matched_owners,json=matchedOwners,proto3" json:"matched_owners,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -442,6 +443,13 @@ func (x *FilterPod) GetRootowner() *FilterRootOwner {
 	return nil
 }
 
+func (x *FilterPod) GetMatchedOwners() []*FilterMatchedOwner {
+	if x != nil {
+		return x.MatchedOwners
+	}
+	return nil
+}
+
 type FilterRootOwner struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
@@ -494,6 +502,82 @@ func (x *FilterRootOwner) GetName() string {
 	return ""
 }
 
+type FilterMatchedOwner struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Group         string                 `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
+	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Kind          string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	Namespace     string                 `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Name          string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FilterMatchedOwner) Reset() {
+	*x = FilterMatchedOwner{}
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilterMatchedOwner) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilterMatchedOwner) ProtoMessage() {}
+
+func (x *FilterMatchedOwner) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilterMatchedOwner.ProtoReflect.Descriptor instead.
+func (*FilterMatchedOwner) Descriptor() ([]byte, []int) {
+	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FilterMatchedOwner) GetGroup() string {
+	if x != nil {
+		return x.Group
+	}
+	return ""
+}
+
+func (x *FilterMatchedOwner) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *FilterMatchedOwner) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *FilterMatchedOwner) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *FilterMatchedOwner) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 type FilterProcess struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Name    string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -507,7 +591,7 @@ type FilterProcess struct {
 
 func (x *FilterProcess) Reset() {
 	*x = FilterProcess{}
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[5]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -519,7 +603,7 @@ func (x *FilterProcess) String() string {
 func (*FilterProcess) ProtoMessage() {}
 
 func (x *FilterProcess) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[5]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -532,7 +616,7 @@ func (x *FilterProcess) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterProcess.ProtoReflect.Descriptor instead.
 func (*FilterProcess) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{5}
+	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *FilterProcess) GetName() string {
@@ -573,7 +657,7 @@ type FilterECSTask struct {
 
 func (x *FilterECSTask) Reset() {
 	*x = FilterECSTask{}
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[6]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -585,7 +669,7 @@ func (x *FilterECSTask) String() string {
 func (*FilterECSTask) ProtoMessage() {}
 
 func (x *FilterECSTask) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[6]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -598,7 +682,7 @@ func (x *FilterECSTask) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterECSTask.ProtoReflect.Descriptor instead.
 func (*FilterECSTask) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{6}
+	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *FilterECSTask) GetId() string {
@@ -626,7 +710,7 @@ type FilterKubeService struct {
 
 func (x *FilterKubeService) Reset() {
 	*x = FilterKubeService{}
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[7]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -638,7 +722,7 @@ func (x *FilterKubeService) String() string {
 func (*FilterKubeService) ProtoMessage() {}
 
 func (x *FilterKubeService) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[7]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -651,7 +735,7 @@ func (x *FilterKubeService) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterKubeService.ProtoReflect.Descriptor instead.
 func (*FilterKubeService) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{7}
+	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *FilterKubeService) GetName() string {
@@ -686,7 +770,7 @@ type FilterKubeEndpoint struct {
 
 func (x *FilterKubeEndpoint) Reset() {
 	*x = FilterKubeEndpoint{}
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[8]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -698,7 +782,7 @@ func (x *FilterKubeEndpoint) String() string {
 func (*FilterKubeEndpoint) ProtoMessage() {}
 
 func (x *FilterKubeEndpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[8]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -711,7 +795,7 @@ func (x *FilterKubeEndpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterKubeEndpoint.ProtoReflect.Descriptor instead.
 func (*FilterKubeEndpoint) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{8}
+	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *FilterKubeEndpoint) GetName() string {
@@ -744,7 +828,7 @@ type FilterImage struct {
 
 func (x *FilterImage) Reset() {
 	*x = FilterImage{}
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[9]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -756,7 +840,7 @@ func (x *FilterImage) String() string {
 func (*FilterImage) ProtoMessage() {}
 
 func (x *FilterImage) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[9]
+	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -769,7 +853,7 @@ func (x *FilterImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterImage.ProtoReflect.Descriptor instead.
 func (*FilterImage) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{9}
+	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *FilterImage) GetReference() string {
@@ -802,19 +886,26 @@ const file_datadog_workloadfilter_workloadfilter_proto_rawDesc = "" +
 	"\x05image\x18\x03 \x01(\v2#.datadog.workloadfilter.FilterImageR\x05image\x125\n" +
 	"\x03pod\x18\x04 \x01(\v2!.datadog.workloadfilter.FilterPodH\x00R\x03pod\x12B\n" +
 	"\becs_task\x18\x05 \x01(\v2%.datadog.workloadfilter.FilterECSTaskH\x00R\aecsTaskB\a\n" +
-	"\x05owner\"\xaa\x02\n" +
+	"\x05owner\"\xfd\x02\n" +
 	"\tFilterPod\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
 	"\tnamespace\x18\x03 \x01(\tR\tnamespace\x12T\n" +
 	"\vannotations\x18\x04 \x03(\v22.datadog.workloadfilter.FilterPod.AnnotationsEntryR\vannotations\x12E\n" +
-	"\trootowner\x18\x05 \x01(\v2'.datadog.workloadfilter.FilterRootOwnerR\trootowner\x1a>\n" +
+	"\trootowner\x18\x05 \x01(\v2'.datadog.workloadfilter.FilterRootOwnerR\trootowner\x12Q\n" +
+	"\x0ematched_owners\x18\x06 \x03(\v2*.datadog.workloadfilter.FilterMatchedOwnerR\rmatchedOwners\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"9\n" +
 	"\x0fFilterRootOwner\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"l\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\x8a\x01\n" +
+	"\x12FilterMatchedOwner\x12\x14\n" +
+	"\x05group\x18\x01 \x01(\tR\x05group\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
+	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x1c\n" +
+	"\tnamespace\x18\x04 \x01(\tR\tnamespace\x12\x12\n" +
+	"\x04name\x18\x05 \x01(\tR\x04name\"l\n" +
 	"\rFilterProcess\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\acmdline\x18\x02 \x01(\tR\acmdline\x12\x12\n" +
@@ -857,7 +948,7 @@ func file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_workloadfilter_workloadfilter_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_datadog_workloadfilter_workloadfilter_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_datadog_workloadfilter_workloadfilter_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_datadog_workloadfilter_workloadfilter_proto_goTypes = []any{
 	(WorkloadFilterResult)(0),              // 0: datadog.workloadfilter.WorkloadFilterResult
 	(*WorkloadFilterEvaluateRequest)(nil),  // 1: datadog.workloadfilter.WorkloadFilterEvaluateRequest
@@ -865,34 +956,36 @@ var file_datadog_workloadfilter_workloadfilter_proto_goTypes = []any{
 	(*FilterContainer)(nil),                // 3: datadog.workloadfilter.FilterContainer
 	(*FilterPod)(nil),                      // 4: datadog.workloadfilter.FilterPod
 	(*FilterRootOwner)(nil),                // 5: datadog.workloadfilter.FilterRootOwner
-	(*FilterProcess)(nil),                  // 6: datadog.workloadfilter.FilterProcess
-	(*FilterECSTask)(nil),                  // 7: datadog.workloadfilter.FilterECSTask
-	(*FilterKubeService)(nil),              // 8: datadog.workloadfilter.FilterKubeService
-	(*FilterKubeEndpoint)(nil),             // 9: datadog.workloadfilter.FilterKubeEndpoint
-	(*FilterImage)(nil),                    // 10: datadog.workloadfilter.FilterImage
-	nil,                                    // 11: datadog.workloadfilter.FilterPod.AnnotationsEntry
-	nil,                                    // 12: datadog.workloadfilter.FilterKubeService.AnnotationsEntry
-	nil,                                    // 13: datadog.workloadfilter.FilterKubeEndpoint.AnnotationsEntry
+	(*FilterMatchedOwner)(nil),             // 6: datadog.workloadfilter.FilterMatchedOwner
+	(*FilterProcess)(nil),                  // 7: datadog.workloadfilter.FilterProcess
+	(*FilterECSTask)(nil),                  // 8: datadog.workloadfilter.FilterECSTask
+	(*FilterKubeService)(nil),              // 9: datadog.workloadfilter.FilterKubeService
+	(*FilterKubeEndpoint)(nil),             // 10: datadog.workloadfilter.FilterKubeEndpoint
+	(*FilterImage)(nil),                    // 11: datadog.workloadfilter.FilterImage
+	nil,                                    // 12: datadog.workloadfilter.FilterPod.AnnotationsEntry
+	nil,                                    // 13: datadog.workloadfilter.FilterKubeService.AnnotationsEntry
+	nil,                                    // 14: datadog.workloadfilter.FilterKubeEndpoint.AnnotationsEntry
 }
 var file_datadog_workloadfilter_workloadfilter_proto_depIdxs = []int32{
 	3,  // 0: datadog.workloadfilter.WorkloadFilterEvaluateRequest.container:type_name -> datadog.workloadfilter.FilterContainer
 	4,  // 1: datadog.workloadfilter.WorkloadFilterEvaluateRequest.pod:type_name -> datadog.workloadfilter.FilterPod
-	6,  // 2: datadog.workloadfilter.WorkloadFilterEvaluateRequest.process:type_name -> datadog.workloadfilter.FilterProcess
-	8,  // 3: datadog.workloadfilter.WorkloadFilterEvaluateRequest.kube_service:type_name -> datadog.workloadfilter.FilterKubeService
-	9,  // 4: datadog.workloadfilter.WorkloadFilterEvaluateRequest.kube_endpoint:type_name -> datadog.workloadfilter.FilterKubeEndpoint
+	7,  // 2: datadog.workloadfilter.WorkloadFilterEvaluateRequest.process:type_name -> datadog.workloadfilter.FilterProcess
+	9,  // 3: datadog.workloadfilter.WorkloadFilterEvaluateRequest.kube_service:type_name -> datadog.workloadfilter.FilterKubeService
+	10, // 4: datadog.workloadfilter.WorkloadFilterEvaluateRequest.kube_endpoint:type_name -> datadog.workloadfilter.FilterKubeEndpoint
 	0,  // 5: datadog.workloadfilter.WorkloadFilterEvaluateResponse.result:type_name -> datadog.workloadfilter.WorkloadFilterResult
-	10, // 6: datadog.workloadfilter.FilterContainer.image:type_name -> datadog.workloadfilter.FilterImage
+	11, // 6: datadog.workloadfilter.FilterContainer.image:type_name -> datadog.workloadfilter.FilterImage
 	4,  // 7: datadog.workloadfilter.FilterContainer.pod:type_name -> datadog.workloadfilter.FilterPod
-	7,  // 8: datadog.workloadfilter.FilterContainer.ecs_task:type_name -> datadog.workloadfilter.FilterECSTask
-	11, // 9: datadog.workloadfilter.FilterPod.annotations:type_name -> datadog.workloadfilter.FilterPod.AnnotationsEntry
+	8,  // 8: datadog.workloadfilter.FilterContainer.ecs_task:type_name -> datadog.workloadfilter.FilterECSTask
+	12, // 9: datadog.workloadfilter.FilterPod.annotations:type_name -> datadog.workloadfilter.FilterPod.AnnotationsEntry
 	5,  // 10: datadog.workloadfilter.FilterPod.rootowner:type_name -> datadog.workloadfilter.FilterRootOwner
-	12, // 11: datadog.workloadfilter.FilterKubeService.annotations:type_name -> datadog.workloadfilter.FilterKubeService.AnnotationsEntry
-	13, // 12: datadog.workloadfilter.FilterKubeEndpoint.annotations:type_name -> datadog.workloadfilter.FilterKubeEndpoint.AnnotationsEntry
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	6,  // 11: datadog.workloadfilter.FilterPod.matched_owners:type_name -> datadog.workloadfilter.FilterMatchedOwner
+	13, // 12: datadog.workloadfilter.FilterKubeService.annotations:type_name -> datadog.workloadfilter.FilterKubeService.AnnotationsEntry
+	14, // 13: datadog.workloadfilter.FilterKubeEndpoint.annotations:type_name -> datadog.workloadfilter.FilterKubeEndpoint.AnnotationsEntry
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_datadog_workloadfilter_workloadfilter_proto_init() }
@@ -917,7 +1010,7 @@ func file_datadog_workloadfilter_workloadfilter_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_workloadfilter_workloadfilter_proto_rawDesc), len(file_datadog_workloadfilter_workloadfilter_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   13,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
