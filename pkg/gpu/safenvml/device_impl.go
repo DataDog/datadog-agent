@@ -135,6 +135,15 @@ func (d *safeDeviceImpl) GetGpuInstanceId() (int, error) {
 	return id, NewNvmlAPIErrorOrNil("GetGpuInstanceId", ret)
 }
 
+//nolint:revive // Maintaining consistency with go-nvml API naming
+func (d *safeDeviceImpl) GetComputeInstanceId() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetComputeInstanceId")); err != nil {
+		return 0, err
+	}
+	id, ret := d.nvmlDevice.GetComputeInstanceId()
+	return id, NewNvmlAPIErrorOrNil("GetComputeInstanceId", ret)
+}
+
 func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error) {
 	if err := d.lib.lookup(toNativeName("GetGpuInstanceProfileInfo")); err != nil {
 		return nvml.GpuInstanceProfileInfo{}, err
@@ -160,6 +169,14 @@ func (d *safeDeviceImpl) GetIndex() (int, error) {
 	}
 	index, ret := d.nvmlDevice.GetIndex()
 	return index, NewNvmlAPIErrorOrNil("GetIndex", ret)
+}
+
+func (d *safeDeviceImpl) GetMinorNumber() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetMinorNumber")); err != nil {
+		return 0, err
+	}
+	minor, ret := d.nvmlDevice.GetMinorNumber()
+	return minor, NewNvmlAPIErrorOrNil("GetMinorNumber", ret)
 }
 
 func (d *safeDeviceImpl) GetMaxClockInfo(clockType nvml.ClockType) (uint32, error) {

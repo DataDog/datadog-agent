@@ -47,6 +47,7 @@ func getCriticalAPIs() []string {
 // that are nice to have but not essential
 func getNonCriticalAPIs() []string {
 	return []string{
+		toNativeName("GetMinorNumber"),
 		"nvmlShutdown",
 		"nvmlSystemGetDriverVersion",
 		"nvmlGpmSampleAlloc",
@@ -73,6 +74,7 @@ func getNonCriticalAPIs() []string {
 		"nvmlDeviceReadWritePRM_v1",
 		toNativeName("GetGpuFabricInfoV"),
 		toNativeName("GetGpuInstanceId"),
+		toNativeName("GetComputeInstanceId"),
 		toNativeName("GetGpuInstanceProfileInfo"),
 		toNativeName("GetMaxClockInfo"),
 		toNativeName("GetMaxMigDeviceCount"),
