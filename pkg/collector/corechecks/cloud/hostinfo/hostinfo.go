@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/shirou/gopsutil/v4/host"
@@ -35,14 +37,30 @@ const PreemptionEventType = "HostPreemption"
 const PreemptionRiskEventType = "HostPreemptionRisk"
 
 // After this many consecutive failed IMDS lookups, the check only retries
-// once per preemptionFailureBackoff instead of on every run: on hosts where
+// once per metadataFailureBackoff instead of on every run: on hosts where
 // IMDS can never answer (e.g. hop-limited containers), every-run lookups
 // each block a collector slot for the metadata timeout doing work that
 // cannot succeed (#55269).
 const (
-	preemptionFailureThreshold = 4
-	preemptionFailureBackoff   = 60 * time.Second
+	metadataFailureThreshold = 4
+	metadataFailureBackoff   = 60 * time.Second
 )
+
+// metadataLookupFailure reports whether an error from a metadata lookup is a
+// connectivity-style failure that can never succeed on this host, as opposed
+// to the healthy no-active-notice response: IMDS answers 404 for the spot
+// termination and rebalance endpoints when no notice exists, and those must
+// not count toward the backoff.
+func metadataLookupFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	var statusCodeError *httputils.StatusCodeError
+	if errors.As(err, &statusCodeError) {
+		return statusCodeError.StatusCode != http.StatusNotFound
+	}
+	return true
+}
 
 // Check collects host information from cloud provider metadata services
 type Check struct {
@@ -54,8 +72,8 @@ type Check struct {
 	rebalanceNoticeTime   time.Time
 	preemptionUnsupported bool // Set to true when preemption detection is not supported or instance is not preemptible
 
-	preemptionFailures    int       // consecutive transient preemption-lookup failures
-	preemptionLastAttempt time.Time // time of the last preemption lookup
+	metadataFailures    int       // consecutive transient preemption-lookup failures
+	metadataLastAttempt time.Time // time of the last preemption lookup
 }
 
 // For testing purposes
@@ -118,12 +136,11 @@ func (c *Check) checkPreemptionEvents(sender sender.Sender) {
 	// After repeated transient failures (e.g. IMDS unreachable from a
 	// hop-limited container), retry at most once per backoff window instead
 	// of on every check run.
-	if c.preemptionFailures >= preemptionFailureThreshold && time.Since(c.preemptionLastAttempt) < preemptionFailureBackoff {
-		log.Tracef("Skipping preemption detection, %d consecutive failures, backing off until %s", c.preemptionFailures, c.preemptionLastAttempt.Add(preemptionFailureBackoff))
+	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastAttempt) < metadataFailureBackoff {
+		log.Tracef("Skipping preemption detection, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastAttempt.Add(metadataFailureBackoff))
 		return
 	}
 
-	c.preemptionLastAttempt = time.Now()
 	terminationTime, err := getPreemptionTerminationFn(ctx, c.cloudProvider)
 	if err != nil {
 		// Check if we should stop polling for preemption events
@@ -132,11 +149,15 @@ func (c *Check) checkPreemptionEvents(sender sender.Sender) {
 			log.Debugf("Preemption detection disabled, cloud provider: %s, error: %s", c.cloudProvider, err)
 			return
 		}
-		c.preemptionFailures++
+		// The healthy no-active-notice 404 must not count toward backoff.
+		if metadataLookupFailure(err) {
+			c.metadataFailures++
+			c.metadataLastAttempt = time.Now()
+		}
 		log.Tracef("Preemption detection returned an error (usually expected), cloud provider: %s, error: %s", c.cloudProvider, err)
 		return
 	}
-	c.preemptionFailures = 0
+	c.metadataFailures = 0
 
 	// Store termination time to avoid emitting duplicate events
 	c.terminationTime = terminationTime
@@ -184,11 +205,23 @@ func (c *Check) checkRebalanceRecommendation(sender sender.Sender) {
 		return
 	}
 
+	// The rebalance lookup hits the same unreachable IMDS endpoint; back it
+	// off on the same counter as the preemption lookup.
+	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastAttempt) < metadataFailureBackoff {
+		log.Tracef("Skipping rebalance recommendation check, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastAttempt.Add(metadataFailureBackoff))
+		return
+	}
+
 	noticeTime, err := getRebalanceRecommendationFn(context.Background(), c.cloudProvider)
 	if err != nil {
+		if metadataLookupFailure(err) {
+			c.metadataFailures++
+			c.metadataLastAttempt = time.Now()
+		}
 		log.Tracef("Rebalance recommendation check returned an error (usually expected), cloud provider: %s, error: %s", c.cloudProvider, err)
 		return
 	}
+	c.metadataFailures = 0
 
 	c.rebalanceNoticeTime = noticeTime
 
