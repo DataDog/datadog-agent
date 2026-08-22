@@ -7,8 +7,6 @@ require './lib/ostools.rb'
 
 name 'datadog-agent-integrations-py3'
 
-dependency 'python3'
-
 python_version = "3.13"
 
 whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
@@ -32,6 +30,9 @@ if windows_target?
 end
 
 build do
+  command "bazel run #{omnibazel_flags} -- @cpython//:install --destdir=#{install_dir}",
+    :live_stream => Omnibus.logger.live_stream(:info)
+
   # aliases for pip
   if windows_target?
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
