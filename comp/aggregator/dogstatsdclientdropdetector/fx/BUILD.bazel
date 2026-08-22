@@ -4,10 +4,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "fx",
     srcs = ["fx.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx",
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/aggregator/dogstatsdclienttelemetry/impl",
+        "//comp/aggregator/dogstatsdclientdropdetector/impl",
         "//pkg/util/fxutil",
     ],
 )
@@ -18,8 +18,13 @@ dd_agent_go_test(
     embed = [":fx"],
     deps = [
         "//comp/aggregator/dogstatsdclientdropdetector/def",
-        "//comp/core/telemetry/mock",
-        "//pkg/aggregator",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/mock",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
