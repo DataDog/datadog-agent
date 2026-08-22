@@ -73,9 +73,11 @@ api_key: ENC[api_key]
 		assert.Contains(t, status.Content, "API key ending with wxyz")
 	}, 1*time.Minute, 10*time.Second)
 
-	// Assert that the fakeIntake has received the new API Key
+	// Assert that the fakeIntake has received the new API Key on the metrics
+	// endpoint (GetLastAPIKey is unscoped across all routes, so it can be
+	// clobbered by unrelated traffic like remote-config polling)
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
+		lastAPIKey, err := v.Env().FakeIntake.Client().GetLastMetricPayloadAPIKey()
 		assert.NoError(t, err)
 		assert.Equal(t, secondAPIKey, lastAPIKey)
 	}, 1*time.Minute, 10*time.Second)
