@@ -64,10 +64,9 @@ func (s *testUpgradeSuite) TestUpgrade() {
 		s.T().FailNow()
 	}
 
-	// The installer only disables dd-procmgr-service when the Agent user password is unavailable,
-	// which can only happen for domain accounts. This host uses the default local ddagentuser, whose
-	// password the installer always generates, so the service must stay enabled even though the
-	// upgrade above did not provide a password.
+	// dd-procmgr-service runs as LocalSystem (#54731), so it stays enabled even when the
+	// upgrade does not provide DDAGENTUSER_PASSWORD. Local accounts already behaved this way
+	// because the installer generates a password for the default ddagentuser.
 	s.Run("process manager stays enabled for a local account", func() {
 		config, err := windowsCommon.GetServiceConfig(vm, "dd-procmgr-service")
 		s.Require().NoError(err)

@@ -160,10 +160,6 @@ pub fn exit_cmd(code: i32) -> (&'static str, Vec<String>) {
     (sh, vec![flag.to_string(), format!("exit {code}")])
 }
 
-// ---------------------------------------------------------------------------
-// YAML config builders
-// ---------------------------------------------------------------------------
-
 /// Build a YAML config from a command, args, and extra options.
 pub fn cmd_yaml(cmd: &str, args: &[String], extra: &str) -> String {
     let mut yaml = format!("command: {cmd}\n");
@@ -212,10 +208,6 @@ pub fn temp_dir_str() -> String {
     std::env::temp_dir().display().to_string()
 }
 
-// ---------------------------------------------------------------------------
-// Misc
-// ---------------------------------------------------------------------------
-
 /// Fixed UUID for deterministic tests.
 pub fn test_uuid() -> String {
     "00000000-0000-0000-0000-000000000000".to_string()
@@ -235,4 +227,15 @@ pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessCo
         stderr: "null".to_string(),
         ..Default::default()
     }
+}
+
+/// Expected `user` field for list/describe assertions (intended spawn account).
+pub fn expected_spawn_user(process_name: &str) -> String {
+    use crate::spawn::{profile_for, spawn_user_for};
+    spawn_user_for(process_name, profile_for(process_name))
+}
+
+/// Expected `runtime_user` for describe assertions (live OS lookup for `pid`).
+pub fn expected_runtime_user_for_pid(pid: u32) -> String {
+    crate::platform::runtime_user_for_pid(pid).unwrap_or_else(|| "unknown".to_string())
 }

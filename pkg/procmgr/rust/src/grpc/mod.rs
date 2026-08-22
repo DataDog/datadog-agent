@@ -6,6 +6,8 @@
 pub mod server;
 pub mod service;
 
+mod caller_auth;
+
 pub mod proto {
     pub use dd_procmgr_client::proto::*;
 }
@@ -32,7 +34,7 @@ mod tests {
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
     ) {
-        let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
+        let (cmd_tx, cmd_rx) = mpsc::channel::<Command>(64);
         let dir = tempfile::tempdir().unwrap();
         let sock_path = dir.path().join("test.sock");
         let uds = UnixListener::bind(&sock_path).unwrap();
@@ -72,42 +74,7 @@ mod tests {
             drop(dir);
         });
 
-        let (exit_tx, mut exit_rx) = mpsc::channel::<crate::manager::ExitEvent>(256);
-        let mgr_loop = mgr.clone();
-        let exit_tx_loop = exit_tx.clone();
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(cmd) = cmd_rx.recv() => {
-                        match cmd {
-                            Command::Create { name, config, reply } => {
-                                let _ = reply.send(
-                                    mgr_loop.handle_create(name, *config, &exit_tx_loop).await,
-                                );
-                            }
-                            Command::Start { name_or_uuid, reply } => {
-                                let _ = reply.send(
-                                    mgr_loop.handle_start(&name_or_uuid, &exit_tx_loop).await,
-                                );
-                            }
-                            Command::Stop { name_or_uuid, reply } => {
-                                let _ = reply.send(mgr_loop.handle_stop(&name_or_uuid).await);
-                            }
-                            Command::ReloadConfig { reply } => {
-                                let _ = reply.send(
-                                    mgr_loop.handle_reload_config(&exit_tx_loop).await,
-                                );
-                            }
-                        }
-                    }
-                    Some(event) = exit_rx.recv() => {
-                        let restart_tx = mpsc::channel::<String>(256).0;
-                        mgr_loop.handle_exit(event, &restart_tx).await;
-                    }
-                    else => break,
-                }
-            }
-        });
+        crate::manager::spawn_command_loop_for_tests(mgr.clone(), cmd_rx);
 
         let channel = dd_procmgr_client::connect(&sock_path).await.unwrap();
 
@@ -299,6 +266,17 @@ mod tests {
         assert_eq!(resp.location, "in-memory (test)");
         assert_eq!(resp.loaded_processes, 0);
         assert_eq!(resp.runtime_processes, 0);
+    }
+
+    #[tokio::test]
+    async fn test_reload_config_unimplemented() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+        let err = client
+            .reload_config(proto::ReloadConfigRequest {})
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::Unimplemented);
+        assert!(err.message().contains("restart dd-procmgr-service"));
     }
 
     #[tokio::test]
@@ -524,7 +502,6 @@ mod tests {
         assert_eq!(resp.exited_processes, 1);
         assert_eq!(resp.created_processes, 1);
 
-        // Clean up running-svc
         let list = client
             .list(proto::ListRequest {})
             .await
@@ -606,7 +583,6 @@ mod tests {
             "start response should include uuid"
         );
 
-        // Cross-check via list
         let resp = client
             .list(proto::ListRequest {})
             .await
@@ -615,7 +591,6 @@ mod tests {
         assert_eq!(resp.processes[0].state, proto::ProcessState::Running as i32);
         assert_eq!(resp.processes[0].pid, start_resp.pid);
 
-        // Clean up
         test_helpers::cleanup_process(start_resp.pid);
     }
 
@@ -707,7 +682,6 @@ mod tests {
             "stop response should include uuid"
         );
 
-        // Cross-check via describe
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
         let resp = client
@@ -769,7 +743,6 @@ mod tests {
         }])
         .await;
 
-        // Start
         client
             .start(proto::StartRequest {
                 name_or_uuid: "lifecycle".to_string(),
@@ -784,7 +757,6 @@ mod tests {
             .into_inner();
         assert_eq!(resp.running_processes, 1);
 
-        // Stop
         client
             .stop(proto::StopRequest {
                 name_or_uuid: "lifecycle".to_string(),
