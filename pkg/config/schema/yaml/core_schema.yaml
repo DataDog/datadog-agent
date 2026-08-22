@@ -4368,6 +4368,24 @@ properties:
       meaning that, one Agent within this group is designated as primary and others as standby.
     tags:
     - template_section:CoreAgent
+  agent_workload_balancing:
+    node_type: section
+    type: object
+    visibility: public
+    description: This section configures NDM Agent Workload Balancing.
+    tags:
+    - template_section:CoreAgent
+    - full-agent-only:true
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to enable NDM Agent Workload Balancing. A workload balancing group with
+          no assignment, or one assigned to this Agent, keeps running; only a group explicitly
+          assigned to another Agent is skipped.
   otlp_config:
     node_type: section
     title: 'OpenTelemetry Configuration  '

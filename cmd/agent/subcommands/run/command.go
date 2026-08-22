@@ -52,6 +52,7 @@ import (
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
+	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
@@ -593,6 +594,7 @@ func getSharedFxOption() fx.Option {
 		syntheticsTestsfx.Module(),
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
+		workloadbalancingfx.Module(),
 		doqueryactionsfx.Module(),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),

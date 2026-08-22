@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "config.go",
+        "rcpayload.go",
+        "workloadbalancing.go",
+        "workloadbalancing_comp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/workloadbalancing/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/haagent/def",
+        "//comp/remote-config/rcclient/types",
+        "//comp/workloadbalancing/def",
+        "//comp/workloadbalancing/helpers",
+        "//pkg/remoteconfig/state",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "rcupdate_test.go",
+        "workloadbalancing_test.go",
+        "workloadbalancing_testutils_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/haagent/def",
+        "//comp/haagent/mock",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
