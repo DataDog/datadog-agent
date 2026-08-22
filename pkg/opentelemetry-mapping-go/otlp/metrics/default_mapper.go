@@ -80,6 +80,16 @@ func (m *defaultMapper) MapHistogramMetrics(
 	slice pmetric.HistogramDataPointSlice,
 	delta bool,
 ) error {
+	m.logger.Warn("OTLP histogram mapping started",
+		zap.String("debug_path", "otlp_cumulative_histogram.mapping_start"),
+		zap.String("metric_name", dims.name),
+		zap.Int("data_point_count", slice.Len()),
+		zap.Bool("delta", delta),
+		zap.String("histogram_mode", string(m.cfg.HistMode)),
+		zap.Bool("send_histogram_aggregations", m.cfg.SendHistogramAggregations),
+		zap.Strings("base_tags", dims.tags),
+		zap.String("host", dims.host),
+	)
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
@@ -91,28 +101,121 @@ func (m *defaultMapper) MapHistogramMetrics(
 		ts := uint64(p.Timestamp())
 		pointDims := dims.WithAttributeMap(p.Attributes())
 
+		var min, max float64
+		if p.HasMin() {
+			min = p.Min()
+		}
+		if p.HasMax() {
+			max = p.Max()
+		}
+		m.logger.Warn("OTLP histogram input point",
+			zap.String("debug_path", "otlp_cumulative_histogram.input_point"),
+			zap.String("metric_name", pointDims.name),
+			zap.Int("point_index", i),
+			zap.Int("data_point_count", slice.Len()),
+			zap.Uint64("start_timestamp_ns", startTs),
+			zap.Uint64("timestamp_ns", ts),
+			zap.Uint64("timestamp_s", ts/1e9),
+			zap.Uint64("count", p.Count()),
+			zap.Float64("sum", p.Sum()),
+			zap.Bool("has_sum", p.HasSum()),
+			zap.Bool("has_min", p.HasMin()),
+			zap.Bool("has_max", p.HasMax()),
+			zap.Float64("min", min),
+			zap.Float64("max", max),
+			zap.Int("bucket_count", p.BucketCounts().Len()),
+			zap.Int("explicit_bound_count", p.ExplicitBounds().Len()),
+			zap.Strings("tags", pointDims.Tags()),
+			zap.String("host", pointDims.Host()),
+		)
+
 		histInfo := histogramInfo{ok: true}
+		countDiffOK := true
+		sumDiffOK := true
+		sumSkippable := false
 
 		// `.count` counts observations, so we drop the unit.
 		countDims := pointDims.WithSuffix("count").WithoutUnit()
 		if delta {
 			histInfo.count = p.Count()
-		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
-			histInfo.count = uint64(dx)
-		} else { // not ok
-			histInfo.ok = false
+		} else {
+			previous, previousFound := m.prevPts.previousNumberCounter(countDims)
+			m.logger.Warn("OTLP cumulative cache previous state before diff",
+				zap.String("debug_path", "otlp_cumulative_cache.before_diff"),
+				zap.String("metric_name", countDims.name),
+				zap.Uint64("start_timestamp_ns", startTs),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Float64("value", float64(p.Count())),
+				zap.Bool("previous_found", previousFound),
+				zap.Uint64("previous_start_timestamp_ns", previous.startTs),
+				zap.Uint64("previous_timestamp_ns", previous.ts),
+				zap.Float64("previous_value", previous.value),
+				zap.Bool("same_timestamp", previousFound && previous.ts == ts),
+				zap.Bool("older_or_equal_timestamp", previousFound && ts <= previous.ts),
+				zap.Bool("possible_reset", previousFound && float64(p.Count()) < previous.value),
+			)
+			dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count()))
+			m.logger.Warn("OTLP histogram count diff result",
+				zap.String("debug_path", "otlp_cumulative_histogram.count_diff_result"),
+				zap.String("metric_name", countDims.name),
+				zap.Int("point_index", i),
+				zap.Uint64("start_timestamp_ns", startTs),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Float64("current_count", float64(p.Count())),
+				zap.Float64("delta", dx),
+				zap.Bool("diff_ok", ok),
+				zap.Bool("will_use_delta", ok),
+			)
+			if ok {
+				histInfo.count = uint64(dx)
+			} else {
+				countDiffOK = false
+				histInfo.ok = false
+			}
 		}
 
 		sumDims := pointDims.WithSuffix("sum")
 		if !isSkippable(m.logger, sumDims.name, p.Sum()) {
 			if delta {
 				histInfo.sum = p.Sum()
-			} else if dx, ok := m.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
-				histInfo.sum = dx
-			} else { // not ok
-				histInfo.ok = false
+			} else {
+				previous, previousFound := m.prevPts.previousNumberCounter(sumDims)
+				m.logger.Warn("OTLP cumulative cache previous state before diff",
+					zap.String("debug_path", "otlp_cumulative_cache.before_diff"),
+					zap.String("metric_name", sumDims.name),
+					zap.Uint64("start_timestamp_ns", startTs),
+					zap.Uint64("timestamp_ns", ts),
+					zap.Float64("value", p.Sum()),
+					zap.Bool("previous_found", previousFound),
+					zap.Uint64("previous_start_timestamp_ns", previous.startTs),
+					zap.Uint64("previous_timestamp_ns", previous.ts),
+					zap.Float64("previous_value", previous.value),
+					zap.Bool("same_timestamp", previousFound && previous.ts == ts),
+					zap.Bool("older_or_equal_timestamp", previousFound && ts <= previous.ts),
+					zap.Bool("possible_reset", previousFound && p.Sum() < previous.value),
+				)
+				dx, ok := m.prevPts.Diff(sumDims, startTs, ts, p.Sum())
+				m.logger.Warn("OTLP histogram sum diff result",
+					zap.String("debug_path", "otlp_cumulative_histogram.sum_diff_result"),
+					zap.String("metric_name", sumDims.name),
+					zap.Int("point_index", i),
+					zap.Uint64("start_timestamp_ns", startTs),
+					zap.Uint64("timestamp_ns", ts),
+					zap.Float64("current_sum", p.Sum()),
+					zap.Float64("delta", dx),
+					zap.Bool("diff_ok", ok),
+					zap.Bool("will_use_delta", ok),
+				)
+				if ok {
+					histInfo.sum = dx
+				} else {
+					sumDiffOK = false
+					histInfo.ok = false
+				}
 			}
 		} else { // skippable
+			sumSkippable = true
+			sumDiffOK = false
 			histInfo.ok = false
 		}
 
@@ -124,6 +227,20 @@ func (m *defaultMapper) MapHistogramMetrics(
 		maxDims := pointDims.WithSuffix("max")
 		if p.HasMax() {
 			histInfo.hasMaxFromLastTimeWindow = delta || m.prevPts.PutAndCheckMax(maxDims, startTs, ts, p.Max())
+		}
+
+		if !delta && !histInfo.ok {
+			m.logger.Warn("Cumulative OTLP histogram exact count/sum delta is unavailable; sketch may be emitted from buckets only.",
+				zap.String(metricName, pointDims.name),
+				zap.Uint64("start_timestamp", startTs),
+				zap.Uint64("timestamp", ts),
+				zap.Uint64("point_count", p.Count()),
+				zap.Float64("point_sum", p.Sum()),
+				zap.Bool("count_diff_ok", countDiffOK),
+				zap.Bool("sum_diff_ok", sumDiffOK),
+				zap.Bool("sum_skippable", sumSkippable),
+				zap.Int("bucket_count", p.BucketCounts().Len()),
+			)
 		}
 
 		if m.cfg.SendHistogramAggregations && histInfo.ok {
@@ -381,6 +498,9 @@ func (m *defaultMapper) getSketchBuckets(
 	//   there was at least a nonzero bucket.
 	var minBound, maxBound float64
 	var minBoundSet bool
+	inputBucketCount := bucketCounts.Len()
+	bucketDiffOKCount := 0
+	nonZeroBucketCount := 0
 	for j := 0; j < bucketCounts.Len(); j++ {
 		lowerBound, upperBound := getBounds(explicitBounds, j)
 		originalLowerBound, originalUpperBound := lowerBound, upperBound
@@ -418,15 +538,61 @@ func (m *defaultMapper) getSketchBuckets(
 			if err != nil {
 				return err
 			}
-		} else if dx, ok := m.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
-			nonZeroBucket = dx > 0
-			err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
-			if err != nil {
-				return err
+		} else {
+			previous, previousFound := m.prevPts.previousNumberCounter(bucketDims)
+			m.logger.Warn("OTLP cumulative cache previous state before diff",
+				zap.String("debug_path", "otlp_cumulative_cache.before_diff"),
+				zap.String("metric_name", bucketDims.name),
+				zap.Uint64("start_timestamp_ns", startTs),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Float64("value", float64(count)),
+				zap.Bool("previous_found", previousFound),
+				zap.Uint64("previous_start_timestamp_ns", previous.startTs),
+				zap.Uint64("previous_timestamp_ns", previous.ts),
+				zap.Float64("previous_value", previous.value),
+				zap.Bool("same_timestamp", previousFound && previous.ts == ts),
+				zap.Bool("older_or_equal_timestamp", previousFound && ts <= previous.ts),
+				zap.Bool("possible_reset", previousFound && float64(count) < previous.value),
+			)
+			dx, ok := m.prevPts.Diff(bucketDims, startTs, ts, float64(count))
+			if ok {
+				bucketDiffOKCount++
+				nonZeroBucket = dx > 0
+				err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
+				if err != nil {
+					return err
+				}
+			}
+			m.logger.Warn("OTLP histogram bucket diff result",
+				zap.String("debug_path", "otlp_cumulative_histogram.bucket_diff_result"),
+				zap.String("metric_name", pointDims.name),
+				zap.String("bucket_metric_name", bucketDims.name),
+				zap.Int("bucket_index", j),
+				zap.Uint64("start_timestamp_ns", startTs),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Float64("lower_bound", originalLowerBound),
+				zap.Float64("upper_bound", originalUpperBound),
+				zap.Uint64("cumulative_bucket_count", count),
+				zap.Float64("bucket_delta", dx),
+				zap.Bool("diff_ok", ok),
+				zap.Bool("will_emit_bucket", ok && dx > 0),
+			)
+			if !ok || dx <= 0 {
+				m.logger.Warn("OTLP histogram bucket not emitted",
+					zap.String("debug_path", "otlp_cumulative_histogram.bucket_not_emitted"),
+					zap.String("metric_name", pointDims.name),
+					zap.Int("bucket_index", j),
+					zap.Uint64("timestamp_ns", ts),
+					zap.Uint64("cumulative_bucket_count", count),
+					zap.Float64("bucket_delta", dx),
+					zap.Bool("diff_ok", ok),
+					zap.String("reason", "diff_not_ok_or_zero_delta"),
+				)
 			}
 		}
 
 		if nonZeroBucket {
+			nonZeroBucketCount++
 			if !minBoundSet {
 				minBound = originalLowerBound
 				minBoundSet = true
@@ -436,6 +602,30 @@ func (m *defaultMapper) getSketchBuckets(
 	}
 
 	sketch := as.Finish()
+	if sketch == nil {
+		if !delta {
+			m.logger.Warn("OTLP histogram sketch constructed",
+				zap.String("debug_path", "otlp_cumulative_histogram.sketch_constructed"),
+				zap.String("metric_name", pointDims.name),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Uint64("timestamp_s", ts/1e9),
+				zap.Bool("hist_info_ok", histInfo.ok),
+				zap.Uint64("hist_info_count", histInfo.count),
+				zap.Float64("hist_info_sum", histInfo.sum),
+				zap.Int("input_bucket_count", inputBucketCount),
+				zap.Int("bucket_diff_ok_count", bucketDiffOKCount),
+				zap.Int("non_zero_bucket_count", nonZeroBucketCount),
+				zap.Bool("will_emit_sketch", false),
+			)
+			m.logger.Warn("OTLP histogram sketch not emitted",
+				zap.String("debug_path", "otlp_cumulative_histogram.sketch_not_emitted"),
+				zap.String("metric_name", pointDims.name),
+				zap.Uint64("timestamp_ns", ts),
+				zap.String("reason", "no_bucket_deltas_or_invalid_histogram_info"),
+			)
+		}
+		return nil
+	}
 	if sketch != nil {
 		if histInfo.ok {
 			// override approximate sum, count and average in sketch with exact values if available.
@@ -474,6 +664,26 @@ func (m *defaultMapper) getSketchBuckets(
 		var interval int64
 		if m.cfg.InferDeltaInterval && delta {
 			interval = inferDeltaInterval(startTs, ts)
+		}
+		if !delta {
+			m.logger.Warn("OTLP histogram sketch constructed",
+				zap.String("debug_path", "otlp_cumulative_histogram.sketch_constructed"),
+				zap.String("metric_name", pointDims.name),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Uint64("timestamp_s", ts/1e9),
+				zap.Bool("hist_info_ok", histInfo.ok),
+				zap.Uint64("hist_info_count", histInfo.count),
+				zap.Float64("hist_info_sum", histInfo.sum),
+				zap.Int("input_bucket_count", inputBucketCount),
+				zap.Int("bucket_diff_ok_count", bucketDiffOKCount),
+				zap.Int("non_zero_bucket_count", nonZeroBucketCount),
+				zap.Bool("will_emit_sketch", true),
+				zap.Int64("sketch_count", sketch.Basic.Cnt),
+				zap.Float64("sketch_sum", sketch.Basic.Sum),
+				zap.Float64("sketch_avg", sketch.Basic.Avg),
+				zap.Float64("sketch_min", sketch.Basic.Min),
+				zap.Float64("sketch_max", sketch.Basic.Max),
+			)
 		}
 		consumer.ConsumeSketch(ctx, pointDims, ts, interval, sketch)
 	}
