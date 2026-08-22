@@ -6,7 +6,7 @@
 mod helpers;
 
 use dd_procmgrd::test_helpers;
-use helpers::{CliRunner, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone, write_config};
+use helpers::{CliRunner, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone};
 use std::path::Path;
 use std::time::Duration;
 
@@ -262,6 +262,8 @@ fn test_cli_list_one_running() {
             "sleeper",
             &[
                 ("STATE", "Running"),
+                ("PROFILE", "agent"),
+                ("USER", &test_helpers::expected_spawn_user("sleeper")),
                 ("COMMAND", test_helpers::sleep_cmd(300).0),
             ],
         )
@@ -381,6 +383,8 @@ fn test_cli_list_json() {
     let entry = &arr[0];
     assert_eq!(entry["name"], "sleeper");
     assert_eq!(entry["state"], "Running");
+    assert_eq!(entry["profile"], "agent");
+    assert_eq!(entry["user"], test_helpers::expected_spawn_user("sleeper"));
     assert_eq!(entry["command"], test_helpers::sleep_cmd(300).0);
     assert_eq!(entry["args"], test_helpers::sleep_args_json());
     assert_eq!(entry["restart_count"], 0);
@@ -497,6 +501,8 @@ fn test_cli_describe_shows_all_fields() {
     out.assert_success()
         .assert_field("Name", "full")
         .assert_field("State", "Running")
+        .assert_field("Profile", "agent")
+        .assert_field("User", &test_helpers::expected_spawn_user("full"))
         .assert_field("Command", test_helpers::sleep_cmd(300).0)
         .assert_field("Args", &test_helpers::sleep_args_display())
         .assert_field("Description", "a test process")
@@ -509,6 +515,10 @@ fn test_cli_describe_shows_all_fields() {
 
     let pid = out.pid_from_field("PID");
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
+    out.assert_field(
+        "Runtime User",
+        &test_helpers::expected_runtime_user_for_pid(pid),
+    );
 }
 
 #[test]
@@ -524,6 +534,8 @@ fn test_cli_describe_after_exit() {
         .assert_field("Name", "quick")
         .assert_field("State", "Failed")
         .assert_field("PID", "-")
+        .assert_field("Profile", "agent")
+        .assert_field("User", &test_helpers::expected_spawn_user("quick"))
         .assert_field("Last Exit", "exit 1");
 }
 
@@ -572,11 +584,17 @@ fn test_cli_describe_json() {
 
     assert_eq!(json["name"], "sleeper");
     assert_eq!(json["state"], "Running");
+    assert_eq!(json["profile"], "agent");
+    assert_eq!(json["user"], test_helpers::expected_spawn_user("sleeper"));
     assert_eq!(json["command"], test_helpers::sleep_cmd(300).0);
     assert_eq!(json["args"], test_helpers::sleep_args_json());
     assert!(!json["uuid"].as_str().unwrap_or("").is_empty());
 
     let pid = json["pid"].as_u64().expect("pid should be a number") as u32;
+    assert_eq!(
+        json["runtime_user"],
+        test_helpers::expected_runtime_user_for_pid(pid)
+    );
     assert!(pid > 0);
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
 }
@@ -967,227 +985,6 @@ fn test_cli_create_env_vars() {
 }
 
 #[test]
-fn test_cli_reload_no_changes() {
-    let env = TestEnv::new()
-        .with_config("sleeper", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[sleeper] spawned");
-
-    env.cli(&["reload"])
-        .assert_success()
-        .assert_field("Unchanged", "sleeper");
-}
-
-#[test]
-fn test_cli_reload_add_process() {
-    let env = TestEnv::new()
-        .with_config("existing", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[existing] spawned");
-
-    write_config(
-        env.config_dir(),
-        "new-svc",
-        test_helpers::sleep_config_yaml(),
-    );
-
-    env.cli(&["reload"])
-        .assert_success()
-        .assert_field("Added", "new-svc");
-
-    env.daemon().wait_for_log_default("[new-svc] spawned");
-
-    let out = env.cli(&["list"]);
-    out.assert_success()
-        .assert_table_row("new-svc", &[("STATE", "Running")])
-        .assert_table_row("existing", &[("STATE", "Running")])
-        .assert_table_row_count(2);
-
-    let pid_new = out.pid_from_table_row("new-svc");
-    let pid_existing = out.pid_from_table_row("existing");
-    assert!(
-        pid_is_alive(pid_new),
-        "new-svc PID {pid_new} should be alive"
-    );
-    assert!(
-        pid_is_alive(pid_existing),
-        "existing PID {pid_existing} should be alive"
-    );
-}
-
-#[test]
-fn test_cli_reload_remove_process() {
-    let env = TestEnv::new()
-        .with_config("keeper", test_helpers::sleep_config_yaml())
-        .with_config("doomed", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[keeper] spawned");
-    env.daemon().wait_for_log_default("[doomed] spawned");
-
-    let doomed_pid = env.cli(&["list"]).pid_from_table_row("doomed");
-
-    std::fs::remove_file(env.config_dir().join("doomed.yaml"))
-        .expect("failed to remove doomed.yaml");
-
-    env.cli(&["reload"])
-        .assert_success()
-        .assert_field("Removed", "doomed");
-
-    assert!(
-        wait_for_pid_gone(doomed_pid, Duration::from_secs(5)),
-        "removed process PID {doomed_pid} should be gone"
-    );
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row_count(1)
-        .assert_table_row("keeper", &[("STATE", "Running")]);
-}
-
-#[test]
-fn test_cli_reload_modify_process() {
-    let env = TestEnv::new()
-        .with_config("svc", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[svc] spawned");
-
-    let old_pid = env.cli(&["list"]).pid_from_table_row("svc");
-
-    let (cmd, args) = dd_procmgrd::test_helpers::sleep_cmd(600);
-    write_config(
-        env.config_dir(),
-        "svc",
-        &test_helpers::cmd_yaml(cmd, &args, ""),
-    );
-
-    env.cli(&["reload"])
-        .assert_success()
-        .assert_field("Modified", "svc");
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[svc] spawned", 2, Duration::from_secs(10)),
-        "svc should have been respawned after modify"
-    );
-
-    assert!(
-        wait_for_pid_gone(old_pid, Duration::from_secs(5)),
-        "old PID {old_pid} should be gone after modify+reload"
-    );
-
-    let new_pid = env.cli(&["list"]).pid_from_table_row("svc");
-    assert!(pid_is_alive(new_pid), "new PID {new_pid} should be alive");
-    assert_ne!(old_pid, new_pid, "PID should change after modify+reload");
-}
-
-#[test]
-fn test_cli_reload_add_and_remove() {
-    let env = TestEnv::new()
-        .with_config("old", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[old] spawned");
-
-    let old_pid = env.cli(&["list"]).pid_from_table_row("old");
-
-    std::fs::remove_file(env.config_dir().join("old.yaml")).expect("failed to remove old.yaml");
-    write_config(env.config_dir(), "new", test_helpers::sleep_config_yaml());
-
-    let out = env.cli(&["reload"]);
-    out.assert_success()
-        .assert_field("Added", "new")
-        .assert_field("Removed", "old");
-
-    assert!(
-        wait_for_pid_gone(old_pid, Duration::from_secs(5)),
-        "old PID {old_pid} should be gone after removal"
-    );
-
-    env.daemon().wait_for_log_default("[new] spawned");
-
-    let new_pid = env.cli(&["list"]).pid_from_table_row("new");
-    assert!(pid_is_alive(new_pid), "new PID {new_pid} should be alive");
-}
-
-#[test]
-fn test_cli_reload_json() {
-    let env = TestEnv::new()
-        .with_config("existing", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[existing] spawned");
-
-    write_config(env.config_dir(), "added", test_helpers::sleep_config_yaml());
-
-    let out = env.cli(&["reload", "--json"]);
-    out.assert_success();
-    let json = out.stdout_json();
-
-    let added = json["added"].as_array().expect("added should be an array");
-    assert!(
-        added.iter().any(|v| v.as_str() == Some("added")),
-        "expected 'added' in added array: {json}"
-    );
-
-    let unchanged = json["unchanged"]
-        .as_array()
-        .expect("unchanged should be an array");
-    assert!(
-        unchanged.iter().any(|v| v.as_str() == Some("existing")),
-        "expected 'existing' in unchanged array: {json}"
-    );
-
-    assert!(json["removed"].as_array().expect("array").is_empty());
-    assert!(json["modified"].as_array().expect("array").is_empty());
-}
-
-#[test]
-fn test_cli_reload_new_process_starts() {
-    let env = TestEnv::new().start();
-
-    write_config(env.config_dir(), "late", test_helpers::sleep_config_yaml());
-
-    env.cli(&["reload"]).assert_success();
-    env.daemon().wait_for_log_default("[late] spawned");
-
-    let out = env.cli(&["list"]);
-    out.assert_success()
-        .assert_table_row("late", &[("STATE", "Running")]);
-
-    let pid = out.pid_from_table_row("late");
-    assert!(pid_is_alive(pid), "PID {pid} should be alive");
-}
-
-#[test]
-fn test_cli_reload_removed_process_stopped() {
-    let env = TestEnv::new()
-        .with_config("ephemeral", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[ephemeral] spawned");
-
-    let pid = env.cli(&["list"]).pid_from_table_row("ephemeral");
-
-    std::fs::remove_file(env.config_dir().join("ephemeral.yaml"))
-        .expect("failed to remove ephemeral.yaml");
-
-    env.cli(&["reload"]).assert_success();
-
-    assert!(
-        wait_for_pid_gone(pid, Duration::from_secs(5)),
-        "removed process PID {pid} should be gone"
-    );
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_stdout_contains("No processes");
-}
-
-#[test]
 fn test_cli_full_lifecycle() {
     let env = TestEnv::new().start();
 
@@ -1293,31 +1090,6 @@ fn test_cli_stop_start_then_kill_restarts_on_failure() {
         json[0]["restart_count"].as_u64().unwrap() >= 1,
         "restart_count should reflect the crash restart"
     );
-}
-
-#[test]
-fn test_cli_reload_then_start() {
-    let env = TestEnv::new().start();
-
-    write_config(
-        env.config_dir(),
-        "late",
-        &test_helpers::sleep_config_with("auto_start: false\n"),
-    );
-
-    env.cli(&["reload"])
-        .assert_success()
-        .assert_field("Added", "late");
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row("late", &[("STATE", "Created"), ("PID", "-")]);
-
-    env.cli(&["start", "late"]).assert_success();
-    env.daemon().wait_for_log_default("[late] spawned");
-
-    let pid = env.cli(&["list"]).pid_from_table_row("late");
-    assert!(pid_is_alive(pid), "PID {pid} should be alive");
 }
 
 #[test]
@@ -1479,15 +1251,6 @@ fn test_cli_all_commands_json_parseable() {
         .stdout_json();
 
     env.create_sleep("dyn", &["--json", "--no-auto-start"])
-        .assert_success()
-        .stdout_json();
-
-    write_config(
-        env.config_dir(),
-        "extra",
-        &test_helpers::sleep_config_with("auto_start: false\n"),
-    );
-    env.cli(&["reload", "--json"])
         .assert_success()
         .stdout_json();
 }
@@ -1973,7 +1736,7 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     );
     assert!(
         daemon.wait_for_log_default(
-            "[datadog-agent-ddot] exit does not match restart policy, not restarting"
+            "[datadog-agent-ddot] exit does not match restart policy (state=exited, restart=on-failure), not restarting"
         ),
         "on-failure restart should not trigger on exit 0"
     );

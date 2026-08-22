@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package procmgr contains end-to-end tests for dd-procmgr and dd-procmgrd.
 package procmgr
 
 import (
@@ -18,74 +19,41 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
-// platformConfig holds all platform-specific paths, commands, and config
-// snippets so that the shared test methods in baseProcmgrSuite work on both
-// Linux and Windows without branching.
 type platformConfig struct {
-	daemonBin    string // path to dd-procmgrd binary
-	cliBin       string // path to dd-procmgr CLI binary
-	configDir    string // processes.d directory for agent file provisioning
-	sleepCommand string // expected COMMAND column value in "list" output
+	daemonBin    string
+	cliBin       string
+	configDir    string
+	sleepCommand string // COMMAND column in `list` output
 
-	testProcessYAML   string // YAML config that starts a long-running sleep process
-	missingBinaryYAML string // YAML config whose condition_path_exists prevents start
+	testProcessYAML   string
+	missingBinaryYAML string
 
-	// checkBinCmd returns a shell command that succeeds (exit 0) when the
-	// given binary path exists on the remote host.
-	checkBinCmd func(path string) string
-
-	// checkSvcRunning is a shell command whose trimmed stdout indicates the
-	// service is running (compared against svcRunningOutput).
+	checkFileExists  func(path string) string
 	checkSvcRunning  string
 	svcRunningOutput string
 
-	// cliCmd returns the full shell command to invoke the procmgr CLI with
-	// the given arguments (handles quoting differences between bash and
-	// PowerShell).
-	cliCmd func(args string) string
-
-	// killPIDCmd returns a shell command that force-kills the given PID
-	// (simulates an external crash, not dd-procmgr stop).
-	killPIDCmd func(pid uint32) string
+	cliCmd     func(args string) string
+	killPIDCmd func(pid uint32) string // SIGKILL / Stop-Process, not `dd-procmgr stop`
 }
 
 type baseProcmgrSuite struct {
 	e2e.BaseSuite[environments.Host]
 	platform platformConfig
-	hasCLI   bool
 }
 
 func (s *baseProcmgrSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
-	_, err := s.Env().RemoteHost.Execute(s.platform.checkBinCmd(s.platform.daemonBin))
+	_, err := s.Env().RemoteHost.Execute(s.platform.checkFileExists(s.platform.daemonBin))
 	if err != nil {
 		s.T().Skip("procmgr daemon not included in this agent package; skipping process manager tests")
 	}
-
-	_, err = s.Env().RemoteHost.Execute(s.platform.checkBinCmd(s.platform.cliBin))
-	s.hasCLI = err == nil
 }
-
-func (s *baseProcmgrSuite) requireCLI() {
-	s.T().Helper()
-	if !s.hasCLI {
-		s.T().Skip("dd-procmgr CLI not included in this agent package")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Shared tests — run on both Linux and Windows
-// ---------------------------------------------------------------------------
 
 func (s *baseProcmgrSuite) TestBinariesExist() {
-	s.Env().RemoteHost.MustExecute(s.platform.checkBinCmd(s.platform.daemonBin))
-
-	if !s.hasCLI {
-		s.T().Skip("dd-procmgr CLI not included in this agent package")
-	}
-	s.Env().RemoteHost.MustExecute(s.platform.checkBinCmd(s.platform.cliBin))
+	s.Env().RemoteHost.MustExecute(s.platform.checkFileExists(s.platform.daemonBin))
+	s.Env().RemoteHost.MustExecute(s.platform.checkFileExists(s.platform.cliBin))
 }
 
 func (s *baseProcmgrSuite) TestServiceRunning() {
@@ -96,18 +64,23 @@ func (s *baseProcmgrSuite) TestServiceRunning() {
 }
 
 func (s *baseProcmgrSuite) TestCLIStatus() {
-	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("status"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliStatus())
 		assertHasField(ct, out, "Version")
+		assertField(ct, out, "Ready", "true")
 		assertHasField(ct, out, "Uptime")
+		assertHasField(ct, out, "Total Processes")
+		assertHasField(ct, out, "Running")
+		assertHasField(ct, out, "Stopped")
+		assertHasField(ct, out, "Created")
+		assertHasField(ct, out, "Failed")
+		assertHasField(ct, out, "Exited")
 	}, 30*time.Second, 2*time.Second)
 }
 
 func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
-	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
 		assertTableRow(ct, out, "test-sleep", map[string]string{
 			"STATE":   "Running",
 			"COMMAND": s.platform.sleepCommand,
@@ -116,45 +89,29 @@ func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
 }
 
 func (s *baseProcmgrSuite) TestCLIDescribe() {
-	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe("test-sleep"))
 		assertField(ct, out, "Name", "test-sleep")
 		assertField(ct, out, "State", "Running")
 		assertField(ct, out, "Command", s.platform.sleepCommand)
 	}, 30*time.Second, 2*time.Second)
 }
 
-func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
-	s.requireCLI()
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
-		assertTableRow(ct, out, "missing-binary", map[string]string{
-			"STATE": "Created",
-			"PID":   "-",
-		})
-	}, 30*time.Second, 2*time.Second)
-}
-
-// TestCLIStopStartThenKillRestarts verifies that after an explicit stop/start
-// cycle, an external kill still triggers the configured restart policy. A bug
-// in dd-procmgrd left stop_requested set after handle_stop, so the next crash
-// was treated as intentional and on-failure/always restart did not run.
+// Regression: leftover stop_requested after handle_stop treated the next crash as intentional.
 func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
-	s.requireCLI()
 	const procName = "test-sleep"
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
 		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
 	}, 30*time.Second, 2*time.Second)
 
-	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("stop " + procName))
-	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("start " + procName))
+	s.Env().RemoteHost.MustExecute(s.cliStop(procName))
+	s.Env().RemoteHost.MustExecute(s.cliStart(procName))
 
 	var pidBeforeKill uint64
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe(procName))
 		assertField(ct, out, "State", "Running")
 		pidStr := fieldValue(out, "PID")
 		require.NotEmpty(ct, pidStr)
@@ -167,9 +124,9 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 	s.Env().RemoteHost.MustExecute(s.platform.killPIDCmd(uint32(pidBeforeKill)))
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
 		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
-		desc := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		desc := s.Env().RemoteHost.MustExecuteOn(ct, s.cliDescribe(procName))
 		pidAfter := fieldValue(desc, "PID")
 		require.NotEmpty(ct, pidAfter)
 		require.NotEqual(ct, "-", pidAfter)
@@ -182,9 +139,15 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 	}, 30*time.Second, 2*time.Second)
 }
 
-// ---------------------------------------------------------------------------
-// CLI output parsing helpers
-// ---------------------------------------------------------------------------
+func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.cliList())
+		assertTableRow(ct, out, "missing-binary", map[string]string{
+			"STATE": "Created",
+			"PID":   "-",
+		})
+	}, 30*time.Second, 2*time.Second)
+}
 
 func fieldValue(output, label string) string {
 	needle := label + ":"

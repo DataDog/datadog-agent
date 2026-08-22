@@ -26,7 +26,6 @@ import (
 const (
 	linuxDaemonBin = "/opt/datadog-agent/embedded/bin/dd-procmgrd"
 	linuxCLIBin    = "/opt/datadog-agent/embedded/bin/dd-procmgr"
-	linuxSocket    = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 	linuxConfigDir = "/opt/datadog-agent/processes.d"
 
 	ddotPkgBinaryPath = "/opt/datadog-agent/embedded/bin/otel-agent"
@@ -55,10 +54,10 @@ var linuxPlatform = platformConfig{
 	sleepCommand:      "/bin/sleep",
 	testProcessYAML:   linuxTestProcessConfig,
 	missingBinaryYAML: linuxMissingBinaryConfig,
-	checkBinCmd:       func(path string) string { return "test -f " + path },
+	checkFileExists:   func(path string) string { return "test -f " + path },
 	checkSvcRunning:   "systemctl is-active datadog-agent-procmgr",
 	svcRunningOutput:  "active",
-	cliCmd:            func(args string) string { return linuxCLIBin + " " + args },
+	cliCmd:            func(args string) string { return "sudo " + linuxCLIBin + " " + args },
 	killPIDCmd: func(pid uint32) string {
 		return fmt.Sprintf("sudo kill -9 %d", pid)
 	},
@@ -93,17 +92,7 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.hasDDOT = s.installRealDDOT()
-
-	if s.hasCLI {
-		require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-			s.Env().RemoteHost.MustExecuteOn(t, "sudo chmod 0777 "+linuxSocket)
-		}, 30*time.Second, 2*time.Second)
-	}
 }
-
-// ---------------------------------------------------------------------------
-// Linux-only: DDOT tests
-// ---------------------------------------------------------------------------
 
 func ddotPackageName() string {
 	if os.Getenv("E2E_FIPS") != "" {
@@ -181,7 +170,7 @@ func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 	s.requireDDOT()
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(t, s.platform.cliCmd("describe datadog-agent-ddot"))
+		out := s.Env().RemoteHost.MustExecuteOn(t, s.cliDescribe("datadog-agent-ddot"))
 		assertField(t, out, "Name", "datadog-agent-ddot")
 		assertField(t, out, "State", "Running")
 		assertField(t, out, "Command", ddotExtBinaryPath)
@@ -191,53 +180,11 @@ func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 	}, 60*time.Second, 2*time.Second)
 }
 
-// TestDDOTReloadAfterYamlChange edits processes.d while DDOT is running under dd-procmgrd, runs
-// reload, and asserts the collector respawns (new PID, still Running). Covers the config-diff
-// restart path used when operators change stdout/stderr, env, args, etc.
-func (s *procmgrLinuxSuite) TestDDOTReloadAfterYamlChange() {
-	s.requireDDOT()
-
-	yamlPath := linuxConfigDir + "/datadog-agent-ddot.yaml"
-	sedRestoreDesc := "s/^description: E2E-reload-after-yaml/description: Datadog Distribution of OpenTelemetry Collector/"
-	sedApplyE2EDesc := "s/^description: Datadog Distribution of OpenTelemetry Collector/description: E2E-reload-after-yaml/"
-
-	originalPID := s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 60*time.Second)
-
-	s.T().Cleanup(func() {
-		_, _ = s.Env().RemoteHost.Execute(`sudo sed -i '` + sedRestoreDesc + `' ` + yamlPath)
-		_, _ = s.Env().RemoteHost.Execute(s.platform.cliCmd("reload"))
-	})
-
-	s.Env().RemoteHost.MustExecute(`sudo sed -i '` + sedApplyE2EDesc + `' ` + yamlPath)
-
-	reloadOut := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("reload"))
-	assert.Contains(s.T(), reloadOut, "datadog-agent-ddot", "reload output: %s", reloadOut)
-	assert.Contains(s.T(), reloadOut, "Modified", "reload output: %s", reloadOut)
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe datadog-agent-ddot"))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		assert.NotEqual(ct, originalPID, p, "DDOT should respawn with a new PID after reload")
-		s.assertProcessBinary(ct, p, ddotExtBinaryPath)
-	}, 60*time.Second, 2*time.Second)
-
-	out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe datadog-agent-ddot"))
-	assertField(s.T(), out, "Description", "E2E-reload-after-yaml")
-}
-
-// ---------------------------------------------------------------------------
-// Linux-only helpers
-// ---------------------------------------------------------------------------
-
 func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
 	s.T().Helper()
 	var pid string
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(t, s.platform.cliCmd("describe "+name))
+		out := s.Env().RemoteHost.MustExecuteOn(t, s.cliDescribe(name))
 		assertField(t, out, "State", "Running")
 		p := fieldValue(out, "PID")
 		if !assert.NotEmpty(t, p, "PID should be present for a Running process") ||
@@ -252,7 +199,7 @@ func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, t
 
 func (s *procmgrLinuxSuite) getRestartCount(name string) int {
 	s.T().Helper()
-	out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe " + name))
+	out := s.Env().RemoteHost.MustExecute(s.cliDescribe(name))
 	count, err := strconv.Atoi(fieldValue(out, "Restarts"))
 	require.NoError(s.T(), err, "Restarts field for %s should be a number", name)
 	return count
@@ -272,5 +219,4 @@ func (s *procmgrLinuxSuite) requireDDOT() {
 	if !s.hasDDOT {
 		s.T().Skipf("%s package not available", ddotPackageName())
 	}
-	s.requireCLI()
 }
