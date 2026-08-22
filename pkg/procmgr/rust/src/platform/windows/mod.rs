@@ -433,7 +433,10 @@ const FALLBACK_ENV_KEYS: &[&str] = &[
     "ComSpec",
 ];
 
-pub(crate) fn baseline_env_vars_for_spawn(process_name: &str, token: HANDLE) -> HashMap<String, String> {
+pub(crate) fn baseline_env_vars_for_spawn(
+    process_name: &str,
+    token: HANDLE,
+) -> HashMap<String, String> {
     match baseline_env_vars_from_token(token) {
         Ok(vars) => vars,
         Err(e) => {
