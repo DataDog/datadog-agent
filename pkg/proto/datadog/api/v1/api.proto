@@ -11,6 +11,7 @@ import "datadog/autodiscovery/autodiscovery.proto";
 import "datadog/kubemetadata/kubemetadata.proto";
 import "datadog/healthplatform/healthplatform.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
 
@@ -19,6 +20,94 @@ option go_package = "pkg/proto/pbgo/core"; // golang
 service Agent {
     // get the hostname
     rpc GetHostname (datadog.model.v1.HostnameRequest) returns (datadog.model.v1.HostnameReply);
+}
+
+message RemoteQueryTarget {
+    string host = 1;
+    int32 port = 2;
+    string dbname = 3;
+    string database_instance = 4;
+}
+
+message RemoteQueryExecuteLimits {
+    int32 max_rows = 1;
+    int32 max_bytes = 2;
+    int32 timeout_ms = 3;
+}
+
+message RemoteQueryExecuteCopyLimits {
+    int32 chunk_bytes = 1;
+    int32 max_bytes = 2;
+    int32 max_row_bytes = 3;
+    int32 timeout_ms = 4;
+}
+
+message RemoteQueryExecuteRequest {
+    string integration = 1;
+    RemoteQueryTarget target = 2;
+    string query = 3;
+    RemoteQueryExecuteLimits limits = 4;
+    string operation = 5;
+    string format = 6;
+    RemoteQueryExecuteCopyLimits copy_limits = 7;
+}
+
+message RemoteQueryExecuteError {
+    string code = 1;
+    string message = 2;
+}
+
+message RemoteQueryExecuteResponse {
+    string status = 1;
+    RemoteQueryExecuteError error = 2;
+    repeated google.protobuf.Struct columns = 3;
+    repeated google.protobuf.Struct rows = 4;
+    bool truncated = 5;
+    google.protobuf.Struct stats = 6;
+}
+
+message RemoteQueryStreamMetadata {
+    string operation = 1;
+    string integration = 2;
+    string format = 3;
+    map<string, string> attributes = 4;
+}
+
+message RemoteQueryStreamData {
+    bytes payload = 1;
+    uint64 offset = 2;
+    uint64 bytes = 3;
+}
+
+message RemoteQueryStreamFinal {
+    string status = 1;
+    uint64 bytes_emitted = 2;
+    uint64 chunks_emitted = 3;
+    map<string, string> attributes = 4;
+}
+
+message RemoteQueryStreamError {
+    string code = 1;
+    string message = 2;
+    bool retryable = 3;
+    map<string, string> attributes = 4;
+}
+
+message RemoteQueryExecuteStreamEvent {
+    uint64 sequence = 1;
+    oneof event {
+        RemoteQueryStreamMetadata metadata = 2;
+        RemoteQueryStreamData data = 3;
+        RemoteQueryStreamFinal final = 4;
+        RemoteQueryStreamError error = 5;
+    }
+}
+
+message RemoteQueryExecuteChunk {
+    reserved 1;
+    int32 chunk_index = 2;
+    bool final = 3;
+    RemoteQueryExecuteStreamEvent event = 4;
 }
 
 service AgentSecure {
@@ -71,6 +160,12 @@ service AgentSecure {
 
     // Evaluates a workloadfilter rule on behalf of remote agents.
     rpc WorkloadFilterEvaluate(datadog.workloadfilter.WorkloadFilterEvaluateRequest) returns (datadog.workloadfilter.WorkloadFilterEvaluateResponse);
+
+    // Executes an Agent-local Remote Queries request through a matched integration check.
+    rpc RemoteQueryExecute(RemoteQueryExecuteRequest) returns (RemoteQueryExecuteResponse);
+
+    // Executes an Agent-local Remote Queries COPY request and streams typed binary-safe events.
+    rpc RemoteQueryExecuteStream(RemoteQueryExecuteRequest) returns (stream RemoteQueryExecuteChunk);
 
     // Streams pod-to-service metadata for a specific node.
     rpc StreamKubeMetadata(datadog.kubemetadata.KubeMetadataStreamRequest) returns (stream datadog.kubemetadata.KubeMetadataStreamResponse);

@@ -1,0 +1,134 @@
+services:
+  postgres_a1:
+    image: postgres:${POSTGRES_IMAGE:-13-alpine}
+    command:
+      - postgres
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+      - -c
+      - log_statement=all
+      - -c
+      - "log_line_prefix=%m [%p] %u@%d %r "
+    environment:
+      POSTGRES_USER: bob
+      POSTGRES_PASSWORD: bob
+      EXPECTED_AGENT_HOSTNAME: rq-proof-agent-a
+      RQ_POSTGRES_HOST: localhost
+      RQ_POSTGRES_TARGET_PORT: 15432
+      RQ_DB_PREFIX: postgres_a1
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - ./targeting-matrix-postgres-init.sh:/docker-entrypoint-initdb.d/10-remote-query-identity.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bob -p 5432 -d postgres_a1_db1"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks:
+      - agent_a
+
+  postgres_a2:
+    image: postgres:${POSTGRES_IMAGE:-13-alpine}
+    command:
+      - postgres
+      - -c
+      - port=5433
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+      - -c
+      - log_statement=all
+      - -c
+      - "log_line_prefix=%m [%p] %u@%d %r "
+    environment:
+      POSTGRES_USER: bob
+      POSTGRES_PASSWORD: bob
+      PGPORT: 5433
+      EXPECTED_AGENT_HOSTNAME: rq-proof-agent-a
+      RQ_POSTGRES_HOST: localhost
+      RQ_POSTGRES_TARGET_PORT: 15433
+      RQ_DB_PREFIX: postgres_a2
+    ports:
+      - "127.0.0.1:15433:5433"
+    volumes:
+      - ./targeting-matrix-postgres-init.sh:/docker-entrypoint-initdb.d/10-remote-query-identity.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bob -p 5433 -d postgres_a2_db1"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks:
+      - agent_a
+
+  postgres_b1:
+    image: postgres:${POSTGRES_IMAGE:-13-alpine}
+    command:
+      - postgres
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+      - -c
+      - log_statement=all
+      - -c
+      - "log_line_prefix=%m [%p] %u@%d %r "
+    environment:
+      POSTGRES_USER: bob
+      POSTGRES_PASSWORD: bob
+      EXPECTED_AGENT_HOSTNAME: rq-proof-agent-b
+      RQ_POSTGRES_HOST: localhost
+      RQ_POSTGRES_TARGET_PORT: 25432
+      RQ_DB_PREFIX: postgres_b1
+    ports:
+      - "127.0.0.1:25432:5432"
+    volumes:
+      - ./targeting-matrix-postgres-init.sh:/docker-entrypoint-initdb.d/10-remote-query-identity.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bob -p 5432 -d postgres_b1_db1"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks:
+      - agent_b
+
+  postgres_b2:
+    image: postgres:${POSTGRES_IMAGE:-13-alpine}
+    command:
+      - postgres
+      - -c
+      - port=5433
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+      - -c
+      - log_statement=all
+      - -c
+      - "log_line_prefix=%m [%p] %u@%d %r "
+    environment:
+      POSTGRES_USER: bob
+      POSTGRES_PASSWORD: bob
+      PGPORT: 5433
+      EXPECTED_AGENT_HOSTNAME: rq-proof-agent-b
+      RQ_POSTGRES_HOST: localhost
+      RQ_POSTGRES_TARGET_PORT: 25433
+      RQ_DB_PREFIX: postgres_b2
+    ports:
+      - "127.0.0.1:25433:5433"
+    volumes:
+      - ./targeting-matrix-postgres-init.sh:/docker-entrypoint-initdb.d/10-remote-query-identity.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bob -p 5433 -d postgres_b2_db1"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks:
+      - agent_b
+
+networks:
+  agent_a: {}
+  agent_b: {}
