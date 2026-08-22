@@ -39,7 +39,7 @@ extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
-extern void emitAgentTelemetry(char*, char*, double, char*);
+extern void emitAgentTelemetry(char*, char*, double, char*, char*);
 extern void reportIssue(char*, char*, char**);
 extern void resolveIssue(char*, char**);
 
@@ -389,7 +389,7 @@ func resolveIssue(issueID *C.char, errOut **C.char) {
 }
 
 //export emitAgentTelemetry
-func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricType *C.char) {
+func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricType *C.char, labelsJSON *C.char) {
 	checkName := C.GoString(check)
 	metricName := C.GoString(metric)
 	metricValue := float64(value)
@@ -407,5 +407,8 @@ func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricTyp
 	}
 	if fmt.Sprintf("%.1f", metricValue) != "1.0" {
 		panic(fmt.Sprintf("unexpected metric value: %f", metricValue))
+	}
+	if labelsJSON != nil && C.GoString(labelsJSON) != `{"check_name": "openmetrics"}` {
+		panic(fmt.Sprintf("unexpected labels json: %s", C.GoString(labelsJSON)))
 	}
 }
