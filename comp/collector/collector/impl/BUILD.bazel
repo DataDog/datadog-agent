@@ -35,6 +35,7 @@ go_library(
         "//pkg/collector/runner/expvars",
         "//pkg/collector/scheduler",
         "//pkg/collector/sharedlibrary/sharedlibraryimpl",
+        "//pkg/config/metricresolution",
         "//pkg/jmxfetch",
         "//pkg/serializer",
         "//pkg/status/collector",

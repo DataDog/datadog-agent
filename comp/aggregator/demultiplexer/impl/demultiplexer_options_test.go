@@ -8,14 +8,21 @@ package demultiplexerimpl
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config/metricresolution"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
+
+func requireOptions(t *testing.T, cfg configmock.Component, params Params, factory aggregator.DogStatsDLookbackFactory) aggregator.AgentDemultiplexerOptions {
+	t.Helper()
+	return createAgentDemultiplexerOptions(cfg, params, factory, nil)
+}
 
 func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountNotReadWithoutConfigOption(t *testing.T) {
 	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
@@ -23,8 +30,7 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountNotReadWithoutConfigOpti
 		"dogstatsd_no_aggregation_pipeline_workers_count": 4,
 	})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), nil, nil)
-
+	options := requireOptions(t, cfg, NewDefaultParams(), nil)
 	require.Equal(t, 0, options.NoAggregationPipelineWorkersCount)
 }
 
@@ -34,8 +40,7 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountFromConfig(t *testing.T)
 		"dogstatsd_no_aggregation_pipeline_workers_count": 4,
 	})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil, nil)
-
+	options := requireOptions(t, cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
 	require.Equal(t, 4, options.NoAggregationPipelineWorkersCount)
 }
 
@@ -44,8 +49,7 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountDefaultsToOneWhenEnabled
 		"dogstatsd_no_aggregation_pipeline": true,
 	})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil, nil)
-
+	options := requireOptions(t, cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
 	require.Equal(t, 1, options.NoAggregationPipelineWorkersCount)
 }
 
@@ -55,8 +59,7 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountDisabled(t *testing.T) {
 		"dogstatsd_no_aggregation_pipeline_workers_count": 4,
 	})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil, nil)
-
+	options := requireOptions(t, cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
 	require.Equal(t, 0, options.NoAggregationPipelineWorkersCount)
 }
 
@@ -68,8 +71,7 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountFallsBackToOne(t *testin
 				"dogstatsd_no_aggregation_pipeline_workers_count": configured,
 			})
 
-			options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil, nil)
-
+			options := requireOptions(t, cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
 			require.Equal(t, 1, options.NoAggregationPipelineWorkersCount)
 		})
 	}
@@ -81,9 +83,40 @@ func TestCreateAgentDemultiplexerOptionsStoresLookbackFactory(t *testing.T) {
 		return nil
 	})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), factory, nil)
-
+	options := requireOptions(t, cfg, NewDefaultParams(), factory)
 	require.NotNil(t, options.DogStatsDLookbackFactory)
+}
+
+func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentDisabledParity(t *testing.T) {
+	t.Setenv(metricresolution.EnabledEnvVar, "false")
+
+	options := requireOptions(t, configmock.NewMock(t), NewDefaultParams(), nil)
+	require.Equal(t, aggregator.DefaultFlushInterval, options.FlushInterval)
+	require.False(t, options.UseOneSecondDogStatsDAggregation)
+}
+
+func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentEnabled(t *testing.T) {
+	t.Setenv(metricresolution.EnabledEnvVar, "true")
+
+	options := requireOptions(t, configmock.NewMock(t), NewDefaultParams(), nil)
+	require.Equal(t, time.Second, options.FlushInterval)
+	require.True(t, options.UseOneSecondDogStatsDAggregation)
+}
+
+func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentOverridesParams(t *testing.T) {
+	t.Setenv(metricresolution.EnabledEnvVar, "true")
+
+	options := requireOptions(t, configmock.NewMock(t), NewDefaultParams(WithFlushInterval(5*time.Second)), nil)
+	require.Equal(t, time.Second, options.FlushInterval)
+	require.True(t, options.UseOneSecondDogStatsDAggregation)
+}
+
+func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentPreservesZeroFlushInterval(t *testing.T) {
+	t.Setenv(metricresolution.EnabledEnvVar, "true")
+
+	options := requireOptions(t, configmock.NewMock(t), NewDefaultParams(WithFlushInterval(0)), nil)
+	require.Zero(t, options.FlushInterval)
+	require.True(t, options.UseOneSecondDogStatsDAggregation)
 }
 
 type recordingFinalDogStatsDSerieObserver struct{}

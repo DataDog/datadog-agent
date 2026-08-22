@@ -128,6 +128,31 @@ func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
 }
 
+func TestOneSecondBucketSampling(t *testing.T) {
+	sampler := NewTimeSampler(TimeSamplerID(0), 1, tags.NewStore(false, "test"), nooptagger.NewComponent(), "host")
+	matcher := filterlist.NewNoopTagMatcher()
+
+	for _, timestamp := range []float64{100.1, 101.1} {
+		sampler.sample(&metrics.MetricSample{Name: "test.gauge", Value: timestamp, Mtype: metrics.GaugeType, SampleRate: 1}, timestamp, matcher)
+		sampler.sample(&metrics.MetricSample{Name: "test.count", Value: 1, Mtype: metrics.CountType, SampleRate: 1}, timestamp, matcher)
+		sampler.sample(&metrics.MetricSample{Name: "test.distribution", Value: timestamp, Mtype: metrics.DistributionType, SampleRate: 1}, timestamp, matcher)
+	}
+
+	series, sketches := flushSerie(sampler, 102, false)
+	require.Len(t, series, 2)
+	for _, serie := range series {
+		require.Equal(t, int64(1), serie.Interval)
+		timestamps := []float64{serie.Points[0].Ts, serie.Points[1].Ts}
+		sort.Float64s(timestamps)
+		require.Equal(t, []float64{100, 101}, timestamps)
+	}
+	require.Len(t, sketches, 1)
+	require.Equal(t, int64(1), sketches[0].Interval)
+	timestamps := []int{int(sketches[0].Points[0].Ts), int(sketches[0].Points[1].Ts)}
+	sort.Ints(timestamps)
+	require.Equal(t, []int{100, 101}, timestamps)
+}
+
 func TestTimeSamplerDogStatsDLookbackReceivesSelectedResolvedContext(t *testing.T) {
 	samper := testTimeSampler(tags.NewStore(true, "test"))
 	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
