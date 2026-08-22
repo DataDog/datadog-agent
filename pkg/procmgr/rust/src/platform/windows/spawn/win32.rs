@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
@@ -26,8 +26,7 @@ pub(crate) fn env_block_from_baseline_plus_overrides(
     token: HANDLE,
     overrides: &[(String, String)],
 ) -> Result<Vec<u16>> {
-    let baseline = super::super::baseline_env_vars_from_token(token)
-        .context("build child environment from spawn token")?;
+    let baseline = super::super::baseline_env_vars_for_spawn(process_name, token);
     let vars =
         super::super::legacy_scm_env::build_child_env_vars(process_name, baseline, overrides);
     Ok(env_vars_to_wide_block(&vars))
