@@ -87,13 +87,25 @@ type tmOpts struct {
 	staticOpts  testOpts
 	dynamicOpts dynamicTestOpts
 	forceReload bool
+
+	// staticOptsSet records that the call site supplied withStaticOpts, so that
+	// resolveStaticOpts can tell "no static opts" from "the default config,
+	// explicitly". An empty testOpts is a legitimate config, so the zero value
+	// of staticOpts cannot answer that on its own.
+	staticOptsSet bool
 }
 
 type optFunc = func(opts *tmOpts)
 
+// withStaticOpts supplies the config for this newTestModule call. Prefer
+// declaring it next to the test function (see testdecl.go), which lets the test
+// share a module with the others that use the same config; supplying it here is
+// the route for a config that is only knowable at run time, and pairs with
+// declareInlineConfig.
 func withStaticOpts(opts testOpts) optFunc {
 	return func(tmo *tmOpts) {
 		tmo.staticOpts = opts
+		tmo.staticOptsSet = true
 	}
 }
 
