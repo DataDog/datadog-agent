@@ -38,22 +38,28 @@ const baselineAnalysisDisabledYAML = `  baseline_analysis:
 
 // Canonical observer telemetry names.
 const (
-	telemetrySeriesCount    = "observer.series.count"
-	telemetryLogsInFlight   = "observer.logs.in_flight"
-	telemetryLogsIngested   = "observer.logs.ingested"
-	telemetryReportsEmitted = "observer.reports.emitted"
-	telemetryReportsOngoing = "observer.reports.ongoing"
+	telemetryObservationsAccepted = "observer.observations.accepted"
+	telemetrySeriesCount          = "observer.series.count"
+	telemetryLogsInFlight         = "observer.logs.in_flight"
+	telemetryReportsEmitted       = "observer.reports.emitted"
+	telemetryReportsOngoing       = "observer.reports.ongoing"
 
 	// scorerHelperEscalationMarker is emitted by anomalyScorer.OnSeverityTransition
 	// when output.logs=true and the EWMA rises above low_threshold (an escalation event).
 	// Logged at info level, captured by journald, and serves as the assertion target.
-	// Full example: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
-	scorerHelperEscalationMarker = "[observer] anomaly scorer anomaly_scorer severity escalation"
+	// Full example: "[anomalydetection] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
+	scorerHelperEscalationMarker = "[anomalydetection] anomaly scorer anomaly_scorer severity escalation"
+
+	// scorerEpisodeStartedMarker is emitted by the stdout reporter when the
+	// scorer opens an episode after reaching High severity. The reporter appends
+	// either the scorer metadata or a multiline contributor summary, so retain
+	// only the prefix common to both renderings.
+	scorerEpisodeStartedMarker = "[anomalydetection] reporter scorer episode started:"
 
 	// scorerHelperRegisteredMarker is logged once at agent startup when the
 	// anomaly scorer is successfully wired with telemetry. Waiting for it
 	// before sending metrics ensures the scorer is active.
-	scorerHelperRegisteredMarker = "[observer] anomaly_scorer registered"
+	scorerHelperRegisteredMarker = "[anomalydetection] anomaly scorer registered"
 )
 
 // observerTestSuite is a minimal interface satisfied by all suite types in this
@@ -120,14 +126,32 @@ func containsMetric(haystack, metric string) bool {
 }
 
 func containsMetricWithTag(haystack, metric, key, value string) bool {
-	if !containsMetric(haystack, metric) {
-		return false
+	return containsMetricWithTags(haystack, metric, map[string]string{key: value})
+}
+
+// containsMetricWithTags verifies that the metric name and every requested tag
+// appear on the same telemetry line.
+func containsMetricWithTags(haystack, metric string, tags map[string]string) bool {
+	for _, line := range strings.Split(haystack, "\n") {
+		if !containsAny(line, metricNameVariants(metric)...) {
+			continue
+		}
+		matched := true
+		for key, value := range tags {
+			if !containsAny(line,
+				fmt.Sprintf("%s=\"%s\"", key, value),
+				fmt.Sprintf("%s:%s", key, value),
+				fmt.Sprintf("%s=%s", key, value),
+			) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
 	}
-	return containsAny(haystack,
-		fmt.Sprintf("%s=\"%s\"", key, value),
-		fmt.Sprintf("%s:%s", key, value),
-		fmt.Sprintf("%s=%s", key, value),
-	)
+	return false
 }
 
 func observerTelemetryOutput(s observerTestSuite) string {
@@ -174,14 +198,17 @@ func sendGauge(s observerTestSuite, name string, value float64) {
 	}
 }
 
-func waitForReportsTelemetry(s observerTestSuite) {
+func waitForScorerEpisode(s observerTestSuite, expectedAnomalySource string) {
 	s.T().Helper()
-	s.T().Log("waiting for observer reports telemetry...")
+	s.T().Log("waiting for anomaly scorer episode...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
-		tel := observerTelemetryOutput(s)
-		assert.True(c, containsMetric(tel, telemetryReportsEmitted),
-			"observer telemetry should expose reports emitted counter after anomalies")
+		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
+		assert.NoError(c, err, "journalctl execution failed")
+		assert.Contains(c, out, scorerEpisodeStartedMarker,
+			"journal should contain the scorer episode-started marker after anomalies")
+		assert.Contains(c, out, expectedAnomalySource,
+			"journal should contain an anomaly from the test input source")
 	}, 3*time.Minute, 5*time.Second)
-	s.T().Log("observer reports telemetry detected")
+	s.T().Log("anomaly scorer episode detected")
 }

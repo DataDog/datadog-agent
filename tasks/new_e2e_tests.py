@@ -531,13 +531,17 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
     help={
         "profile": "Override auto-detected runner profile (local or CI)",
         "tags": "Build tags to use",
-        "targets": "Target packages (same as dda inv test)",
+        "targets": "Target packages, relative to the module (same as dda inv test). Repeatable",
         "configparams": "Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)",
         "verbose": "Verbose output: log all tests as they are run (same as gotest -v) [default: True]",
-        "run": "Only run tests matching the regular expression",
+        "run": "Only run tests matching the regular expression. Anchor it to avoid matching tests that share a prefix",
         "skip": "Only run tests not matching the regular expression",
+        "recursive": "Include subpackages of each target [default: True]",
+        "osdescriptors": "Restrict the run to these OS descriptors, comma-separated (e.g. 'ubuntu:22.04')",
         "agent_image": 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
+        "local_package": "Directory holding a locally built Agent package to install instead of a published one; build one with `dda inv omnibus.build-repackaged-agent`",
+        "flavor": 'Agent package flavor to install (e.g. "datadog-agent")',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
         "max_retries": "Maximum number of retries for failed tests, default 3",
@@ -545,6 +549,11 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
         "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
         "pipeline_id": "GitLab pipeline ID to use; the commit SHA is automatically fetched from this pipeline for container-based tests",
+        "cache": "Allow the Go test cache. Disabled by default so that re-running a passing test really re-runs it",
+        "extra_flags": "Flags appended verbatim to the go test command after -args, for suite-specific flags this task does not model",
+        "logs_folder": "Directory the Agent logs collected from the environment are written to",
+        "result_json": "Path to write the machine-readable test results to",
+        "junit_tar": "Path to write a tarball of JUnit XML reports to",
     },
 )
 def run(
@@ -767,7 +776,7 @@ def run(
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    cmd = f"gotestsum --format {gotestsum_format} "
+    cmd = f"--format {gotestsum_format} "
     raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
