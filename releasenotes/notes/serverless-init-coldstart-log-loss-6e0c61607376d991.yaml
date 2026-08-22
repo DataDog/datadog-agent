@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix ``serverless-init`` losing log lines on GCP Cloud Run sidecar
+    instances that receive a cold start followed by a single fast request:
+    the log tailer is now drained during shutdown so the last request's log
+    line reaches Datadog, and tailer offsets are now persisted so the
+    application's startup line is also captured, without re-sending
+    previously shipped lines on an instance restart.
