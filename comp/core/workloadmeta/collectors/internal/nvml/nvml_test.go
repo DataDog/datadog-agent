@@ -21,7 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -45,11 +45,9 @@ func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
 
 func TestPull(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMock()
+	nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
 	c := newTestCollector(t, wmetaMock)
-
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	c.Pull(context.Background())
 
@@ -101,11 +99,10 @@ func TestPull(t *testing.T) {
 
 func TestPullNVLinkVersion(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1, NvLinkLinkCount: 1}),
 	)
 	c := newTestCollector(t, wmetaMock)
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	c.Pull(context.Background())
 
@@ -121,11 +118,10 @@ func TestPullNVLinkVersion(t *testing.T) {
 
 func TestPullWithoutNVLink(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithNVLinkLinkCount(0),
 	)
 	c := newTestCollector(t, wmetaMock)
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	c.Pull(context.Background())
 
@@ -239,15 +235,14 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	expectedActivePIDs := testutil.DefaultActivePIDs()
 
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithDefaultMIGDevices(),
 		testutil.WithProcessDataCallback(func(_ string) (testutil.MockProcessInfoList, nvml.Return) {
 			return processInfo, nvml.SUCCESS
 		}),
 	)
 
 	c := newTestCollector(t, wmetaMock)
-
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// First pull to populate the store with initial PIDs
 	c.Pull(context.Background())
@@ -280,14 +275,12 @@ func TestProcessEntities(t *testing.T) {
 	processInfo := make(map[string]testutil.MockProcessInfoList)
 
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithProcessDataCallback(func(uuid string) (testutil.MockProcessInfoList, nvml.Return) {
+	nvmltestutil.SetupMockNVML(t, testutil.WithProcessDataCallback(func(uuid string) (testutil.MockProcessInfoList, nvml.Return) {
 		return processInfo[uuid], nvml.SUCCESS
 	}))
 
 	c := newTestCollector(t, wmetaMock)
 	c.integrateWithWorkloadmetaProcesses = true
-
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// Pull first, we have no process info so we should have no Process entities
 	c.Pull(context.Background())
@@ -367,7 +360,7 @@ func TestProcessEntityMerging(t *testing.T) {
 	procinfo := testutil.MockProcessInfoList{
 		{Pid: uint32(pid), UsedGpuMemory: 100},
 	}
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithDeviceCount(1),
 		testutil.WithProcessDataCallback(func(_ string) (testutil.MockProcessInfoList, nvml.Return) {
 			return procinfo, nvml.SUCCESS
@@ -375,8 +368,6 @@ func TestProcessEntityMerging(t *testing.T) {
 	)
 	c := newTestCollector(t, wmetaMock)
 	c.integrateWithWorkloadmetaProcesses = true
-
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// First, create Process entity from GPU collector
 	c.Pull(context.Background())
@@ -454,11 +445,9 @@ func TestProcessEntityMerging(t *testing.T) {
 
 func TestPullWithMIGDevices(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMock()
+	nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
 	c := newTestCollector(t, wmetaMock)
-
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	c.Pull(context.Background())
 

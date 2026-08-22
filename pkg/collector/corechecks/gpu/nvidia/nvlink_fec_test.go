@@ -15,6 +15,7 @@ import (
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -121,7 +122,12 @@ func TestNVLinkFECCollectorConfigurableLightErrorThreshold(t *testing.T) {
 func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 	fieldValues := fecHistoryFieldValues()
 
-	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(1), testutil.WithFieldValuesFullOverride(fieldValues))
+	mock := nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceCount(1),
+		testutil.WithNVLinkLinkCount(1),
+		testutil.WithFieldValuesFullOverride(fieldValues),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mock, 0)
 
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
@@ -130,6 +136,7 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 	// one field not supported, another with invalid value type
 	fieldValues[nvlinkFECHistoryFieldIDs[3]] = testutil.FieldError(nvml.ERROR_NOT_SUPPORTED)
 	fieldValues[nvlinkFECHistoryFieldIDs[7]] = testutil.MockFieldValue{Value: 9999, ValueType: nvml.ValueType(9999), Return: nvml.SUCCESS}
+	mock.Device(0).SetFieldValues(fieldValues)
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)
@@ -140,7 +147,12 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 
 func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
 	fieldValues := fecHistoryFieldValues()
-	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(1), testutil.WithFieldValuesFullOverride(fieldValues))
+	mock := nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceCount(1),
+		testutil.WithNVLinkLinkCount(1),
+		testutil.WithFieldValuesFullOverride(fieldValues),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mock, 0)
 
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
@@ -148,6 +160,7 @@ func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
 	for fieldID := range fieldValues {
 		fieldValues[fieldID] = testutil.FieldError(nvml.ERROR_NOT_SUPPORTED)
 	}
+	mock.Device(0).SetFieldValues(fieldValues)
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)
