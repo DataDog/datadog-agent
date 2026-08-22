@@ -9,16 +9,18 @@ package process
 
 import (
 	"bufio"
-	"bytes"
 	"debug/elf" //nolint:depguard
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
+
+	"go.opentelemetry.io/ebpf-profiler/libc"
+	"go.opentelemetry.io/ebpf-profiler/libpf"
+	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
+	"go.opentelemetry.io/ebpf-profiler/remotememory"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -95,16 +97,18 @@ func serializeOTelTLSValue(res otelTLSResolution) []byte {
 }
 
 // otelTLSModule is the mapped ELF object exporting otel_thread_ctx_v1, with
-// the load bias needed to turn its ELF addresses into live ones.
+// the load bias needed to turn its ELF addresses into live ones. The handle is
+// a pfelf one because that is what the upstream copy of resolveTLSAccess reads
+// relocations through.
 type otelTLSModule struct {
 	path     string
 	loadBias uint64
-	file     *safeelf.File
+	file     *pfelf.File
 }
 
 // otelTargetProcess holds per-pid state for OTel TLS resolution. The maps
 // fields memoize /proc/<pid>/maps, needed both to find the module exporting
-// otel_thread_ctx_v1 and to detect musl vs. glibc.
+// otel_thread_ctx_v1 and to find the libc the DTV layout comes from.
 type otelTargetProcess struct {
 	pid     uint32
 	pidStr  string
@@ -146,7 +150,13 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 		return otelTLSResolution{}, errors.New("TLS export is not a TLS symbol")
 	}
 
-	access, err := resolveTLSAccess(module.file, sym)
+	// resolveTLSAccess only reads the symbol's value, but takes the upstream
+	// symbol type; the STT_TLS and size checks above are what the rest of it is
+	// for, and they need safeelf's Section and Info, which libpf.Symbol has not.
+	access, err := resolveTLSAccess(module.file, &libpf.Symbol{
+		Address: libpf.SymbolValue(sym.Value),
+		Size:    sym.Size,
+	})
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
@@ -255,20 +265,18 @@ func (p *otelTargetProcess) findOTelTLSModule() (*otelTLSModule, *safeelf.Symbol
 		return nil, nil, err
 	}
 
-	pageSize := uint64(os.Getpagesize())
 	for _, path := range order {
-		elfFile, err := openOTelELF(p.fsPath(path))
+		sym := findOTelTLSSymbol(p.fsPath(path))
+		if sym == nil {
+			continue
+		}
+
+		elfFile, err := pfelf.Open(p.fsPath(path))
 		if err != nil {
 			continue
 		}
 
-		sym := findOTelTLSSymbol(elfFile)
-		if sym == nil {
-			elfFile.Close()
-			continue
-		}
-
-		loadBias, err := elfLoadBias(elfFile, grouped[path], pageSize)
+		loadBias, err := elfLoadBias(elfFile, grouped[path])
 		if err != nil {
 			elfFile.Close()
 			continue
@@ -280,10 +288,18 @@ func (p *otelTargetProcess) findOTelTLSModule() (*otelTLSModule, *safeelf.Symbol
 	return nil, nil, fmt.Errorf("TLS symbol %q not found in currently mapped readable ELF objects", otelTLSSymbolName)
 }
 
-// findOTelTLSSymbol looks up otelTLSSymbolName in the dynamic symbol table
-// (exported symbols of shared libraries and PIEs), then in the full symbol
-// table (local symbols, fully-static non-PIE executables).
-func findOTelTLSSymbol(ef *safeelf.File) *safeelf.Symbol {
+// findOTelTLSSymbol looks up otelTLSSymbolName in the object at path: first in
+// the dynamic symbol table (exported symbols of shared libraries and PIEs),
+// then in the full symbol table (local symbols, fully-static non-PIE
+// executables). The lookup stays on safeelf, whose symbols carry the section
+// index and the info byte that libpf.Symbol does not.
+func findOTelTLSSymbol(path string) *safeelf.Symbol {
+	ef, err := openOTelELF(path)
+	if err != nil {
+		return nil
+	}
+	defer ef.Close()
+
 	if syms, err := ef.DynamicSymbols(); err == nil {
 		if sym := findOTelTLSSymbolByName(syms); sym != nil {
 			return sym
@@ -308,11 +324,11 @@ func findOTelTLSSymbolByName(syms []safeelf.Symbol) *safeelf.Symbol {
 	return nil
 }
 
-// attachOTelTLS reads the loader-resolved GOT/TLSDESC slot from the live
-// process (/proc/<pid>/mem) and produces the final tls_offset, module_id and
-// dtv_info handed to eBPF.
-func attachOTelTLS(target *otelTargetProcess, bias uint64, d *otelTLSAccessData) (otelTLSResolution, error) {
-	rm := otelRemoteMemory{pidStr: target.pidStr}
+// attachOTelTLS reads the loader-resolved GOT/TLSDESC slot out of the live
+// process and produces the final tls_offset, module_id and dtv_info handed to
+// eBPF.
+func attachOTelTLS(target *otelTargetProcess, bias uint64, d *data) (otelTLSResolution, error) {
+	rm := remotememory.NewProcessVirtualMemory(libpf.PID(target.pid))
 
 	switch d.access {
 	case accessLocalExec:
@@ -320,7 +336,7 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *otelTLSAccessData)
 
 	case accessInitialExec:
 		// The GOT slot holds the variable's TP-relative offset directly.
-		v, err := rm.Uint64(bias + d.elfAddr)
+		v, err := readRemoteUint64(rm, bias+uint64(d.elfAddr))
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
@@ -328,11 +344,11 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *otelTLSAccessData)
 
 	case accessGlobalDynamic:
 		// The GOT holds a tls_index {module_id, offset} pair.
-		moduleID, err := rm.Uint64(bias + d.elfAddr)
+		moduleID, err := readRemoteUint64(rm, bias+uint64(d.elfAddr))
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
-		tlsOffset, err := rm.Uint64(bias + d.elfAddr + 8)
+		tlsOffset, err := readRemoteUint64(rm, bias+uint64(d.elfAddr)+8)
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
@@ -340,7 +356,7 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *otelTLSAccessData)
 
 	case accessLocalDynamic:
 		// The GOT holds the module_id; the in-module offset is the symbol value.
-		moduleID, err := rm.Uint64(bias + d.elfAddr)
+		moduleID, err := readRemoteUint64(rm, bias+uint64(d.elfAddr))
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
@@ -348,7 +364,7 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *otelTLSAccessData)
 
 	case accessTLSDesc:
 		// The second word of the descriptor holds the resolved argument.
-		arg, err := rm.Uint64(bias + d.elfAddr + 8)
+		arg, err := readRemoteUint64(rm, bias+uint64(d.elfAddr)+8)
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
@@ -357,11 +373,11 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *otelTLSAccessData)
 		// offsets are negative on x86_64 and small positive on aarch64, so a
 		// large positive value means dynamic.
 		if int64(arg) > 0xffffffff {
-			moduleID, err := rm.Uint64(arg)
+			moduleID, err := readRemoteUint64(rm, arg)
 			if err != nil {
 				return otelTLSResolution{}, err
 			}
-			tlsOffset, err := rm.Uint64(arg + 8)
+			tlsOffset, err := readRemoteUint64(rm, arg+8)
 			if err != nil {
 				return otelTLSResolution{}, err
 			}
@@ -390,100 +406,67 @@ func newDynamicOTelTLS(target *otelTargetProcess, moduleID, tlsOffset uint64) (o
 	}, nil
 }
 
-// otelRemoteMemory reads absolute virtual addresses out of a live process's
-// memory via /proc/<pid>/mem.
-type otelRemoteMemory struct {
-	pidStr string
-}
-
-// Uint64 reads one 8-byte native-endian word at addr. The target can exit
-// between symbol resolution and this read, so errors here are expected
-// resolution failures, not bugs.
-func (rm otelRemoteMemory) Uint64(addr uint64) (uint64, error) {
-	memPath := kernel.HostProc(rm.pidStr, "mem")
-	f, err := os.Open(memPath)
-	if err != nil {
-		return 0, fmt.Errorf("open %s: %w", memPath, err)
-	}
-	defer f.Close()
-
+// readRemoteUint64 reads one 8-byte native-endian word at addr out of the
+// target's memory. RemoteMemory.Uint64 reports a failed read as a zero value,
+// which is indistinguishable from a legitimately zero GOT slot, so go through
+// Read. The target can exit between symbol resolution and this read, so errors
+// here are expected resolution failures, not bugs.
+func readRemoteUint64(rm remotememory.RemoteMemory, addr uint64) (uint64, error) {
 	var buf [8]byte
-	if _, err := f.ReadAt(buf[:], int64(addr)); err != nil {
-		return 0, fmt.Errorf("read 8 bytes at %#x from %s: %w", addr, memPath, err)
+	if err := rm.Read(libpf.Address(addr), buf[:]); err != nil {
+		return 0, fmt.Errorf("read 8 bytes at %#x: %w", addr, err)
 	}
 	return binary.NativeEndian.Uint64(buf[:]), nil
 }
 
+// dtvInfo derives the DTV layout of this process's libc, by disassembling its
+// __tls_get_addr through the OTel eBPF profiler's libc package -- the same
+// extraction the profiler relies on, rather than a hardcoded table of per-libc,
+// per-architecture constants.
 func (p *otelTargetProcess) dtvInfo() (otelDTVInfo, error) {
-	musl, err := p.usesMusl()
+	_, order, err := p.groupedReadableFileMaps()
 	if err != nil {
 		return otelDTVInfo{}, err
 	}
-	return defaultOTelDTVInfo(musl), nil
-}
 
-// usesMusl reports whether the process's dynamic loader (or, for fully-static
-// binaries, its libc) is musl rather than glibc, which is all that is needed
-// to pick the DTV layout.
-func (p *otelTargetProcess) usesMusl() (bool, error) {
-	_, order, err := p.groupedReadableFileMaps()
-	if err != nil {
-		return false, err
-	}
 	for _, path := range order {
-		if isMuslLoaderPath(path) {
-			return true, nil
+		if !libc.IsPotentialLibcDSO(path) {
+			continue
+		}
+		if info, ok := extractDTVInfo(p.fsPath(path)); ok {
+			return info, nil
 		}
 	}
 
-	// No musl loader mapped: look for a musl PT_INTERP, or the main_tls /
-	// builtin_tls .symtab marker pair that fully-static musl binaries carry.
-	elfFile, err := openOTelELF(p.fsPath(p.exePath))
+	// No libc DSO is mapped: a fully-static binary carries libc's code itself.
+	if info, ok := extractDTVInfo(p.fsPath(p.exePath)); ok {
+		return info, nil
+	}
+
+	return otelDTVInfo{}, errors.New("no mapped object exposes a recognizable __tls_get_addr")
+}
+
+// extractDTVInfo reads the DTV layout out of one ELF object, reporting false
+// when it holds no __tls_get_addr the profiler's decoders recognize.
+func extractDTVInfo(path string) (otelDTVInfo, bool) {
+	elfFile, err := pfelf.Open(path)
 	if err != nil {
-		return false, err
+		return otelDTVInfo{}, false
 	}
 	defer elfFile.Close()
 
-	if isMuslLoaderPath(elfInterpreter(elfFile)) {
-		return true, nil
+	// ExtractLibcInfo also extracts TSD info, which this resolver has no use
+	// for, and only fails when both extractions do -- so the DTV half has to be
+	// checked on its own.
+	info, err := libc.ExtractLibcInfo(elfFile)
+	if err != nil || !info.HasDTVInfo() {
+		return otelDTVInfo{}, false
 	}
-	_, mainTLS := symbolValueInSymtab(elfFile, "main_tls")
-	_, builtinTLS := symbolValueInSymtab(elfFile, "builtin_tls")
-	return mainTLS && builtinTLS, nil
-}
-
-func isMuslLoaderPath(path string) bool {
-	return strings.Contains(path, "/ld-musl-")
-}
-
-// defaultOTelDTVInfo returns the DTV entry size and TCB-to-DTV-pointer offset
-// for the given libc on the running architecture, hardcoded rather than
-// derived by disassembling __tls_get_addr the way upstream does.
-//
-// TODO(OTEP-4947): the x86_64 musl offset is unverified against musl's struct
-// pthread layout (src/internal/pthread_impl.h) and just reuses the glibc
-// value; no test covers musl + dlopen'd TLS.
-func defaultOTelDTVInfo(musl bool) otelDTVInfo {
-	tcbDTVOffset := int64(0)
-	switch runtime.GOARCH {
-	case "amd64":
-		// glibc tcbhead_t{void *tcb; dtv_t *dtv; ...}; tp points at tcb, which
-		// aliases the struct itself, so dtv sits at tp+8.
-		tcbDTVOffset = 8
-	case "arm64":
-		if musl {
-			tcbDTVOffset = -8
-		}
-		// else: glibc tcbhead_t{void *dtv; void *private}; tp (TPIDR_EL0)
-		// points directly at the struct, so dtv sits at tp+0.
-	}
-
-	entrySize := uint32(16) // glibc dtv_t{counter, pointer} pairs
-	if musl {
-		entrySize = 8 // musl's dtv is a plain void* array, no generation-counter word
-	}
-
-	return otelDTVInfo{offset: tcbDTVOffset, multiplier: entrySize}
+	// Widened to the field types struct otel_dtv_info_t needs; see otelDTVInfo.
+	return otelDTVInfo{
+		offset:     int64(info.DTVInfo.Offset),
+		multiplier: uint32(info.DTVInfo.Multiplier),
+	}, true
 }
 
 func openOTelELF(path string) (*safeelf.File, error) {
@@ -503,87 +486,38 @@ func openOTelELF(path string) (*safeelf.File, error) {
 }
 
 // elfLoadBias returns the difference between an ELF object's link-time and
-// runtime addresses: its lowest mapping is matched to the PT_LOAD segment with
-// the same page-aligned file offset, and the bias is that mapping's start
-// address minus the segment's page-aligned vaddr.
-func elfLoadBias(elfFile *safeelf.File, maps []procfs.MapsEntry, pageSize uint64) (uint64, error) {
+// runtime addresses: one of its executable mappings is turned back into the
+// virtual address the object was linked at, and the bias is that mapping's
+// start address minus it. The conversion, including the page-alignment
+// subtleties of how the kernel and the dynamic loader place a segment, comes
+// from the profiler's pfelf.AddressMapper; it indexes executable PT_LOAD
+// segments only, hence the executable anchor.
+func elfLoadBias(elfFile *pfelf.File, maps []procfs.MapsEntry) (uint64, error) {
 	if elfFile.Type == elf.ET_EXEC {
 		return 0, nil
 	}
-	if len(maps) == 0 {
-		return 0, errors.New("no maps entries for ELF")
+
+	anchor, ok := executableMapping(maps)
+	if !ok {
+		return 0, errors.New("no executable mapping for ELF")
 	}
 
-	anchor := maps[0]
-	for _, entry := range maps[1:] {
-		if entry.StartAddr < anchor.StartAddr {
-			anchor = entry
-		}
+	mapper := elfFile.GetAddressMapper()
+	vaddr, ok := mapper.FileOffsetToVirtualAddress(anchor.Offset)
+	if !ok {
+		return 0, fmt.Errorf("no executable segment covers file offset %#x", anchor.Offset)
 	}
-
-	for _, prog := range elfFile.Progs {
-		if prog.Type != elf.PT_LOAD {
-			continue
-		}
-
-		phdrOffset := alignDown(prog.Off, pageSize)
-		phdrVaddr := alignDown(prog.Vaddr, pageSize)
-		if anchor.Offset == phdrOffset && anchor.StartAddr >= phdrVaddr {
-			return anchor.StartAddr - phdrVaddr, nil
-		}
+	if anchor.StartAddr < vaddr {
+		return 0, fmt.Errorf("mapped at %#x, below the link-time address %#x", anchor.StartAddr, vaddr)
 	}
-
-	return 0, errors.New("could not compute load bias")
+	return anchor.StartAddr - vaddr, nil
 }
 
-func alignDown(value uint64, alignment uint64) uint64 {
-	if alignment <= 1 {
-		return value
-	}
-	return value &^ (alignment - 1)
-}
-
-func elfInterpreter(elfFile *safeelf.File) string {
-	for _, prog := range elfFile.Progs {
-		if prog.Type != elf.PT_INTERP || prog.Filesz == 0 {
-			continue
-		}
-		data, err := readELFProgBytes(prog, 0, int(prog.Filesz))
-		if err != nil {
-			return ""
-		}
-		if idx := bytes.IndexByte(data, 0); idx >= 0 {
-			data = data[:idx]
-		}
-		return string(data)
-	}
-	return ""
-}
-
-func readELFProgBytes(prog *elf.Prog, offset uint64, size int) ([]byte, error) {
-	if size < 0 || offset > prog.Filesz || uint64(size) > prog.Filesz-offset {
-		return nil, io.ErrUnexpectedEOF
-	}
-
-	reader := prog.Open()
-	if _, err := reader.Seek(int64(offset), io.SeekStart); err != nil {
-		return nil, err
-	}
-
-	data := make([]byte, size)
-	_, err := io.ReadFull(reader, data)
-	return data, err
-}
-
-func symbolValueInSymtab(elfFile *safeelf.File, name string) (uint64, bool) {
-	syms, err := elfFile.Symbols()
-	if err != nil {
-		return 0, false
-	}
-	for _, sym := range syms {
-		if sym.Name == name && sym.Section != elf.SHN_UNDEF {
-			return sym.Value, true
+func executableMapping(maps []procfs.MapsEntry) (procfs.MapsEntry, bool) {
+	for _, entry := range maps {
+		if strings.Contains(entry.Permissions, "x") {
+			return entry, true
 		}
 	}
-	return 0, false
+	return procfs.MapsEntry{}, false
 }
