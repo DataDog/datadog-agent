@@ -1,0 +1,15 @@
+services:
+  fake-haproxy:
+    container_name: fake-haproxy
+    image: ${DD_REGISTRY:-docker.io}/library/python:3.12-slim
+    command:
+      - sh
+      - -c
+      - |
+        python3 << 'EOF'
+{{.Script}}
+        EOF
+    labels:
+      com.datadoghq.ad.check.id: haproxy
+    expose:
+      - "8404"
