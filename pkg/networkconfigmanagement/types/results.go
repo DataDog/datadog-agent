@@ -12,9 +12,9 @@ import (
 
 // CommandResult records a command that was run and the resulting output.
 type CommandResult struct {
-	CommandStr string `json:"command_str"`
+	CommandStr string `json:"command"`
 	Output     string `json:"output"`
-	Error      string `json:"error"`
+	Error      string `json:"error,omitempty"`
 }
 
 // FormattedError returns nil if there was no error, and otherwise returns an
@@ -56,6 +56,13 @@ type PushResult struct {
 // RollbackResponse is the JSON body returned by the /agent/ncm/rollback endpoint.
 type RollbackResponse struct {
 	CommandResults *PushResult `json:"command_results"`
-	ErrorCode      string      `json:"error_code"`
-	ErrorMsg       string      `json:"error_msg"`
+	ErrorCode      string      `json:"error_code,omitempty"`
+	ErrorMsg       string      `json:"error_msg,omitempty"`
+}
+
+// RunCommandResponse is the JSON body returned by the /agent/ncm/run-command endpoint.
+type RunCommandResponse struct {
+	CommandResult *CommandResult `json:"result"`
+	ErrorCode     string         `json:"error_code,omitempty"`
+	ErrorMsg      string         `json:"error_msg,omitempty"`
 }

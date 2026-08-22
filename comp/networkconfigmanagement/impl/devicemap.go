@@ -19,7 +19,7 @@ type UnknownDeviceError struct {
 	deviceID string
 }
 
-// Type implements [types.RollbackError].
+// Type implements [types.TypedError].
 func (u *UnknownDeviceError) Type() types.ErrorType {
 	return types.ErrNoSuchDevice
 }
@@ -28,7 +28,7 @@ func (u *UnknownDeviceError) Error() string {
 	return fmt.Sprintf("unknown device: %q", u.deviceID)
 }
 
-var _ types.RollbackError = (*UnknownDeviceError)(nil)
+var _ types.TypedError = (*UnknownDeviceError)(nil)
 
 // DeviceMap wraps a sync.Map of DeviceContexts to streamline the process of
 // fetching and locking them.
