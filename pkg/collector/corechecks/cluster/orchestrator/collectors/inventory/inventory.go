@@ -43,6 +43,17 @@ var draAPIVersions = []string{"v1", "v1beta2", "v1beta1"}
 // server-preferred group versions first, so exactly one version of each is
 // enabled: whichever the API server prefers. Only the newest is the default
 // version — see GenericResource.IsDefaultVersion for why that matters.
+//
+// Registered as non-stable, so they are collected only when the check names
+// them explicitly. Stable would activate them on every cluster serving
+// resource.k8s.io, including the ones whose Cluster Agent has no RBAC for the
+// group yet: the LIST 403s, HasSynced never fires, and Initialize blocks for
+// kube_cache_sync_timeout_seconds plus the extra sync timeout (70s by default)
+// before skipCollector gives up on them. The permissions ship from
+// helm-charts and datadog-operator, on their own release trains, so that
+// window is real rather than hypothetical. Flip to stable once those carry the
+// grant; until then this also matches kubernetes_state_core, where DRA sits
+// behind collect_dra_resources.
 func draGenericResources() []k8sCollectors.GenericResource {
 	resources := make([]k8sCollectors.GenericResource, 0, 2*len(draAPIVersions))
 	for _, name := range []string{"resourceclaims", "resourceslices"} {
@@ -52,7 +63,7 @@ func draGenericResources() []k8sCollectors.GenericResource {
 				Group:            "resource.k8s.io",
 				Version:          version,
 				NodeType:         orchestrator.K8sCR,
-				Stable:           true,
+				Stable:           false,
 				IsDefaultVersion: i == 0,
 			})
 		}

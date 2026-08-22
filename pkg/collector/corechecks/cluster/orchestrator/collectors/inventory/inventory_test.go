@@ -61,7 +61,6 @@ func TestDRAGenericResourcesCoverBetaVersions(t *testing.T) {
 		for _, version := range []string{"v1", "v1beta2", "v1beta1"} {
 			m, ok := byNameVersion[[2]string{name, version}]
 			require.True(t, ok, "%s must be registered for %s", name, version)
-			assert.True(t, m.IsStable, "%s/%s must be stable or discovery skips it", name, version)
 			assert.Equal(t, "resource.k8s.io/"+version, m.GroupVersion())
 		}
 	}
@@ -86,5 +85,24 @@ func TestGenericResourcesHaveExactlyOneDefaultVersion(t *testing.T) {
 
 	for name := range names {
 		assert.Equal(t, 1, defaults[name], "generic resource %q must have exactly one default version", name)
+	}
+}
+
+// TestDRAGenericResourcesAreOptIn pins the activation model. Marking these
+// stable makes APIServerDiscoveryProvider.walkAPIResources activate them on
+// every cluster serving resource.k8s.io -- including those whose Cluster Agent
+// has no RBAC for the group, where the LIST 403s and Initialize stalls for the
+// full cache-sync plus extra-sync timeout before skipping them. Unstable keeps
+// discovery off them while addCollectorFromConfig still honours an explicit
+// collectors list, so the feature stays reachable without that cost.
+func TestDRAGenericResourcesAreOptIn(t *testing.T) {
+	byNameVersion := genericMetadataByNameVersion(t)
+
+	for _, name := range []string{"resourceclaims", "resourceslices"} {
+		for _, version := range []string{"v1", "v1beta2", "v1beta1"} {
+			m, ok := byNameVersion[[2]string{name, version}]
+			require.True(t, ok, "%s must be registered for %s", name, version)
+			assert.False(t, m.IsStable, "%s/%s must stay opt-in until the charts ship resource.k8s.io RBAC", name, version)
+		}
 	}
 }
