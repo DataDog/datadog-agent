@@ -1,4 +1,5 @@
 using System.Security.Principal;
+using CustomActions.Tests.Helpers;
 using Datadog.CustomActions.Native;
 using FluentAssertions;
 using Moq;
@@ -13,7 +14,7 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
     {
         public ConfigureUserCustomActionsTestSetup Test { get; } = new();
 
-        [Theory]
+        [ElevatedTheory]
         [InlineData("1")]
         [InlineData("true")]
         [InlineData("TRUE")]
@@ -28,7 +29,7 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
             Test.Create().ShouldKeepUserAccountRights().Should().BeTrue();
         }
 
-        [Theory]
+        [ElevatedTheory]
         [InlineData("")]
         [InlineData(null)]
         [InlineData("0")]
@@ -44,7 +45,7 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
             Test.Create().ShouldKeepUserAccountRights().Should().BeFalse();
         }
 
-        [Fact]
+        [ElevatedFact]
         public void ConfigureUserAccountRights_Skips_SeDeny_Rights_But_Still_Grants_SeServiceLogonRight_When_Flag_Set()
         {
             Test.Session
@@ -70,7 +71,7 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
                 Times.Never);
         }
 
-        [Fact]
+        [ElevatedFact]
         public void ConfigureUserAccountRights_Adds_All_Rights_When_Flag_Not_Set()
         {
             Test.Create().ConfigureUserAccountRights();
