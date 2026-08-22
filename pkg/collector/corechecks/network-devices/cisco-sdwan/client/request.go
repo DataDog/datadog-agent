@@ -115,7 +115,7 @@ func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInf
 	for page := 0; currentPageInfo.MoreEntries || currentPageInfo.HasMoreData; page++ {
 		// Error if max number of pages is reached
 		if page >= client.maxPages {
-			return nil, errors.New("max number of page reached, increase API count or max number of pages")
+			return nil, fmt.Errorf("reached max_pages limit after fetching %d pages and more data remains; increase max_count and/or max_pages to collect all data. current_configs: max_count=%s, max_pages=%d", page, client.maxCount, client.maxPages)
 		}
 
 		log.Tracef("Getting page %d from endpoint %s", page+1+1, endpoint)
