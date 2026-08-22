@@ -729,6 +729,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveSetgidEGroup(ev, &ev.SetGID)
 		_ = ev.FieldHandlers.ResolveSetgidFSGroup(ev, &ev.SetGID)
 		_ = ev.FieldHandlers.ResolveSetgidGroup(ev, &ev.SetGID)
+	case "setns":
 	case "setrlimit":
 		_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.Setrlimit.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Setrlimit.Target.Process)

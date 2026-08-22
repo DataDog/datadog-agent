@@ -153,6 +153,8 @@ const (
 	NopEventType
 	// SocketEventType is sent when a socket is created
 	SocketEventType
+	// SetNSEventType is sent when a thread joins an existing namespace
+	SetNSEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -356,6 +358,8 @@ func (t EventType) String() string {
 		return "nop"
 	case SocketEventType:
 		return "socket"
+	case SetNSEventType:
+		return "setns"
 	default:
 		return "unknown"
 	}
