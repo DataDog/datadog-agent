@@ -13,6 +13,7 @@ import (
 	"expvar"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -38,6 +39,7 @@ var (
 // Discovery handles snmp discovery states
 type Discovery struct {
 	config    *checkconfig.CheckConfig
+	index     int
 	stop      chan struct{}
 	discDevMu sync.RWMutex
 
@@ -89,6 +91,8 @@ func (d *Discovery) Start() {
 func (d *Discovery) Stop() {
 	log.Debugf("subnet %s: Stop discovery", d.config.Network)
 	close(d.stop)
+	// A changed-credentials reload gets a new index, so delete the old key explicitly.
+	discoveryVar.Delete(listeners.GetSubnetVarKey(d.config.Network, d.index))
 }
 
 // GetDiscoveredDeviceConfigs returns discovered device configs
@@ -157,7 +161,7 @@ func (d *Discovery) discoverDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
-		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, 0), &expvar.String{})
+		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, d.index), &expvar.String{})
 		subnet.devicesScannedCounter.Store(uint32(len(subnet.config.IgnoredIPAddresses)))
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
@@ -226,7 +230,7 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 	}
 
 	discoveryStatus := listeners.AutodiscoveryStatus{DevicesFoundList: d.getDevicesFound(), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
-	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, 0), &discoveryStatus)
+	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, d.index), &discoveryStatus)
 
 	return nil
 }
@@ -352,8 +356,12 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 
 // NewDiscovery return a new Discovery instance
 func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory, agentConfig config.Component, scanManager snmpscanmanager.Component) *Discovery {
+	// Derived from the config digest, not a counter, so reconfiguring the same instance
+	// (Cancel then Configure) reuses its snmpDiscovery expvar key instead of leaking a new one.
+	digest, _ := strconv.ParseUint(string(config.DeviceDigest(config.Network)), 16, 64)
 	return &Discovery{
 		discoveredDevices: make(map[checkconfig.DeviceDigest]Device),
+		index:             int(digest),
 		stop:              make(chan struct{}),
 		config:            config,
 		sessionFactory:    sessionFactory,

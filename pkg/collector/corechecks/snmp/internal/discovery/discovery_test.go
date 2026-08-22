@@ -7,11 +7,14 @@ package discovery
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"net"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	snmpscanmanagermock "github.com/DataDog/datadog-agent/comp/snmpscanmanager/mock"
@@ -33,6 +36,16 @@ func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, tim
 		time.Sleep(100 * time.Millisecond)
 	}
 	return fmt.Errorf("timeout after waiting for %v, expected at least %d devices but %d has been discovered", timeout, expectedDeviceCount, deviceCount)
+}
+
+func discoveryVarHasKey(key string) bool {
+	found := false
+	discoveryVar.Do(func(kv expvar.KeyValue) {
+		if kv.Key == key {
+			found = true
+		}
+	})
+	return found
 }
 
 func TestDiscovery(t *testing.T) {
@@ -159,6 +172,56 @@ func TestDiscoveryCache(t *testing.T) {
 		actualDiscoveredIpsFromCache = append(actualDiscoveredIpsFromCache, deviceCk.GetIPAddress())
 	}
 	assert.ElementsMatch(t, expectedDiscoveredIps, actualDiscoveredIpsFromCache)
+}
+
+func TestNewDiscoveryIndex(t *testing.T) {
+	config1 := &checkconfig.CheckConfig{
+		Network:         "127.0.10.1/30",
+		CommunityString: "public",
+	}
+	config2 := &checkconfig.CheckConfig{
+		Network:         "127.0.10.1/30",
+		CommunityString: "cisco",
+	}
+
+	original := NewDiscovery(config1, nil, nil, nil)
+	reconfigured := NewDiscovery(config1, nil, nil, nil)
+	assert.Equal(t, original.index, reconfigured.index, "reconfiguring the same config must reuse its index")
+
+	differentCreds := NewDiscovery(config2, nil, nil, nil)
+	assert.NotEqual(t, original.index, differentCreds.index, "configs with different credentials must not collide")
+}
+
+func TestDiscoveryStopDeletesExpvarKey(t *testing.T) {
+	synctest.Test(t, syncTestDiscoveryStopDeletesExpvarKey)
+}
+
+func syncTestDiscoveryStopDeletesExpvarKey(t *testing.T) {
+	config := agentconfig.NewMock(t)
+	config.SetInTest("run_path", t.TempDir())
+
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return nil, nil
+	}
+
+	checkConfig := &checkconfig.CheckConfig{
+		Network:            "192.168.1.0/32",
+		CommunityString:    "public",
+		DiscoveryInterval:  3600,
+		DiscoveryWorkers:   1,
+		IgnoredIPAddresses: map[string]bool{"192.168.1.0": true},
+		ProfileProvider:    profile.StaticProvider(nil),
+	}
+	discovery := NewDiscovery(checkConfig, sessionFactory, config, nil)
+	key := listeners.GetSubnetVarKey(checkConfig.Network, discovery.index)
+
+	discovery.Start()
+	synctest.Wait()
+	assert.True(t, discoveryVarHasKey(key), "Start must publish the subnet's status")
+
+	discovery.Stop()
+	synctest.Wait()
+	assert.False(t, discoveryVarHasKey(key), "Stop must delete the subnet's status")
 }
 
 func TestDiscoveryTicker(t *testing.T) {
