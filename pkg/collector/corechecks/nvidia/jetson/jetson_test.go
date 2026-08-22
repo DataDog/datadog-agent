@@ -692,6 +692,62 @@ func TestGpuMetricSenderEMCWithoutGPU(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Gauge", 2)
 }
 
+func TestVoltageMetricSenderNoFields(t *testing.T) {
+	tegraCheck := new(JetsonCheck)
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
+	voltageSender := &voltageMetricsSender{}
+	require.NoError(t, voltageSender.Init())
+
+	// tegrastats output on some devices (e.g. Jetson AGX Orin Dev Kit on Jetson Linux
+	// R36.4.4) does not include any VDD_* power rail fields at all. This is still
+	// reported as an error by the sender itself...
+	err := voltageSender.SendMetrics(mock, "RAM 1/2MB EMC_FREQ 41%@4266 cpu@35C")
+	assert.EqualError(t, err, "nvidia.jetson.power: could not parse voltage fields")
+
+	mock.AssertNotCalled(t, "Gauge", "nvidia.jetson.power.instant")
+	mock.AssertNotCalled(t, "Gauge", "nvidia.jetson.power.average")
+	mock.AssertNumberOfCalls(t, "Gauge", 0)
+}
+
+func TestJetsonAgxOrinNoVoltageFields(t *testing.T) {
+	tegraCheck := new(JetsonCheck)
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+
+	// Reported in AGENT-16649: on a Jetson AGX Orin Dev Kit running Jetson Linux
+	// R36.4.4, tegrastats output has no VDD_* power rail fields at all. Previously
+	// this caused processTegraStatsOutput to bail out before Commit(), so *no*
+	// Jetson metrics were reported at all. Now the voltage sender's error is
+	// logged and the rest of the metrics are still sent.
+	noVoltageSample := "RAM 1179/3983MB (lfb 120x4MB) CPU [1%@102] EMC_FREQ 7%@408 GR3D_FREQ 0%@76 APE 25 CPU@37.5C thermal@38.5C"
+
+	mock.On("Gauge", "nvidia.jetson.mem.used", 1179.0*mb, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.mem.total", 3983.0*mb, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.mem.n_lfb", 120.0, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.mem.lfb", 4.0*mb, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 1.0, "", []string{"cpu:0"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 102.0, "", []string{"cpu:0"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.inactive_count", 0.0, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.total_count", 1.0, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.emc.usage", 7.0, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.emc.freq", 408.0, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.gpu.usage", 0.0, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.gpu.freq", 76.0, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.temp", 37.5, "", []string{"zone:CPU"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.temp", 38.5, "", []string{"zone:thermal"}).Return().Once()
+
+	mock.On("Commit").Return().Once()
+
+	err := tegraCheck.processTegraStatsOutput(noVoltageSample)
+	assert.NoError(t, err)
+
+	mock.AssertExpectations(t)
+	mock.AssertMetricMissing(t, "Gauge", "nvidia.jetson.power.instant")
+	mock.AssertMetricMissing(t, "Gauge", "nvidia.jetson.power.average")
+	mock.AssertNumberOfCalls(t, "Gauge", 14)
+	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
 func TestConfigureWithCustomTegraStatsPath(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
