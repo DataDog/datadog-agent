@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -403,14 +404,23 @@ var (
 	}
 
 	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")
+
+	legacyManagedLinkPaths = []string{
+		"managed/datadog-agent/stable",
+		"managed/datadog-agent/experiment",
+	}
 )
 
 func getConfigFileSpec(file string) *configFileSpec {
 	normalizedFile := filepath.ToSlash(file)
 
-	// Fallback for legacy files under the /managed directory
-	if strings.HasPrefix(normalizedFile, "/managed") {
-		filename := filepath.Base(normalizedFile)
+	// Fallback for files in the legacy managed config tree. The exact root is
+	// allowed because legacy migration deletes it before recreating the config.
+	legacyConfigPath := "/" + filepath.ToSlash(legacyPathPrefix)
+	if normalizedFile == "/managed" ||
+		normalizedFile == legacyConfigPath ||
+		strings.HasPrefix(normalizedFile, legacyConfigPath+"/") {
+		filename := path.Base(normalizedFile)
 
 		for _, spec := range allowedConfigFiles {
 			// Skip patterns with nested paths (e.g., /conf.d/*.yaml)
@@ -419,8 +429,8 @@ func getConfigFileSpec(file string) *configFileSpec {
 			}
 
 			// Extract just the filename from the pattern
-			patternFilename := filepath.Base(spec.pattern)
-			match, err := filepath.Match(patternFilename, filename)
+			patternFilename := path.Base(spec.pattern)
+			match, err := path.Match(patternFilename, filename)
 			if err != nil {
 				continue
 			}
@@ -438,7 +448,7 @@ func getConfigFileSpec(file string) *configFileSpec {
 	}
 
 	for _, spec := range allowedConfigFiles {
-		match, err := filepath.Match(spec.pattern, normalizedFile)
+		match, err := path.Match(spec.pattern, normalizedFile)
 		if err != nil {
 			continue
 		}
@@ -447,6 +457,168 @@ func getConfigFileSpec(file string) *configFileSpec {
 		}
 	}
 	return nil
+}
+
+func isManagedConfigYAML(relativePath string) bool {
+	return strings.EqualFold(filepath.Ext(relativePath), ".yaml") &&
+		getConfigFileSpec("/"+filepath.ToSlash(relativePath)) != nil
+}
+
+func removeConfigFilesMissingFromSource(sourcePath, targetPath string) error {
+	sourceRoot, err := os.OpenRoot(sourcePath)
+	if err != nil {
+		return fmt.Errorf("could not open source config directory: %w", err)
+	}
+	defer sourceRoot.Close()
+
+	targetRoot, err := os.OpenRoot(targetPath)
+	if err != nil {
+		return fmt.Errorf("could not open target config directory: %w", err)
+	}
+	defer targetRoot.Close()
+
+	return walkFiles(targetRoot.FS(), ".", func(relativePath string, _ fs.DirEntry) error {
+		if !isManagedConfigYAML(relativePath) {
+			return nil
+		}
+		return removeConfigFileMissingFromSource(sourceRoot, targetRoot, relativePath)
+	})
+}
+
+func removeConfigFileMissingFromSource(sourceRoot, targetRoot *os.Root, relativePath string) error {
+	_, err := sourceRoot.Lstat(relativePath)
+	if err == nil {
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("could not check source config file %q: %w", relativePath, err)
+	}
+	if err := targetRoot.Remove(relativePath); err != nil {
+		return fmt.Errorf("could not remove config file %q during rollback: %w", relativePath, err)
+	}
+	return nil
+}
+
+func walkFiles(fsys fs.FS, root string, fn func(relativePath string, entry fs.DirEntry) error) error {
+	return fs.WalkDir(fsys, root, func(filePath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+
+		relativePath := filePath
+		if root != "." {
+			relativePath = strings.TrimPrefix(filePath, root+"/")
+		}
+		return fn(relativePath, entry)
+	})
+}
+
+func reconcileLegacyManagedLinksBeforeCopy(sourcePath, targetPath string) error {
+	sourceRoot, err := os.OpenRoot(sourcePath)
+	if err != nil {
+		return fmt.Errorf("could not open source config directory: %w", err)
+	}
+	defer sourceRoot.Close()
+
+	targetRoot, err := os.OpenRoot(targetPath)
+	if err != nil {
+		return fmt.Errorf("could not open target config directory: %w", err)
+	}
+	defer targetRoot.Close()
+
+	for _, relativePath := range legacyManagedLinkPaths {
+		sourceInfo, err := sourceRoot.Lstat(relativePath)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("could not inspect source legacy link %q: %w", relativePath, err)
+		}
+		if sourceInfo.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+
+		if err := targetRoot.RemoveAll(relativePath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("could not reconcile legacy link %q: %w", relativePath, err)
+		}
+	}
+	return nil
+}
+
+func verifyLegacyManagedLinksCopied(sourceRoot, targetRoot *os.Root) error {
+	for _, relativePath := range legacyManagedLinkPaths {
+		sourceInfo, err := sourceRoot.Lstat(relativePath)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("could not inspect source legacy link %q: %w", relativePath, err)
+		}
+		if sourceInfo.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+
+		sourceTarget, err := sourceRoot.Readlink(relativePath)
+		if err != nil {
+			return fmt.Errorf("could not read source legacy link %q: %w", relativePath, err)
+		}
+
+		targetInfo, err := targetRoot.Lstat(relativePath)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("legacy link %q was not copied", relativePath)
+		}
+		if err != nil {
+			return fmt.Errorf("could not inspect copied legacy link %q: %w", relativePath, err)
+		}
+		if targetInfo.Mode()&os.ModeSymlink == 0 {
+			return fmt.Errorf("legacy link %q was not restored as a symlink", relativePath)
+		}
+
+		targetTarget, err := targetRoot.Readlink(relativePath)
+		if err != nil {
+			return fmt.Errorf("could not read copied legacy link %q: %w", relativePath, err)
+		}
+		if targetTarget != sourceTarget {
+			return fmt.Errorf("legacy link %q target mismatch: got %q, want %q", relativePath, targetTarget, sourceTarget)
+		}
+	}
+	return nil
+}
+
+func verifyConfigFilesCopied(sourcePath, targetPath string) error {
+	sourceRoot, err := os.OpenRoot(sourcePath)
+	if err != nil {
+		return fmt.Errorf("could not open source config directory: %w", err)
+	}
+	defer sourceRoot.Close()
+
+	targetRoot, err := os.OpenRoot(targetPath)
+	if err != nil {
+		return fmt.Errorf("could not open target config directory: %w", err)
+	}
+	defer targetRoot.Close()
+
+	err = walkFiles(sourceRoot.FS(), ".", func(relativePath string, _ fs.DirEntry) error {
+		if !strings.EqualFold(path.Ext(relativePath), ".yaml") {
+			return nil
+		}
+
+		_, err := targetRoot.Lstat(relativePath)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("config file %q was not copied", relativePath)
+		}
+		if err != nil {
+			return fmt.Errorf("could not check copied config file %q: %w", relativePath, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return verifyLegacyManagedLinksCopied(sourceRoot, targetRoot)
 }
 
 func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {

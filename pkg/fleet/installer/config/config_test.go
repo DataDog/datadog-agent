@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 )
 
@@ -585,6 +586,161 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 
 	err = op.apply(context.Background(), root)
 	assert.Error(t, err)
+}
+
+func TestRemoveConfigFilesMissingFromSource(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	writeFile := func(root, path string) {
+		t.Helper()
+		fullPath := filepath.Join(root, filepath.FromSlash(path))
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
+		require.NoError(t, os.WriteFile(fullPath, []byte(path), 0644))
+	}
+
+	for _, path := range []string{
+		"datadog.yaml",
+		"conf.d/existing.d/config.yaml",
+	} {
+		writeFile(sourceDir, path)
+		writeFile(targetDir, path)
+	}
+	for _, path := range []string{
+		"security-agent.yaml",
+		"conf.d/new.d/config.yaml",
+		"files/conf.d/customer.yaml",
+		"conf.d/new.d/README.txt",
+		"managed/datadog-agent/stable/metadata.json",
+		"managed-user.yaml",
+		"managed-custom/customer.yaml",
+		"managed/datadog-agent/other/customer.yaml",
+		"managed/datadog-agent/stable-custom/customer.yaml",
+		"auth_token",
+	} {
+		writeFile(targetDir, path)
+	}
+
+	require.NoError(t, removeConfigFilesMissingFromSource(sourceDir, targetDir))
+
+	assert.FileExists(t, filepath.Join(targetDir, "datadog.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "conf.d", "existing.d", "config.yaml"))
+	assert.NoFileExists(t, filepath.Join(targetDir, "security-agent.yaml"))
+	assert.NoFileExists(t, filepath.Join(targetDir, "conf.d", "new.d", "config.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "files", "conf.d", "customer.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "conf.d", "new.d", "README.txt"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed", "datadog-agent", "stable", "metadata.json"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed-user.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed-custom", "customer.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed", "datadog-agent", "other", "customer.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "managed", "datadog-agent", "stable-custom", "customer.yaml"))
+	assert.FileExists(t, filepath.Join(targetDir, "auth_token"))
+}
+
+func TestGetConfigFileSpecLegacyManagedPaths(t *testing.T) {
+	assert.NotNil(t, getConfigFileSpec("/managed"))
+	assert.NotNil(t, getConfigFileSpec("/managed/datadog-agent/stable/application_monitoring.yaml"))
+
+	assert.Nil(t, getConfigFileSpec("/managed-user.yaml"))
+	assert.Nil(t, getConfigFileSpec("/managed-custom/customer.yaml"))
+	assert.Nil(t, getConfigFileSpec("/managed/datadog-agent/other/customer.yaml"))
+	assert.Nil(t, getConfigFileSpec("/managed/datadog-agent/stable-custom/customer.yaml"))
+}
+
+func TestGetConfigFileSpecExactDepthConfD(t *testing.T) {
+	assert.NotNil(t, getConfigFileSpec("/conf.d/check.yaml"))
+	assert.NotNil(t, getConfigFileSpec("/conf.d/check.d/config.yaml"))
+
+	assert.Nil(t, getConfigFileSpec("/conf.d/check.d/private/customer.yaml"))
+	assert.Nil(t, getConfigFileSpec("/conf.d/nested/check.yaml"))
+	assert.Nil(t, getConfigFileSpec("/files/conf.d/customer.yaml"))
+}
+
+func TestRemoveConfigFilesMissingFromSourcePreservesNestedUnmanagedYAML(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	nestedUnmanaged := filepath.Join(targetDir, "conf.d", "check.d", "private", "customer.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(nestedUnmanaged), 0755))
+	require.NoError(t, os.WriteFile(nestedUnmanaged, []byte("customer: true\n"), 0644))
+
+	require.NoError(t, removeConfigFilesMissingFromSource(sourceDir, targetDir))
+	assert.FileExists(t, nestedUnmanaged)
+}
+
+func TestVerifyConfigFilesCopied(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	sourceConfigPath := filepath.Join(sourceDir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(sourceConfigPath, []byte("log_level: info\n"), 0644))
+	unmanagedPath := filepath.Join(sourceDir, "files", "conf.d", "customer.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(unmanagedPath), 0755))
+	require.NoError(t, os.WriteFile(unmanagedPath, []byte("customer: true\n"), 0644))
+	legacyMetadataPath := filepath.Join(sourceDir, "managed", "datadog-agent", "stable", "metadata.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(legacyMetadataPath), 0755))
+	require.NoError(t, os.WriteFile(legacyMetadataPath, []byte("{}"), 0644))
+
+	err := verifyConfigFilesCopied(sourceDir, targetDir)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "datadog.yaml")
+
+	require.NoError(t, os.WriteFile(filepath.Join(targetDir, "datadog.yaml"), []byte("log_level: info\n"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(targetDir, "files", "conf.d"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(targetDir, "files", "conf.d", "customer.yaml"), []byte("customer: true\n"), 0644))
+	require.NoError(t, verifyConfigFilesCopied(sourceDir, targetDir))
+}
+
+func TestReconcileLegacyManagedLinksBeforeCopy(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+	managedDir := filepath.Join(sourceDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(managedDir, "v2"), 0755))
+	require.NoError(t, os.Symlink(filepath.Join(managedDir, "v2"), filepath.Join(managedDir, "stable")))
+	require.NoError(t, os.Symlink(filepath.Join(managedDir, "v2"), filepath.Join(managedDir, "experiment")))
+
+	targetManagedDir := filepath.Join(targetDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(targetManagedDir, "stable"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(targetManagedDir, "experiment"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(targetManagedDir, "stable", "application_monitoring.yaml"), []byte("enabled: true\n"), 0644))
+
+	require.NoError(t, reconcileLegacyManagedLinksBeforeCopy(sourceDir, targetDir))
+	_, err := os.Lstat(filepath.Join(targetManagedDir, "stable"))
+	require.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+	_, err = os.Lstat(filepath.Join(targetManagedDir, "experiment"))
+	require.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestVerifyLegacyManagedLinksCopied(t *testing.T) {
+	sourceDir := t.TempDir()
+	targetDir := t.TempDir()
+	managedDir := filepath.Join(sourceDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(managedDir, "v2"), 0755))
+	linkTarget := filepath.Join(managedDir, "v2")
+	require.NoError(t, os.Symlink(linkTarget, filepath.Join(managedDir, "stable")))
+	require.NoError(t, os.Symlink(linkTarget, filepath.Join(managedDir, "experiment")))
+
+	targetManagedDir := filepath.Join(targetDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(targetManagedDir, 0755))
+	require.NoError(t, os.Symlink(linkTarget, filepath.Join(targetManagedDir, "stable")))
+	require.NoError(t, os.Symlink(linkTarget, filepath.Join(targetManagedDir, "experiment")))
+
+	sourceRoot, err := os.OpenRoot(sourceDir)
+	require.NoError(t, err)
+	defer sourceRoot.Close()
+	targetRoot, err := os.OpenRoot(targetDir)
+	require.NoError(t, err)
+	defer targetRoot.Close()
+
+	require.NoError(t, verifyLegacyManagedLinksCopied(sourceRoot, targetRoot))
+
+	require.NoError(t, os.Remove(filepath.Join(targetManagedDir, "stable")))
+	require.NoError(t, os.MkdirAll(filepath.Join(targetManagedDir, "stable"), 0755))
+	err = verifyLegacyManagedLinksCopied(sourceRoot, targetRoot)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "not restored as a symlink")
 }
 
 func TestConfig_SimpleStartPromote(t *testing.T) {

@@ -10,6 +10,7 @@ package config
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"unsafe"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 )
 
@@ -56,15 +58,26 @@ func assertConfigV2(t *testing.T, v2Dir string) {
 	_, err = os.Lstat(filepath.Join(managedDir, "v2", "conf.d", "mycheck.d", "config.yaml"))
 	assert.NoError(t, err)
 
-	_, err = os.Lstat(filepath.Join(managedDir, "stable"))
-	assert.NoError(t, err)
-	_, err = os.Lstat(filepath.Join(managedDir, "experiment"))
-	assert.NoError(t, err)
+	stableTarget := assertLegacyManagedV2Symlink(t, filepath.Join(managedDir, "stable"))
+	experimentTarget := assertLegacyManagedV2Symlink(t, filepath.Join(managedDir, "experiment"))
+	assert.Equal(t, stableTarget, experimentTarget)
 
 	// v2Dir/conf.d/mychecks.d/config.yaml does not exists
 	_, err = os.Lstat(filepath.Join(v2Dir, "conf.d", "mycheck.d", "config.yaml"))
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
+}
+
+func assertLegacyManagedV2Symlink(t *testing.T, linkPath string) string {
+	t.Helper()
+	info, err := os.Lstat(linkPath)
+	require.NoError(t, err)
+	require.True(t, info.Mode()&os.ModeSymlink != 0, "%s should be a symlink", linkPath)
+
+	target, err := os.Readlink(linkPath)
+	require.NoError(t, err)
+	assert.Equal(t, "v2", filepath.Base(target), "legacy symlink %s should point at a v2 directory", linkPath)
+	return target
 }
 
 func assertConfigV3(t *testing.T, v3Dir string) {
@@ -104,6 +117,26 @@ func assertDeploymentID(t *testing.T, dirs *Directories, stableDeploymentID stri
 	assert.NoError(t, err)
 	assert.Equal(t, stableDeploymentID, state.StableDeploymentID)
 	assert.Equal(t, experimentDeploymentID, state.ExperimentDeploymentID)
+}
+
+func TestAssertConfigV2AcceptsCopiedAbsoluteLegacyLinks(t *testing.T) {
+	originalDir := t.TempDir()
+	writeConfigV2(t, originalDir)
+	assertConfigV2(t, originalDir)
+
+	backupDir := t.TempDir()
+	originalManagedDir := filepath.Join(originalDir, "managed", "datadog-agent")
+	backupManagedDir := filepath.Join(backupDir, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(backupManagedDir, "v2", "conf.d", "mycheck.d"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(backupManagedDir, "v2", "datadog.yaml"), []byte("log_level: debug\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(backupManagedDir, "v2", "application_monitoring.yaml"), []byte("enabled: true\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(backupManagedDir, "v2", "conf.d", "mycheck.d", "config.yaml"), []byte("foo: bar\n"), 0644))
+
+	originalV2 := filepath.Join(originalManagedDir, "v2")
+	require.NoError(t, os.Symlink(originalV2, filepath.Join(backupManagedDir, "stable")))
+	require.NoError(t, os.Symlink(originalV2, filepath.Join(backupManagedDir, "experiment")))
+
+	assertConfigV2(t, backupDir)
 }
 
 func TestConfigV2ToV3(t *testing.T) {
@@ -317,6 +350,86 @@ func TestRemoveExperiment_RestoresApplicationMonitoringEveryoneRead(t *testing.T
 	assert.NoError(t, dirs.RemoveExperiment(context.Background()))
 	assert.FileExists(t, filePath)
 	assert.True(t, everyoneCanRead(t, filePath), "application_monitoring.yaml should regain Everyone read after rollback restore")
+}
+
+func TestRemoveExperimentPreservesUnmanagedFilesAndConfigACLs(t *testing.T) {
+	stablePath := t.TempDir()
+	experimentPath := filepath.Join(t.TempDir(), "experiment")
+	datadogPath := filepath.Join(stablePath, "datadog.yaml")
+
+	require.NoError(t, os.WriteFile(datadogPath, []byte("log_level: info\n"), 0600))
+	require.NoError(t, paths.SetFileReadableByEveryone(datadogPath))
+	require.True(t, everyoneCanRead(t, datadogPath))
+
+	dirs := &Directories{
+		StablePath:     stablePath,
+		ExperimentPath: experimentPath,
+	}
+	require.NoError(t, dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "delete-and-create-config",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationDelete, FilePath: "/datadog.yaml"},
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/conf.d/new.d/config.yaml",
+				Patch:             []byte(`{"enabled": true}`),
+			},
+		},
+	}))
+	require.NoFileExists(t, datadogPath)
+
+	unmanagedYAMLPath := filepath.Join(stablePath, "files", "conf.d", "customer.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(unmanagedYAMLPath), 0755))
+	require.NoError(t, os.WriteFile(unmanagedYAMLPath, []byte("customer: true\n"), 0600))
+	authTokenPath := filepath.Join(stablePath, "auth_token")
+	require.NoError(t, os.WriteFile(authTokenPath, []byte("token"), 0600))
+
+	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+
+	require.FileExists(t, datadogPath)
+	assert.True(t, everyoneCanRead(t, datadogPath), "rollback should restore the original config ACL")
+	assert.FileExists(t, unmanagedYAMLPath, "rollback should not purge unmanaged YAML")
+	assert.FileExists(t, authTokenPath, "rollback should not purge non-config files")
+	assert.NoFileExists(t, filepath.Join(stablePath, "conf.d", "new.d", "config.yaml"))
+}
+
+func TestRemoveConfigFileMissingFromSourceRejectsJunctionAncestor(t *testing.T) {
+	targetDir := t.TempDir()
+	victimDir := t.TempDir()
+	sourceDir := t.TempDir()
+
+	confDDir := filepath.Join(targetDir, "conf.d", "check.d")
+	require.NoError(t, os.MkdirAll(confDDir, 0755))
+	originalConfig := filepath.Join(confDDir, "config.yaml")
+	require.NoError(t, os.WriteFile(originalConfig, []byte("enabled: true\n"), 0644))
+
+	victimConfigDir := filepath.Join(victimDir, "check.d")
+	require.NoError(t, os.MkdirAll(victimConfigDir, 0755))
+	victimConfig := filepath.Join(victimConfigDir, "config.yaml")
+	require.NoError(t, os.WriteFile(victimConfig, []byte("victim: true\n"), 0644))
+
+	targetRoot, err := os.OpenRoot(targetDir)
+	require.NoError(t, err)
+	defer targetRoot.Close()
+
+	sourceRoot, err := os.OpenRoot(sourceDir)
+	require.NoError(t, err)
+	defer sourceRoot.Close()
+
+	relativePath := "conf.d/check.d/config.yaml"
+
+	require.NoError(t, os.Rename(filepath.Join(targetDir, "conf.d"), filepath.Join(targetDir, "conf.d-original")))
+	junctionPath := filepath.Join(targetDir, "conf.d")
+	cmd := exec.Command("cmd", "/c", "mklink", "/J", junctionPath, victimDir)
+	require.NoError(t, cmd.Run())
+	t.Cleanup(func() {
+		_ = os.Remove(junctionPath)
+	})
+
+	err = removeConfigFileMissingFromSource(sourceRoot, targetRoot, relativePath)
+	require.Error(t, err)
+	assert.FileExists(t, victimConfig)
+	assert.FileExists(t, originalConfig)
 }
 
 // TestDeploymentIDAfterRollback reproduces the bug where RemoveExperiment incorrectly
