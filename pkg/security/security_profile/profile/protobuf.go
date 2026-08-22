@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 
 	adprotov1 "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
@@ -154,13 +155,32 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 		Disabled:        !p.isEnabled,
 	}
 
+	var syscallsByImageTagID map[uint64][]uint32
+	var capabilitiesByImageTagID map[uint64]*activity_tree.CapabilityRollup
+	if p.observedRollups {
+		syscallsByImageTagID = p.ActivityTree.SyscallsByImageTagID()
+		capabilitiesByImageTagID = p.ActivityTree.CapabilitiesByImageTagID()
+	}
+
 	for key, ctx := range p.versionContexts {
+		syscalls := ctx.Syscalls
+		var capabilities *activity_tree.CapabilityRollup
+		if p.observedRollups {
+			imageTagID := p.ActivityTree.GetImageTagID(key)
+			syscalls = syscallsByImageTagID[imageTagID]
+			capabilities = capabilitiesByImageTagID[imageTagID]
+		}
+
 		outCtx := &adprotov1.ProfileContext{
 			FirstSeen:      ctx.FirstSeenNano,
 			LastSeen:       ctx.LastSeenNano,
 			EventTypeState: make(map[uint32]*adprotov1.EventTypeState),
-			Syscalls:       make([]uint32, len(ctx.Syscalls)),
+			Syscalls:       make([]uint32, len(syscalls)),
 			Tags:           make([]string, len(ctx.Tags)),
+		}
+		if capabilities != nil {
+			outCtx.AttemptedCapabilities = slices.Clone(capabilities.Attempted)
+			outCtx.UsedCapabilities = slices.Clone(capabilities.Used)
 		}
 		for evtType, evtState := range ctx.EventTypeState {
 			outCtx.EventTypeState[uint32(evtType)] = &adprotov1.EventTypeState{
@@ -168,7 +188,7 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 				EventProfileState: eventFilteringProfileStateToProto(evtState.State),
 			}
 		}
-		copy(outCtx.Syscalls, ctx.Syscalls)
+		copy(outCtx.Syscalls, syscalls)
 		copy(outCtx.Tags, ctx.Tags)
 		output.ProfileContexts[key] = outCtx
 	}

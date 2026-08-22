@@ -302,6 +302,8 @@ type RuntimeSecurityConfig struct {
 	EventSamplingDNSEnabled       bool
 	EventSamplingDNSRate          int
 	EventSamplingDNSThreshold     int
+	EventSamplingSyscallsEnabled  bool
+	EventSamplingSyscallsRate     int
 	EventSamplingDynamicEnabled   bool
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
@@ -504,6 +506,10 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
+	if rsConfig.SecurityProfileV2Enabled {
+		probeConfig.CapabilitiesMonitoringEnabled = true
+	}
+
 	return &Config{
 		Probe:           probeConfig,
 		RuntimeSecurity: rsConfig,
@@ -659,6 +665,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingDNSEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
 		EventSamplingDNSRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
 		EventSamplingDNSThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.threshold"),
+		EventSamplingSyscallsEnabled:  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
+		EventSamplingSyscallsRate:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
 		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
@@ -750,6 +758,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		rsConfig.EventSamplingConnectEnabled = true
 		rsConfig.EventSamplingBindEnabled = true
 		rsConfig.EventSamplingDNSEnabled = true
+		rsConfig.EventSamplingSyscallsEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
