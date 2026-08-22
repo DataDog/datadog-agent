@@ -263,10 +263,9 @@ impl ManagedProcess {
             ),
             Err(e) => {
                 warn!(
-                    "[{}] failed to query job active processes: {e:#}",
+                    "[{}] failed to query job active processes: {e:#}; retaining job resources for cleanup",
                     self.name
                 );
-                self.clear_windows_spawn_resources();
             }
         }
     }
