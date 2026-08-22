@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    GPU monitoring now recovers automatically when the NVIDIA character device
+    nodes (for example ``/dev/nvidia0`` and ``/dev/nvidia-uvm``) go missing from
+    the Agent container's mount namespace. This can happen in Kubernetes when
+    only the Agent container is recreated (for instance after an OOMKill or a
+    liveness-probe failure) without recreating the pod, which previously left
+    NVML unable to initialize until the whole pod was recreated. The Agent now
+    recreates the missing device nodes and retries NVML initialization.

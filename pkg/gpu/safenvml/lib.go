@@ -411,7 +411,19 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 	}
 	lib, err := tryCandidateNvmlPaths(libPaths, nvmlNewWithPath)
 	if err != nil {
-		return err
+		// A failed Init while the driver is loaded is the signature of NVIDIA
+		// device nodes having gone missing from this container's mount
+		// namespace (e.g. after a container-only restart). Try to recreate them
+		// and initialize once more before giving up. See recoverMissingDeviceNodes.
+		if isNvmlInitError(err) {
+			if recovered := recoverMissingDeviceNodes(); recovered > 0 {
+				log.Infof("recreated %d missing NVIDIA device node(s) after NVML init failure, retrying initialization", recovered)
+				lib, err = tryCandidateNvmlPaths(libPaths, nvmlNewWithPath)
+			}
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	// Populate and verify critical capabilities
