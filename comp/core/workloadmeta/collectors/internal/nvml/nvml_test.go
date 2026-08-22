@@ -667,9 +667,9 @@ func writeCDISpec(t *testing.T, uid, contents string) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(
 		filepath.Join(dir, "k8s.gpu.nvidia.com-claim_"+uid+".yaml"), []byte(contents), 0o600))
-	old := cdiSpecDir
-	cdiSpecDir = dir
-	t.Cleanup(func() { cdiSpecDir = old })
+	old := cdiSpecDirs
+	cdiSpecDirs = []string{dir}
+	t.Cleanup(func() { cdiSpecDirs = old })
 }
 
 func TestCDIDeviceNodes(t *testing.T) {
@@ -894,7 +894,7 @@ func TestPhysicalDeviceIndex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			index, ok := physicalDeviceIndex(tt.path)
+			index, ok := physicalDeviceMinor(tt.path)
 			require.Equal(t, tt.wantOK, ok)
 			require.Equal(t, tt.wantIndex, index)
 		})
@@ -983,13 +983,13 @@ func TestResolveMIGUUIDFallsBackWhenComputeInstanceUnknown(t *testing.T) {
 }
 
 func TestResolvePhysicalUUID(t *testing.T) {
-	// Whole-card DRA claims pin /dev/nvidiaN, which resolves by index with no
-	// MIG hop. Without this, a container holding both a MIG device and a whole
-	// card would have only the MIG device published.
+	// Whole-card DRA claims pin /dev/nvidiaN, which resolves with no MIG hop.
+	// Without this, a container holding both a MIG device and a whole card
+	// would have only the MIG device published.
 	cache := &fakeDeviceCache{devices: []ddnvml.Device{
-		&ddnvml.PhysicalDevice{DeviceInfo: ddnvml.DeviceInfo{UUID: "GPU-zero", Index: 0}},
-		&ddnvml.PhysicalDevice{DeviceInfo: ddnvml.DeviceInfo{UUID: "GPU-one", Index: 1}},
-		// A MIG child must never be returned for a physical index.
+		&ddnvml.PhysicalDevice{DeviceInfo: ddnvml.DeviceInfo{UUID: "GPU-zero", Index: 0}, MinorNumber: 0},
+		&ddnvml.PhysicalDevice{DeviceInfo: ddnvml.DeviceInfo{UUID: "GPU-one", Index: 1}, MinorNumber: 1},
+		// A MIG child must never be returned for a physical device node.
 		migChild("MIG-child", 1, 0),
 	}}
 
@@ -999,6 +999,38 @@ func TestResolvePhysicalUUID(t *testing.T) {
 
 	_, ok = resolvePhysicalUUID(cache, 7)
 	require.False(t, ok)
+}
+
+// TestResolvePhysicalUUIDMatchesMinorNotIndex pins the distinction that makes
+// this correct. /dev/nvidiaN encodes the minor number; NVML's Index is its own
+// enumeration order. They agree on ordinary hardware, so matching the wrong one
+// passes every test where they coincide and then attributes a container to
+// another card in the field -- silently, with a plausible UUID.
+func TestResolvePhysicalUUIDMatchesMinorNotIndex(t *testing.T) {
+	cache := &fakeDeviceCache{devices: []ddnvml.Device{
+		&ddnvml.PhysicalDevice{DeviceInfo: ddnvml.DeviceInfo{UUID: "GPU-minor-7", Index: 0}, MinorNumber: 7},
+		&ddnvml.PhysicalDevice{DeviceInfo: ddnvml.DeviceInfo{UUID: "GPU-minor-0", Index: 7}, MinorNumber: 0},
+	}}
+
+	got, ok := resolvePhysicalUUID(cache, 7)
+	require.True(t, ok)
+	require.Equal(t, "GPU-minor-7", got, "/dev/nvidia7 must resolve by minor number, not by NVML index")
+
+	got, ok = resolvePhysicalUUID(cache, 0)
+	require.True(t, ok)
+	require.Equal(t, "GPU-minor-0", got)
+}
+
+// TestResolvePhysicalUUIDSkipsUnknownMinor guards the -1 sentinel. When the
+// driver did not expose GetMinorNumber there is nothing to match on, and
+// falling back to Index would be the very confusion this matching avoids.
+func TestResolvePhysicalUUIDSkipsUnknownMinor(t *testing.T) {
+	cache := &fakeDeviceCache{devices: []ddnvml.Device{
+		&ddnvml.PhysicalDevice{DeviceInfo: ddnvml.DeviceInfo{UUID: "GPU-unknown", Index: 0}, MinorNumber: -1},
+	}}
+
+	_, ok := resolvePhysicalUUID(cache, 0)
+	require.False(t, ok, "a device with no known minor must not be matched against a device node")
 }
 
 // writeMIGMinors points migMinorsPath at a fixture for the duration of a test.

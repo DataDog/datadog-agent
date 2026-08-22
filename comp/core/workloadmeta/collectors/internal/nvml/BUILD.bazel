@@ -26,6 +26,7 @@ go_library(
             "//pkg/util/kubernetes/kubelet",
             "//pkg/util/log",
             "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@in_gopkg_yaml_v3//:yaml_v3",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:darwin": [
@@ -56,6 +57,7 @@ go_library(
             "//pkg/util/kubernetes/kubelet",
             "//pkg/util/log",
             "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@in_gopkg_yaml_v3//:yaml_v3",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -98,6 +100,7 @@ dd_agent_go_test(
             "//pkg/gpu/safenvml",
             "//pkg/gpu/testutil",
             "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
@@ -108,6 +111,7 @@ dd_agent_go_test(
             "//pkg/gpu/safenvml",
             "//pkg/gpu/testutil",
             "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],

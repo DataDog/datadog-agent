@@ -233,6 +233,7 @@ type deviceOptions struct {
 	migDisabled             bool
 	migChildIndex           *int
 	migComputeInstanceIndex *int
+	minorNumber             *int
 	archSet                 bool
 	architecture            nvml.DeviceArchitecture
 	computeMajor            int
@@ -619,6 +620,14 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		GetIndexFunc: func() (int, nvml.Return) {
 			return deviceIdx, nvml.SUCCESS
 		},
+		GetMinorNumberFunc: func() (int, nvml.Return) {
+			if opts.minorNumber != nil {
+				return *opts.minorNumber, nvml.SUCCESS
+			}
+			// Default to agreeing with the index, which is what ordinary
+			// hardware does; WithMinorNumber makes them diverge.
+			return deviceIdx, nvml.SUCCESS
+		},
 		IsMigDeviceHandleFunc: func() (bool, nvml.Return) {
 			return opts.isMIGChild(), nvml.SUCCESS
 		},
@@ -847,6 +856,16 @@ func WithMIGDisabled() NvmlMockOption {
 func WithMIGComputeInstance(ci int) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions.migComputeInstanceIndex = &ci
+	}
+}
+
+// WithMinorNumber sets the minor number devices report from GetMinorNumber
+// (the default is the device index, which is what ordinary hardware does). Use
+// it to exercise the case where /dev/nvidiaN disagrees with NVML's enumeration
+// order, which silently misattributes a whole-card claim if not handled.
+func WithMinorNumber(minor int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.minorNumber = &minor
 	}
 }
 

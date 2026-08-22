@@ -435,10 +435,20 @@ func (c *collector) createProcessEvents(pidToGPUs map[int][]string) []workloadme
 	return events
 }
 
-// cdiSpecDir and migMinorsPath are variables so tests can point them at
+// cdiSpecDirs and migMinorsPath are variables so tests can point them at
 // fixtures; the node-local chain reads real files and is otherwise untestable.
+//
+// CDI specs are written by the DRA driver into the host's /var/run/cdi, which
+// is a real directory on disk rather than a kernel filesystem -- so a
+// containerized Agent only sees it through a mount. The standard deployment
+// mounts the host's /var/run at /host/var/run (Dockerfiles/manifests/agent.yaml),
+// so that prefix is tried first and works with no extra wiring; the bare path
+// covers a host-installed Agent and deployments that bind /var/run/cdi
+// directly. migMinorsPath needs no prefix: /proc/driver is a procfs entry
+// owned by the nvidia driver and is visible in any procfs instance, including
+// the container's own.
 var (
-	cdiSpecDir    = "/var/run/cdi"
+	cdiSpecDirs   = []string{"/host/var/run/cdi", "/var/run/cdi"}
 	migMinorsPath = "/proc/driver/nvidia-caps/mig-minors"
 )
 
@@ -569,14 +579,14 @@ func (c *collector) resolveCDIToGPUs(deviceCache ddnvml.DeviceCache, cdiName str
 	for _, node := range nodes {
 		// A whole-card claim pins /dev/nvidiaN, which is the NVML index
 		// directly -- no capability device and no mig-minors hop involved.
-		if index, ok := physicalDeviceIndex(node.path); ok {
+		if minor, ok := physicalDeviceMinor(node.path); ok {
 			if migEntry {
 				continue // the parent of this entry's MIG instance
 			}
-			if uuid, ok := resolvePhysicalUUID(deviceCache, index); ok {
+			if uuid, ok := resolvePhysicalUUID(deviceCache, minor); ok {
 				uuids = append(uuids, uuid)
 			} else if logLimiter.ShouldLog() {
-				log.Debugf("DRA: NVML has no physical device at index %d (claim %s)", index, claimUID)
+				log.Debugf("DRA: NVML has no physical device with minor number %d (claim %s)", minor, claimUID)
 			}
 			continue
 		}
@@ -692,8 +702,15 @@ type cdiSpec struct {
 // which entry a node belongs to, and it depends on the order and spacing of
 // keys, so it is not the primary path.
 func cdiDeviceNodes(claimUID, deviceKey string) ([]cdiDeviceNode, error) {
-	specPath := filepath.Join(cdiSpecDir, fmt.Sprintf("k8s.gpu.nvidia.com-claim_%s.yaml", claimUID))
-	data, err := os.ReadFile(specPath)
+	name := fmt.Sprintf("k8s.gpu.nvidia.com-claim_%s.yaml", claimUID)
+	var data []byte
+	var err error
+	for _, dir := range cdiSpecDirs {
+		data, err = os.ReadFile(filepath.Join(dir, name))
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -740,9 +757,14 @@ func parseCDISpec(data []byte, deviceKey string) ([]cdiDeviceNode, bool) {
 
 // scanCDISpec is the fallback described on cdiDeviceNodes: it collects device
 // nodes by reading lines, attributing each to the most recent sequence entry
-// named "name". When no entry matches deviceKey it returns every node in the
-// file, which over-attributes a multi-device claim but keeps a single-device
-// one working.
+// named "name".
+//
+// When no entry matches deviceKey it returns every node in the file only if
+// the file describes a single device, where "all of them" and "this one" are
+// the same set. On a multi-device claim it returns nothing instead: handing
+// back every device would tag this container with GPUs belonging to its
+// siblings, and a wrong pod tag is worse than a missing one -- it is invisible
+// downstream, where a missing one shows up as untagged.
 func scanCDISpec(data []byte, deviceKey string) []cdiDeviceNode {
 	lines := strings.Split(string(data), "\n")
 	byDevice := map[string][]cdiDeviceNode{}
@@ -795,7 +817,11 @@ func scanCDISpec(data []byte, deviceKey string) []cdiDeviceNode {
 	if nodes, found := byDevice[deviceKey]; found {
 		return nodes
 	}
-	return all
+	if len(byDevice) <= 1 {
+		return all
+	}
+	log.Warnf("DRA: CDI spec describes %d devices but none matched %q; not attributing, because returning all of them would tag this container with another container's GPUs", len(byDevice), deviceKey)
+	return nil
 }
 
 // yamlKeyValue splits one line of a CDI spec into its key and value, stripping
@@ -817,17 +843,11 @@ func yamlKeyValue(line string) (key, value string, isItem, ok bool) {
 	return key, strings.Trim(strings.TrimSpace(value), `"'`), isItem, true
 }
 
-// physicalDeviceIndex returns the NVML index for a /dev/nvidiaN device node
-// path. Capability devices (/dev/nvidia-caps/nvidia-capN) and control nodes
-// (/dev/nvidiactl, /dev/nvidia-uvm) are not physical devices.
-//
-// Assumption worth knowing: N is the device's *minor number*, which NVML
-// exposes separately (nvmlDeviceGetMinorNumber) from its enumeration index.
-// The two coincide on ordinary configurations, which is what the hardware
-// validation covered. Where they diverge a whole-card claim resolves to the
-// wrong card -- silently, with a plausible UUID -- so if that is ever observed,
-// match on the minor number rather than on Index.
-func physicalDeviceIndex(path string) (int, bool) {
+// physicalDeviceMinor returns the minor number for a /dev/nvidiaN device node
+// path -- N is the minor, not NVML's enumeration index. Capability devices
+// (/dev/nvidia-caps/nvidia-capN) and control nodes (/dev/nvidiactl,
+// /dev/nvidia-uvm) are not physical devices.
+func physicalDeviceMinor(path string) (int, bool) {
 	const prefix = "/dev/nvidia"
 	if !strings.HasPrefix(path, prefix) {
 		return 0, false
@@ -903,15 +923,24 @@ func migMinorsToInstances(minors []int) []migInstance {
 	return instances
 }
 
-// resolvePhysicalUUID returns the UUID of the physical device at an NVML index.
-func resolvePhysicalUUID(deviceCache ddnvml.DeviceCache, index int) (string, bool) {
+// resolvePhysicalUUID returns the UUID of the physical device owning a
+// /dev/nvidiaN minor number.
+//
+// Matching is on MinorNumber, which is what the device-node path encodes.
+// Index is a separate NVML concept: the two agree on ordinary configurations
+// but nothing guarantees it, and matching on the wrong one resolves to another
+// card silently, with a plausible UUID. A device whose driver did not expose a
+// minor (-1, the API is non-critical) is skipped rather than compared against
+// its index, so an unavailable API yields no attribution instead of a
+// confidently wrong one.
+func resolvePhysicalUUID(deviceCache ddnvml.DeviceCache, minor int) (string, bool) {
 	all, err := deviceCache.All()
 	if err != nil {
 		return "", false
 	}
 	for _, dev := range all {
 		physical, ok := dev.(*ddnvml.PhysicalDevice)
-		if ok && physical.Index == index {
+		if ok && physical.MinorNumber >= 0 && physical.MinorNumber == minor {
 			return physical.GetDeviceInfo().UUID, true
 		}
 	}
@@ -929,20 +958,31 @@ func resolveMIGUUID(deviceCache ddnvml.DeviceCache, gpu, gi, ci int) (string, bo
 		if !ok || physical.Index != gpu {
 			continue
 		}
+		// A GPU instance can hold several compute instances (e.g. 3g.71gb split
+		// into 3x 1c.3g); matching on the GPU instance alone would attribute
+		// every one of those containers to whichever CI NVML enumerates first.
+		var giMatches []*ddnvml.MIGDevice
 		for _, mig := range physical.MIGChildren {
-			if mig.MIGInstanceID != gi {
-				continue
+			if mig.MIGInstanceID == gi {
+				giMatches = append(giMatches, mig)
 			}
-			// A GPU instance can hold several compute instances (e.g. 3g.71gb
-			// split into 3x 1c.3g); matching on the GPU instance alone would
-			// attribute every one of those containers to whichever CI NVML
-			// happens to enumerate first. Compare the compute instance too when
-			// the driver exposed it (ComputeInstanceID is -1 when the
-			// non-critical API was unavailable -- fall back to GI-only then).
-			if mig.ComputeInstanceID >= 0 && mig.ComputeInstanceID != ci {
-				continue
+		}
+		for _, mig := range giMatches {
+			if mig.ComputeInstanceID == ci {
+				return mig.GetDeviceInfo().UUID, true
 			}
-			return mig.GetDeviceInfo().UUID, true
+		}
+		// ComputeInstanceID is -1 when the non-critical API was unavailable, so
+		// no CI comparison is possible. Falling back to the GI is correct only
+		// while it identifies one device -- the 1-CI-per-GI case, which is every
+		// 1g/2g profile. With several, the GI is ambiguous and any pick is a
+		// guess, so return nothing rather than tag containers with each other's
+		// instances.
+		if len(giMatches) == 1 && giMatches[0].ComputeInstanceID < 0 {
+			return giMatches[0].GetDeviceInfo().UUID, true
+		}
+		if len(giMatches) > 1 && logLimiter.ShouldLog() {
+			log.Debugf("DRA: gpu%d/gi%d holds %d compute instances and NVML did not expose their IDs; not attributing ci%d", gpu, gi, len(giMatches), ci)
 		}
 	}
 	return "", false

@@ -171,6 +171,14 @@ func (d *safeDeviceImpl) GetIndex() (int, error) {
 	return index, NewNvmlAPIErrorOrNil("GetIndex", ret)
 }
 
+func (d *safeDeviceImpl) GetMinorNumber() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetMinorNumber")); err != nil {
+		return 0, err
+	}
+	minor, ret := d.nvmlDevice.GetMinorNumber()
+	return minor, NewNvmlAPIErrorOrNil("GetMinorNumber", ret)
+}
+
 func (d *safeDeviceImpl) GetMaxClockInfo(clockType nvml.ClockType) (uint32, error) {
 	if err := d.lib.lookup(toNativeName("GetMaxClockInfo")); err != nil {
 		return 0, err

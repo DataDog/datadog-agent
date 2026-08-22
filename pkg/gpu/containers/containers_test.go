@@ -655,28 +655,52 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 		assert.Equal(t, devices[1], filteredDevices[0])
 	})
 
-	t.Run("GPUDeviceIDsTakesPrecedenceOverResolvedAllocatedResources", func(t *testing.T) {
-		// On the Docker runtime -- which is what ECS uses -- GPUDeviceIDs is
-		// authoritative and the Kubernetes resource list is not consulted.
+	t.Run("DockerRuntimeWithKubernetesResourcesUnionsBoth", func(t *testing.T) {
+		// ResolvedAllocatedResources is a Kubernetes field, so a container
+		// carrying it on the Docker runtime is a cri-dockerd node, not ECS.
+		// There GPUDeviceIDs holds only the DRA devices the NVML collector
+		// resolved, and treating it as the whole allocation would silently drop
+		// the device-plugin GPU the same container also holds.
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
-				ID:   "test-precedence-container",
+				ID:   "test-mixed-allocation-container",
 			},
 			Runtime:      workloadmeta.ContainerRuntimeDocker,
-			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]}, // Should use this
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]},
 			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 				{
 					Name: string(gpuutil.GpuNvidiaGeneric),
-					ID:   testutil.GPUUUIDs[2], // Should NOT use this
+					ID:   testutil.GPUUUIDs[2],
 				},
 			},
 		}
 
 		filteredDevices, err := MatchContainerDevices(container, devices)
 		require.NoError(t, err)
+		require.Len(t, filteredDevices, 2, "both the DRA device and the device-plugin device must be matched")
+		assert.Contains(t, filteredDevices, devices[0])
+		assert.Contains(t, filteredDevices, devices[2])
+	})
+
+	t.Run("ECSKeepsGPUDeviceIDsAuthoritative", func(t *testing.T) {
+		// The real ECS shape: Docker runtime, GPUDeviceIDs populated by the
+		// Docker collector, and no Kubernetes allocated resources at all. This
+		// must keep short-circuiting rather than falling through to the env-var
+		// inspection, which is what the union above must not disturb.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-ecs-precedence-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeDocker,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
 		require.Len(t, filteredDevices, 1)
-		assert.Equal(t, devices[0], filteredDevices[0]) // Should be device 0, not device 2
+		assert.Equal(t, devices[0], filteredDevices[0])
 	})
 
 	t.Run("KubernetesUnionsTheMappingWithAllocatedResources", func(t *testing.T) {

@@ -61,6 +61,11 @@ type SafeDevice interface {
 	GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
+
+	// GetMinorNumber returns the device's minor number, which is the N in the
+	// /dev/nvidiaN device node. This is distinct from the enumeration index
+	// returned by GetIndex and the two are not guaranteed to agree.
+	GetMinorNumber() (int, error)
 	// GetMaxClockInfo returns the maximum clock speed for the given clock type
 	GetMaxClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetMaxMigDeviceCount returns the maximum number of MIG devices that can be created
@@ -181,6 +186,14 @@ type PhysicalDevice struct {
 
 	// MIGChildren is a list of MIG devices that are children of this physical device
 	MIGChildren []*MIGDevice
+
+	// MinorNumber is the N in this device's /dev/nvidiaN node. -1 when the
+	// driver does not expose it (the API is non-critical). Anything resolving
+	// a device-node path to a GPU must match on this rather than on Index:
+	// the two coincide on ordinary configurations but are separate NVML
+	// concepts, and a mismatch silently attributes a container to the wrong
+	// physical card.
+	MinorNumber int
 }
 
 var _ Device = &PhysicalDevice{}
@@ -220,6 +233,9 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	// Create the device with embedded safe device
 	device := &PhysicalDevice{
 		SafeDevice: safeDev,
+		// "Unknown" until the query below succeeds: 0 is a real minor number
+		// (/dev/nvidia0), never "unavailable".
+		MinorNumber: -1,
 	}
 
 	if err := device.fillBasicDataFromNVML(safeDev); err != nil {
@@ -228,6 +244,14 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 
 	if err := device.fillPhysicalDeviceData(safeDev); err != nil {
 		return nil, fmt.Errorf("error filling physical device data: %w", err)
+	}
+
+	// Queried after the required fills, so a device that is already unusable
+	// fails on that rather than here. Non-fatal in its own right: GetMinorNumber
+	// is a non-critical API and only device-node matching needs it, which checks
+	// for -1.
+	if minor, err := safeDev.GetMinorNumber(); err == nil {
+		device.MinorNumber = minor
 	}
 
 	migEnabled, _, err := safeDev.GetMigMode()

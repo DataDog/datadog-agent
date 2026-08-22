@@ -65,6 +65,15 @@ func HasGPUs(container *workloadmeta.Container) bool {
 func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
 	switch container.Runtime {
 	case workloadmeta.ContainerRuntimeDocker:
+		// A Kubernetes node can run the Docker runtime (cri-dockerd), and there
+		// GPUDeviceIDs means something different: the NVML collector fills it
+		// for the container's DRA devices only. Treating that as the whole
+		// allocation would drop any device-plugin GPU the same container holds,
+		// so anything carrying Kubernetes allocated resources goes through the
+		// union path regardless of runtime.
+		if hasKubernetesGPUResources(container) {
+			return matchKubernetesDevices(container, devices)
+		}
 		// ECS: GPUDeviceIDs (UUID format) is populated by the Docker collector
 		// at discovery time. ECS uses the Docker runtime but needs UUID-based
 		// matching, so it takes precedence over the env-var inspection.
@@ -77,6 +86,17 @@ func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.D
 		// assignment if it's there
 		return matchKubernetesDevices(container, devices)
 	}
+}
+
+// hasKubernetesGPUResources reports whether the container carries NVIDIA GPUs
+// in its Kubernetes allocated resources, which an ECS task never does.
+func hasKubernetesGPUResources(container *workloadmeta.Container) bool {
+	for _, resource := range container.ResolvedAllocatedResources {
+		if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
+			return true
+		}
+	}
+	return false
 }
 
 func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, error) {
