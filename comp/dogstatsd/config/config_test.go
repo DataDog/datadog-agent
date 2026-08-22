@@ -74,7 +74,7 @@ func TestTruthTable(t *testing.T) {
 			c := NewConfig(cfg)
 			assert.Equal(t, tc.wantEnabled, c.Enabled(), "Enabled()")
 			assert.Equal(t, tc.wantInternal, c.EnabledInternal(), "EnabledInternal()")
-			assert.Equal(t, tc.wantDataPlane, c.enabledDataPlane(), "enabledDataPlane()")
+			assert.Equal(t, tc.wantDataPlane, c.EnabledDataPlane(), "EnabledDataPlane()")
 		})
 	}
 }
