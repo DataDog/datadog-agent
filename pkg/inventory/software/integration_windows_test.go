@@ -712,7 +712,12 @@ func TestIntegrationDriversMatchWMI(t *testing.T) {
 			mismatches = append(mismatches, fmt.Sprintf("%s: Publisher WMI=%q native=%q",
 				code, wmiEntry.Publisher, nativeEntry.Publisher))
 		}
-		if wmiEntry.InstallPath != nativeEntry.InstallPath {
+		// Compared case-insensitively: Windows paths are, and the two sources spell
+		// the system directory differently. WMI echoes the registry's own casing,
+		// while the native path expands relative and \SystemRoot\ image paths through
+		// GetSystemDirectory, which returns the canonical "System32". Neither
+		// spelling is more correct, and the difference is not one of enumeration.
+		if !strings.EqualFold(wmiEntry.InstallPath, nativeEntry.InstallPath) {
 			mismatches = append(mismatches, fmt.Sprintf("%s: InstallPath WMI=%q native=%q",
 				code, wmiEntry.InstallPath, nativeEntry.InstallPath))
 		}
