@@ -56,10 +56,13 @@ RUN if [ "$CI" = "true" ]; then \
     fi; \
   done; \
   fi
-# Host profiler requires objcopy
+# Host profiler requires objcopy; libcap2-bin provides setcap for file capabilities
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends binutils && \
+    apt-get install -y --no-install-recommends binutils libcap2-bin && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+# Set file capabilities so the profiler has a populated permitted set when running as non-root.
+RUN setcap cap_bpf,cap_perfmon,cap_sys_ptrace,cap_sys_resource,cap_dac_read_search,cap_syslog,cap_checkpoint_restore,cap_ipc_lock=ep \
+    /opt/datadog-agent/embedded/bin/host-profiler
 # backward-compatibility symlink as some existing Helm charts / operator may reference the old binary name
 RUN ln -s /opt/datadog-agent/embedded/bin/host-profiler /opt/datadog-agent/embedded/bin/full-host-profiler
 
