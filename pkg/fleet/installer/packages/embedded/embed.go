@@ -8,6 +8,8 @@ package embedded
 
 import (
 	"embed"
+	"errors"
+	"io/fs"
 	"path"
 )
 
@@ -26,27 +28,16 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
-// The -nocap variants are selected by GetSystemdUnit on hosts whose kernel does not support
-// ambient capabilities, so they must be embedded alongside the base flavors.
+// systemdUnits holds the unit set for the systemd service manager
 //
-//go:embed tmpl/gen/oci/*.service
-//go:embed tmpl/gen/oci-nocap/*.service
-//go:embed tmpl/gen/debrpm/*.service
-//go:embed tmpl/gen/debrpm-nocap/*.service
+//go:embed tmpl/gen/sd
 var systemdUnits embed.FS
 
-// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout). Its
-// --config/--core-config reference ${DD_CONF_DIR}, which the supervising dd-procmgr substitutes at
-// launch with its config directory (stable or experiment).
+// procmgrUnits holds the unit set for the procmgr service manager: the .service for systemd units
+// plus the .yaml processes.d entries it supervises.
 //
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
-var DDOTProcessConfig string
-
-// PARExecutorProcessConfig is the rendered process manager config for the PAR on-demand executor
-// on Linux (deb/rpm layout).
-//
-//go:embed tmpl/gen/debrpm/datadog-agent-action-executor.yaml
-var PARExecutorProcessConfig string
+//go:embed tmpl/gen/pm
+var procmgrUnits embed.FS
 
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
@@ -72,23 +63,38 @@ var PARWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-action-executor.yaml
 var PARExecutorWindowsProcmgrConfig string
 
-// SystemdUnitType is the type of systemd unit.
-type SystemdUnitType string
+// UnitType is the type of systemd unit.
+type UnitType string
 
 const (
-	// SystemdUnitTypeOCI is the type of systemd unit for OCI.
-	SystemdUnitTypeOCI SystemdUnitType = "oci"
-	// SystemdUnitTypeDebRpm is the type of systemd unit for deb/rpm.
-	SystemdUnitTypeDebRpm SystemdUnitType = "debrpm"
+	// UnitTypeOCI is the type of systemd unit for OCI.
+	UnitTypeOCI UnitType = "oci"
+	// UnitTypeDebRpm is the type of systemd unit for deb/rpm.
+	UnitTypeDebRpm UnitType = "debrpm"
 )
 
-// GetSystemdUnit returns the systemd unit for the given name.
-func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	dir := string(unitType)
-	if !ambiantCapabilitiesSupported {
-		dir += "-nocap"
+// GetSystemdUnit returns the unit for the given name, for the plain systemd service manager.
+func GetSystemdUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	return systemdUnits.ReadFile(path.Join("tmpl/gen/sd", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+}
+
+// GetProcmgrUnit returns the unit for the given name, for the procmgr service manager.
+func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	data, err := procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+	if errors.Is(err, fs.ErrNotExist) {
+		return GetSystemdUnit(name, unitType, ambiantCapabilitiesSupported)
 	}
-	// path.Join, not filepath.Join: embed.FS names are always slash-separated, so the
-	// backslashes filepath.Join emits on Windows would never resolve.
-	return systemdUnits.ReadFile(path.Join("tmpl/gen", dir, name))
+	return data, err
+}
+
+// GetProcmgrProcess returns the process config for the given name (actually only for procmgr)
+func GetProcmgrProcess(name string) ([]byte, error) {
+	return procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", "processes.d", name))
+}
+
+func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
+	if ambiantCapabilitiesSupported {
+		return string(unitType)
+	}
+	return string(unitType) + "-nc"
 }

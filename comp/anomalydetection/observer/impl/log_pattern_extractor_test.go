@@ -505,9 +505,16 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	cfg.MaxTagGroups = -1
 	extractor := NewLogPatternExtractor(cfg)
 
-	bocpd := NewBOCPDDetector(BOCPDConfig{})
+	bocpdConfig := DefaultBOCPDConfig()
+	bocpdConfig.WarmupPoints = 2
+	bocpdConfig.MaxRunLength = 2
+	bocpd := NewBOCPDDetector(bocpdConfig)
 	scanmw := NewScanMWDetector()
 	scanwelch := NewScanWelchDetector()
+	scanmw.MinPoints = 2
+	scanwelch.MinPoints = 2
+	scanmw.MinSegment = 1
+	scanwelch.MinSegment = 1
 
 	// Stateless detector that does NOT implement SeriesRemover. Registering it
 	// alongside the stateful ones exercises the fanOutSeriesRemoval type-assertion
@@ -541,12 +548,15 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 			timestampMs: int64(1_000_000 + i*1_000),
 		})
 	}
+	for _, meta := range storage.ListSeries(observerdef.WorkloadSeriesFilter()) {
+		storage.Add(meta.Namespace, meta.Name, 1, 1_002, meta.Tags)
+	}
 
 	// Drive Detect() so the detectors observe the series and populate their
 	// per-series state maps. dataTime needs to be ahead of the last point.
-	bocpd.Detect(storage, 1_001_000)
-	scanmw.Detect(storage, 1_001_000)
-	scanwelch.Detect(storage, 1_001_000)
+	bocpd.Detect(storage, 1_002)
+	scanmw.Detect(storage, 1_002)
+	scanwelch.Detect(storage, 1_002)
 
 	bocpdBefore := len(bocpd.series)
 	scanmwBefore := len(scanmw.series)

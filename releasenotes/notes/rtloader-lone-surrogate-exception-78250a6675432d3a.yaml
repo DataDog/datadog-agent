@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a crash of the Agent process when a Python check raises an exception
+    whose message contains a Unicode lone surrogate.

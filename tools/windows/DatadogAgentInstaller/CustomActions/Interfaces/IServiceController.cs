@@ -2,6 +2,7 @@ using Datadog.CustomActions.Native;
 using System;
 using System.Collections.Generic;
 using System.Security.AccessControl;
+using System.ServiceProcess;
 
 namespace Datadog.CustomActions.Interfaces
 {
@@ -9,6 +10,7 @@ namespace Datadog.CustomActions.Interfaces
     {
         IReadOnlyList<IWindowsService> Services { get; }
         void SetCredentials(string serviceName, string username, string password);
+        void SetStartType(string serviceName, ServiceStartMode startType);
         void StopService(string serviceName, TimeSpan timeout);
         void StartService(string serviceName, TimeSpan timeout);
         public CommonSecurityDescriptor GetAccessSecurity(string serviceName);

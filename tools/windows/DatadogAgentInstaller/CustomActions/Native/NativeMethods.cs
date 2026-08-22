@@ -110,6 +110,12 @@ namespace Datadog.CustomActions.Native
 
         public static int SERVICE_NO_CHANGE = -1;
 
+        // dwStartType values for ChangeServiceConfig
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-changeserviceconfigw
+        public const int SERVICE_AUTO_START = 0x00000002;
+        public const int SERVICE_DEMAND_START = 0x00000003;
+        public const int SERVICE_DISABLED = 0x00000004;
+
         [DllImport("logoncli.dll", CharSet = CharSet.Unicode)]
         private static extern NtStatus NetIsServiceAccount(
             string serverName,

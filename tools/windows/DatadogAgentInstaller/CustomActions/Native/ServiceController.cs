@@ -68,6 +68,46 @@ namespace Datadog.CustomActions.Native
             }
         }
 
+        /// <summary>
+        /// Sets the start type of a service, leaving its credentials and other configuration unchanged.
+        /// </summary>
+        public void SetStartType(string serviceName, ServiceStartMode startType)
+        {
+            int dwStartType;
+            switch (startType)
+            {
+                case ServiceStartMode.Disabled:
+                    dwStartType = Win32NativeMethods.SERVICE_DISABLED;
+                    break;
+                case ServiceStartMode.Manual:
+                    dwStartType = Win32NativeMethods.SERVICE_DEMAND_START;
+                    break;
+                case ServiceStartMode.Automatic:
+                    dwStartType = Win32NativeMethods.SERVICE_AUTO_START;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(startType),
+                        $"unsupported start type {startType} for service {serviceName}");
+            }
+
+            var svc = new System.ServiceProcess.ServiceController(serviceName);
+            if (!Win32NativeMethods.ChangeServiceConfig(svc.ServiceHandle,
+                (uint)Win32NativeMethods.SERVICE_NO_CHANGE,
+                dwStartType,
+                Win32NativeMethods.SERVICE_NO_CHANGE,
+                null,
+                null,
+                null,
+                null,
+                // null leaves the account and password unchanged
+                null,
+                null,
+                null))
+            {
+                throw new Win32Exception($"ChangeServiceConfig({serviceName}, startType={startType}) failed");
+            }
+        }
+
         public CommonSecurityDescriptor GetAccessSecurity(string serviceName)
         {
             var svc = new System.ServiceProcess.ServiceController(serviceName);

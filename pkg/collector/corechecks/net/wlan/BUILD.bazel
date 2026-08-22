@@ -35,11 +35,19 @@ go_library(
 
 dd_agent_go_test(
     name = "wlan_test",
-    srcs = ["wlan_test.go"],
+    srcs = [
+        "wlan_test.go",
+        "wlan_windows_test.go",
+    ],
     embed = [":wlan"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/aggregator/mocksender",
         "@com_github_stretchr_testify//assert",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
