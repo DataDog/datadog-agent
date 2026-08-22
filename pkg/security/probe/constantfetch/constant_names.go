@@ -126,9 +126,11 @@ const (
 	OffsetNameFlowI6StructULI           = "flowi6_uli_offset"
 	OffsetNameSockStructSKProtocol      = "sock_sk_protocol_offset" // kernel >= 5.6
 	// TODO: needed for l4_protocol resolution, see network/flow.h
-	OffsetNameFlowI4StructProto = "flowi4_proto_offset"
-	OffsetNameFlowI6StructProto = "flowi6_proto_offset"
-	OffsetNameRtnlLinkOpsKind   = "rtnl_link_ops_kind_offset"
+	OffsetNameFlowI4StructProto     = "flowi4_proto_offset"
+	OffsetNameFlowI6StructProto     = "flowi6_proto_offset"
+	OffsetNameRtnlLinkOpsKind       = "rtnl_link_ops_kind_offset"
+	OffsetNameSkBuffHead            = "sk_buff_head_offset"
+	OffsetNameSkBuffTransportHeader = "sk_buff_transport_header_offset"
 
 	// nsproxy offsets
 	OffsetNameNsproxyMntNs = "nsproxy_mnt_ns_offset"
