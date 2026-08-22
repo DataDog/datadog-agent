@@ -7,6 +7,10 @@
 // status and emit flare data
 package remoteagentregistry
 
+import (
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+)
+
 // team: agent-runtimes
 
 // Component is the component type.
@@ -16,4 +20,18 @@ type Component interface {
 	ReportRemoteAgentEvent(sessionID string, events []RemoteAgentEvent) error
 	GetRegisteredAgents() []RegisteredAgent
 	GetRegisteredAgentStatuses() []StatusData
+
+	// ListCommands queries all registered remote agents that advertise the command provider service and returns a
+	// slice of AgentCommands, one per agent that responded.
+	ListCommands() []AgentCommands
+
+	// ExecuteCommand routes a command execution request to the remote agent that owns the given command path.
+	// If agentFlavor is empty, the registry selects the first agent that supports the command.
+	ExecuteCommand(agentFlavor string, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error)
+}
+
+// AgentCommands holds the commands exposed by a single registered remote agent.
+type AgentCommands struct {
+	RegisteredAgent
+	Commands []*pb.Command
 }
