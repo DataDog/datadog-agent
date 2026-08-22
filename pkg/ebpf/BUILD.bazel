@@ -1,6 +1,10 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
+# Maintain by hand: The dependencies are too complex w.r.t. the sources for gazelle to get right.
+# gazelle:ignore
+# gazelle:dd_agent_go_test off
+
 # gazelle:exclude include_headers_gen.go
 # gazelle:exclude types_linux_test.go
 # gazelle:go_test file
@@ -171,41 +175,47 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# keep
 go_library(
     name = "ebpf",
+    # keep
     srcs = [
-        "btf.go",
-        "co_re.go",
-        "co_re_load.go",
-        "co_re_load_testutil.go",
-        "co_re_telemetry.go",
-        "co_re_unsupported.go",
         "common.go",
         "config.go",
-        "debug_handlers.go",
-        "debuglog_dumper.go",
-        "ebpf.go",
+        "include_headers.go",
         "ksyms.go",
-        "ksyms_bpf.go",
-        "lockcontention.go",
         "lockcontention_noop.go",
-        "manager.go",
-        "map_cleaner.go",
         "mappings.go",
-        "perf.go",
-        "perf_data_event.go",
-        "perf_ring_buffer.go",
         "preprocess.go",
-        "printk_patcher.go",
-        "probes.go",
-        "rc_btf.go",
-        "status_codes.go",
         "time.go",
-        "types_linux.go",
-    ],
+        "types.go",
+    ] + select({
+        "@rules_go//go/platform:linux": [
+            "btf.go",
+            "co_re.go",
+            "co_re_load.go",
+            "co_re_load_testutil.go",
+            "co_re_telemetry.go",
+            "co_re_unsupported.go",
+            "debug_handlers.go",
+            "debuglog_dumper.go",
+            "ebpf.go",
+            "lockcontention.go",
+            "manager.go",
+            "map_cleaner.go",
+            "perf.go",
+            "perf_data_event.go",
+            "perf_ring_buffer.go",
+            "printk_patcher.go",
+            "probes.go",
+            "rc_btf.go",
+            "status_codes.go",
+            "types_linux.go",
+        ],
+        "//conditions:default": [],
+    }),
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf",
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/setup",
