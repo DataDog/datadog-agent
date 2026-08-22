@@ -128,15 +128,18 @@ namespace WixSetup.Datadog_Agent
             // After InstallValidate so REMOVE is set, and before InstallInitialize so failing here does
             // not leave a partial installation behind. APPLICATIONDATADIRECTORY is resolved earlier, by
             // CostFinalize.
+            //
+            // Runs unconditionally, including on uninstall and on removal for an upgrade: this only
+            // asserts (never creates or modifies) the directory, so it cannot leave a partial
+            // installation behind either way. See DDCreateFolders for the part of the check that
+            // creates the directory when missing.
             EnsureSecureConfigRoot = new CustomAction<CustomActions>(
                 new Id(nameof(EnsureSecureConfigRoot)),
                 CustomActions.EnsureSecureConfigRoot,
                 Return.check,
                 When.After,
                 Step.InstallValidate,
-                // Run unless we are being uninstalled: removing the Agent must not be blocked by an
-                // untrusted directory, including when this MSI is removed by a later version.
-                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade),
+                Condition.Always,
                 Sequence.InstallExecuteSequence);
 
             // Same check, run from the Welcome dialog so an interactive install reports the problem
@@ -784,22 +787,24 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
+            // Scheduled right after InstallInitialize, the earliest a deferred action can run:
+            // the config root must already be secure before any other install/uninstall action
+            // that may rely on its contents.
             DDCreateFolders = new CustomAction<CustomActions>(
                     new Id(nameof(DDCreateFolders)),
                     CustomActions.DDCreateFolders,
                     Return.check,
-                    When.Before,
-                    Step.CreateFolders,
-                    // Run only on FirstInstall.
-                    // In Upgrade/Repair the directory has already been
-                    // created and configured, and this action could leave the directory
-                    // without access for ddagentuser if the installer rolls back.
-                    Conditions.FirstInstall
+                    When.After,
+                    Step.InstallInitialize,
+                    Condition.Always
                     )
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+            }.SetProperties(
+                "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                "INSTALLED=[Installed], " +
+                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]");
 
             // Installer package hooks (prerm / postinst)
             // These call datadog-installer.exe prerm/postinst, mirroring the deb/rpm maintainer

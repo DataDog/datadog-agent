@@ -420,14 +420,33 @@ namespace Datadog.CustomActions
             return WriteConfig(new SessionWrapper(session));
         }
 
+        /// <summary>
+        /// Creates the config root, run on every install/upgrade/repair/uninstall pass. Only resets
+        /// an existing directory's permissions on a true first install; otherwise it only creates the
+        /// directory if missing.
+        /// </summary>
         private static ActionResult DDCreateFolders(ISession session)
         {
             try
             {
                 var path = session.Property("APPLICATIONDATADIRECTORY");
+                var firstInstall = string.IsNullOrEmpty(session.Property("INSTALLED")) &&
+                                    string.IsNullOrEmpty(session.Property("WIX_UPGRADE_DETECTED"));
 
-                // Create/update the directory so only SYSTEM and Administrators have access
-                SecureDirectory.CreateAndSecure(session, path);
+                if (firstInstall)
+                {
+                    // Create/update the directory so only SYSTEM and Administrators have access
+                    SecureDirectory.CreateAndSecure(session, path);
+                }
+                else
+                {
+                    // Upgrade/repair/uninstall/removal-for-upgrade: the directory has already been
+                    // created and configured, so only create it if missing. Resetting an existing
+                    // directory's permissions here could strip access (e.g. ddagentuser's) granted
+                    // after it was first created, with no rollback action to restore it if the
+                    // transaction later fails.
+                    SecureDirectory.CreateIfMissing(session, path);
+                }
 
                 // Create the logonduration subdirectory; it inherits the DACL above.
                 var logonDurationDir = Path.Combine(path, "logonduration");
