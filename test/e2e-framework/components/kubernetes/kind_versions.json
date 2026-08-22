@@ -5,7 +5,7 @@
   },
   "1.36": {
     "kind_version": "v0.32.0",
-    "node_image_version": "v1.36.3@sha256:a16e7786dbb06083ddd49e59a17f9cb36e75e85491b192d6977a674d5364b720"
+    "node_image_version": "v1.36.4@sha256:71490a091726ec02c2d1530b8dcf1867588448105cbf48797b54d079adac1a7b"
   },
   "1.35": {
     "kind_version": "v0.31.0",
