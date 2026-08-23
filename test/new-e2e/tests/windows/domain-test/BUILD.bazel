@@ -2,11 +2,15 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 dd_agent_go_test(
     name = "domain-test_test",
-    srcs = ["domain_test.go"],
+    srcs = [
+        "domain_procmgr_test.go",
+        "domain_test.go",
+    ],
     target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//test/e2e-framework/components/activedirectory",
         "//test/e2e-framework/scenarios/aws/ec2/windows",
+        "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host/windows",
