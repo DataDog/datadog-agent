@@ -119,9 +119,6 @@ struct syscall_cache_t {
             int clone_mnt_ctr;
             int source;
             u64 ns_inum;
-
-            // unshare flags. In the mount arm because the CLONE_NEWNS path writes
-            // the fields above; a separate union arm would alias them.
             u64 unshare_flags;
         } mount;
 

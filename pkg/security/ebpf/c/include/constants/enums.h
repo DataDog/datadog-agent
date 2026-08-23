@@ -79,10 +79,6 @@ enum event_type
     EVENT_SETSID,
     EVENT_NOP,
     EVENT_SOCKET,
-    // internal, per-mount event used by the mount resolver to register each mount
-    // cloned by an unshare(CLONE_NEWNS). Distinct from EVENT_UNSHARE, which is the
-    // public per-syscall event. Its ordinal is above the 64-bit enabled_events mask,
-    // which is harmless: internal events are never gated by it.
     EVENT_UNSHARE_MNTNS,
     EVENT_MAX, // has to be the last one
 

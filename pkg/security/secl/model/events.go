@@ -153,9 +153,7 @@ const (
 	NopEventType
 	// SocketEventType is sent when a socket is created
 	SocketEventType
-	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy.
-	// Internal, per-mount event consumed by the mount resolver; see UnshareEventType for the
-	// public per-syscall event.
+	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
 	UnshareMountNsEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType

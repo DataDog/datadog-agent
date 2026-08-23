@@ -325,7 +325,6 @@ struct mount_event_t {
     u32    source;
 };
 
-// public, per-syscall event: sent once from the unshare exit hook
 struct unshare_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -336,9 +335,6 @@ struct unshare_event_t {
     u64 flags;
 };
 
-// internal, per-mount event: sent once for every mount cloned by an
-// unshare(CLONE_NEWNS), consumed by the mount resolver and never dispatched to
-// rules, hence no process/cgroup/span context
 struct unshare_mntns_event_t {
     struct kevent_t event;
     struct mount_fields_t mountfields;
