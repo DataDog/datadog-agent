@@ -19,11 +19,10 @@ import (
 const installerLSASecretKey = "L$datadog_ddagentuser_password"
 
 func joinRemoteWindowsPath(base string, elems ...string) string {
-	p := strings.TrimRight(strings.ReplaceAll(base, `\`, `/`), `/`)
-	for _, elem := range elems {
-		p += "/" + elem
-	}
-	return p
+	parts := make([]string, 0, len(elems)+1)
+	parts = append(parts, strings.TrimRight(strings.ReplaceAll(base, `\`, `/`), `/`))
+	parts = append(parts, elems...)
+	return strings.Join(parts, "/")
 }
 
 func procmgrCLIBin(host *components.RemoteHost) (string, error) {
