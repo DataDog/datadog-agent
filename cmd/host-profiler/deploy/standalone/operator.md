@@ -79,24 +79,25 @@ securityContext:
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
 
-## Selective Deployment (optional)
+## Selective deployment (optional)
 
-By default, the DaemonSet deployment schedules the Host Profiler on every node in the cluster. Use one of the following options in operator/collector.yaml to limit it to a subset of nodes.
+By default, the DaemonSet schedules the Host Profiler on every node in the cluster. To limit it to a subset of nodes, set one of the following fields in [`operator/collector.yaml`](operator/collector.yaml).
 
-1. nodeSelector
+### `nodeSelector`
 
-This option matches nodes by exact label value: 
+Matches nodes by exact label value:
 
-```
+```yaml
 spec:
   nodeSelector:
     eks.amazonaws.com/nodegroup: ng1
 ```
 
-2. affinity.nodeAffinity
+### `affinity.nodeAffinity`
 
-Use this instead of nodeSelector when you need In/NotIn matching, multiple label conditions, or a soft preference rather than a hard requirement:
-```
+Use node affinity instead of `nodeSelector` for `In`/`NotIn` matching, multiple label conditions, or a soft preference rather than a hard requirement:
+
+```yaml
 spec:
   affinity:
     nodeAffinity:
@@ -109,10 +110,11 @@ spec:
                   - ng1
 ```
 
-3. Taints and tolerations
+### `tolerations`
 
-Use this when the target nodes are already tainted for another reason (for example, a reserved nodegroup or a team's dedicated node pool). Without a matching toleration, the Host Profiler cannot schedule on those nodes at all, even with a matching `nodeSelector` or `affinity`:
-```
+Target nodes may already carry a taint, for example a reserved nodegroup or a team's dedicated node pool. The Host Profiler cannot schedule on a tainted node without a matching toleration, even when `nodeSelector` or `affinity` matches that node:
+
+```yaml
 spec:
   tolerations:
     - key: dedicated
@@ -121,4 +123,4 @@ spec:
       effect: NoSchedule
 ```
 
-See the OpenTelemetryCollector API reference (https://github.com/open-telemetry/opentelemetry-operator/blob/main/docs/api/opentelemetrycollectors.md) for the full field list.
+See the [OpenTelemetryCollector API reference](https://github.com/open-telemetry/opentelemetry-operator/blob/main/docs/api/opentelemetrycollectors.md) for the full field list.
