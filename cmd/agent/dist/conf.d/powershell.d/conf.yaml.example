@@ -50,6 +50,13 @@
 #   ## be allowlisted in its string form - `allowed_values: ['false']`, not
 #   ## `[false]` - otherwise it never matches.
 #   ##
+#   ## Note: `pattern` is a Go (RE2) regex and is CASE-SENSITIVE. A pattern of
+#   ## 'dnscache' will not accept "Dnscache" - write '(?i)dnscache' or a character
+#   ## class. RE2 has no lookaround and no backreferences: '(?=...)' and '\1' are
+#   ## rejected when the allowlist loads. Cmdlet keys, parameter names and
+#   ## `allowed_values` are case-sensitive too, so they must be spelled exactly as
+#   ## the instance spells them.
+#   ##
 #   ## Example allowlist:
 #   ##
 #   ##   version: 1

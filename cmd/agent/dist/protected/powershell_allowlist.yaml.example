@@ -20,7 +20,7 @@
 #         <ParameterName>:
 #           required: <bool>      # optional (default false)
 #           allowed_values: [...] # exact-match whitelist of values
-#           pattern: '<regex>'    # value must match; the regex is matched against
+#           pattern: '<regex>'    # Go RE2 regex; value must match. Matched against
 #                                 # the WHOLE value (auto-anchored, no need for ^...$)
 #
 # Every declared parameter MUST set either allowed_values or pattern: a value
@@ -30,6 +30,14 @@
 # Values are compared as STRINGS. A boolean or numeric instance value must be
 # listed in its string form - allowed_values: ['false'], not [false] - or it will
 # never match. See Get-SmbShare below.
+#
+# Patterns are Go (RE2) regexes and are CASE-SENSITIVE: 'dnscache' will not accept
+# "Dnscache" - write '(?i)dnscache' or a character class. RE2 has no lookaround and
+# no backreferences: '(?=...)' and '\1' are rejected when the allowlist loads.
+#
+# Cmdlet keys, parameter names and allowed_values are matched case-sensitively too,
+# so they must be spelled exactly as the instance spells them, and a cmdlet key must
+# be a capitalised Get-<Noun>.
 
 version: 1
 allowed_cmdlets:
