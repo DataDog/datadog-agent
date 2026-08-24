@@ -104,13 +104,6 @@ func TestGetReflectsLiveStateWithoutExplicitRefresh(t *testing.T) {
 	assert.Nil(t, io.Get(), "Get() must reflect the current state, not the value cached by the last periodic collection")
 }
 
-// TestPayloadReflectsRealHaAgentComponent wires the real comp/haagent/impl component
-// (not haagentmock) into this metadata component, driven by real ha_agent.enabled/config_id
-// config. This is the assembly the removed test/new-e2e/tests/ha-agent/haagent_metadata_test.go
-// suite verified via a provisioned host: TestGetPayload above already proves the metadata
-// component reflects an arbitrary haagent.Component's Enabled/State, and
-// comp/haagent/impl/haagent_test.go's Test_Enabled already proves the real component reads
-// ha_agent.enabled/config_id correctly, but nothing previously built both together.
 func TestPayloadReflectsRealHaAgentComponent(t *testing.T) {
 	realCfg := config.NewMock(t)
 	realCfg.SetInTest("ha_agent.enabled", true)
