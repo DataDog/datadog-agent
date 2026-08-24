@@ -16,6 +16,7 @@ use super::wide;
 pub(crate) const DATADOG_AGENT_SERVICE: &str = "datadogagent";
 const LOCAL_SYSTEM_SID: &str = "S-1-5-18";
 
+#[cfg(not(test))]
 pub(crate) fn service_runs_as_agent_user(
     service_name: &str,
     domain: &str,
@@ -93,6 +94,7 @@ fn service_start_name(service_name: &str) -> Result<String> {
     Ok(start_name)
 }
 
+#[cfg(not(test))]
 fn lookup_service_account_sid(service_user: &str) -> Result<Vec<u8>> {
     if service_user.eq_ignore_ascii_case("LocalSystem") {
         return lookup_account_sid("NT AUTHORITY", "SYSTEM")
@@ -101,13 +103,14 @@ fn lookup_service_account_sid(service_user: &str) -> Result<Vec<u8>> {
 
     let mut parts = service_user.splitn(2, '\\');
     match (parts.next(), parts.next()) {
-        (Some(domain), Some(user)) if domain == "." => lookup_account_sid("", user),
+        (Some("."), Some(user)) => lookup_account_sid("", user),
         (Some(domain), Some(user)) => lookup_account_sid(domain, user),
         (Some(user), None) => lookup_account_sid("", user),
         _ => bail!("invalid service account name {service_user}"),
     }
 }
 
+#[cfg(not(test))]
 fn sids_equal(left: &[u8], right: &[u8]) -> bool {
     use windows_sys::Win32::Security::EqualSid;
     unsafe { EqualSid(left.as_ptr() as *mut _, right.as_ptr() as *mut _) != 0 }
