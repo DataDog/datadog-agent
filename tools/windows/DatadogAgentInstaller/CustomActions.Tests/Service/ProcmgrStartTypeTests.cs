@@ -45,6 +45,21 @@ namespace CustomActions.Tests.Service
                 c => c.SetStartType(ProcmgrServiceName, It.IsNotIn(expected)), Times.Never);
         }
 
+        private void VerifyAgentUserCredentialsUnchanged()
+        {
+            foreach (var serviceName in new[]
+                     {
+                         Constants.AgentServiceName,
+                         Constants.TraceAgentServiceName,
+                         Constants.SecurityAgentServiceName,
+                     })
+            {
+                Test.ServiceController.Verify(
+                    c => c.SetCredentials(serviceName, It.IsAny<string>(), It.IsAny<string>()),
+                    Times.Never);
+            }
+        }
+
         [Fact]
         public void ConfigureServiceUsers_PreservesAgentServiceCredentials_WhenPasswordNotProvided()
         {
@@ -53,18 +68,7 @@ namespace CustomActions.Tests.Service
 
             Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
 
-            Test.ServiceController.Verify(
-                c => c.SetCredentials(Constants.AgentServiceName, null, null), Times.Once);
-            Test.ServiceController.Verify(
-                c => c.SetCredentials(Constants.TraceAgentServiceName, null, null), Times.Once);
-            Test.ServiceController.Verify(
-                c => c.SetCredentials(Constants.SecurityAgentServiceName, null, null), Times.Once);
-            Test.ServiceController.Verify(
-                c => c.SetCredentials(
-                    Constants.AgentServiceName,
-                    It.Is<string>(username => username != null),
-                    It.IsAny<string>()),
-                Times.Never);
+            VerifyAgentUserCredentialsUnchanged();
         }
 
         [Fact]
