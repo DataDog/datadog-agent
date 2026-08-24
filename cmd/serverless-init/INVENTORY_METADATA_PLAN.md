@@ -5,6 +5,9 @@ component) is built and wired here with specialized field/enablement logic
 stubbed; Option A (reuse the `inventoryagent` component) is being spiked on a
 separate branch. See "Architecture" and "Alternative under evaluation" below.
 
+The shared `PopulateCoreFields` seam is now built (in `comp/metadata/internal/util`),
+replacing the earlier local placeholder; see "Central shared seam" below.
+
 ## Goal
 
 Emit `inventoryagent`-style metadata from serverless-init to the existing
@@ -46,7 +49,7 @@ machinery without importing serverless code.
     flare (the same pattern as `inventoryhost`).
   - Owns its `Payload` envelope: empty `hostname`, a per-process `uuid.New()`
     (not the shared host GUID), and the `agent_metadata` map.
-  - `getPayload` = `populateCoreFields` + `addPrefixedFields`; the latter
+  - `getPayload` = `util.PopulateCoreFields` + `addPrefixedFields`; the latter
     flattens the typed `Fields` through a JSON round-trip and prefixes each
     key, so adding a field to `Fields` needs no change here.
   - `Enabled` is set from a local `enabled()` gate, overriding the cached
@@ -69,9 +72,8 @@ machinery without importing serverless code.
 
 ### Stubbed, pending the sections below
 
-- `populateCoreFields` is a local placeholder for the shared
-  `PopulateCoreFields` seam (see below); `install_method_*` are placeholder
-  values.
+- `install_method_*` are placeholder values inside `PopulateCoreFields`
+  (the shared seam itself is built; only these values are still stubbed).
 - Every `CloudService.GetInventoryData()` returns the zero struct; per-platform
   derivation (workload_type, CCRID, region, deployment types, runtime) is not
   implemented.
@@ -120,39 +122,57 @@ machinery without importing serverless code.
    orders inventory after host-tags/host metadata. serverless-init pulls in
    none of that, so an effective delay of 0 with an early first send is sound.
 
-## Central shared seam: `PopulateCoreFields`
+## Central shared seam: `PopulateCoreFields` (built)
 
 To resist drift from the normal agent pipeline regardless of the reuse-vs-new
-decision, we extract a shared method in the `inventoryagent` component
-(`comp/metadata/inventoryagent/impl`) that populates **only** the fields
-required for a payload to be recognized and processed as an agent-metadata
-payload. Both the core-agent component and the serverless builder call it, and
-the core agent's `initData` is refactored to call it so there is a single
-source of truth. It must not pull in cross-process fetchers
-(security/process/trace/system-probe) or config dumps. We may relocate it to a
-shared helper package later; starting in the component keeps the refactor
-local.
+decision, a shared function populates **only** the fields required for a payload
+to be recognized and processed as an agent-metadata payload. Both the core-agent
+component and the serverless builder call it, so there is a single source of
+truth. It must not pull in cross-process fetchers
+(security/process/trace/system-probe) or config dumps.
 
-Because `initData` sets `flavor` from `flavor.GetFlavor()` but serverless must
-emit `serverless-init` **without** changing the process-global flavor (see Key
-finding #4), `PopulateCoreFields` must take the flavor value as a parameter (or
-the caller overrides `data["flavor"]` afterward) rather than hardwiring
-`flavor.GetFlavor()`. The core agent passes `flavor.GetFlavor()`; serverless
-passes `"serverless-init"`.
+Location (built): `comp/metadata/internal/util.PopulateCoreFields`, **not**
+`comp/metadata/inventoryagent/impl`. `internal/util` is already imported by both
+components (via `InventoryPayload` / `InventoryEnabled`), whereas putting the
+seam in `inventoryagent/impl` and importing it from `serverlessinventory` would
+drag the core-agent component's cross-process machinery (IPC, sysprobe, ECS
+metadata, trace fetchers, FIPS) into the serverless fx graph — defeating Option
+B's isolation goal. `go list -deps` confirms `serverlessinventory` does **not**
+import `inventoryagent/impl`.
 
-Candidate source of truth is today's `inventoryagent.initData()`, which already
-contains exactly the no-cross-process-dependency core fields: `agent_version`,
-`package_version`, `agent_startup_time_ms`, `flavor`, `hostname_source`,
-`infrastructure_mode`, `install_method_tool`, `install_method_tool_version`,
-`install_method_installer_version`. (`hostname_source` is set conditionally —
-only when a hostname provider resolves and it is not Fargate — so it may be
-absent; in serverless with no host it will typically be omitted.)
+Shape (built): a package-level function operating on the `agent_metadata` map,
+not a method on a component:
+
+```go
+func PopulateCoreFields(data map[string]interface{}, conf model.Reader, flavor string, hostnameSource string)
+```
+
+- `flavor` is a **parameter**, not `flavor.GetFlavor()`: serverless must emit
+  `serverless-init` **without** changing the process-global flavor (see Key
+  finding #4). The core agent passes `flavor.GetFlavor()`; serverless passes
+  `"serverless-init"`.
+- `hostnameSource` is a **parameter**, recorded only when non-empty. Its
+  resolution (the hostname provider + `!FromFargate()` guard) stays in
+  `inventoryagent.initData()` because it needs the hostname component; only the
+  resolved string is handed to the seam. Serverless has no host and passes `""`,
+  so the key is omitted — matching the core agent's conditional behavior.
+
+Fields it sets (the no-cross-process-dependency subset of the former
+`inventoryagent.initData()`): `agent_version`, `package_version`,
+`agent_startup_time_ms`, `flavor`, `hostname_source` (conditional),
+`infrastructure_mode` (with its existing validation), `install_method_tool`,
+`install_method_tool_version`, `install_method_installer_version`.
+
+Callers (built): `inventoryagent.initData()` was refactored to delegate to the
+seam (preserving existing keys/values and the conditional `hostname_source`
+omission); `serverlessinventory`'s former local `populateCoreFields` placeholder
+was deleted in favor of the shared call. Tests for the install-info branch moved
+to `comp/metadata/internal/util` alongside the code.
 
 Open: the exact required set is a downstream contract to confirm with the
 pipeline owners (`PopulateCoreFields` should contain the minimal set the
-pipeline requires, not necessarily all of `initData`), and whether it is an
-exported method on the component or a package-level function operating on the
-`agent_metadata` map.
+pipeline requires, not necessarily all of `initData`); the field set can be
+trimmed once that contract lands.
 
 ## Alternative under evaluation: reuse the existing `inventoryagent` component
 
@@ -419,8 +439,9 @@ them), so no Windows build path is required here.
 - `workload_type` mapping, `resource_id` / CCRID composition, and the
   gcp/azure deployment-type / hosting-plan / runtime derivations (CloudService
   methods, this team).
-- `PopulateCoreFields` contract (which fields the pipeline requires) and its
-  shape (method vs. package function).
+- `PopulateCoreFields` contract: which fields the pipeline requires (the seam's
+  location and shape are decided and built — a package function in
+  `comp/metadata/internal/util`; only the required-field membership is open).
 - `full_configuration` include/exclude decision, i.e. whether the scrubbed
   config dump is useful/safe in serverless. Its gate
   `inventories_configuration_enabled` is full-agent-only and absent from the
@@ -433,20 +454,21 @@ them), so no Windows build path is required here.
 
 Compare Option A and Option B once both reach a compiles-and-emits level and
 settle on one. The items below carry the Option B build forward; several
-(`PopulateCoreFields` extraction, per-platform `GetInventoryData`,
-config/enablement, tests) apply regardless of which option is chosen.
+(per-platform `GetInventoryData`, config/enablement, tests) apply regardless of
+which option is chosen.
 
-- Extract the shared `PopulateCoreFields` seam into `inventoryagent` and have
-  both the core agent and this component call it, replacing the local
-  `populateCoreFields` placeholder. Requires the field contract with the
-  pipeline owners (which fields are required) and the shape (method vs.
-  package function).
+- Confirm the `PopulateCoreFields` field contract with the pipeline owners
+  (which fields are required) and trim the seam's field set to the minimal
+  required set if it is narrower than today's. The seam itself is built
+  (`comp/metadata/internal/util.PopulateCoreFields`, called by both the core
+  agent and this component); only the exact membership remains open.
 - Implement per-platform `CloudService.GetInventoryData()` (workload_type,
   CCRID/resource_id, resource_name, region, gcp/azure deployment types,
   runtime).
 - Add the remaining `Fields`: DD_* passthrough, `agent_version_base`,
   `agent_commit`, `wrapped_command`.
-- Wire real `install_method_*` values into `populateCoreFields`.
+- Wire real `install_method_*` values into `PopulateCoreFields` (currently
+  placeholder values).
 - Config/enablement: remove `full-agent-only:true` from the `inventories_*`
   keys so they exist in the serverless schema, add `serverless.inventory_enabled`
   (default false) as the ramp gate replacing the hardcoded `enabled()`, force
@@ -454,7 +476,8 @@ config/enablement, tests) apply regardless of which option is chosen.
   (`dda inv schema.codegen`), and update `TestServerlessConfigInit` /
   `TestAgentConfigInit`.
 - Tests: unit tests (payload/field mapping, prefix, flavor, enablement gating,
-  `PopulateCoreFields` output) and a fakeintake e2e asserting the payload lands
+  `PopulateCoreFields` output — the util-package tests exist; extend as the
+  field set firms up) and a fakeintake e2e asserting the payload lands
   with `flavor: serverless-init` and expected fields across platforms (at
   minimum Cloud Run; extend per `write-e2e` / `e2e-audit`).
 - Rollout: validate volume, then flip the enablement default to on.

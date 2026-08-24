@@ -27,7 +27,6 @@ import (
 	serverlessinventory "github.com/DataDog/datadog-agent/comp/metadata/serverlessinventory/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // flavorValue is the payload flavor for serverless-init. It carries the dash
@@ -124,7 +123,11 @@ func enabled(_ config.Component) bool {
 func (si *serverlessInventory) getPayload() marshaler.JSONMarshaler {
 	data := make(map[string]interface{})
 
-	populateCoreFields(data, si.conf, flavorValue)
+	// The shared seam keeps the core agent-metadata fields in sync with the
+	// core-agent inventory component. Serverless has no resolvable host, so it
+	// passes an empty hostname source and injects its own flavor without
+	// touching the process-global flavor.
+	util.PopulateCoreFields(data, si.conf, flavorValue, "")
 	addPrefixedFields(data, si.fields.GetInventoryFields())
 
 	return &Payload{
@@ -156,28 +159,4 @@ func addPrefixedFields(data map[string]interface{}, fields serverlessinventory.F
 	for key, value := range flat {
 		data[serverlessFieldPrefix+key] = value
 	}
-}
-
-// populateCoreFields sets the subset of agent-metadata fields required for a
-// payload to be recognized and processed as an agent-metadata payload by the
-// inventory pipeline. The flavor is injected rather than read from
-// flavor.GetFlavor() so serverless-init can emit its own flavor without
-// changing the process-global one.
-//
-// These fields mirror the no-cross-process-dependency core fields the core
-// agent's inventoryagent component sets. Fields that depend on cross-process
-// fetchers (security/process/trace/system-probe) or config dumps must NOT be
-// added here.
-//
-// TODO(SVLS): the install_method_* values are placeholders; wire them from the
-// install-info the core agent reads.
-func populateCoreFields(data map[string]interface{}, conf config.Component, flavor string) {
-	data["agent_version"] = version.AgentVersion
-	data["package_version"] = version.AgentPackageVersion
-	data["agent_startup_time_ms"] = conf.StartTime().UnixMilli()
-	data["flavor"] = flavor
-
-	data["install_method_tool"] = "undefined"
-	data["install_method_tool_version"] = ""
-	data["install_method_installer_version"] = ""
 }

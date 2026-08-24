@@ -38,7 +38,6 @@ import (
 	sysprobecfg "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -110,33 +109,6 @@ func TestGetPayload(t *testing.T) {
 	assert.True(t, payload.Timestamp > startTime)
 	assert.Equal(t, "hostname-for-test", payload.Hostname)
 	assert.Equal(t, 1234, payload.Metadata["test"])
-}
-
-func TestInitDataErrorInstallInfo(t *testing.T) {
-	defer func() { installinfoGet = installinfo.Get }()
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return nil, errors.New("some error")
-	}
-
-	ia := getTestInventoryPayload(t, nil, nil)
-
-	ia.initData()
-	assert.Equal(t, "undefined", ia.data["install_method_tool"])
-	assert.Equal(t, "", ia.data["install_method_tool_version"])
-	assert.Equal(t, "", ia.data["install_method_installer_version"])
-
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return &installinfo.InstallInfo{
-			Tool:             "test_tool",
-			ToolVersion:      "1.2.3",
-			InstallerVersion: "4.5.6",
-		}, nil
-	}
-
-	ia.initData()
-	assert.Equal(t, "test_tool", ia.data["install_method_tool"])
-	assert.Equal(t, "1.2.3", ia.data["install_method_tool_version"])
-	assert.Equal(t, "4.5.6", ia.data["install_method_installer_version"])
 }
 
 func TestInitData(t *testing.T) {

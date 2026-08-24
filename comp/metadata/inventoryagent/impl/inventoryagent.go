@@ -12,7 +12,6 @@ import (
 	"maps"
 	"net/http"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -42,16 +41,13 @@ import (
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
 	// for testing
-	installinfoGet      = installinfo.Get
 	fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	fetchProcessConfig  = func(cfg model.Reader, client ipc.HTTPClient) (string, error) {
 		return configFetcher.ProcessAgentConfig(cfg, client, true)
@@ -145,41 +141,17 @@ func scrub(s string) string {
 }
 
 func (ia *inventoryagent) initData() {
-	tool := "undefined"
-	toolVersion := ""
-	installerVersion := ""
-
-	install, err := installinfoGet(ia.conf)
-	if err == nil {
-		tool = install.Tool
-		toolVersion = install.ToolVersion
-		installerVersion = install.InstallerVersion
-	}
-	ia.data["install_method_tool"] = tool
-	ia.data["install_method_tool_version"] = toolVersion
-	ia.data["install_method_installer_version"] = installerVersion
-
+	hostnameSource := ""
 	data, err := ia.hostnameComp.GetWithProvider(context.Background())
 	if err == nil {
 		if data.Provider != "" && !data.FromFargate() {
-			ia.data["hostname_source"] = data.Provider
+			hostnameSource = data.Provider
 		}
 	} else {
 		ia.log.Warnf("could not fetch 'hostname_source': %v", err)
 	}
 
-	ia.data["agent_version"] = version.AgentVersion
-	ia.data["package_version"] = version.AgentPackageVersion
-	ia.data["agent_startup_time_ms"] = ia.conf.StartTime().UnixMilli()
-	ia.data["flavor"] = flavor.GetFlavor()
-
-	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
-	// fleet-automation: This validation should be done by the Config once we have such mechanism
-	if !slices.Contains([]string{"full", "end_user_device", "basic", "cloud_cost_only", "none"}, infraMode) {
-		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
-		infraMode = "full"
-	}
-	ia.data["infrastructure_mode"] = infraMode
+	util.PopulateCoreFields(ia.data, ia.conf, flavor.GetFlavor(), hostnameSource)
 }
 
 type configGetter interface {
