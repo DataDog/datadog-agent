@@ -44,6 +44,11 @@ const (
 	// maxOutputBytes bounds the JSON captured from a single cmdlet invocation.
 	maxOutputBytes = 10 * 1024 * 1024
 
+	// maxStderrBytes bounds diagnostic output captured from a single cmdlet
+	// invocation. Stderr is only used for error reporting, so it needs a much
+	// smaller cap than the JSON payload on stdout.
+	maxStderrBytes = 64 * 1024
+
 	// waitDelay bounds how long Wait may block on the child's I/O pipes after the
 	// process itself has exited or been killed.
 	waitDelay = 5 * time.Second
@@ -273,28 +278,33 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, wher
 	cmd.Stdin = bytes.NewReader(payload)
 
 	stdout := &cappedBuffer{limit: maxOutputBytes}
-	var stderr bytes.Buffer
+	stderr := &cappedBuffer{limit: maxStderrBytes}
 	cmd.Stdout = stdout
-	cmd.Stderr = &stderr
+	cmd.Stderr = stderr
 
 	// Wait blocks until every process holding the pipes closes them, so an
 	// auto-loaded module spawning a helper could otherwise wedge it past the deadline.
 	cmd.WaitDelay = waitDelay
 
 	cmdStart := time.Now()
-	if err := cmd.Run(); err != nil {
+	runErr := cmd.Run()
+	stderrMessage := strings.TrimSpace(string(stderr.Bytes()))
+	stderrTruncation := ""
+	if stderr.truncated {
+		stderrTruncation = fmt.Sprintf(" [truncated after %d bytes]", maxStderrBytes)
+	}
+	if runErr != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("timed out after %ds", c.instance.Timeout)
+			return nil, fmt.Errorf("timed out after %ds%s", c.instance.Timeout, stderrTruncation)
 		}
-		if errors.Is(err, exec.ErrWaitDelay) {
-			return nil, fmt.Errorf("cmdlet exited but its output pipes stayed open for more than %s", waitDelay)
+		if errors.Is(runErr, exec.ErrWaitDelay) {
+			return nil, fmt.Errorf("cmdlet exited but its output pipes stayed open for more than %s%s", waitDelay, stderrTruncation)
 		}
-		return nil, fmt.Errorf("%w (stderr: %s)", err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("%w (stderr: %s%s)", runErr, stderrMessage, stderrTruncation)
 	}
 
-	// Capped because, unlike stdout, stderr is not bounded by maxOutputBytes.
-	if msg := strings.TrimSpace(stderr.String()); msg != "" {
-		log.Warnf("cmdlet %s wrote to stderr but exited successfully: %.512s", cmdlet, msg)
+	if stderrMessage != "" || stderr.truncated {
+		log.Warnf("cmdlet %s wrote to stderr but exited successfully: %.512s%s", cmdlet, stderrMessage, stderrTruncation)
 	}
 
 	if stdout.truncated {
