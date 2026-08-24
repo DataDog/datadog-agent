@@ -5,7 +5,12 @@
 
 package main
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
 
 type Request struct {
 	ID       int
@@ -26,7 +31,10 @@ func (s *Server) handleOrder(req *Request) error {
 	return nil
 }
 
-func executeServerFuncs() {
+func executeServerFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.orders")
+	defer span.Finish()
+
 	s := &Server{name: "orders"}
 	s.handleOrder(&Request{ID: 1, Customer: "Alice", Total: 42.50})
 	s.handleOrder(&Request{ID: 2, Customer: "Bob", Total: -1})

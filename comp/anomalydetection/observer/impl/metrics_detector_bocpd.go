@@ -358,7 +358,6 @@ func (b *BOCPDDetector) initializeFromStorage(storage observer.StorageReader, re
 	state.runProbs[0] = 1.0
 	state.means[0] = state.priorMean
 	state.precisions[0] = state.priorPrecision
-
 	storage.ForEachPoint(ref, 0, state.lastProcessedTime, agg, func(_ *observer.Series, p observer.Point) {
 		b.updatePosterior(state, p.Value)
 	})
