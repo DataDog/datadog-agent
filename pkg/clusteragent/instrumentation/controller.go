@@ -135,10 +135,8 @@ func (c *Controller) reconcile(ctx context.Context, key string) error {
 			eventCR = old
 		}
 		status, err := handler.Handle(ctx, eventType, eventCR)
-		if c.telemetry != nil {
-			success := err == nil && status.Status == metav1.ConditionTrue
-			c.telemetry.recordReconciliation(handler.Name(), success)
-		}
+		success := err == nil && status.Status == metav1.ConditionTrue
+		c.telemetry.recordReconciliation(handler.Name(), success)
 		if err != nil {
 			return err
 		}
@@ -207,9 +205,7 @@ func (c *Controller) enqueueKey(obj interface{}) {
 }
 
 func (c *Controller) handleAdd(obj interface{}) {
-	if c.telemetry != nil {
-		c.telemetry.resources.Inc()
-	}
+	c.telemetry.resources.Inc()
 	c.enqueueKey(obj)
 }
 
@@ -223,9 +219,7 @@ func (c *Controller) handleUpdate(oldObj, newObj interface{}) {
 }
 
 func (c *Controller) handleDelete(obj interface{}) {
-	if c.telemetry != nil {
-		c.telemetry.resources.Dec()
-	}
+	c.telemetry.resources.Dec()
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = tombstone.Obj
 	}
