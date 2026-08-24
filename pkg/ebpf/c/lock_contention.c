@@ -25,10 +25,6 @@ volatile const u64 num_of_ranges = 0;
 volatile const u64 log2_num_of_ranges = 0;
 volatile const u64 num_cpus = 0;
 
-/** error stats **/ 
-int nesting_depth_fail;
-
-
 static __always_inline bool is_bpf_map(u32 fd, struct file** bpf_map_file) {
     struct file **fdarray;
     u64 fn_read;
@@ -383,10 +379,8 @@ static __always_inline int can_record(u64 *ctx, struct lock_range* range)
     u64 addr = ctx[0];
 
     int nesting_depth = get_nesting_depth();
-    if (nesting_depth < 0) {
-        __sync_fetch_and_add(&nesting_depth_fail, 1);
+    if (nesting_depth < 0)
         return false;
-    }
 
     struct loop_variables* loop_vars = bpf_map_lookup_elem(&lvars, &nesting_depth);
     if (!loop_vars)
