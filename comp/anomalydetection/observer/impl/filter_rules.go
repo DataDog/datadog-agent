@@ -226,7 +226,7 @@ func (f *metricsFilterRules) isMuted(name, source string, tags []string) bool {
 	}
 
 	if m := f.muted.Load(); m != nil {
-		if _, ok := (*m)[seriesKeyHash(source, name, tags)]; ok {
+		if _, ok := (*m)[seriesKeyHash(source, name, "", tags)]; ok {
 			return true
 		}
 	}

@@ -78,6 +78,7 @@ type rawTagsTrackingMetric struct {
 
 func (m *rawTagsTrackingMetric) GetName() string         { return m.name }
 func (m *rawTagsTrackingMetric) GetValue() float64       { return m.value }
+func (m *rawTagsTrackingMetric) GetHost() string         { return "" }
 func (m *rawTagsTrackingMetric) GetTimestampUnix() int64 { return m.timestamp }
 func (m *rawTagsTrackingMetric) GetSampleRate() float64  { return 1.0 }
 func (m *rawTagsTrackingMetric) GetRawTags() []string {
@@ -90,7 +91,7 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	tags := []string{"env:prod"}
-	h := seriesKeyHash("check", "system.cpu.user", tags)
+	h := seriesKeyHash("check", "system.cpu.user", "", tags)
 	filter.publishMutedSnapshot(map[uint64]struct{}{h: {}})
 
 	assert.False(t, filter.isAllowed("system.cpu.user", "check", tags))
@@ -351,7 +352,7 @@ func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
 
 	tags := []string{"env:prod", "service:web"}
 	filter.publishMutedSnapshot(map[uint64]struct{}{
-		seriesKeyHash("dogstatsd", "system.cpu.user", tags): {},
+		seriesKeyHash("dogstatsd", "system.cpu.user", "", tags): {},
 	})
 	sample := &rawTagsTrackingMetric{
 		name: "system.cpu.user",

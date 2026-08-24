@@ -33,6 +33,21 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_AddWithHostSeparatesIdenticalMetricAndTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+	first := s.AddWithHost("test", "my.metric", "host-a", 10, 1000, []string{"env:prod"})
+	second := s.AddWithHost("test", "my.metric", "host-b", 20, 1000, []string{"env:prod"})
+
+	require.NotEqual(t, first.Ref, second.Ref)
+	firstMeta := s.GetSeriesMeta(first.Ref)
+	secondMeta := s.GetSeriesMeta(second.Ref)
+	require.NotNil(t, firstMeta)
+	require.NotNil(t, secondMeta)
+	assert.Equal(t, "host-a", firstMeta.Host)
+	assert.Equal(t, "host-b", secondMeta.Host)
+	assert.Equal(t, "test|my.metric:avg|host-a|env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Host: "host-a", Tags: []string{"env:prod"}, Aggregate: AggregateAverage}).Key())
+}
+
 func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
 	s := newTimeSeriesStorage()
 	var ref observer.SeriesRef
@@ -768,9 +783,9 @@ func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
 	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
 
-	hA := seriesKeyHash("ns", "a", []string{"k:1"})
-	hB := seriesKeyHash("ns", "b", []string{"k:2"})
-	hMissing := seriesKeyHash("ns", "ghost", nil)
+	hA := seriesKeyHash("ns", "a", "", []string{"k:1"})
+	hB := seriesKeyHash("ns", "b", "", []string{"k:2"})
+	hMissing := seriesKeyHash("ns", "ghost", "", nil)
 
 	refs := s.FindRefsByHashes(map[uint64]struct{}{hA: {}, hB: {}, hMissing: {}})
 
