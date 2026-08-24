@@ -69,8 +69,12 @@ message Command {
   // The flavor of the remote agent that owns this command.
   //
   // Populated by the Core Agent when aggregating commands from multiple remote agents.
-  // The CLI uses this to route ExecuteCommand requests to the correct agent.
+  // This field is informational; use agent_id to route execution.
   string agent_flavor = 8;
+  // Opaque identifier assigned by the Core Agent to the remote agent that owns this command.
+  // The Core Agent keeps this identifier stable from command discovery through execution.
+  // Clients must return this value as ExecuteCommandRequest.agent_id to execute a listed command.
+  string agent_id = 9;
 }
 
 message ListCommandsRequest {}
@@ -97,9 +101,11 @@ message ExecuteCommandRequest {
   // Verbose output flag.
   bool verbose = 4;
 
-  // Optional: the flavor of the remote agent to route the command to.
-  // If empty, the registry selects the first agent that supports the command provider service.
-  string agent_flavor = 5;
+  // Deprecated routing hint. Use agent_id instead.
+  string agent_flavor = 5 [deprecated = true];
+
+  // Required opaque routing key identifying the remote agent selected from command discovery.
+  string agent_id = 6;
 }
 
 message ExecuteCommandResponse {

@@ -62,7 +62,7 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistr
 		return out
 	}
 
-	return callAgentsForService(ra, StatusServiceName, client, processor)
+	return callAgentsForService(context.Background(), ra, StatusServiceName, client, processor)
 }
 
 func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder.FlareBuilder) error {
@@ -88,7 +88,7 @@ func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder
 	}
 
 	// We've collected all the flare data we can, so now we add it to the flare builder.
-	for _, flareData := range callAgentsForService(ra, FlareServiceName, client, processor) {
+	for _, flareData := range callAgentsForService(context.Background(), ra, FlareServiceName, client, processor) {
 		if flareData == nil {
 			continue
 		}
@@ -143,7 +143,7 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 	}
 
 	// We don't need to collect any value since everything is sent through the provided channel
-	callAgentsForService(c.registry, TelemetryServiceName, client, processor)
+	callAgentsForService(context.Background(), c.registry, TelemetryServiceName, client, processor)
 }
 
 // Retrieve the telemetry data in exposition format from the remote agent

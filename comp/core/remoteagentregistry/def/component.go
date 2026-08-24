@@ -8,6 +8,8 @@
 package remoteagentregistry
 
 import (
+	"context"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -23,11 +25,10 @@ type Component interface {
 
 	// ListCommands queries all registered remote agents that advertise the command provider service and returns a
 	// slice of AgentCommands, one per agent that responded.
-	ListCommands() []AgentCommands
+	ListCommands(ctx context.Context) []AgentCommands
 
-	// ExecuteCommand routes a command execution request to the remote agent that owns the given command path.
-	// If agentFlavor is empty, the registry selects the first agent that supports the command.
-	ExecuteCommand(agentFlavor string, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error)
+	// ExecuteCommand routes a command execution request to the remote agent identified by req.AgentId.
+	ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error)
 }
 
 // AgentCommands holds the commands exposed by a single registered remote agent.

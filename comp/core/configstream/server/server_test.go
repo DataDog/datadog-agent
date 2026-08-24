@@ -82,11 +82,11 @@ func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 	return nil
 }
 
-func (m *mockRemoteAgentRegistry) ListCommands() []remoteagentregistry.AgentCommands {
+func (m *mockRemoteAgentRegistry) ListCommands(_ context.Context) []remoteagentregistry.AgentCommands {
 	return nil
 }
 
-func (m *mockRemoteAgentRegistry) ExecuteCommand(_ string, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+func (m *mockRemoteAgentRegistry) ExecuteCommand(_ context.Context, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
 	return nil, nil
 }
 

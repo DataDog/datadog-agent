@@ -23,9 +23,12 @@ import (
 
 // fakeRemoteAgentRegistry is a minimal remoteagentregistry.Component used to exercise the gRPC handlers in isolation.
 type fakeRemoteAgentRegistry struct {
-	reportErr    error
-	gotSessionID string
-	gotEvents    []remoteagentregistry.RemoteAgentEvent
+	reportErr     error
+	gotSessionID  string
+	gotEvents     []remoteagentregistry.RemoteAgentEvent
+	gotCommandCtx context.Context
+	gotCommandReq *pb.ExecuteCommandRequest
+	commandErr    error
 }
 
 func (f *fakeRemoteAgentRegistry) RegisterRemoteAgent(*remoteagentregistry.RegistrationData) (string, uint32, error) {
@@ -43,11 +46,13 @@ func (f *fakeRemoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.Re
 func (f *fakeRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
 	return nil
 }
-func (f *fakeRemoteAgentRegistry) ListCommands() []remoteagentregistry.AgentCommands {
+func (f *fakeRemoteAgentRegistry) ListCommands(_ context.Context) []remoteagentregistry.AgentCommands {
 	return nil
 }
-func (f *fakeRemoteAgentRegistry) ExecuteCommand(_ string, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
-	return nil, nil
+func (f *fakeRemoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+	f.gotCommandCtx = ctx
+	f.gotCommandReq = req
+	return &pb.ExecuteCommandResponse{}, f.commandErr
 }
 
 func TestReportRemoteAgentEventHandler(t *testing.T) {
@@ -91,4 +96,33 @@ func TestReportRemoteAgentEventHandler(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, codes.Unimplemented, status.Code(err))
 	})
+}
+
+func TestRemoteCommandProviderExecuteCommandForwardsContextAndStatus(t *testing.T) {
+	request := &pb.ExecuteCommandRequest{CommandPath: "dogstatsd.top", AgentId: "agent-1"}
+	registry := &fakeRemoteAgentRegistry{}
+	srv := &remoteCommandProviderServer{remoteAgentRegistry: registry}
+
+	_, err := srv.ExecuteCommand(context.Background(), request)
+	require.NoError(t, err)
+	require.Same(t, request, registry.gotCommandReq)
+	require.NotNil(t, registry.gotCommandCtx)
+}
+
+func TestRemoteCommandProviderPreservesRegistryStatus(t *testing.T) {
+	registry := &fakeRemoteAgentRegistry{commandErr: status.Error(codes.NotFound, "agent missing")}
+	srv := &remoteCommandProviderServer{remoteAgentRegistry: registry}
+
+	_, err := srv.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{CommandPath: "dogstatsd.top", AgentId: "missing"})
+	require.Error(t, err)
+	require.Equal(t, codes.NotFound, status.Code(err))
+}
+
+func TestStampAgentDetailsRecurses(t *testing.T) {
+	command := &pb.Command{Children: []*pb.Command{{Children: []*pb.Command{{}}}}}
+	stampAgentDetails(command, "agent-data-plane", "session-1")
+	for _, cmd := range []*pb.Command{command, command.Children[0], command.Children[0].Children[0]} {
+		require.Equal(t, "agent-data-plane", cmd.GetAgentFlavor())
+		require.Equal(t, "session-1", cmd.GetAgentId())
+	}
 }

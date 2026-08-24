@@ -9,8 +9,10 @@ package remotecommand
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -32,162 +34,214 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// cliParams are the command-line arguments for this subcommand.
 type cliParams struct {
 	*command.GlobalParams
-
-	jsonOutput bool
-	verbose    bool
+	jsonOutput    bool
+	verbose       bool
+	agentID       string
+	argumentsJSON string
 }
 
-// Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	params := &cliParams{
-		GlobalParams: globalParams,
-	}
-
-	remoteCmd := &cobra.Command{
-		Use:          "remote",
-		Short:        "Execute commands on registered remote agents",
-		Long:         `The 'remote' subcommand proxies CLI commands to remote agents registered with the Core Agent through the Remote Agent Registry.`,
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
-	}
-
+	params := &cliParams{GlobalParams: globalParams}
+	remoteCmd := &cobra.Command{Use: "remote", Short: "Execute commands on registered remote agents", SilenceUsage: true, RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() }}
 	remoteCmd.PersistentFlags().BoolVarP(&params.jsonOutput, "json", "j", false, "format output as JSON")
 	remoteCmd.PersistentFlags().BoolVarP(&params.verbose, "verbose", "v", false, "verbose output")
-
-	listCmd := &cobra.Command{
-		Use:          "list",
-		Short:        "List commands available on registered remote agents",
-		SilenceUsage: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return runListCommands(params)
-		},
-	}
-
-	executeCmd := &cobra.Command{
-		Use:          "execute <command_path> [args...]",
-		Short:        "Execute a command on a registered remote agent",
-		SilenceUsage: true,
-		RunE: func(_ *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return fmt.Errorf("command_path is required")
-			}
-			return runExecuteCommand(params, args[0], args[1:])
-		},
-	}
-
+	listCmd := &cobra.Command{Use: "list", Short: "List commands available on registered remote agents", SilenceUsage: true, Args: cobra.NoArgs, RunE: func(_ *cobra.Command, _ []string) error { return runListCommands(params) }}
+	executeCmd := &cobra.Command{Use: "execute <command_path>", Short: "Execute a command on a registered remote agent", SilenceUsage: true, Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error { return runExecuteCommand(params, args[0]) }}
+	executeCmd.Flags().StringVar(&params.agentID, "agent-id", "", "opaque agent ID from remote list")
+	executeCmd.Flags().StringVar(&params.argumentsJSON, "arguments", "{}", "JSON object of named command arguments")
+	_ = executeCmd.MarkFlagRequired("agent-id")
 	remoteCmd.AddCommand(listCmd, executeCmd)
-
 	return []*cobra.Command{remoteCmd}
 }
 
-// runListCommands calls ListCommands on the Core Agent and prints the available commands.
 func runListCommands(params *cliParams) error {
-	return fxutil.OneShot(
-		func(_ log.Component, _ config.Component, ipc ipc.Component) error {
-			grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			conn, err := dialCoreAgent(ctx, ipc)
-			if err != nil {
-				return err
-			}
-			defer conn.Close()
-
-			cli := pb.NewRemoteCommandProviderClient(conn)
-			resp, err := cli.ListCommands(ctx, &pb.ListCommandsRequest{})
-			if err != nil {
-				return err
-			}
-
-			for _, cmd := range resp.GetCommands() {
-				flavor := cmd.GetAgentFlavor()
-				if flavor == "" {
-					flavor = "unknown"
-				}
-				fmt.Printf("%s\t%s\t%s\n", flavor, cmd.GetName(), cmd.GetHelper())
-			}
-			return nil
-		},
-		fx.Supply(params),
-		fx.Supply(command.GetDefaultCoreBundleParams(params.GlobalParams)),
-		core.Bundle(),
-		ipcfx.ModuleReadOnly(),
-	)
-}
-
-// runExecuteCommand calls ExecuteCommand on the Core Agent to proxy a command to a remote agent.
-func runExecuteCommand(params *cliParams, commandPath string, args []string) error {
-	arguments := &structpb.Struct{Fields: make(map[string]*structpb.Value)}
-	if len(args) > 0 {
-		values := make([]*structpb.Value, 0, len(args))
-		for _, arg := range args {
-			values = append(values, structpb.NewStringValue(arg))
+	return fxutil.OneShot(func(_ log.Component, _ config.Component, ipc ipc.Component) error {
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		conn, err := dialCoreAgent(ctx, ipc)
+		if err != nil {
+			return err
 		}
-		arguments.Fields["args"] = structpb.NewListValue(&structpb.ListValue{Values: values})
-	}
-
-	return fxutil.OneShot(
-		func(_ log.Component, _ config.Component, ipc ipc.Component) error {
-			grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			conn, err := dialCoreAgent(ctx, ipc)
-			if err != nil {
-				return err
-			}
-			defer conn.Close()
-
-			cli := pb.NewRemoteCommandProviderClient(conn)
-			resp, err := cli.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{
-				CommandPath: commandPath,
-				Arguments:   arguments,
-				JsonOutput:   params.jsonOutput,
-				Verbose:      params.verbose,
-			})
-			if err != nil {
-				return err
-			}
-
-			if resp.GetStdout() != "" {
-				fmt.Print(resp.GetStdout())
-			}
-			if resp.GetStderr() != "" {
-				fmt.Fprint(os.Stderr, resp.GetStderr())
-			}
-			if len(resp.GetBinaryOutput()) > 0 {
-				os.Stdout.Write(resp.GetBinaryOutput())
-			}
-			if resp.GetExitCode() != 0 {
-				os.Exit(int(resp.GetExitCode()))
-			}
-			return nil
-		},
-		fx.Supply(params),
-		fx.Supply(command.GetDefaultCoreBundleParams(params.GlobalParams)),
-		core.Bundle(),
-		ipcfx.ModuleReadOnly(),
-	)
+		defer conn.Close()
+		resp, err := pb.NewRemoteCommandProviderClient(conn).ListCommands(ctx, &pb.ListCommandsRequest{})
+		if err != nil {
+			return err
+		}
+		if params.jsonOutput {
+			return json.NewEncoder(os.Stdout).Encode(resp.GetCommands())
+		}
+		for _, cmd := range flattenCommands(resp.GetCommands()) {
+			fmt.Printf("%s\t%s\t%s\t%s\n", cmd.GetAgentId(), cmd.GetAgentFlavor(), cmd.GetName(), cmd.GetHelper())
+		}
+		return nil
+	}, fx.Supply(params), fx.Supply(command.GetDefaultCoreBundleParams(params.GlobalParams)), core.Bundle(), ipcfx.ModuleReadOnly())
 }
 
-// dialCoreAgent creates a gRPC connection to the Core Agent's IPC endpoint.
-func dialCoreAgent(ctx context.Context, ipc ipc.Component) (*grpc.ClientConn, error) {
-	md := metadata.MD{
-		"authorization": []string{"Bearer " + ipc.GetAuthToken()},
+func runExecuteCommand(params *cliParams, commandPath string) error {
+	arguments, err := parseArguments(params.argumentsJSON)
+	if err != nil {
+		return err
 	}
-	ctx = metadata.NewOutgoingContext(ctx, md)
+	return fxutil.OneShot(func(_ log.Component, _ config.Component, ipc ipc.Component) error {
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		conn, err := dialCoreAgent(ctx, ipc)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		cli := pb.NewRemoteCommandProviderClient(conn)
+		listed, err := cli.ListCommands(ctx, &pb.ListCommandsRequest{})
+		if err != nil {
+			return err
+		}
+		cmd := findCommand(listed.GetCommands(), params.agentID, commandPath)
+		if cmd == nil {
+			return fmt.Errorf("command %q was not found for agent %q", commandPath, params.agentID)
+		}
+		if !cmd.GetIsRunnable() {
+			return fmt.Errorf("command %q is not executable", commandPath)
+		}
+		if err := validateArguments(cmd, arguments); err != nil {
+			return err
+		}
+		resp, err := cli.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{CommandPath: commandPath, AgentId: params.agentID, Arguments: arguments, JsonOutput: params.jsonOutput, Verbose: params.verbose})
+		if err != nil {
+			return err
+		}
+		if resp.GetStdout() != "" {
+			fmt.Print(resp.GetStdout())
+		}
+		if resp.GetStderr() != "" {
+			fmt.Fprint(os.Stderr, resp.GetStderr())
+		}
+		if len(resp.GetBinaryOutput()) > 0 {
+			_, _ = os.Stdout.Write(resp.GetBinaryOutput())
+		}
+		if resp.GetExitCode() != 0 {
+			os.Exit(int(resp.GetExitCode()))
+		}
+		return nil
+	}, fx.Supply(params), fx.Supply(command.GetDefaultCoreBundleParams(params.GlobalParams)), core.Bundle(), ipcfx.ModuleReadOnly())
+}
 
-	return grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
-		ctx,
-		fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")),
-		grpc.WithTransportCredentials(credentials.NewTLS(ipc.GetTLSClientConfig())),
-	)
+func parseArguments(raw string) (*structpb.Struct, error) {
+	var values map[string]any
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
+		return nil, fmt.Errorf("arguments must be a JSON object: %w", err)
+	}
+	if values == nil {
+		return nil, fmt.Errorf("arguments must be a JSON object")
+	}
+	return structpb.NewStruct(values)
+}
+func flattenCommands(commands []*pb.Command) []*pb.Command {
+	var flattened []*pb.Command
+	for _, command := range commands {
+		if command == nil {
+			continue
+		}
+		flattened = append(flattened, command)
+		flattened = append(flattened, flattenCommands(command.GetChildren())...)
+	}
+	return flattened
+}
+
+func findCommand(commands []*pb.Command, agentID, path string) *pb.Command {
+	return findCommandWithPersistentParameters(commands, agentID, path, nil)
+}
+
+func findCommandWithPersistentParameters(commands []*pb.Command, agentID, path string, inherited []*pb.CommandParameter) *pb.Command {
+	for _, command := range commands {
+		if command == nil {
+			continue
+		}
+		parameters := append(append([]*pb.CommandParameter{}, inherited...), command.GetParameters()...)
+		if command.GetAgentId() == agentID && command.GetName() == path {
+			copy := *command
+			copy.Parameters = parameters
+			return &copy
+		}
+		persistent := append([]*pb.CommandParameter{}, inherited...)
+		for _, parameter := range command.GetParameters() {
+			if parameter.GetIsPersistent() {
+				persistent = append(persistent, parameter)
+			}
+		}
+		if found := findCommandWithPersistentParameters(command.GetChildren(), agentID, path, persistent); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+func validateArguments(command *pb.Command, arguments *structpb.Struct) error {
+	parameters := map[string]*pb.CommandParameter{}
+	for _, parameter := range command.GetParameters() {
+		parameters[parameter.GetName()] = parameter
+	}
+	for name, value := range arguments.GetFields() {
+		parameter, ok := parameters[name]
+		if !ok {
+			return fmt.Errorf("unknown argument %q", name)
+		}
+		if !matchesType(parameter.GetType(), value) {
+			return fmt.Errorf("argument %q has the wrong type", name)
+		}
+	}
+	for _, parameter := range parameters {
+		if parameter.GetRequired() && arguments.GetFields()[parameter.GetName()] == nil {
+			return fmt.Errorf("required argument %q is missing", parameter.GetName())
+		}
+	}
+	return nil
+}
+func matchesType(typ pb.ParameterType, value *structpb.Value) bool {
+	if value == nil {
+		return false
+	}
+	list := value.GetListValue()
+	scalar := func(t pb.ParameterType, v *structpb.Value) bool {
+		switch t {
+		case pb.ParameterType_TYPE_STRING:
+			_, ok := v.Kind.(*structpb.Value_StringValue)
+			return ok
+		case pb.ParameterType_TYPE_BOOL:
+			_, ok := v.Kind.(*structpb.Value_BoolValue)
+			return ok
+		case pb.ParameterType_TYPE_FLOAT:
+			_, ok := v.Kind.(*structpb.Value_NumberValue)
+			return ok
+		case pb.ParameterType_TYPE_INT:
+			n, ok := v.Kind.(*structpb.Value_NumberValue)
+			return ok && math.Trunc(n.NumberValue) == n.NumberValue
+		case pb.ParameterType_TYPE_UINT:
+			n, ok := v.Kind.(*structpb.Value_NumberValue)
+			return ok && n.NumberValue >= 0 && math.Trunc(n.NumberValue) == n.NumberValue
+		default:
+			return false
+		}
+	}
+	switch typ {
+	case pb.ParameterType_TYPE_STRING_SLICE, pb.ParameterType_TYPE_INT_SLICE, pb.ParameterType_TYPE_UINT_SLICE, pb.ParameterType_TYPE_FLOAT_SLICE:
+		if list == nil {
+			return false
+		}
+		base := map[pb.ParameterType]pb.ParameterType{pb.ParameterType_TYPE_STRING_SLICE: pb.ParameterType_TYPE_STRING, pb.ParameterType_TYPE_INT_SLICE: pb.ParameterType_TYPE_INT, pb.ParameterType_TYPE_UINT_SLICE: pb.ParameterType_TYPE_UINT, pb.ParameterType_TYPE_FLOAT_SLICE: pb.ParameterType_TYPE_FLOAT}[typ]
+		for _, item := range list.GetValues() {
+			if !scalar(base, item) {
+				return false
+			}
+		}
+		return true
+	default:
+		return scalar(typ, value)
+	}
+}
+func dialCoreAgent(ctx context.Context, ipc ipc.Component) (*grpc.ClientConn, error) {
+	ctx = metadata.NewOutgoingContext(ctx, metadata.MD{"authorization": []string{"Bearer " + ipc.GetAuthToken()}})
+	return grpc.DialContext(ctx, fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")), grpc.WithTransportCredentials(credentials.NewTLS(ipc.GetTLSClientConfig())))
 }
