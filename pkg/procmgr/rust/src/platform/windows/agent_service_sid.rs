@@ -4,6 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result, bail};
+#[cfg(not(test))]
+use log::info;
 use std::ptr;
 use windows_sys::Win32::System::Services::{
     CloseServiceHandle, OpenSCManagerW, OpenServiceW, QUERY_SERVICE_CONFIGW, QueryServiceConfigW,
@@ -28,7 +30,15 @@ pub(crate) fn service_runs_as_agent_user(
         .with_context(|| format!("lookup SID for installed agent user {domain}\\{user}"))?;
     let service_sid = lookup_service_account_sid(&service_user)
         .with_context(|| format!("lookup SID for service account {service_user}"))?;
-    Ok(sids_equal(&agent_sid, &service_sid))
+    let matches = sids_equal(&agent_sid, &service_sid);
+    if !matches {
+        info!(
+            "datadogagent service account {service_user} (sid {}) does not match installed agent user {domain}\\{user} (sid {})",
+            sid_to_string(&service_sid).unwrap_or_else(|_| "<unknown>".to_string()),
+            sid_to_string(&agent_sid).unwrap_or_else(|_| "<unknown>".to_string()),
+        );
+    }
+    Ok(matches)
 }
 
 #[cfg(not(test))]
