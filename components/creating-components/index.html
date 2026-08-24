@@ -4160,7 +4160,7 @@
   
 
 
-<h1 id="creating-a-component">Creating a Component<a class="headerlink" href="#creating-a-component" title="Permanent link">&para;</a></h1>
+<h1 id="creating-a-component">Creating a Component</h1>
 <p>This page explains how to create components in detail.</p>
 <p>This page uses the example of creating a compression component. This component compresses a payload before sending it to the Datadog backend.</p>
 <p>Since there are multiple ways to compress data, this component provides two implementations of the same interface:</p>
@@ -4169,7 +4169,7 @@
 <li>The <a href="https://en.wikipedia.org/wiki/ZIP_(file_format)">ZIP</a> data compression algorithm</li>
 </ul>
 <p>A component contains multiple folders and Go packages. Developers split a component into packages to isolate the interface from the implementations and improve code sharing. Declaring the interface in a separate package from the implementation allows you to import the interface without importing all of the implementations.</p>
-<h2 id="file-hierarchy">File hierarchy<a class="headerlink" href="#file-hierarchy" title="Permanent link">&para;</a></h2>
+<h2 id="file-hierarchy">File hierarchy</h2>
 <p>All components are located in the <code>comp</code> folder at the top of the Agent repo.</p>
 <p>The file hierarchy is as follows:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>comp /
@@ -4192,7 +4192,7 @@
 For example, your compression component has <code>impl-zstd</code> and <code>impl-zip</code> folders, but not an <code>impl</code> folder.</li>
 <li>If your component needs to offer a dummy/empty version, it should live in the <code>impl-none</code> folder.</li>
 </ul>
-<h3 id="why-all-those-files">Why all those files ?<a class="headerlink" href="#why-all-those-files" title="Permanent link">&para;</a></h3>
+<h3 id="why-all-those-files">Why all those files ?</h3>
 <p>This file hierarchy aims to solve a few problems:</p>
 <ul>
 <li>Component users should only interact with the <code>def</code> folders and never care about which implementation was loaded in the
@@ -4202,10 +4202,10 @@ For example, your compression component has <code>impl-zstd</code> and <code>imp
 <li>A main function that imports a component should be able to select a specific implementation without compiling with the others.
   For example: the ZSTD library should not be included at compile time when the ZIP version is used.</li>
 </ul>
-<h2 id="bootstrapping-components">Bootstrapping components<a class="headerlink" href="#bootstrapping-components" title="Permanent link">&para;</a></h2>
+<h2 id="bootstrapping-components">Bootstrapping components</h2>
 <p>You can use the <a href="../../setup/required/#tooling">command</a> <code>dda inv components.new-component comp/&lt;COMPONENT_NAME&gt;</code> to generate a scaffold for your new component.</p>
 <p>Every public variable, function, struct, and interface of your component <strong>must</strong> be documented. Refer to the <a href="#documentation">Documentation</a> section below for details.</p>
-<h3 id="the-def-folder">The def folder<a class="headerlink" href="#the-def-folder" title="Permanent link">&para;</a></h3>
+<h3 id="the-def-folder">The def folder</h3>
 <p>The <code>def</code> folder contains your interface and ALL public types needed by the users of your component.</p>
 <p>In the example of a compression component, the def folder looks like this:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:1"><input checked="checked" id="compcompressiondefcomponentgo" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="compcompressiondefcomponentgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/def/component.go</label></div>
@@ -4254,7 +4254,7 @@ internally by each component (more on this [here TODO]()). -->
 
 <!-- TODO: write the lifecycle part and update the link above -->
 
-<h3 id="the-impl-folders">The impl folders<a class="headerlink" href="#the-impl-folders" title="Permanent link">&para;</a></h3>
+<h3 id="the-impl-folders">The impl folders</h3>
 <p>The <code>impl</code> folder is where the component implementation is written. The details of component implementation are up to the developer.
 The only requirements are that the package name follows the pattern <code>&lt;COMPONENT_NAME&gt;impl</code> for the regular implementation or <code>&lt;IMPL_NAME&gt;impl</code> for the alternative implementation, and that there is a public instantiation function called <code>NewComponent</code>.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:1"><input checked="checked" id="compcompressionimpl-zstdcompressorgo" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="compcompressionimpl-zstdcompressorgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/impl-zstd/compressor.go</label></div>
@@ -4398,7 +4398,7 @@ to handle the different component dependencies using Fx groups.</p>
 <p>The constructor can return either a <code>Provides</code>, if it is infallible, or <code>(Provides, error)</code>, if it could fail. In the
 latter case, a non-nil error results in the Agent crashing at startup with a message containing the error.</p>
 <p>Each implementation follows the same pattern.</p>
-<h3 id="the-fx-folders">The fx folders<a class="headerlink" href="#the-fx-folders" title="Permanent link">&para;</a></h3>
+<h3 id="the-fx-folders">The fx folders</h3>
 <p>The <code>fx</code> folder must be the only folder importing and referencing Fx. It's meant to be a simple wrapper. Its only goal is to allow
 dependency injection with Fx for your component.</p>
 <p>All <code>fx.go</code> files must define a <code>func Module() fxutil.Module</code> function. The helpers contained in <code>fxutil</code> handle all
@@ -4436,7 +4436,7 @@ the logic. Most <code>fx/fx.go</code> file should look the same as this:</p>
 </div>
 <p>For the ZIP implementation, create the same file in <code>fx-zip</code> folder. In most cases, your component has a
 single implementation. If so, you have only one <code>impl</code> and <code>fx</code> folder.</p>
-<h4 id="fx-none"><code>fx-none</code><a class="headerlink" href="#fx-none" title="Permanent link">&para;</a></h4>
+<h4 id="fx-none"><code>fx-none</code></h4>
 <p>Some parts of the codebase might have optional dependencies on your components (see <a href="../faq/#optional-component">FAQ</a>).</p>
 <p>If it's the case, you need to provide a fx wrapper called <code>fx-none</code> to avoid duplicating the use of <code>optional.NewNoneOption[def.Component]()</code> in all our binaries</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="7:1"><input checked="checked" id="compcompressionfx-nonefxgo" name="__tabbed_7" type="radio" /><div class="tabbed-labels"><label for="compcompressionfx-nonefxgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/fx-none/fx.go</label></div>
@@ -4456,7 +4456,7 @@ single implementation. If so, you have only one <code>impl</code> and <code>fx</
 </div>
 </div>
 </div>
-<h3 id="the-mock-folder">The mock folder<a class="headerlink" href="#the-mock-folder" title="Permanent link">&para;</a></h3>
+<h3 id="the-mock-folder">The mock folder</h3>
 <p>To support testing, components MUST provide a mock implementation (unless your component has no public method in its
 interface).</p>
 <p>Your mock must implement the <code>Component</code> interface of the <code>def</code> folder but can expose more methods if needed. All mock
@@ -4501,7 +4501,7 @@ constructors must take a <code>*testing.T</code> as parameter.</p>
 </div>
 </div>
 </div>
-<h3 id="go-module">Go module<a class="headerlink" href="#go-module" title="Permanent link">&para;</a></h3>
+<h3 id="go-module">Go module</h3>
 <p>Go modules are not mandatory, but if you want to allow your component to be used outside the <code>datadog-agent</code> repository, create Go modules in the following places:</p>
 <ul>
 <li>In the <code>impl</code>/<code>impl-*</code> folder that you want to expose (you can only expose some implementations).</li>
@@ -4509,7 +4509,7 @@ constructors must take a <code>*testing.T</code> as parameter.</p>
 <li>In the <code>mock</code> folder to expose the mock</li>
 </ul>
 <p>Never add a Go module to the component folder (for example,<code>comp/compression</code>) or any <code>fx</code> folders.</p>
-<h2 id="final-state">Final state<a class="headerlink" href="#final-state" title="Permanent link">&para;</a></h2>
+<h2 id="final-state">Final state</h2>
 <p>In the end, a classic component folder should look like:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>comp/&lt;COMPONENT_NAME&gt;/
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>├── def
@@ -4548,7 +4548,7 @@ components, outside repositories that want to pull only specific features, and e
 <p>No components know how or where they will be used and MUST, therefore, respect all the rules above. It's a very common pattern for teams to work only on their use cases, thinking their code will not be used anywhere else. Although, customers want common behavior between all Datadog products (Agent, serverless, Agentless, Helm, Operator, etc.).</p>
 <p>A key idea behind the component is to produce shareable and reusable code.</p>
 </div>
-<h2 id="general-consideration-about-designing-components">General consideration about designing components<a class="headerlink" href="#general-consideration-about-designing-components" title="Permanent link">&para;</a></h2>
+<h2 id="general-consideration-about-designing-components">General consideration about designing components</h2>
 <p>Your component must:</p>
 <ul>
 <li>Be thread safe.</li>
@@ -4557,7 +4557,7 @@ components, outside repositories that want to pull only specific features, and e
 <li>Be clearly documented (see section below).</li>
 <li>Be tested.</li>
 </ul>
-<h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
+<h3 id="documentation">Documentation</h3>
 <p>The documentation (both package-level and method-level) should include everything a user of the component needs to know.
 In particular, the documentation must address any assumptions that might lead to panic if violated by the user.</p>
 <p>Detailed documentation of how to avoid bugs in using a component is an indicator of excessive complexity and should be
