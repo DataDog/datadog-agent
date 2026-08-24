@@ -56,8 +56,9 @@ func TestDDOTCompressionConsistency(t *testing.T) {
 	assert.Equal(t, wantLevel, c.GetInt("serializer_zstd_compressor_level"), "metrics zstd level should default to 3")
 	assert.Equal(t, wantLevel, c.GetInt("logs_config.zstd_compression_level"), "logs zstd level should default to 3")
 
-	// DDOT deliberately stays on the v2 metrics intake (v3 is a separate effort).
-	assert.Equal(t, "false", c.GetString("use_v3_api.series.enabled"), "DDOT must stay on the v2 metrics intake")
+	// DDOT no longer opts out of v3: now that it compresses with zstd (v3-compatible),
+	// it inherits the global use_v3_api.series.enabled default (datadog_only).
+	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"), "DDOT inherits the global datadog_only v3 default")
 }
 
 // TestDDOTCompressionLevelOverridable verifies the per-signal compression level

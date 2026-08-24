@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Cluster Agent (KSM check): fix a collision when collecting custom resource
+    metrics for two custom resources that share the same ``Kind`` and plural
+    name but belong to different API groups (for example ``Project`` in both
+    ``artifactory.example.com`` and ``sonarqube.example.com``). Previously the
+    resources shared a single API client, causing repeated
+    ``Unexpected watch event object gvk`` errors and mixed, incorrect metric
+    counts. Custom resource clients are now keyed by their fully-qualified
+    GroupVersionResource.

@@ -176,3 +176,9 @@ func (m *Mock) GetActiveIssueIDsByIssueName(issueName string) []string {
 	}
 	return ids
 }
+
+// IssueDiscriminator returns hostID unchanged; tests that care about
+// deployment_id collapse should assert against selfident directly.
+func (m *Mock) IssueDiscriminator(hostID string) string {
+	return hostID
+}

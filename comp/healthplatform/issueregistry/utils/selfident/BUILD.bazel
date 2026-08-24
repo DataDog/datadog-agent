@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "selfident",
+    srcs = [
+        "docs.go",
+        "selfident.go",
+        "selfident_noop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+    ],
+)
+
+dd_agent_go_test(
+    name = "selfident_test",
+    srcs = ["selfident_test.go"],
+    embed = [":selfident"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/impl",
+        "//comp/core/workloadmeta/mock",
+        "//comp/def",
+        "//pkg/config/env",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

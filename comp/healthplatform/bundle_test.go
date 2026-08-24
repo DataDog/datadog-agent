@@ -27,6 +27,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 
@@ -45,6 +47,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 }
 
@@ -97,6 +100,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		}),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 
 	var checkRunCount atomic.Int32
@@ -183,6 +187,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		}),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 
 	const (

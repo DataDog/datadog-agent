@@ -26,7 +26,10 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -41,6 +44,14 @@ type Requires struct {
 	Log       log.Component
 	Telemetry telemetry.Component
 	Hostname  hostnameinterface.Component
+	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
+	// selfident). Optional because only selfident's kubeapiserver build reads
+	// it: on flavors without that tag (iot, heroku, the cloudfoundry cluster
+	// agent, serverless-init) selfident is a no-op that ignores it entirely, so
+	// requiring it would make those binaries depend on a component they have no
+	// use for. Every binary that wires this bundle happens to provide it today,
+	// so in practice it is non-nil wherever it is actually read.
+	Workloadmeta workloadmeta.Component `optional:"true"`
 }
 
 // Provides defines the output of the health-platform component
@@ -70,6 +81,7 @@ type healthPlatformImpl struct {
 	telemetry        telemetry.Component         // Telemetry component for metrics collection
 	hostnameProvider hostnameinterface.Component // Hostname provider for runtime resolution
 	agentFlavor      string                      // Agent flavor captured at construction time
+	selfIdent        *selfident.SelfIdent        // Resolves this agent's DaemonSet/cluster identity
 
 	// Issue tracking: dehydrated at ReportIssue, rehydrated on GetAllIssues/GetIssue.
 	issues       map[string]*storedIssue // IssueID → active issue (lean proto + raw JSON)
@@ -272,6 +284,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      flavor.GetFlavor(),
+		selfIdent:        selfident.New(reqs.Workloadmeta),
 
 		issues:       make(map[string]*storedIssue),
 		issuesByName: make(map[string][]string),
@@ -371,6 +384,8 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	if issue.IssueName == "" {
 		return errors.New("issue name cannot be empty")
 	}
+
+	h.enrichWithClusterIdentity(issue)
 
 	h.issuesMux.RLock()
 	var previousIssue *healthplatform.Issue
@@ -532,6 +547,15 @@ func (h *healthPlatformImpl) GetActiveIssueIDsByIssueName(issueName string) []st
 	return result
 }
 
+// IssueDiscriminator returns the identifier issue ids should be scoped by;
+// see the Component interface doc for the collapse rationale. selfIdent only
+// reports this agent's DaemonSet uid, or "" when there is none, so the per-host
+// fallback lives in issuesmod.IssueDiscriminator — shared with the issue
+// modules that scope their own ids.
+func (h *healthPlatformImpl) IssueDiscriminator(hostID string) string {
+	return issuesmod.IssueDiscriminator(h.selfIdent, hostID)
+}
+
 // ============================================================================
 // Internal Helper Methods
 // ============================================================================
@@ -554,6 +578,34 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 		oldIssue.Severity != newIssue.Severity ||
 		oldIssue.Description != newIssue.Description {
 		h.log.Info("Health platform: issue CHANGED from " + source + ": " + newIssue.Title + " (" + newIssue.Severity.String() + ")")
+	}
+}
+
+// enrichWithClusterIdentity stamps deployment_id/cluster_id into the issue's
+// Extra and Tags, so that when a module keys issue.Id by deployment_id
+// (collapsing issues across a DaemonSet), the UI can still identify which
+// DaemonSet/cluster the collapsed issue came from. No-op on non-Kubernetes
+// agents, where both resolve to empty.
+func (h *healthPlatformImpl) enrichWithClusterIdentity(issue *healthplatform.Issue) {
+	deploymentID := h.selfIdent.DeploymentID()
+	clusterID := h.selfIdent.ClusterID()
+	if deploymentID == "" && clusterID == "" {
+		return
+	}
+
+	if issue.Extra == nil {
+		issue.Extra = &structpb.Struct{}
+	}
+	if issue.Extra.Fields == nil {
+		issue.Extra.Fields = make(map[string]*structpb.Value)
+	}
+	if deploymentID != "" {
+		issue.Extra.Fields["deployment_id"] = structpb.NewStringValue(deploymentID)
+		issue.Tags = appendUnique(issue.Tags, "deployment_id:"+deploymentID)
+	}
+	if clusterID != "" {
+		issue.Extra.Fields["cluster_id"] = structpb.NewStringValue(clusterID)
+		issue.Tags = appendUnique(issue.Tags, "cluster_id:"+clusterID)
 	}
 }
 
