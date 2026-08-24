@@ -178,4 +178,4 @@ version_tags = [
 
 - [Kind Node Images](https://hub.docker.com/r/kindest/node/tags)
 - [Docker Hub API](https://docs.docker.com/docker-hub/api/latest/)
-- [GitLab CI E2E Container Tests](.gitlab/test/e2e/e2e_containers.yml)
+- [GitLab CI E2E Container Tests](../.gitlab/test/e2e/e2e_containers.yml)
