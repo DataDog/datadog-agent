@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"expvar"
 	"fmt"
 	"io"
@@ -233,6 +234,12 @@ func (d Destination) String() string {
 	}
 }
 
+// ErrCredentialNotReady reports that the credential for a transaction's authorization slot has not
+// arrived yet, so nothing was sent. It is distinct from a delivery failure: the endpoint is not
+// unhealthy, it is unprovisioned, and treating it as a failure would trip the circuit breaker for
+// every other slot sharing the same domain and route.
+var ErrCredentialNotReady = errors.New("no credential available yet for this endpoint")
+
 type Authorizer interface {
 	// Authorize stamps the credential for slot apiKeyIdx onto headers.
 	//
@@ -420,7 +427,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 			t.ErrorCount++
 			transactionsErrors.Add(1)
 			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "no_credential")
-			return 0, nil, fmt.Errorf("not sending transaction to %q: %s", logURL, err)
+			return 0, nil, fmt.Errorf("not sending transaction to %q: %w", logURL, err)
 		}
 	}
 	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), req.Header)

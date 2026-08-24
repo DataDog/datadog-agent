@@ -60,6 +60,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "blocked_endpoints_test.go",
+        "credential_backpressure_test.go",
         "default_forwarder_test.go",
         "domain_forwarder_test.go",
         "forwarder_health_test.go",

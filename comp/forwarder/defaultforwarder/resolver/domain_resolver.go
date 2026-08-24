@@ -9,7 +9,6 @@
 package resolver
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -524,9 +523,9 @@ func (r *domainResolver) SetCredentialProviders(providers []CredentialProvider) 
 }
 
 // ErrCredentialNotReady reports that a credential for this slot has not arrived yet. Callers must
-// not send the request: they should keep the payload and retry, so nothing is lost while the first
-// exchange with the cloud provider is still in flight.
-var ErrCredentialNotReady = errors.New("no credential available yet for this endpoint")
+// not send. It is defined in the transaction package so the forwarder's circuit breaker can
+// recognize it without resolver importing back into it.
+var ErrCredentialNotReady = transaction.ErrCredentialNotReady
 
 // Authorize stamps the credential for slot apiKeyIdx onto headers.
 //

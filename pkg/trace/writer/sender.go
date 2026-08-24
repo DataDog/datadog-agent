@@ -269,6 +269,10 @@ type sender struct {
 	closed  bool         // closed reports if the loop is stopped
 	statsd  statsd.ClientInterface
 	enabled *atomic.Bool // false on inactive MRF senders. True otherwise
+
+	// awaitingCredential is true while this sender's delegated-auth credential has not arrived.
+	// Push consults it so one unprovisioned endpoint cannot stall delivery to the others.
+	awaitingCredential atomic.Bool
 }
 
 // newSender returns a new sender based on the given config cfg.
@@ -343,6 +347,14 @@ func (s *sender) Push(p *payload) {
 	select {
 	case s.queue <- p:
 	default:
+		// sendPayloads pushes to each sender in turn and the queue is shallow, so a blocking send
+		// here stalls every sender after this one. A sender whose credential has not arrived can
+		// stay full indefinitely, which would stop delivery to the primary org outright, so drop
+		// for that endpoint alone rather than blocking the others.
+		if s.awaitingCredential.Load() {
+			_ = s.statsd.Count("datadog.trace_agent.sender.payload_dropped_awaiting_credential", 1, nil, 1)
+			return
+		}
 		_ = s.statsd.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
 		s.queue <- p
 	}
@@ -505,8 +517,10 @@ const (
 
 func (s *sender) do(req *http.Request) error {
 	if !s.apiKeyManager.Authorize(req.Header) {
+		s.awaitingCredential.Store(true)
 		return &credentialNotReadyError{}
 	}
+	s.awaitingCredential.Store(false)
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {

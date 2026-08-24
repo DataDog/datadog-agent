@@ -7,6 +7,7 @@ package defaultforwarderimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http/httptrace"
 	"sync"
@@ -270,6 +271,14 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 		return
 	}
 	if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient(), w.pointCountTelemetry); err != nil {
+		if errors.Is(err, transaction.ErrCredentialNotReady) {
+			// Requeue without touching the circuit breaker. The target is domain+route, shared
+			// with every other authorization slot on that domain, so counting this as a failure
+			// would throttle endpoints that have a perfectly good credential.
+			w.requeue(t)
+			w.log.Debugf("Waiting for a delegated auth credential for endpoint '%s'; retrying later", target)
+			return
+		}
 		w.blockedList.close(target, time.Now())
 		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)

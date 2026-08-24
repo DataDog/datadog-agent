@@ -375,7 +375,10 @@ func (f *domainForwarder) sendHTTPTransactionDirect(ctx context.Context, t *tran
 	}
 
 	if err := t.Process(ctx, f.config, f.log, f.secrets, f.Client.GetClient(), f.pointCountTelemetry); err != nil {
-		f.blockedList.close(target, time.Now())
+		// A missing credential is not an endpoint failure; see Worker.process.
+		if !errors.Is(err, transaction.ErrCredentialNotReady) {
+			f.blockedList.close(target, time.Now())
+		}
 		return err
 	}
 	if completionErr != nil {

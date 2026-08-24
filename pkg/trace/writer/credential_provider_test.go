@@ -10,7 +10,9 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -172,4 +174,61 @@ func TestAuthorizeRefusesWhenThereIsNeitherProviderNorKey(t *testing.T) {
 	h := http.Header{}
 	assert.False(t, m.Authorize(h))
 	assert.Empty(t, h, "an empty API key must never be stamped")
+}
+
+// sendPayloads pushes to each sender in turn, and the queue is only one deep, so a blocking send
+// on a full queue stalls every sender after it. A sender whose credential never arrives stays full
+// indefinitely, which used to stop trace delivery to the primary org entirely. Pushing to such a
+// sender must drop for that endpoint alone instead of blocking.
+func TestPushDoesNotBlockOnASenderAwaitingACredential(t *testing.T) {
+	s := &sender{
+		cfg:           &senderConfig{maxQueued: 1},
+		apiKeyManager: &apiKeyManager{provider: &stubProvider{key: "delegated-key"}},
+		queue:         make(chan *payload, 1),
+		inflight:      atomic.NewInt32(0),
+		enabled:       atomic.NewBool(true),
+		statsd:        &statsd.NoOpClient{},
+	}
+	s.awaitingCredential.Store(true)
+	s.queue <- newPayload(nil) // queue is now full
+
+	done := make(chan struct{})
+	go func() {
+		s.Push(newPayload(nil))
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Push blocked on a sender with no credential; this stalls delivery to every other endpoint")
+	}
+}
+
+// The drop above must be limited to the no-credential case: an ordinary busy sender must keep its
+// blocking behaviour, which is what applies backpressure instead of losing traces.
+func TestPushStillBlocksForAnOrdinaryFullSender(t *testing.T) {
+	s := &sender{
+		cfg:           &senderConfig{maxQueued: 1},
+		apiKeyManager: &apiKeyManager{apiKey: "plain-key"},
+		queue:         make(chan *payload, 1),
+		inflight:      atomic.NewInt32(0),
+		enabled:       atomic.NewBool(true),
+		statsd:        &statsd.NoOpClient{},
+	}
+	s.queue <- newPayload(nil)
+
+	pushed := make(chan struct{})
+	go func() {
+		s.Push(newPayload(nil))
+		close(pushed)
+	}()
+
+	select {
+	case <-pushed:
+		t.Fatal("a healthy full sender must block to apply backpressure, not drop")
+	case <-time.After(100 * time.Millisecond):
+	}
+	<-s.queue // unblock the goroutine
+	<-pushed
 }
