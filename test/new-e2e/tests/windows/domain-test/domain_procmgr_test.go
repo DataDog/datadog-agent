@@ -44,7 +44,7 @@ func describeField(output, label string) string {
 	return ""
 }
 
-func assertInstallerLSASecretAbsent(c *assert.CollectT, host *components.RemoteHost) {
+func assertInstallerLSASecretAbsent(host *components.RemoteHost) error {
 	script := fmt.Sprintf(`
 $ErrorActionPreference = 'Stop'
 if (-not ('Datadog.LsaUtil' -as [type])) {
@@ -59,9 +59,18 @@ namespace Datadog {
       public ushort MaximumLength;
       public IntPtr Buffer;
     }
-    [DllImport("advapi32.dll", SetLastError=true)]
-    public static extern uint LsaOpenPolicy(IntPtr systemName, IntPtr objectAttributes, uint accessMask, out IntPtr policyHandle);
-    [DllImport("advapi32.dll")]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct LsaObjectAttributes {
+      public int Length;
+      public IntPtr RootDirectory;
+      public LsaUnicodeString ObjectName;
+      public uint Attributes;
+      public IntPtr SecurityDescriptor;
+      public IntPtr SecurityQualityOfService;
+    }
+    [DllImport("advapi32.dll", PreserveSig=true)]
+    public static extern uint LsaOpenPolicy(ref LsaUnicodeString systemName, ref LsaObjectAttributes objectAttributes, int accessMask, out IntPtr policyHandle);
+    [DllImport("advapi32.dll", PreserveSig=true)]
     public static extern uint LsaRetrievePrivateData(IntPtr policyHandle, ref LsaUnicodeString keyName, out IntPtr privateData);
     [DllImport("advapi32.dll")]
     public static extern uint LsaClose(IntPtr objectHandle);
@@ -69,30 +78,34 @@ namespace Datadog {
 }
 '@
 }
+$systemName = New-Object Datadog.LsaUtil+LsaUnicodeString
+$objectAttributes = New-Object Datadog.LsaUtil+LsaObjectAttributes
 $policy = [IntPtr]::Zero
-$status = [Datadog.LsaUtil]::LsaOpenPolicy([IntPtr]::Zero, [IntPtr]::Zero, 4, [ref]$policy)
+$status = [Datadog.LsaUtil]::LsaOpenPolicy([ref]$systemName, [ref]$objectAttributes, 4, [ref]$policy)
 if ($status -ne 0) { throw "LsaOpenPolicy failed: 0x$($status.ToString('X8'))" }
+$keyBuffer = [IntPtr]::Zero
 try {
   $key = '%s'
   $bytes = [System.Text.Encoding]::Unicode.GetBytes($key)
-  $buffer = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($bytes.Length)
-  [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $buffer, $bytes.Length)
+  $keyBuffer = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($bytes.Length)
+  [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $keyBuffer, $bytes.Length)
   $lsaKey = New-Object Datadog.LsaUtil+LsaUnicodeString
   $lsaKey.Length = [uint16]($bytes.Length - 2)
   $lsaKey.MaximumLength = [uint16]$bytes.Length
-  $lsaKey.Buffer = $buffer
+  $lsaKey.Buffer = $keyBuffer
   $secret = [IntPtr]::Zero
   $status = [Datadog.LsaUtil]::LsaRetrievePrivateData($policy, [ref]$lsaKey, [ref]$secret)
-  if ($status -eq 0xC0000034) { exit 0 }
+  if ($status.ToString('X8') -eq 'C0000034') { exit 0 }
   if ($status -ne 0) { throw "LsaRetrievePrivateData failed: 0x$($status.ToString('X8'))" }
   throw "installer LSA secret should be absent on pre-LSA no-password upgrade"
 } finally {
+  if ($keyBuffer -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::FreeHGlobal($keyBuffer) }
   if ($policy -ne [IntPtr]::Zero) { [void][Datadog.LsaUtil]::LsaClose($policy) }
 }
 `, installerLSASecretKey)
 
 	_, err := host.Execute(script)
-	assert.NoError(c, err, "installer LSA secret must be absent after 7.65 -> current upgrade without password")
+	return err
 }
 
 func windowsProcessOwnerByPID(host *components.RemoteHost, pid string) (string, error) {
@@ -116,9 +129,8 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) assertAgentProfileSpawnWitho
 	suite.Require().NoError(err)
 	suite.Require().NotEmpty(cliBin)
 
-	suite.EventuallyWithT(func(c *assert.CollectT) {
-		assertInstallerLSASecretAbsent(c, host)
-	}, time.Minute, 2*time.Second)
+	err = assertInstallerLSASecretAbsent(host)
+	suite.Require().NoError(err, "installer LSA secret must be absent after 7.65 -> current upgrade without password")
 
 	procName := fmt.Sprintf("e2e-pre-lsa-spawn-%d", time.Now().UnixNano())
 	createCmd := fmt.Sprintf(
