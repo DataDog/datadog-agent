@@ -18,6 +18,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	dogstatsdclientdrops "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dogstatsdclientdrops"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	hostuuid "github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 const (
@@ -58,19 +59,21 @@ const (
 )
 
 type component struct {
-	stats             clientByteStats
-	logger            log.Component
-	healthPlatform    healthplatformstore.Component
-	hostname          string
-	issueID           string
-	issueActive       bool
+	stats          clientByteStats
+	logger         log.Component
+	healthPlatform healthplatformstore.Component
+	hostname       string
+	issueID        string
+	issueActive    bool
 	// startupReconciled is closed after persisted issue state has been reconciled.
 	startupReconciled chan struct{}
 	// issueNeedsRefresh marks restored active lifecycle state whose full issue
 	// payload must be reported again after an Agent restart.
 	issueNeedsRefresh bool
-	pending           pendingTransition
-	pendingSince      time.Time
+	// staleIssueIDs remain active until migration or confirmed recovery succeeds.
+	staleIssueIDs []string
+	pending       pendingTransition
+	pendingSince  time.Time
 	// pendingStats accumulates the unhealthy windows used to construct a new issue.
 	pendingStats                  clientByteStats
 	unhealthyConfirmationDuration time.Duration
@@ -86,7 +89,7 @@ func NewComponent(req Requires) Provides {
 		logger:                        req.Log,
 		healthPlatform:                req.HealthPlatform,
 		hostname:                      hostname,
-		issueID:                       dogstatsdclientdrops.UDSIssueIDForHostname(hostname),
+		issueID:                       dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), hostname),
 		startupReconciled:             make(chan struct{}),
 		unhealthyConfirmationDuration: req.Config.GetDuration(unhealthyConfirmationWindowConfig),
 		recoveryConfirmationDuration:  req.Config.GetDuration(recoveryConfirmationWindowConfig),
@@ -220,31 +223,37 @@ func (s clientByteStats) dropReasonBreakdown() (float64, bool) {
 }
 
 func (d *component) reconcileIssueState() {
-	for _, activeID := range d.healthPlatform.GetActiveIssueIDsByIssueName(dogstatsdclientdrops.UDSIssueName) {
-		if activeID == d.issueID {
-			d.issueActive = true
-			d.issueNeedsRefresh = true
-			continue
+	activeIDs := d.healthPlatform.GetActiveIssueIDsByIssueName(dogstatsdclientdrops.UDSIssueName)
+	if len(activeIDs) == 0 {
+		return
+	}
+
+	d.issueActive = true
+	d.issueNeedsRefresh = true
+	d.staleIssueIDs = d.staleIssueIDs[:0]
+	for _, activeID := range activeIDs {
+		if activeID != d.issueID {
+			d.staleIssueIDs = append(d.staleIssueIDs, activeID)
 		}
-		// The issue is scoped to this Agent's current hostname. Resolve lifecycle
-		// state left under an earlier hostname instead of leaving it active forever.
-		d.healthPlatform.ResolveIssue(activeID)
 	}
-	if d.issueActive {
-		d.reportRestoredIssue()
+	if !d.reportRestoredIssue() {
+		return
 	}
+	d.resolveStaleIssues()
 }
 
-func (d *component) reportRestoredIssue() {
+func (d *component) reportRestoredIssue() bool {
 	issue, err := dogstatsdclientdrops.BuildRestoredUDSIssue(d.hostname)
 	if err != nil {
 		d.logger.Warnf("failed to rebuild DogStatsD client payload drop health issue after restart: %v", err)
-		return
+		return false
 	}
 	issue.Id = d.issueID
 	if err := d.healthPlatform.ReportIssue(issue); err != nil {
 		d.logger.Warnf("failed to restore DogStatsD client payload drop health issue after restart: %v", err)
+		return false
 	}
+	return true
 }
 
 func (d *component) reportIssue(stats clientByteStats, ratio float64) {
@@ -274,12 +283,21 @@ func (d *component) reportIssue(stats clientByteStats, ratio float64) {
 	}
 	d.issueActive = true
 	d.issueNeedsRefresh = false
+	d.resolveStaleIssues()
 }
 
 func (d *component) resolveIssue() {
 	d.healthPlatform.ResolveIssue(d.issueID)
+	d.resolveStaleIssues()
 	d.issueActive = false
 	d.issueNeedsRefresh = false
+}
+
+func (d *component) resolveStaleIssues() {
+	for _, issueID := range d.staleIssueIDs {
+		d.healthPlatform.ResolveIssue(issueID)
+	}
+	d.staleIssueIDs = nil
 }
 
 func droppedRatio(stats clientByteStats) (float64, bool) {
