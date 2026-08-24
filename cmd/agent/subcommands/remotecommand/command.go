@@ -162,7 +162,9 @@ func addCommand(parent *cobra.Command, providerName string, parentPath []string,
 	}
 	for _, parameter := range definition.GetParameters() {
 		if parameter.GetIsFlag() {
-			addFlag(cmd, parameter)
+			if err := addFlag(cmd, parameter); err != nil {
+				return err
+			}
 		}
 	}
 	commandPath := append(append([]string{}, parentPath...), name)
@@ -208,7 +210,7 @@ func renderFrame(frame *pb.ExecuteCommandResponse, stdout, stderr io.Writer) err
 	}
 }
 
-func addFlag(cmd *cobra.Command, parameter *pb.CommandParameter) {
+func addFlag(cmd *cobra.Command, parameter *pb.CommandParameter) error {
 	name, shorthand, usage := parameter.GetName(), parameter.GetShortName(), parameter.GetHelper()
 	switch parameter.GetType() {
 	case pb.ParameterType_TYPE_INT:
@@ -227,12 +229,15 @@ func addFlag(cmd *cobra.Command, parameter *pb.CommandParameter) {
 		cmd.Flags().UintSliceP(name, shorthand, nil, usage)
 	case pb.ParameterType_TYPE_FLOAT_SLICE:
 		cmd.Flags().Float64SliceP(name, shorthand, nil, usage)
-	default:
+	case pb.ParameterType_TYPE_STRING:
 		cmd.Flags().StringP(name, shorthand, "", usage)
+	default:
+		return fmt.Errorf("unsupported parameter type %s", parameter.GetType())
 	}
 	if parameter.GetRequired() {
 		_ = cmd.MarkFlagRequired(name)
 	}
+	return nil
 }
 
 func argumentsForCommand(cmd *cobra.Command, args []string, parameters []*pb.CommandParameter) (*structpb.Struct, error) {
@@ -296,9 +301,11 @@ func flagValue(cmd *cobra.Command, parameter *pb.CommandParameter) (*structpb.Va
 	case pb.ParameterType_TYPE_FLOAT_SLICE:
 		v, err := cmd.Flags().GetFloat64Slice(name)
 		return floatListValue(v), err
-	default:
+	case pb.ParameterType_TYPE_STRING:
 		v, err := cmd.Flags().GetString(name)
 		return structpb.NewStringValue(v), err
+	default:
+		return nil, fmt.Errorf("unsupported parameter type %s", parameter.GetType())
 	}
 }
 
@@ -316,8 +323,10 @@ func stringValue(typ pb.ParameterType, raw string) (*structpb.Value, error) {
 	case pb.ParameterType_TYPE_BOOL:
 		v, err := strconv.ParseBool(raw)
 		return structpb.NewBoolValue(v), err
-	default:
+	case pb.ParameterType_TYPE_STRING:
 		return structpb.NewStringValue(raw), nil
+	default:
+		return nil, fmt.Errorf("unsupported parameter type %s", typ)
 	}
 }
 
