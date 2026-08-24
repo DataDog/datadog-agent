@@ -440,6 +440,13 @@
   review:
     name: '#agent-anomaly-detection'
     id: 'C0ABFN05CMU'
+'@datadog/agent-anomaly-detection':
+  notification:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
+  review:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
 '@datadog/windows-products':
   notification:
     name: '#windows-products-ops'
