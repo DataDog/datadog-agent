@@ -73,7 +73,7 @@ func TestCommandProviderRegistrationDiscoveryCLIAndExecutionFlow(t *testing.T) {
 	listed := registry.ListCommands(context.Background())
 	require.Len(t, listed, 1)
 	registry.agentMapMu.Lock()
-	active := registry.activeCommandProviderForCommandNameLocked("fixture-agent")
+	active := registry.providerForCommand("fixture-agent")
 	require.Same(t, registry.agentMap[oldest.registeredSessionID], active)
 	registry.agentMapMu.Unlock()
 
@@ -95,7 +95,7 @@ func TestCommandProviderRegistrationDiscoveryCLIAndExecutionFlow(t *testing.T) {
 
 	registry.agentMapMu.Lock()
 	delete(registry.agentMap, oldest.registeredSessionID)
-	active = registry.activeCommandProviderForCommandNameLocked("fixture-agent")
+	active = registry.providerForCommand("fixture-agent")
 	require.Same(t, registry.agentMap[newest.registeredSessionID], active)
 	registry.agentMapMu.Unlock()
 	require.NoError(t, remote.Execute())

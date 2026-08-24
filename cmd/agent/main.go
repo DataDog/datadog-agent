@@ -58,6 +58,8 @@ func main() {
 	}
 
 	agentCmdBuilder := agents[process]
+	// The generic agent binary aliases below construct the Core Agent command tree; other bundled binaries must not
+	// perform RemoteCommandProvider discovery before their own Cobra dispatch.
 	isCoreAgent := agentCmdBuilder == nil || process == "agent" || process == "datadog-agent" || process == "dd-agent"
 	if agentCmdBuilder == nil {
 		fmt.Fprintf(os.Stderr, "Invoked as '%s', acting as main Agent.\n", process)

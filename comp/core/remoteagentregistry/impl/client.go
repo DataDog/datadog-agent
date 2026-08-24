@@ -57,7 +57,10 @@ type remoteAgentClient struct {
 	pb.StatusProviderClient
 	pb.TelemetryProviderClient
 	pb.RemoteCommandProviderClient
-	services     []remoteAgentServiceName
+	// services are the capabilities advertised at registration. The registry uses them to avoid invoking an RPC that
+	// the remote endpoint does not implement.
+	services []remoteAgentServiceName
+	// registeredAt provides deterministic oldest-provider selection when multiple registrations expose one command name.
 	registeredAt time.Time
 	conn         *grpc.ClientConn
 }
@@ -242,7 +245,7 @@ func callAgentsForService[PbType any, StructuredType any](
 		if !slices.Contains(remoteAgent.services, service) {
 			continue
 		}
-		if service == CommandProviderServiceName && registry.activeCommandProviderForCommandNameLocked(remoteAgent.RegisteredAgent.CommandName) != remoteAgent {
+		if service == CommandProviderServiceName && registry.providerForCommand(remoteAgent.RegisteredAgent.CommandName) != remoteAgent {
 			continue
 		}
 		filteredAgents = append(filteredAgents, remoteAgent)
