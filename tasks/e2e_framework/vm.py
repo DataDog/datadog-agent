@@ -2,8 +2,6 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.e2e_framework import config, tool
-
 
 @task(
     help={
@@ -29,6 +27,8 @@ def get_vm_password(
     outputs (the same value RemoteHost.Password uses in-process), so it
     works for any provisioner that exports a password (AWS, Azure, ...).
     """
+    from tasks.e2e_framework import config, tool
+
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
