@@ -93,11 +93,11 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 			SessionID:            uuid.New().String(),
 		},
 		// gRPC relative
-		conn:                    conn,
-		StatusProviderClient:           pb.NewStatusProviderClient(conn),
-		FlareProviderClient:            pb.NewFlareProviderClient(conn),
-		TelemetryProviderClient:        pb.NewTelemetryProviderClient(conn),
-		RemoteCommandProviderClient:    pb.NewRemoteCommandProviderClient(conn),
+		conn:                        conn,
+		StatusProviderClient:        pb.NewStatusProviderClient(conn),
+		FlareProviderClient:         pb.NewFlareProviderClient(conn),
+		TelemetryProviderClient:     pb.NewTelemetryProviderClient(conn),
+		RemoteCommandProviderClient: pb.NewRemoteCommandProviderClient(conn),
 	}
 
 	client.services = registration.Services
@@ -211,6 +211,7 @@ func (rac *remoteAgentClient) validateSessionID(responseMetadata metadata.MD) er
 // Returns:
 //   - []StructuredType: A slice of processed results, one per agent that supports the service.
 func callAgentsForService[PbType any, StructuredType any](
+	ctx context.Context,
 	registry *remoteAgentRegistry,
 	service remoteAgentServiceName,
 	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
@@ -243,7 +244,7 @@ func callAgentsForService[PbType any, StructuredType any](
 	}
 
 	// Creates a context with a one second deadline for the RPC.
-	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 
 	wg.Add(agentsLen)
@@ -276,7 +277,7 @@ func callAgentsForService[PbType any, StructuredType any](
 					err = validationErr
 					registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, sessionIDMismatch)
 
-					// Mark agent as unhealthy for removal during next cleanup cycle
+					// Mark agent as unhealthy for removal during next cleanup cycle.
 					remoteAgent.unhealthyMu.Lock()
 					remoteAgent.unhealthyReason = validationErr
 					remoteAgent.unhealthyMu.Unlock()

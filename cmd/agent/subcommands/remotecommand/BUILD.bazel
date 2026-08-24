@@ -32,6 +32,9 @@ dd_agent_go_test(
     embed = [":remotecommand"],
     deps = [
         "//cmd/agent/command",
+        "//pkg/proto/pbgo/core",
         "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )

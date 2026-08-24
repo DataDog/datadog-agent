@@ -244,7 +244,7 @@ func TestRegistryDialsUDSRemoteAgent(t *testing.T) {
 		fields map[string]string
 		err    error
 	}
-	results := callAgentsForService(component, StatusServiceName,
+	results := callAgentsForService(context.Background(), component, StatusServiceName,
 		func(ctx context.Context, rac *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetStatusDetailsResponse, error) {
 			return rac.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, opts...)
 		},

@@ -360,7 +360,7 @@ func grpcErrorMessage(err error) string {
 
 // ListCommands queries all registered remote agents that advertise the command provider service and returns a
 // slice of AgentCommands, one per agent that responded.
-func (ra *remoteAgentRegistry) ListCommands() []remoteagentregistry.AgentCommands {
+func (ra *remoteAgentRegistry) ListCommands(ctx context.Context) []remoteagentregistry.AgentCommands {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.ListCommandsResponse, error) {
 		return remoteAgent.ListCommands(ctx, &pb.ListCommandsRequest{}, opts...)
 	}
@@ -373,36 +373,23 @@ func (ra *remoteAgentRegistry) ListCommands() []remoteagentregistry.AgentCommand
 		out.Commands = resp.GetCommands()
 		return out
 	}
-	return callAgentsForService(ra, CommandProviderServiceName, client, processor)
+	return callAgentsForService(ctx, ra, CommandProviderServiceName, client, processor)
 }
 
-// ExecuteCommand routes a command execution request to the remote agent that owns the given command path.
-// If agentFlavor is empty, the registry selects the first agent that supports the command provider service.
-func (ra *remoteAgentRegistry) ExecuteCommand(agentFlavor string, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+// ExecuteCommand routes a command execution request to the remote agent identified by AgentId.
+func (ra *remoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
 	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
+	agentID := req.GetAgentId()
 
 	ra.agentMapMu.Lock()
-	var target *remoteAgentClient
-	for _, remoteAgent := range ra.agentMap {
-		if !slices.Contains(remoteAgent.services, CommandProviderServiceName) {
-			continue
-		}
-		if agentFlavor != "" && remoteAgent.RegisteredAgent.Flavor != agentFlavor {
-			continue
-		}
-		target = remoteAgent
-		break
+	target := ra.agentMap[agentID]
+	if target == nil || !slices.Contains(target.services, CommandProviderServiceName) {
+		ra.agentMapMu.Unlock()
+		return nil, grpcStatus.Errorf(codes.NotFound, "no remote command provider found for agent ID %q", agentID)
 	}
 	ra.agentMapMu.Unlock()
 
-	if target == nil {
-		if agentFlavor != "" {
-			return nil, fmt.Errorf("no remote agent with flavor %q found that supports the command provider service", agentFlavor)
-		}
-		return nil, errors.New("no remote agent found that supports the command provider service")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 
 	var responseHeader metadata.MD
@@ -414,9 +401,13 @@ func (ra *remoteAgentRegistry) ExecuteCommand(agentFlavor string, req *pb.Execut
 
 	if validationErr := target.validateSessionID(responseHeader); validationErr != nil {
 		ra.telemetryStore.remoteAgentActionError.Inc(target.RegisteredAgent.SanitizedDisplayName, CommandProviderServiceName, sessionIDMismatch)
-		target.unhealthy = true
-		target.unhealthyReason = validationErr
-		return nil, validationErr
+		ra.agentMapMu.Lock()
+		if ra.agentMap[agentID] == target {
+			target.unhealthy = true
+			target.unhealthyReason = validationErr
+		}
+		ra.agentMapMu.Unlock()
+		return nil, grpcStatus.Errorf(codes.Unavailable, "remote command provider session validation failed: %v", validationErr)
 	}
 
 	return resp, nil

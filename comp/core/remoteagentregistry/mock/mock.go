@@ -9,6 +9,7 @@
 package mock
 
 import (
+	"context"
 	"testing"
 
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -28,14 +29,18 @@ func (m *mockRegistry) RegisterRemoteAgent(_ *remoteagentregistry.RegistrationDa
 
 func (m *mockRegistry) RefreshRemoteAgent(_ string) bool { return false }
 
-func (m *mockRegistry) ReportRemoteAgentEvent(_ string, _ []remoteagentregistry.RemoteAgentEvent) error { return nil }
+func (m *mockRegistry) ReportRemoteAgentEvent(_ string, _ []remoteagentregistry.RemoteAgentEvent) error {
+	return nil
+}
 
 func (m *mockRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent { return nil }
 
 func (m *mockRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData { return nil }
 
-func (m *mockRegistry) ListCommands() []remoteagentregistry.AgentCommands { return nil }
+func (m *mockRegistry) ListCommands(_ context.Context) []remoteagentregistry.AgentCommands {
+	return nil
+}
 
-func (m *mockRegistry) ExecuteCommand(_ string, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+func (m *mockRegistry) ExecuteCommand(_ context.Context, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
 	return nil, nil
 }

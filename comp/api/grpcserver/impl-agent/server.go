@@ -390,16 +390,16 @@ func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.Workl
 }
 
 // ListCommands returns all commands exposed by registered remote agents that advertise the command provider service.
-func (s *remoteCommandProviderServer) ListCommands(_ context.Context, _ *pb.ListCommandsRequest) (*pb.ListCommandsResponse, error) {
+func (s *remoteCommandProviderServer) ListCommands(ctx context.Context, _ *pb.ListCommandsRequest) (*pb.ListCommandsResponse, error) {
 	if s.remoteAgentRegistry == nil {
 		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
-	agentCommands := s.remoteAgentRegistry.ListCommands()
+	agentCommands := s.remoteAgentRegistry.ListCommands(ctx)
 	var allCommands []*pb.Command
 	for _, ac := range agentCommands {
 		for _, cmd := range ac.Commands {
-			stampAgentFlavor(cmd, ac.Flavor)
+			stampAgentDetails(cmd, ac.Flavor, ac.SessionID)
 			allCommands = append(allCommands, cmd)
 		}
 	}
@@ -407,16 +407,17 @@ func (s *remoteCommandProviderServer) ListCommands(_ context.Context, _ *pb.List
 	return &pb.ListCommandsResponse{Commands: allCommands}, nil
 }
 
-// stampAgentFlavor recursively sets agent_flavor on a command and all its children.
-func stampAgentFlavor(cmd *pb.Command, flavor string) {
+// stampAgentDetails recursively sets ownership details on a command and all its children.
+func stampAgentDetails(cmd *pb.Command, flavor, agentID string) {
 	cmd.AgentFlavor = flavor
+	cmd.AgentId = agentID
 	for _, child := range cmd.GetChildren() {
-		stampAgentFlavor(child, flavor)
+		stampAgentDetails(child, flavor, agentID)
 	}
 }
 
 // ExecuteCommand routes a command execution request to the registered remote agent that owns the command.
-func (s *remoteCommandProviderServer) ExecuteCommand(_ context.Context, in *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+func (s *remoteCommandProviderServer) ExecuteCommand(ctx context.Context, in *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
 	if s.remoteAgentRegistry == nil {
 		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
@@ -425,9 +426,9 @@ func (s *remoteCommandProviderServer) ExecuteCommand(_ context.Context, in *pb.E
 		return nil, status.Error(codes.InvalidArgument, "command_path is required")
 	}
 
-	resp, err := s.remoteAgentRegistry.ExecuteCommand(in.GetAgentFlavor(), in)
+	resp, err := s.remoteAgentRegistry.ExecuteCommand(ctx, in)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to execute command: %v", err)
+		return nil, err
 	}
 	return resp, nil
 }
