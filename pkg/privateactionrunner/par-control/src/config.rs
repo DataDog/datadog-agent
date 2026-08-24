@@ -3,41 +3,129 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Launch-time configuration for par-control.
+//! The par-control runtime configuration.
+//!
+//! Go is the configuration authority. `privateactionrunner
+//! bootstrap-par-control` loads the canonical Agent configuration — local YAML,
+//! environment, Fleet policy, secrets, endpoint and path resolution — and hands
+//! back the resolved values. This module models what comes back and validates it
+//! at the trust boundary; it deliberately does not re-derive anything.
 
+use crate::identity::Identity;
+use crate::opms::TlsConfig;
 use anyhow::{Context, Result, bail};
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::time::Duration;
 
-#[derive(serde::Deserialize, Default, Clone)]
-struct RawConfig {
-    log_level: Option<String>,
-    fleet_policies_dir: Option<String>,
-    private_action_runner: Option<RawPar>,
+/// How long the executor has to report readiness after par-control starts it.
+/// Owned here because it describes a Rust-side wait, not Agent configuration.
+const EXECUTOR_READY_TIMEOUT: Duration = Duration::from_secs(30);
+
+pub const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
+
+#[derive(Clone)]
+pub struct Config {
+    pub opms_base_url: String,
+    pub task_concurrency: usize,
+    pub executor_socket: PathBuf,
+    pub procmgr_socket: PathBuf,
+    pub executor_process_name: String,
+    pub loop_interval: Duration,
+    pub heartbeat_interval: Duration,
+    pub health_check_interval: Duration,
+    pub ready_timeout: Duration,
+    pub opms_request_timeout: Duration,
+    pub opms_extra_headers: HashMap<String, String>,
+    pub opms_proxy_url: Option<String>,
+    pub tls: TlsConfig,
+    /// Mirrors the Go circuit breaker.
+    pub min_backoff: Duration,
+    pub max_backoff: Duration,
+    pub wait_before_retry: Duration,
+    pub max_attempts: u32,
+    pub runner_version: String,
+    pub modes: Vec<String>,
+    pub ipc_cert_file: PathBuf,
+    pub identity: Identity,
 }
 
-#[derive(serde::Deserialize, Default, Clone)]
-struct RawPar {
-    enabled: Option<bool>,
-    split_enabled: Option<bool>,
-    self_enroll: Option<bool>,
-}
-
-/// Settings needed before identity bootstrap.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LaunchGate {
+/// The configuration `bootstrap-par-control` emits.
+///
+/// Field names and duration units are a contract with
+/// `cmd/privateactionrunner/subcommands/bootstrapparcontrol`.
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+pub struct BootstrapConfig {
+    /// Gates the control plane. False means the monolithic runner owns OPMS
+    /// polling and par-control should exit successfully.
+    #[serde(default)]
     pub split_mode: bool,
-    pub self_enroll: bool,
+    #[serde(default)]
+    pub log_level: String,
+
+    #[serde(default)]
+    identity: BootstrapIdentity,
+
+    #[serde(default)]
+    opms_base_url: String,
+    #[serde(default)]
+    opms_proxy_url: String,
+    #[serde(default)]
+    agent_version: String,
+    #[serde(default)]
+    modes: Vec<String>,
+    #[serde(default)]
+    task_concurrency: i64,
+    #[serde(default)]
+    executor_socket: String,
+    #[serde(default)]
+    ipc_cert_file_path: String,
+    #[serde(default)]
+    opms_extra_headers: HashMap<String, String>,
+
+    #[serde(default)]
+    tls: BootstrapTls,
+
+    #[serde(default)]
+    loop_interval_milliseconds: u64,
+    #[serde(default)]
+    heartbeat_interval_milliseconds: u64,
+    #[serde(default)]
+    health_check_interval_milliseconds: u64,
+    #[serde(default)]
+    opms_request_timeout_milliseconds: u64,
+    #[serde(default)]
+    min_backoff_milliseconds: u64,
+    #[serde(default)]
+    max_backoff_milliseconds: u64,
+    #[serde(default)]
+    wait_before_retry_milliseconds: u64,
+    #[serde(default)]
+    max_attempts: i64,
 }
 
-/// Log level and launch gate, resolved in one pass over `datadog.yaml` and the
-/// fleet policy overlay.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Launch {
-    pub log_level: log::LevelFilter,
-    pub gate: LaunchGate,
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+struct BootstrapIdentity {
+    #[serde(default)]
+    urn: String,
+    #[serde(default)]
+    private_key: String,
+    #[serde(default)]
+    org_id: i64,
+    #[serde(default)]
+    runner_id: String,
 }
 
-fn parse_log_level(raw: &str) -> log::LevelFilter {
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+struct BootstrapTls {
+    #[serde(default)]
+    skip_ssl_validation: bool,
+    #[serde(default)]
+    min_tls_version: String,
+}
+
+/// Agent log levels, as emitted by the Go `log_level` setting.
+pub fn parse_log_level(raw: &str) -> log::LevelFilter {
     match raw.trim().to_ascii_lowercase().as_str() {
         "trace" => log::LevelFilter::Trace,
         "debug" => log::LevelFilter::Debug,
@@ -48,243 +136,294 @@ fn parse_log_level(raw: &str) -> log::LevelFilter {
     }
 }
 
-impl Launch {
-    pub fn from_yaml_file(path: &Path) -> Result<Self> {
-        let contents = std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read config file: {}", path.display()))?;
-        Self::from_yaml_str_with_env(&contents, |name| std::env::var(name).ok())
+impl BootstrapConfig {
+    pub fn log_level(&self) -> log::LevelFilter {
+        parse_log_level(&self.log_level)
     }
 
-    #[cfg(test)]
-    fn from_yaml_str(yaml: &str) -> Result<Self> {
-        Self::from_yaml_str_with_env(yaml, |_| None)
-    }
+    /// Validate the bootstrap output and build the runtime configuration.
+    ///
+    /// These are trust-boundary checks on another process's output, not a second
+    /// configuration authority: nothing here re-derives a value Go resolved.
+    pub fn into_config(self) -> Result<Config> {
+        if !self.split_mode {
+            bail!("cannot build a par-control configuration while split mode is disabled");
+        }
 
-    fn from_yaml_str_with_env(yaml: &str, env: impl Fn(&str) -> Option<String>) -> Result<Self> {
-        let raw: RawConfig = serde_yaml::from_str(yaml).context("failed to parse datadog.yaml")?;
-        let fleet_dir = env("DD_FLEET_POLICIES_DIR")
-            .filter(|value| !value.is_empty())
-            .or(raw.fleet_policies_dir)
-            .or_else(crate::platform::fleet_policies_dir);
-        let fleet = fleet_dir
-            .as_deref()
-            .map(read_fleet_policy)
-            .transpose()?
-            .flatten()
-            .unwrap_or_default();
-
-        let log_level = fleet
-            .log_level
-            .or_else(|| env("DD_LOG_LEVEL").filter(|value| !value.is_empty()))
-            .or(raw.log_level)
-            .as_deref()
-            .map(parse_log_level)
-            .unwrap_or(log::LevelFilter::Info);
-
-        let par = raw.private_action_runner.unwrap_or_default();
-        let fleet_par = fleet.private_action_runner.unwrap_or_default();
-        let enabled = resolve_bool(
-            fleet_par.enabled,
-            par.enabled,
-            "DD_PRIVATE_ACTION_RUNNER_ENABLED",
-            &env,
-        )?;
-        let split_enabled = resolve_bool(
-            fleet_par.split_enabled,
-            par.split_enabled,
-            "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED",
-            &env,
-        )?;
-        let self_enroll = resolve_bool(
-            fleet_par.self_enroll,
-            par.self_enroll,
-            "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL",
-            &env,
+        let identity = Identity::new(
+            self.identity.urn,
+            self.identity.private_key,
+            self.identity.org_id,
+            self.identity.runner_id,
         )?;
 
-        Ok(Self {
-            log_level,
-            gate: LaunchGate {
-                split_mode: enabled.unwrap_or(false) && split_enabled.unwrap_or(false),
-                self_enroll: self_enroll.unwrap_or(true),
+        if self.opms_base_url.is_empty() {
+            bail!("bootstrap returned an empty OPMS base URL");
+        }
+        // Parsed once here so a malformed URL fails startup instead of every
+        // request.
+        reqwest::Url::parse(&self.opms_base_url)
+            .context("bootstrap returned an invalid OPMS URL")?;
+
+        let task_concurrency = usize::try_from(self.task_concurrency)
+            .ok()
+            .filter(|value| *value > 0)
+            .context("bootstrap returned a non-positive task concurrency")?;
+
+        if self.executor_socket.is_empty() {
+            bail!("bootstrap returned an empty executor socket path");
+        }
+        if self.ipc_cert_file_path.is_empty() {
+            bail!("bootstrap returned an empty IPC certificate path");
+        }
+
+        let max_attempts =
+            u32::try_from(self.max_attempts).context("bootstrap returned invalid max attempts")?;
+
+        Ok(Config {
+            opms_base_url: self.opms_base_url,
+            task_concurrency,
+            executor_socket: PathBuf::from(self.executor_socket),
+            procmgr_socket: dd_procmgr_client::default_ipc_path(),
+            executor_process_name: EXECUTOR_PROCESS_NAME.to_string(),
+            loop_interval: duration_ms("loop_interval", self.loop_interval_milliseconds)?,
+            heartbeat_interval: duration_ms(
+                "heartbeat_interval",
+                self.heartbeat_interval_milliseconds,
+            )?,
+            health_check_interval: duration_ms(
+                "health_check_interval",
+                self.health_check_interval_milliseconds,
+            )?,
+            ready_timeout: EXECUTOR_READY_TIMEOUT,
+            opms_request_timeout: duration_ms(
+                "opms_request_timeout",
+                self.opms_request_timeout_milliseconds,
+            )?,
+            opms_extra_headers: self.opms_extra_headers,
+            opms_proxy_url: non_empty(self.opms_proxy_url),
+            tls: TlsConfig {
+                skip_ssl_validation: self.tls.skip_ssl_validation,
+                min_tls_version: self.tls.min_tls_version,
             },
+            min_backoff: duration_ms("min_backoff", self.min_backoff_milliseconds)?,
+            max_backoff: duration_ms("max_backoff", self.max_backoff_milliseconds)?,
+            wait_before_retry: duration_ms(
+                "wait_before_retry",
+                self.wait_before_retry_milliseconds,
+            )?,
+            max_attempts,
+            runner_version: self.agent_version,
+            modes: self.modes,
+            ipc_cert_file: PathBuf::from(self.ipc_cert_file_path),
+            identity,
         })
     }
 }
 
-fn read_fleet_policy(dir: &str) -> Result<Option<RawConfig>> {
-    if dir.is_empty() {
-        return Ok(None);
+fn duration_ms(field: &str, milliseconds: u64) -> Result<Duration> {
+    if milliseconds == 0 {
+        bail!("bootstrap returned a zero {field}");
     }
-    let path = Path::new(dir).join("datadog.yaml");
-    let contents = match std::fs::read_to_string(&path) {
-        Ok(contents) => contents,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(error)
-                .with_context(|| format!("failed to read fleet policy: {}", path.display()));
-        }
-    };
-    serde_yaml::from_str(&contents)
-        .with_context(|| format!("failed to parse fleet policy: {}", path.display()))
-        .map(Some)
+    Ok(Duration::from_millis(milliseconds))
 }
 
-/// Precedence: fleet policy > environment > local YAML.
-fn resolve_bool(
-    fleet_value: Option<bool>,
-    yaml_value: Option<bool>,
-    name: &str,
-    env: &impl Fn(&str) -> Option<String>,
-) -> Result<Option<bool>> {
-    if fleet_value.is_some() {
-        return Ok(fleet_value);
-    }
-    let Some(raw) = env(name).filter(|value| !value.is_empty()) else {
-        return Ok(yaml_value);
-    };
-    let value = match raw.trim() {
-        "1" | "t" | "T" | "TRUE" | "true" | "True" => true,
-        "0" | "f" | "F" | "FALSE" | "false" | "False" => false,
-        _ => bail!("invalid boolean value for {name}: {raw:?}"),
-    };
-    Ok(Some(value))
+fn non_empty(value: String) -> Option<String> {
+    if value.is_empty() { None } else { Some(value) }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn split_mode_requires_enabled_and_split_enabled() {
-        let cases = [
-            ("", false),
-            ("private_action_runner:\n  enabled: true\n", false),
-            ("private_action_runner:\n  split_enabled: true\n", false),
-            (
-                "private_action_runner:\n  enabled: true\n  split_enabled: true\n",
-                true,
-            ),
-            (
-                "private_action_runner:\n  enabled: false\n  split_enabled: true\n",
-                false,
-            ),
-        ];
-        for (yaml, want) in cases {
-            let launch = Launch::from_yaml_str(yaml).unwrap();
-            assert_eq!(launch.gate.split_mode, want, "yaml: {yaml:?}");
-        }
-    }
-
-    #[test]
-    fn launch_gate_environment_overrides_yaml() {
-        let env = |name: &str| match name {
-            "DD_PRIVATE_ACTION_RUNNER_ENABLED" => Some("true".to_string()),
-            "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED" => Some("1".to_string()),
-            "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL" => Some("false".to_string()),
-            "DD_LOG_LEVEL" => Some("trace".to_string()),
-            _ => None,
-        };
-        let launch = Launch::from_yaml_str_with_env(
-            "log_level: warn\nprivate_action_runner:\n  enabled: false\n  split_enabled: false\n",
-            env,
-        )
-        .unwrap();
-        assert!(launch.gate.split_mode);
-        assert!(!launch.gate.self_enroll);
-        assert_eq!(launch.log_level, log::LevelFilter::Trace);
-    }
-
-    #[test]
-    fn empty_environment_overrides_fall_back_to_yaml() {
-        let env = |name: &str| match name {
-            "DD_PRIVATE_ACTION_RUNNER_ENABLED"
-            | "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"
-            | "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL" => Some(String::new()),
-            _ => None,
-        };
-        let launch = Launch::from_yaml_str_with_env(
-            "private_action_runner:\n  enabled: true\n  split_enabled: true\n  self_enroll: false\n",
-            env,
-        )
-        .unwrap();
-        assert!(launch.gate.split_mode);
-        assert!(!launch.gate.self_enroll);
-    }
-
-    #[test]
-    fn fleet_policy_overrides_local_config_and_environment() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("datadog.yaml"),
-            "log_level: error\nprivate_action_runner:\n  enabled: true\n  split_enabled: true\n  self_enroll: false\n",
-        )
-        .unwrap();
-        let fleet_dir = dir.path().to_string_lossy().into_owned();
-        let launch = Launch::from_yaml_str_with_env(
-            "log_level: debug\nprivate_action_runner:\n  enabled: false\n  split_enabled: false\n",
-            |name| match name {
-                "DD_FLEET_POLICIES_DIR" => Some(fleet_dir.clone()),
-                "DD_PRIVATE_ACTION_RUNNER_ENABLED" | "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED" => {
-                    Some("false".to_string())
-                }
-                "DD_LOG_LEVEL" => Some("trace".to_string()),
-                _ => None,
+    /// A complete payload, matching what bootstrap-par-control emits.
+    fn full_json() -> String {
+        serde_json::json!({
+            "split_mode": true,
+            "log_level": "debug",
+            "identity": {
+                "urn": "urn:dd:apps:on-prem-runner:us1:42:runner-1",
+                "private_key": "encoded-jwk",
+                "org_id": 42,
+                "runner_id": "runner-1",
             },
-        )
-        .unwrap();
-        assert!(launch.gate.split_mode);
-        assert!(!launch.gate.self_enroll);
-        assert_eq!(launch.log_level, log::LevelFilter::Error);
+            "opms_base_url": "https://api.datadoghq.com",
+            "opms_proxy_url": "http://secure-proxy.example:8443",
+            "agent_version": "7.83.0",
+            "modes": ["pull"],
+            "task_concurrency": 5,
+            "executor_socket": "/opt/datadog-agent/run/par-executor.sock",
+            "ipc_cert_file_path": "/etc/datadog-agent/ipc_cert.pem",
+            "opms_extra_headers": {"X-Test-Routing": "canary"},
+            "tls": {"skip_ssl_validation": true, "min_tls_version": "tlsv1.3"},
+            "loop_interval_milliseconds": 1000,
+            "heartbeat_interval_milliseconds": 20000,
+            "health_check_interval_milliseconds": 30000,
+            "opms_request_timeout_milliseconds": 30000,
+            "min_backoff_milliseconds": 1000,
+            "max_backoff_milliseconds": 180000,
+            "wait_before_retry_milliseconds": 300000,
+            "max_attempts": 20,
+        })
+        .to_string()
     }
 
-    #[test]
-    fn launch_gate_accepts_agent_boolean_environment_values() {
-        for (raw, expected) in [
-            ("1", true),
-            ("t", true),
-            ("T", true),
-            ("TRUE", true),
-            ("true", true),
-            ("True", true),
-            ("0", false),
-            ("f", false),
-            ("F", false),
-            ("FALSE", false),
-            ("false", false),
-            ("False", false),
-        ] {
-            let launch = Launch::from_yaml_str_with_env("", |name| match name {
-                "DD_PRIVATE_ACTION_RUNNER_ENABLED" => Some(raw.to_string()),
-                "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED" => Some("true".to_string()),
-                _ => None,
-            })
-            .unwrap();
-            assert_eq!(launch.gate.split_mode, expected, "boolean value {raw:?}");
+    fn parse(json: &str) -> Result<Config> {
+        serde_json::from_str::<BootstrapConfig>(json)
+            .context("parse")?
+            .into_config()
+    }
+
+    /// `Config` deliberately does not derive `Debug` — it holds the private key —
+    /// so the error is extracted without `unwrap_err`'s `Debug` bound.
+    fn parse_error(json: &str) -> String {
+        match parse(json) {
+            Ok(_) => panic!("expected a rejection"),
+            Err(error) => format!("{error:#}"),
         }
     }
 
     #[test]
-    fn launch_gate_rejects_invalid_environment_boolean() {
-        let result = Launch::from_yaml_str_with_env("", |name| {
-            (name == "DD_PRIVATE_ACTION_RUNNER_ENABLED").then(|| "sometimes".to_string())
-        });
-        assert!(result.is_err());
+    fn builds_the_runtime_config_from_bootstrap_output() {
+        let cfg = parse(&full_json()).unwrap();
+
+        assert_eq!(cfg.opms_base_url, "https://api.datadoghq.com");
+        assert_eq!(cfg.task_concurrency, 5);
+        assert_eq!(cfg.identity.org_id, 42);
+        assert_eq!(cfg.identity.runner_id, "runner-1");
+        assert_eq!(cfg.identity.private_key, "encoded-jwk");
+        assert_eq!(cfg.runner_version, "7.83.0");
+        assert_eq!(cfg.modes, vec!["pull"]);
+        assert_eq!(cfg.executor_process_name, EXECUTOR_PROCESS_NAME);
+        assert_eq!(
+            cfg.executor_socket,
+            PathBuf::from("/opt/datadog-agent/run/par-executor.sock")
+        );
+        assert_eq!(
+            cfg.ipc_cert_file,
+            PathBuf::from("/etc/datadog-agent/ipc_cert.pem")
+        );
+        assert_eq!(cfg.procmgr_socket, dd_procmgr_client::default_ipc_path());
+        assert_eq!(cfg.ready_timeout, EXECUTOR_READY_TIMEOUT);
+        assert_eq!(
+            cfg.opms_extra_headers.get("X-Test-Routing").unwrap(),
+            "canary"
+        );
+        assert_eq!(
+            cfg.opms_proxy_url.as_deref(),
+            Some("http://secure-proxy.example:8443")
+        );
+        assert!(cfg.tls.skip_ssl_validation);
+        assert_eq!(cfg.tls.min_tls_version, "tlsv1.3");
     }
 
     #[test]
-    fn gate_resolves_without_identity() {
-        let launch = Launch::from_yaml_str("site: datadoghq.com\n").unwrap();
-        assert!(!launch.gate.split_mode);
-        assert!(launch.gate.self_enroll);
-        assert_eq!(launch.log_level, log::LevelFilter::Info);
+    fn converts_durations_from_milliseconds() {
+        let cfg = parse(&full_json()).unwrap();
+
+        assert_eq!(cfg.loop_interval, Duration::from_secs(1));
+        assert_eq!(cfg.heartbeat_interval, Duration::from_secs(20));
+        assert_eq!(cfg.health_check_interval, Duration::from_secs(30));
+        assert_eq!(cfg.opms_request_timeout, Duration::from_secs(30));
+        assert_eq!(cfg.min_backoff, Duration::from_secs(1));
+        assert_eq!(cfg.max_backoff, Duration::from_secs(180));
+        assert_eq!(cfg.wait_before_retry, Duration::from_secs(300));
+        assert_eq!(cfg.max_attempts, 20);
+    }
+
+    /// An omitted or zero duration would silently become a hot loop or an
+    /// instant timeout.
+    #[test]
+    fn rejects_zero_durations() {
+        for field in [
+            "loop_interval_milliseconds",
+            "heartbeat_interval_milliseconds",
+            "health_check_interval_milliseconds",
+            "opms_request_timeout_milliseconds",
+            "min_backoff_milliseconds",
+            "max_backoff_milliseconds",
+            "wait_before_retry_milliseconds",
+        ] {
+            let mut value: serde_json::Value = serde_json::from_str(&full_json()).unwrap();
+            value[field] = serde_json::json!(0);
+            let error = parse_error(&value.to_string());
+            assert!(
+                error.contains(field.trim_end_matches("_milliseconds")),
+                "{error}"
+            );
+        }
     }
 
     #[test]
-    fn gate_honors_explicit_self_enroll_false() {
-        let launch =
-            Launch::from_yaml_str("private_action_runner:\n  self_enroll: false\n").unwrap();
-        assert!(!launch.gate.self_enroll);
+    fn rejects_non_positive_concurrency() {
+        for concurrency in [0, -1] {
+            let mut value: serde_json::Value = serde_json::from_str(&full_json()).unwrap();
+            value["task_concurrency"] = serde_json::json!(concurrency);
+            let error = parse_error(&value.to_string());
+            assert!(error.contains("task concurrency"), "{error}");
+        }
+    }
+
+    #[test]
+    fn rejects_incomplete_identity() {
+        for (field, replacement) in [
+            ("urn", serde_json::json!("")),
+            ("private_key", serde_json::json!("")),
+            ("private_key", serde_json::json!("   ")),
+            ("org_id", serde_json::json!(0)),
+            ("org_id", serde_json::json!(-1)),
+            ("runner_id", serde_json::json!("")),
+        ] {
+            let mut value: serde_json::Value = serde_json::from_str(&full_json()).unwrap();
+            value["identity"][field] = replacement.clone();
+            assert!(
+                parse(&value.to_string()).is_err(),
+                "identity.{field} = {replacement} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_an_invalid_opms_url() {
+        for url in ["", "not-a-url", "://missing-scheme"] {
+            let mut value: serde_json::Value = serde_json::from_str(&full_json()).unwrap();
+            value["opms_base_url"] = serde_json::json!(url);
+            assert!(
+                parse(&value.to_string()).is_err(),
+                "OPMS URL {url:?} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_empty_paths() {
+        for field in ["executor_socket", "ipc_cert_file_path"] {
+            let mut value: serde_json::Value = serde_json::from_str(&full_json()).unwrap();
+            value[field] = serde_json::json!("");
+            let error = parse_error(&value.to_string());
+            assert!(error.contains("empty"), "{error}");
+        }
+    }
+
+    /// Go omits everything but the gate when split mode is off, so the runtime
+    /// config must not be constructible from it.
+    #[test]
+    fn refuses_to_build_a_config_when_split_mode_is_disabled() {
+        let gate: BootstrapConfig =
+            serde_json::from_str(r#"{"split_mode":false,"log_level":"warn"}"#).unwrap();
+
+        assert!(!gate.split_mode);
+        assert_eq!(gate.log_level(), log::LevelFilter::Warn);
+        assert!(gate.into_config().is_err());
+    }
+
+    #[test]
+    fn empty_proxy_url_is_absent() {
+        let mut value: serde_json::Value = serde_json::from_str(&full_json()).unwrap();
+        value["opms_proxy_url"] = serde_json::json!("");
+        let cfg = parse(&value.to_string()).unwrap();
+
+        assert_eq!(cfg.opms_proxy_url, None);
     }
 
     #[test]
@@ -298,19 +437,9 @@ mod tests {
             ("critical", log::LevelFilter::Error),
             ("off", log::LevelFilter::Off),
             ("not-a-level", log::LevelFilter::Info),
+            ("", log::LevelFilter::Info),
         ] {
-            let launch = Launch::from_yaml_str(&format!("log_level: {raw}\n")).unwrap();
-            assert_eq!(launch.log_level, want, "log_level: {raw}");
+            assert_eq!(parse_log_level(raw), want, "log_level: {raw}");
         }
-    }
-
-    #[test]
-    fn reports_a_missing_config_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let error = Launch::from_yaml_file(&dir.path().join("missing.yaml")).unwrap_err();
-        assert!(
-            format!("{error:#}").contains("failed to read config file"),
-            "{error:#}"
-        );
     }
 }
