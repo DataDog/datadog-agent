@@ -662,6 +662,7 @@ func metricSeriesHash(name string, sortedTags []string) uint64 {
 func (m *parquetMetricView) GetName() string         { return m.name }
 func (m *parquetMetricView) GetValue() float64       { return m.value }
 func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
+func (m *parquetMetricView) GetHost() string         { return "" }
 func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 

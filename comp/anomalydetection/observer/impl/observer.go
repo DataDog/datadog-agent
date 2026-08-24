@@ -70,6 +70,7 @@ type observation struct {
 type metricObs struct {
 	name      string
 	value     float64
+	host      string
 	tags      []string
 	timestamp int64
 }
@@ -88,6 +89,8 @@ func (m *metricObs) GetValue() float64 {
 func (m *metricObs) GetRawTags() []string {
 	return m.tags
 }
+
+func (m *metricObs) GetHost() string { return m.host }
 
 func (m *metricObs) GetTimestampUnix() int64 { return m.timestamp }
 
@@ -699,6 +702,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 				result.Anomalies[j].Source = observerdef.SeriesDescriptor{
 					Namespace: series.Namespace,
 					Name:      series.Name,
+					Host:      series.Host,
 					Tags:      series.Tags,
 					Aggregate: agg,
 				}
@@ -1094,6 +1098,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),
+			host:      sample.GetHost(),
 			tags:      tags,
 			timestamp: timestamp,
 		},
