@@ -56,6 +56,10 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
 )
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=kustomize_disable_go_plugin_support"],
+    path = "sigs.k8s.io/kustomize/api",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",
