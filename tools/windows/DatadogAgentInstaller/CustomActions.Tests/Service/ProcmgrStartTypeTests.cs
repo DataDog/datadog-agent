@@ -46,6 +46,28 @@ namespace CustomActions.Tests.Service
         }
 
         [Fact]
+        public void ConfigureServiceUsers_PreservesAgentServiceCredentials_WhenPasswordNotProvided()
+        {
+            GivenServiceAccount(false);
+            GivenAgentUserPassword(null);
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(Constants.AgentServiceName, null, null), Times.Once);
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(Constants.TraceAgentServiceName, null, null), Times.Once);
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(Constants.SecurityAgentServiceName, null, null), Times.Once);
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(
+                    Constants.AgentServiceName,
+                    It.Is<string>(username => username != null),
+                    It.IsAny<string>()),
+                Times.Never);
+        }
+
+        [Fact]
         public void ConfigureServiceUsers_EnablesProcmgr_ForDomainAccountWithoutPassword()
         {
             GivenServiceAccount(false);

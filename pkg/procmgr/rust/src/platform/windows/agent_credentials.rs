@@ -17,7 +17,7 @@ use windows_sys::Win32::Security::{
 
 use super::account_name::AccountName;
 #[cfg(not(test))]
-use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user};
+use super::agent_service_sid::{DATADOG_AGENT_SERVICE, lookup_installed_user_sid, service_runs_as_agent_user};
 use super::local_account::is_local_account;
 use super::managed_service_account::ManagedServiceAccountState;
 #[cfg(not(test))]
@@ -117,7 +117,7 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
         return Ok(account);
     }
 
-    let sid = lookup_account_sid(&domain, &user)
+    let sid = lookup_installed_user_sid(&domain, &user)
         .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
     if let Some(account) = well_known_from_sid(&sid) {
         return Ok(account);
