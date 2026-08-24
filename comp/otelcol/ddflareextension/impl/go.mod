@@ -55,23 +55,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0 // indirect
-	github.com/brunoscheufler/aws-ecs-metadata-go v0.0.0-20221221133751-67e37ae746cd // indirect
-	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
-	github.com/go-openapi/swag/pools v0.28.0 // indirect
-	github.com/jarcoal/httpmock v1.4.2 // indirect
-	github.com/sirupsen/logrus v1.10.0 // indirect
-	go.opentelemetry.io/contrib/detectors/aws/ecs v1.45.0 // indirect
-	go.opentelemetry.io/contrib/detectors/aws/eks v1.45.0 // indirect
-	go.opentelemetry.io/contrib/detectors/azure/azurevm v0.17.0 // indirect
-	go.opentelemetry.io/contrib/detectors/gcp v1.45.0 // indirect
-	go.opentelemetry.io/contrib/propagators/autoprop v0.70.0 // indirect
-	go.opentelemetry.io/contrib/propagators/aws v1.45.0 // indirect
-	go.opentelemetry.io/contrib/propagators/jaeger v1.45.0 // indirect
-	go.opentelemetry.io/contrib/propagators/ot v1.45.0 // indirect
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.66.0 // indirect
@@ -126,14 +109,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.78.1 // indirect
@@ -196,6 +179,7 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
@@ -229,6 +213,7 @@ require (
 	github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/brunoscheufler/aws-ecs-metadata-go v0.0.0-20221221133751-67e37ae746cd // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
@@ -279,11 +264,10 @@ require (
 	github.com/go-openapi/swag/loading v0.28.0 // indirect
 	github.com/go-openapi/swag/mangling v0.28.0 // indirect
 	github.com/go-openapi/swag/netutils v0.28.0 // indirect
+	github.com/go-openapi/swag/pools v0.28.0 // indirect
 	github.com/go-openapi/swag/stringutils v0.28.0 // indirect
 	github.com/go-openapi/swag/typeutils v0.28.0 // indirect
 	github.com/go-openapi/swag/yamlutils v0.28.0 // indirect
-	github.com/go-openapi/swag/jsonname v0.26.0 // indirect
-	github.com/go-openapi/swag/pools v0.27.3 // indirect
 	github.com/go-openapi/validate v0.26.1 // indirect
 	github.com/go-resty/resty/v2 v2.17.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
@@ -474,11 +458,19 @@ require (
 	go.opentelemetry.io/collector/receiver/xreceiver v0.159.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.159.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.20.0 // indirect
+	go.opentelemetry.io/contrib/detectors/aws/ecs v1.45.0 // indirect
+	go.opentelemetry.io/contrib/detectors/aws/eks v1.45.0 // indirect
+	go.opentelemetry.io/contrib/detectors/azure/azurevm v0.17.0 // indirect
+	go.opentelemetry.io/contrib/detectors/gcp v1.45.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.70.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.25.0 // indirect
+	go.opentelemetry.io/contrib/propagators/autoprop v0.70.0 // indirect
+	go.opentelemetry.io/contrib/propagators/aws v1.45.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.45.0 // indirect
+	go.opentelemetry.io/contrib/propagators/jaeger v1.45.0 // indirect
+	go.opentelemetry.io/contrib/propagators/ot v1.45.0 // indirect
 	go.opentelemetry.io/contrib/zpages v0.70.0 // indirect
 	go.opentelemetry.io/otel v1.45.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.21.0 // indirect
@@ -498,10 +490,6 @@ require (
 	go.opentelemetry.io/otel/sdk/log v0.21.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.45.0 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
-	go.opentelemetry.io/contrib/propagators/autoprop v0.69.0 // indirect
-	go.opentelemetry.io/contrib/propagators/aws v1.44.0 // indirect
-	go.opentelemetry.io/contrib/propagators/jaeger v1.44.0 // indirect
-	go.opentelemetry.io/contrib/propagators/ot v1.44.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
