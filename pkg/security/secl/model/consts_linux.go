@@ -2350,20 +2350,11 @@ const (
 type NamespaceType int
 
 func (nst NamespaceType) String() string {
-	// setns accepts 0 to mean that any namespace type is allowed, in which case the kernel
-	// infers the type from the file descriptor. Name it rather than render an empty string.
+	// 0 means the type could not be determined: the caller passed 0 and no install callback was
+	// observed. Name it rather than render an empty string.
 	if nst == 0 {
 		return "ANY"
 	}
-	return bitmaskToString(int(nst), namespaceTypeStrings)
-}
-
-// EffectiveNamespaceType represents the namespace type bitmask the kernel actually installed for
-// a setns syscall. Unlike NamespaceType a 0 here means "not resolved" rather than "any type", so
-// it deliberately does not render as ANY.
-type EffectiveNamespaceType int
-
-func (nst EffectiveNamespaceType) String() string {
 	return bitmaskToString(int(nst), namespaceTypeStrings)
 }
 

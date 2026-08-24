@@ -2101,12 +2101,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers13(
 			} else {
 				out.NSType = string(in.String())
 			}
-		case "effective_nstype":
-			if in.IsNull() {
-				in.Skip()
-			} else {
-				out.EffectiveNSType = string(in.String())
-			}
 		case "mntns":
 			if in.IsNull() {
 				in.Skip()
@@ -2142,11 +2136,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers13(
 		const prefix string = ",\"nstype\":"
 		out.RawString(prefix)
 		out.String(string(in.NSType))
-	}
-	if in.EffectiveNSType != "" {
-		const prefix string = ",\"effective_nstype\":"
-		out.RawString(prefix)
-		out.String(string(in.EffectiveNSType))
 	}
 	if in.MntNS != 0 {
 		const prefix string = ",\"mntns\":"

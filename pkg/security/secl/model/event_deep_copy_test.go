@@ -343,7 +343,6 @@ func createFullyPopulatedEvent() *Event {
 
 	e.SetNS.FD = 3
 	e.SetNS.NSType = 0x40000000 // CLONE_NEWNET
-	e.SetNS.EffectiveNSType = 0x40000000
 	e.SetNS.MntNS = 4026531840
 	e.SetNS.NetNS = 4026532001
 

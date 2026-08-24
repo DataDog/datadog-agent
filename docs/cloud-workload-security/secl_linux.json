@@ -7767,11 +7767,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "setns.effective_nstype",
-          "definition": "Namespace types the kernel actually installed, resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be resolved",
-          "property_doc_link": "setns-effective_nstype-doc"
-        },
-        {
           "name": "setns.fd",
           "definition": "File descriptor of the namespace the thread requested to join",
           "property_doc_link": "setns-fd-doc"
@@ -7788,7 +7783,7 @@
         },
         {
           "name": "setns.nstype",
-          "definition": "Namespace types requested by the caller. 0 means that any type is allowed, in which case the kernel infers the type from the file descriptor. Prefer `effective_nstype` in rules, as a caller passing 0 would otherwise evade them",
+          "definition": "Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined",
           "property_doc_link": "setns-nstype-doc"
         },
         {
@@ -16759,18 +16754,6 @@
       "examples": []
     },
     {
-      "name": "setns.effective_nstype",
-      "link": "setns-effective_nstype-doc",
-      "type": "int",
-      "definition": "Namespace types the kernel actually installed, resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be resolved",
-      "prefixes": [
-        "setns"
-      ],
-      "constants": "Namespace types",
-      "constants_link": "namespace-types",
-      "examples": []
-    },
-    {
       "name": "setns.fd",
       "link": "setns-fd-doc",
       "type": "int",
@@ -16810,7 +16793,7 @@
       "name": "setns.nstype",
       "link": "setns-nstype-doc",
       "type": "int",
-      "definition": "Namespace types requested by the caller. 0 means that any type is allowed, in which case the kernel infers the type from the file descriptor. Prefer `effective_nstype` in rules, as a caller passing 0 would otherwise evade them",
+      "definition": "Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined",
       "prefixes": [
         "setns"
       ],

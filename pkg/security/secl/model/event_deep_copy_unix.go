@@ -1096,7 +1096,6 @@ func deepCopySetgidEvent(fieldToCopy SetgidEvent) SetgidEvent {
 }
 func deepCopySetNSEvent(fieldToCopy SetNSEvent) SetNSEvent {
 	copied := SetNSEvent{}
-	copied.EffectiveNSType = fieldToCopy.EffectiveNSType
 	copied.FD = fieldToCopy.FD
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSType = fieldToCopy.NSType

@@ -697,10 +697,8 @@ type SetrlimitEventSerializer struct {
 type SetNSEventSerializer struct {
 	// File descriptor of the namespace the thread requested to join
 	FD int `json:"fd"`
-	// Namespace types requested by the caller, ANY when the syscall let the kernel infer the type
+	// Namespace types the thread joined, ANY if the type couldn't be determined
 	NSType string `json:"nstype"`
-	// Namespace types the kernel actually installed, omitted if it couldn't be resolved
-	EffectiveNSType string `json:"effective_nstype,omitempty"`
 	// Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved
 	MntNS uint32 `json:"mntns,omitempty"`
 	// Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved
@@ -1636,11 +1634,10 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 
 func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
 	return &SetNSEventSerializer{
-		FD:              e.SetNS.FD,
-		NSType:          model.NamespaceType(e.SetNS.NSType).String(),
-		EffectiveNSType: model.EffectiveNamespaceType(e.SetNS.EffectiveNSType).String(),
-		MntNS:           e.SetNS.MntNS,
-		NetNS:           e.SetNS.NetNS,
+		FD:     e.SetNS.FD,
+		NSType: model.NamespaceType(e.SetNS.NSType).String(),
+		MntNS:  e.SetNS.MntNS,
+		NetNS:  e.SetNS.NetNS,
 	}
 }
 
