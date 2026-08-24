@@ -18,9 +18,9 @@ import (
 )
 
 func assertKeys(t *testing.T, expect []string, resolver DomainResolver) {
-	expectHdr := make([]authHeader, len(expect))
+	expectHdr := make([]credentialSource, len(expect))
 	for i, key := range expect {
-		expectHdr[i] = authHeader{"DD-Api-Key", key}
+		expectHdr[i] = staticAuthHeader{"DD-Api-Key", key}
 	}
 	assert.Equal(t, expect, resolver.GetAPIKeys())
 	assert.Equal(t, expectHdr, resolver.GetAuthorizers())

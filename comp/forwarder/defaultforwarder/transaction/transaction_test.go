@@ -7,6 +7,7 @@ package transaction
 
 import (
 	"context"
+	"errors"
 	"expvar"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -198,8 +200,64 @@ func Test_truncateBodyForLog(t *testing.T) {
 
 type mockAuthorizer struct{}
 
-func (mockAuthorizer) Authorize(_ uint, h http.Header, _ log.Component) {
+func (mockAuthorizer) Authorize(_ uint, h http.Header, _ log.Component) error {
 	h.Set("DD-Api-Key", "secret")
+	return nil
+}
+
+// notReadyAuthorizer stands in for a delegated-auth slot whose credential has not arrived yet.
+type notReadyAuthorizer struct{}
+
+func (notReadyAuthorizer) Authorize(_ uint, _ http.Header, _ log.Component) error {
+	return errors.New("no credential available yet for this endpoint")
+}
+
+// A transaction whose credential has not resolved yet must be rescheduled, not sent and not
+// dropped. Process returning a non-nil error is what puts it back on the retry queue, and that
+// queue is the buffer that holds the payload until the first exchange with the cloud provider
+// completes. Critically, the request must never leave the process without a credential.
+func TestProcessBuffersWhenCredentialNotReady(t *testing.T) {
+	var requests int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	transaction := NewHTTPTransaction()
+	transaction.Domain = ts.URL
+	transaction.Endpoint.Route = "/"
+	transaction.Payload = NewBytesPayloadWithoutMetaData([]byte("payload"))
+	transaction.Resolver = notReadyAuthorizer{}
+	require.True(t, transaction.Retryable, "the buffer relies on the transaction being retryable")
+
+	err := transaction.Process(context.Background(), configmock.New(t), logmock.New(t), secretsmock.New(t), &http.Client{}, nil)
+
+	require.Error(t, err, "must report an error so the worker reschedules instead of completing")
+	assert.Zero(t, requests, "must not reach the intake without a credential")
+	assert.Equal(t, 1, transaction.ErrorCount)
+}
+
+// A non-retryable transaction still must not be sent unauthenticated; it is simply not requeued.
+func TestProcessDoesNotSendUnauthenticatedWhenNotRetryable(t *testing.T) {
+	var requests int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	transaction := NewHTTPTransaction()
+	transaction.Domain = ts.URL
+	transaction.Endpoint.Route = "/"
+	transaction.Payload = NewBytesPayloadWithoutMetaData([]byte("payload"))
+	transaction.Resolver = notReadyAuthorizer{}
+	transaction.Retryable = false
+
+	err := transaction.Process(context.Background(), configmock.New(t), logmock.New(t), secretsmock.New(t), &http.Client{}, nil)
+
+	assert.NoError(t, err, "a non-retryable transaction is not requeued")
+	assert.Zero(t, requests, "but it still must not reach the intake without a credential")
 }
 
 // TestProcessDoesNotMutateHeaders verifies that internalProcess does not add the

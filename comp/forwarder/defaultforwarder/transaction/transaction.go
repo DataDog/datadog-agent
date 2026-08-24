@@ -234,7 +234,12 @@ func (d Destination) String() string {
 }
 
 type Authorizer interface {
-	Authorize(apiKeyIdx uint, headers http.Header, log log.Component)
+	// Authorize stamps the credential for slot apiKeyIdx onto headers.
+	//
+	// A non-nil error means the request must not be sent. When the credential simply has not
+	// arrived yet the transaction is rescheduled rather than dropped, so the payload waits in the
+	// retry queue instead of going out unauthenticated or being lost.
+	Authorize(apiKeyIdx uint, headers http.Header, log log.Component) error
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -407,7 +412,16 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		req.Header[k] = v
 	}
 	if t.Resolver != nil {
-		t.Resolver.Authorize(t.APIKeyIndex, req.Header, log)
+		if err := t.Resolver.Authorize(t.APIKeyIndex, req.Header, log); err != nil {
+			// No credential for this endpoint yet. Return an error without sending: a retryable
+			// transaction goes back on the retry queue (and to disk, if persistence is on) and is
+			// tried again once the credential lands. This is what keeps payloads from being
+			// dropped while the first exchange with the cloud provider is still in flight.
+			t.ErrorCount++
+			transactionsErrors.Add(1)
+			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "no_credential")
+			return 0, nil, fmt.Errorf("not sending transaction to %q: %s", logURL, err)
+		}
 	}
 	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), req.Header)
 	resp, err := client.Do(req)

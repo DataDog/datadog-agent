@@ -250,8 +250,9 @@ func (tr handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 // NewTestForwarder creates an instance of the component based on config, but without using fx or starting it.
+// It wires no delegated-auth component, so resolvers get static keys only.
 func NewTestForwarder(params defaultforwarderdef.Params, config config.Component, log log.Component, secrets secrets.Component) (Forwarder, error) {
-	opts, err := createOptions(params, config, log, secrets)
+	opts, err := createOptions(params, config, log, secrets, nil)
 	if err != nil {
 		return nil, err
 	}

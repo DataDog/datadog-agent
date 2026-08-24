@@ -938,7 +938,7 @@ func TestCreateTransactionsWithLocal(t *testing.T) {
 	mockConfig.SetInTest("cluster_agent.url", "https://cluster.agent.svc")
 	mockConfig.SetInTest("cluster_agent.auth_token", "01234567890123456789012345678901")
 
-	opts, err := createOptions(defaultforwarderdef.NewParams(), mockConfig, log, secrets)
+	opts, err := createOptions(defaultforwarderdef.NewParams(), mockConfig, log, secrets, nil)
 	require.NoError(t, err)
 	f := NewDefaultForwarder(mockConfig, log, opts)
 
