@@ -11,6 +11,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/log/def",
+        "//pkg/aggregator/contexttop",
         "//pkg/util/http",
         "@com_github_datadog_zstd//:zstd",
     ],
@@ -18,7 +19,14 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["dump_endpoint_test.go"],
+    srcs = [
+        "dump_endpoint_test.go",
+        "endpoint_test.go",
+    ],
     embed = [":impl"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/aggregator/contexttop",
+        "@com_github_stretchr_testify//require",
+    ],
 )
