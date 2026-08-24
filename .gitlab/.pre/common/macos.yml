@@ -82,6 +82,11 @@
       aud: ci-identities
   variables:
     AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}/.aws/credentials-by-job-id/${CI_JOB_ID}
+    # Forbid the AWS SDK/CLI from falling back to the EC2 instance profile via IMDS, so a
+    # missing or expired CI Identities credentials file fails loudly instead of silently
+    # succeeding under the runner's instance role. Only affects the AWS SDK/CLI: the raw
+    # `curl 169.254.169.254` in .macos_runner_maintenance keeps working.
+    AWS_EC2_METADATA_DISABLED: "true"
   before_script:
     - !reference [.aws_retry_config]
     # Drop GOPROXY entries not usable from macOS runners, before any go command.
