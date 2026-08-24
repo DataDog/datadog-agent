@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -149,6 +150,11 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
 	fileOpener := opener.NewFileOpener()
 	fingerprinter := file.NewFingerprinter(fingerprintConfig, fileOpener)
+	handoffSettings, err := config.GlobalRotationHandoffSettings(a.config)
+	if err != nil {
+		log.Warnf("Invalid global rotation handoff settings, using defaults: %v", err)
+		handoffSettings = types.DefaultRotationHandoffSettings()
+	}
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,
@@ -159,6 +165,7 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 		a.tagger,
 		fileOpener,
 		fingerprinter,
+		handoffSettings,
 	))
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))

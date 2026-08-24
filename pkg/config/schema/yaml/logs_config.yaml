@@ -149,6 +149,38 @@ properties:
       after it has been rotated.
     comment: maximum time that the unix tailer will hold a log file open after it
       has been rotated
+  rotation_handoff_mode:
+    node_type: setting
+    type: string
+    default: parallel
+    visibility: public
+    description: |-
+      Controls whether a replacement file tailer may open a log path while a
+      post-rotation drain is still in progress. ``parallel`` (default) allows
+      overlap; ``sequential`` blocks new opens on the same pathname until all
+      draining tailers close their file descriptors. Sequential mode is enforced
+      on Linux only; other platforms accept the setting and fall back to
+      parallel with a one-time warning per source.
+  sequential_rotation_quiet_period:
+    node_type: setting
+    type: integer
+    default: 2
+    visibility: public
+    description: |-
+      Seconds of consecutive zero-byte reads after rotation before a sequential
+      handoff drain stops its reader. Only used when ``rotation_handoff_mode`` is
+      ``sequential``. Must be greater than 0 and less than
+      ``sequential_rotation_max_drain``.
+  sequential_rotation_max_drain:
+    node_type: setting
+    type: integer
+    default: 30
+    visibility: public
+    description: |-
+      Maximum seconds a sequential handoff drain may run before the Agent
+      requests a forced reader shutdown. If the reader remains blocked, the Agent
+      force-closes the descriptor after a short grace period so collection can
+      resume. Only used when ``rotation_handoff_mode`` is ``sequential``.
   open_files_limit:
     node_type: setting
     type: integer

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -133,6 +134,22 @@ type Tailer struct {
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
 	fileOpener      opener.FileOpener
+
+	sequentialDrainMu     sync.Mutex
+	sequentialDrainActive bool
+	emptySince            *time.Time
+	sequentialQuietPeriod time.Duration
+	sequentialMaxDrain    time.Duration
+	sequentialDrainStart  time.Time
+	readerStopOnce        sync.Once
+	forwardCancelOnce     sync.Once
+	readerForceCloseOnce  sync.Once
+	// readerClosed is set when readForever exits and its file descriptor is closed.
+	// Sequential rotation handoff uses this (not IsFinished) to decide when a pathname
+	// may be opened again, so replacement tailers never overlap an open drain fd.
+	readerClosed *atomic.Bool
+	// sequentialForceCloseGrace overrides sequentialReaderForceCloseGrace in unit tests.
+	sequentialForceCloseGrace time.Duration
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -201,6 +218,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		cachedFileSize:               atomic.NewInt64(0),
 		rotationMismatchCacheActive:  atomic.NewBool(false),
 		rotationMismatchOffsetActive: atomic.NewBool(false),
+		readerClosed:                 atomic.NewBool(false),
 		info:                         opts.Info,
 		bytesRead:                    bytesRead,
 		movingSum:                    movingSum,
@@ -345,6 +363,7 @@ func (t *Tailer) readForever() {
 		if t.osFile != nil {
 			t.osFile.Close()
 		}
+		t.readerClosed.Store(true)
 		t.decoder.Stop()
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
@@ -365,8 +384,12 @@ func (t *Tailer) readForever() {
 			return
 		default:
 			if n == 0 {
-				// wait for new data to come
-				t.wait()
+				t.noteSequentialRead(0)
+				if t.waitOrStop() {
+					return
+				}
+			} else {
+				t.noteSequentialRead(n)
 			}
 		}
 	}
@@ -386,6 +409,24 @@ func (t *Tailer) buildTailerTags() []string {
 // the input file.
 func (t *Tailer) IsFinished() bool {
 	return t.isFinished.Load()
+}
+
+// IsReaderClosed returns true after readForever has exited and closed its file
+// descriptor. Sequential rotation handoff treats this as the point when the
+// pathname may be opened again.
+func (t *Tailer) IsReaderClosed() bool {
+	return t.readerClosed.Load()
+}
+
+// forceCloseReader closes the read-side file descriptor from outside readForever.
+// Used when sequential max_drain expires but the reader is still blocked.
+func (t *Tailer) forceCloseReader() {
+	t.readerForceCloseOnce.Do(func() {
+		log.Warnf("Sequential rotation handoff force-closing reader for %q", t.file.Path)
+		if t.osFile != nil {
+			_ = t.osFile.Close()
+		}
+	})
 }
 
 // forwardMessages lets the Tailer forward log messages to the output channel
@@ -453,9 +494,15 @@ func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
 }
 
-// wait lets the tailer sleep for a bit
-func (t *Tailer) wait() {
-	time.Sleep(t.sleepDuration)
+// waitOrStop sleeps until new data may be available or the tailer is stopped.
+// It returns true when the tailer should stop reading.
+func (t *Tailer) waitOrStop() bool {
+	select {
+	case <-t.stop:
+		return true
+	case <-time.After(t.sleepDuration):
+		return false
+	}
 }
 
 func (t *Tailer) recordBytes(n int64) {

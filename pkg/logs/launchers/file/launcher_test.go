@@ -188,7 +188,7 @@ func createLauncher(t *testing.T, opts launcherTestOptions) *Launcher {
 	}
 	fingerprinter := filetailer.NewFingerprinter(*fingerprintConfig, fileOpener)
 
-	return NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, wildcardMode, fc, fakeTagger, fileOpener, fingerprinter)
+	return NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, wildcardMode, fc, fakeTagger, fileOpener, fingerprinter, types.DefaultRotationHandoffSettings())
 }
 
 func (suite *BaseLauncherTestSuite) SetupTest() {
@@ -1474,7 +1474,7 @@ func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
 	fingerprinter := filetailer.NewFingerprinter(globalFingerprintConfig, fileOpener)
 
 	// Create new launcher
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, fileOpener, fingerprinter)
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, fileOpener, fingerprinter, types.DefaultRotationHandoffSettings())
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 

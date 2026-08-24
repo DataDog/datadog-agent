@@ -139,6 +139,11 @@ type LogsConfig struct {
 	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
 	FingerprintConfig    *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
 
+	// Rotation handoff (file sources): sequential mode blocks replacement opens until drains finish.
+	RotationHandoffMode           string `mapstructure:"rotation_handoff_mode" json:"rotation_handoff_mode" yaml:"rotation_handoff_mode"`
+	SequentialRotationQuietPeriod *int   `mapstructure:"sequential_rotation_quiet_period" json:"sequential_rotation_quiet_period" yaml:"sequential_rotation_quiet_period"`
+	SequentialRotationMaxDrain    *int   `mapstructure:"sequential_rotation_max_drain" json:"sequential_rotation_max_drain" yaml:"sequential_rotation_max_drain"`
+
 	// MaxMessageSizeBytes overrides the global logs_config.max_message_size_bytes for this source.
 	// If nil, the global setting is used.
 	MaxMessageSizeBytes *int `mapstructure:"max_message_size_bytes" json:"max_message_size_bytes" yaml:"max_message_size_bytes"`
@@ -553,6 +558,12 @@ func (c *LogsConfig) Validate() error {
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
 		return err
+	}
+
+	if c.Type == FileType || c.RotationHandoffMode != "" || c.SequentialRotationQuietPeriod != nil || c.SequentialRotationMaxDrain != nil {
+		if _, err := PerSourceRotationHandoffSettings(c, nil); err != nil {
+			return err
+		}
 	}
 
 	err = ValidateProcessingRules(c.ProcessingRules)

@@ -371,6 +371,46 @@ func TestFingerprintOpenFlagsRequireFileSource(t *testing.T) {
 	require.ErrorContains(t, cfg.Validate(), "only supported for file sources")
 }
 
+func TestRotationHandoffDecode(t *testing.T) {
+	cfg := decode(`{"type":"file","path":"/var/log/app.log","rotation_handoff_mode":"sequential","sequential_rotation_quiet_period":2,"sequential_rotation_max_drain":15}`)
+	assert.Equal(t, "sequential", cfg.RotationHandoffMode)
+	require.NotNil(t, cfg.SequentialRotationQuietPeriod)
+	require.NotNil(t, cfg.SequentialRotationMaxDrain)
+	assert.Equal(t, 2, *cfg.SequentialRotationQuietPeriod)
+	assert.Equal(t, 15, *cfg.SequentialRotationMaxDrain)
+}
+
+func TestPerSourceRotationHandoffSettings(t *testing.T) {
+	global := types.RotationHandoffSettings{
+		Mode:               types.RotationHandoffModeParallel,
+		QuietPeriodSeconds: 2,
+		MaxDrainSeconds:    30,
+	}
+	quiet := 5
+	maxDrain := 20
+	perSource := &LogsConfig{
+		Type:                          FileType,
+		Path:                          "/var/log/app.log",
+		RotationHandoffMode:           "sequential",
+		SequentialRotationQuietPeriod: &quiet,
+		SequentialRotationMaxDrain:    &maxDrain,
+	}
+	settings, err := PerSourceRotationHandoffSettings(perSource, &global)
+	require.NoError(t, err)
+	assert.Equal(t, types.RotationHandoffModeSequential, settings.Mode)
+	assert.Equal(t, 5, settings.QuietPeriodSeconds)
+	assert.Equal(t, 20, settings.MaxDrainSeconds)
+}
+
+func TestRotationHandoffRejectsNonFileSource(t *testing.T) {
+	cfg := &LogsConfig{
+		Type:                TCPType,
+		Port:                1234,
+		RotationHandoffMode: "sequential",
+	}
+	require.ErrorContains(t, cfg.Validate(), "only supported for file sources")
+}
+
 func TestValidateTLSConfig(t *testing.T) {
 	t.Run("valid TLS with cert and key", func(t *testing.T) {
 		cfg := &LogsConfig{

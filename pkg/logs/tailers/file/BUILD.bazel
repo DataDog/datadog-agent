@@ -10,6 +10,7 @@ go_library(
         "rotate.go",
         "rotate_nix.go",
         "rotate_windows.go",
+        "sequential_drain.go",
         "tailer.go",
         "tailer_nix.go",
         "tailer_windows.go",
@@ -40,6 +41,7 @@ dd_agent_go_test(
     name = "file_test",
     srcs = [
         "fingerprint_test.go",
+        "sequential_drain_test.go",
         "tailer_integration_test.go",
         "tailer_test.go",
         "tailer_windows_test.go",

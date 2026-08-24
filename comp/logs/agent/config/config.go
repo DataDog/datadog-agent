@@ -198,6 +198,57 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.Fingerpri
 	return &config, err
 }
 
+// GlobalRotationHandoffSettings returns the global rotation handoff configuration.
+func GlobalRotationHandoffSettings(coreConfig pkgconfigmodel.Reader) (types.RotationHandoffSettings, error) {
+	settings := types.DefaultRotationHandoffSettings()
+	if coreConfig.IsConfigured("logs_config.rotation_handoff_mode") {
+		settings.Mode = types.RotationHandoffMode(coreConfig.GetString("logs_config.rotation_handoff_mode"))
+	}
+	if coreConfig.IsConfigured("logs_config.sequential_rotation_quiet_period") {
+		settings.QuietPeriodSeconds = coreConfig.GetInt("logs_config.sequential_rotation_quiet_period")
+	}
+	if coreConfig.IsConfigured("logs_config.sequential_rotation_max_drain") {
+		settings.MaxDrainSeconds = coreConfig.GetInt("logs_config.sequential_rotation_max_drain")
+	}
+	settings.NormalizeDurations()
+	if err := types.ValidateRotationHandoffSettings(&settings); err != nil {
+		return settings, err
+	}
+	return settings, nil
+}
+
+// PerSourceRotationHandoffSettings resolves handoff settings for a log source.
+// global may be nil; defaults are used when global is nil.
+func PerSourceRotationHandoffSettings(logsConfig *LogsConfig, global *types.RotationHandoffSettings) (types.RotationHandoffSettings, error) {
+	if logsConfig == nil {
+		if global != nil {
+			return *global, nil
+		}
+		return types.DefaultRotationHandoffSettings(), nil
+	}
+	settings := types.DefaultRotationHandoffSettings()
+	if global != nil {
+		settings = *global
+	}
+	if logsConfig.RotationHandoffMode != "" {
+		settings.Mode = types.RotationHandoffMode(logsConfig.RotationHandoffMode)
+	}
+	if logsConfig.SequentialRotationQuietPeriod != nil {
+		settings.QuietPeriodSeconds = *logsConfig.SequentialRotationQuietPeriod
+	}
+	if logsConfig.SequentialRotationMaxDrain != nil {
+		settings.MaxDrainSeconds = *logsConfig.SequentialRotationMaxDrain
+	}
+	settings.NormalizeDurations()
+	if err := types.ValidateRotationHandoffSettings(&settings); err != nil {
+		return settings, err
+	}
+	if settings.Mode == types.RotationHandoffModeSequential && logsConfig.Type != "" && logsConfig.Type != FileType {
+		return settings, fmt.Errorf("rotation_handoff_mode sequential is only supported for %s sources, got %s", FileType, logsConfig.Type)
+	}
+	return settings, nil
+}
+
 // ValidateFingerprintConfig validates the fingerprint config and returns an error if the config is invalid
 func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
 	if config == nil {

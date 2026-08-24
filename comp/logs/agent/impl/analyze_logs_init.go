@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
 
@@ -60,6 +61,7 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		nil,
 		fileOpener,
 		fingerprinter,
+		types.DefaultRotationHandoffSettings(),
 	)
 	tracker := tailers.NewTailerTracker()
 

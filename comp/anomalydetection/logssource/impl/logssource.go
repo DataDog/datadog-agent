@@ -156,6 +156,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			deps.Tagger,
 			fileOpener,
 			fileTailer.NewFingerprinter(*fingerprintCfg, fileOpener),
+			types.DefaultRotationHandoffSettings(),
 		)
 		launchersMgr.AddLauncher(fileLauncher)
 		launchersMgr.AddLauncher(containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger))

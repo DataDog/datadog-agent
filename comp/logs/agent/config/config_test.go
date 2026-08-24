@@ -222,6 +222,35 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithIn
 	suite.Nil(config)
 }
 
+func (suite *ConfigTestSuite) TestGlobalRotationHandoffSettingsDefaults() {
+	settings, err := GlobalRotationHandoffSettings(suite.config)
+	suite.NoError(err)
+	suite.Equal(types.RotationHandoffModeParallel, settings.Mode)
+	suite.Equal(2, settings.QuietPeriodSeconds)
+	suite.Equal(30, settings.MaxDrainSeconds)
+}
+
+func (suite *ConfigTestSuite) TestGlobalRotationHandoffSettingsOverride() {
+	suite.config.SetInTest("logs_config.rotation_handoff_mode", "sequential")
+	suite.config.SetInTest("logs_config.sequential_rotation_quiet_period", 3)
+	suite.config.SetInTest("logs_config.sequential_rotation_max_drain", 45)
+
+	settings, err := GlobalRotationHandoffSettings(suite.config)
+	suite.NoError(err)
+	suite.Equal(types.RotationHandoffModeSequential, settings.Mode)
+	suite.Equal(3, settings.QuietPeriodSeconds)
+	suite.Equal(45, settings.MaxDrainSeconds)
+}
+
+func (suite *ConfigTestSuite) TestGlobalRotationHandoffSettingsRejectsInvalid() {
+	suite.config.SetInTest("logs_config.rotation_handoff_mode", "sequential")
+	suite.config.SetInTest("logs_config.sequential_rotation_quiet_period", 30)
+	suite.config.SetInTest("logs_config.sequential_rotation_max_drain", 30)
+
+	_, err := GlobalRotationHandoffSettings(suite.config)
+	suite.Error(err)
+}
+
 func TestConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
 }

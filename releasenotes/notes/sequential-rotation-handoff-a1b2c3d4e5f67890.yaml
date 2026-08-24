@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    Add optional sequential rotation handoff for file log sources. Set
+    ``rotation_handoff_mode: sequential`` (globally via ``logs_config`` or
+    per-source) to block replacement tailers from opening a pathname until all
+    draining tailers on that path have closed their file descriptors. Tunables
+    ``sequential_rotation_quiet_period`` and ``sequential_rotation_max_drain``
+    control quiet-period drain and forced shutdown timing. Sequential handoff is
+    enforced on Linux; other platforms accept the setting and fall back to
+    parallel with a warning.

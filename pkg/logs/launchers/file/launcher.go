@@ -68,6 +68,13 @@ type Launcher struct {
 	fileOpener    opener.FileOpener
 	fingerprinter tailer.Fingerprinter
 	stopOnce      sync.Once
+
+	globalHandoffSettings         types.RotationHandoffSettings
+	pathHandoffs                  map[string]*pathHandoff
+	pathHandoffsMu                sync.Mutex
+	nonLinuxSequentialWarned      map[string]struct{}
+	nonLinuxSequentialWarnMu      sync.Mutex
+	forceSequentialHandoffForTest bool
 }
 
 const (
@@ -93,6 +100,7 @@ func NewLauncher(
 	tagger tagger.Component,
 	fileOpener opener.FileOpener,
 	fingerprinter tailer.Fingerprinter,
+	globalHandoffSettings types.RotationHandoffSettings,
 ) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
@@ -107,23 +115,26 @@ func NewLauncher(
 	}
 
 	return &Launcher{
-		addedSourcesDone:       make(chan struct{}),
-		removedSourcesDone:     make(chan struct{}),
-		tailingLimit:           tailingLimit,
-		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
-		tailers:                tailers.NewTailerContainer[*tailer.Tailer](),
-		rotatedTailers:         []*tailer.Tailer{},
-		tailerSleepDuration:    tailerSleepDuration,
-		stop:                   make(chan struct{}),
-		done:                   make(chan struct{}),
-		validatePodContainerID: validatePodContainerID,
-		scanPeriod:             scanPeriod,
-		flarecontroller:        flarecontroller,
-		tagger:                 tagger,
-		filesChan:              make(chan []*tailer.File, 1),
-		oldInfoMap:             make(map[string]*oldTailerInfo),
-		fileOpener:             fileOpener,
-		fingerprinter:          fingerprinter,
+		addedSourcesDone:         make(chan struct{}),
+		removedSourcesDone:       make(chan struct{}),
+		tailingLimit:             tailingLimit,
+		fileProvider:             fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
+		tailers:                  tailers.NewTailerContainer[*tailer.Tailer](),
+		rotatedTailers:           []*tailer.Tailer{},
+		tailerSleepDuration:      tailerSleepDuration,
+		stop:                     make(chan struct{}),
+		done:                     make(chan struct{}),
+		validatePodContainerID:   validatePodContainerID,
+		scanPeriod:               scanPeriod,
+		flarecontroller:          flarecontroller,
+		tagger:                   tagger,
+		filesChan:                make(chan []*tailer.File, 1),
+		oldInfoMap:               make(map[string]*oldTailerInfo),
+		fileOpener:               fileOpener,
+		fingerprinter:            fingerprinter,
+		globalHandoffSettings:    globalHandoffSettings,
+		pathHandoffs:             make(map[string]*pathHandoff),
+		nonLinuxSequentialWarned: make(map[string]struct{}),
 	}
 }
 
@@ -264,7 +275,11 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 					didRotate = false
 				}
 				if didRotate {
-					s.rotateTailerWithoutRestart(tailered, file)
+					if s.sequentialHandoffEnabled(file) {
+						s.beginSequentialHandoff(tailered, file)
+					} else {
+						s.rotateTailerWithoutRestart(tailered, file)
+					}
 					continue
 				}
 			} else {
@@ -275,6 +290,10 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 					continue
 				}
 				if didRotate {
+					if s.sequentialHandoffEnabled(file) {
+						s.beginSequentialHandoff(tailered, file)
+						continue
+					}
 					// restart tailer because of file-rotation on file
 					succeeded := s.restartTailerAfterFileRotation(tailered, file)
 					if !succeeded {
@@ -292,6 +311,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	}
 
 	s.flarecontroller.SetAllFiles(allFiles)
+	s.pruneFinishedPathHandoffs()
 
 	for _, tailer := range s.tailers.All() {
 		// stop all tailers which have not been selected
@@ -317,6 +337,18 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 		// Check if we have stored info for this file from a previous rotation
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
+		if intent := s.getReplacementIntent(scanKey, file.Path); intent != nil && intent.replacementRequested {
+			oldInfo = s.replacementIntentToOldInfo(intent)
+			hasOldInfo = true
+		}
+
+		if !s.mayOpenPathForTailing(file) {
+			if hasOldInfo {
+				s.oldInfoMap[scanKey] = oldInfo
+			}
+			continue
+		}
+
 		var fingerprint *types.Fingerprint
 		var err error
 
@@ -381,6 +413,7 @@ func (s *Launcher) addSource(source *sources.LogSource) {
 
 // removeSource removes the source from cache.
 func (s *Launcher) removeSource(source *sources.LogSource) {
+	s.onSourceRemoved(source)
 	for i, src := range s.activeSources {
 		if src == source {
 			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
@@ -414,6 +447,11 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		if fileprovider.ShouldIgnore(s.validatePodContainerID, file, symlinkResolver) {
 			continue
 		}
+		if !s.mayOpenPathForTailing(file) {
+			s.reattachReplacementIntent(file)
+			continue
+		}
+		s.reattachReplacementIntent(file)
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {
 			// new source inherits the old source's status
 			source.SetStatus(tailer.Source().Status())
@@ -460,6 +498,9 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 		log.Debug("startNewTailer called with a nil file")
 		return false
 	}
+	if !s.mayOpenPathForTailing(file) {
+		return false
+	}
 
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
 	tailer := s.createTailer(file, channel, monitor, fingerprint)
@@ -488,6 +529,9 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.TailingMode, oldInfo *oldTailerInfo, fingerprint *types.Fingerprint) bool {
 	if file == nil {
 		log.Debug("startNewTailerWithStoredInfo called with a nil file")
+		return false
+	}
+	if !s.mayOpenPathForTailing(file) {
 		return false
 	}
 
@@ -551,6 +595,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	s.tailers.Add(tailer)
+	s.clearReplacementIntent(file.GetScanKey(), file.Path)
 	return true
 }
 
