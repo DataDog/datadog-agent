@@ -501,7 +501,8 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 
 		// Call AddInstance - the component auto-initializes on the first call
 		// Config and ProviderConfig are only used on the first call
-		err := delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
+		// This flat-key flow predates the Provider API and still delivers via config write-back.
+		_, err := delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
 			Config:          config,
 			ProviderConfig:  providerConfig,
 			OrgUUID:         orgUUID,

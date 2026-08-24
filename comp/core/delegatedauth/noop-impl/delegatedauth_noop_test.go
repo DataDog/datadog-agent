@@ -8,6 +8,7 @@ package delegatedauthimpl
 import (
 	"bytes"
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,12 +19,18 @@ import (
 
 func TestNoopAddInstance(t *testing.T) {
 	noop := &DelegatedAuthNoop{}
-	err := noop.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	provider, err := noop.AddInstance(context.Background(), delegatedauth.InstanceParams{
 		OrgUUID:         "test-org-uuid",
 		RefreshInterval: 60,
 		APIKeyConfigKey: "api_key",
 	})
 	assert.NoError(t, err)
+
+	// The noop returns a usable Provider rather than nil so callers never have to nil-check, but
+	// it never holds a credential.
+	require.NotNil(t, provider)
+	assert.False(t, provider.Authorize(http.Header{}))
+	assert.Nil(t, noop.ProvidersFor("api_key", ""))
 }
 
 func TestNoopStatusProviderName(t *testing.T) {
