@@ -16,6 +16,7 @@ use windows_sys::Win32::Security::{
 };
 
 use super::account_name::AccountName;
+#[cfg(not(test))]
 use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user};
 use super::local_account::is_local_account;
 use super::managed_service_account::ManagedServiceAccountState;
@@ -331,12 +332,17 @@ fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
 
     let scm_service_matches_agent =
         service_runs_as_agent_user(DATADOG_AGENT_SERVICE, domain, user)?;
-    if !scm_service_matches_agent {
-        return Ok(None);
-    }
-
-    let scm_key = format!("{SCM_SERVICE_PASSWORD_LSA_PREFIX}{DATADOG_AGENT_SERVICE}");
-    read_lsa_private_data(&scm_key)
+    let scm_password = if scm_service_matches_agent {
+        let scm_key = format!("{SCM_SERVICE_PASSWORD_LSA_PREFIX}{DATADOG_AGENT_SERVICE}");
+        read_lsa_private_data(&scm_key)?
+    } else {
+        None
+    };
+    Ok(agent_password_from_sources(
+        None,
+        scm_password.as_deref(),
+        scm_service_matches_agent,
+    ))
 }
 
 #[cfg(not(test))]
