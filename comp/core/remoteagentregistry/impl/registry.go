@@ -198,13 +198,14 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 // remoteAgentRegistry is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
 type remoteAgentRegistry struct {
-	conf           config.Component
-	ipc            ipc.Component
-	agentMap       map[string]*remoteAgentClient
-	agentMapMu     sync.Mutex
-	shutdownChan   chan struct{}
-	telemetry      telemetry.Component
-	telemetryStore *telemetryStore
+	conf              config.Component
+	ipc               ipc.Component
+	agentMap          map[string]*remoteAgentClient
+	agentMapMu        sync.Mutex
+	registrationOrder uint64
+	shutdownChan      chan struct{}
+	telemetry         telemetry.Component
+	telemetryStore    *telemetryStore
 
 	// eventSubscribers receive Remote Agent events reported via ReportRemoteAgentEvent. The slice is
 	// set once at construction and is immutable afterwards, so it needs no lock.
@@ -226,6 +227,9 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		ra.telemetryStore.remoteAgentRegisteredError.Inc(sanitizeString(registration.AgentDisplayName))
 		return "", 0, err
 	}
+
+	ra.registrationOrder++
+	remoteAgentClient.registrationOrder = ra.registrationOrder
 
 	log.Infof("Remote agent '%s' (flavor: %s, session_id: %s) registered. (exposed services: %v)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.Flavor, remoteAgentClient.RegisteredAgent.SessionID, remoteAgentClient.services)
 	// indexing remoteAgent client by its sessionID
@@ -394,7 +398,7 @@ func (ra *remoteAgentRegistry) commandProviders(ctx context.Context) map[string]
 				continue
 			}
 			active, ok := providers[provider.GetName()]
-			if !ok || client.registeredAt.Before(active.client.registeredAt) {
+			if !ok || client.registrationOrder < active.client.registrationOrder {
 				providers[provider.GetName()] = commandProviderTarget{provider: provider, client: client}
 			}
 		}

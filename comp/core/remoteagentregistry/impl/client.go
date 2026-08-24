@@ -60,9 +60,11 @@ type remoteAgentClient struct {
 	// services are the capabilities advertised at registration. The registry uses them to avoid invoking an RPC that
 	// the remote endpoint does not implement.
 	services []remoteAgentServiceName
-	// registeredAt provides deterministic oldest-provider selection when multiple registrations expose one command name.
+	// registeredAt records when the client joined RAR for operator diagnostics.
 	registeredAt time.Time
-	conn         *grpc.ClientConn
+	// registrationOrder deterministically breaks ties when registrations have the same timestamp.
+	registrationOrder uint64
+	conn              *grpc.ClientConn
 }
 
 func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (*remoteAgentClient, error) {
