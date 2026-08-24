@@ -37,7 +37,17 @@ type MetricPattern struct {
 type seriesCompact struct {
 	Namespace string
 	Name      string
+	Host      string
 	Tags      []string
+}
+
+func (s seriesCompact) effectiveTags() []string {
+	if s.Host == "" || sliceContains(s.Tags, "host:"+s.Host) {
+		return s.Tags
+	}
+	tags := make([]string, 0, len(s.Tags)+1)
+	tags = append(tags, "host:"+s.Host)
+	return append(tags, s.Tags...)
 }
 
 // extractCommonTags finds tags shared by all members, returning common tags as a map
@@ -50,7 +60,7 @@ func extractCommonTags(members []seriesCompact) (common map[string]string, resid
 
 	// Parse tags from first member as candidates
 	candidates := make(map[string]string)
-	for _, tag := range members[0].Tags {
+	for _, tag := range members[0].effectiveTags() {
 		k, v := splitTag(tag)
 		candidates[k] = v
 	}
@@ -58,7 +68,7 @@ func extractCommonTags(members []seriesCompact) (common map[string]string, resid
 	// Intersect with remaining members
 	for _, m := range members[1:] {
 		memberTags := make(map[string]string)
-		for _, tag := range m.Tags {
+		for _, tag := range m.effectiveTags() {
 			k, v := splitTag(tag)
 			memberTags[k] = v
 		}
@@ -74,7 +84,7 @@ func extractCommonTags(members []seriesCompact) (common map[string]string, resid
 	// Compute residuals
 	residuals = make([][]string, len(members))
 	for i, m := range members {
-		for _, tag := range m.Tags {
+		for _, tag := range m.effectiveTags() {
 			k, _ := splitTag(tag)
 			if _, isCommon := common[k]; !isCommon {
 				residuals[i] = append(residuals[i], tag)
@@ -267,7 +277,7 @@ func CompressGroup(correlatorName, groupID, title string, members []seriesCompac
 	for _, m := range members {
 		stripped := stripAggSuffix(m.Name)
 		memberNameSet[stripped] = struct{}{}
-		memberSources = append(memberSources, seriesKey(m.Namespace, m.Name, m.Tags))
+		memberSources = append(memberSources, seriesKey(m.Namespace, m.Name, m.Host, m.Tags))
 	}
 	memberNames := make([]string, 0, len(memberNameSet))
 	for name := range memberNameSet {

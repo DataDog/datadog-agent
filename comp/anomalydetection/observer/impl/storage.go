@@ -641,12 +641,15 @@ func (s *timeSeriesStorage) MaxTimestamp() int64 {
 // the hot path for log ingestion and detector loops, so we build the key with
 // a single growth via strings.Builder to avoid the chained `+` and intermediate
 // joinTags allocations that the naive form produces.
-func seriesKey(namespace, name string, tags []string) string {
+func seriesKey(namespace, name, host string, tags []string) string {
 	if len(tags) > 1 && !tagsSorted(tags) {
 		tags = canonicalizeTags(tags)
 	}
-	// Pre-compute exact length: namespace + '|' + name + '|' + joined(tags).
+	// Pre-compute exact length: namespace + '|' + name + '|' + host + '|' + joined(tags).
 	n := len(namespace) + 1 + len(name) + 1
+	if host != "" {
+		n += len(host) + 1
+	}
 	for i, t := range tags {
 		if i > 0 {
 			n++ // ',' separator
@@ -659,6 +662,10 @@ func seriesKey(namespace, name string, tags []string) string {
 	b.WriteByte('|')
 	b.WriteString(name)
 	b.WriteByte('|')
+	if host != "" {
+		b.WriteString(host)
+		b.WriteByte('|')
+	}
 	for i, t := range tags {
 		if i > 0 {
 			b.WriteByte(',')
@@ -946,6 +953,7 @@ func (s *timeSeriesStorage) ListAllSeriesCompact() []seriesCompact {
 		result = append(result, seriesCompact{
 			Namespace: st.Namespace,
 			Name:      st.Name,
+			Host:      st.Host,
 			Tags:      st.Tags,
 		})
 	}
