@@ -393,7 +393,7 @@ These endpoints are available in interactive mode (not headless).
 - **Scenario Selection**: Load different scenarios from the sidebar
 - **Component Toggles**: Enable/disable detectors and correlators live
 - **Series Tree**: Browse and select time series to visualize
-- **Aggregation Types**: Switch between avg, count, sum, min, max views
+- **Aggregation Types**: Switch between avg, count, and sum views
 - **Time Clusters**: View correlated anomaly groups
 - **Zoom/Pan**: Drag to zoom, middle-drag to pan on charts
 - **Split by Tag**: Split series by tag values for comparison
