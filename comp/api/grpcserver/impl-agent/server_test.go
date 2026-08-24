@@ -22,6 +22,8 @@ import (
 )
 
 // fakeRemoteAgentRegistry is a minimal remoteagentregistry.Component used to exercise the gRPC handlers in isolation.
+type commandContextKey struct{}
+
 type fakeRemoteAgentRegistry struct {
 	reportErr     error
 	gotSessionID  string
@@ -103,10 +105,11 @@ func TestRemoteCommandProviderExecuteCommandForwardsContextAndStatus(t *testing.
 	registry := &fakeRemoteAgentRegistry{}
 	srv := &remoteCommandProviderServer{remoteAgentRegistry: registry}
 
-	_, err := srv.ExecuteCommand(context.Background(), request)
+	ctx := context.WithValue(context.Background(), commandContextKey{}, "caller-context")
+	_, err := srv.ExecuteCommand(ctx, request)
 	require.NoError(t, err)
 	require.Same(t, request, registry.gotCommandReq)
-	require.NotNil(t, registry.gotCommandCtx)
+	require.Equal(t, "caller-context", registry.gotCommandCtx.Value(commandContextKey{}))
 }
 
 func TestRemoteCommandProviderPreservesRegistryStatus(t *testing.T) {

@@ -413,7 +413,7 @@ type ExecuteCommandRequest struct {
 	// Verbose output flag.
 	Verbose bool `protobuf:"varint,4,opt,name=verbose,proto3" json:"verbose,omitempty"`
 	// Required opaque routing key identifying the remote agent selected from command discovery.
-	AgentId       string `protobuf:"bytes,6,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	AgentId       string `protobuf:"bytes,5,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -592,7 +592,7 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"\vjson_output\x18\x03 \x01(\bR\n" +
 	"jsonOutput\x12\x18\n" +
 	"\averbose\x18\x04 \x01(\bR\averbose\x12\x19\n" +
-	"\bagent_id\x18\x06 \x01(\tR\aagentId\"\x8a\x01\n" +
+	"\bagent_id\x18\x05 \x01(\tR\aagentId\"\x8a\x01\n" +
 	"\x16ExecuteCommandResponse\x12\x1b\n" +
 	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12\x16\n" +
 	"\x06stdout\x18\x02 \x01(\tR\x06stdout\x12\x16\n" +
