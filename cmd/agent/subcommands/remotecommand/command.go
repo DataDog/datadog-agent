@@ -3,24 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package remotecommand implements the 'agent remote' subcommand, which proxies CLI commands to
-// registered remote agents through the Remote Agent Registry.
+// Package remotecommand implements the static 'agent remote' command and the dynamic command trees supplied by
+// registered remote command providers.
 package remotecommand
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"math"
-	"os"
+	"strconv"
+	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -34,214 +34,272 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type cliParams struct {
-	*command.GlobalParams
-	jsonOutput    bool
-	verbose       bool
-	agentID       string
-	argumentsJSON string
-}
+// ExecuteFunc invokes a provider command with its public provider name, command path, and typed arguments.
+type ExecuteFunc func(commandName, commandPath string, arguments *structpb.Struct) error
 
+var remoteGlobalParams sync.Map // map[*cobra.Command]*command.GlobalParams
+
+// Commands returns the static remote parent. Command providers are attached before Cobra resolves their child names.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	params := &cliParams{GlobalParams: globalParams}
-	remoteCmd := &cobra.Command{Use: "remote", Short: "Execute commands on registered remote agents", SilenceUsage: true, RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() }}
-	remoteCmd.PersistentFlags().BoolVarP(&params.jsonOutput, "json", "j", false, "format output as JSON")
-	listCmd := &cobra.Command{Use: "list", Short: "List commands available on registered remote agents", SilenceUsage: true, Args: cobra.NoArgs, RunE: func(_ *cobra.Command, _ []string) error { return runListCommands(params) }}
-	executeCmd := &cobra.Command{Use: "execute <command_path>", Short: "Execute a command on a registered remote agent", SilenceUsage: true, Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error { return runExecuteCommand(params, args[0]) }}
-	executeCmd.Flags().BoolVarP(&params.verbose, "verbose", "v", false, "verbose output")
-	executeCmd.Flags().StringVar(&params.agentID, "agent-id", "", "opaque agent ID from remote list")
-	executeCmd.Flags().StringVar(&params.argumentsJSON, "arguments", "{}", "JSON object of named command arguments")
-	_ = executeCmd.MarkFlagRequired("agent-id")
-	remoteCmd.AddCommand(listCmd, executeCmd)
-	return []*cobra.Command{remoteCmd}
+	remote := &cobra.Command{
+		Use:          "remote",
+		Short:        "Run commands exposed by registered remote agents",
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
+	}
+	remoteGlobalParams.Store(remote, globalParams)
+	return []*cobra.Command{remote}
 }
 
-func runListCommands(params *cliParams) error {
+// Prepare discovers active command providers only when Cobra has resolved the static remote parent.
+func Prepare(root *cobra.Command, args []string) error {
+	remote, ok := remoteCommand(root, args)
+	if !ok {
+		return nil
+	}
+	globalParams, ok := remoteGlobalParams.Load(remote)
+	if !ok {
+		return errors.New("remote command was not initialized")
+	}
 	return fxutil.OneShot(func(_ log.Component, _ config.Component, ipc ipc.Component) error {
 		grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		conn, err := dialCoreAgent(ctx, ipc)
+		ctx := context.Background()
+		conn, err := dialCoreAgent(ipc)
 		if err != nil {
 			return err
 		}
 		defer conn.Close()
-		resp, err := pb.NewRemoteCommandProviderClient(conn).ListCommands(ctx, &pb.ListCommandsRequest{})
+		client := pb.NewRemoteCommandProviderClient(conn)
+		response, err := client.ListCommands(ctx, &pb.ListCommandsRequest{})
 		if err != nil {
 			return err
 		}
-		if params.jsonOutput {
-			return json.NewEncoder(os.Stdout).Encode(resp.GetCommands())
-		}
-		for _, cmd := range flattenCommands(resp.GetCommands()) {
-			fmt.Printf("%s\t%s\t%s\t%s\n", cmd.GetAgentId(), cmd.GetAgentFlavor(), cmd.GetName(), cmd.GetHelper())
-		}
-		return nil
-	}, fx.Supply(params), fx.Supply(command.GetDefaultCoreBundleParams(params.GlobalParams)), core.Bundle(), ipcfx.ModuleReadOnly())
+		return AttachCommandProviders(remote, response.GetProviders(), func(commandName, commandPath string, arguments *structpb.Struct) error {
+			_, err := client.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{CommandName: commandName, CommandPath: commandPath, Arguments: arguments})
+			return err
+		})
+	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams.(*command.GlobalParams))), core.Bundle(), ipcfx.ModuleReadOnly())
 }
 
-func runExecuteCommand(params *cliParams, commandPath string) error {
-	arguments, err := parseArguments(params.argumentsJSON)
-	if err != nil {
-		return err
-	}
-	return fxutil.OneShot(func(_ log.Component, _ config.Component, ipc ipc.Component) error {
-		grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		conn, err := dialCoreAgent(ctx, ipc)
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
-		cli := pb.NewRemoteCommandProviderClient(conn)
-		listed, err := cli.ListCommands(ctx, &pb.ListCommandsRequest{})
-		if err != nil {
-			return err
-		}
-		cmd := findCommand(listed.GetCommands(), params.agentID, commandPath)
-		if cmd == nil {
-			return fmt.Errorf("command %q was not found for agent %q", commandPath, params.agentID)
-		}
-		if !cmd.GetIsRunnable() {
-			return fmt.Errorf("command %q is not executable", commandPath)
-		}
-		if err := validateArguments(cmd, arguments); err != nil {
-			return err
-		}
-		resp, err := cli.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{CommandPath: commandPath, AgentId: params.agentID, Arguments: arguments, JsonOutput: params.jsonOutput, Verbose: params.verbose})
-		if err != nil {
-			return err
-		}
-		if resp.GetStdout() != "" {
-			fmt.Print(resp.GetStdout())
-		}
-		if resp.GetStderr() != "" {
-			fmt.Fprint(os.Stderr, resp.GetStderr())
-		}
-		if len(resp.GetBinaryOutput()) > 0 {
-			_, _ = os.Stdout.Write(resp.GetBinaryOutput())
-		}
-		if resp.GetExitCode() != 0 {
-			os.Exit(int(resp.GetExitCode()))
-		}
-		return nil
-	}, fx.Supply(params), fx.Supply(command.GetDefaultCoreBundleParams(params.GlobalParams)), core.Bundle(), ipcfx.ModuleReadOnly())
+func remoteCommand(root *cobra.Command, args []string) (*cobra.Command, bool) {
+	resolved, _, err := root.Find(args)
+	return resolved, err == nil && resolved.Name() == "remote"
 }
 
-func parseArguments(raw string) (*structpb.Struct, error) {
-	var values map[string]any
-	if err := json.Unmarshal([]byte(raw), &values); err != nil {
-		return nil, fmt.Errorf("arguments must be a JSON object: %w", err)
+// AttachCommandProviders attaches one top-level Cobra command per active command provider.
+func AttachCommandProviders(remote *cobra.Command, providers []*pb.CommandProvider, execute ExecuteFunc) error {
+	if remote == nil {
+		return errors.New("remote command is required")
 	}
-	if values == nil {
-		return nil, fmt.Errorf("arguments must be a JSON object")
-	}
-	return structpb.NewStruct(values)
-}
-func flattenCommands(commands []*pb.Command) []*pb.Command {
-	var flattened []*pb.Command
-	for _, command := range commands {
-		if command == nil {
+	for _, provider := range providers {
+		if provider == nil {
 			continue
 		}
-		flattened = append(flattened, command)
-		flattened = append(flattened, flattenCommands(command.GetChildren())...)
-	}
-	return flattened
-}
-
-func findCommand(commands []*pb.Command, agentID, path string) *pb.Command {
-	return findCommandWithPersistentParameters(commands, agentID, path, nil)
-}
-
-func findCommandWithPersistentParameters(commands []*pb.Command, agentID, path string, inherited []*pb.CommandParameter) *pb.Command {
-	for _, command := range commands {
-		if command == nil {
-			continue
+		if provider.GetCommandName() == "" {
+			return errors.New("command provider name is required")
 		}
-		parameters := append(append([]*pb.CommandParameter{}, inherited...), command.GetParameters()...)
-		if command.GetAgentId() == agentID && command.GetName() == path {
-			copy := *command
-			copy.Parameters = parameters
-			return &copy
+		providerCmd := &cobra.Command{
+			Use:          provider.GetCommandName(),
+			Short:        provider.GetAgentDescription(),
+			SilenceUsage: true,
 		}
-		persistent := append([]*pb.CommandParameter{}, inherited...)
-		for _, parameter := range command.GetParameters() {
-			if parameter.GetIsPersistent() {
-				persistent = append(persistent, parameter)
+		for _, providerCommand := range provider.GetCommands() {
+			if err := addCommand(providerCmd, provider.GetCommandName(), providerCommand, execute); err != nil {
+				return err
 			}
 		}
-		if found := findCommandWithPersistentParameters(command.GetChildren(), agentID, path, persistent); found != nil {
-			return found
-		}
+		remote.AddCommand(providerCmd)
 	}
 	return nil
 }
-func validateArguments(command *pb.Command, arguments *structpb.Struct) error {
-	parameters := map[string]*pb.CommandParameter{}
-	for _, parameter := range command.GetParameters() {
-		parameters[parameter.GetName()] = parameter
+
+func addCommand(parent *cobra.Command, providerName string, definition *pb.Command, execute ExecuteFunc) error {
+	if definition == nil {
+		return nil
 	}
-	for name, value := range arguments.GetFields() {
-		parameter, ok := parameters[name]
-		if !ok {
-			return fmt.Errorf("unknown argument %q", name)
-		}
-		if !matchesType(parameter.GetType(), value) {
-			return fmt.Errorf("argument %q has the wrong type", name)
+	name := definition.GetShortName()
+	if name == "" {
+		name = definition.GetName()
+		if index := strings.LastIndex(name, "."); index >= 0 {
+			name = name[index+1:]
 		}
 	}
-	for _, parameter := range parameters {
-		if parameter.GetRequired() && arguments.GetFields()[parameter.GetName()] == nil {
-			return fmt.Errorf("required argument %q is missing", parameter.GetName())
+	if name == "" {
+		return errors.New("command name is required")
+	}
+	cmd := &cobra.Command{
+		Use:          name,
+		Short:        definition.GetHelper(),
+		Long:         definition.GetLongDescription(),
+		SilenceUsage: true,
+	}
+	for _, parameter := range definition.GetParameters() {
+		if parameter.GetIsFlag() {
+			addFlag(cmd, parameter)
 		}
 	}
+	if definition.GetIsRunnable() {
+		cmd.RunE = func(cmd *cobra.Command, args []string) error {
+			arguments, err := argumentsForCommand(cmd, args, definition.GetParameters())
+			if err != nil {
+				return err
+			}
+			return execute(providerName, definition.GetName(), arguments)
+		}
+	}
+	for _, child := range definition.GetChildren() {
+		if err := addCommand(cmd, providerName, child, execute); err != nil {
+			return err
+		}
+	}
+	parent.AddCommand(cmd)
 	return nil
 }
-func matchesType(typ pb.ParameterType, value *structpb.Value) bool {
-	if value == nil {
-		return false
-	}
-	list := value.GetListValue()
-	scalar := func(t pb.ParameterType, v *structpb.Value) bool {
-		switch t {
-		case pb.ParameterType_TYPE_STRING:
-			_, ok := v.Kind.(*structpb.Value_StringValue)
-			return ok
-		case pb.ParameterType_TYPE_BOOL:
-			_, ok := v.Kind.(*structpb.Value_BoolValue)
-			return ok
-		case pb.ParameterType_TYPE_FLOAT:
-			_, ok := v.Kind.(*structpb.Value_NumberValue)
-			return ok
-		case pb.ParameterType_TYPE_INT:
-			n, ok := v.Kind.(*structpb.Value_NumberValue)
-			return ok && math.Trunc(n.NumberValue) == n.NumberValue
-		case pb.ParameterType_TYPE_UINT:
-			n, ok := v.Kind.(*structpb.Value_NumberValue)
-			return ok && n.NumberValue >= 0 && math.Trunc(n.NumberValue) == n.NumberValue
-		default:
-			return false
-		}
-	}
-	switch typ {
-	case pb.ParameterType_TYPE_STRING_SLICE, pb.ParameterType_TYPE_INT_SLICE, pb.ParameterType_TYPE_UINT_SLICE, pb.ParameterType_TYPE_FLOAT_SLICE:
-		if list == nil {
-			return false
-		}
-		base := map[pb.ParameterType]pb.ParameterType{pb.ParameterType_TYPE_STRING_SLICE: pb.ParameterType_TYPE_STRING, pb.ParameterType_TYPE_INT_SLICE: pb.ParameterType_TYPE_INT, pb.ParameterType_TYPE_UINT_SLICE: pb.ParameterType_TYPE_UINT, pb.ParameterType_TYPE_FLOAT_SLICE: pb.ParameterType_TYPE_FLOAT}[typ]
-		for _, item := range list.GetValues() {
-			if !scalar(base, item) {
-				return false
-			}
-		}
-		return true
+
+func addFlag(cmd *cobra.Command, parameter *pb.CommandParameter) {
+	name, shorthand, usage := parameter.GetName(), parameter.GetShortName(), parameter.GetHelper()
+	switch parameter.GetType() {
+	case pb.ParameterType_TYPE_INT:
+		cmd.Flags().IntP(name, shorthand, 0, usage)
+	case pb.ParameterType_TYPE_UINT:
+		cmd.Flags().UintP(name, shorthand, 0, usage)
+	case pb.ParameterType_TYPE_FLOAT:
+		cmd.Flags().Float64P(name, shorthand, 0, usage)
+	case pb.ParameterType_TYPE_BOOL:
+		cmd.Flags().BoolP(name, shorthand, false, usage)
+	case pb.ParameterType_TYPE_STRING_SLICE:
+		cmd.Flags().StringSliceP(name, shorthand, nil, usage)
+	case pb.ParameterType_TYPE_INT_SLICE:
+		cmd.Flags().IntSliceP(name, shorthand, nil, usage)
+	case pb.ParameterType_TYPE_UINT_SLICE:
+		cmd.Flags().UintSliceP(name, shorthand, nil, usage)
+	case pb.ParameterType_TYPE_FLOAT_SLICE:
+		cmd.Flags().Float64SliceP(name, shorthand, nil, usage)
 	default:
-		return scalar(typ, value)
+		cmd.Flags().StringP(name, shorthand, "", usage)
+	}
+	if parameter.GetRequired() {
+		_ = cmd.MarkFlagRequired(name)
 	}
 }
-func dialCoreAgent(ctx context.Context, ipc ipc.Component) (*grpc.ClientConn, error) {
-	ctx = metadata.NewOutgoingContext(ctx, metadata.MD{"authorization": []string{"Bearer " + ipc.GetAuthToken()}})
-	return grpc.DialContext(ctx, fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")), grpc.WithTransportCredentials(credentials.NewTLS(ipc.GetTLSClientConfig())))
+
+func argumentsForCommand(cmd *cobra.Command, args []string, parameters []*pb.CommandParameter) (*structpb.Struct, error) {
+	fields := map[string]*structpb.Value{}
+	position := 0
+	for _, parameter := range parameters {
+		if parameter.GetIsFlag() {
+			if !cmd.Flags().Changed(parameter.GetName()) {
+				continue
+			}
+			value, err := flagValue(cmd, parameter)
+			if err != nil {
+				return nil, err
+			}
+			fields[parameter.GetName()] = value
+			continue
+		}
+		if position >= len(args) {
+			if parameter.GetRequired() {
+				return nil, fmt.Errorf("required argument %q is missing", parameter.GetName())
+			}
+			continue
+		}
+		value, err := stringValue(parameter.GetType(), args[position])
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument %q: %w", parameter.GetName(), err)
+		}
+		fields[parameter.GetName()] = value
+		position++
+	}
+	if position != len(args) {
+		return nil, fmt.Errorf("unexpected arguments: %s", strings.Join(args[position:], " "))
+	}
+	return &structpb.Struct{Fields: fields}, nil
+}
+
+func flagValue(cmd *cobra.Command, parameter *pb.CommandParameter) (*structpb.Value, error) {
+	name := parameter.GetName()
+	switch parameter.GetType() {
+	case pb.ParameterType_TYPE_INT:
+		v, err := cmd.Flags().GetInt(name)
+		return structpb.NewNumberValue(float64(v)), err
+	case pb.ParameterType_TYPE_UINT:
+		v, err := cmd.Flags().GetUint(name)
+		return structpb.NewNumberValue(float64(v)), err
+	case pb.ParameterType_TYPE_FLOAT:
+		v, err := cmd.Flags().GetFloat64(name)
+		return structpb.NewNumberValue(v), err
+	case pb.ParameterType_TYPE_BOOL:
+		v, err := cmd.Flags().GetBool(name)
+		return structpb.NewBoolValue(v), err
+	case pb.ParameterType_TYPE_STRING_SLICE:
+		v, err := cmd.Flags().GetStringSlice(name)
+		return stringListValue(v), err
+	case pb.ParameterType_TYPE_INT_SLICE:
+		v, err := cmd.Flags().GetIntSlice(name)
+		return numberListValue(v), err
+	case pb.ParameterType_TYPE_UINT_SLICE:
+		v, err := cmd.Flags().GetUintSlice(name)
+		return uintListValue(v), err
+	case pb.ParameterType_TYPE_FLOAT_SLICE:
+		v, err := cmd.Flags().GetFloat64Slice(name)
+		return floatListValue(v), err
+	default:
+		v, err := cmd.Flags().GetString(name)
+		return structpb.NewStringValue(v), err
+	}
+}
+
+func stringValue(typ pb.ParameterType, raw string) (*structpb.Value, error) {
+	switch typ {
+	case pb.ParameterType_TYPE_INT:
+		v, err := strconv.ParseInt(raw, 10, 64)
+		return structpb.NewNumberValue(float64(v)), err
+	case pb.ParameterType_TYPE_UINT:
+		v, err := strconv.ParseUint(raw, 10, 64)
+		return structpb.NewNumberValue(float64(v)), err
+	case pb.ParameterType_TYPE_FLOAT:
+		v, err := strconv.ParseFloat(raw, 64)
+		return structpb.NewNumberValue(v), err
+	case pb.ParameterType_TYPE_BOOL:
+		v, err := strconv.ParseBool(raw)
+		return structpb.NewBoolValue(v), err
+	default:
+		return structpb.NewStringValue(raw), nil
+	}
+}
+
+func stringListValue(values []string) *structpb.Value {
+	values2 := make([]*structpb.Value, len(values))
+	for i, v := range values {
+		values2[i] = structpb.NewStringValue(v)
+	}
+	return structpb.NewListValue(&structpb.ListValue{Values: values2})
+}
+func numberListValue(values []int) *structpb.Value {
+	values2 := make([]*structpb.Value, len(values))
+	for i, v := range values {
+		values2[i] = structpb.NewNumberValue(float64(v))
+	}
+	return structpb.NewListValue(&structpb.ListValue{Values: values2})
+}
+func uintListValue(values []uint) *structpb.Value {
+	values2 := make([]*structpb.Value, len(values))
+	for i, v := range values {
+		values2[i] = structpb.NewNumberValue(float64(v))
+	}
+	return structpb.NewListValue(&structpb.ListValue{Values: values2})
+}
+func floatListValue(values []float64) *structpb.Value {
+	values2 := make([]*structpb.Value, len(values))
+	for i, v := range values {
+		values2[i] = structpb.NewNumberValue(v)
+	}
+	return structpb.NewListValue(&structpb.ListValue{Values: values2})
+}
+
+func dialCoreAgent(ipc ipc.Component) (*grpc.ClientConn, error) {
+	return grpc.NewClient(fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")), grpc.WithTransportCredentials(credentials.NewTLS(ipc.GetTLSClientConfig())))
 }
