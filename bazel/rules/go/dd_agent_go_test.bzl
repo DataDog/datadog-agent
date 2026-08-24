@@ -98,6 +98,7 @@ def _test_tag_set_target_compatible_with(gotags):
 
 def dd_agent_go_test(
         name,
+        extra_gotags = None,
         gotags_sets = None,
         include_default = True,
         tags = None,
@@ -107,6 +108,7 @@ def dd_agent_go_test(
 
     Args:
         name: Default target name and prefix for gotags-set variants.
+        extra_gotags: Extra Go build tags merged into the default target only.
         gotags_sets: Lists of Go build tags, such as [["zlib", "zstd"]].
         include_default: Whether to emit the minimally tagged default test.
         tags: Optional user-supplied Bazel tags.
@@ -121,19 +123,19 @@ def dd_agent_go_test(
         _test_tag_set_check_name(name)
         go_test(
             name = name,
-            gotags = _test_tag_set_tags(),
+            gotags = _test_tag_set_tags(extra_gotags),
             tags = user_tags + ["dd_agent_go_test"],
             target_compatible_with = user_tcw,
             **kwargs
         )
 
-    for gotags in gotags_sets or []:
-        suffix = _test_tag_set_suffix(gotags)
-        _test_tag_set_check_name(name + "_" + suffix, gotags)
+    for gotags_set in gotags_sets or []:
+        suffix = _test_tag_set_suffix(gotags_set)
+        _test_tag_set_check_name(name + "_" + suffix, gotags_set)
         go_test(
             name = name + "_" + suffix,
-            gotags = _test_tag_set_tags(gotags),
+            gotags = _test_tag_set_tags(gotags_set),
             tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
-            target_compatible_with = user_tcw + _test_tag_set_target_compatible_with(gotags),
+            target_compatible_with = user_tcw + _test_tag_set_target_compatible_with(gotags_set),
             **kwargs
         )
