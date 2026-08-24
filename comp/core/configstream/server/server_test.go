@@ -86,8 +86,8 @@ func (m *mockRemoteAgentRegistry) ListCommands(_ context.Context) []*pb.CommandP
 	return nil
 }
 
-func (m *mockRemoteAgentRegistry) ExecuteCommand(_ context.Context, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
-	return nil, nil
+func (m *mockRemoteAgentRegistry) ExecuteCommand(_ context.Context, _ *pb.ExecuteCommandRequest, _ func(*pb.ExecuteCommandResponse) error) error {
+	return nil
 }
 
 func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
