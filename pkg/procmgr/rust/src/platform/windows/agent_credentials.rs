@@ -16,7 +16,7 @@ use windows_sys::Win32::Security::{
 };
 
 use super::account_name::AccountName;
-use super::agent_service_sid::{service_runs_as_agent_user, DATADOG_AGENT_SERVICE};
+use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user};
 use super::local_account::is_local_account;
 use super::managed_service_account::ManagedServiceAccountState;
 #[cfg(not(test))]
