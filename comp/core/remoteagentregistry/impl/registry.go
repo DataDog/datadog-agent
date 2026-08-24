@@ -231,11 +231,31 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	}
 
 	log.Infof("Remote agent '%s' (flavor: %s, session_id: %s) registered. (exposed services: %v)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.Flavor, remoteAgentClient.RegisteredAgent.SessionID, remoteAgentClient.services)
+	if slices.Contains(remoteAgentClient.services, CommandProviderServiceName) {
+		if existing := ra.activeCommandProviderForCommandNameLocked(remoteAgentClient.RegisteredAgent.CommandName); existing != nil {
+			log.Warnf("Remote agent command provider %q registered with duplicate command name %q; oldest provider %q remains active", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.CommandName, existing.RegisteredAgent.DisplayName)
+		}
+	}
 	// indexing remoteAgent client by its sessionID
 	ra.agentMap[remoteAgentClient.RegisteredAgent.SessionID] = remoteAgentClient
 	ra.telemetryStore.remoteAgentRegistered.Inc(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
 
 	return remoteAgentClient.RegisteredAgent.SessionID, recommendedRefreshInterval, nil
+}
+
+// activeCommandProviderForCommandNameLocked returns the oldest live command provider for command name.
+// The caller must hold agentMapMu.
+func (ra *remoteAgentRegistry) activeCommandProviderForCommandNameLocked(commandName string) *remoteAgentClient {
+	var oldest *remoteAgentClient
+	for _, agent := range ra.agentMap {
+		if agent.RegisteredAgent.CommandName != commandName || !slices.Contains(agent.services, CommandProviderServiceName) {
+			continue
+		}
+		if oldest == nil || agent.registeredAt.Before(oldest.registeredAt) {
+			oldest = agent
+		}
+	}
+	return oldest
 }
 
 // RefreshRemoteAgent refreshes the last seen time of a remote agent.
@@ -383,16 +403,19 @@ func (ra *remoteAgentRegistry) ListCommands(ctx context.Context) []remoteagentre
 	return callAgentsForService(ctx, ra, CommandProviderServiceName, client, processor)
 }
 
-// ExecuteCommand routes a command execution request to the remote agent identified by AgentId.
+// ExecuteCommand routes a command execution request to the oldest registered command provider for AgentFlavor.
 func (ra *remoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
 	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
-	agentID := req.GetAgentId()
+	commandName := req.GetCommandName()
+	if commandName == "" {
+		return nil, grpcStatus.Error(codes.InvalidArgument, "command_name is required")
+	}
 
 	ra.agentMapMu.Lock()
-	target := ra.agentMap[agentID]
-	if target == nil || !slices.Contains(target.services, CommandProviderServiceName) {
+	target := ra.activeCommandProviderForCommandNameLocked(commandName)
+	if target == nil {
 		ra.agentMapMu.Unlock()
-		return nil, grpcStatus.Errorf(codes.NotFound, "no remote command provider found for agent ID %q", agentID)
+		return nil, grpcStatus.Errorf(codes.NotFound, "no remote command provider found for command name %q", commandName)
 	}
 	ra.agentMapMu.Unlock()
 
@@ -409,7 +432,7 @@ func (ra *remoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.Execu
 	if validationErr := target.validateSessionID(responseHeader); validationErr != nil {
 		ra.telemetryStore.remoteAgentActionError.Inc(target.RegisteredAgent.SanitizedDisplayName, CommandProviderServiceName, sessionIDMismatch)
 		ra.agentMapMu.Lock()
-		if ra.agentMap[agentID] == target {
+		if ra.agentMap[target.RegisteredAgent.SessionID] == target {
 			target.unhealthy = true
 			target.unhealthyReason = validationErr
 		}

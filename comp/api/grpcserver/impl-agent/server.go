@@ -284,6 +284,8 @@ func registerRemoteAgent(registry remoteagentregistry.Component, in *pb.Register
 		AgentPID:         in.Pid,
 		AgentFlavor:      in.Flavor,
 		AgentDisplayName: in.DisplayName,
+		AgentDescription: in.AgentDescription,
+		CommandName:      in.CommandName,
 		APIEndpointURI:   in.ApiEndpointUri,
 		Services:         in.Services,
 	}
@@ -396,24 +398,19 @@ func (s *remoteCommandProviderServer) ListCommands(ctx context.Context, _ *pb.Li
 	}
 
 	agentCommands := s.remoteAgentRegistry.ListCommands(ctx)
-	var allCommands []*pb.Command
+	providers := make([]*pb.CommandProvider, 0, len(agentCommands))
 	for _, ac := range agentCommands {
-		for _, cmd := range ac.Commands {
-			stampAgentDetails(cmd, ac.Flavor, ac.SessionID)
-			allCommands = append(allCommands, cmd)
+		if len(ac.Commands) == 0 {
+			continue
 		}
+		providers = append(providers, &pb.CommandProvider{
+			CommandName:      ac.CommandName,
+			AgentDescription: ac.Description,
+			Commands:         ac.Commands,
+		})
 	}
 
-	return &pb.ListCommandsResponse{Commands: allCommands}, nil
-}
-
-// stampAgentDetails recursively sets ownership details on a command and all its children.
-func stampAgentDetails(cmd *pb.Command, flavor, agentID string) {
-	cmd.AgentFlavor = flavor
-	cmd.AgentId = agentID
-	for _, child := range cmd.GetChildren() {
-		stampAgentDetails(child, flavor, agentID)
-	}
+	return &pb.ListCommandsResponse{Providers: providers}, nil
 }
 
 // ExecuteCommand routes a command execution request to the registered remote agent that owns the command.

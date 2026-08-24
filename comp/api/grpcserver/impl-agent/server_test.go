@@ -101,7 +101,7 @@ func TestReportRemoteAgentEventHandler(t *testing.T) {
 }
 
 func TestRemoteCommandProviderExecuteCommandForwardsContextAndStatus(t *testing.T) {
-	request := &pb.ExecuteCommandRequest{CommandPath: "dogstatsd.top", AgentId: "agent-1"}
+	request := &pb.ExecuteCommandRequest{CommandPath: "dogstatsd.top", CommandName: "data-plane"}
 	registry := &fakeRemoteAgentRegistry{}
 	srv := &remoteCommandProviderServer{remoteAgentRegistry: registry}
 
@@ -116,16 +116,7 @@ func TestRemoteCommandProviderPreservesRegistryStatus(t *testing.T) {
 	registry := &fakeRemoteAgentRegistry{commandErr: status.Error(codes.NotFound, "agent missing")}
 	srv := &remoteCommandProviderServer{remoteAgentRegistry: registry}
 
-	_, err := srv.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{CommandPath: "dogstatsd.top", AgentId: "missing"})
+	_, err := srv.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{CommandPath: "dogstatsd.top", CommandName: "missing"})
 	require.Error(t, err)
 	require.Equal(t, codes.NotFound, status.Code(err))
-}
-
-func TestStampAgentDetailsRecurses(t *testing.T) {
-	command := &pb.Command{Children: []*pb.Command{{Children: []*pb.Command{{}}}}}
-	stampAgentDetails(command, "agent-data-plane", "session-1")
-	for _, cmd := range []*pb.Command{command, command.Children[0], command.Children[0].Children[0]} {
-		require.Equal(t, "agent-data-plane", cmd.GetAgentFlavor())
-		require.Equal(t, "session-1", cmd.GetAgentId())
-	}
 }

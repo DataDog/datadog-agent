@@ -66,43 +66,43 @@ message Command {
   // Whether this command can be executed (has a Run function). Non-runnable commands
   // serve as grouping nodes for child commands (e.g., a "dogstatsd" parent).
   bool is_runnable = 7;
-  // The flavor of the remote agent that owns this command.
-  //
-  // Populated by the Core Agent when aggregating commands from multiple remote agents.
-  // This field is informational; use agent_id to route execution.
-  string agent_flavor = 8;
-  // Opaque identifier assigned by the Core Agent to the remote agent that owns this command.
-  // The Core Agent keeps this identifier stable from command discovery through execution.
-  // Clients must return this value as ExecuteCommandRequest.agent_id to execute a listed command.
-  string agent_id = 9;
 }
 
 message ListCommandsRequest {}
 
+// CommandProvider is the active provider exposed as one child of `agent remote`.
+message CommandProvider {
+  string command_name = 1;
+  string agent_description = 2;
+  repeated Command commands = 3;
+}
+
 message ListCommandsResponse {
-  // List of top-level commands available on the remote agent.
+  // Commands returned by an individual remote provider.
   repeated Command commands = 1;
+  // Active provider groups returned by the Core Agent.
+  repeated CommandProvider providers = 2;
 }
 
 message ExecuteCommandRequest {
+  // Public command-provider name, e.g. "data-plane".
+  string command_name = 1;
+
   // Full path of the command including subcommands, e.g., "dogstatsd top".
   // This should match the command structure registered by the remote agent.
-  string command_path = 1;
+  string command_path = 2;
 
   // Arguments to pass to the command as a structured key-value map.
   // Keys should match the parameter names registered by the command.
   // Values should be appropriate for the registered parameter types.
   // Example: {"verbose": true, "count": 5, "filter": "status=running"}
-  google.protobuf.Struct arguments = 2;
+  google.protobuf.Struct arguments = 3;
 
   // Whether to format the output as JSON.
-  bool json_output = 3;
+  bool json_output = 4;
 
   // Verbose output flag.
-  bool verbose = 4;
-
-  // Required opaque routing key identifying the remote agent selected from command discovery.
-  string agent_id = 5;
+  bool verbose = 5;
 }
 
 message ExecuteCommandResponse {

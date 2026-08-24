@@ -27,7 +27,7 @@ type Component interface {
 	// slice of AgentCommands, one per agent that responded.
 	ListCommands(ctx context.Context) []AgentCommands
 
-	// ExecuteCommand routes a command execution request to the remote agent identified by req.AgentId.
+	// ExecuteCommand routes a command execution request to the remote agent selected by req.CommandName.
 	ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error)
 }
 
