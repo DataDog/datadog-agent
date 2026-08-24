@@ -101,9 +101,6 @@ message ExecuteCommandRequest {
   // Verbose output flag.
   bool verbose = 4;
 
-  // Deprecated routing hint. Use agent_id instead.
-  string agent_flavor = 5 [deprecated = true];
-
   // Required opaque routing key identifying the remote agent selected from command discovery.
   string agent_id = 6;
 }

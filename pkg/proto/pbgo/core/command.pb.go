@@ -412,10 +412,6 @@ type ExecuteCommandRequest struct {
 	JsonOutput bool `protobuf:"varint,3,opt,name=json_output,json=jsonOutput,proto3" json:"json_output,omitempty"`
 	// Verbose output flag.
 	Verbose bool `protobuf:"varint,4,opt,name=verbose,proto3" json:"verbose,omitempty"`
-	// Deprecated routing hint. Use agent_id instead.
-	//
-	// Deprecated: Marked as deprecated in datadog/remoteagent/command.proto.
-	AgentFlavor string `protobuf:"bytes,5,opt,name=agent_flavor,json=agentFlavor,proto3" json:"agent_flavor,omitempty"`
 	// Required opaque routing key identifying the remote agent selected from command discovery.
 	AgentId       string `protobuf:"bytes,6,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -478,14 +474,6 @@ func (x *ExecuteCommandRequest) GetVerbose() bool {
 		return x.Verbose
 	}
 	return false
-}
-
-// Deprecated: Marked as deprecated in datadog/remoteagent/command.proto.
-func (x *ExecuteCommandRequest) GetAgentFlavor() string {
-	if x != nil {
-		return x.AgentFlavor
-	}
-	return ""
 }
 
 func (x *ExecuteCommandRequest) GetAgentId() string {
@@ -597,14 +585,13 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"\bagent_id\x18\t \x01(\tR\aagentId\"\x15\n" +
 	"\x13ListCommandsRequest\"[\n" +
 	"\x14ListCommandsResponse\x12C\n" +
-	"\bcommands\x18\x01 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands\"\xee\x01\n" +
+	"\bcommands\x18\x01 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands\"\xc7\x01\n" +
 	"\x15ExecuteCommandRequest\x12!\n" +
 	"\fcommand_path\x18\x01 \x01(\tR\vcommandPath\x125\n" +
 	"\targuments\x18\x02 \x01(\v2\x17.google.protobuf.StructR\targuments\x12\x1f\n" +
 	"\vjson_output\x18\x03 \x01(\bR\n" +
 	"jsonOutput\x12\x18\n" +
-	"\averbose\x18\x04 \x01(\bR\averbose\x12%\n" +
-	"\fagent_flavor\x18\x05 \x01(\tB\x02\x18\x01R\vagentFlavor\x12\x19\n" +
+	"\averbose\x18\x04 \x01(\bR\averbose\x12\x19\n" +
 	"\bagent_id\x18\x06 \x01(\tR\aagentId\"\x8a\x01\n" +
 	"\x16ExecuteCommandResponse\x12\x1b\n" +
 	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12\x16\n" +
