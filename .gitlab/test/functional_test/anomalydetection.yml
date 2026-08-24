@@ -73,11 +73,15 @@ observer-ablation-ddeval:
     AWS_SHARED_CREDENTIALS_FILE: "$CI_PROJECT_DIR/.aws/credentials-by-job-id/$CI_JOB_ID"
     CI_IDENTITIES_CLIENT_VERSION: "v0.6.6"
     OBSERVER_ABLATION_OUTPUT_DIR: "$CI_PROJECT_DIR/observer-ablation-ddeval"
-    OBSERVER_ABLATION_N_COMBOS: "1"
-    OBSERVER_ABLATION_N_TRIALS_SEARCH: "1"
-    OBSERVER_ABLATION_N_TRIALS_TUNE: "1"
-    OBSERVER_ABLATION_DDEVAL_LIMIT: "1"
-    OBSERVER_ABLATION_DDEVAL_JOBS: "2"
+    # Full manual ablation against the established Golden 25 dataset.
+    # This is 10 component combinations × 5 search trials, followed by
+    # 20 tuning trials for the winning combination.
+    OBSERVER_ABLATION_N_COMBOS: "10"
+    OBSERVER_ABLATION_N_TRIALS_SEARCH: "5"
+    OBSERVER_ABLATION_N_TRIALS_TUNE: "20"
+    OBSERVER_ABLATION_DDEVAL_DATASET: "Golden 25"
+    OBSERVER_ABLATION_DDEVAL_LIMIT: "0"
+    OBSERVER_ABLATION_DDEVAL_JOBS: "6"
     OBSERVER_ABLATION_DDEVAL_MAX_ATTEMPTS: "1"
     OBSERVER_ABLATION_DDEVAL_WHERE_IN: ""
     OBSERVER_ABLATION_DD_SITE: "datadoghq.com"
@@ -135,6 +139,7 @@ observer-ablation-ddeval:
         --n-combos "$OBSERVER_ABLATION_N_COMBOS" \
         --n-trials-search "$OBSERVER_ABLATION_N_TRIALS_SEARCH" \
         --n-trials-tune "$OBSERVER_ABLATION_N_TRIALS_TUNE" \
+        --ddeval-dataset "$OBSERVER_ABLATION_DDEVAL_DATASET" \
         --ddeval-limit "$OBSERVER_ABLATION_DDEVAL_LIMIT" \
         --ddeval-jobs "$OBSERVER_ABLATION_DDEVAL_JOBS" \
         --ddeval-max-attempts "$OBSERVER_ABLATION_DDEVAL_MAX_ATTEMPTS" \
