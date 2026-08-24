@@ -179,6 +179,51 @@ allowed_cmdlets:
 	}))
 }
 
+func TestParseAllowlistPatternErrorNamesTheAdminsPattern(t *testing.T) {
+	// An unterminated '[' swallows the injected \z, so Go reports an invalid
+	// escape sequence for a construct that is not in the allowlist at all.
+	_, err := parseAllowlist([]byte(
+		"version: 1\nallowed_cmdlets:\n  Get-Service:\n    module: \"*\"\n" +
+			"    parameters:\n      Name: { pattern: '[A-Za-z' }\n"))
+	require.Error(t, err)
+
+	assert.Contains(t, err.Error(), "missing closing ]")
+	assert.Contains(t, err.Error(), `"[A-Za-z"`)
+	// The anchoring wrapper must not leak into the message.
+	assert.NotContains(t, err.Error(), `\z`)
+	assert.NotContains(t, err.Error(), "(?:")
+}
+
+func TestParseAllowlistRejectsRE2UnsupportedSyntax(t *testing.T) {
+	// RE2 has no lookaround and no backreferences, so a pattern ported from
+	// .NET or PCRE fails at load rather than silently behaving differently.
+	for _, pattern := range []string{`(?=x)abc`, `(a)\1`} {
+		_, err := parseAllowlist([]byte(
+			"version: 1\nallowed_cmdlets:\n  Get-Service:\n    module: \"*\"\n" +
+				"    parameters:\n      Name: { pattern: '" + pattern + "' }\n"))
+		require.Error(t, err, "pattern %q", pattern)
+		assert.Contains(t, err.Error(), "invalid pattern")
+	}
+}
+
+func TestPatternIsCaseSensitive(t *testing.T) {
+	// Go regexps are case-sensitive; (?i) is the documented workaround.
+	check := func(pattern, value string) error {
+		al, err := parseAllowlist([]byte(
+			"version: 1\nallowed_cmdlets:\n  Get-Service:\n    module: \"*\"\n" +
+				"    parameters:\n      Name: { pattern: '" + pattern + "' }\n"))
+		require.NoError(t, err)
+		return al.validateInstance(&instanceConfig{
+			Cmdlet:     "Get-Service",
+			Parameters: []parameterEntry{{Name: "Name", Value: value}},
+		})
+	}
+	assert.NoError(t, check("dnscache", "dnscache"))
+	assert.Error(t, check("dnscache", "Dnscache"))
+	// (?i) survives the \A(?:...)\z wrapper, since it scopes to the group.
+	assert.NoError(t, check("(?i)dnscache", "Dnscache"))
+}
+
 func TestParseAllowlistRequiresModule(t *testing.T) {
 	// A cmdlet entry without a module is rejected (strict, secure-by-default).
 	_, err := parseAllowlist([]byte("version: 1\nallowed_cmdlets:\n  Get-Service:\n    parameters:\n      Name: {}\n"))

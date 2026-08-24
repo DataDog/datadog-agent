@@ -80,14 +80,20 @@ func parseAllowlist(data []byte) (*allowlist, error) {
 				return nil, fmt.Errorf("allowlist entry %q parameter %q must define allowed_values or pattern", name, pName)
 			}
 			if p.Pattern != "" {
+				// Compile bare first for the error only: the anchored form below
+				// reports on its own \z wrapper, not on the admin's pattern.
+				if _, err := regexp.Compile(p.Pattern); err != nil {
+					return nil, fmt.Errorf("allowlist entry %q parameter %q: invalid pattern %q: %w", name, pName, p.Pattern, err)
+				}
 				// Anchor the pattern so it must match the ENTIRE value, not a
 				// substring. Go's regexp is unanchored by default, so an
 				// unanchored pattern like 'PROD-CL01' would also accept
 				// "PROD-CL01' OR '1'='1". \A and \z bind to the start and end of
-				// the whole string.
+				// the whole string. A span check would not do: Go matches
+				// leftmost-first, so 'a|ab' yields "a" against "ab".
 				re, err := regexp.Compile(`\A(?:` + p.Pattern + `)\z`)
 				if err != nil {
-					return nil, fmt.Errorf("allowlist entry %q parameter %q: invalid pattern: %w", name, pName, err)
+					return nil, fmt.Errorf("allowlist entry %q parameter %q: invalid pattern %q: %w", name, pName, p.Pattern, err)
 				}
 				p.compiledPattern = re
 				cmd.Parameters[pName] = p
