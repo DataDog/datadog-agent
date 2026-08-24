@@ -162,3 +162,14 @@ func mustParseURL(t *testing.T, raw string) *url.URL {
 	require.NoError(t, err)
 	return u
 }
+
+// An endpoint built from a directive that never produced an instance - an unsupported cloud
+// provider, or a consumer with no provider wiring - has neither a provider nor a key. Stamping the
+// empty key would send that org's payload to its intake unauthenticated.
+func TestAuthorizeRefusesWhenThereIsNeitherProviderNorKey(t *testing.T) {
+	m := &apiKeyManager{}
+
+	h := http.Header{}
+	assert.False(t, m.Authorize(h))
+	assert.Empty(t, h, "an empty API key must never be stamped")
+}

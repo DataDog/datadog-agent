@@ -33,6 +33,12 @@ func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys [
 		return nil, nil, errors.New("config was not properly validated")
 	}
 	for _, e := range cfg.Endpoints {
+		// A delegated-auth endpoint carries no API key of its own; this proxy has no provider
+		// wiring, so including it would forward pipeline stats with an empty DD-API-KEY.
+		if e.APIKey == "" {
+			log.Warnf("[pipeline_stats] skipping endpoint %q: delegated auth is not supported for this proxy", e.Host)
+			continue
+		}
 		urlStr := e.Host + pipelineStatsURLSuffix
 		log.Debugf("[pipeline_stats] Intake URL %s", urlStr)
 		url, err := url.Parse(urlStr)

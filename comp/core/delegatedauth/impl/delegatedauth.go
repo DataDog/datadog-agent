@@ -130,7 +130,7 @@ type delegatedAuthComponent struct {
 	// providers indexes each instance's credential provider so consumers built after discovery
 	// has run can find the one they need. Keyed by config setting + destination; a destination
 	// can carry more than one provider when several orgs dual-ship to it.
-	providers map[providerKey][]delegatedauth.Provider
+	providers map[providerKey][]registeredProvider
 
 	// additionalEndpointsMu serializes read-modify-write access to additional_endpoints config
 	// values across concurrent instances. Separate from mu to avoid deadlocking with OnUpdate callbacks.
@@ -143,6 +143,13 @@ type providerKey struct {
 	destination string
 }
 
+// registeredProvider keeps the directive alongside its provider so a consumer that owns one
+// specific directive can find its own credential rather than whichever was registered first.
+type registeredProvider struct {
+	directive string
+	provider  delegatedauth.Provider
+}
+
 // Provides list the provided interfaces from the delegatedauth Component
 type Provides struct {
 	Comp           delegatedauth.Component
@@ -153,7 +160,7 @@ type Provides struct {
 func NewComponent() Provides {
 	comp := &delegatedAuthComponent{
 		instances: make(map[string]*authInstance),
-		providers: make(map[providerKey][]delegatedauth.Provider),
+		providers: make(map[providerKey][]registeredProvider),
 	}
 
 	return Provides{
@@ -439,9 +446,9 @@ func (d *delegatedAuthComponent) registerProvider(params delegatedauth.InstanceP
 	defer d.mu.Unlock()
 	if d.providers == nil {
 		// Tests construct the component struct directly rather than through NewComponent.
-		d.providers = make(map[providerKey][]delegatedauth.Provider)
+		d.providers = make(map[providerKey][]registeredProvider)
 	}
-	d.providers[key] = append(d.providers[key], p)
+	d.providers[key] = append(d.providers[key], registeredProvider{directive: params.Directive, provider: p})
 }
 
 // ProvidersFor implements delegatedauth.Component.
@@ -455,8 +462,24 @@ func (d *delegatedAuthComponent) ProvidersFor(configKey, destination string) []d
 	// Copy so callers cannot mutate the registry, and so a concurrent AddInstance appending to the
 	// same key cannot be observed mid-append.
 	out := make([]delegatedauth.Provider, len(found))
-	copy(out, found)
+	for i, r := range found {
+		out[i] = r.provider
+	}
 	return out
+}
+
+// ProviderForDirective implements delegatedauth.Component.
+func (d *delegatedAuthComponent) ProviderForDirective(configKey, destination, directive string) delegatedauth.Provider {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	for _, r := range d.providers[providerKey{configKey: configKey, destination: destination}] {
+		// Two identical directives under one destination name the same org with the same
+		// parameters, so they resolve to interchangeable credentials; the first is correct.
+		if r.directive == directive {
+			return r.provider
+		}
+	}
+	return nil
 }
 
 // providerConfigForInstance applies a directive-specific provider configuration after shared

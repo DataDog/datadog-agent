@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
@@ -184,7 +183,11 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
 // The format for cfgKey should be a map which has the URL as a key and one or
 // more API keys as an array value.
-func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endpoint {
+// appendEndpoints adds the endpoints configured at cfgKey. supportsDelegatedAuth says whether the
+// consumer of this endpoint list takes credentials from a provider; when it does not, a DELA(...)
+// value is skipped entirely rather than becoming a key-less endpoint that would send
+// unauthenticated.
+func appendEndpoints(endpoints []*config.Endpoint, cfgKey string, supportsDelegatedAuth bool) []*config.Endpoint {
 	if !pkgconfigsetup.Datadog().IsConfigured(cfgKey) {
 		return endpoints
 	}
@@ -197,8 +200,12 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			// A DELA(...) directive is not an API key. The endpoint is still created, with no key,
 			// so a credential provider can serve it; without the endpoint there would be nothing
 			// for the credential to arrive at.
-			if pkgconfigutils.IsDelaDirective(key) {
-				endpoints = append(endpoints, &config.Endpoint{Host: url, ConfigSettingPath: cfgKey})
+			if utils.IsDelaDirective(key) {
+				if !supportsDelegatedAuth {
+					log.Warnf("'%s' has a delegated auth directive for %q, which is not supported for this setting; that endpoint is skipped", cfgKey, url)
+					continue
+				}
+				endpoints = append(endpoints, &config.Endpoint{Host: url, ConfigSettingPath: cfgKey, CredentialDirective: key})
 				continue
 			}
 			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)})
@@ -259,7 +266,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		})
 	}
 
-	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
+	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints", true)
 
 	if core.IsConfigured("proxy.no_proxy") {
 		proxyList := core.GetStringSlice("proxy.no_proxy")
@@ -505,7 +512,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 			Host:   utils.GetMainEndpoint(pkgconfigsetup.Datadog(), config.TelemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
 			APIKey: c.Endpoints[0].APIKey,
 		}}
-		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
+		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints", false)
 	}
 	c.Obfuscation = new(config.ObfuscationConfig)
 	c.Obfuscation.ES.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled")

@@ -109,6 +109,11 @@ type InstanceParams struct {
 	// appearing in config for the same destination.
 	SkipConfigWriteback bool
 
+	// Directive is the raw DELA(...) text this instance was created from. It identifies the
+	// instance among several sharing one destination, which Destination alone cannot do: two
+	// orgs may legitimately dual-ship to the same domain.
+	Directive string
+
 	// ConfigKey is the setting the credential belongs to (e.g. "additional_endpoints"), forming
 	// the other half of the Component.ProvidersFor lookup. Leave it empty for a flat key, where
 	// APIKeyConfigKey already identifies the slot.
@@ -158,4 +163,10 @@ type Component interface {
 	// A destination can legitimately have more than one provider (one per org), which is why this
 	// returns a slice rather than a single provider keyed by name.
 	ProvidersFor(configKey, destination string) []Provider
+
+	// ProviderForDirective returns the provider registered for one specific DELA(...) directive,
+	// for consumers that create one destination per directive and so must not mix them up.
+	// Returns nil when no instance was registered for that directive, e.g. because it named an
+	// unsupported provider - the caller must then refuse to send rather than send unauthenticated.
+	ProviderForDirective(configKey, destination, directive string) Provider
 }

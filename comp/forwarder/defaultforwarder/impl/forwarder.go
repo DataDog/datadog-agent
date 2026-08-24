@@ -66,9 +66,14 @@ func createOptions(params defaultforwarderdef.Params, config config.Component, l
 			log.Error("Error creating resolver: ", err)
 			return nil, fmt.Errorf("Error creating resolver: %s", err)
 		}
-		attachCredentialProviders(r, endpoints, delegatedAuth, log)
 		options = NewOptionsWithResolvers(config, log, r)
 	}
+	// Attach after both branches, on the resolvers that were actually kept. NewOptionsWithOPW
+	// builds its own set and can swap the infra resolver for a vector-diverted one, so attaching
+	// inside the else branch alone left every binary that does not pass WithResolvers - the core
+	// Agent, dogstatsd, serverless-init, otel-agent - with no providers at all, and a delegated
+	// auth endpoint there produced no transactions and shipped nothing.
+	attachCredentialProviders(options.DomainResolvers, endpoints, delegatedAuth, log)
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	disableOverride := params.APIKeyCheckingDisabledOverride()
 	if disableAPIKeyChecking, ok := disableOverride.Get(); ok {

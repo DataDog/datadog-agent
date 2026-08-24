@@ -40,7 +40,6 @@ import (
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -157,22 +156,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	tracecfg.APIKeyIsFromSecretFn = func(apiKey string) bool {
 		return deps.Secrets != nil && deps.Secrets.IsValueFromSecret(apiKey)
 	}
-	tracecfg.CredentialProviderFn = func(configSettingPath, host string) traceconfig.CredentialProvider {
-		if deps.DelegatedAuth == nil {
-			return nil
-		}
-		providers := deps.DelegatedAuth.ProvidersFor(configSettingPath, host)
-		if len(providers) == 0 {
-			return nil
-		}
-		// One endpoint carries one credential. Discovery creates a separate endpoint per
-		// directive, so extra providers here would mean two directives collapsed onto one
-		// endpoint - report it rather than silently sending under the first one.
-		if len(providers) > 1 {
-			log.Warnf("endpoint %q at %q has %d delegated-auth providers; using the first", host, configSettingPath, len(providers))
-		}
-		return providers[0]
-	}
+	tracecfg.CredentialProviderFn = credentialProviderLookup(deps.DelegatedAuth)
 
 	c.Agent = pkgagent.NewAgent(
 		ctx,
@@ -192,6 +176,25 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		OnStop:  func(_ context.Context) error { return stop(c) },
 	})
 	return c, nil
+}
+
+// credentialProviderLookup resolves an endpoint's delegated-auth provider. It is a package-level
+// function because inside start the tracecfg identifier is shadowed by the config value.
+func credentialProviderLookup(d delegatedauth.Component) func(configSettingPath, host, directive string) tracecfg.CredentialProvider {
+	return func(configSettingPath, host, directive string) tracecfg.CredentialProvider {
+		if d == nil || directive == "" {
+			return nil
+		}
+		// Match on the directive, not just the host: two orgs may dual-ship to the same host, and
+		// picking the first provider there would ship both endpoints under one org's credential
+		// while the other org received nothing.
+		p := d.ProviderForDirective(configSettingPath, host, directive)
+		if p == nil {
+			log.Warnf("no delegated auth instance for the directive on endpoint %q at %q; that endpoint will not send", host, configSettingPath)
+			return nil
+		}
+		return p
+	}
 }
 
 func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {

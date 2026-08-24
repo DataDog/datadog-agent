@@ -22,7 +22,8 @@ type Mock struct {
 	// standing up the whole component.
 	ProvidersForFunc func(configKey, destination string) []delegatedauth.Provider
 
-	providers map[[2]string][]delegatedauth.Provider
+	providers  map[[2]string][]delegatedauth.Provider
+	directives map[[3]string]delegatedauth.Provider
 }
 
 // StaticProvider is a Provider that always authorizes with a fixed key, for tests that only care
@@ -73,6 +74,13 @@ func (m *Mock) AddInstance(ctx context.Context, params delegatedauth.InstancePar
 		m.providers = map[[2]string][]delegatedauth.Provider{}
 	}
 	configKey, destination := params.ProviderKey()
+	if m.directives == nil {
+		m.directives = map[[3]string]delegatedauth.Provider{}
+	}
+	dkey := [3]string{configKey, destination, params.Directive}
+	if _, seen := m.directives[dkey]; !seen {
+		m.directives[dkey] = p
+	}
 	key := [2]string{configKey, destination}
 	m.providers[key] = append(m.providers[key], p)
 	return p, nil
@@ -84,4 +92,9 @@ func (m *Mock) ProvidersFor(configKey, destination string) []delegatedauth.Provi
 		return m.ProvidersForFunc(configKey, destination)
 	}
 	return m.providers[[2]string{configKey, destination}]
+}
+
+// ProviderForDirective implements delegatedauth.Component.
+func (m *Mock) ProviderForDirective(configKey, destination, directive string) delegatedauth.Provider {
+	return m.directives[[3]string{configKey, destination, directive}]
 }

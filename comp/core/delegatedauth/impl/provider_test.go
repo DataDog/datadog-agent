@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 )
 
 // A provider that has never resolved must report "no credential" so the caller buffers. Shipping
@@ -124,4 +126,51 @@ func TestProviderConcurrentAuthorizeAndUpdate(t *testing.T) {
 
 	wg.Wait()
 	assert.True(t, p.hasCredential())
+}
+
+// Two orgs dual-shipping to one domain is the case this feature exists for. Looking a provider up
+// by destination alone cannot tell them apart, so consumers that own one directive each must be
+// able to find their own credential - otherwise both ship under the first org's key and the second
+// org receives nothing.
+func TestProviderForDirectiveDistinguishesTwoOrgsOnOneDestination(t *testing.T) {
+	d := &delegatedAuthComponent{}
+	const key, dest = "additional_endpoints", "https://app.datadoghq.com"
+
+	orgA := newInstanceProvider()
+	orgB := newInstanceProvider()
+	orgA.setResolved("org-a-key")
+	orgB.setResolved("org-b-key")
+
+	d.registerProvider(delegatedauth.InstanceParams{
+		ConfigKey: key, Destination: dest, Directive: "DELA(org-a, aws)",
+	}, orgA)
+	d.registerProvider(delegatedauth.InstanceParams{
+		ConfigKey: key, Destination: dest, Directive: "DELA(org-b, aws)",
+	}, orgB)
+
+	for _, tc := range []struct{ directive, want string }{
+		{"DELA(org-a, aws)", "org-a-key"},
+		{"DELA(org-b, aws)", "org-b-key"},
+	} {
+		p := d.ProviderForDirective(key, dest, tc.directive)
+		require.NotNil(t, p, "each directive must resolve to its own instance")
+
+		h := http.Header{}
+		require.True(t, p.Authorize(h))
+		assert.Equal(t, tc.want, h.Get("DD-Api-Key"), "directive %q got the wrong org's credential", tc.directive)
+	}
+
+	// The forwarder still sees both, because it fans one payload out to every slot on the domain.
+	assert.Len(t, d.ProvidersFor(key, dest), 2)
+}
+
+// An unknown directive must resolve to nothing so the caller refuses to send, rather than falling
+// back to some other org's credential that happens to share the destination.
+func TestProviderForDirectiveReturnsNilForAnUnregisteredDirective(t *testing.T) {
+	d := &delegatedAuthComponent{}
+	d.registerProvider(delegatedauth.InstanceParams{
+		ConfigKey: "additional_endpoints", Destination: "https://app.datadoghq.com", Directive: "DELA(org-a, aws)",
+	}, newInstanceProvider())
+
+	assert.Nil(t, d.ProviderForDirective("additional_endpoints", "https://app.datadoghq.com", "DELA(org-z, aws)"))
 }

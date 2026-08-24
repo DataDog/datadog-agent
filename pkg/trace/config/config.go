@@ -44,6 +44,11 @@ type Endpoint struct {
 	APIKey string `json:"-"` // never marshal this
 	Host   string
 
+	// CredentialDirective is the DELA(...) text this endpoint was built from, empty for an
+	// endpoint with a plain API key. With ConfigSettingPath and Host it identifies which
+	// credential is this endpoint's, where the host alone would be ambiguous across orgs.
+	CredentialDirective string `mapstructure:"-" json:"-"`
+
 	// ConfigSettingPath is the config setting this endpoint was built from, e.g.
 	// "apm_config.additional_endpoints". With Host it identifies the endpoint to
 	// AgentConfig.CredentialProviderFn.
@@ -645,7 +650,7 @@ type AgentConfig struct {
 	// returning nil when that endpoint uses a plain API key. Declared as a func field, like
 	// SecretsRefreshFn below, so pkg/trace stays free of a dependency on comp/core/delegatedauth:
 	// this module is vendored by the OTel Collector distribution and has to stay lean.
-	CredentialProviderFn func(configSettingPath, host string) CredentialProvider `json:"-"`
+	CredentialProviderFn func(configSettingPath, host, directive string) CredentialProvider `json:"-"`
 
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It blocks until the refresh

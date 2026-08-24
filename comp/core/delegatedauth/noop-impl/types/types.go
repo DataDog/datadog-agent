@@ -31,6 +31,11 @@ func (r *DelegatedAuthNoop) ProvidersFor(_, _ string) []delegatedauth.Provider {
 	return nil
 }
 
+// ProviderForDirective implements delegatedauth.Component and never has a credential.
+func (r *DelegatedAuthNoop) ProviderForDirective(_, _, _ string) delegatedauth.Provider {
+	return nil
+}
+
 // noopProvider never holds a credential.
 type noopProvider struct{}
 

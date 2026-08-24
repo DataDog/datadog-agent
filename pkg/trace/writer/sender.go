@@ -63,7 +63,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			isFromSecret:     cfg.APIKeyIsFromSecretFn,
 		}
 		if cfg.CredentialProviderFn != nil {
-			apiKeyManager.provider = cfg.CredentialProviderFn(endpoint.ConfigSettingPath, endpoint.Host)
+			apiKeyManager.provider = cfg.CredentialProviderFn(endpoint.ConfigSettingPath, endpoint.Host, endpoint.CredentialDirective)
 		}
 
 		senders[i] = newSender(scfg, apiKeyManager, statsd)
@@ -201,7 +201,14 @@ func (m *apiKeyManager) Authorize(h http.Header) bool {
 	if m.provider != nil {
 		return m.provider.Authorize(h)
 	}
-	h.Set(headerAPIKey, m.Get())
+	// No provider and no key means the endpoint was built from a directive that never produced
+	// an instance - an unsupported provider, or a consumer with no provider wiring. Stamping the
+	// empty key would send the payload to that org's intake unauthenticated, so refuse instead.
+	key := m.Get()
+	if key == "" {
+		return false
+	}
+	h.Set(headerAPIKey, key)
 	return true
 }
 

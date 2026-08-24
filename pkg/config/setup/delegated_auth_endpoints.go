@@ -213,6 +213,7 @@ func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel
 		APIKeyConfigKey:     bookkeepingKey + "[" + directive.orgUUID + "]",
 		ProviderConfig:      instanceProviderConfig,
 		ConfigKey:           configKey,
+		Directive:           directiveText,
 		TargetSite:          destination,
 		FallbackAPIKey:      resolveFallbackAPIKey(secretResolver, directive.params["fallback"], configKey),
 		SkipConfigWriteback: true,
