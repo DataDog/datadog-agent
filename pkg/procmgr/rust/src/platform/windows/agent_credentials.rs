@@ -5,6 +5,8 @@
 
 use anyhow::{Context, Result, bail};
 #[cfg(not(test))]
+use log::info;
+#[cfg(not(test))]
 use std::ptr;
 #[cfg(not(test))]
 use windows_sys::Win32::Security::Authentication::Identity::{
@@ -161,6 +163,12 @@ fn resolve_domain_agent_account(domain: String, user: String, sid: &[u8]) -> Res
     } else {
         ManagedServiceAccountState::AssumeRegularDomainAccount
     };
+    info!(
+        "domain agent account inputs for {display}: is_local={is_local}, lsa_password_present={}, msa={msa:?}",
+        lsa_password
+            .as_ref()
+            .is_some_and(|password| !password.is_empty())
+    );
     agent_account_from_msa_and_lsa(domain, user, lsa_password.as_deref(), is_local, msa)
 }
 
@@ -198,6 +206,10 @@ fn agent_account_from_msa_and_lsa(
             password: password.to_string(),
         });
     }
+    info!(
+        "no usable LSA password for {}; attempting passwordless resolution with msa={msa:?}",
+        AccountName::new(&domain, &user).display()
+    );
     passwordless_agent_account(domain, user, is_local, msa)
 }
 
@@ -354,6 +366,7 @@ fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
         .as_ref()
         .is_some_and(|password| !password.is_empty())
     {
+        info!("using installer LSA password for {domain}\\{user}");
         return Ok(installer_lsa_password);
     }
 
@@ -365,6 +378,12 @@ fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
     } else {
         None
     };
+    info!(
+        "agent password fallback for {domain}\\{user}: installer_lsa_present=false, scm_service_matches_agent={scm_service_matches_agent}, scm_password_present={}",
+        scm_password
+            .as_ref()
+            .is_some_and(|password| !password.is_empty())
+    );
     Ok(agent_password_from_sources(
         None,
         scm_password.as_deref(),
