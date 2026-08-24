@@ -35,16 +35,27 @@ import (
 )
 
 // ExecuteFunc invokes a provider command with its public provider name, command path, and typed arguments.
-type ExecuteFunc func(commandName, commandPath string, arguments *structpb.Struct) error
+type ExecuteFunc func(commandName, commandPath string, arguments *structpb.Struct) (*pb.ExecuteCommandResponse, error)
+
+type exitCodeError int
+
+func (e exitCodeError) Error() string {
+	return fmt.Sprintf("remote command exited with code %d", e)
+}
+
+func (e exitCodeError) ExitCode() int {
+	return int(e)
+}
 
 var remoteGlobalParams sync.Map // map[*cobra.Command]*command.GlobalParams
 
 // Commands returns the static remote parent. Command providers are attached before Cobra resolves their child names.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	remote := &cobra.Command{
-		Use:          "remote",
-		Short:        "Run commands exposed by registered remote agents",
-		SilenceUsage: true,
+		Use:           "remote",
+		Short:         "Run commands exposed by registered remote agents",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
@@ -76,9 +87,8 @@ func Prepare(root *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		return AttachCommandProviders(remote, response.GetProviders(), func(commandName, commandPath string, arguments *structpb.Struct) error {
-			_, err := client.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{CommandName: commandName, CommandPath: commandPath, Arguments: arguments})
-			return err
+		return AttachCommandProviders(remote, response.GetProviders(), func(commandName, commandPath string, arguments *structpb.Struct) (*pb.ExecuteCommandResponse, error) {
+			return client.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{CommandName: commandName, CommandPath: commandPath, Arguments: arguments})
 		})
 	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams.(*command.GlobalParams))), core.Bundle(), ipcfx.ModuleReadOnly())
 }
@@ -146,7 +156,11 @@ func addCommand(parent *cobra.Command, providerName string, definition *pb.Comma
 			if err != nil {
 				return err
 			}
-			return execute(providerName, definition.GetName(), arguments)
+			response, err := execute(providerName, definition.GetName(), arguments)
+			if err != nil {
+				return err
+			}
+			return renderResponse(cmd, response)
 		}
 	}
 	for _, child := range definition.GetChildren() {
@@ -155,6 +169,25 @@ func addCommand(parent *cobra.Command, providerName string, definition *pb.Comma
 		}
 	}
 	parent.AddCommand(cmd)
+	return nil
+}
+
+func renderResponse(cmd *cobra.Command, response *pb.ExecuteCommandResponse) error {
+	if response == nil {
+		return errors.New("remote command returned no response")
+	}
+	if _, err := fmt.Fprint(cmd.OutOrStdout(), response.GetStdout()); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(cmd.ErrOrStderr(), response.GetStderr()); err != nil {
+		return err
+	}
+	if _, err := cmd.OutOrStdout().Write(response.GetBinaryOutput()); err != nil {
+		return err
+	}
+	if response.GetExitCode() != 0 {
+		return exitCodeError(response.GetExitCode())
+	}
 	return nil
 }
 

@@ -78,9 +78,8 @@ func TestCommandProviderRegistrationDiscoveryCLIAndExecutionFlow(t *testing.T) {
 	registry.agentMapMu.Unlock()
 
 	remote := remotecommand.Commands(&command.GlobalParams{})[0]
-	require.NoError(t, remotecommand.AttachCommandProviders(remote, listed, func(commandName, commandPath string, arguments *structpb.Struct) error {
-		_, err := registry.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{CommandName: commandName, CommandPath: commandPath, Arguments: arguments})
-		return err
+	require.NoError(t, remotecommand.AttachCommandProviders(remote, listed, func(commandName, commandPath string, arguments *structpb.Struct) (*pb.ExecuteCommandResponse, error) {
+		return registry.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{CommandName: commandName, CommandPath: commandPath, Arguments: arguments})
 	}))
 
 	providerCommand, _, err := remote.Find([]string{"fixture-agent"})

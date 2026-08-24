@@ -46,6 +46,8 @@ type UnimplementedRemoteAgentServer struct {
 	// server infos
 	agentFlavor       string
 	displayName       string
+	commandName       string
+	agentDescription  string
 	services          []string
 	registeredAPIURI  string
 	cleanupSocketPath string
@@ -162,6 +164,12 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 	})
 
 	return remoteAgentServer, nil
+}
+
+// SetCommandProviderMetadata configures the public CLI name and description advertised when this server exposes RemoteCommandProvider.
+func (s *UnimplementedRemoteAgentServer) SetCommandProviderMetadata(commandName, agentDescription string) {
+	s.commandName = commandName
+	s.agentDescription = agentDescription
 }
 
 // Start begins serving gRPC and starts the RAR registration loop. Impls must
@@ -470,10 +478,12 @@ func dialCoreAgent(agentIpcAddress, authToken string, tlsConfig *tls.Config, vso
 
 // RegistrationRequest is the input for RegisterRemoteAgent.
 type RegistrationRequest struct {
-	Flavor         string
-	DisplayName    string
-	APIEndpointURI string
-	Services       []string
+	Flavor           string
+	DisplayName      string
+	CommandName      string
+	AgentDescription string
+	APIEndpointURI   string
+	Services         []string
 }
 
 // RegisterRemoteAgent calls RegisterRemoteAgent on the core agent. If the
@@ -483,10 +493,12 @@ func RegisterRemoteAgent(ctx context.Context, client pbcore.AgentSecureClient, r
 	defer cancel()
 
 	resp, err := client.RegisterRemoteAgent(ctx, &pbcore.RegisterRemoteAgentRequest{
-		Flavor:         req.Flavor,
-		DisplayName:    req.DisplayName,
-		ApiEndpointUri: req.APIEndpointURI,
-		Services:       req.Services,
+		Flavor:           req.Flavor,
+		DisplayName:      req.DisplayName,
+		CommandName:      req.CommandName,
+		AgentDescription: req.AgentDescription,
+		ApiEndpointUri:   req.APIEndpointURI,
+		Services:         req.Services,
 	})
 	if err != nil {
 		log.Debugf("failed to register remote agent: %v", err)
@@ -506,10 +518,12 @@ func RegisterRemoteAgent(ctx context.Context, client pbcore.AgentSecureClient, r
 // registerWithAgent handles the registration logic with the Core Agent
 func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Duration, error) {
 	registerReq := &pbcore.RegisterRemoteAgentRequest{
-		Flavor:         s.agentFlavor,
-		DisplayName:    s.displayName,
-		ApiEndpointUri: s.registeredAPIURI,
-		Services:       s.services,
+		Flavor:           s.agentFlavor,
+		DisplayName:      s.displayName,
+		CommandName:      s.commandName,
+		AgentDescription: s.agentDescription,
+		ApiEndpointUri:   s.registeredAPIURI,
+		Services:         s.services,
 	}
 
 	s.log.Debugf("Registering with Core Agent at %s...", s.agentIpcAddress)
