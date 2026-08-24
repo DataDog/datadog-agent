@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -10,7 +11,19 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/log/def",
+        "//pkg/aggregator/contexttop",
         "//pkg/util/http",
         "@com_github_datadog_zstd//:zstd",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["endpoint_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/aggregator/contexttop",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "datadogagent",
@@ -6,6 +7,7 @@ go_library(
         "agentapi.go",
         "config.go",
         "diagnose.go",
+        "dogstatsd_top.go",
         "entrypoint.go",
         "flare.go",
         "status.go",
@@ -22,5 +24,16 @@ go_library(
         "//pkg/privateactionrunner/types",
         "//pkg/util/flavor",
         "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "datadogagent_test",
+    srcs = ["dogstatsd_top_test.go"],
+    embed = [":datadogagent"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//require",
     ],
 )
