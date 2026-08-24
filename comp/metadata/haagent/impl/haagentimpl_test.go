@@ -121,8 +121,6 @@ func TestPayloadReflectsRealHaAgentComponent(t *testing.T) {
 
 	p := io.getPayload().(*Payload)
 
-	// State is deterministically "unknown" here: no leader is ever assigned in this test,
-	// same as the real E2E suite's single-host scenario never exercised leader election.
 	assert.True(t, p.Metadata.Enabled)
 	assert.Equal(t, "unknown", p.Metadata.State)
 }
