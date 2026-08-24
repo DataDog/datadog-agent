@@ -62,6 +62,9 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			throttleInterval: cfg.APIKeyRefreshThrottleInterval,
 			isFromSecret:     cfg.APIKeyIsFromSecretFn,
 		}
+		if cfg.CredentialProviderFn != nil {
+			apiKeyManager.provider = cfg.CredentialProviderFn(endpoint.ConfigSettingPath, endpoint.Host)
+		}
 
 		senders[i] = newSender(scfg, apiKeyManager, statsd)
 	}
@@ -186,6 +189,20 @@ type apiKeyManager struct {
 
 	// lastRefresh tracks when the last refresh occurred
 	lastRefresh time.Time
+
+	// provider, when set, supplies this endpoint's credential instead of apiKey. It may have no
+	// credential yet, in which case the payload waits rather than being sent unauthenticated.
+	provider config.CredentialProvider
+}
+
+// Authorize stamps this endpoint's credential onto h and reports whether it did. It returns false
+// only for a delegated-auth endpoint whose credential has not arrived yet.
+func (m *apiKeyManager) Authorize(h http.Header) bool {
+	if m.provider != nil {
+		return m.provider.Authorize(h)
+	}
+	h.Set(headerAPIKey, m.Get())
+	return true
 }
 
 func (m *apiKeyManager) Get() string {
@@ -357,6 +374,17 @@ func (s *sender) sendOnce(p *payload) bool {
 		log.Tracef("Error submitting payload: %v\n", err)
 	}
 	switch err.(type) {
+	case *credentialNotReadyError:
+		// Hold the payload without consuming a retry, so it is still here when the credential
+		// lands. Dropping on sender shutdown matches the retriable path.
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		if s.closed {
+			s.releasePayload(p, eventTypeDropped, stats)
+			return true
+		}
+		s.recordEvent(eventTypeRetry, stats)
+		return false
 	case *retriableError:
 		// request failed again, but can be retried
 		s.mu.RLock()
@@ -446,6 +474,17 @@ func (s *sender) isEnabled() bool {
 	return false
 }
 
+// credentialNotReadyError means the endpoint's delegated-auth credential has not arrived yet, so
+// nothing was sent. It is deliberately not a retriableError: waiting on a credential is not a
+// failed delivery attempt, and counting it as one would exhaust maxRetries and drop the payload
+// during the very startup window the wait exists to cover.
+type credentialNotReadyError struct{}
+
+// Error implements error.
+func (credentialNotReadyError) Error() string {
+	return "no delegated-auth credential available yet for this endpoint"
+}
+
 // retriableError is an error returned by the server which may be retried at a later time.
 type retriableError struct{ err error }
 
@@ -458,7 +497,9 @@ const (
 )
 
 func (s *sender) do(req *http.Request) error {
-	req.Header.Set(headerAPIKey, s.apiKeyManager.Get())
+	if !s.apiKeyManager.Authorize(req.Header) {
+		return &credentialNotReadyError{}
+	}
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {

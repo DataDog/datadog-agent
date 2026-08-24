@@ -155,6 +155,9 @@ var mapShapeDelegatedAuthEndpointKeys = []string{
 	// Read by pkg/config/utils.GetMultipleEndpoints and served by comp/forwarder/defaultforwarder,
 	// which covers metrics, events, service checks and everything else on the main forwarder.
 	"additional_endpoints",
+	// Read by comp/trace/config's appendEndpoints and served by the pkg/trace writers, which
+	// cover traces and APM stats.
+	"apm_config.additional_endpoints",
 }
 
 // configureAdditionalEndpointsDelegatedAuth scans the supported additional_endpoints settings for

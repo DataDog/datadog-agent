@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
@@ -193,6 +194,13 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			continue
 		}
 		for _, key := range keys {
+			// A DELA(...) directive is not an API key. The endpoint is still created, with no key,
+			// so a credential provider can serve it; without the endpoint there would be nothing
+			// for the credential to arrive at.
+			if pkgconfigutils.IsDelaDirective(key) {
+				endpoints = append(endpoints, &config.Endpoint{Host: url, ConfigSettingPath: cfgKey})
+				continue
+			}
 			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)})
 		}
 	}

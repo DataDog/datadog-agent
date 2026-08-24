@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -39,6 +40,7 @@ import (
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,6 +64,7 @@ type dependencies struct {
 
 	Config                traceconfigdef.Component
 	Secrets               secrets.Component
+	DelegatedAuth         delegatedauth.Component
 	Context               context.Context
 	Params                *Params
 	TelemetryCollector    telemetry.TelemetryCollector
@@ -153,6 +156,22 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	}
 	tracecfg.APIKeyIsFromSecretFn = func(apiKey string) bool {
 		return deps.Secrets != nil && deps.Secrets.IsValueFromSecret(apiKey)
+	}
+	tracecfg.CredentialProviderFn = func(configSettingPath, host string) traceconfig.CredentialProvider {
+		if deps.DelegatedAuth == nil {
+			return nil
+		}
+		providers := deps.DelegatedAuth.ProvidersFor(configSettingPath, host)
+		if len(providers) == 0 {
+			return nil
+		}
+		// One endpoint carries one credential. Discovery creates a separate endpoint per
+		// directive, so extra providers here would mean two directives collapsed onto one
+		// endpoint - report it rather than silently sending under the first one.
+		if len(providers) > 1 {
+			log.Warnf("endpoint %q at %q has %d delegated-auth providers; using the first", host, configSettingPath, len(providers))
+		}
+		return providers[0]
 	}
 
 	c.Agent = pkgagent.NewAgent(

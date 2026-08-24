@@ -15,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/trace-agent/config/remote",
+        "//comp/core/delegatedauth/def",
         "//comp/core/ipc/def",
         "//comp/core/secrets/def",
         "//comp/core/tagger/def",

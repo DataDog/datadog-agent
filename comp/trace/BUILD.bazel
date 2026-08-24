@@ -10,11 +10,14 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/trace",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/delegatedauth/def",
+        "//comp/core/delegatedauth/noop-impl",
         "//comp/trace/agent/fx",
         "//comp/trace/agent/fx-mock",
         "//comp/trace/config/fx",
         "//comp/trace/config/mock",
         "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
