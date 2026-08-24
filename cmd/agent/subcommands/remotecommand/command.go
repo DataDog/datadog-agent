@@ -74,6 +74,7 @@ func Prepare(root *cobra.Command, args []string) error {
 	if !ok {
 		return errors.New("remote command was not initialized")
 	}
+	applyRootFlags(args, globalParams.(*command.GlobalParams))
 	return fxutil.OneShot(func(_ log.Component, _ config.Component, ipc ipc.Component) error {
 		grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
 		ctx := context.Background()
@@ -108,6 +109,51 @@ func Prepare(root *cobra.Command, args []string) error {
 	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams.(*command.GlobalParams))), core.Bundle(), ipcfx.ModuleReadOnly())
 }
 
+func applyRootFlags(args []string, params *command.GlobalParams) {
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		if arg == "remote" {
+			break
+		}
+		name, value, hasValue := strings.Cut(arg, "=")
+		if !hasValue && index+1 < len(args) {
+			value = args[index+1]
+		}
+		switch name {
+		case "--cfgpath", "-c":
+			if hasValue || index+1 < len(args) {
+				params.ConfFilePath = value
+				if !hasValue {
+					index++
+				}
+			}
+		case "--extracfgpath", "-E":
+			if hasValue || index+1 < len(args) {
+				params.ExtraConfFilePath = append(params.ExtraConfFilePath, value)
+				if !hasValue {
+					index++
+				}
+			}
+		case "--sysprobecfgpath":
+			if hasValue || index+1 < len(args) {
+				params.SysProbeConfFilePath = value
+				if !hasValue {
+					index++
+				}
+			}
+		case "--fleetcfgpath":
+			if hasValue || index+1 < len(args) {
+				params.FleetPoliciesDirPath = value
+				if !hasValue {
+					index++
+				}
+			}
+		case "--no-color", "-n":
+			params.NoColor = true
+		}
+	}
+}
+
 func remoteCommand(root *cobra.Command, args []string) (*cobra.Command, bool) {
 	resolved, _, err := root.Find(args)
 	return resolved, err == nil && resolved.Name() == "remote"
@@ -131,7 +177,7 @@ func AttachCommandProviders(remote *cobra.Command, providers []*pb.CommandProvid
 			SilenceUsage: true,
 		}
 		for _, providerCommand := range provider.GetCommands() {
-			if err := addCommand(providerCmd, provider.GetName(), nil, providerCommand, execute); err != nil {
+			if err := addCommand(providerCmd, provider.GetName(), nil, nil, providerCommand, execute); err != nil {
 				return err
 			}
 		}
@@ -140,7 +186,7 @@ func AttachCommandProviders(remote *cobra.Command, providers []*pb.CommandProvid
 	return nil
 }
 
-func addCommand(parent *cobra.Command, providerName string, parentPath []string, definition *pb.Command, execute ExecuteFunc) error {
+func addCommand(parent *cobra.Command, providerName string, parentPath []string, inheritedParameters []*pb.CommandParameter, definition *pb.Command, execute ExecuteFunc) error {
 	if definition == nil {
 		return nil
 	}
@@ -168,9 +214,10 @@ func addCommand(parent *cobra.Command, providerName string, parentPath []string,
 		}
 	}
 	commandPath := append(append([]string{}, parentPath...), name)
+	parameters := append(append([]*pb.CommandParameter{}, inheritedParameters...), definition.GetParameters()...)
 	if definition.GetIsRunnable() {
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
-			arguments, err := argumentsForCommand(cmd, args, definition.GetParameters())
+			arguments, err := argumentsForCommand(cmd, args, parameters)
 			if err != nil {
 				return err
 			}
@@ -178,7 +225,7 @@ func addCommand(parent *cobra.Command, providerName string, parentPath []string,
 		}
 	}
 	for _, child := range definition.GetChildren() {
-		if err := addCommand(cmd, providerName, commandPath, child, execute); err != nil {
+		if err := addCommand(cmd, providerName, commandPath, parameters, child, execute); err != nil {
 			return err
 		}
 	}
@@ -212,30 +259,38 @@ func renderFrame(frame *pb.ExecuteCommandResponse, stdout, stderr io.Writer) err
 
 func addFlag(cmd *cobra.Command, parameter *pb.CommandParameter) error {
 	name, shorthand, usage := parameter.GetName(), parameter.GetShortName(), parameter.GetHelper()
+	flags := cmd.Flags()
+	if parameter.GetIsPersistent() {
+		flags = cmd.PersistentFlags()
+	}
 	switch parameter.GetType() {
 	case pb.ParameterType_TYPE_INT:
-		cmd.Flags().IntP(name, shorthand, 0, usage)
+		flags.IntP(name, shorthand, 0, usage)
 	case pb.ParameterType_TYPE_UINT:
-		cmd.Flags().UintP(name, shorthand, 0, usage)
+		flags.UintP(name, shorthand, 0, usage)
 	case pb.ParameterType_TYPE_FLOAT:
-		cmd.Flags().Float64P(name, shorthand, 0, usage)
+		flags.Float64P(name, shorthand, 0, usage)
 	case pb.ParameterType_TYPE_BOOL:
-		cmd.Flags().BoolP(name, shorthand, false, usage)
+		flags.BoolP(name, shorthand, false, usage)
 	case pb.ParameterType_TYPE_STRING_SLICE:
-		cmd.Flags().StringSliceP(name, shorthand, nil, usage)
+		flags.StringSliceP(name, shorthand, nil, usage)
 	case pb.ParameterType_TYPE_INT_SLICE:
-		cmd.Flags().IntSliceP(name, shorthand, nil, usage)
+		flags.IntSliceP(name, shorthand, nil, usage)
 	case pb.ParameterType_TYPE_UINT_SLICE:
-		cmd.Flags().UintSliceP(name, shorthand, nil, usage)
+		flags.UintSliceP(name, shorthand, nil, usage)
 	case pb.ParameterType_TYPE_FLOAT_SLICE:
-		cmd.Flags().Float64SliceP(name, shorthand, nil, usage)
+		flags.Float64SliceP(name, shorthand, nil, usage)
 	case pb.ParameterType_TYPE_STRING:
-		cmd.Flags().StringP(name, shorthand, "", usage)
+		flags.StringP(name, shorthand, "", usage)
 	default:
 		return fmt.Errorf("unsupported parameter type %s", parameter.GetType())
 	}
 	if parameter.GetRequired() {
-		_ = cmd.MarkFlagRequired(name)
+		if parameter.GetIsPersistent() {
+			_ = cmd.MarkPersistentFlagRequired(name)
+		} else {
+			_ = cmd.MarkFlagRequired(name)
+		}
 	}
 	return nil
 }

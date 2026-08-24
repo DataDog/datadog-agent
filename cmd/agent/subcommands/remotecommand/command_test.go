@@ -34,6 +34,16 @@ func TestPrepareFxDependencies(t *testing.T) {
 	})
 }
 
+func TestApplyRootFlags(t *testing.T) {
+	params := &command.GlobalParams{}
+	applyRootFlags([]string{"--cfgpath", "/tmp/config", "--extracfgpath=extra.yaml", "--sysprobecfgpath", "/tmp/sysprobe", "--fleetcfgpath=/tmp/fleet", "--no-color", "remote", "fixture", "--provider-flag"}, params)
+	require.Equal(t, "/tmp/config", params.ConfFilePath)
+	require.Equal(t, []string{"extra.yaml"}, params.ExtraConfFilePath)
+	require.Equal(t, "/tmp/sysprobe", params.SysProbeConfFilePath)
+	require.Equal(t, "/tmp/fleet", params.FleetPoliciesDirPath)
+	require.True(t, params.NoColor)
+}
+
 func TestRemoteCommandDetectionDoesNotSelectOtherCommands(t *testing.T) {
 	root := &cobra.Command{Use: "agent"}
 	root.AddCommand(Commands(&command.GlobalParams{})...)
@@ -82,6 +92,30 @@ func TestAttachCommandProvidersBuildsNestedTreeAndPassesTypedFlags(t *testing.T)
 	require.Equal(t, []string{"dogstatsd", "top"}, gotPath)
 	require.Equal(t, float64(7), gotArguments["num-metrics"])
 	require.Equal(t, true, gotArguments["include-inactive"])
+}
+
+func TestAttachCommandProvidersForwardsInheritedPersistentFlag(t *testing.T) {
+	remote := Commands(&command.GlobalParams{})[0]
+	var gotArguments map[string]any
+	providers := []*pb.CommandProvider{{
+		Name: "fixture-agent",
+		Commands: []*pb.Command{{
+			Name:       "diagnostics",
+			Parameters: []*pb.CommandParameter{{Name: "region", Type: pb.ParameterType_TYPE_STRING, IsFlag: true, IsPersistent: true}},
+			Children:   []*pb.Command{{Name: "inspect", IsRunnable: true}},
+		}},
+	}}
+	require.NoError(t, AttachCommandProviders(remote, providers, func(_ string, _ []string, arguments *structpb.Struct, _, _ io.Writer) error {
+		gotArguments = map[string]any{}
+		for key, value := range arguments.GetFields() {
+			gotArguments[key] = value.AsInterface()
+		}
+		return nil
+	}))
+
+	remote.SetArgs([]string{"fixture-agent", "diagnostics", "inspect", "--region", "us-east-1"})
+	require.NoError(t, remote.Execute())
+	require.Equal(t, "us-east-1", gotArguments["region"])
 }
 
 func TestAttachCommandProvidersRendersResponseAndReturnsExitCode(t *testing.T) {
