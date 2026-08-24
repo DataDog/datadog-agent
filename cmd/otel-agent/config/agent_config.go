@@ -14,6 +14,10 @@ import (
 	"strconv"
 	"strings"
 
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
+	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -22,11 +26,6 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/service"
-
-	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
-	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -215,6 +214,111 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	}
 
+	// Apply dogtelextension config and resolve ENC[] secrets only in standalone
+	// mode. In connected mode the core agent owns both settings and secret
+	// resolution; the otel-agent receives already-resolved values via IPC config
+	// sync, so running a local resolver here would fail for backends that are
+	// only accessible to the core agent process.
+	//
+	// This must run before the getDDExporterConfig call below, since a
+	// standalone config without a Datadog exporter (a supported shape) makes
+	// that call return early via ErrNoDDExporter — none of this is derived
+	// from the exporter config, so it must not be skipped just because there
+	// is no exporter.
+	if pkgconfig.GetBool("otel_standalone") {
+		extcfg, err := getDogtelExtensionConfig(cfg)
+		if err != nil {
+			return nil, err
+		}
+		if extcfg != nil {
+			if extcfg.EnableMetadataCollection != nil {
+				pkgconfig.Set("enable_metadata_collection", *extcfg.EnableMetadataCollection, pkgconfigmodel.SourceFile)
+			}
+			// MetadataInterval configures the host metadata provider collection interval.
+			// The host provider reads this from the "metadata_providers" list entry named "host".
+			// Merge into the existing list rather than replacing it wholesale, so that
+			// other providers configured in datadog.yaml (e.g. "resources") are preserved.
+			if extcfg.MetadataInterval > 0 {
+				existing := pkgconfig.Get("metadata_providers")
+				var providers []map[string]interface{}
+				switch ev := existing.(type) {
+				case []map[string]interface{}:
+					providers = ev
+				case []interface{}:
+					// YAML v2 stores maps within sequences as map[interface{}]interface{};
+					// convert each entry to map[string]interface{} before modifying.
+					for _, item := range ev {
+						switch m := item.(type) {
+						case map[string]interface{}:
+							providers = append(providers, m)
+						default:
+							if rv := reflect.ValueOf(item); rv.Kind() == reflect.Map {
+								converted := make(map[string]interface{}, rv.Len())
+								for _, k := range rv.MapKeys() {
+									converted[fmt.Sprintf("%v", k.Interface())] = rv.MapIndex(k).Interface()
+								}
+								providers = append(providers, converted)
+							}
+						}
+					}
+				}
+				found := false
+				for _, p := range providers {
+					if p["name"] == "host" {
+						p["interval"] = extcfg.MetadataInterval
+						found = true
+						break
+					}
+				}
+				if !found {
+					providers = append(providers, map[string]interface{}{
+						"name":     "host",
+						"interval": extcfg.MetadataInterval,
+					})
+				}
+				pkgconfig.Set("metadata_providers", providers, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.Hostname != "" {
+				pkgconfig.Set("hostname", extcfg.Hostname, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.SecretBackendCommand != "" {
+				pkgconfig.Set("secret_backend_command", extcfg.SecretBackendCommand, pkgconfigmodel.SourceFile)
+			}
+			if len(extcfg.SecretBackendArguments) > 0 {
+				pkgconfig.Set("secret_backend_arguments", extcfg.SecretBackendArguments, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.SecretBackendTimeout > 0 {
+				pkgconfig.Set("secret_backend_timeout", extcfg.SecretBackendTimeout, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.SecretBackendOutputMaxSize > 0 {
+				pkgconfig.Set("secret_backend_output_max_size", extcfg.SecretBackendOutputMaxSize, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.KubernetesKubeletHost != "" {
+				pkgconfig.Set("kubernetes_kubelet_host", extcfg.KubernetesKubeletHost, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.KubeletTLSVerify != nil {
+				pkgconfig.Set("kubelet_tls_verify", *extcfg.KubeletTLSVerify, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.KubernetesHTTPKubeletPort > 0 {
+				pkgconfig.Set("kubernetes_http_kubelet_port", extcfg.KubernetesHTTPKubeletPort, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.KubernetesHTTPSKubeletPort > 0 {
+				pkgconfig.Set("kubernetes_https_kubelet_port", extcfg.KubernetesHTTPSKubeletPort, pkgconfigmodel.SourceFile)
+			}
+		}
+
+		// Resolve ENC[] secrets after dogtelextension config is applied so that
+		// secret_backend_command set via extensions.dogtel is visible here.
+		// Check both secret_backend_command (custom script) and secret_backend_type
+		// (native backend via secret-generic-connector, e.g. aws.secrets, k8s.secrets).
+		if pkgconfig.GetString("secret_backend_command") != "" || pkgconfig.GetString("secret_backend_type") != "" {
+			secretResolver := secretsimpl.NewEnabledResolver(noopsimpl.GetCompatComponent())
+			if resolveErr := pkgconfigsetup.ResolveSecrets(pkgconfig, secretResolver, "agent_config"); resolveErr != nil {
+				return nil, fmt.Errorf("failed to resolve secrets: %w", resolveErr)
+			}
+		}
+	}
+
 	ddc, err := getDDExporterConfig(cfg)
 	if err == ErrNoDDExporter {
 		return pkgconfig, err
@@ -340,105 +444,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 				"    - recognized Datadog site (site=%q): %t\n"+
 				"    - no proxy configured: %t\n",
 				ddURL, defaultEndpoint, ddc.API.Site, datadogSite, !proxyConfigured)
-		}
-	}
-
-	// Apply dogtelextension config and resolve ENC[] secrets only in standalone
-	// mode. In connected mode the core agent owns both settings and secret
-	// resolution; the otel-agent receives already-resolved values via IPC config
-	// sync, so running a local resolver here would fail for backends that are
-	// only accessible to the core agent process.
-	if pkgconfig.GetBool("otel_standalone") {
-		extcfg, err := getDogtelExtensionConfig(cfg)
-		if err != nil {
-			return nil, err
-		}
-		if extcfg != nil {
-			if extcfg.EnableMetadataCollection != nil {
-				pkgconfig.Set("enable_metadata_collection", *extcfg.EnableMetadataCollection, pkgconfigmodel.SourceFile)
-			}
-			// MetadataInterval configures the host metadata provider collection interval.
-			// The host provider reads this from the "metadata_providers" list entry named "host".
-			// Merge into the existing list rather than replacing it wholesale, so that
-			// other providers configured in datadog.yaml (e.g. "resources") are preserved.
-			if extcfg.MetadataInterval > 0 {
-				existing := pkgconfig.Get("metadata_providers")
-				var providers []map[string]interface{}
-				switch ev := existing.(type) {
-				case []map[string]interface{}:
-					providers = ev
-				case []interface{}:
-					// YAML v2 stores maps within sequences as map[interface{}]interface{};
-					// convert each entry to map[string]interface{} before modifying.
-					for _, item := range ev {
-						switch m := item.(type) {
-						case map[string]interface{}:
-							providers = append(providers, m)
-						default:
-							if rv := reflect.ValueOf(item); rv.Kind() == reflect.Map {
-								converted := make(map[string]interface{}, rv.Len())
-								for _, k := range rv.MapKeys() {
-									converted[fmt.Sprintf("%v", k.Interface())] = rv.MapIndex(k).Interface()
-								}
-								providers = append(providers, converted)
-							}
-						}
-					}
-				}
-				found := false
-				for _, p := range providers {
-					if p["name"] == "host" {
-						p["interval"] = extcfg.MetadataInterval
-						found = true
-						break
-					}
-				}
-				if !found {
-					providers = append(providers, map[string]interface{}{
-						"name":     "host",
-						"interval": extcfg.MetadataInterval,
-					})
-				}
-				pkgconfig.Set("metadata_providers", providers, pkgconfigmodel.SourceFile)
-			}
-			if extcfg.Hostname != "" {
-				pkgconfig.Set("hostname", extcfg.Hostname, pkgconfigmodel.SourceFile)
-			}
-			if extcfg.SecretBackendCommand != "" {
-				pkgconfig.Set("secret_backend_command", extcfg.SecretBackendCommand, pkgconfigmodel.SourceFile)
-			}
-			if len(extcfg.SecretBackendArguments) > 0 {
-				pkgconfig.Set("secret_backend_arguments", extcfg.SecretBackendArguments, pkgconfigmodel.SourceFile)
-			}
-			if extcfg.SecretBackendTimeout > 0 {
-				pkgconfig.Set("secret_backend_timeout", extcfg.SecretBackendTimeout, pkgconfigmodel.SourceFile)
-			}
-			if extcfg.SecretBackendOutputMaxSize > 0 {
-				pkgconfig.Set("secret_backend_output_max_size", extcfg.SecretBackendOutputMaxSize, pkgconfigmodel.SourceFile)
-			}
-			if extcfg.KubernetesKubeletHost != "" {
-				pkgconfig.Set("kubernetes_kubelet_host", extcfg.KubernetesKubeletHost, pkgconfigmodel.SourceFile)
-			}
-			if extcfg.KubeletTLSVerify != nil {
-				pkgconfig.Set("kubelet_tls_verify", *extcfg.KubeletTLSVerify, pkgconfigmodel.SourceFile)
-			}
-			if extcfg.KubernetesHTTPKubeletPort > 0 {
-				pkgconfig.Set("kubernetes_http_kubelet_port", extcfg.KubernetesHTTPKubeletPort, pkgconfigmodel.SourceFile)
-			}
-			if extcfg.KubernetesHTTPSKubeletPort > 0 {
-				pkgconfig.Set("kubernetes_https_kubelet_port", extcfg.KubernetesHTTPSKubeletPort, pkgconfigmodel.SourceFile)
-			}
-		}
-
-		// Resolve ENC[] secrets after dogtelextension config is applied so that
-		// secret_backend_command set via extensions.dogtel is visible here.
-		// Check both secret_backend_command (custom script) and secret_backend_type
-		// (native backend via secret-generic-connector, e.g. aws.secrets, k8s.secrets).
-		if pkgconfig.GetString("secret_backend_command") != "" || pkgconfig.GetString("secret_backend_type") != "" {
-			secretResolver := secretsimpl.NewEnabledResolver(noopsimpl.GetCompatComponent())
-			if resolveErr := pkgconfigsetup.ResolveSecrets(pkgconfig, secretResolver, "agent_config"); resolveErr != nil {
-				return nil, fmt.Errorf("failed to resolve secrets: %w", resolveErr)
-			}
 		}
 	}
 

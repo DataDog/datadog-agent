@@ -807,6 +807,39 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_NoDogtelExtension() {
 	assert.Equal(t, "", c.GetString("kubernetes_kubelet_host"))
 }
 
+// TestDogtelExtensionConfig_StandaloneNoDDExporter verifies that dogtelextension
+// config (hostname, metadata interval, kubelet settings, secret backend) and
+// ENC[] secret resolution are still applied in standalone mode even when the
+// OTel Collector config has no datadog exporter — NewConfigComponent returns
+// ErrNoDDExporter, but that must not skip config that doesn't come from the
+// exporter section.
+func (suite *ConfigTestSuite) TestDogtelExtensionConfig_StandaloneNoDDExporter() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_no_dd_exporter.yaml"})
+	require.ErrorIs(t, err, ErrNoDDExporter)
+	require.NotNil(t, c)
+
+	assert.Equal(t, true, c.GetBool("enable_metadata_collection"))
+	assert.Equal(t, "my-standalone-host", c.Get("hostname"))
+	assert.Equal(t, "/usr/local/bin/secret-provider", c.Get("secret_backend_command"))
+	assert.Equal(t, []string{"--timeout", "30"}, c.GetStringSlice("secret_backend_arguments"))
+	assert.Equal(t, 60, c.GetInt("secret_backend_timeout"))
+	assert.Equal(t, 8192, c.GetInt("secret_backend_output_max_size"))
+	assert.Equal(t, "10.0.0.1", c.Get("kubernetes_kubelet_host"))
+	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
+	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
+	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
+
+	providers := c.Get("metadata_providers")
+	require.NotNil(t, providers)
+	providerList, ok := providers.([]map[string]interface{})
+	require.True(t, ok)
+	require.Len(t, providerList, 1)
+	assert.Equal(t, "host", providerList[0]["name"])
+	assert.Equal(t, 600, providerList[0]["interval"])
+}
+
 // TestDogtelExtensionConfig_ConnectedModeIgnored verifies that dogtelextension
 // config is NOT applied when otel_standalone is false (connected mode).
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_ConnectedModeIgnored() {

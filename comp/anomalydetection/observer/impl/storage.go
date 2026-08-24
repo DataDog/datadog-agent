@@ -1638,6 +1638,43 @@ func (s *timeSeriesStorage) ForEachPoint(
 	return true
 }
 
+// ForEachLastPoints calls fn for up to n of the newest points with timestamp
+// <= end. Like ForEachPoint, it snapshots points under the read lock and runs
+// the callback outside the lock. The Series pointer is valid only during fn.
+func (s *timeSeriesStorage) ForEachLastPoints(
+	ref observer.SeriesRef, end int64, n int, agg Aggregate,
+	fn func(*observer.Series, observer.Point),
+) bool {
+	if n <= 0 {
+		return false
+	}
+
+	bufp := pointBufPool.Get().(*[]observer.Point)
+	buf := *bufp
+
+	s.mu.RLock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		s.mu.RUnlock()
+		*bufp = buf
+		pointBufPool.Put(bufp)
+		return false
+	}
+	endIndex := searchAfter(stats.timestamps, end)
+	startIndex := max(0, endIndex-n)
+	series := observer.Series{Namespace: stats.Namespace, Name: stats.Name, Tags: stats.Tags}
+	buf = snapshotPoints(stats, startIndex, endIndex, agg, buf)
+	s.mu.RUnlock()
+
+	for _, p := range buf {
+		fn(&series, p)
+	}
+
+	*bufp = buf
+	pointBufPool.Put(bufp)
+	return true
+}
+
 // SumRange returns the aggregate total over the time range (start, end] without
 // allocating any intermediate slices. It operates directly on the columnar
 // data arrays, using binary search to locate the range boundaries.
@@ -1700,24 +1737,29 @@ func (s *timeSeriesStorage) snapshotRange(
 
 	lo := searchAfter(stats.timestamps, start)
 	hi := searchAfter(stats.timestamps, end)
-	n := hi - lo
-
-	if cap(buf) >= n {
-		buf = buf[:n]
-	} else {
-		buf = make([]observer.Point, n)
-	}
-
-	for i := 0; i < n; i++ {
-		buf[i] = observer.Point{
-			Timestamp: stats.timestamps[lo+i],
-			Value:     stats.aggregateAt(lo+i, agg),
-		}
-	}
+	buf = snapshotPoints(stats, lo, hi, agg, buf)
 
 	return observer.Series{
 		Namespace: stats.Namespace,
 		Name:      stats.Name,
 		Tags:      stats.Tags,
 	}, buf, true
+}
+
+// snapshotPoints copies [lo, hi) from stats into buf. The caller must hold
+// stats' storage read lock.
+func snapshotPoints(stats *seriesStats, lo, hi int, agg Aggregate, buf []observer.Point) []observer.Point {
+	n := hi - lo
+	if cap(buf) >= n {
+		buf = buf[:n]
+	} else {
+		buf = make([]observer.Point, n)
+	}
+	for i := range buf {
+		buf[i] = observer.Point{
+			Timestamp: stats.timestamps[lo+i],
+			Value:     stats.aggregateAt(lo+i, agg),
+		}
+	}
+	return buf
 }
