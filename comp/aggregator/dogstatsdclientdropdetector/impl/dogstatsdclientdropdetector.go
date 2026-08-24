@@ -49,15 +49,6 @@ type clientByteStats struct {
 	droppedWriter float64
 }
 
-// pendingTransition identifies a state change awaiting continuous confirmation.
-type pendingTransition uint8
-
-const (
-	noPendingTransition pendingTransition = iota
-	pendingUnhealthy
-	pendingRecovery
-)
-
 type component struct {
 	stats          clientByteStats
 	logger         log.Component
@@ -72,8 +63,9 @@ type component struct {
 	issueNeedsRefresh bool
 	// staleIssueIDs remain active until migration or confirmed recovery succeeds.
 	staleIssueIDs []string
-	pending       pendingTransition
-	pendingSince  time.Time
+	// confirmationPending means unhealthy confirmation when inactive and recovery when active.
+	confirmationPending bool
+	pendingSince        time.Time
 	// pendingStats accumulates the unhealthy windows used to construct a new issue.
 	pendingStats                  clientByteStats
 	unhealthyConfirmationDuration time.Duration
@@ -161,8 +153,8 @@ func (d *component) handleUnhealthyWindow(stats clientByteStats) {
 	}
 
 	now := d.now()
-	if d.pending != pendingUnhealthy {
-		d.pending = pendingUnhealthy
+	if !d.confirmationPending {
+		d.confirmationPending = true
 		d.pendingSince = now
 		d.pendingStats = stats
 		return
@@ -187,8 +179,8 @@ func (d *component) handleHealthyWindow() {
 	}
 
 	now := d.now()
-	if d.pending != pendingRecovery {
-		d.pending = pendingRecovery
+	if !d.confirmationPending {
+		d.confirmationPending = true
 		d.pendingSince = now
 		d.pendingStats = clientByteStats{}
 		return
@@ -203,7 +195,7 @@ func (d *component) handleHealthyWindow() {
 }
 
 func (d *component) resetPendingTransition() {
-	d.pending = noPendingTransition
+	d.confirmationPending = false
 	d.pendingSince = time.Time{}
 	d.pendingStats = clientByteStats{}
 }
