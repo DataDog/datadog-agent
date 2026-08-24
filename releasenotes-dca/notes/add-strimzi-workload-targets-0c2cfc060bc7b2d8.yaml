@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    ``DatadogInstrumentation`` checks and logs configurations can now target
+    Strimzi ``StrimziPodSet`` workloads.

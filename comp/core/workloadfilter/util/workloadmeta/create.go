@@ -83,7 +83,7 @@ func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner, podLabels map[st
 			return &core.FilterRootOwner{Kind: kubernetes.CronJobKind, Name: cronjob}
 		}
 		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind:
+	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.StrimziPodSetKind:
 		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
 	default:
 		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
