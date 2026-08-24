@@ -1984,7 +1984,11 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "nstype": {
                     "type": "string",
-                    "description": "Requested namespace types, ANY when the syscall let the kernel infer the type"
+                    "description": "Namespace types requested by the caller, ANY when the syscall let the kernel infer the type"
+                },
+                "effective_nstype": {
+                    "type": "string",
+                    "description": "Namespace types the kernel actually installed, omitted if it couldn't be resolved"
                 },
                 "mntns": {
                     "type": "integer",
@@ -5590,7 +5594,11 @@ ancestor lineage to find the same value. |
         },
         "nstype": {
             "type": "string",
-            "description": "Requested namespace types, ANY when the syscall let the kernel infer the type"
+            "description": "Namespace types requested by the caller, ANY when the syscall let the kernel infer the type"
+        },
+        "effective_nstype": {
+            "type": "string",
+            "description": "Namespace types the kernel actually installed, omitted if it couldn't be resolved"
         },
         "mntns": {
             "type": "integer",
@@ -5615,7 +5623,8 @@ ancestor lineage to find the same value. |
 | Field | Description |
 | ----- | ----------- |
 | `fd` | File descriptor of the namespace the thread requested to join |
-| `nstype` | Requested namespace types, ANY when the syscall let the kernel infer the type |
+| `nstype` | Namespace types requested by the caller, ANY when the syscall let the kernel infer the type |
+| `effective_nstype` | Namespace types the kernel actually installed, omitted if it couldn't be resolved |
 | `mntns` | Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
 | `netns` | Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
 

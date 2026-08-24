@@ -2142,6 +2142,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 			} else {
 				out.NSType = string(in.String())
 			}
+		case "effective_nstype":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.EffectiveNSType = string(in.String())
+			}
 		case "mntns":
 			if in.IsNull() {
 				in.Skip()
@@ -2177,6 +2183,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 		const prefix string = ",\"nstype\":"
 		out.RawString(prefix)
 		out.String(string(in.NSType))
+	}
+	if in.EffectiveNSType != "" {
+		const prefix string = ",\"effective_nstype\":"
+		out.RawString(prefix)
+		out.String(string(in.EffectiveNSType))
 	}
 	if in.MntNS != 0 {
 		const prefix string = ",\"mntns\":"
@@ -6743,7 +6754,11 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers35(
 				if out.SetNSEventSerializer == nil {
 					out.SetNSEventSerializer = new(SetNSEventSerializer)
 				}
-				easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(in, out.SetNSEventSerializer)
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					(*out.SetNSEventSerializer).UnmarshalEasyJSON(in)
+				}
 			}
 		case "socket":
 			if in.IsNull() {
@@ -7182,7 +7197,7 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers35(
 		} else {
 			out.RawString(prefix)
 		}
-		easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(out, *in.SetNSEventSerializer)
+		(*in.SetNSEventSerializer).MarshalEasyJSON(out)
 	}
 	if in.SocketEventSerializer != nil {
 		const prefix string = ",\"socket\":"
