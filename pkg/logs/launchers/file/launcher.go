@@ -578,6 +578,7 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 
 // stopTailer stops the tailer
 func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
+	s.fingerprinter.ForgetOpenFlagsUnsupported(tailer.GetID(), tailer.Path())
 	go tailer.Stop()
 	s.tailers.Remove(tailer)
 }

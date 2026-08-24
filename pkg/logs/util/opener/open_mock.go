@@ -11,11 +11,15 @@ import (
 	"fmt"
 
 	"github.com/spf13/afero"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // MockFileOpener is a mock implementation of the opener.Opener interface
 type MockFileOpener struct {
 	MockedFiles map[string]*MockFile
+	OpenCalls   [][]types.FileOpenFlag
+	OpenErrors  []error
 }
 
 // NewMockFileOpener creates a new MockFileOpener
@@ -41,6 +45,23 @@ func (m *MockFileOpener) OpenShared(path string) (afero.File, error) {
 
 // OpenLogFile returns the specified mock file or an error if the file was not added to the mock opener.
 func (m *MockFileOpener) OpenLogFile(path string) (afero.File, error) {
+	return m.openLogFile(path, nil)
+}
+
+// OpenLogFileWithFlags records the requested flags and returns the specified mock file.
+func (m *MockFileOpener) OpenLogFileWithFlags(path string, openFlags []types.FileOpenFlag) (afero.File, error) {
+	return m.openLogFile(path, openFlags)
+}
+
+func (m *MockFileOpener) openLogFile(path string, openFlags []types.FileOpenFlag) (afero.File, error) {
+	m.OpenCalls = append(m.OpenCalls, append([]types.FileOpenFlag(nil), openFlags...))
+	if len(m.OpenErrors) > 0 {
+		err := m.OpenErrors[0]
+		m.OpenErrors = m.OpenErrors[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
 	file, ok := m.MockedFiles[path]
 	if !ok {
 		return nil, fmt.Errorf("file not found: [ %s ]", path)

@@ -478,6 +478,12 @@ func (t *Tailer) GetID() string {
 	return t.file.GetScanKey()
 }
 
+// Path returns the path of the file being tailed. For container sources this
+// differs from GetID, which suffixes the path with the container identifier.
+func (t *Tailer) Path() string {
+	return t.file.Path
+}
+
 // GetType returns the tailer type
 func (t *Tailer) GetType() string {
 	return "file"

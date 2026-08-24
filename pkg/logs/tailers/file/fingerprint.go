@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"hash/crc64"
 	"io"
+	"runtime"
+	"strings"
+	"sync"
 
 	"github.com/spf13/afero"
 
@@ -49,12 +52,29 @@ type Fingerprinter interface {
 	ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error)
 	// GetEffectiveConfigForFile returns the fingerprint configuration that applies to a file for status display purposes
 	GetEffectiveConfigForFile(file *File) *types.FingerprintConfig
+	// ForgetOpenFlagsUnsupported drops memoized open-flag fallback state for the
+	// given memo keys. A file is memoized under both its tailer scan key and its
+	// path (see the openFlagsUnsupported field), so the file launcher passes both.
+	ForgetOpenFlagsUnsupported(memoKeys ...string)
 }
 
 // fingerprinterImpl is a struct that contains the fingerprinting configuration
 type fingerprinterImpl struct {
 	globalConfig types.FingerprintConfig
 	fileOpener   opener.FileOpener
+	// openFlagsUnsupported records memo keys whose configured open_flags could not
+	// be used, whether because the filesystem rejected them or because the Agent
+	// cannot open that file directly. Recorded keys skip straight to a buffered
+	// open instead of retrying a failing one, and being recorded doubles as the
+	// dedupe for the one-time fallback warning.
+	//
+	// ComputeFingerprint keys by scan key so distinct tailers on the same path
+	// (e.g. container rotation) do not share state. ComputeFingerprintFromConfig
+	// keys by path because the registry identifier has no container suffix. Those
+	// two keys differ for container sources, so the file launcher must forget both
+	// when it stops a tailer; otherwise the path key would outlive every tailer
+	// and the map would grow with container churn.
+	openFlagsUnsupported sync.Map
 }
 
 // FingerprintConfigInfo holds fingerprint configuration for status display
@@ -103,7 +123,7 @@ func (f *fingerprinterImpl) ComputeFingerprintFromConfig(filepath string, finger
 	if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
 		return newInvalidFingerprint(fingerprintConfig), nil
 	}
-	return f.computeFingerprint(filepath, fingerprintConfig)
+	return f.computeFingerprintAtPath(filepath, fingerprintConfig)
 }
 
 // ComputeFingerprint computes the fingerprint for the given file path
@@ -127,6 +147,7 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 			Count:               fileFingerprintConfig.Count,
 			CountToSkip:         fileFingerprintConfig.CountToSkip,
 			MaxBytes:            fileFingerprintConfig.MaxBytes,
+			OpenFlags:           append([]types.FileOpenFlag(nil), fileFingerprintConfig.OpenFlags...),
 			Source:              types.FingerprintConfigSourcePerSource,
 		}
 
@@ -134,17 +155,25 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 			return newInvalidFingerprint(fingerprintConfig), nil
 		}
 
-		return f.computeFingerprint(file.Path, fingerprintConfig)
+		return f.computeFingerprintForFile(file, fingerprintConfig)
 	}
 
 	// If per-source config exists but no strategy is set, or no per-source config exists,
 	// fall back to global config
-	return f.computeFingerprint(file.Path, &f.globalConfig)
+	return f.computeFingerprintForFile(file, &f.globalConfig)
 }
 
 // ComputeFingerprintFromHandle computes the fingerprint for the given os.File using the provided config.
 // Note that the providedconfiguration can fallback to different default configuration if specific errors occur attempting to compute the fingerprint.
 func (f *fingerprinterImpl) ComputeFingerprintFromHandle(osFile afero.File, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+	return f.computeFingerprintFromHandle(osFile, fingerprintConfig, nil)
+}
+
+// computeFingerprintFromHandle backs ComputeFingerprintFromHandle.
+// appliedOpenFlags is the subset of configured open_flags actually used to open
+// osFile (nil when the handle was opened buffered). Read errors that mean
+// "retry without flags" are silenced so the caller can fall back cleanly.
+func (f *fingerprinterImpl) computeFingerprintFromHandle(osFile afero.File, fingerprintConfig *types.FingerprintConfig, appliedOpenFlags []types.FileOpenFlag) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
 		return newInvalidFingerprint(nil), nil
 	}
@@ -160,34 +189,95 @@ func (f *fingerprinterImpl) ComputeFingerprintFromHandle(osFile afero.File, fing
 	strategy := fingerprintConfig.FingerprintStrategy
 	switch strategy {
 	case types.FingerprintStrategyLineChecksum:
-		return computeFingerPrintByLines(osFile, filePath, fingerprintConfig)
+		return computeFingerPrintByLines(osFile, filePath, fingerprintConfig, appliedOpenFlags)
 	case types.FingerprintStrategyByteChecksum:
-		return computeFingerPrintByBytes(osFile, filePath, fingerprintConfig)
+		return computeFingerPrintByBytes(osFile, filePath, fingerprintConfig, appliedOpenFlags)
 	default:
 		log.Warnf("invalid fingerprint strategy %q for file %q, using default lines strategy", strategy, filePath)
 		// Default to line_checksum if no strategy is specified
-		return computeFingerPrintByLines(osFile, filePath, defaultLinesConfig)
+		return computeFingerPrintByLines(osFile, filePath, defaultLinesConfig, appliedOpenFlags)
 	}
 }
 
-// computeFingerprint computes the fingerprint for the given file path
-func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+// computeFingerprintAtPath fingerprints filePath. Used when only the path is
+// known (registry position recovery); memoization is keyed by path as well.
+func (f *fingerprinterImpl) computeFingerprintAtPath(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+	return f.computeFingerprintWithMemoKey(filePath, filePath, fingerprintConfig)
+}
+
+// computeFingerprintForFile fingerprints file.Path, memoizing open-flag fallback
+// under the tailer scan key so distinct tailers on the same path stay isolated.
+func (f *fingerprinterImpl) computeFingerprintForFile(file *File, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+	return f.computeFingerprintWithMemoKey(file.GetScanKey(), file.Path, fingerprintConfig)
+}
+
+// computeFingerprintWithMemoKey opens openPath and memoizes open-flag fallback
+// under memoKey. The keys differ for container tailers (scan key vs path).
+func (f *fingerprinterImpl) computeFingerprintWithMemoKey(memoKey, openPath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
 		return newInvalidFingerprint(nil), nil
 	}
 
-	fpFile, err := f.fileOpener.OpenLogFile(filePath)
+	openFlags := fingerprintConfig.OpenFlags
+	useOpenFlags := fingerprintOpenFlagsActive(openFlags)
+	if useOpenFlags {
+		if _, unsupported := f.openFlagsUnsupported.Load(memoKey); unsupported {
+			// The configured open_flags already proved unusable for this tailer; skip
+			// the doomed flagged open and read buffered.
+			useOpenFlags = false
+		}
+	}
+
+	flagsToUse := openFlags
+	if !useOpenFlags {
+		flagsToUse = nil
+	}
+
+	fingerprint, err := f.computeFingerprintOnce(openPath, fingerprintConfig, flagsToUse)
+	if !useOpenFlags || err == nil || !opener.IsOpenFlagsUnsupportedError(err) {
+		return fingerprint, err
+	}
+
+	if _, loaded := f.openFlagsUnsupported.LoadOrStore(memoKey, struct{}{}); !loaded {
+		// Applies when a filesystem rejects the flags or the Agent cannot open the
+		// file directly with them; keep the wording about the cause neutral.
+		log.Warnf(
+			"fingerprint open_flags are not usable for %q; falling back to buffered reads for this file: %v",
+			openPath,
+			err,
+		)
+	}
+	return f.computeFingerprintOnce(openPath, fingerprintConfig, nil)
+}
+
+func (f *fingerprinterImpl) computeFingerprintOnce(filePath string, fingerprintConfig *types.FingerprintConfig, openFlags []types.FileOpenFlag) (*types.Fingerprint, error) {
+	var fpFile afero.File
+	var err error
+	if fingerprintOpenFlagsActive(openFlags) {
+		fpFile, err = f.fileOpener.OpenLogFileWithFlags(filePath, openFlags)
+	} else {
+		fpFile, err = f.fileOpener.OpenLogFile(filePath)
+	}
 	if err != nil {
-		log.Warnf("could not open file for fingerprinting %s: %v", filePath, err)
+		if shouldWarnFingerprintReadError(openFlags, err) {
+			log.Warnf("could not open file for fingerprinting %s: %v", filePath, err)
+		}
 		return newInvalidFingerprint(fingerprintConfig), err
 	}
 	defer fpFile.Close()
 
-	return f.ComputeFingerprintFromHandle(fpFile, fingerprintConfig)
+	return f.computeFingerprintFromHandle(fpFile, fingerprintConfig, openFlags)
+}
+
+// fingerprintOpenFlagsActive reports whether configured open_flags should be
+// applied for this fingerprint open. They are Linux-only; other platforms use
+// OpenLogFile and ignore the configured flags.
+func fingerprintOpenFlagsActive(openFlags []types.FileOpenFlag) bool {
+	return len(openFlags) > 0 && runtime.GOOS == "linux"
 }
 
 // computeFingerPrintByBytes computes fingerprint using byte-based approach for a given file path
-func computeFingerPrintByBytes(fpFile afero.File, filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+func computeFingerPrintByBytes(fpFile afero.File, filePath string, fingerprintConfig *types.FingerprintConfig, appliedOpenFlags []types.FileOpenFlag) (*types.Fingerprint, error) {
 	bytesToSkip := fingerprintConfig.CountToSkip
 	maxBytes := fingerprintConfig.Count
 	// Skip the configured number of bytes
@@ -204,7 +294,9 @@ func computeFingerPrintByBytes(fpFile afero.File, filePath string, fingerprintCo
 	buffer := make([]byte, maxBytes)
 	bytesRead, err := io.ReadFull(fpFile, buffer)
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-		log.Warnf("Failed to read bytes for fingerprint %q: %v", filePath, err)
+		if shouldWarnFingerprintReadError(appliedOpenFlags, err) {
+			log.Warnf("Failed to read bytes for fingerprint %q: %v", filePath, err)
+		}
 		return newInvalidFingerprint(fingerprintConfig), err
 	}
 
@@ -220,7 +312,7 @@ func computeFingerPrintByBytes(fpFile afero.File, filePath string, fingerprintCo
 }
 
 // computeFingerPrintByLines computes fingerprint using line-based approach for a given file path
-func computeFingerPrintByLines(fpFile afero.File, filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+func computeFingerPrintByLines(fpFile afero.File, filePath string, fingerprintConfig *types.FingerprintConfig, appliedOpenFlags []types.FileOpenFlag) (*types.Fingerprint, error) {
 	linesToSkip := fingerprintConfig.CountToSkip
 	maxLines := fingerprintConfig.Count
 	maxBytes := fingerprintConfig.MaxBytes
@@ -255,11 +347,13 @@ func computeFingerPrintByLines(fpFile afero.File, filePath string, fingerprintCo
 					log.Warnf("Error %s occurred while trying to reset file offset", err)
 					return newInvalidFingerprint(fingerprintConfig), err
 				}
-				return computeFingerPrintByBytes(fpFile, filePath, defaultBytesConfig)
+				return computeFingerPrintByBytes(fpFile, filePath, defaultBytesConfig, appliedOpenFlags)
 			}
 			// Handle scanner errors
 			if err := scanner.Err(); err != nil {
-				log.Warnf("Error while reading file for fingerprint %q: %v", filePath, err)
+				if shouldWarnFingerprintReadError(appliedOpenFlags, err) {
+					log.Warnf("Error while reading file for fingerprint %q: %v", filePath, err)
+				}
 				return newInvalidFingerprint(fingerprintConfig), err
 			}
 			// Check if we have enough data for fingerprinting
@@ -272,6 +366,26 @@ func computeFingerPrintByLines(fpFile afero.File, filePath string, fingerprintCo
 	// Compute fingerprint
 	checksum := crc64.Checksum(buffer, crc64Table)
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
+}
+
+// shouldWarnFingerprintReadError reports whether a fingerprint read/open error
+// is worth logging. When appliedOpenFlags is non-empty, an "unsupported flags"
+// error is expected and handled by a buffered retry, so it is silenced.
+func shouldWarnFingerprintReadError(appliedOpenFlags []types.FileOpenFlag, err error) bool {
+	return len(appliedOpenFlags) == 0 || !opener.IsOpenFlagsUnsupportedError(err)
+}
+
+// ForgetOpenFlagsUnsupported drops memoized open-flag fallback state for the given
+// memo keys so the next fingerprint can retry the configured flags. The file launcher
+// passes both the tailer scan key and the file path when it stops a tailer; the two
+// are the same string for non-container sources.
+func (f *fingerprinterImpl) ForgetOpenFlagsUnsupported(memoKeys ...string) {
+	for _, memoKey := range memoKeys {
+		if memoKey == "" {
+			continue
+		}
+		f.openFlagsUnsupported.Delete(memoKey)
+	}
 }
 
 // GetEffectiveConfigForFile returns the fingerprint configuration that applies to a file
@@ -291,6 +405,7 @@ func (f *fingerprinterImpl) GetEffectiveConfigForFile(file *File) *types.Fingerp
 			Count:               fileFingerprintConfig.Count,
 			CountToSkip:         fileFingerprintConfig.CountToSkip,
 			MaxBytes:            fileFingerprintConfig.MaxBytes,
+			OpenFlags:           append([]types.FileOpenFlag(nil), fileFingerprintConfig.OpenFlags...),
 			Source:              types.FingerprintConfigSourcePerSource,
 		}
 	}
@@ -339,6 +454,13 @@ func (f *FingerprintConfigInfo) Info() []string {
 
 	if f.config.FingerprintStrategy == types.FingerprintStrategyLineChecksum {
 		info = append(info, fmt.Sprintf("MaxBytes: %d", f.config.MaxBytes))
+	}
+	if len(f.config.OpenFlags) > 0 {
+		flags := make([]string, len(f.config.OpenFlags))
+		for i, openFlag := range f.config.OpenFlags {
+			flags[i] = string(openFlag)
+		}
+		info = append(info, "OpenFlags: "+strings.Join(flags, ","))
 	}
 
 	return info

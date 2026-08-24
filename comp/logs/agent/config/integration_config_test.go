@@ -290,6 +290,87 @@ func TestFingerprintConfig(t *testing.T) {
 	}
 }
 
+func TestFingerprintOpenFlagsDecode(t *testing.T) {
+	cfg := decode(`{"type":"file","path":"/var/log/app.log","fingerprint_config":{"fingerprint_strategy":"byte_checksum","count":2048,"open_flags":["direct"]}}`)
+	require.NotNil(t, cfg.FingerprintConfig)
+	assert.Equal(t, []types.FileOpenFlag{types.FileOpenFlagDirect}, cfg.FingerprintConfig.OpenFlags)
+}
+
+func TestValidateFingerprintOpenFlags(t *testing.T) {
+	// Validation is platform-independent on purpose: open_flags only take effect
+	// on Linux, but they stay valid everywhere so one config is portable.
+	tests := []struct {
+		name      string
+		openFlags []types.FileOpenFlag
+		strategy  types.FingerprintStrategy
+		wantError string
+	}{
+		{
+			name:      "direct with byte_checksum",
+			openFlags: []types.FileOpenFlag{types.FileOpenFlagDirect},
+			strategy:  types.FingerprintStrategyByteChecksum,
+		},
+		{
+			name:      "direct with line_checksum",
+			openFlags: []types.FileOpenFlag{types.FileOpenFlagDirect},
+			strategy:  types.FingerprintStrategyLineChecksum,
+		},
+		{
+			name:      "no flags",
+			openFlags: nil,
+			strategy:  types.FingerprintStrategyByteChecksum,
+		},
+		{
+			name:      "unknown flag",
+			openFlags: []types.FileOpenFlag{"truncate"},
+			strategy:  types.FingerprintStrategyByteChecksum,
+			wantError: "only direct",
+		},
+		{
+			name:      "sync is rejected",
+			openFlags: []types.FileOpenFlag{"sync"},
+			strategy:  types.FingerprintStrategyByteChecksum,
+			wantError: "only direct",
+		},
+		{
+			name:      "duplicate flag",
+			openFlags: []types.FileOpenFlag{types.FileOpenFlagDirect, types.FileOpenFlagDirect},
+			strategy:  types.FingerprintStrategyByteChecksum,
+			wantError: "duplicate flag",
+		},
+		{
+			name:      "disabled fingerprinting",
+			openFlags: []types.FileOpenFlag{types.FileOpenFlagDirect},
+			strategy:  types.FingerprintStrategyDisabled,
+			wantError: "fingerprinting is disabled",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateFingerprintOpenFlags(test.openFlags, test.strategy)
+			if test.wantError == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.wantError)
+		})
+	}
+}
+
+func TestFingerprintOpenFlagsRequireFileSource(t *testing.T) {
+	cfg := &LogsConfig{
+		Type: TCPType,
+		Port: 1234,
+		FingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+			Count:               2048,
+			OpenFlags:           []types.FileOpenFlag{types.FileOpenFlagDirect},
+		},
+	}
+	require.ErrorContains(t, cfg.Validate(), "only supported for file sources")
+}
+
 func TestValidateTLSConfig(t *testing.T) {
 	t.Run("valid TLS with cert and key", func(t *testing.T) {
 		cfg := &LogsConfig{

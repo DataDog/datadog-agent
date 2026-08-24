@@ -112,3 +112,6 @@ func (f *FingerprinterMock) ComputeFingerprintFromHandle(osFile afero.File, _ *t
 	}
 	return nil, fmt.Errorf("no fingerprint set for file %s", osFile.Name())
 }
+
+// ForgetOpenFlagsUnsupported is a no-op for the mock implementation.
+func (f *FingerprinterMock) ForgetOpenFlagsUnsupported(...string) {}
