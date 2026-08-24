@@ -1,7 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:exclude data_scrubber_test.go
 # gazelle:go_test file
 
 go_library(
@@ -9,7 +8,6 @@ go_library(
     srcs = [
         "data_scrubber.go",
         "data_scrubber_fallback.go",
-        "data_scrubber_test.go",  # keep
         "data_scrubber_windows.go",
         "dirent_linux.go",
         "option_unsupported.go",
@@ -154,7 +152,10 @@ dd_agent_go_test(
 
 dd_agent_go_test(
     name = "data_scrubber_fallback_test",
-    srcs = ["data_scrubber_fallback_test.go"],
+    srcs = [
+        "data_scrubber_fallback_test.go",
+        "data_scrubber_test.go",  # keep
+    ],
     data = glob(["testdata/**"]),
     embed = [":procutil"],
     deps = select({
@@ -219,4 +220,12 @@ dd_agent_go_test(
         ],
         "//conditions:default": [],
     }),
+)
+
+dd_agent_go_test(
+    name = "data_scrubber_test",
+    srcs = ["data_scrubber_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )
