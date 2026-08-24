@@ -428,9 +428,7 @@ func (ra *remoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.Execu
 		return grpcStatus.Errorf(codes.NotFound, "no remote command provider found for provider name %q", providerName)
 	}
 
-	callCtx, cancel := context.WithTimeout(ctx, ra.conf.GetDuration("remote_agent.registry.query_timeout"))
-	defer cancel()
-	stream, err := target.client.ExecuteCommand(callCtx, req, grpc.WaitForReady(true))
+	stream, err := target.client.ExecuteCommand(ctx, req, grpc.WaitForReady(true))
 	if err != nil {
 		return err
 	}
