@@ -2084,6 +2084,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Unshare, eventType, offset, dataLen, data) {
 			return false
 		}
+	case model.SetNSEventType:
+		if !p.regularUnmarshalEvent(&event.SetNS, eventType, offset, dataLen, data) {
+			return false
+		}
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false

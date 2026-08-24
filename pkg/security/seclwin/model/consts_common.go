@@ -735,6 +735,7 @@ func initConstants() {
 	initSetSockOptOptNameConstantsIPv6()
 	initRlimitConstants()
 	initCloneFlagsConstants()
+	initNamespaceTypeConstants()
 	initABIConstants()
 	initArchitectureConstants()
 	initCompressionTypeConstants()

@@ -701,6 +701,19 @@ type UnshareEventSerializer struct {
 	Flags []string `json:"flags,omitempty"`
 }
 
+// SetNSEventSerializer serializes a setns event
+// easyjson:json
+type SetNSEventSerializer struct {
+	// File descriptor of the namespace the thread requested to join
+	FD int `json:"fd"`
+	// Requested namespace types, ANY when the syscall let the kernel infer the type
+	NSType string `json:"nstype"`
+	// Mount namespace ID of the thread once the syscall returned
+	MntNS uint32 `json:"mntns,omitempty"`
+	// Network namespace ID of the thread once the syscall returned
+	NetNS uint32 `json:"netns,omitempty"`
+}
+
 // CGroupWriteEventSerializer serializes a cgroup_write event
 // easyjson:json
 type CGroupWriteEventSerializer struct {
@@ -865,6 +878,7 @@ type EventSerializer struct {
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
+	*SetNSEventSerializer         `json:"setns,omitempty"`
 	*SocketEventSerializer        `json:"socket,omitempty"`
 	*UnshareEventSerializer       `json:"unshare,omitempty"`
 }
@@ -1638,6 +1652,15 @@ func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
 	}
 }
 
+func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
+	return &SetNSEventSerializer{
+		FD:     e.SetNS.FD,
+		NSType: model.NamespaceType(e.SetNS.NSType).String(),
+		MntNS:  e.SetNS.MntNS,
+		NetNS:  e.SetNS.NetNS,
+	}
+}
+
 func newSocketEventSerializer(e *model.Event) *SocketEventSerializer {
 	return &SocketEventSerializer{
 		Domain:   model.SocketDomain(e.Socket.Domain).String(),
@@ -1975,6 +1998,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SetrlimitEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Setrlimit.Retval)
 		s.SetrlimitEventSerializer = newSetrlimitEventSerializer(event)
+	case model.SetNSEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.SetNS.Retval)
+		s.SetNSEventSerializer = newSetNSEventSerializer(event)
 	case model.SocketEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
 		s.SocketEventSerializer = newSocketEventSerializer(event)
