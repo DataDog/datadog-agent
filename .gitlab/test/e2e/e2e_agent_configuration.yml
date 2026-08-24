@@ -1,6 +1,6 @@
 ---
-# e2e stage - agent-configuration and remote-config owned jobs
-# Owned by: agent-configuration, remote-config, agent-devx
+# e2e stage - agent configuration and remote configuration jobs
+# Owned by: agent-configuration, fleet-automation, fleet-remediation, remote-config, agent-devx
 
 .on_rc_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
