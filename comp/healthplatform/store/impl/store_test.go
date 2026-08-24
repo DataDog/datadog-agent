@@ -122,7 +122,7 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		persistence:      &memPersistence{},
 		metrics: telemetryMetrics{
 			issuesCounter: tel.NewCounter(
-				"health_platform", "issues_detected", []string{"issue_type"}, ""),
+				"health_platform", "issues_detected", []string{"issue_type", "severity"}, ""),
 		},
 	}
 }
@@ -504,7 +504,7 @@ func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
 
 func TestTelemetryCounterIncrements(t *testing.T) {
 	tel := telemetrymock.New(t)
-	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type"}, "")
+	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type", "severity"}, "")
 	h := &healthPlatformImpl{
 		log:              logmock.New(t),
 		telemetry:        tel,
@@ -520,7 +520,7 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	assert.Equal(t, 1.0, counter.WithValues("t").Get())
+	assert.Equal(t, 1.0, counter.WithValues("t", "ISSUE_SEVERITY_UNSPECIFIED").Get())
 }
 
 func TestGetActiveIssueIDsByIssueName(t *testing.T) {

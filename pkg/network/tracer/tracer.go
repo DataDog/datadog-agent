@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package tracer
 
@@ -491,6 +491,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 // RegisterClient registers a clientID with the tracer
 func (t *Tracer) RegisterClient(clientID string) error {
 	t.state.RegisterClient(clientID)
+	return nil
+}
+
+// GetProcessCacheTags is not implemented on Linux
+func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
 	return nil
 }
 

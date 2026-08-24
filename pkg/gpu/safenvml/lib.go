@@ -81,6 +81,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetMigDeviceHandleByIndex"),
 		toNativeName("GetMigMode"),
 		toNativeName("GetNvLinkState"),
+		toNativeName("GetNvLinkVersion"),
 		toNativeName("GetNumFans"),
 		toNativeName("GetPciInfo"),
 		toNativeName("GetPcieThroughput"),
@@ -119,6 +120,13 @@ type nvmlSafety interface {
 	// gpmUnlock unlocks the GPM mutex. Despite NVIDIA documentation, the GPM API is not thread safe.
 	// We need to unlock the mutex to allow other threads to access the GPM API.
 	gpmUnlock()
+
+	// fieldValuesLock locks the field values mutex. Similarly to GPM, the field values API is not thread safe
+	// despite docs saying that NVML is thread safe.
+	fieldValuesLock()
+	// fieldValuesUnlock unlocks the field values mutex. Similarly to GPM, the field values API is not thread safe
+	// despite docs saying that NVML is thread safe.
+	fieldValuesUnlock()
 }
 
 // SafeNVML represents a safe wrapper around NVML library operations.
@@ -149,10 +157,11 @@ type SafeNVML interface {
 }
 
 type safeNvml struct {
-	lib          nvml.Interface
-	mu           sync.Mutex
-	gpmMutex     sync.Mutex
-	capabilities map[string]struct{}
+	lib              nvml.Interface
+	mu               sync.Mutex
+	gpmMutex         sync.Mutex
+	fieldValuesMutex sync.Mutex
+	capabilities     map[string]struct{}
 }
 
 func toNativeName(symbol string) string {
@@ -173,6 +182,14 @@ func (s *safeNvml) gpmLock() {
 
 func (s *safeNvml) gpmUnlock() {
 	s.gpmMutex.Unlock()
+}
+
+func (s *safeNvml) fieldValuesLock() {
+	s.fieldValuesMutex.Lock()
+}
+
+func (s *safeNvml) fieldValuesUnlock() {
+	s.fieldValuesMutex.Unlock()
 }
 
 // SystemGetDriverVersion returns the Nvidia driver version
@@ -436,8 +453,10 @@ func GetSafeNvmlLib() (SafeNVML, error) {
 // is imported by nearly every binary in the repo.
 func generateDefaultNvmlPaths() []string {
 	systemPaths := []string{
-		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
-		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                    // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",  // nvidia-gpu-operator install
+		"/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",                   // default system install on ARM64
+		"/run/nvidia/driver/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install on ARM64
 	}
 
 	hostRoot := os.Getenv("HOST_ROOT")

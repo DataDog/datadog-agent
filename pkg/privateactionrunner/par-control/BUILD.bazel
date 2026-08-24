@@ -1,0 +1,64 @@
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+
+_LINUX_OR_WINDOWS = select({
+    "@platforms//os:linux": [],
+    "@platforms//os:windows": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+rust_library(
+    name = "par-control-lib",
+    srcs = [
+        "src/config.rs",
+        "src/lib.rs",
+        "src/platform.rs",
+        "src/procmgr.rs",
+        "src/test_support.rs",
+    ],
+    crate_name = "par_control",
+    edition = "2024",
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/procmgr/rust/client:dd-procmgr-client",
+        "@crates//:anyhow",
+        "@crates//:log",
+        "@crates//:serde",
+        "@crates//:serde_yaml",
+        "@crates//:tokio",
+        "@crates//:tonic",
+    ] + select({
+        "@platforms//os:windows": [
+            "@crates//:windows-registry",
+            "@crates//:windows-sys",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+rust_binary(
+    name = "par-control",
+    srcs = ["src/bins/par-control.rs"],
+    edition = "2024",
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":par-control-lib",
+        "//comp/core/log/rust:dd-agent-log",
+        "@crates//:anyhow",
+        "@crates//:clap",
+        "@crates//:log",
+        "@crates//:tokio",
+    ],
+)
+
+rust_test(
+    name = "par-control_test",
+    crate = ":par-control-lib",
+    edition = "2024",
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    deps = [
+        "@crates//:tempfile",
+        "@crates//:tokio-stream",
+    ],
+)

@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 exports_files([
     "c_types_linux.go",
@@ -28,24 +29,45 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",
-        "//pkg/config/setup",
-        "//pkg/ebpf",
-        "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/maps",
-        "//pkg/util/kernel",
-        "//pkg/util/log",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_cilium_ebpf//asm",
-        "@com_github_cilium_ebpf//btf",
-        "@com_github_cilium_ebpf//features",
-        "@com_github_cilium_ebpf//link",
-        "@com_github_cilium_ebpf//rlimit",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@org_golang_x_exp//constraints",
-        "@org_golang_x_sys//unix",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",
+            "//pkg/config/setup",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/maps",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//features",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_golang_x_exp//constraints",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",
+            "//pkg/config/setup",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/maps",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//features",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_golang_x_exp//constraints",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # c_types_linux_test.go and probe_test.go must be in separate rules because
@@ -54,12 +76,11 @@ go_library(
 # Both targets share importpath "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 # and cannot coexist in the same rule's deps.
 
-go_test(
+dd_agent_go_test(
     name = "ebpfcheck_types_test",
     # keep: split from ebpfcheck_test; see comment above.
     srcs = ["c_types_linux_test.go"],
     embed = [":ebpfcheck"],
-    gotags = ["test"],
     # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
     deps = select({
         "@rules_go//go/platform:linux": ["//pkg/ebpf/ebpftest:cgo_align"],
@@ -67,17 +88,14 @@ go_test(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "ebpfcheck_test",
     # keep: split from ebpfcheck_types_test; see comment above.
     srcs = ["probe_test.go"],
     data = glob(["testdata/**"]),
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
-    tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
+    embed = [":ebpfcheck"],
+    gotags_sets = [["bpf"]],
+    tags = ["requires_ebpf"],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",

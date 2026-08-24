@@ -305,7 +305,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		issuesCounter: reqs.Telemetry.NewCounter(
 			"health_platform",
 			"issues_detected",
-			[]string{"issue_type"},
+			[]string{"issue_type", "severity"},
 			"Number of health issues detected",
 		),
 	}
@@ -617,7 +617,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	issueID := issue.Id
 	now := time.Now().Format(time.RFC3339)
 	issue.DetectedAt = now
-	h.metrics.issuesCounter.Add(1, issueType)
+	h.metrics.issuesCounter.Add(1, issueType, issue.Severity.String())
 
 	h.issuesByName[issueType] = appendUnique(h.issuesByName[issueType], issueID)
 

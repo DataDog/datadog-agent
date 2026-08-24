@@ -19,6 +19,8 @@ go_library(
         "//comp/otelcol/otlp/components/exporter/datadogexporter",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
+        "//pkg/config/utils",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//featuregates",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
@@ -32,11 +34,15 @@ go_library(
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["agent_config_test.go"],
+    srcs = [
+        "agent_config_test.go",
+        "compression_consistency_test.go",
+    ],
     data = glob(["testdata/**"]),
     embed = [":config"],
     deps = [
         "//pkg/config/mock",
+        "//pkg/util/compression",
         "//pkg/util/defaultpaths",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

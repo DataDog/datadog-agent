@@ -16,7 +16,7 @@ def generate(ctx, pre_commit=False):
     old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
     old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
 
-    bazel(ctx, "run", "//:write_all")
+    bazel("run", "//:write_all")
 
     # Check the generated files were properly committed
     current_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))

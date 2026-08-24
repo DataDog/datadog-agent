@@ -190,9 +190,9 @@ registering once covers reconcile and admission.
 
 - `admission_controller.enabled` **and** `admission_controller.validation.enabled`
   must be true; the controller start path bails otherwise.
-- `instrumentation_crd_controller.enabled` (default `false`,
-  `pkg/config/setup/common_settings.go`) gates the webhook and related node-agent
-  wiring.
+- `instrumentation_crd_controller.enabled` (default `false`, declared in
+  `pkg/config/schema/yaml/core_schema.yaml`) gates the webhook and related
+  node-agent wiring.
 - The controller starts only after the DDI CRD exists in the cluster
   (`waitForInstrumentationCRD` retries with backoff; a missing CRD is not fatal).
 
