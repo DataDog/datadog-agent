@@ -143,6 +143,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	nonBlockingErrors = append(nonBlockingErrors, confErrs...)
 
 	var inventoryEntries []ncmreport.InventoryEntry
+	var inventorySnapshotTaken bool
 	timeSinceInventory := startTime.Sub(n.getLastInventoryTime())
 	hasStore := n.store != nil
 	if !hasStore {
@@ -159,15 +160,17 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		inventoryEntries, err = n.buildInventoryReport()
 		if err != nil {
 			log.Errorf("skipping inventory report due to error: %v", err)
+		} else {
+			inventorySnapshotTaken = true
 		}
 	}
-	if len(configs)+len(inventoryEntries) > 0 {
+	if len(configs) > 0 || inventorySnapshotTaken {
 		log.Debugf("Sending NCM payload with %d configs and %d inventory entries", len(configs), len(inventoryEntries))
-		err := sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, n.clock.Now().Unix()))
+		err := sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, inventorySnapshotTaken, n.clock.Now().Unix()))
 		if err != nil {
 			log.Warnf("Failed to send payload to backend: %v", err)
 			nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrPayloadSendFailed, "failed to send payload to backend: %w", err))
-		} else if len(inventoryEntries) > 0 {
+		} else if inventorySnapshotTaken {
 			n.setLastInventoryTime(n.clock.Now())
 		}
 	} else {
