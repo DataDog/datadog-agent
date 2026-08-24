@@ -143,6 +143,11 @@ type ntmConfig struct {
 	// message. This map is used to keep track of already emitted errors
 	setWarnings map[string]bool
 
+	// Tracks whether the int64<->int Set() conversion has already warned once; later keys hitting it
+	// log at DEBUG instead. Scoped to int64<->int since that's the conversion dominating fleet-wide
+	// noise; other conversions still warn every time.
+	setTypeWarnings map[string]bool
+
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
 
@@ -249,11 +254,18 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the value to the type of the default
 	if declaredNode.IsLeafNode() {
 		if converted, err := basic.ConvertToDefaultType(newValue, declaredNode.Get(), false); err == nil {
-			if ok := c.setWarnings[key]; !ok {
-				if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
+			if ok := c.setWarnings[key]; !ok && reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
+				typePair := fmt.Sprintf("%T->%T", newValue, converted)
+				isIntWidthConversion := typePair == "int64->int" || typePair == "int->int64"
+				if isIntWidthConversion && c.setTypeWarnings[typePair] {
+					log.Debugf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+				} else {
 					log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
-					c.setWarnings[key] = true
+					if isIntWidthConversion {
+						c.setTypeWarnings[typePair] = true
+					}
 				}
+				c.setWarnings[key] = true
 			}
 			newValue = converted
 		}
@@ -1240,6 +1252,7 @@ func NewNodeTreeConfig(name string, envPrefix string, _ *strings.Replacer) model
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
 		setWarnings:        map[string]bool{},
+		setTypeWarnings:    map[string]bool{},
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
