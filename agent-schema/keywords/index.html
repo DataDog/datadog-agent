@@ -4834,29 +4834,56 @@ the environment (JSON, maps, ...).</p>
 </span></code></pre></div>
 <hr />
 <h3 id="renamed_from"><code>renamed_from</code><a class="headerlink" href="#renamed_from" title="Permanent link">&para;</a></h3>
-<blockquote>
-<p><strong>Note:</strong> [WIP] Not yet implemented. The migration behaviour described below is planned.</p>
-</blockquote>
-<p>Lists previous names this setting was known by.</p>
+<p>Maps every previous name this setting was known by to the Agent version that deprecated that name. Each key is a former
+<strong>fully qualified</strong> name (dotted full path from the root of the config).</p>
 <ul>
 <li><strong>Available on:</strong> setting nodes only.</li>
 <li><strong>Mandatory:</strong> no.</li>
-<li><strong>Validation:</strong> must be a list of strings.</li>
+<li><strong>Validation:</strong> must be a non-empty mapping. Keys are non-empty strings; values are quoted, full semantic Agent
+  versions (for example <code>"7.71.0"</code>). Two former names of the same setting cannot share a version.</li>
 </ul>
-<p>When a setting has <code>renamed_from</code>, the config system looks for any of the
-previous names and migrates the value automatically. Previous names take
-priority over the canonical name when both are present. A deprecation warning
-is emitted at runtime whenever a previous name is used.</p>
-<p>This provides a single, consistent mechanism for setting renames across all
-teams, replacing ad-hoc solutions that previously produced inconsistent
-behaviour.</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">target_traces_per_second</span><span class="p">:</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setting</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">number</span>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="nt">renamed_from</span><span class="p">:</span>
-</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">max_traces_per_second</span>
+<p>When a setting has <code>renamed_from</code>, the config system looks for any of the previous names in YAML and env vars and
+migrates the value to the new name automatically. Previous names take priority over the canonical name when both are
+present. A deprecation warning is emitted at runtime whenever a previous name is used. Previous names are sorted by
+Agent version in which they were deprecated (oldest to newest).</p>
+<p>The code base <strong>MUST</strong> use the new name only. The old name is no longer accessible through the config but can still be
+used by customer in their configuration or env vars.</p>
+<p>This provides a single, consistent mechanism for setting renames across all teams, replacing ad-hoc solutions that
+previously produced inconsistent behaviour.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">apm_config</span><span class="p">:</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">section</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">object</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="nt">properties</span><span class="p">:</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="nt">target_traces_per_second</span><span class="p">:</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">      </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setting</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">number</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">      </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">      </span><span class="nt">renamed_from</span><span class="p">:</span>
+</span><span id="__span-15-11"><a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="w">        </span><span class="nt">apm_config.max_traces_per_second</span><span class="p">:</span><span class="w"> </span><span class="s">"7.71.0"</span>
 </span></code></pre></div>
+<p>A setting renamed more than once lists every former name with the version that deprecated it:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="w">    </span><span class="nt">target_traces_per_second</span><span class="p">:</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">      </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setting</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">number</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">      </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">      </span><span class="nt">renamed_from</span><span class="p">:</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">        </span><span class="c1"># Settings can be moved from one section into another</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">        </span><span class="c1"># Here the setting was moved from 'experimental.apm_config' into 'apm_config'</span>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="w">        </span><span class="nt">experimental.apm_config.max_traces_per_second</span><span class="p">:</span><span class="w"> </span><span class="s">"7.60.0"</span>
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="w">        </span><span class="c1"># Even if the settting stays in the same section the full</span>
+</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="w">        </span><span class="c1"># dotted name must be used</span>
+</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="w">        </span><span class="nt">apm_config.max_tps</span><span class="p">:</span><span class="w"> </span><span class="s">"7.71.0"</span>
+</span></code></pre></div>
+<blockquote>
+<p><strong>Note:</strong> if no <code>env_vars</code> are specified the agent will generate the correct ones from
+the name and all the deprecated ones. A warning will be emited if any deprecated env vars are used.</p>
+<p>But, similar to BindEnvAndSetDefault, if <code>env_vars</code> is set for a setting, no extra env vars are generated and no warning will be
+emited. When renaming a setting with <code>env_vars</code> you <strong>MUST</strong> properly maintain the <code>env_vars</code> list. Remember that
+<code>env_vars</code> are sorted from highest to lowest priority.</p>
+</blockquote>
 <hr />
 <h3 id="tags"><code>tags</code><a class="headerlink" href="#tags" title="Permanent link">&para;</a></h3>
 <p>An arbitrary list of strings for metadata. Used by internal tooling to slice
@@ -4867,10 +4894,10 @@ and filter settings — for example, to produce different variants of
 <li><strong>Mandatory:</strong> no.</li>
 <li><strong>Validation:</strong> must be a list of strings.</li>
 </ul>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">internal_profiling</span><span class="p">:</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">section</span>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">tags</span><span class="p">:</span>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">internal_template_section:profiling</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">internal_profiling</span><span class="p">:</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">section</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">tags</span><span class="p">:</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">internal_template_section:profiling</span>
 </span></code></pre></div>
 <p>Existing tags:</p>
 <ul>
@@ -4899,15 +4926,15 @@ and filter settings — for example, to produce different variants of
 <li>The same <code>&lt;name&gt;</code> may be reused on several settings, but they must all share the same default — a
     constant can only have one value.</li>
 </ul>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">security_agent</span><span class="p">:</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">section</span>
-</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">properties</span><span class="p">:</span>
-</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">    </span><span class="nt">cmd_port</span><span class="p">:</span>
-</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">      </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setting</span>
-</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
-</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">      </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5010</span>
-</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">      </span><span class="nt">tags</span><span class="p">:</span>
-</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">generate_const:DefaultSecurityAgentCmdPort</span><span class="w">   </span><span class="c1"># emits: DefaultSecurityAgentCmdPort = 5010</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">security_agent</span><span class="p">:</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">section</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span><span class="nt">properties</span><span class="p">:</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">    </span><span class="nt">cmd_port</span><span class="p">:</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">      </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setting</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
+</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="w">      </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5010</span>
+</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">      </span><span class="nt">tags</span><span class="p">:</span>
+</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">generate_const:DefaultSecurityAgentCmdPort</span><span class="w">   </span><span class="c1"># emits: DefaultSecurityAgentCmdPort = 5010</span>
 </span></code></pre></div>
 <blockquote>
 <p><strong>Note</strong>: except from <code>template_section</code> and <code>generate_const</code>, all the other tags exists to support legacy behavior
