@@ -1168,6 +1168,7 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			parEnvDict = pulumi.StringMap{}
 			par["envDict"] = parEnvDict
 		}
+		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fi.URL)
 		parEnvDict["DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS"] = pulumi.String("true")
 	}
 
