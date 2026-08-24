@@ -50,6 +50,7 @@ dd_agent_go_test(
         "newcomponent_test.go",
     ],
     embed = [":impl"],
+    gotags_sets = [["ncm"]],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
