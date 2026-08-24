@@ -14,8 +14,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -32,6 +32,11 @@ type StorageConfig struct {
 	// Points older than (latest timestamp - PointRetentionSecs) are trimmed
 	// on each Add. 0 disables trimming.
 	PointRetentionSecs int64
+
+	// MaxPointsPerSeries is the maximum number of processable points retained
+	// for a series. Storage keeps one additional pending scheduler bucket.
+	// Zero disables count-based trimming.
+	MaxPointsPerSeries int
 
 	// InactiveSeriesTTLSeconds is how long a non-telemetry series may remain
 	// inactive before an engine advance evicts it. 0 disables inactivity eviction.
@@ -338,7 +343,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	// Collision guard: verify full identity (namespace + name + sorted tags).
 	if exists && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonTags)) {
 		// Hash collision — extremely rare with FNV-64a (~10^-14 at 1000 series).
-		pkglog.Warnf("[observer] seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
+		logging.Warnf("seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
 			h, stats.Namespace, stats.Name, namespace, name)
 		exists = false
 		for _, st := range s.seriesIDStats {
@@ -423,6 +428,16 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 			stats.maxes = trimFront(stats.maxes, trim)
 		}
 	}
+	if s.cfg.MaxPointsPerSeries > 0 {
+		physicalCapacity := s.cfg.MaxPointsPerSeries + 1
+		if trim := len(stats.timestamps) - physicalCapacity; trim > 0 {
+			stats.timestamps = trimFront(stats.timestamps, trim)
+			stats.sums = trimFront(stats.sums, trim)
+			stats.counts = trimFront(stats.counts, trim)
+			stats.mins = trimFront(stats.mins, trim)
+			stats.maxes = trimFront(stats.maxes, trim)
+		}
+	}
 	return res
 }
 
@@ -463,7 +478,7 @@ func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, v
 	sampled := s.sampledDrops[metricKey]
 	if sampled < 3 {
 		s.sampledDrops[metricKey] = sampled + 1
-		pkglog.Warnf("[observer] dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
+		logging.Warnf("dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
 			reason, namespace, name, value, timestamp, tags, sampled+1)
 	}
 }
@@ -1623,6 +1638,43 @@ func (s *timeSeriesStorage) ForEachPoint(
 	return true
 }
 
+// ForEachLastPoints calls fn for up to n of the newest points with timestamp
+// <= end. Like ForEachPoint, it snapshots points under the read lock and runs
+// the callback outside the lock. The Series pointer is valid only during fn.
+func (s *timeSeriesStorage) ForEachLastPoints(
+	ref observer.SeriesRef, end int64, n int, agg Aggregate,
+	fn func(*observer.Series, observer.Point),
+) bool {
+	if n <= 0 {
+		return false
+	}
+
+	bufp := pointBufPool.Get().(*[]observer.Point)
+	buf := *bufp
+
+	s.mu.RLock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		s.mu.RUnlock()
+		*bufp = buf
+		pointBufPool.Put(bufp)
+		return false
+	}
+	endIndex := searchAfter(stats.timestamps, end)
+	startIndex := max(0, endIndex-n)
+	series := observer.Series{Namespace: stats.Namespace, Name: stats.Name, Tags: stats.Tags}
+	buf = snapshotPoints(stats, startIndex, endIndex, agg, buf)
+	s.mu.RUnlock()
+
+	for _, p := range buf {
+		fn(&series, p)
+	}
+
+	*bufp = buf
+	pointBufPool.Put(bufp)
+	return true
+}
+
 // SumRange returns the aggregate total over the time range (start, end] without
 // allocating any intermediate slices. It operates directly on the columnar
 // data arrays, using binary search to locate the range boundaries.
@@ -1685,24 +1737,29 @@ func (s *timeSeriesStorage) snapshotRange(
 
 	lo := searchAfter(stats.timestamps, start)
 	hi := searchAfter(stats.timestamps, end)
-	n := hi - lo
-
-	if cap(buf) >= n {
-		buf = buf[:n]
-	} else {
-		buf = make([]observer.Point, n)
-	}
-
-	for i := 0; i < n; i++ {
-		buf[i] = observer.Point{
-			Timestamp: stats.timestamps[lo+i],
-			Value:     stats.aggregateAt(lo+i, agg),
-		}
-	}
+	buf = snapshotPoints(stats, lo, hi, agg, buf)
 
 	return observer.Series{
 		Namespace: stats.Namespace,
 		Name:      stats.Name,
 		Tags:      stats.Tags,
 	}, buf, true
+}
+
+// snapshotPoints copies [lo, hi) from stats into buf. The caller must hold
+// stats' storage read lock.
+func snapshotPoints(stats *seriesStats, lo, hi int, agg Aggregate, buf []observer.Point) []observer.Point {
+	n := hi - lo
+	if cap(buf) >= n {
+		buf = buf[:n]
+	} else {
+		buf = make([]observer.Point, n)
+	}
+	for i := range buf {
+		buf[i] = observer.Point{
+			Timestamp: stats.timestamps[lo+i],
+			Value:     stats.aggregateAt(lo+i, agg),
+		}
+	}
+	return buf
 }
