@@ -15,7 +15,6 @@
 ## 7.84.0-devel.git.410.f0f79d8-1 (2026-08-24)
 
 - Bundle the `apache` check in the AIX package so operators can monitor Apache HTTP Server (via `mod_status`) without any manual install step.
-- Resolve the Azure App Service runtime on AIX in the trace-agent's `traceutil`. The `getRuntime` helper only handled `linux` and `darwin` in its Linux code path, so on AIX it returned `unknown`.
 - Build the embedded OpenSSL with `-blibpath` pointing at the embedded library directory so the `openssl` CLI works when invoked directly from a plain shell. Previously it failed with `Dependent module /usr/lib/libssl.a(libssl64.so.3) could not be loaded` unless `LIBPATH` was set manually.
 
 ---
