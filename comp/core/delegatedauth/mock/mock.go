@@ -69,17 +69,11 @@ func (m *Mock) AddInstance(ctx context.Context, params delegatedauth.InstancePar
 	}
 
 	p := delegatedauth.Provider(PendingProvider{})
-	configKey := params.AdditionalEndpointsConfigKey
-	if configKey == "" {
-		configKey = params.AdditionalEndpointsListConfigKey
-	}
-	if configKey == "" {
-		configKey = params.APIKeyConfigKey
-	}
 	if m.providers == nil {
 		m.providers = map[[2]string][]delegatedauth.Provider{}
 	}
-	key := [2]string{configKey, params.Destination}
+	configKey, destination := params.ProviderKey()
+	key := [2]string{configKey, destination}
 	m.providers[key] = append(m.providers[key], p)
 	return p, nil
 }

@@ -432,14 +432,8 @@ func (d *delegatedAuthComponent) deliverAPIKey(instance *authInstance, apiKey st
 
 // registerProvider indexes a provider so consumers constructed after discovery can find it.
 func (d *delegatedAuthComponent) registerProvider(params delegatedauth.InstanceParams, p delegatedauth.Provider) {
-	configKey := params.AdditionalEndpointsConfigKey
-	if configKey == "" {
-		configKey = params.AdditionalEndpointsListConfigKey
-	}
-	if configKey == "" {
-		configKey = params.APIKeyConfigKey
-	}
-	key := providerKey{configKey: configKey, destination: params.Destination}
+	configKey, destination := params.ProviderKey()
+	key := providerKey{configKey: configKey, destination: destination}
 
 	d.mu.Lock()
 	defer d.mu.Unlock()

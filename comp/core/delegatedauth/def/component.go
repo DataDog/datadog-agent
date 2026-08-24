@@ -109,10 +109,32 @@ type InstanceParams struct {
 	// appearing in config for the same destination.
 	SkipConfigWriteback bool
 
+	// ConfigKey is the setting the credential belongs to (e.g. "additional_endpoints"), forming
+	// the other half of the Component.ProvidersFor lookup. Leave it empty for a flat key, where
+	// APIKeyConfigKey already identifies the slot.
+	ConfigKey string
+
 	// Destination identifies what this credential is for, so consumers can look up the provider
 	// they need via Component.ProvidersFor. For an additional endpoint it is the domain or host;
 	// for a flat key it may be left empty.
 	Destination string
+}
+
+// ProviderKey is the (configKey, destination) pair this instance's Provider is registered under,
+// and the pair a consumer must pass to Component.ProvidersFor to find it. Both the component and
+// its mock derive the key here so they cannot disagree about where a provider lives.
+func (p InstanceParams) ProviderKey() (configKey, destination string) {
+	configKey = p.ConfigKey
+	if configKey == "" {
+		configKey = p.AdditionalEndpointsConfigKey
+	}
+	if configKey == "" {
+		configKey = p.AdditionalEndpointsListConfigKey
+	}
+	if configKey == "" {
+		configKey = p.APIKeyConfigKey
+	}
+	return configKey, p.Destination
 }
 
 // Component manages cloud-based delegated authentication.
