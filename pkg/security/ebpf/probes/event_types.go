@@ -757,6 +757,9 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		"prctl": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, EntryAndExit)},
 		},
+		"setns": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setns", hasFentry, EntryAndExit)},
+		},
 		"tracer_memfd_seal": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "memfd_create", hasFentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
