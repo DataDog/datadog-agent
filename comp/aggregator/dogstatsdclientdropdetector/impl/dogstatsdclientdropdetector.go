@@ -236,9 +236,12 @@ func (d *component) reconcileIssueState() {
 
 func (d *component) reportRestoredIssue() bool {
 	issue, err := dogstatsdclientdrops.BuildRestoredUDSIssue(d.hostname)
-	if err != nil {
-		d.logger.Warnf("failed to rebuild DogStatsD client payload drop health issue after restart: %v", err)
+	if issue == nil {
+		d.logger.Warnf("failed to build restored DogStatsD client payload drop health issue: %v", err)
 		return false
+	}
+	if err != nil {
+		d.logger.Warnf("reporting restored DogStatsD client payload drop health issue without additional diagnostic details: %v", err)
 	}
 	issue.Id = d.issueID
 	if err := d.healthPlatform.ReportIssue(issue); err != nil {
@@ -264,9 +267,12 @@ func (d *component) reportIssue(stats clientByteStats, ratio float64) {
 		BytesDroppedUnclassified:    unclassified,
 		DropReasonBreakdownComplete: breakdownComplete,
 	})
-	if err != nil {
+	if issue == nil {
 		d.logger.Warnf("failed to build DogStatsD client payload drop health issue: %v", err)
 		return
+	}
+	if err != nil {
+		d.logger.Warnf("reporting DogStatsD client payload drop health issue without additional diagnostic details: %v", err)
 	}
 	issue.Id = d.issueID
 	if err := d.healthPlatform.ReportIssue(issue); err != nil {

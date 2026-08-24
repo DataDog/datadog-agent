@@ -67,7 +67,7 @@ func UDSIssueIDForHost(hostUUID, hostname string) string {
 	return fmt.Sprintf("%s:hostname:%s", UDSIssueID, hostname)
 }
 
-// BuildUDSIssue creates a complete Agent Health issue from a confirmed UDS violation.
+// BuildUDSIssue creates an Agent Health issue from a confirmed UDS violation.
 func BuildUDSIssue(context UDSDetectionContext) (*healthplatform.Issue, error) {
 	return buildUDSIssue(context, false)
 }
@@ -116,12 +116,7 @@ func buildUDSIssue(context UDSDetectionContext, restored bool) (*healthplatform.
 		)
 	}
 
-	extra, err := structpb.NewStruct(extraValues)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create DogStatsD client drop issue context: %w", err)
-	}
-
-	return &healthplatform.Issue{
+	issue := &healthplatform.Issue{
 		IssueName:   udsIssueName,
 		IssueType:   udsIssueType,
 		Title:       title,
@@ -130,10 +125,16 @@ func buildUDSIssue(context UDSDetectionContext, restored bool) (*healthplatform.
 		Location:    location,
 		Severity:    severity,
 		Source:      source,
-		Extra:       extra,
 		Tags:        []string{"dogstatsd", "client", "payload-drops", transportFamilyUDS},
 		Remediation: buildUDSRemediation(),
-	}, nil
+	}
+
+	extra, err := structpb.NewStruct(extraValues)
+	if err != nil {
+		return issue, fmt.Errorf("failed to create DogStatsD client drop issue diagnostic details: %w", err)
+	}
+	issue.Extra = extra
+	return issue, nil
 }
 
 func buildUDSRemediation() *healthplatform.Remediation {
