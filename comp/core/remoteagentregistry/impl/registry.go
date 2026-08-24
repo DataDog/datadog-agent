@@ -385,22 +385,44 @@ func grpcErrorMessage(err error) string {
 	return errorString
 }
 
-// ListCommands queries all registered remote agents that advertise the command provider service and returns a
-// slice of AgentCommands, one per agent that responded.
-func (ra *remoteAgentRegistry) ListCommands(ctx context.Context) []remoteagentregistry.AgentCommands {
-	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.ListCommandsResponse, error) {
-		return remoteAgent.ListCommands(ctx, &pb.ListCommandsRequest{}, opts...)
-	}
-	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.ListCommandsResponse, err error) remoteagentregistry.AgentCommands {
-		out := remoteagentregistry.AgentCommands{RegisteredAgent: details}
-		if err != nil {
-			log.Warnf("Failed to list commands from remote agent %q: %v", details.DisplayName, err)
-			return out
+// ListCommands queries the active command provider for each registered command name.
+func (ra *remoteAgentRegistry) ListCommands(ctx context.Context) []*pb.CommandProvider {
+	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
+
+	ra.agentMapMu.Lock()
+	activeProviders := map[string]*remoteAgentClient{}
+	for _, remoteAgent := range ra.agentMap {
+		if !slices.Contains(remoteAgent.services, CommandProviderServiceName) {
+			continue
 		}
-		out.Commands = resp.GetCommands()
-		return out
+		active := activeProviders[remoteAgent.CommandName]
+		if active == nil || remoteAgent.registeredAt.Before(active.registeredAt) {
+			activeProviders[remoteAgent.CommandName] = remoteAgent
+		}
 	}
-	return callAgentsForService(ctx, ra, CommandProviderServiceName, client, processor)
+	ra.agentMapMu.Unlock()
+
+	providers := make([]*pb.CommandProvider, 0, len(activeProviders))
+	for commandName, remoteAgent := range activeProviders {
+		callCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+		var responseHeader metadata.MD
+		response, err := remoteAgent.ListCommands(callCtx, &pb.ListCommandsRequest{}, grpc.WaitForReady(true), grpc.Header(&responseHeader))
+		cancel()
+		if err != nil {
+			log.Warnf("Failed to list commands from remote agent %q: %v", remoteAgent.DisplayName, err)
+			continue
+		}
+		if validationErr := remoteAgent.validateSessionID(responseHeader); validationErr != nil {
+			log.Warnf("Failed to validate command response from remote agent %q: %v", remoteAgent.DisplayName, validationErr)
+			continue
+		}
+		providers = append(providers, &pb.CommandProvider{
+			CommandName:      commandName,
+			AgentDescription: remoteAgent.Description,
+			Commands:         response.GetCommands(),
+		})
+	}
+	return providers
 }
 
 // ExecuteCommand routes a command execution request to the oldest registered command provider for AgentFlavor.

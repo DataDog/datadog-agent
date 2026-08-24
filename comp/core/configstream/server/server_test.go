@@ -82,7 +82,7 @@ func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 	return nil
 }
 
-func (m *mockRemoteAgentRegistry) ListCommands(_ context.Context) []remoteagentregistry.AgentCommands {
+func (m *mockRemoteAgentRegistry) ListCommands(_ context.Context) []*pb.CommandProvider {
 	return nil
 }
 

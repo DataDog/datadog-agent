@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	remotecommand "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remotecommand"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -79,12 +78,7 @@ func TestCommandProviderRegistrationDiscoveryCLIAndExecutionFlow(t *testing.T) {
 	registry.agentMapMu.Unlock()
 
 	remote := remotecommand.Commands(&command.GlobalParams{})[0]
-	activeCommands := findAgentCommands(t, listed, oldest.registeredSessionID)
-	require.NoError(t, remotecommand.AttachCommandProviders(remote, []*pb.CommandProvider{{
-		CommandName:      "fixture-agent",
-		AgentDescription: "Fixture remote command provider",
-		Commands:         activeCommands,
-	}}, func(commandName, commandPath string, arguments *structpb.Struct) error {
+	require.NoError(t, remotecommand.AttachCommandProviders(remote, listed, func(commandName, commandPath string, arguments *structpb.Struct) error {
 		_, err := registry.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{CommandName: commandName, CommandPath: commandPath, Arguments: arguments})
 		return err
 	}))
@@ -107,15 +101,4 @@ func TestCommandProviderRegistrationDiscoveryCLIAndExecutionFlow(t *testing.T) {
 	registry.agentMapMu.Unlock()
 	require.NoError(t, remote.Execute())
 	require.Len(t, newestProvider.requests, 1)
-}
-
-func findAgentCommands(t *testing.T, agents []remoteagentregistry.AgentCommands, sessionID string) []*pb.Command {
-	t.Helper()
-	for _, agent := range agents {
-		if agent.SessionID == sessionID {
-			return agent.Commands
-		}
-	}
-	t.Fatalf("registered agent %q was not discovered", sessionID)
-	return nil
 }

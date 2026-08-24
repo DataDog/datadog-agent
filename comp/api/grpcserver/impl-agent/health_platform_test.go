@@ -44,7 +44,7 @@ func (r *stubRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAge
 
 func (r *stubRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData { return nil }
 
-func (r *stubRegistry) ListCommands(_ context.Context) []remoteagentregistry.AgentCommands {
+func (r *stubRegistry) ListCommands(_ context.Context) []*pb.CommandProvider {
 	return nil
 }
 

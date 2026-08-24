@@ -23,16 +23,9 @@ type Component interface {
 	GetRegisteredAgents() []RegisteredAgent
 	GetRegisteredAgentStatuses() []StatusData
 
-	// ListCommands queries all registered remote agents that advertise the command provider service and returns a
-	// slice of AgentCommands, one per agent that responded.
-	ListCommands(ctx context.Context) []AgentCommands
+	// ListCommands queries the active command provider for each registered command name.
+	ListCommands(ctx context.Context) []*pb.CommandProvider
 
 	// ExecuteCommand routes a command execution request to the remote agent selected by req.CommandName.
 	ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error)
-}
-
-// AgentCommands holds the commands exposed by a single registered remote agent.
-type AgentCommands struct {
-	RegisteredAgent
-	Commands []*pb.Command
 }
