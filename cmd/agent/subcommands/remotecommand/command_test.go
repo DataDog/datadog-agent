@@ -25,6 +25,16 @@ func TestRemoteParentDisplaysHelp(t *testing.T) {
 	require.Empty(t, remote.Commands())
 }
 
+func TestEmptyProviderMessage(t *testing.T) {
+	remote := Commands(&command.GlobalParams{})[0]
+	var output bytes.Buffer
+	remote.SetOut(&output)
+	setEmptyProviderMessage(remote)
+
+	require.NoError(t, remote.Execute())
+	require.Equal(t, "No remote command providers are registered.\n", output.String())
+}
+
 func TestPrepareFxDependencies(t *testing.T) {
 	root := &cobra.Command{Use: "agent"}
 	root.AddCommand(Commands(&command.GlobalParams{})...)

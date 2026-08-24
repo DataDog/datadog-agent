@@ -88,6 +88,10 @@ func Prepare(root *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
+		if len(response.GetProviders()) == 0 {
+			setEmptyProviderMessage(remote)
+			return nil
+		}
 		return AttachCommandProviders(remote, response.GetProviders(), func(providerName string, commandPath []string, arguments *structpb.Struct, stdout, stderr io.Writer) error {
 			stream, err := client.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{ProviderName: providerName, CommandPath: commandPath, Arguments: arguments})
 			if err != nil {
@@ -151,6 +155,13 @@ func applyRootFlags(args []string, params *command.GlobalParams) {
 		case "--no-color", "-n":
 			params.NoColor = true
 		}
+	}
+}
+
+func setEmptyProviderMessage(remote *cobra.Command) {
+	remote.RunE = func(cmd *cobra.Command, _ []string) error {
+		_, err := fmt.Fprintln(cmd.OutOrStdout(), "No remote command providers are registered.")
+		return err
 	}
 }
 
