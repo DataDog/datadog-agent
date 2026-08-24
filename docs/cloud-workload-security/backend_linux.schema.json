@@ -1968,11 +1968,11 @@
         },
         "mntns": {
           "type": "integer",
-          "description": "Mount namespace ID of the thread once the syscall returned"
+          "description": "Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
         },
         "netns": {
           "type": "integer",
-          "description": "Network namespace ID of the thread once the syscall returned"
+          "description": "Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
         }
       },
       "additionalProperties": false,

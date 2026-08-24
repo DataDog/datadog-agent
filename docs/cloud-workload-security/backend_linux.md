@@ -1979,11 +1979,11 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "mntns": {
                     "type": "integer",
-                    "description": "Mount namespace ID of the thread once the syscall returned"
+                    "description": "Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
                 },
                 "netns": {
                     "type": "integer",
-                    "description": "Network namespace ID of the thread once the syscall returned"
+                    "description": "Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
                 }
             },
             "additionalProperties": false,
@@ -5562,11 +5562,11 @@ ancestor lineage to find the same value. |
         },
         "mntns": {
             "type": "integer",
-            "description": "Mount namespace ID of the thread once the syscall returned"
+            "description": "Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
         },
         "netns": {
             "type": "integer",
-            "description": "Network namespace ID of the thread once the syscall returned"
+            "description": "Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
         }
     },
     "additionalProperties": false,
@@ -5584,8 +5584,8 @@ ancestor lineage to find the same value. |
 | ----- | ----------- |
 | `fd` | File descriptor of the namespace the thread requested to join |
 | `nstype` | Requested namespace types, ANY when the syscall let the kernel infer the type |
-| `mntns` | Mount namespace ID of the thread once the syscall returned |
-| `netns` | Network namespace ID of the thread once the syscall returned |
+| `mntns` | Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
+| `netns` | Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
 
 
 ## `SetSockOptEvent`
