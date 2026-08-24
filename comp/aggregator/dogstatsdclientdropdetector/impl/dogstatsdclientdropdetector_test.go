@@ -162,12 +162,12 @@ func TestComponentIgnoresWindowBeforeStartupReconciliation(t *testing.T) {
 
 	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
 	require.Equal(t, clientByteStats{}, detector.stats)
-	require.Equal(t, noPendingTransition, detector.pending)
+	require.False(t, detector.confirmationPending)
 	require.Nil(t, healthPlatform.GetIssue(detector.issueID))
 
 	lifecycle.start(t)
 	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
-	require.Equal(t, pendingUnhealthy, detector.pending)
+	require.True(t, detector.confirmationPending)
 }
 
 func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
@@ -253,6 +253,29 @@ func TestComponentPendingTransitionsRequireContinuousEvidence(t *testing.T) {
 	require.Nil(t, healthPlatform.GetIssue(issueID))
 }
 
+func TestComponentRetriesFailedIssueReport(t *testing.T) {
+	issueID := dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), testHostname)
+	healthPlatform := &reportErrorHealthPlatform{
+		Mock:      healthplatformmock.New(t),
+		issueID:   issueID,
+		reportErr: errors.New("report failed"),
+	}
+	detector := newTestComponentWithHealthPlatform(t, healthPlatform, testHostname)
+	advance := useTestClock(detector)
+	unhealthy := clientByteStats{sent: 98, dropped: 2}
+
+	completeWindow(detector, unhealthy)
+	advance(detector.unhealthyConfirmationDuration)
+	completeWindow(detector, unhealthy)
+	require.False(t, detector.issueActive)
+	require.True(t, detector.confirmationPending)
+
+	healthPlatform.reportErr = nil
+	completeWindow(detector, unhealthy)
+	require.True(t, detector.issueActive)
+	require.False(t, detector.confirmationPending)
+}
+
 func TestComponentReconcilesPersistedIssueState(t *testing.T) {
 	t.Run("migrates an active issue from a stale host identity", func(t *testing.T) {
 		healthPlatform := healthplatformmock.New(t)
@@ -300,11 +323,16 @@ func TestComponentReconcilesPersistedIssueState(t *testing.T) {
 		require.False(t, detector.issueNeedsRefresh)
 	})
 
-	t.Run("resolves a stale issue after a failed migration and healthy recovery", func(t *testing.T) {
+	t.Run("resolves a stale issue after continuous healthy recovery", func(t *testing.T) {
 		detector, healthPlatform, previousID, currentID := newFailingMigrationComponent(t)
 		advance := useTestClock(detector)
 
 		completeWindow(detector, clientByteStats{sent: 100})
+		advance(detector.recoveryConfirmationDuration)
+		completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
+		completeWindow(detector, clientByteStats{sent: 100})
+		require.NotNil(t, healthPlatform.GetIssue(previousID))
+
 		advance(detector.recoveryConfirmationDuration)
 		completeWindow(detector, clientByteStats{sent: 100})
 
