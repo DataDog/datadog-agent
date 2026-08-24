@@ -707,6 +707,9 @@ DATADOG_AGENT_RTLOADER_API void set_report_issue_cb(rtloader_t *, cb_report_issu
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_resolve_issue_cb(rtloader_t *, cb_resolve_issue_t);
+DATADOG_AGENT_RTLOADER_API void set_new_prometheus_parser_cb(rtloader_t *, cb_new_prometheus_parser_t);
+DATADOG_AGENT_RTLOADER_API void set_feed_prometheus_parser_cb(rtloader_t *, cb_feed_prometheus_parser_t);
+DATADOG_AGENT_RTLOADER_API void set_finish_prometheus_parser_cb(rtloader_t *, cb_finish_prometheus_parser_t);
 
 #ifdef __cplusplus
 }
