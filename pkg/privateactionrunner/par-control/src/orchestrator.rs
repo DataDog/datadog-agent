@@ -6,6 +6,7 @@
 //! Dequeues tasks up to the configured concurrency, starts the executor on
 //! demand, dispatches over gRPC, and publishes outcomes to OPMS.
 
+use crate::config::Config;
 use crate::executor::{Dispatcher, Outcome};
 use crate::opms::{HealthCheck, HeartbeatResult, Opms, PublishResult, Task};
 use crate::procmgr::ExecutorLifecycle;
@@ -20,7 +21,8 @@ use tokio::sync::Semaphore;
 /// itself fails (e.g. the stream breaks) so the workflow does not hang.
 const INTERNAL_ERROR: i32 = 1;
 
-/// Tuning knobs for the orchestrator.
+/// Tuning knobs, projected from [`Config`] so the orchestrator is testable
+/// without a full runner identity.
 #[derive(Clone)]
 pub struct Params {
     pub pool_size: usize,
@@ -42,7 +44,28 @@ pub struct Params {
     pub drain_timeout: Duration,
 }
 
-
+impl Params {
+    pub fn from_config(config: &Config) -> Self {
+        Params {
+            pool_size: config.task_concurrency,
+            loop_interval: config.loop_interval,
+            ready_timeout: config.ready_timeout,
+            heartbeat_interval: config.heartbeat_interval,
+            health_check_interval: config.health_check_interval,
+            min_backoff: config.min_backoff,
+            max_backoff: config.max_backoff,
+            wait_before_retry: config.wait_before_retry,
+            max_attempts: config.max_attempts,
+            publish_max_attempts: 3,
+            publish_min_backoff: Duration::from_secs(1),
+            publish_max_backoff: Duration::from_secs(5),
+            // The process definition allows 180 seconds. This covers the default
+            // 60-second action timeout plus three 30-second publication attempts
+            // and their backoff, while leaving procmgr time to reap us cleanly.
+            drain_timeout: Duration::from_secs(170),
+        }
+    }
+}
 
 /// Exponential dequeue backoff: `min_backoff * 2^(attempt-1)`, capped at `max_backoff`.
 fn backoff_delay(attempt: u32, min: Duration, max: Duration) -> Duration {
