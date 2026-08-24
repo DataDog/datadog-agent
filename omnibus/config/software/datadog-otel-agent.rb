@@ -28,7 +28,6 @@ build do
     # set GOPATH on the omnibus source dir for this software
     gopath = Pathname.new(project_dir) + '../../../..'
     flavor_arg = ENV['AGENT_FLAVOR']
-    fips_args = fips_mode? ? "--fips-mode" : ""
 
     # include embedded path (mostly for `pkg-config` binary)
     #
@@ -79,10 +78,6 @@ build do
     mkdir embedded_bin_dir
 
     command "dda inv -- -e otel-agent.build --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    if linux_target?
-      command "dda inv -- -e agent-rollout-gate.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-      copy File.join('bin', 'agent-rollout-gate', 'agent-rollout-gate'), embedded_bin_dir
-    end
 
     copy File.join('bin', 'otel-agent', binary_name), embedded_bin_dir
     copy File.join('bin', 'otel-agent', "#{binary_name}.pdb"), embedded_bin_dir if windows_target?

@@ -72,12 +72,10 @@ RUN \
         pip install dda && \
         dda self dep sync -f legacy-tasks && \
         invoke collector.generate && \
-        invoke otel-agent.build agent-rollout-gate.build; \
+        invoke otel-agent.build; \
     else \
         mkdir -p /workspace/datadog-agent/bin/otel-agent/dist && \
-        mkdir -p /workspace/datadog-agent/bin/agent-rollout-gate && \
         cp /workspace/otel-agent /workspace/datadog-agent/bin/otel-agent/ && \
-        cp /workspace/otel-agent-rollout-gate /workspace/datadog-agent/bin/agent-rollout-gate/agent-rollout-gate && \
         cp /workspace/otel-config.yaml /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml; \
     fi
 
@@ -91,7 +89,6 @@ LABEL org.opencontainers.image.title="Otel Agent"
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
-COPY --from=builder /workspace/datadog-agent/bin/agent-rollout-gate/agent-rollout-gate /opt/datadog-agent/embedded/bin/agent-rollout-gate
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
