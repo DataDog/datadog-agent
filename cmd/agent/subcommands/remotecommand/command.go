@@ -337,6 +337,7 @@ func stringListValue(values []string) *structpb.Value {
 	}
 	return structpb.NewListValue(&structpb.ListValue{Values: values2})
 }
+
 func numberListValue(values []int) *structpb.Value {
 	values2 := make([]*structpb.Value, len(values))
 	for i, v := range values {
@@ -344,6 +345,7 @@ func numberListValue(values []int) *structpb.Value {
 	}
 	return structpb.NewListValue(&structpb.ListValue{Values: values2})
 }
+
 func uintListValue(values []uint) *structpb.Value {
 	values2 := make([]*structpb.Value, len(values))
 	for i, v := range values {
@@ -351,6 +353,7 @@ func uintListValue(values []uint) *structpb.Value {
 	}
 	return structpb.NewListValue(&structpb.ListValue{Values: values2})
 }
+
 func floatListValue(values []float64) *structpb.Value {
 	values2 := make([]*structpb.Value, len(values))
 	for i, v := range values {
