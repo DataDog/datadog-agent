@@ -142,6 +142,9 @@ func TestStableUDSIssueIdentity(t *testing.T) {
 	assert.Equal(t, "DogStatsD UDS Client Payload Drops", UDSIssueName)
 	assert.Equal(t, "dogstatsd_uds_client_payload_drops", UDSIssueType)
 	assert.Equal(t, "dogstatsd-uds-client-payload-drops", UDSIssueID)
-	assert.Equal(t, "dogstatsd-uds-client-payload-drops:97864685c4a5b06a", UDSIssueIDForHostname("test-host"))
-	assert.NotEqual(t, UDSIssueIDForHostname("test-host"), UDSIssueIDForHostname("other-host"))
+	assert.Equal(t, "dogstatsd-uds-client-payload-drops:uuid:test-uuid", UDSIssueIDForHost("test-uuid", "test-host"))
+	assert.Equal(t, "dogstatsd-uds-client-payload-drops:hostname:test-host", UDSIssueIDForHost("", "test-host"))
+	assert.Equal(t, UDSIssueIDForHost("test-uuid", "old-host"), UDSIssueIDForHost("test-uuid", "new-host"))
+	assert.NotEqual(t, UDSIssueIDForHost("first-uuid", "test-host"), UDSIssueIDForHost("second-uuid", "test-host"))
+	assert.NotEqual(t, UDSIssueIDForHost("", "first-host"), UDSIssueIDForHost("", "second-host"))
 }

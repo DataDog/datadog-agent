@@ -9,7 +9,6 @@ package dogstatsdclientdrops
 
 import (
 	"fmt"
-	"hash/fnv"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -60,11 +59,12 @@ type UDSDetectionContext struct {
 	DropReasonBreakdownComplete bool
 }
 
-// UDSIssueIDForHostname returns a deterministic UDS issue ID scoped to one Agent/node.
-func UDSIssueIDForHostname(hostname string) string {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(hostname))
-	return fmt.Sprintf("%s:%016x", UDSIssueID, h.Sum64())
+// UDSIssueIDForHost returns a deterministic UDS issue ID scoped to one Agent/node.
+func UDSIssueIDForHost(hostUUID, hostname string) string {
+	if hostUUID != "" {
+		return fmt.Sprintf("%s:uuid:%s", UDSIssueID, hostUUID)
+	}
+	return fmt.Sprintf("%s:hostname:%s", UDSIssueID, hostname)
 }
 
 // BuildUDSIssue creates a complete Agent Health issue from a confirmed UDS violation.

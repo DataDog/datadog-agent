@@ -14,6 +14,7 @@ go_library(
         "//comp/def",
         "//comp/healthplatform/issues/dogstatsdclientdrops",
         "//comp/healthplatform/store/def",
+        "//pkg/util/uuid",
     ],
 )
 
@@ -30,6 +31,8 @@ dd_agent_go_test(
         "//comp/healthplatform/issues/dogstatsdclientdrops",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/mock",
+        "//pkg/util/uuid",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//require",
     ],
 )

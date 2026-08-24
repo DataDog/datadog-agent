@@ -70,6 +70,7 @@ dd_agent_go_test(
         "//pkg/metrics",
         "//pkg/tagset",
         "//pkg/util/fxutil",
+        "//pkg/util/uuid",
         "//test/fakeintake/client",
         "//test/fakeintake/server",
         "@com_github_datadog_agent_payload_v5//healthplatform",
