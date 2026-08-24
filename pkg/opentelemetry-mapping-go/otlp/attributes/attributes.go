@@ -264,6 +264,15 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 		tags = append(tags, fmt.Sprintf("%s:%s", key, val))
 	}
 
+	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
+		tags = append(tags,
+			"name:"+appService.name,
+			"subscription_id:"+appService.subscriptionID,
+			"resource_group:"+appService.resourceGroup,
+			"instance:"+appService.instanceID,
+		)
+	}
+
 	tags = append(tags, processAttributes.extractTags()...)
 	tags = append(tags, systemAttributes.extractTags()...)
 

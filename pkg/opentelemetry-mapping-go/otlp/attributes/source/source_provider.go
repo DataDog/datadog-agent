@@ -30,6 +30,8 @@ const (
 	HostnameKind Kind = "host"
 	// AWSECSFargateKind is a serverless source on AWS ECS Fargate.
 	AWSECSFargateKind Kind = "task_arn"
+	// AzureAppServiceKind is a serverless source on Azure App Service.
+	AzureAppServiceKind Kind = "azure_app_service"
 )
 
 // Source represents a telemetry source.
