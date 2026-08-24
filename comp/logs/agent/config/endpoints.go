@@ -7,6 +7,8 @@ package config
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"go.uber.org/atomic"
@@ -66,6 +68,13 @@ type Endpoint struct {
 	// the index of this endpoint config within "additional_endpoints" settings. This is needed to not
 	// wrongly update an endpoint when an API key is linked to multuple endpoints.
 	additionalEndpointsIdx int
+
+	// credentialProvider, when set, supplies this endpoint's credential instead of apiKey. It may
+	// have no credential yet, in which case the destination waits rather than sending.
+	credentialProvider CredentialProvider
+	// credentialDirective is the DELA(...) text this endpoint was configured with, if any. It
+	// identifies which credential is this endpoint's when several share a host.
+	credentialDirective string
 
 	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
@@ -229,7 +238,19 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
-		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, e.PathPrefix, false)
+		apiKey := e.APIKey
+		var directive string
+		if isDelaDirective(apiKey) {
+			// The directive is a placeholder, not a key. The endpoint is still built so a provider
+			// has somewhere to deliver; until one is attached it simply cannot authorize.
+			directive, apiKey = apiKey, ""
+		}
+
+		newE := NewEndpoint(apiKey, configKeyUsed, e.Host, e.Port, e.PathPrefix, false)
+		newE.credentialDirective = directive
+		if directive != "" && l.credentialProviders != nil {
+			newE.credentialProvider = l.credentialProviders(configKeyUsed, e.Host, directive)
+		}
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
@@ -279,6 +300,46 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 // GetAPIKey returns the latest API Key for the Endpoint, including when the configuration gets updated at runtime
 func (e *Endpoint) GetAPIKey() string {
 	return e.apiKey.Load()
+}
+
+// isDelaDirective reports whether a configured api_key is a delegated-auth placeholder rather than
+// a real key. Mirrors pkg/config/utils.IsDelaDirective, duplicated to keep this module lean.
+func isDelaDirective(value string) bool {
+	return strings.HasPrefix(strings.TrimSpace(value), "DELA(")
+}
+
+// CredentialProvider supplies the credential for one destination. It mirrors
+// comp/core/delegatedauth's Provider, redeclared here so this module does not take a dependency
+// on the component.
+type CredentialProvider interface {
+	// Authorize stamps the credential onto h and reports whether it did. A false return means no
+	// credential is available yet and the caller must not send.
+	Authorize(h http.Header) bool
+}
+
+// SetCredentialProvider makes this endpoint take its credential from p rather than from a
+// configured API key. Call it during endpoint construction, before any destination uses it.
+func (e *Endpoint) SetCredentialProvider(p CredentialProvider) {
+	e.credentialProvider = p
+}
+
+// Authorize stamps this endpoint's credential onto h and reports whether it did.
+//
+// It returns false only when the endpoint is backed by a delegated-auth provider that has no
+// credential yet; the caller must then retry rather than send. An endpoint with an ordinary API
+// key always authorizes, so nothing about the existing path changes.
+func (e *Endpoint) Authorize(h http.Header) bool {
+	if e.credentialProvider != nil {
+		return e.credentialProvider.Authorize(h)
+	}
+	key := e.GetAPIKey()
+	if key == "" && e.credentialDirective != "" {
+		// Built from a directive that never produced an instance - an unsupported cloud provider,
+		// say. Stamping the empty key would send this org's logs to its intake unauthenticated.
+		return false
+	}
+	h.Set("DD-API-KEY", key)
+	return true
 }
 
 // UseSSL returns the useSSL config setting

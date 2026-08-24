@@ -20,6 +20,10 @@ type LogsConfigKeys struct {
 	prefix       string
 	vectorPrefix string
 	config       pkgconfigmodel.Reader
+
+	// credentialProviders, when set, resolves delegated-auth credentials for additional endpoints
+	// built from these keys. Nil means no delegated auth is wired for this subsystem.
+	credentialProviders CredentialProviderLookup
 }
 
 // CompressionKind constants
@@ -38,6 +42,22 @@ func defaultLogsConfigKeys(config pkgconfigmodel.Reader) *LogsConfigKeys {
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
 func defaultLogsConfigKeysWithVectorOverride(config pkgconfigmodel.Reader) *LogsConfigKeys {
 	return NewLogsConfigKeysWithVector("logs_config.", "logs.", config)
+}
+
+// CredentialProviderLookup resolves the delegated-auth credential provider for one additional
+// endpoint, identified by the setting it came from, its host, and its DELA(...) directive.
+// It returns nil when that endpoint has no delegated-auth instance.
+type CredentialProviderLookup func(configKey, host, directive string) CredentialProvider
+
+// WithCredentialProviders attaches a lookup so endpoints built from these keys can take their
+// credential from a provider instead of a configured API key. Returns l for chaining.
+//
+// Without it, a DELA(...) directive in additional_endpoints produces an endpoint that can never
+// authorize, so nothing is sent there - deliberately, since the alternative is sending the
+// directive text to the intake as if it were an API key.
+func (l *LogsConfigKeys) WithCredentialProviders(lookup CredentialProviderLookup) *LogsConfigKeys {
+	l.credentialProviders = lookup
+	return l
 }
 
 // NewLogsConfigKeys returns a new logs configuration keys set

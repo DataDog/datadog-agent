@@ -322,6 +322,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 	}
 }
 
+// errCredentialNotReady means the endpoint's delegated-auth credential has not arrived yet, so
+// nothing was sent. It is retryable: the endpoint is unprovisioned, not unhealthy.
+var errCredentialNotReady = errors.New("no delegated auth credential available yet for this endpoint")
+
 func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
@@ -358,7 +362,12 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		return err
 	}
 
-	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
+	// A delegated-auth endpoint has no credential until its first exchange with the cloud provider
+	// completes. Returning a retryable error keeps the payload in the sender's retry loop rather
+	// than shipping it to that org's intake with no key.
+	if !d.endpoint.Authorize(req.Header) {
+		return client.NewRetryableError(errCredentialNotReady)
+	}
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
