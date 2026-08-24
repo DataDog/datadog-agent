@@ -7,6 +7,7 @@ package remotecommand
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"testing"
 
@@ -23,6 +24,22 @@ func TestRemoteParentDisplaysHelp(t *testing.T) {
 	remote := Commands(&command.GlobalParams{})[0]
 	require.Equal(t, "remote", remote.Name())
 	require.Empty(t, remote.Commands())
+}
+
+func TestBareRemoteInvocation(t *testing.T) {
+	require.True(t, isBareRemoteInvocation([]string{"remote"}))
+	require.True(t, isBareRemoteInvocation([]string{"--cfgpath", "custom.yaml", "remote"}))
+	require.False(t, isBareRemoteInvocation([]string{"remote", "fixture-agent"}))
+}
+
+func TestDiscoveryErrorMessage(t *testing.T) {
+	remote := Commands(&command.GlobalParams{})[0]
+	var output bytes.Buffer
+	remote.SetOut(&output)
+	setDiscoveryErrorMessage(remote, errors.New("unavailable"))
+
+	require.NoError(t, remote.Execute())
+	require.Equal(t, "Unable to discover remote command providers: unavailable\n", output.String())
 }
 
 func TestEmptyProviderMessage(t *testing.T) {

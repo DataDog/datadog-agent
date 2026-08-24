@@ -86,6 +86,10 @@ func Prepare(root *cobra.Command, args []string) error {
 		client := pb.NewRemoteCommandProviderClient(conn)
 		response, err := client.ListCommands(ctx, &pb.ListCommandsRequest{})
 		if err != nil {
+			if isBareRemoteInvocation(args) {
+				setDiscoveryErrorMessage(remote, err)
+				return nil
+			}
 			return err
 		}
 		if len(response.GetProviders()) == 0 {
@@ -119,10 +123,12 @@ func applyRootFlags(args []string, params *command.GlobalParams) {
 		if arg == "remote" {
 			break
 		}
+
 		name, value, hasValue := strings.Cut(arg, "=")
 		if !hasValue && index+1 < len(args) {
 			value = args[index+1]
 		}
+
 		switch name {
 		case "--cfgpath", "-c":
 			if hasValue || index+1 < len(args) {
@@ -158,9 +164,25 @@ func applyRootFlags(args []string, params *command.GlobalParams) {
 	}
 }
 
+func isBareRemoteInvocation(args []string) bool {
+	for index, arg := range args {
+		if arg == "remote" {
+			return index == len(args)-1
+		}
+	}
+	return false
+}
+
 func setEmptyProviderMessage(remote *cobra.Command) {
 	remote.RunE = func(cmd *cobra.Command, _ []string) error {
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), "No remote command providers are registered.")
+		return err
+	}
+}
+
+func setDiscoveryErrorMessage(remote *cobra.Command, discoveryErr error) {
+	remote.RunE = func(cmd *cobra.Command, _ []string) error {
+		_, err := fmt.Fprintf(cmd.OutOrStdout(), "Unable to discover remote command providers: %v\n", discoveryErr)
 		return err
 	}
 }
