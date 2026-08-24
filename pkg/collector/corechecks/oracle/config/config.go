@@ -27,7 +27,7 @@ import (
 
 const (
 	defaultLoader       = "core"
-	defaultQueryTimeout = 20000
+	defaultQueryTimeout = 20
 )
 
 // InitConfig is used to deserialize integration init config.
