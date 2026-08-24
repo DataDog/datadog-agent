@@ -169,6 +169,31 @@ func TestBuildRemoteAgentListener(t *testing.T) {
 
 // TestNoSessionIDReturnsError tests that requests to the remote agent server
 // return errors when no session ID is set (i.e., before registration completes)
+type recordingAgentSecureClient struct {
+	pbcore.AgentSecureClient
+	received *pbcore.RegisterRemoteAgentRequest
+}
+
+func (c *recordingAgentSecureClient) RegisterRemoteAgent(_ context.Context, req *pbcore.RegisterRemoteAgentRequest, _ ...grpc.CallOption) (*pbcore.RegisterRemoteAgentResponse, error) {
+	c.received = req
+	return &pbcore.RegisterRemoteAgentResponse{SessionId: "session"}, nil
+}
+
+func TestRegisterRemoteAgentSendsCommandProviderMetadata(t *testing.T) {
+	client := &recordingAgentSecureClient{}
+	_, _, err := RegisterRemoteAgent(context.Background(), client, RegistrationRequest{
+		Flavor:           "fixture",
+		DisplayName:      "Fixture",
+		CommandName:      "fixture-agent",
+		AgentDescription: "Fixture command provider",
+		APIEndpointURI:   "https://127.0.0.1:1234",
+		Services:         []string{"datadog.remoteagent.command.v1.RemoteCommandProvider"},
+	}, time.Second, time.Second, logmock.New(t))
+	require.NoError(t, err)
+	require.Equal(t, "fixture-agent", client.received.GetCommandName())
+	require.Equal(t, "Fixture command provider", client.received.GetAgentDescription())
+}
+
 func TestNoSessionIDReturnsError(t *testing.T) {
 	lc := compdef.NewTestLifecycle(t)
 	ipcComp := ipcmock.New(t)

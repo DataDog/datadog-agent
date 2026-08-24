@@ -6,6 +6,7 @@
 package remotecommand
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -61,13 +62,13 @@ func TestAttachCommandProvidersBuildsNestedTreeAndPassesTypedFlags(t *testing.T)
 			Name: "dogstatsd", ShortName: "dogstatsd", Children: []*pb.Command{top},
 		}},
 	}}
-	require.NoError(t, AttachCommandProviders(remote, providers, func(name, path string, arguments *structpb.Struct) error {
+	require.NoError(t, AttachCommandProviders(remote, providers, func(name, path string, arguments *structpb.Struct) (*pb.ExecuteCommandResponse, error) {
 		gotName, gotPath = name, path
 		gotArguments = map[string]any{}
 		for key, value := range arguments.GetFields() {
 			gotArguments[key] = value.AsInterface()
 		}
-		return nil
+		return &pb.ExecuteCommandResponse{}, nil
 	}))
 
 	provider, _, err := remote.Find([]string{"data-plane"})
@@ -81,7 +82,29 @@ func TestAttachCommandProvidersBuildsNestedTreeAndPassesTypedFlags(t *testing.T)
 	require.Equal(t, true, gotArguments["include-inactive"])
 }
 
+func TestAttachCommandProvidersRendersResponseAndReturnsExitCode(t *testing.T) {
+	remote := Commands(&command.GlobalParams{})[0]
+	var stdout, stderr bytes.Buffer
+	remote.SetOut(&stdout)
+	remote.SetErr(&stderr)
+	providers := []*pb.CommandProvider{{
+		CommandName: "fixture-agent",
+		Commands:    []*pb.Command{{Name: "inspect", IsRunnable: true}},
+	}}
+	require.NoError(t, AttachCommandProviders(remote, providers, func(string, string, *structpb.Struct) (*pb.ExecuteCommandResponse, error) {
+		return &pb.ExecuteCommandResponse{Stdout: "text-out", Stderr: "text-err", BinaryOutput: []byte{0, 1}, ExitCode: 7}, nil
+	}))
+	remote.SetArgs([]string{"fixture-agent", "inspect"})
+	err := remote.Execute()
+	require.Error(t, err)
+	var exitErr exitCodeError
+	require.ErrorAs(t, err, &exitErr)
+	require.Equal(t, 7, exitErr.ExitCode())
+	require.Equal(t, "text-out\x00\x01", stdout.String())
+	require.Equal(t, "text-err", stderr.String())
+}
+
 func TestAttachCommandProvidersRejectsMissingName(t *testing.T) {
 	remote := Commands(&command.GlobalParams{})[0]
-	require.Error(t, AttachCommandProviders(remote, []*pb.CommandProvider{{}}, func(string, string, *structpb.Struct) error { return nil }))
+	require.Error(t, AttachCommandProviders(remote, []*pb.CommandProvider{{}}, func(string, string, *structpb.Struct) (*pb.ExecuteCommandResponse, error) { return nil, nil }))
 }
