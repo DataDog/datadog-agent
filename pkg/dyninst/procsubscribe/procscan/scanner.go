@@ -67,6 +67,11 @@ type Scanner struct {
 	backoffBase time.Duration
 	backoffCap  time.Duration
 
+	// bootTime is what the start times in /proc/<pid>/stat are relative to. It
+	// is the zero time if it could not be read, in which case the start times
+	// reported by Scan are zero too.
+	bootTime time.Time
+
 	// now returns the current time.
 	now func() time.Time
 
@@ -116,8 +121,13 @@ func NewScanner(
 	procfsRoot string, backoffBase, backoffCap time.Duration,
 ) *Scanner {
 	reader := newStartTimeReader(procfsRoot)
+	bootTime, err := readBootTime(procfsRoot)
+	if err != nil {
+		log.Warnf("scanner: %v; process start times will be unavailable", err)
+	}
 	return newScanner(
 		backoffBase, backoffCap,
+		bootTime,
 		time.Now,
 		func() iter.Seq2[uint32, error] {
 			return listPids(procfsRoot, 512)
@@ -143,6 +153,7 @@ func NewScanner(
 // for production code and by tests for dependency injection.
 func newScanner(
 	backoffBase, backoffCap time.Duration,
+	bootTime time.Time,
 	now func() time.Time,
 	listPids func() iter.Seq2[uint32, error],
 	readStartTime func(pid int32) (ticks, error),
@@ -153,6 +164,7 @@ func newScanner(
 	s := &Scanner{
 		backoffBase:          backoffBase,
 		backoffCap:           backoffCap,
+		bootTime:             bootTime,
 		now:                  now,
 		listPids:             listPids,
 		readStartTime:        readStartTime,
@@ -171,6 +183,12 @@ func newScanner(
 type DiscoveredProcess struct {
 	PID            uint32
 	StartTimeTicks uint64
+	// StartTime is when the process started, or the zero time if the boot time
+	// that the start time is relative to could not be read.
+	StartTime time.Time
+	// Attempts is the number of earlier scans that looked at this process
+	// without discovering it.
+	Attempts uint32
 	model.TracerMetadata
 	Executable process.Executable
 }
@@ -293,9 +311,15 @@ func (p *Scanner) Scan() (
 		}
 
 		delete(p.candidates, pid)
+		var attempts uint32
+		if c != nil {
+			attempts = c.attempts
+		}
 		ret = append(ret, DiscoveredProcess{
 			PID:            pid,
 			StartTimeTicks: uint64(startTime),
+			StartTime:      p.startTimeToWallClock(startTime),
+			Attempts:       attempts,
 			TracerMetadata: tracerMetadata,
 			Executable:     executable,
 		})
@@ -316,6 +340,15 @@ func (p *Scanner) Scan() (
 
 	p.forgetExitedCandidates(now)
 	return ret, removed, nil
+}
+
+// startTimeToWallClock converts a start time relative to boot into a wall
+// clock time, or returns the zero time if the boot time is not known.
+func (p *Scanner) startTimeToWallClock(startTime ticks) time.Time {
+	if p.bootTime.IsZero() {
+		return time.Time{}
+	}
+	return p.bootTime.Add(ticksToDuration(startTime))
 }
 
 // candidateFor returns the retry state of the given process, or nil if it has

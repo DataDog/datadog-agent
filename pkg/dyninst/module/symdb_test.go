@@ -12,10 +12,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -39,6 +42,35 @@ func (p *shortBackoffPolicy) DecError(numErrors int) int {
 		return numErrors - 1
 	}
 	return 0
+}
+
+type distributionCall struct {
+	name  string
+	value float64
+	tags  []string
+}
+
+type recordingStatsdClient struct {
+	ddgostatsd.NoOpClient
+	mu            sync.Mutex
+	distributions []distributionCall
+}
+
+func (c *recordingStatsdClient) Distribution(
+	name string, value float64, tags []string, _ float64,
+) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.distributions = append(
+		c.distributions, distributionCall{name: name, value: value, tags: tags},
+	)
+	return nil
+}
+
+func (c *recordingStatsdClient) distributionCalls() []distributionCall {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.distributions)
 }
 
 func TestSymdbManagerUpload(t *testing.T) {
@@ -77,16 +109,21 @@ func TestSymdbManagerUpload(t *testing.T) {
 
 	// Create process store and symdb manager
 	const cacheDir = "" // no cache
-	manager := newSymdbManager(symdbURL, object.NewInMemoryLoader(), cacheDir)
+	statsdClient := &recordingStatsdClient{}
+	manager := newSymdbManager(
+		symdbURL, object.NewInMemoryLoader(), cacheDir,
+		withStatsd(statsdClient),
+	)
 	t.Cleanup(manager.stop)
 
 	// Create runtime ID for testing
 	runtimeID := procRuntimeID{
-		ID:          process.ID{PID: 12345},
-		service:     "test_service",
-		environment: "test_env",
-		version:     "1.0.0",
-		runtimeID:   "dummy-runtime-id",
+		ID:           process.ID{PID: 12345},
+		service:      "test_service",
+		environment:  "test_env",
+		version:      "1.0.0",
+		runtimeID:    "dummy-runtime-id",
+		discoveredAt: time.Now().Add(-time.Minute),
 	}
 
 	// Request an upload.
@@ -101,6 +138,13 @@ func TestSymdbManagerUpload(t *testing.T) {
 	// Verify upload occurred.
 	require.Greater(t, uploadCount.Load(), int64(0), "No uploads received")
 	require.NotEmpty(t, lastUploadData, "No upload data received")
+
+	// The time from discovery to the symbols being uploaded is reported.
+	calls := statsdClient.distributionCalls()
+	require.Len(t, calls, 1)
+	require.Equal(t, symbolUploadLatencyMetric, calls[0].name)
+	require.Equal(t, []string{"language:go"}, calls[0].tags)
+	require.GreaterOrEqual(t, calls[0].value, float64(60))
 
 	// Ask for another upload for the same process and check that we do not
 	// actually perform the upload.

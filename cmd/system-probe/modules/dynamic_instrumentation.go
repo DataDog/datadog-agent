@@ -50,7 +50,7 @@ var DynamicInstrumentation = &module.Factory{
 			return nil, fmt.Errorf("failed to create gRPC client for RC subscription: %w", err)
 		}
 
-		m, err := dimod.NewModule(config, client)
+		m, err := dimod.NewModule(config, client, dimod.WithStatsd(deps.Statsd))
 		if err != nil {
 			if errors.Is(err, ebpf.ErrNotImplemented) {
 				return nil, module.ErrNotEnabled
