@@ -1111,10 +1111,11 @@ type SetrlimitEvent struct {
 // SetNSEvent represents a setns event
 type SetNSEvent struct {
 	SyscallEvent
-	FD     int    `field:"fd"`     // SECLDoc[fd] Definition:`File descriptor of the namespace the thread requested to join`
-	NSType int    `field:"nstype"` // SECLDoc[nstype] Definition:`Requested namespace types. 0 means that any type is allowed, in which case the kernel infers the type from the file descriptor` Constants:`Namespace types`
-	MntNS  uint32 `field:"mntns"`  // SECLDoc[mntns] Definition:`MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
-	NetNS  uint32 `field:"netns"`  // SECLDoc[netns] Definition:`NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
+	FD              int    `field:"fd"`               // SECLDoc[fd] Definition:`File descriptor of the namespace the thread requested to join`
+	NSType          int    `field:"nstype"`           // SECLDoc[nstype] Definition:`Namespace types requested by the caller. 0 means that any type is allowed, in which case the kernel infers the type from the file descriptor. Prefer \`effective_nstype\` in rules, as a caller passing 0 would otherwise evade them` Constants:`Namespace types`
+	EffectiveNSType int    `field:"effective_nstype"` // SECLDoc[effective_nstype] Definition:`Namespace types the kernel actually installed, resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be resolved` Constants:`Namespace types`
+	MntNS           uint32 `field:"mntns"`            // SECLDoc[mntns] Definition:`MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
+	NetNS           uint32 `field:"netns"`            // SECLDoc[netns] Definition:`NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
 }
 
 // SetSockOptEvent represents a set socket option event

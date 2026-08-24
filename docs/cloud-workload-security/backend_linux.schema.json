@@ -1964,7 +1964,11 @@
         },
         "nstype": {
           "type": "string",
-          "description": "Requested namespace types, ANY when the syscall let the kernel infer the type"
+          "description": "Namespace types requested by the caller, ANY when the syscall let the kernel infer the type"
+        },
+        "effective_nstype": {
+          "type": "string",
+          "description": "Namespace types the kernel actually installed, omitted if it couldn't be resolved"
         },
         "mntns": {
           "type": "integer",

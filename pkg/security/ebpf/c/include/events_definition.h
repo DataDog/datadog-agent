@@ -569,6 +569,7 @@ struct setns_event_t {
     s32 nstype;
     u32 mntns_id;
     u32 netns_id;
+    u32 effective_nstype;
 };
 
 struct setsockopt_event_t {

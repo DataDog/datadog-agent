@@ -302,7 +302,7 @@ func FuzzSetrlimitEvent_UnmarshalBinary(f *testing.F) {
 }
 
 func FuzzSetNSEvent_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SetNSEvent{} }, 24)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SetNSEvent{} }, 28)
 }
 
 func FuzzCapabilitiesEvent_UnmarshalBinary(f *testing.F) {

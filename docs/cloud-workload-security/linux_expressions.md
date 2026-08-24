@@ -1901,10 +1901,11 @@ A thread joined an existing namespace
 
 | Property | Definition |
 | -------- | ------------- |
+| [`setns.effective_nstype`](#setns-effective_nstype-doc) | Namespace types the kernel actually installed, resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be resolved |
 | [`setns.fd`](#setns-fd-doc) | File descriptor of the namespace the thread requested to join |
 | [`setns.mntns`](#setns-mntns-doc) | MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved |
 | [`setns.netns`](#setns-netns-doc) | NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved |
-| [`setns.nstype`](#setns-nstype-doc) | Requested namespace types. 0 means that any type is allowed, in which case the kernel infers the type from the file descriptor |
+| [`setns.nstype`](#setns-nstype-doc) | Namespace types requested by the caller. 0 means that any type is allowed, in which case the kernel infers the type from the file descriptor. Prefer `effective_nstype` in rules, as a caller passing 0 would otherwise evade them |
 | [`setns.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `setrlimit`
@@ -4738,6 +4739,16 @@ Definition: New group of the process
 
 
 
+### `setns.effective_nstype` {#setns-effective_nstype-doc}
+Type: int
+
+Definition: Namespace types the kernel actually installed, resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be resolved
+
+
+Constants: [Namespace types](#namespace-types)
+
+
+
 ### `setns.fd` {#setns-fd-doc}
 Type: int
 
@@ -4762,7 +4773,7 @@ Definition: NetNS ID of the thread once the syscall returned, 0 if it couldn't b
 ### `setns.nstype` {#setns-nstype-doc}
 Type: int
 
-Definition: Requested namespace types. 0 means that any type is allowed, in which case the kernel infers the type from the file descriptor
+Definition: Namespace types requested by the caller. 0 means that any type is allowed, in which case the kernel infers the type from the file descriptor. Prefer `effective_nstype` in rules, as a caller passing 0 would otherwise evade them
 
 
 Constants: [Namespace types](#namespace-types)

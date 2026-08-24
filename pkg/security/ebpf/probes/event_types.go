@@ -759,6 +759,7 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		},
 		"setns": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setns", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: nsInstallHookSelectors()},
 		},
 		"tracer_memfd_seal": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "memfd_create", hasFentry, EntryAndExit)},

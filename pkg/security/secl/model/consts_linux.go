@@ -2358,6 +2358,15 @@ func (nst NamespaceType) String() string {
 	return bitmaskToString(int(nst), namespaceTypeStrings)
 }
 
+// EffectiveNamespaceType represents the namespace type bitmask the kernel actually installed for
+// a setns syscall. Unlike NamespaceType a 0 here means "not resolved" rather than "any type", so
+// it deliberately does not render as ANY.
+type EffectiveNamespaceType int
+
+func (nst EffectiveNamespaceType) String() string {
+	return bitmaskToString(int(nst), namespaceTypeStrings)
+}
+
 // Signal represents a type of unix signal (ie, SIGKILL, SIGSTOP etc)
 type Signal int
 
