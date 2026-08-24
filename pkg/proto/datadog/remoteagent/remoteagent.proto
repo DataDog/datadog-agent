@@ -44,11 +44,6 @@ message RegisterRemoteAgentRequest {
   //
   // Service names MUST be the full name of the gRPC service, such as "datadog.remoteagent.status.v1.StatusProvider".
   repeated string services = 5;
-  // Concise operator-facing description of the remote agent. Required when
-  // services includes RemoteCommandProvider.
-  string agent_description = 6;
-  // CLI-safe public name used below `agent remote`; required with RemoteCommandProvider.
-  string command_name = 7;
 }
 
 message RegisterRemoteAgentResponse {

@@ -26,6 +26,6 @@ type Component interface {
 	// ListCommands queries the active command provider for each registered command name.
 	ListCommands(ctx context.Context) []*pb.CommandProvider
 
-	// ExecuteCommand routes a command execution request to the remote agent selected by req.CommandName.
-	ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error)
+	// ExecuteCommand routes a command execution request and forwards each ordered output frame to send.
+	ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest, send func(*pb.ExecuteCommandResponse) error) error
 }

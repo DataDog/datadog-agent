@@ -10,6 +10,7 @@ import (
 	"errors"
 	"time"
 
+	googleGrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
@@ -284,8 +285,6 @@ func registerRemoteAgent(registry remoteagentregistry.Component, in *pb.Register
 		AgentPID:         in.Pid,
 		AgentFlavor:      in.Flavor,
 		AgentDisplayName: in.DisplayName,
-		AgentDescription: in.AgentDescription,
-		CommandName:      in.CommandName,
 		APIEndpointURI:   in.ApiEndpointUri,
 		Services:         in.Services,
 	}
@@ -400,19 +399,15 @@ func (s *remoteCommandProviderServer) ListCommands(ctx context.Context, _ *pb.Li
 	return &pb.ListCommandsResponse{Providers: s.remoteAgentRegistry.ListCommands(ctx)}, nil
 }
 
-// ExecuteCommand routes a command execution request to the registered remote agent that owns the command.
-func (s *remoteCommandProviderServer) ExecuteCommand(ctx context.Context, in *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+// ExecuteCommand routes a command execution request to the selected remote provider and forwards its output frames.
+func (s *remoteCommandProviderServer) ExecuteCommand(in *pb.ExecuteCommandRequest, stream googleGrpc.ServerStreamingServer[pb.ExecuteCommandResponse]) error {
 	if s.remoteAgentRegistry == nil {
-		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+		return status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
-	if in.GetCommandPath() == "" {
-		return nil, status.Error(codes.InvalidArgument, "command_path is required")
+	if len(in.GetCommandPath()) == 0 {
+		return status.Error(codes.InvalidArgument, "command_path is required")
 	}
 
-	resp, err := s.remoteAgentRegistry.ExecuteCommand(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+	return s.remoteAgentRegistry.ExecuteCommand(stream.Context(), in, stream.Send)
 }

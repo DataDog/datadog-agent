@@ -6,18 +6,11 @@ import "google/protobuf/struct.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
 
-// RemoteCommandProvider is an optional service that a remote agent may expose to allow the Core Agent to discover and
-// execute CLI commands on its behalf. This enables transparent command proxying: customers interact exclusively with
-// the Core Agent CLI, which routes commands to the appropriate registered remote agent.
 service RemoteCommandProvider {
-  // Lists all commands available on the remote agent.
   rpc ListCommands(ListCommandsRequest) returns (ListCommandsResponse);
-
-  // Executes a command on the remote agent and returns its output.
-  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (stream ExecuteCommandResponse);
 }
 
-// ParameterType defines the supported parameter types for command parameters.
 enum ParameterType {
   TYPE_UNSPECIFIED = 0;
   TYPE_STRING = 1;
@@ -31,87 +24,49 @@ enum ParameterType {
   TYPE_FLOAT_SLICE = 9;
 }
 
-// CommandParameter describes a single parameter (flag or positional argument) accepted by a command.
 message CommandParameter {
-  // Name of the parameter, e.g., "num-metrics".
   string name = 1;
-  // Short name of the parameter, e.g., "m".
   string short_name = 2;
-  // Helper text shown in command usage.
   string helper = 3;
-  // Type of the parameter value.
   ParameterType type = 4;
-  // Whether the parameter is required.
   bool required = 5;
-  // Whether this is a flag (--flag) or a positional argument.
   bool is_flag = 6;
-  // Whether the flag is persistent (applies to all child commands).
   bool is_persistent = 7;
 }
 
-// Command describes a single command (or subcommand tree) that a remote agent exposes.
 message Command {
-  // Full name of the command, e.g., "dogstatsd.top".
   string name = 1;
-  // Short name of the command, e.g., "top".
   string short_name = 2;
-  // Helper text shown in command listing.
   string helper = 3;
-  // Long description of the command, for help text.
   string long_description = 4;
-  // Parameters accepted by this command.
   repeated CommandParameter parameters = 5;
-  // Child commands, forming a tree structure for nested subcommands.
   repeated Command children = 6;
-  // Whether this command can be executed (has a Run function). Non-runnable commands
-  // serve as grouping nodes for child commands (e.g., a "dogstatsd" parent).
   bool is_runnable = 7;
 }
 
 message ListCommandsRequest {}
 
-// CommandProvider is the active provider exposed as one child of `agent remote`.
 message CommandProvider {
-  string command_name = 1;
-  string agent_description = 2;
+  string name = 1;
+  string description = 2;
   repeated Command commands = 3;
 }
 
-message ListCommandsResponse {
-  // Commands returned by an individual remote provider.
-  repeated Command commands = 1;
-  // Active provider groups returned by the Core Agent.
-  repeated CommandProvider providers = 2;
-}
+message ListCommandsResponse { repeated CommandProvider providers = 1; }
 
 message ExecuteCommandRequest {
-  // Public command-provider name, e.g. "data-plane".
-  string command_name = 1;
-
-  // Full path of the command including subcommands, e.g., "dogstatsd top".
-  // This should match the command structure registered by the remote agent.
-  string command_path = 2;
-
-  // Arguments to pass to the command as a structured key-value map.
-  // Keys should match the parameter names registered by the command.
-  // Values should be appropriate for the registered parameter types.
-  // Example: {"verbose": true, "count": 5, "filter": "status=running"}
+  string provider_name = 1;
+  repeated string command_path = 2;
   google.protobuf.Struct arguments = 3;
-
-  // Whether to format the output as JSON.
   bool json_output = 4;
-
-  // Verbose output flag.
   bool verbose = 5;
 }
 
 message ExecuteCommandResponse {
-  // Exit code of the command (0 for success).
-  int32 exit_code = 1;
-  // Standard output of the command.
-  string stdout = 2;
-  // Error output of the command.
-  string stderr = 3;
-  // Binary output for non-text responses.
-  bytes binary_output = 4;
+  oneof frame {
+    string stdout = 1;
+    string stderr = 2;
+    bytes binary_output = 3;
+    int32 exit_code = 4;
+  }
 }

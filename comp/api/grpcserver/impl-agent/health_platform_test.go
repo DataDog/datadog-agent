@@ -48,8 +48,8 @@ func (r *stubRegistry) ListCommands(_ context.Context) []*pb.CommandProvider {
 	return nil
 }
 
-func (r *stubRegistry) ExecuteCommand(_ context.Context, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
-	return nil, nil
+func (r *stubRegistry) ExecuteCommand(_ context.Context, _ *pb.ExecuteCommandRequest, _ func(*pb.ExecuteCommandResponse) error) error {
+	return nil
 }
 
 func serverWithStore(store healthplatformstore.Component) *serverSecure {

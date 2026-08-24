@@ -35,7 +35,7 @@ import (
 )
 
 // ExecuteFunc invokes a provider command with its public provider name, command path, and typed arguments.
-type ExecuteFunc func(commandName, commandPath string, arguments *structpb.Struct) (*pb.ExecuteCommandResponse, error)
+type ExecuteFunc func(providerName string, commandPath []string, arguments *structpb.Struct, stdout, stderr io.Writer) error
 
 type exitCodeError int
 
@@ -87,8 +87,23 @@ func Prepare(root *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		return AttachCommandProviders(remote, response.GetProviders(), func(commandName, commandPath string, arguments *structpb.Struct) (*pb.ExecuteCommandResponse, error) {
-			return client.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{CommandName: commandName, CommandPath: commandPath, Arguments: arguments})
+		return AttachCommandProviders(remote, response.GetProviders(), func(providerName string, commandPath []string, arguments *structpb.Struct, stdout, stderr io.Writer) error {
+			stream, err := client.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{ProviderName: providerName, CommandPath: commandPath, Arguments: arguments})
+			if err != nil {
+				return err
+			}
+			for {
+				frame, err := stream.Recv()
+				if errors.Is(err, io.EOF) {
+					return nil
+				}
+				if err != nil {
+					return err
+				}
+				if err := renderFrame(frame, stdout, stderr); err != nil {
+					return err
+				}
+			}
 		})
 	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams.(*command.GlobalParams))), core.Bundle(), ipcfx.ModuleReadOnly())
 }
@@ -107,16 +122,16 @@ func AttachCommandProviders(remote *cobra.Command, providers []*pb.CommandProvid
 		if provider == nil {
 			continue
 		}
-		if provider.GetCommandName() == "" {
+		if provider.GetName() == "" {
 			return errors.New("command provider name is required")
 		}
 		providerCmd := &cobra.Command{
-			Use:          provider.GetCommandName(),
-			Short:        provider.GetAgentDescription(),
+			Use:          provider.GetName(),
+			Short:        provider.GetDescription(),
 			SilenceUsage: true,
 		}
 		for _, providerCommand := range provider.GetCommands() {
-			if err := addCommand(providerCmd, provider.GetCommandName(), providerCommand, execute); err != nil {
+			if err := addCommand(providerCmd, provider.GetName(), nil, providerCommand, execute); err != nil {
 				return err
 			}
 		}
@@ -125,7 +140,7 @@ func AttachCommandProviders(remote *cobra.Command, providers []*pb.CommandProvid
 	return nil
 }
 
-func addCommand(parent *cobra.Command, providerName string, definition *pb.Command, execute ExecuteFunc) error {
+func addCommand(parent *cobra.Command, providerName string, parentPath []string, definition *pb.Command, execute ExecuteFunc) error {
 	if definition == nil {
 		return nil
 	}
@@ -150,21 +165,18 @@ func addCommand(parent *cobra.Command, providerName string, definition *pb.Comma
 			addFlag(cmd, parameter)
 		}
 	}
+	commandPath := append(append([]string{}, parentPath...), name)
 	if definition.GetIsRunnable() {
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
 			arguments, err := argumentsForCommand(cmd, args, definition.GetParameters())
 			if err != nil {
 				return err
 			}
-			response, err := execute(providerName, definition.GetName(), arguments)
-			if err != nil {
-				return err
-			}
-			return renderResponse(cmd, response)
+			return execute(providerName, commandPath, arguments, cmd.OutOrStdout(), cmd.ErrOrStderr())
 		}
 	}
 	for _, child := range definition.GetChildren() {
-		if err := addCommand(cmd, providerName, child, execute); err != nil {
+		if err := addCommand(cmd, providerName, commandPath, child, execute); err != nil {
 			return err
 		}
 	}
@@ -172,23 +184,28 @@ func addCommand(parent *cobra.Command, providerName string, definition *pb.Comma
 	return nil
 }
 
-func renderResponse(cmd *cobra.Command, response *pb.ExecuteCommandResponse) error {
-	if response == nil {
-		return errors.New("remote command returned no response")
+func renderFrame(frame *pb.ExecuteCommandResponse, stdout, stderr io.Writer) error {
+	if frame == nil {
+		return errors.New("remote command returned no frame")
 	}
-	if _, err := fmt.Fprint(cmd.OutOrStdout(), response.GetStdout()); err != nil {
+	switch value := frame.GetFrame().(type) {
+	case *pb.ExecuteCommandResponse_Stdout:
+		_, err := io.WriteString(stdout, value.Stdout)
 		return err
-	}
-	if _, err := fmt.Fprint(cmd.ErrOrStderr(), response.GetStderr()); err != nil {
+	case *pb.ExecuteCommandResponse_Stderr:
+		_, err := io.WriteString(stderr, value.Stderr)
 		return err
-	}
-	if _, err := cmd.OutOrStdout().Write(response.GetBinaryOutput()); err != nil {
+	case *pb.ExecuteCommandResponse_BinaryOutput:
+		_, err := stdout.Write(value.BinaryOutput)
 		return err
+	case *pb.ExecuteCommandResponse_ExitCode:
+		if value.ExitCode != 0 {
+			return exitCodeError(value.ExitCode)
+		}
+		return nil
+	default:
+		return errors.New("remote command returned an empty frame")
 	}
-	if response.GetExitCode() != 0 {
-		return exitCodeError(response.GetExitCode())
-	}
-	return nil
 }
 
 func addFlag(cmd *cobra.Command, parameter *pb.CommandParameter) {

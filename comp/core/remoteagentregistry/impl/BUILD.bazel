@@ -42,7 +42,6 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
-        "active_command_provider_test.go",
         "client_test.go",
         "command_provider_flow_test.go",
         "registry_test.go",

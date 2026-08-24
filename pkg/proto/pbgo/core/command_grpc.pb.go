@@ -26,15 +26,9 @@ const (
 // RemoteCommandProviderClient is the client API for RemoteCommandProvider service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// RemoteCommandProvider is an optional service that a remote agent may expose to allow the Core Agent to discover and
-// execute CLI commands on its behalf. This enables transparent command proxying: customers interact exclusively with
-// the Core Agent CLI, which routes commands to the appropriate registered remote agent.
 type RemoteCommandProviderClient interface {
-	// Lists all commands available on the remote agent.
 	ListCommands(ctx context.Context, in *ListCommandsRequest, opts ...grpc.CallOption) (*ListCommandsResponse, error)
-	// Executes a command on the remote agent and returns its output.
-	ExecuteCommand(ctx context.Context, in *ExecuteCommandRequest, opts ...grpc.CallOption) (*ExecuteCommandResponse, error)
+	ExecuteCommand(ctx context.Context, in *ExecuteCommandRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExecuteCommandResponse], error)
 }
 
 type remoteCommandProviderClient struct {
@@ -55,28 +49,31 @@ func (c *remoteCommandProviderClient) ListCommands(ctx context.Context, in *List
 	return out, nil
 }
 
-func (c *remoteCommandProviderClient) ExecuteCommand(ctx context.Context, in *ExecuteCommandRequest, opts ...grpc.CallOption) (*ExecuteCommandResponse, error) {
+func (c *remoteCommandProviderClient) ExecuteCommand(ctx context.Context, in *ExecuteCommandRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExecuteCommandResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ExecuteCommandResponse)
-	err := c.cc.Invoke(ctx, RemoteCommandProvider_ExecuteCommand_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &RemoteCommandProvider_ServiceDesc.Streams[0], RemoteCommandProvider_ExecuteCommand_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[ExecuteCommandRequest, ExecuteCommandResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RemoteCommandProvider_ExecuteCommandClient = grpc.ServerStreamingClient[ExecuteCommandResponse]
 
 // RemoteCommandProviderServer is the server API for RemoteCommandProvider service.
 // All implementations must embed UnimplementedRemoteCommandProviderServer
 // for forward compatibility.
-//
-// RemoteCommandProvider is an optional service that a remote agent may expose to allow the Core Agent to discover and
-// execute CLI commands on its behalf. This enables transparent command proxying: customers interact exclusively with
-// the Core Agent CLI, which routes commands to the appropriate registered remote agent.
 type RemoteCommandProviderServer interface {
-	// Lists all commands available on the remote agent.
 	ListCommands(context.Context, *ListCommandsRequest) (*ListCommandsResponse, error)
-	// Executes a command on the remote agent and returns its output.
-	ExecuteCommand(context.Context, *ExecuteCommandRequest) (*ExecuteCommandResponse, error)
+	ExecuteCommand(*ExecuteCommandRequest, grpc.ServerStreamingServer[ExecuteCommandResponse]) error
 	mustEmbedUnimplementedRemoteCommandProviderServer()
 }
 
@@ -90,8 +87,8 @@ type UnimplementedRemoteCommandProviderServer struct{}
 func (UnimplementedRemoteCommandProviderServer) ListCommands(context.Context, *ListCommandsRequest) (*ListCommandsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCommands not implemented")
 }
-func (UnimplementedRemoteCommandProviderServer) ExecuteCommand(context.Context, *ExecuteCommandRequest) (*ExecuteCommandResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ExecuteCommand not implemented")
+func (UnimplementedRemoteCommandProviderServer) ExecuteCommand(*ExecuteCommandRequest, grpc.ServerStreamingServer[ExecuteCommandResponse]) error {
+	return status.Error(codes.Unimplemented, "method ExecuteCommand not implemented")
 }
 func (UnimplementedRemoteCommandProviderServer) mustEmbedUnimplementedRemoteCommandProviderServer() {}
 func (UnimplementedRemoteCommandProviderServer) testEmbeddedByValue()                               {}
@@ -132,23 +129,16 @@ func _RemoteCommandProvider_ListCommands_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _RemoteCommandProvider_ExecuteCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ExecuteCommandRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _RemoteCommandProvider_ExecuteCommand_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ExecuteCommandRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(RemoteCommandProviderServer).ExecuteCommand(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: RemoteCommandProvider_ExecuteCommand_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RemoteCommandProviderServer).ExecuteCommand(ctx, req.(*ExecuteCommandRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(RemoteCommandProviderServer).ExecuteCommand(m, &grpc.GenericServerStream[ExecuteCommandRequest, ExecuteCommandResponse]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RemoteCommandProvider_ExecuteCommandServer = grpc.ServerStreamingServer[ExecuteCommandResponse]
 
 // RemoteCommandProvider_ServiceDesc is the grpc.ServiceDesc for RemoteCommandProvider service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -161,11 +151,13 @@ var RemoteCommandProvider_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListCommands",
 			Handler:    _RemoteCommandProvider_ListCommands_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "ExecuteCommand",
-			Handler:    _RemoteCommandProvider_ExecuteCommand_Handler,
+			StreamName:    "ExecuteCommand",
+			Handler:       _RemoteCommandProvider_ExecuteCommand_Handler,
+			ServerStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "datadog/remoteagent/command.proto",
 }

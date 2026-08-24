@@ -11,8 +11,6 @@ import "time"
 type RegisteredAgent struct {
 	Flavor               string
 	DisplayName          string
-	Description          string
-	CommandName          string
 	SanitizedDisplayName string
 	PID                  string
 	LastSeen             time.Time
@@ -44,8 +42,6 @@ type FlareData struct {
 type RegistrationData struct {
 	AgentFlavor      string
 	AgentDisplayName string
-	AgentDescription string
-	CommandName      string
 	AgentPID         string
 	APIEndpointURI   string
 	Services         []string

@@ -8,7 +8,9 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"sync"
 	"time"
@@ -231,31 +233,11 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	}
 
 	log.Infof("Remote agent '%s' (flavor: %s, session_id: %s) registered. (exposed services: %v)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.Flavor, remoteAgentClient.RegisteredAgent.SessionID, remoteAgentClient.services)
-	if slices.Contains(remoteAgentClient.services, CommandProviderServiceName) {
-		if existing := ra.providerForCommand(remoteAgentClient.RegisteredAgent.CommandName); existing != nil {
-			log.Warnf("Remote agent command provider %q registered with duplicate command name %q; oldest provider %q remains active", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.CommandName, existing.RegisteredAgent.DisplayName)
-		}
-	}
 	// indexing remoteAgent client by its sessionID
 	ra.agentMap[remoteAgentClient.RegisteredAgent.SessionID] = remoteAgentClient
 	ra.telemetryStore.remoteAgentRegistered.Inc(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
 
 	return remoteAgentClient.RegisteredAgent.SessionID, recommendedRefreshInterval, nil
-}
-
-// providerForCommand returns the oldest live command provider for command name.
-// The caller must hold agentMapMu.
-func (ra *remoteAgentRegistry) providerForCommand(commandName string) *remoteAgentClient {
-	var oldest *remoteAgentClient
-	for _, agent := range ra.agentMap {
-		if agent.RegisteredAgent.CommandName != commandName || !slices.Contains(agent.services, CommandProviderServiceName) {
-			continue
-		}
-		if oldest == nil || agent.registeredAt.Before(oldest.registeredAt) {
-			oldest = agent
-		}
-	}
-	return oldest
 }
 
 // RefreshRemoteAgent refreshes the last seen time of a remote agent.
@@ -385,82 +367,90 @@ func grpcErrorMessage(err error) string {
 	return errorString
 }
 
-// ListCommands queries the active command provider for each registered command name.
-func (ra *remoteAgentRegistry) ListCommands(ctx context.Context) []*pb.CommandProvider {
+type commandProviderTarget struct {
+	provider *pb.CommandProvider
+	client   *remoteAgentClient
+}
+
+// commandProviders queries each registered RemoteCommandProvider once and selects the oldest registration for every provider name.
+func (ra *remoteAgentRegistry) commandProviders(ctx context.Context) map[string]commandProviderTarget {
 	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
 
 	ra.agentMapMu.Lock()
-	activeProviders := map[string]*remoteAgentClient{}
-	for _, remoteAgent := range ra.agentMap {
-		if !slices.Contains(remoteAgent.services, CommandProviderServiceName) {
-			continue
-		}
-		active := activeProviders[remoteAgent.CommandName]
-		if active == nil || remoteAgent.registeredAt.Before(active.registeredAt) {
-			activeProviders[remoteAgent.CommandName] = remoteAgent
+	clients := make([]*remoteAgentClient, 0, len(ra.agentMap))
+	for _, client := range ra.agentMap {
+		if slices.Contains(client.services, CommandProviderServiceName) {
+			clients = append(clients, client)
 		}
 	}
 	ra.agentMapMu.Unlock()
 
-	providers := make([]*pb.CommandProvider, 0, len(activeProviders))
-	for commandName, remoteAgent := range activeProviders {
+	providers := make(map[string]commandProviderTarget)
+	for _, client := range clients {
 		callCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-		var responseHeader metadata.MD
-		response, err := remoteAgent.ListCommands(callCtx, &pb.ListCommandsRequest{}, grpc.WaitForReady(true), grpc.Header(&responseHeader))
+		var header metadata.MD
+		response, err := client.ListCommands(callCtx, &pb.ListCommandsRequest{}, grpc.WaitForReady(true), grpc.Header(&header))
 		cancel()
-		if err != nil {
-			log.Warnf("Failed to list commands from remote agent %q: %v", remoteAgent.DisplayName, err)
+		if err != nil || client.validateSessionID(header) != nil {
 			continue
 		}
-		if validationErr := remoteAgent.validateSessionID(responseHeader); validationErr != nil {
-			log.Warnf("Failed to validate command response from remote agent %q: %v", remoteAgent.DisplayName, validationErr)
-			continue
+		for _, provider := range response.GetProviders() {
+			if provider == nil || provider.GetName() == "" {
+				continue
+			}
+			active, ok := providers[provider.GetName()]
+			if !ok || client.registeredAt.Before(active.client.registeredAt) {
+				providers[provider.GetName()] = commandProviderTarget{provider: provider, client: client}
+			}
 		}
-		providers = append(providers, &pb.CommandProvider{
-			CommandName:      commandName,
-			AgentDescription: remoteAgent.Description,
-			Commands:         response.GetCommands(),
-		})
 	}
 	return providers
 }
 
-// ExecuteCommand routes a command execution request to the oldest registered command provider for AgentFlavor.
-func (ra *remoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
-	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
-	commandName := req.GetCommandName()
-	if commandName == "" {
-		return nil, grpcStatus.Error(codes.InvalidArgument, "command_name is required")
+func (ra *remoteAgentRegistry) ListCommands(ctx context.Context) []*pb.CommandProvider {
+	active := ra.commandProviders(ctx)
+	providers := make([]*pb.CommandProvider, 0, len(active))
+	for _, target := range active {
+		providers = append(providers, target.provider)
+	}
+	return providers
+}
+
+// ExecuteCommand routes a command execution request and forwards ordered output frames to send.
+func (ra *remoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest, send func(*pb.ExecuteCommandResponse) error) error {
+	providerName := req.GetProviderName()
+	if providerName == "" {
+		return grpcStatus.Error(codes.InvalidArgument, "provider_name is required")
 	}
 
-	ra.agentMapMu.Lock()
-	target := ra.providerForCommand(commandName)
-	if target == nil {
-		ra.agentMapMu.Unlock()
-		return nil, grpcStatus.Errorf(codes.NotFound, "no remote command provider found for command name %q", commandName)
+	target, ok := ra.commandProviders(ctx)[providerName]
+	if !ok {
+		return grpcStatus.Errorf(codes.NotFound, "no remote command provider found for provider name %q", providerName)
 	}
-	ra.agentMapMu.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	callCtx, cancel := context.WithTimeout(ctx, ra.conf.GetDuration("remote_agent.registry.query_timeout"))
 	defer cancel()
-
-	var responseHeader metadata.MD
-	resp, err := target.ExecuteCommand(ctx, req, grpc.WaitForReady(true), grpc.Header(&responseHeader))
+	stream, err := target.client.ExecuteCommand(callCtx, req, grpc.WaitForReady(true))
 	if err != nil {
-		ra.telemetryStore.remoteAgentActionError.Inc(target.RegisteredAgent.SanitizedDisplayName, CommandProviderServiceName, grpcErrorMessage(err))
-		return nil, err
+		return err
 	}
-
-	if validationErr := target.validateSessionID(responseHeader); validationErr != nil {
-		ra.telemetryStore.remoteAgentActionError.Inc(target.RegisteredAgent.SanitizedDisplayName, CommandProviderServiceName, sessionIDMismatch)
-		ra.agentMapMu.Lock()
-		if ra.agentMap[target.RegisteredAgent.SessionID] == target {
-			target.unhealthy = true
-			target.unhealthyReason = validationErr
+	header, err := stream.Header()
+	if err != nil {
+		return err
+	}
+	if err := target.client.validateSessionID(header); err != nil {
+		return grpcStatus.Errorf(codes.Unavailable, "remote command provider session validation failed: %v", err)
+	}
+	for {
+		frame, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			return nil
 		}
-		ra.agentMapMu.Unlock()
-		return nil, grpcStatus.Errorf(codes.Unavailable, "remote command provider session validation failed: %v", validationErr)
+		if err != nil {
+			return err
+		}
+		if err := send(frame); err != nil {
+			return err
+		}
 	}
-
-	return resp, nil
 }
