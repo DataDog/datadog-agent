@@ -9803,6 +9803,10 @@ properties:
             node_type: setting
             type: boolean
             default: false
+          intake_test_drive:
+            node_type: setting
+            type: string
+            default: ""
       match_check:
         node_type: section
         type: object
