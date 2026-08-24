@@ -37,6 +37,13 @@ jobs:
       id-token: write # This is required for getting the required OIDC token from GitHub
 
     steps:
+      - name: Validate target branch
+        run: |
+          if [[ "${{ github.ref_name }}" != "main" && ! "${{ github.ref_name }}" =~ ^[0-9]+\.[0-9]+\.x$ ]]; then
+            echo "Unexpected ref: ${{ github.ref_name }}" >&2
+            exit 1
+          fi
+
       - name: Checkout branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,11 +88,6 @@ jobs:
         run: |
           echo "GO_VERSION=$(dda inv -- go-version)" >> $GITHUB_OUTPUT
 
-      - name: Get current buildimage tag
-        id: current_buildimage_tag
-        run: |
-            echo "BUILDIMAGE_TAG=$(dda inv -- buildimages.get-tag)" >> $GITHUB_OUTPUT
-
       - name: Install tools
         # Updating the Go version requires having gopatch installed
         id: install_tools
@@ -98,11 +100,8 @@ jobs:
           TEST_VERSION_FLAG: ${{ inputs.test_version && '--test' || '--no-test' }}
           # INCLUDE_OTEL_MODULES must be used without quotes to be ignored when empty
           INCLUDE_OTEL_MODULES: ${{ inputs.include_otel_modules && '--include-otel-modules' || '' }}
-          # INPUT_TEST_VERSION must be used without quotes to be ignored when empty
-          INPUT_TEST_VERSION: ${{ inputs.test_version && '--test' || '' }}
           CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}
           INPUT_GO_VERSION: ${{ inputs.go_version }}
-          CURRENT_BUILDIMAGE_TAG: ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }}
           IMAGES_ID: ${{ inputs.images_id }}
           TMP_PR_BODY_PATH: /tmp/pr_body
           WINDOWS_FLAG: ${{ inputs.update_windows_images && '--windows' || '' }}
@@ -116,11 +115,8 @@ jobs:
           fi
           # Generate the PR description
           dda inv -- -e buildimages.generate-pr-body \
-          "$CURRENT_BUILDIMAGE_TAG" \
-          "$IMAGES_ID" \
           "$CURRENT_GO_VERSION" \
-          "$INPUT_GO_VERSION" \
-          $INPUT_TEST_VERSION > $TMP_PR_BODY_PATH
+          "$INPUT_GO_VERSION" > $TMP_PR_BODY_PATH
           echo "BODY<<EOF"$'\n'"$(cat $TMP_PR_BODY_PATH)"$'\n'EOF >> $GITHUB_OUTPUT
 
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
@@ -136,7 +132,7 @@ jobs:
           commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
           branch: ${{ inputs.branch }}
           sign-commits: true
-          title: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
+          title: ${{ github.ref_name == 'main' && steps.update_build_images.outputs.MESSAGE || format('[Backport {0}] {1}', github.ref_name, steps.update_build_images.outputs.MESSAGE) }}
           body: ${{ steps.update_build_images.outputs.BODY }}
           draft: true
           labels: go-update,team/agent-runtimes
