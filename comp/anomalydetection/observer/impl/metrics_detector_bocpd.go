@@ -46,11 +46,6 @@ type bocpdSeriesState struct {
 	means      []float64
 	precisions []float64
 
-	// Pre-allocated swap buffers to avoid per-point allocation.
-	newRunProbs   []float64
-	newMeans      []float64
-	newPrecisions []float64
-
 	// Alert lifecycle.
 	inAlert       bool
 	alertStart    int64
@@ -267,8 +262,8 @@ func (b *BOCPDDetector) Reset() {
 }
 
 // RemoveSeries drops posterior state for refs that storage has freed.
-// Each (ref, agg) entry in the per-series map carries six float64 arrays
-// of size MaxRunLength+2 (~9.7 KB at default config), so without this
+// Each (ref, agg) entry in the per-series map carries three float64 arrays
+// of size MaxRunLength+1 (~2.9 KB at default config), so without this
 // teardown the map grows with the cumulative number of series ever seen
 // even after their storage payload is gone. Called by the engine right
 // after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
@@ -356,18 +351,13 @@ func (b *BOCPDDetector) initializeFromStorage(storage observer.StorageReader, re
 	state.priorPrecision = 1.0 / (variance * b.config.PriorVarianceScale)
 
 	// Initialize posterior arrays.
-	bufSize := b.config.MaxRunLength + 2
+	bufSize := b.config.MaxRunLength + 1
 	state.runProbs = make([]float64, 1, bufSize)
 	state.means = make([]float64, 1, bufSize)
 	state.precisions = make([]float64, 1, bufSize)
 	state.runProbs[0] = 1.0
 	state.means[0] = state.priorMean
 	state.precisions[0] = state.priorPrecision
-
-	state.newRunProbs = make([]float64, 0, bufSize)
-	state.newMeans = make([]float64, 0, bufSize)
-	state.newPrecisions = make([]float64, 0, bufSize)
-
 	storage.ForEachPoint(ref, 0, state.lastProcessedTime, agg, func(_ *observer.Series, p observer.Point) {
 		b.updatePosterior(state, p.Value)
 	})
@@ -386,41 +376,69 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	// This weighs the observation against all run-length hypotheses so the
 	// detector can catch cascading shifts, not just the first deviation from
 	// the warmup baseline.
-	newLen := len(state.runProbs) + 1
-	state.newRunProbs = state.newRunProbs[:newLen]
-	var cpMass float64
-	for r := range state.runProbs {
-		pred := gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
-		state.newRunProbs[r+1] = state.runProbs[r] * (1.0 - hazard) * pred
-		cpMass += state.runProbs[r] * pred
-	}
-	state.newRunProbs[0] = hazard * cpMass
-
-	normalizeProbs(state.newRunProbs)
-	cpProb := state.newRunProbs[0]
-	shortRunMass := shortRunLengthMass(state.newRunProbs, b.config.ShortRunLength)
-
-	// Update posterior means and precisions.
-	state.newMeans = state.newMeans[:newLen]
-	state.newPrecisions = state.newPrecisions[:newLen]
-	state.newMeans[0], state.newPrecisions[0] = normalPosterior(state.priorMean, state.priorPrecision, x, state.obsVar)
-	for r := range state.means {
-		state.newMeans[r+1], state.newPrecisions[r+1] = normalPosterior(state.means[r], state.precisions[r], x, state.obsVar)
-	}
-
-	// Truncate to MaxRunLength.
+	oldLen := len(state.runProbs)
+	fullLen := oldLen + 1
+	newLen := fullLen
 	if newLen > b.config.MaxRunLength+1 {
 		newLen = b.config.MaxRunLength + 1
-		state.newRunProbs = state.newRunProbs[:newLen]
-		state.newMeans = state.newMeans[:newLen]
-		state.newPrecisions = state.newPrecisions[:newLen]
-		normalizeProbs(state.newRunProbs)
+	} else {
+		state.runProbs = state.runProbs[:newLen]
+		state.means = state.means[:newLen]
+		state.precisions = state.precisions[:newLen]
 	}
 
-	// Swap buffers.
-	state.runProbs, state.newRunProbs = state.newRunProbs, state.runProbs
-	state.means, state.newMeans = state.newMeans, state.means
-	state.precisions, state.newPrecisions = state.newPrecisions, state.precisions
+	// Update from high run lengths to low ones so each source hypothesis is
+	// read before its successor overwrites the next slot. At the horizon, the
+	// final successor is deliberately not retained, but remains part of the
+	// full posterior used for trigger probabilities below.
+	var cpMass float64
+	var shortRunRawMass float64
+	var discardedGrowthProb float64
+	for r := oldLen - 1; r >= 0; r-- {
+		pred := gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
+		growthProb := state.runProbs[r] * (1.0 - hazard) * pred
+		if r+1 < newLen {
+			state.runProbs[r+1] = growthProb
+			state.means[r+1], state.precisions[r+1] = normalPosterior(state.means[r], state.precisions[r], x, state.obsVar)
+		} else {
+			discardedGrowthProb = growthProb
+		}
+		cpMass += state.runProbs[r] * pred
+		if r+1 <= b.config.ShortRunLength {
+			shortRunRawMass += growthProb
+		}
+	}
+	cpRaw := hazard * cpMass
+	state.runProbs[0] = cpRaw
+	state.means[0], state.precisions[0] = normalPosterior(state.priorMean, state.priorPrecision, x, state.obsVar)
+
+	// Normalize first over the full posterior (including a discarded horizon
+	// tail), then normalize the retained posterior after truncation. Trigger
+	// values intentionally use the full posterior distribution.
+	fullTotal := cpRaw
+	for r := 1; r < newLen; r++ {
+		fullTotal += state.runProbs[r]
+	}
+	// The raw tail is not resident, but was included in cpMass above. It is
+	// the only full-posterior probability missing from the retained slice.
+	fullTotal += discardedGrowthProb
+
+	var cpProb, shortRunMass float64
+	if fullTotal <= 0 || math.IsNaN(fullTotal) || math.IsInf(fullTotal, 0) {
+		uniform := 1.0 / float64(fullLen)
+		cpProb = uniform
+		shortRunMass = float64(min(b.config.ShortRunLength, fullLen-1)) * uniform
+		for i := range state.runProbs {
+			state.runProbs[i] = uniform
+		}
+	} else {
+		cpProb = cpRaw / fullTotal
+		shortRunMass = shortRunRawMass / fullTotal
+		for i := range state.runProbs {
+			state.runProbs[i] /= fullTotal
+		}
+	}
+	normalizeProbs(state.runProbs)
 
 	// Check trigger conditions.
 	// Short-run mass is only meaningful when there are run-length hypotheses
