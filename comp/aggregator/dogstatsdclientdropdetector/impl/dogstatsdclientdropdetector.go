@@ -58,12 +58,14 @@ const (
 )
 
 type component struct {
-	stats          clientByteStats
-	logger         log.Component
-	healthPlatform healthplatformstore.Component
-	hostname       string
-	issueID        string
-	issueActive    bool
+	stats             clientByteStats
+	logger            log.Component
+	healthPlatform    healthplatformstore.Component
+	hostname          string
+	issueID           string
+	issueActive       bool
+	// startupReconciled is closed after persisted issue state has been reconciled.
+	startupReconciled chan struct{}
 	// issueNeedsRefresh marks restored active lifecycle state whose full issue
 	// payload must be reported again after an Agent restart.
 	issueNeedsRefresh bool
@@ -85,12 +87,14 @@ func NewComponent(req Requires) Provides {
 		healthPlatform:                req.HealthPlatform,
 		hostname:                      hostname,
 		issueID:                       dogstatsdclientdrops.UDSIssueIDForHostname(hostname),
+		startupReconciled:             make(chan struct{}),
 		unhealthyConfirmationDuration: req.Config.GetDuration(unhealthyConfirmationWindowConfig),
 		recoveryConfirmationDuration:  req.Config.GetDuration(recoveryConfirmationWindowConfig),
 		now:                           time.Now,
 	}
 	req.Lifecycle.Append(compdef.Hook{OnStart: func(context.Context) error {
 		detector.reconcileIssueState()
+		close(detector.startupReconciled)
 		return nil
 	}})
 	return Provides{Comp: detector}
@@ -113,7 +117,13 @@ func (d *component) ObserveClientBytes(metric dogstatsdclientdropdetector.Client
 // CompleteFinalDogStatsDSerieFlush evaluates and resets the detector after all
 // DogStatsD workers have contributed to the serializer-flush window.
 func (d *component) CompleteFinalDogStatsDSerieFlush() {
-	d.completeWindow()
+	// Ignore flushes until persisted issue state has been reconciled during startup.
+	select {
+	case <-d.startupReconciled:
+		d.completeWindow()
+	default:
+		d.takeWindow()
+	}
 }
 
 func (d *component) takeWindow() clientByteStats {
