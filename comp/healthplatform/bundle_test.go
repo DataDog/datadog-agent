@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	hostuuid "github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // team: fleet-remediation
@@ -374,7 +375,7 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 		if err != nil {
 			return nil
 		}
-		issueID := dogstatsdclientdrops.UDSIssueIDForHostname("my-hostname")
+		issueID := dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), "my-hostname")
 		for _, payload := range payloads {
 			issue := payload.Issues[issueID]
 			if issue != nil && issue.PersistedIssue != nil && issue.PersistedIssue.State == state {
@@ -391,7 +392,7 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 		active = findIssue(healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
 		return active != nil
 	}, 2*time.Second, 10*time.Millisecond)
-	require.Equal(t, dogstatsdclientdrops.UDSIssueIDForHostname("my-hostname"), active.Id)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), "my-hostname"), active.Id)
 	require.Equal(t, dogstatsdclientdrops.UDSIssueName, active.IssueName)
 	require.Equal(t, dogstatsdclientdrops.UDSIssueType, active.IssueType)
 	require.Contains(t, active.Title, "UDS")

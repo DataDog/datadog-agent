@@ -9,9 +9,11 @@ package dogstatsdclientdropdetectorimpl
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/require"
 
 	dogstatsdclientdropdetector "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/def"
@@ -22,6 +24,7 @@ import (
 	dogstatsdclientdrops "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dogstatsdclientdrops"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
+	hostuuid "github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 const testHostname = "test-node"
@@ -68,6 +71,19 @@ type persistedOnlyHealthPlatform struct {
 	activeByName map[string][]string
 }
 
+type reportErrorHealthPlatform struct {
+	*healthplatformmock.Mock
+	issueID   string
+	reportErr error
+}
+
+func (p *reportErrorHealthPlatform) ReportIssue(issue *healthplatformpayload.Issue) error {
+	if issue.Id == p.issueID && p.reportErr != nil {
+		return p.reportErr
+	}
+	return p.Mock.ReportIssue(issue)
+}
+
 func (p *persistedOnlyHealthPlatform) GetActiveIssueIDsByIssueName(issueName string) []string {
 	return append([]string(nil), p.activeByName[issueName]...)
 }
@@ -93,6 +109,22 @@ func completeWindow(detector *component, stats clientByteStats) {
 		}
 	}
 	detector.CompleteFinalDogStatsDSerieFlush()
+}
+
+func newFailingMigrationComponent(t testing.TB) (*component, *reportErrorHealthPlatform, string, string) {
+	t.Helper()
+	previousID := dogstatsdclientdrops.UDSIssueID + ":97864685c4a5b06a"
+	previousIssue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{Hostname: "previous-node"})
+	require.NoError(t, err)
+	previousIssue.Id = previousID
+	currentID := dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), testHostname)
+	healthPlatform := &reportErrorHealthPlatform{
+		Mock:      healthplatformmock.New(t, healthplatformmock.WithIssue(previousIssue)),
+		issueID:   currentID,
+		reportErr: errors.New("report failed"),
+	}
+	detector := newTestComponentWithHealthPlatform(t, healthPlatform, testHostname)
+	return detector, healthPlatform, previousID, currentID
 }
 
 func TestDroppedRatioThreshold(t *testing.T) {
@@ -146,7 +178,7 @@ func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 	unhealthy := clientByteStats{sent: 980, dropped: 20, droppedQueue: 12, droppedWriter: 8}
 	completeWindow(detector, unhealthy)
 
-	issueID := dogstatsdclientdrops.UDSIssueIDForHostname(testHostname)
+	issueID := detector.issueID
 	require.Nil(t, healthPlatform.GetIssue(issueID))
 
 	advance(detector.unhealthyConfirmationDuration)
@@ -185,7 +217,7 @@ func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 func TestComponentPendingTransitionsRequireContinuousEvidence(t *testing.T) {
 	detector, healthPlatform := newTestComponent(t)
 	advance := useTestClock(detector)
-	issueID := dogstatsdclientdrops.UDSIssueIDForHostname(testHostname)
+	issueID := detector.issueID
 	observe := func(sent, dropped float64) {
 		completeWindow(detector, clientByteStats{sent: sent, dropped: dropped})
 	}
@@ -222,18 +254,16 @@ func TestComponentPendingTransitionsRequireContinuousEvidence(t *testing.T) {
 }
 
 func TestComponentReconcilesPersistedIssueState(t *testing.T) {
-	t.Run("refreshes current issue and resolves stale hostname", func(t *testing.T) {
+	t.Run("migrates an active issue from a stale host identity", func(t *testing.T) {
 		healthPlatform := healthplatformmock.New(t)
-		for _, hostname := range []string{testHostname, "previous-node"} {
-			issue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{Hostname: hostname})
-			require.NoError(t, err)
-			issue.Id = dogstatsdclientdrops.UDSIssueIDForHostname(hostname)
-			require.NoError(t, healthPlatform.ReportIssue(issue))
-		}
+		previousID := dogstatsdclientdrops.UDSIssueID + ":97864685c4a5b06a"
+		previousIssue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{Hostname: "previous-node"})
+		require.NoError(t, err)
+		previousIssue.Id = previousID
+		require.NoError(t, healthPlatform.ReportIssue(previousIssue))
 
 		detector := newTestComponentWithHealthPlatform(t, healthPlatform, testHostname)
-		currentID := dogstatsdclientdrops.UDSIssueIDForHostname(testHostname)
-		previousID := dogstatsdclientdrops.UDSIssueIDForHostname("previous-node")
+		currentID := detector.issueID
 		restoredIssue := healthPlatform.GetIssue(currentID)
 		require.NotNil(t, restoredIssue)
 		require.Contains(t, restoredIssue.Description, "awaiting current client telemetry")
@@ -252,8 +282,41 @@ func TestComponentReconcilesPersistedIssueState(t *testing.T) {
 		require.False(t, detector.issueNeedsRefresh)
 	})
 
+	t.Run("retries a failed migration with unhealthy telemetry", func(t *testing.T) {
+		detector, healthPlatform, previousID, currentID := newFailingMigrationComponent(t)
+		require.True(t, detector.issueActive)
+		require.True(t, detector.issueNeedsRefresh)
+		require.Equal(t, []string{previousID}, detector.staleIssueIDs)
+		require.NotNil(t, healthPlatform.GetIssue(previousID))
+		require.Nil(t, healthPlatform.GetIssue(currentID))
+		require.Empty(t, healthPlatform.ResolvedIDs())
+
+		healthPlatform.reportErr = nil
+		completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
+		require.NotNil(t, healthPlatform.GetIssue(currentID))
+		require.Nil(t, healthPlatform.GetIssue(previousID))
+		require.Equal(t, []string{previousID}, healthPlatform.ResolvedIDs())
+		require.Empty(t, detector.staleIssueIDs)
+		require.False(t, detector.issueNeedsRefresh)
+	})
+
+	t.Run("resolves a stale issue after a failed migration and healthy recovery", func(t *testing.T) {
+		detector, healthPlatform, previousID, currentID := newFailingMigrationComponent(t)
+		advance := useTestClock(detector)
+
+		completeWindow(detector, clientByteStats{sent: 100})
+		advance(detector.recoveryConfirmationDuration)
+		completeWindow(detector, clientByteStats{sent: 100})
+
+		require.Nil(t, healthPlatform.GetIssue(previousID))
+		require.Nil(t, healthPlatform.GetIssue(currentID))
+		require.Contains(t, healthPlatform.ResolvedIDs(), previousID)
+		require.Empty(t, detector.staleIssueIDs)
+		require.False(t, detector.issueActive)
+	})
+
 	t.Run("rehydrates persisted-only issue before receiving telemetry", func(t *testing.T) {
-		issueID := dogstatsdclientdrops.UDSIssueIDForHostname(testHostname)
+		issueID := dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), testHostname)
 		baseStore := healthplatformmock.New(t)
 		healthPlatform := &persistedOnlyHealthPlatform{
 			Mock:         baseStore,
