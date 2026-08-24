@@ -556,7 +556,8 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		}
 	}
 	require.Equal(t, "computer_group_policy", parent.ID)
-	assert.Equal(t, int64(14000), inv.OffsetMs)
+	// Raw 14000, less the 2000ms of login screen elided between LoginUIDone and the pass.
+	assert.Equal(t, int64(12000), inv.OffsetMs)
 	assert.GreaterOrEqual(t, float64(inv.OffsetMs), parent.OffsetMs)
 	assert.LessOrEqual(t, float64(inv.OffsetMs+inv.DurationMs), parent.OffsetMs+parent.DurationMs)
 

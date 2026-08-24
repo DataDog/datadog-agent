@@ -33,6 +33,45 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
+	s := newTimeSeriesStorage()
+	var ref observer.SeriesRef
+	for i := int64(1); i <= 5; i++ {
+		res := s.Add("test", "my.metric", float64(i), i, []string{"env:prod"})
+		ref = res.Ref
+	}
+
+	var got []observer.Point
+	found := s.ForEachLastPoints(ref, 4, 3, AggregateAverage, func(series *observer.Series, p observer.Point) {
+		assert.Equal(t, "my.metric", series.Name)
+		got = append(got, p)
+	})
+	require.True(t, found)
+	assert.Equal(t, []observer.Point{{Timestamp: 2, Value: 2}, {Timestamp: 3, Value: 3}, {Timestamp: 4, Value: 4}}, got)
+}
+
+func TestTimeSeriesStorage_ForEachLastPoints_Boundaries(t *testing.T) {
+	s := newTimeSeriesStorage()
+	res := s.Add("test", "my.metric", 1, 10, nil)
+	s.Add("test", "my.metric", 2, 20, nil)
+
+	called := false
+	assert.False(t, s.ForEachLastPoints(res.Ref, 20, 0, AggregateAverage, func(*observer.Series, observer.Point) { called = true }))
+	assert.False(t, called)
+
+	var got []int64
+	require.True(t, s.ForEachLastPoints(res.Ref, 100, 10, AggregateAverage, func(_ *observer.Series, p observer.Point) {
+		got = append(got, p.Timestamp)
+	}))
+	assert.Equal(t, []int64{10, 20}, got)
+}
+
+func TestDefaultStorageConfigIncludesInactiveSeriesEviction(t *testing.T) {
+	cfg := DefaultStorageConfig()
+	assert.Equal(t, int64(5*60), cfg.InactiveSeriesTTLSeconds)
+	assert.Equal(t, int64(5*60), cfg.InactiveSeriesCheckIntervalSeconds)
+}
+
 func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {
 	s := newTimeSeriesStorage()
 
@@ -108,6 +147,38 @@ func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 	assert.Equal(t, 20.0, series.Points[1].Value)
 	assert.Equal(t, 30.0, series.Points[2].Value)
+}
+
+func TestTimeSeriesStorage_MaxPointsRetainsPendingBucket(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 3})
+	for timestamp := int64(1); timestamp <= 6; timestamp++ {
+		s.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+
+	series := s.GetSeriesRange(observer.SeriesRef(0), 0, 6, AggregateAverage)
+	require.NotNil(t, series)
+	require.Equal(t, []observer.Point{
+		{Timestamp: 3, Value: 3},
+		{Timestamp: 4, Value: 4},
+		{Timestamp: 5, Value: 5},
+		{Timestamp: 6, Value: 6},
+	}, series.Points)
+	assert.Equal(t, 3, s.PointCountUpTo(observer.SeriesRef(0), 5))
+}
+
+func TestTimeSeriesStorage_CombinesDurationAndPointRetention(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{PointRetentionSecs: 3, MaxPointsPerSeries: 2})
+	for timestamp := int64(1); timestamp <= 6; timestamp++ {
+		s.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+
+	series := s.GetSeriesRange(observer.SeriesRef(0), 0, 6, AggregateAverage)
+	require.NotNil(t, series)
+	require.Equal(t, []observer.Point{
+		{Timestamp: 4, Value: 4},
+		{Timestamp: 5, Value: 5},
+		{Timestamp: 6, Value: 6},
+	}, series.Points)
 }
 
 func TestTimeSeriesStorage_PreservesOutOfOrderBuckets(t *testing.T) {
@@ -682,6 +753,25 @@ func TestTimeSeriesStorage_TotalSeriesCountTracksCapacityEviction(t *testing.T) 
 	require.Len(t, freed, 2)
 	require.Equal(t, 1, s.TotalSeriesCount())
 	require.Equal(t, 1, s.TotalSeriesCount())
+}
+
+func TestTimeSeriesStorage_EvictInactiveBefore(t *testing.T) {
+	s := newTimeSeriesStorage()
+	old := s.Add("workload", "old", 1, 100, []string{"env:test"}).Ref
+	exact := s.Add("workload", "exact", 1, 300, nil).Ref
+	newer := s.Add("workload", "newer", 1, 301, nil).Ref
+	telemetry := s.Add(observer.TelemetryNamespace, "internal", 1, 100, nil).Ref
+	genBefore := s.SeriesGeneration()
+
+	freed := s.EvictInactiveBefore(300)
+
+	require.ElementsMatch(t, []observer.SeriesRef{old, exact}, freed)
+	assert.Nil(t, s.GetSeriesMeta(old))
+	assert.Nil(t, s.GetSeriesMeta(exact))
+	assert.NotNil(t, s.GetSeriesMeta(newer))
+	assert.NotNil(t, s.GetSeriesMeta(telemetry), "telemetry series must not be evicted by inactivity")
+	assert.Equal(t, 1, s.TotalSeriesCount(), "only the newer non-telemetry series remains live")
+	assert.Greater(t, s.SeriesGeneration(), genBefore)
 }
 
 func TestTimeSeriesStorage_EvictToCapacityBreaksActivityTiesByRef(t *testing.T) {

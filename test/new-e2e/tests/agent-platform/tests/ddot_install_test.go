@@ -97,6 +97,17 @@ func (is *ddotInstallSuite) SetupSuite() {
 	defer is.CleanupOnSetupFailure()
 
 	is.host = host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	// Harden apt against Ubuntu/Debian package-mirror outages before the ddot install runs
+	// "apt-get install apt-transport-https ...". This bounds apt's timeout/retries and adds the
+	// global archive.ubuntu.com / ports.ubuntu.com fallbacks so a 503/slow regional EC2 mirror
+	// fails fast instead of hanging until the 2h CI timeout. Without it the
+	// new-e2e-agent-platform-ddot-ubuntu-a7-arm64 job flakes on mirror outages (incident 59571).
+	// No-op on non-apt flavors. Same helper already used by the installer suites.
+	is.host.ConfigureAptMirrors()
+	// CentOS 7 is EOL and its stock vault path 403s; repoint yum at the working vault
+	// archive/mirrors before the ddot RPM install refreshes CentOS base metadata. No-op on
+	// non-CentOS-7 flavors (e.g. the RedHat descriptor this job also runs).
+	is.host.ConfigureYumMirrors()
 }
 
 func (is *ddotInstallSuite) TestDDOTInstall() {
