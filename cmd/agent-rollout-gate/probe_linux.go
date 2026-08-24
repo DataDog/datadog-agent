@@ -44,7 +44,14 @@ func runProbe(opts probeOptions) error {
 		return nil
 	}
 	if err := recordStartupFailure(opts, pid); err != nil {
-		return errors.Join(healthErr, err)
+		// Kubelet uses an effectively unlimited startup failure threshold while
+		// the gate owns recovery. Do not leave an unhealthy Agent holding its
+		// component lock forever if the failure counter cannot be persisted.
+		signalErr := signalCurrentActiveProcess(opts, pid, syscall.SIGTERM)
+		if signalErr != nil {
+			return errors.Join(healthErr, err, fmt.Errorf("terminate Active process after startup failure bookkeeping error: %w", signalErr))
+		}
+		return errors.Join(healthErr, fmt.Errorf("startup failure bookkeeping failed; terminated Active process: %w", err))
 	}
 	return healthErr
 }

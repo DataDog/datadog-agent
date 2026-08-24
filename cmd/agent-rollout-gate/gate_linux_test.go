@@ -441,6 +441,40 @@ func TestActiveStartupFailureBudgetTerminatesThenKills(t *testing.T) {
 	}
 }
 
+func TestActiveStartupBookkeepingFailureTerminatesProcess(t *testing.T) {
+	dir := t.TempDir()
+	activePath := filepath.Join(dir, "agent.active")
+	active := createLiveMarker(t, activePath, "pod-uid")
+	defer active.Close()
+	opts := probeOptions{
+		kind: "startup", handler: "tcp", address: "127.0.0.1", port: unusedTCPPort(t),
+		timeout: 10 * time.Millisecond, failureThreshold: 3, terminationGracePeriod: time.Second,
+		preparedPath: filepath.Join(dir, "agent.prepared"), activePath: activePath, podUID: "pod-uid",
+	}
+	if err := os.Mkdir(startupFailurePath(opts.activePath, opts.podUID), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	originalSignal := signalActiveProcess
+	defer func() { signalActiveProcess = originalSignal }()
+	var signals []syscall.Signal
+	signalActiveProcess = func(pid int, signal syscall.Signal) error {
+		if pid != os.Getpid() {
+			t.Fatalf("signaled pid %d, want %d", pid, os.Getpid())
+		}
+		signals = append(signals, signal)
+		return nil
+	}
+
+	err := runProbe(opts)
+	if err == nil || !strings.Contains(err.Error(), "bookkeeping failed") {
+		t.Fatalf("startup bookkeeping failure = %v, want explicit error", err)
+	}
+	if len(signals) != 1 || signals[0] != syscall.SIGTERM {
+		t.Fatalf("signals after bookkeeping failure = %v, want [SIGTERM]", signals)
+	}
+}
+
 func TestActiveStartupSuccessResetsConsecutiveFailureBudget(t *testing.T) {
 	var healthy atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {

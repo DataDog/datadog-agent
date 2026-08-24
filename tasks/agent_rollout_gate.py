@@ -10,15 +10,18 @@ BIN_PATH = os.path.join(BIN_DIR, "agent-rollout-gate")
 
 
 @task
-def build(ctx, go_mod="readonly"):
+def build(ctx, go_mod="readonly", arch=None):
     """Build the lightweight Linux Agent rollout gate."""
+    env = {"CGO_ENABLED": "0", "GOOS": "linux"}
+    if arch:
+        env["GOARCH"] = arch
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/agent-rollout-gate",
         build_tags=[],
         ldflags="-s -w",
         gcflags="",
-        env={"CGO_ENABLED": "0", "GOOS": "linux"},
+        env=env,
         bin_path=BIN_PATH,
         mod=go_mod,
     )
