@@ -152,7 +152,7 @@ build do
   end
 
   if linux_target?
-    command "dda inv -- -e agent-rollout-gate.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e agent-rollout-gate.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     copy "bin/agent-rollout-gate/agent-rollout-gate", "#{install_dir}/embedded/bin"
 
     if heroku_target?

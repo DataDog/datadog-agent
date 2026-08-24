@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"syscall"
 	"time"
 )
@@ -30,6 +31,10 @@ func waitAndExec(opts options, stderr io.Writer) error {
 	}
 	defer lock.Close()
 
+	terminationSignals := make(chan os.Signal, 1)
+	signal.Notify(terminationSignals, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(terminationSignals)
+
 	preparedPath := preparedMarkerPath(opts.preparedPath, opts.podUID)
 	prepared, err := os.OpenFile(preparedPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o644)
 	if err != nil {
@@ -45,15 +50,10 @@ func waitAndExec(opts options, stderr io.Writer) error {
 	}
 
 	fmt.Fprintf(stderr, "agent-rollout-gate: %s is Prepared; waiting for component lock\n", opts.component)
-	for {
-		err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX)
-		if !errors.Is(err, syscall.EINTR) {
-			break
-		}
-	}
-	if err != nil {
+	if err := waitForComponentLock(lock, terminationSignals); err != nil {
 		return fmt.Errorf("acquire component lock: %w", err)
 	}
+	signal.Stop(terminationSignals)
 	if err := setCloseOnExec(lock.Fd(), false); err != nil {
 		return fmt.Errorf("preserve component lock across exec: %w", err)
 	}
@@ -94,6 +94,38 @@ func waitAndExec(opts options, stderr io.Writer) error {
 		return fmt.Errorf("exec command after acquiring component lock: %w", err)
 	}
 	return nil
+}
+
+func waitForComponentLock(lock *os.File, terminationSignals <-chan os.Signal) error {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case received := <-terminationSignals:
+			return fmt.Errorf("received %s", received)
+		default:
+		}
+
+		err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			select {
+			case received := <-terminationSignals:
+				return fmt.Errorf("received %s", received)
+			default:
+				return nil
+			}
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
+			return err
+		}
+
+		select {
+		case received := <-terminationSignals:
+			return fmt.Errorf("received %s", received)
+		case <-ticker.C:
+		}
+	}
 }
 
 func preparedMarkerPath(basePath, podUID string) string {
