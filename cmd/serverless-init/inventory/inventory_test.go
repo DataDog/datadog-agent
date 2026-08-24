@@ -83,8 +83,12 @@ func TestResourceNameFromOrigin(t *testing.T) {
 	})
 	t.Run("cloud_run_function_via_env", func(t *testing.T) {
 		t.Setenv("FUNCTION_TARGET", "myHandler")
-		tags := map[string]string{"gcrfx.resource_name": "projects/p/locations/l/services/s/functions/myHandler"}
-		assert.Equal(t, "myHandler", resourceNameFromOrigin(cloudservice.CloudRunOrigin, tags))
+		t.Setenv(cloudservice.ServiceNameEnvVar, "my-fn-svc")
+		tags := map[string]string{
+			"gcr.resource_name":   "projects/p/locations/l/services/my-fn-svc",
+			"gcrfx.resource_name": "projects/p/locations/l/services/my-fn-svc/functions/myHandler",
+		}
+		assert.Equal(t, "my-fn-svc", resourceNameFromOrigin(cloudservice.CloudRunOrigin, tags))
 	})
 	t.Run("cloud_run_function_via_tag", func(t *testing.T) {
 		tags := map[string]string{
@@ -92,7 +96,7 @@ func TestResourceNameFromOrigin(t *testing.T) {
 			"gcrfx.resource_name":   "projects/p/locations/l/services/my-fn-svc/functions/myHandler",
 			"build_function_target": "myHandler",
 		}
-		assert.Equal(t, "myHandler", resourceNameFromOrigin(cloudservice.CloudRunOrigin, tags))
+		assert.Equal(t, "my-fn-svc", resourceNameFromOrigin(cloudservice.CloudRunOrigin, tags))
 	})
 	t.Run("container_app", func(t *testing.T) {
 		t.Setenv(cloudservice.ContainerAppNameEnvVar, "my-app")
@@ -111,8 +115,11 @@ func TestResourceIDFromTags(t *testing.T) {
 	})
 	t.Run("cloud_run_function", func(t *testing.T) {
 		t.Setenv("FUNCTION_TARGET", "myHandler")
-		tags := map[string]string{"gcrfx.resource_name": "projects/p/locations/l/services/s/functions/myHandler"}
-		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/services/s/functions/myHandler", resourceIDFromTags(cloudservice.CloudRunOrigin, tags))
+		tags := map[string]string{
+			"gcr.resource_name":   "projects/p/locations/l/services/s",
+			"gcrfx.resource_name": "projects/p/locations/l/services/s/functions/myHandler",
+		}
+		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/services/s", resourceIDFromTags(cloudservice.CloudRunOrigin, tags))
 	})
 	t.Run("cloud_run_job", func(t *testing.T) {
 		tags := map[string]string{"gcrj.resource_name": "projects/p/locations/l/jobs/my-job"}
@@ -136,6 +143,17 @@ func TestResourceIDFromTags(t *testing.T) {
 	})
 	t.Run("empty_path", func(t *testing.T) {
 		assert.Equal(t, "", resourceIDFromTags(cloudservice.CloudRunOrigin, map[string]string{}))
+	})
+}
+
+func TestDeploymentIDFromOriginAndTags(t *testing.T) {
+	t.Run("cloud_run_revision", func(t *testing.T) {
+		t.Setenv("K_REVISION", "my-service-00003-abc")
+		assert.Equal(t, "my-service-00003-abc", deploymentIDFromOriginAndTags(cloudservice.CloudRunOrigin, nil))
+	})
+	t.Run("instance_identity_is_not_deployment_identity", func(t *testing.T) {
+		t.Setenv("WEBSITE_INSTANCE_ID", "instance-123")
+		assert.Empty(t, deploymentIDFromOriginAndTags(cloudservice.AppServiceOrigin, nil))
 	})
 }
 

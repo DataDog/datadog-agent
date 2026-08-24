@@ -29,7 +29,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	servertags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // SetInventoryFields populates serverless-init-specific metadata in the
@@ -39,18 +38,17 @@ import (
 // Fields map to the serverless_init_agent REDAPL table defined in SVLS-9604.
 // The EPRW agentmetadata decoder (SVLS-9607) reads the unprefixed keys below
 // from the agent_metadata map and writes them to that table. Required identity
-// fields (resource_id, uuid, resource_name, workload_type) MUST be present or
+// fields (resource_id, resource_name, workload_type) MUST be present or
 // the decoder rejects the per-flavor write; the standard datadog_agent write
 // still proceeds.
 func SetInventoryFields(ia inventoryagent.Component, cs cloudservice.CloudService, mc mode.Conf) {
 	origin := cs.GetOrigin()
 	tags := cs.GetTags()
 
-	// --- Required identity (RFC primary key: resource_id + uuid) ---
-	// uuid must be in agent_metadata (ia.data) so the EPRW decoder can read it
-	// from amd["uuid"] inside createServerlessAgentResource. The top-level
-	// Payload.UUID is a separate field and is NOT present in agent_metadata.
-	ia.Set("uuid", uuid.GetUUID())
+	// --- Required identity (RFC primary key: resource_id) ---
+	// The top-level inventory UUID identifies the reporting process. It must not
+	// be copied into agent_metadata or used as REDAPL row identity: a new UUID is
+	// generated for each instance and would turn cold starts into new rows.
 	if rid := resourceIDFromTags(origin, tags); rid != "" {
 		ia.Set("resource_id", rid)
 	}
@@ -66,6 +64,9 @@ func SetInventoryFields(ia inventoryagent.Component, cs cloudservice.CloudServic
 	ia.Set("agent_commit", pkgversion.Commit)
 	ia.Set("serverless_init_version", servertags.GetExtensionVersion())
 	ia.Set("deployment_model", deploymentModelFromConf(mc))
+	if deploymentID := deploymentIDFromOriginAndTags(origin, tags); deploymentID != "" {
+		ia.Set("deployment_id", deploymentID)
+	}
 	ia.Set("runtime", detectRuntime())
 	if !mc.SidecarMode {
 		ia.Set("wrapped_command", strings.Join(os.Args[1:], " "))
@@ -151,8 +152,11 @@ func workloadTypeFromOrigin(origin string, tags map[string]string) string {
 func resourceNameFromOrigin(origin string, tags map[string]string) string {
 	switch origin {
 	case cloudservice.CloudRunOrigin:
-		if os.Getenv("FUNCTION_TARGET") != "" || tags["build_function_target"] != "" {
-			return lastPathSegment(tags["gcrfx.resource_name"])
+		// A Gen2 function's gcrfx.resource_name ends in the function entrypoint
+		// (often "main"), not the deployed Cloud Run service name. Inventory is
+		// keyed to the backing Cloud Run resource, so use K_SERVICE/gcr here.
+		if service := os.Getenv(cloudservice.ServiceNameEnvVar); service != "" {
+			return service
 		}
 		return lastPathSegment(tags["gcr.resource_name"])
 	case cloudservice.CloudRunJobsOrigin:
@@ -185,10 +189,8 @@ func resourceIDFromTags(origin string, tags map[string]string) string {
 	switch origin {
 	case cloudservice.CloudRunOrigin:
 		// tags["gcr.resource_name"] = "projects/<p>/locations/<l>/services/<s>"
-		// tags["gcrfx.resource_name"] = "projects/<p>/locations/<l>/services/<s>/functions/<f>"
-		if os.Getenv("FUNCTION_TARGET") != "" {
-			return canonicalGCPRunID(tags["gcrfx.resource_name"])
-		}
+		// Gen2 function entrypoints are not separate Cloud Run resources, so do
+		// not append /functions/<target> to the stable resource identity.
 		return canonicalGCPRunID(tags["gcr.resource_name"])
 	case cloudservice.CloudRunJobsOrigin:
 		// tags["gcrj.resource_name"] = "projects/<p>/locations/<l>/jobs/<j>"
@@ -205,6 +207,19 @@ func resourceIDFromTags(origin string, tags map[string]string) string {
 			return ""
 		}
 		return fmt.Sprintf("//microsoft.azure/appServices/%s/%s/%s", sub, rg, strings.ToLower(name))
+	}
+	return ""
+}
+
+// deploymentIDFromOriginAndTags returns revision/deployment context for a
+// report. It is useful for explaining which revision produced a report, but it
+// is deliberately not part of REDAPL row identity.
+func deploymentIDFromOriginAndTags(origin string, tags map[string]string) string {
+	switch origin {
+	case cloudservice.CloudRunOrigin:
+		return firstEnv("K_REVISION")
+	case cloudservice.ContainerAppOrigin:
+		return firstEnv("CONTAINER_APP_REVISION")
 	}
 	return ""
 }

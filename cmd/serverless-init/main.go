@@ -78,6 +78,7 @@ import (
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
@@ -257,6 +258,13 @@ func main() {
 	preloadEarly()
 
 	modeConf = mode.DetectMode()
+
+	// Set the agent flavor to "serverless-init" so the inventoryagent payload
+	// includes flavor="serverless-init". The EPRW agentmetadata decoder routes
+	// on this value to write a serverless_init_agent REDAPL record in addition
+	// to the standard datadog_agent record. Must be set before ForceCollect().
+	flavor.SetFlavor("serverless-init")
+
 	setEnvWithoutOverride(modeConf.EnvDefaults)
 
 	// Load the config file early so that yaml-configured values (e.g.
@@ -426,6 +434,12 @@ func run(
 	// MinInterval (~60 s), which is longer than most scale-to-zero windows.
 	if err := inventoryAgentComp.ForceCollect(); err != nil {
 		log.Warnf("serverless-init: initial inventory collection failed: %v", err)
+	} else {
+		metadata := inventoryAgentComp.Get()
+		log.Infof(
+			"serverless-init: inventory report queued reason=startup process_id=%s resource_id=%v workload_type=%v deployment_id=%v",
+			uuid.GetUUID(), metadata["resource_id"], metadata["workload_type"], metadata["deployment_id"],
+		)
 	}
 
 	err := modeConf.Runner(logConfig)
