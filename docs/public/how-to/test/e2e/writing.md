@@ -27,6 +27,10 @@ type vmSuite struct {
 
 func TestVMSuite(t *testing.T) {
     suiteParams := []e2e.SuiteOption{
+        // Provisions a VM with the Agent and a fakeintake, which the test
+        // below queries. A test asserting only on host state wants
+        // ProvisionerNoFakeIntake(); a bare VM wants
+        // ProvisionerNoAgentNoFakeIntake().
         e2e.WithProvisioner(awshost.Provisioner()),
     }
 
@@ -39,9 +43,9 @@ func TestVMSuite(t *testing.T) {
 The framework provides several provisioners for different scenarios:
 
 - **AWS Host**: `awshost.Provisioner*()` - Provision EC2 instances
-- **Kubernetes**: `eks.Provisioner*()` - Provision EKS clusters
-- **Docker**: Container-based provisioning
-- **Multi-platform**: Cross-platform test scenarios
+- **Kubernetes**: `kindvm.Provisioner()` for a kind cluster on EC2, or `eks.Provisioner()` for EKS. Prefer kind: it provisions faster, costs less, and is more reliable
+- **Docker**: `awsdocker.Provisioner()` - Agent in a container on an EC2 host
+- **Multi-platform**: Azure, GCP and local provisioners under `testing/provisioners/`
 
 ### Test Validation
 

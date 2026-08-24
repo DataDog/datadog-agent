@@ -11,13 +11,11 @@ E2E tests are located in the `test/new-e2e/` directory. After running `dda inv e
 dda inv new-e2e-tests.run --targets=./examples --run=^TestVMSuite$
 ```
 
-If you manage AWS credentials yourself (e.g. via SAML2AWS or another tool), pass `--no-aws-vault` to skip the auto-wrap.
-
 Replace ./examples with your subfolder.
 This also supports the golang testing flag --run and --skip to target specific tests using go test syntax. See go help testflag for details.
 
 ```bash
-inv new-e2e-tests.run --targets=./examples --run=TestMyLocalKindSuite/TestClusterAgentInstalled
+dda inv new-e2e-tests.run --targets=./examples --run=TestMyLocalKindSuite/TestClusterAgentInstalled
 ```
 
 You can also run it with go test, from test/new-e2e
@@ -27,7 +25,7 @@ cd test/new-e2e && go test ./examples -timeout 0 -run=^TestVMSuite$
 
 While developing a test you might want to keep the remote instance alive to iterate faster. You can skip the resources deletion using dev mode with the environment variable `E2E_DEV_MODE`. You can force this in the terminal
 ```bash
-E2E_DEV_MODE=true inv -e new-e2e-tests.run --targets ./examples --run=^TestVMSuite$
+E2E_DEV_MODE=true dda inv -e new-e2e-tests.run --targets ./examples --run=^TestVMSuite$
 ```
 or for instance add it in the `go.testEnvVars` if you are using a VSCode-based IDE
 ```
@@ -87,7 +85,7 @@ docker push 376334461865.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:$USER
 And finally, execute your E2E tests with the associated command:
 ```bash
 # Run Ubuntu tests
-inv -e new-e2e-tests.run --targets ./tests/containers \
+dda inv -e new-e2e-tests.run --targets ./tests/containers \
   --run TestDockerSuite/TestDSDWithUDP \
   --agent-image 376334461865.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:$USER
 ```
