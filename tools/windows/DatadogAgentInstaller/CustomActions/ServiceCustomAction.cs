@@ -166,70 +166,98 @@ namespace Datadog.CustomActions
 
         internal void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
+            ddAgentUserName = NormalizeWellKnownServiceAccountName(ddAgentUserName, ddAgentUserSID);
+
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
             var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
             // No password to give the services. Only reachable for domain accounts: local accounts
             // always get a generated password, and IsServiceAccount covers gMSA and the well known
             // accounts.
             var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
-            // When no password is supplied, leave the agent-user SCM credentials unchanged.
-            // Passing a reformatted account name (NetBIOS vs DNS) with a null password still
-            // clears the SCM LSA secret (_SC_datadogagent), which procmgr needs for spawn.
-            string agentServiceUsername = ddAgentUserName;
+
             if (passwordNotProvided)
             {
+                // Skip agent-user SCM updates: even a reformatted account name with a null password
+                // clears the SCM LSA secret (_SC_datadogagent), which procmgr needs for spawn.
                 _session.Log("Password not provided, will not change service user account or password");
-                agentServiceUsername = null;
-                ddAgentUserPassword = null;
             }
-            else if (isServiceAccount)
+            else
             {
-                _session.Log("Ignoring provided password because account is a service account");
-                // Follow rules for ChangeServiceConfig
-                if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-                    ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
-                    ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
-                {
-                    // Specify an empty string if the account has no password or if the service runs in the LocalService, NetworkService, or LocalSystem account.
-                    ddAgentUserPassword = "";
-                }
-                else
-                {
-                    // If the account name specified by the lpServiceStartName parameter is the name of a managed service account or virtual account name, the lpPassword parameter must be NULL.
-                    ddAgentUserPassword = null;
-                }
+                _session.Log($"Configuring services with account {ddAgentUserName}");
+                ConfigureAgentUserServiceCredentials(
+                    ddAgentUserName,
+                    ResolveServicePassword(ddAgentUserSID, isServiceAccount, ddAgentUserPassword));
             }
 
-            _session.Log($"Configuring services with account {ddAgentUserName}");
+            ConfigureLocalSystemServiceCredentials();
+        }
 
-            // ddagentuser
+        private static string NormalizeWellKnownServiceAccountName(
+            string ddAgentUserName,
+            SecurityIdentifier ddAgentUserSID)
+        {
             if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
             {
-                ddAgentUserName = "LocalSystem";
+                return "LocalSystem";
             }
-            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid))
+
+            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid))
             {
-                ddAgentUserName = "LocalService";
+                return "LocalService";
             }
-            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+
+            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
             {
-                ddAgentUserName = "NetworkService";
+                return "NetworkService";
             }
-            _serviceController.SetCredentials(Constants.AgentServiceName, agentServiceUsername, ddAgentUserPassword);
-            _serviceController.SetCredentials(Constants.TraceAgentServiceName, agentServiceUsername, ddAgentUserPassword);
+
+            return ddAgentUserName;
+        }
+
+        private string ResolveServicePassword(
+            SecurityIdentifier ddAgentUserSID,
+            bool isServiceAccount,
+            string ddAgentUserPassword)
+        {
+            if (!isServiceAccount)
+            {
+                return ddAgentUserPassword;
+            }
+
+            _session.Log("Ignoring provided password because account is a service account");
+            // Follow rules for ChangeServiceConfig
+            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+            {
+                // Specify an empty string if the account has no password or if the service runs in the LocalService, NetworkService, or LocalSystem account.
+                return "";
+            }
+
+            // If the account name specified by the lpServiceStartName parameter is the name of a managed service account or virtual account name, the lpPassword parameter must be NULL.
+            return null;
+        }
+
+        private void ConfigureAgentUserServiceCredentials(string username, string password)
+        {
+            _serviceController.SetCredentials(Constants.AgentServiceName, username, password);
+            _serviceController.SetCredentials(Constants.TraceAgentServiceName, username, password);
             if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
             {
-                _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, agentServiceUsername, ddAgentUserPassword);
+                _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, username, password);
             }
-            // SYSTEM
+
+            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, username, password);
+        }
+
+        private void ConfigureLocalSystemServiceCredentials()
+        {
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
             EnableProcmgrService();
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
-
-            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, agentServiceUsername, ddAgentUserPassword);
         }
 
         private void EnableProcmgrService()
