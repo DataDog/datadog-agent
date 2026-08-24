@@ -113,3 +113,39 @@ func TestAttachCommandProvidersRejectsMissingName(t *testing.T) {
 	remote := Commands(&command.GlobalParams{})[0]
 	require.Error(t, AttachCommandProviders(remote, []*pb.CommandProvider{{}}, func(string, []string, *structpb.Struct, io.Writer, io.Writer) error { return nil }))
 }
+
+func TestFlagValueSupportsEveryParameterType(t *testing.T) {
+	testCases := []struct {
+		parameter *pb.CommandParameter
+		argument  string
+		expected  any
+	}{
+		{&pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_STRING}, "--value=text", "text"},
+		{&pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_INT}, "--value=7", float64(7)},
+		{&pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_UINT}, "--value=7", float64(7)},
+		{&pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_FLOAT}, "--value=1.5", 1.5},
+		{&pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_BOOL}, "--value", true},
+		{&pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_STRING_SLICE}, "--value=a,b", []any{"a", "b"}},
+		{&pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_INT_SLICE}, "--value=1,2", []any{float64(1), float64(2)}},
+		{&pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_UINT_SLICE}, "--value=1,2", []any{float64(1), float64(2)}},
+		{&pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_FLOAT_SLICE}, "--value=1.5,2.5", []any{1.5, 2.5}},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.parameter.GetType().String(), func(t *testing.T) {
+			cmd := &cobra.Command{}
+			require.NoError(t, addFlag(cmd, testCase.parameter))
+			require.NoError(t, cmd.ParseFlags([]string{testCase.argument}))
+			value, err := flagValue(cmd, testCase.parameter)
+			require.NoError(t, err)
+			require.Equal(t, testCase.expected, value.AsInterface())
+		})
+	}
+}
+
+func TestUnsupportedParameterTypeReturnsError(t *testing.T) {
+	parameter := &pb.CommandParameter{Name: "value", Type: pb.ParameterType_TYPE_UNSPECIFIED}
+	require.Error(t, addFlag(&cobra.Command{}, parameter))
+	_, err := stringValue(parameter.GetType(), "value")
+	require.Error(t, err)
+}
