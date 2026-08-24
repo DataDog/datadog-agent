@@ -112,19 +112,42 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 	return resources, nil
 }
 
-// dumpRawResources renders resources for logging, redacting any key marked secret in secretKeys
-// so Pulumi secrets (e.g. the Windows admin password) never appear in plain text in CI/test logs.
-// The real values are still returned via RawResources for in-process use.
+// dumpRawResources renders resources for logging. For any key marked secret in secretKeys,
+// only the "password" field is redacted so Pulumi secrets (e.g. the Windows admin password)
+// never appear in plain text in CI/test logs, while the rest of the resource (address,
+// username, port, ...) stays visible. The real values are still returned via RawResources
+// for in-process use.
 func dumpRawResources(resources RawResources, secretKeys map[string]bool) string {
 	var builder strings.Builder
 	for key, value := range resources {
 		if secretKeys[key] {
-			fmt.Fprintf(&builder, "%s: [secret value redacted from logs]\n", key)
+			fmt.Fprintf(&builder, "%s: %s\n", key, redactPassword(value))
 			continue
 		}
 		fmt.Fprintf(&builder, "%s: %s\n", key, value)
 	}
 	return builder.String()
+}
+
+// redactPassword replaces the "password" field of a marshalled resource with a placeholder,
+// leaving the rest of the JSON untouched. If the value isn't a JSON object, the whole value
+// is redacted since we can't isolate the password field safely.
+func redactPassword(raw []byte) []byte {
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return []byte("[secret value redacted from logs]")
+	}
+
+	if _, ok := data["password"]; !ok {
+		return raw
+	}
+	data["password"] = json.RawMessage(`"[redacted]"`)
+
+	redacted, err := json.MarshalIndent(data, "", "\t")
+	if err != nil {
+		return []byte("[secret value redacted from logs]")
+	}
+	return redacted
 }
 
 // Diagnose runs the diagnose function if it is set diagnoseFunc

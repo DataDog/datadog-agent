@@ -14,7 +14,7 @@ import (
 
 func TestDumpRawResourcesRedactsSecrets(t *testing.T) {
 	resources := RawResources{
-		"dd-Host-aws-vm": []byte(`{"password":"super-secret-value"}`),
+		"dd-Host-aws-vm": []byte(`{"address":"1.2.3.4","username":"Administrator","password":"super-secret-value"}`),
 		"other-resource": []byte(`{"foo":"bar"}`),
 	}
 	secretKeys := map[string]bool{
@@ -25,6 +25,22 @@ func TestDumpRawResourcesRedactsSecrets(t *testing.T) {
 	output := dumpRawResources(resources, secretKeys)
 
 	assert.NotContains(t, output, "super-secret-value")
-	assert.Contains(t, output, "dd-Host-aws-vm: [secret value redacted from logs]")
+	assert.Contains(t, output, `"address": "1.2.3.4"`)
+	assert.Contains(t, output, `"username": "Administrator"`)
+	assert.Contains(t, output, `"password": "[redacted]"`)
 	assert.True(t, strings.Contains(output, `other-resource: {"foo":"bar"}`))
+}
+
+func TestDumpRawResourcesRedactsWholeValueWhenNotAnObject(t *testing.T) {
+	resources := RawResources{
+		"secret-scalar": []byte(`"super-secret-value"`),
+	}
+	secretKeys := map[string]bool{
+		"secret-scalar": true,
+	}
+
+	output := dumpRawResources(resources, secretKeys)
+
+	assert.NotContains(t, output, "super-secret-value")
+	assert.Contains(t, output, "secret-scalar: [secret value redacted from logs]")
 }
