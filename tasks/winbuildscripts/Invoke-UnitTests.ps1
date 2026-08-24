@@ -165,7 +165,7 @@ Invoke-BuildScript `
 
     if ($UploadCoverage) {
         try {
-            & dda inv -- -e coverage.upload-coverage-cache $Env:COVERAGE_CACHE_FLAG
+            & dda inv -- -e coverage.manage-coverage-cache $Env:COVERAGE_CACHE_FLAG
             if ($LASTEXITCODE -ne 0) {
                 throw "coverage cache operation failed with exit code $LASTEXITCODE"
             }
@@ -177,7 +177,7 @@ Invoke-BuildScript `
         # Upload coverage to Datadog Code Coverage
         try {
             $Env:DD_API_KEY = Get-VaultSecret -parameterName "$Env:AGENT_API_KEY_ORG2" -parameterField token -ErrorAction Stop
-            & datadog-ci.exe coverage upload --format=go-coverprofile coverage.out
+            & dda inv -- -e coverage.upload-to-datadog --coverage-file coverage.out
             if ($LASTEXITCODE -ne 0) {
                 throw "Datadog coverage upload failed with exit code $LASTEXITCODE"
             }

@@ -2,6 +2,7 @@ import os
 import pathlib
 import platform
 import shutil
+import subprocess
 import sys
 import tarfile
 
@@ -20,9 +21,9 @@ AWS_CMD = "aws.exe" if sys.platform == 'win32' else "aws"
 BUCKET_CI_VAR = "S3_PERMANENT_ARTIFACTS_URI"
 
 
-class CoverageWorkaround:
+class GotestsumCoverageWorkaround:
     """
-    The CoverageWorkaround class wraps the gotestsum cmd execution to fix coverage reports inaccuracy,
+    The GotestsumCoverageWorkaround class wraps gotestsum execution to fix coverage report inaccuracy,
     according to https://github.com/gotestyourself/gotestsum/issues/274 workaround.
     Basically unit tests' reruns rewrite the whole coverage file, making it inaccurate.
     We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
@@ -89,15 +90,24 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
                     file=sys.stderr,
                 )
             else:
-                self.ctx.run(
-                    f"gocovmerge {' '.join(files_to_delete)} > \"{os.path.join(self.base_path, PROFILE_COV)}\""
-                )
+                coverage_path = os.path.join(self.base_path, PROFILE_COV)
+                self.ctx.run(f"gocovmerge {' '.join(files_to_delete)} > \"{coverage_path}\"")
+                _ensure_coverage_mode(coverage_path, self.args["covermode_opt"])
                 for f in files_to_delete:
                     os.remove(f)
 
 
+def _ensure_coverage_mode(coverage_path: str, covermode_opt: str) -> None:
+    """Make an empty Go coverage profile valid by adding its mode header."""
+    if os.path.getsize(coverage_path) != 0:
+        return
+
+    coverage_mode = covermode_opt.removeprefix("-covermode=")
+    pathlib.Path(coverage_path).write_text(f"mode: {coverage_mode}\n", encoding='utf-8')
+
+
 @task
-def upload_coverage_cache(
+def manage_coverage_cache(
     ctx: Context,
     pull_coverage_cache: bool = False,
     push_coverage_cache: bool = False,
@@ -118,7 +128,7 @@ def upload_coverage_cache(
 
     if pull_coverage_cache and push_coverage_cache:
         raise Exit(
-            color_message("Error: Can't use both --pull-missing-coverage and --push-coverage-cache flags.", Color.RED),
+            color_message("Error: Can't use both --pull-coverage-cache and --push-coverage-cache flags.", Color.RED),
             code=1,
         )
 
@@ -128,6 +138,16 @@ def upload_coverage_cache(
     if push_coverage_cache:
         with gitlab_section("Uploading coverage files to S3", collapsed=True):
             upload_coverage_to_s3(ctx)
+
+
+@task
+def upload_to_datadog(_, coverage_file: str = PROFILE_COV):
+    """Upload a Go coverage profile using the platform-resolved datadog-ci command."""
+    datadog_ci = shutil.which("datadog-ci")
+    if datadog_ci is None:
+        raise Exit(color_message("Error: datadog-ci command not found.", Color.RED), code=1)
+
+    subprocess.check_call([datadog_ci, "coverage", "upload", "--format=go-coverprofile", coverage_file])
 
 
 @task
