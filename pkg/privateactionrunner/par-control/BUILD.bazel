@@ -9,31 +9,28 @@ _LINUX_OR_WINDOWS = select({
 rust_library(
     name = "par-control-lib",
     srcs = [
+        "src/bootstrap.rs",
         "src/config.rs",
+        "src/identity.rs",
         "src/lib.rs",
-        "src/platform.rs",
         "src/procmgr.rs",
         "src/test_support.rs",
     ],
     crate_name = "par_control",
     edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/procmgr/rust/client:dd-procmgr-client",
         "@crates//:anyhow",
         "@crates//:log",
+        "@crates//:reqwest",
         "@crates//:serde",
-        "@crates//:serde_yaml",
+        "@crates//:serde_json",
         "@crates//:tokio",
         "@crates//:tonic",
-    ] + select({
-        "@platforms//os:windows": [
-            "@crates//:windows-registry",
-            "@crates//:windows-sys",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 rust_binary(
@@ -56,6 +53,7 @@ rust_test(
     name = "par-control_test",
     crate = ":par-control-lib",
     edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
         "@crates//:tempfile",
