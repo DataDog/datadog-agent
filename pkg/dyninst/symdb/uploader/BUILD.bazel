@@ -11,13 +11,23 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/object",
-        "//pkg/dyninst/symdb",
-        "@com_github_go_json_experiment_json//:json",
-        "@com_github_go_json_experiment_json//jsontext",
-        "@com_github_google_uuid//:uuid",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/symdb",
+            "@com_github_go_json_experiment_json//:json",
+            "@com_github_go_json_experiment_json//jsontext",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/symdb",
+            "@com_github_go_json_experiment_json//:json",
+            "@com_github_go_json_experiment_json//jsontext",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
@@ -28,14 +38,26 @@ dd_agent_go_test(
         "uploader_test.go",
     ],
     embed = [":uploader"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
-    deps = [
-        "//pkg/dyninst/object",
-        "//pkg/dyninst/symdb",
-        "@com_github_go_json_experiment_json//:json",
-        "@com_github_google_uuid//:uuid",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    tags = ["requires_ebpf"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/symdb",
+            "@com_github_go_json_experiment_json//:json",
+            "@com_github_google_uuid//:uuid",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/symdb",
+            "@com_github_go_json_experiment_json//:json",
+            "@com_github_google_uuid//:uuid",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

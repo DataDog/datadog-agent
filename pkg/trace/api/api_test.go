@@ -70,16 +70,33 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	return receiver
 }
 
-func newTestReceiverConfig() *config.AgentConfig {
+// startTestReceiver builds a receiver from conf, binding it to a listener from
+// testutil.TCPListener (overriding conf.ReceiverHost/ReceiverPort) instead of
+// letting Start() bind the address itself, then starts it. Callers should dial
+// the returned receiver via r.Addr(), which is authoritative, rather than
+// reconstructing an address from conf. Build conf with
+// newTestReceiverConfigNoPort, not newTestReceiverConfig: the latter's port
+// selection would just be overwritten here.
+func startTestReceiver(t *testing.T, conf *config.AgentConfig) *HTTPReceiver {
+	ln := testutil.TCPListener(t)
+	tcpAddr := ln.Addr().(*net.TCPAddr)
+	conf.ReceiverHost = tcpAddr.IP.String()
+	conf.ReceiverPort = tcpAddr.Port
+	r := newTestReceiverFromConfig(conf)
+	r.SetTCPListener(ln)
+	r.Start()
+	return r
+}
+
+// newTestReceiverConfigNoPort returns a test config with everything
+// newTestReceiverConfig sets except ReceiverHost/ReceiverPort, for callers
+// that bind their own listener (e.g. via startTestReceiver) and would
+// otherwise immediately discard a port newTestReceiverConfig found.
+func newTestReceiverConfigNoPort() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
 	conf.ReceiverTimeout = 1
-	port, err := testutil.FindTCPPort()
-	if err != nil {
-		panic(err)
-	}
-	conf.ReceiverPort = port
 	// Reset IdleTimeout so the server uses ReadTimeout (1s) instead of the production
 	// default (60s). Without this, tests that call io.ReadAll(resp.Body) on a real server
 	// block for 60 seconds waiting for the connection to close.
@@ -89,6 +106,24 @@ func newTestReceiverConfig() *config.AgentConfig {
 		conf.Features = make(map[string]struct{})
 	}
 	conf.Features["convert-traces"] = struct{}{}
+
+	return conf
+}
+
+func newTestReceiverConfig() *config.AgentConfig {
+	conf := newTestReceiverConfigNoPort()
+	// Bind and dial the same concrete address. The production default is the
+	// "localhost" hostname, which on macOS makes the server listen on 127.0.0.1
+	// only while clients resolving "localhost" try ::1 first. Another test
+	// process holding the same port on an IPv6/wildcard address (the kernel
+	// hands out a port already bound on 127.0.0.1 to a wildcard listener) would
+	// then silently receive this receiver's traffic.
+	conf.ReceiverHost = "127.0.0.1"
+	port, err := testutil.FindTCPPort()
+	if err != nil {
+		panic(err)
+	}
+	conf.ReceiverPort = port
 
 	return conf
 }
@@ -106,10 +141,12 @@ func newTestReceiverConfigWithFeatures(features ...string) *config.AgentConfig {
 }
 
 func TestMain(m *testing.M) {
-	// We're about to os.Exit, no need to revert this value to original
+	// We're about to os.Exit, no need to revert this value to original.
+	// killProcess exits the process in production; panicking mirrors that
+	// (the test binary dies) instead of silently continuing as a bare print
+	// would, which previously let a failed bind masquerade as a protocol error.
 	killProcess = func(format string, args ...interface{}) {
-		fmt.Printf(format, args...)
-		fmt.Println()
+		panic(fmt.Sprintf("trace-agent would have exited: "+format, args...))
 	}
 	os.Exit(m.Run())
 }
@@ -120,13 +157,18 @@ func TestServerShutdown(t *testing.T) {
 	assert.Nil(t, err)
 
 	// prepare the receiver
-	conf := newTestReceiverConfig()
+	conf := newTestReceiverConfigNoPort()
 	conf.ReceiverSocket = t.TempDir() + "/somesock.sock"
+	ln := testutil.TCPListener(t)
+	tcpAddr := ln.Addr().(*net.TCPAddr)
+	conf.ReceiverHost = tcpAddr.IP.String()
+	conf.ReceiverPort = tcpAddr.Port
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload)
 	rawTraceChanV1 := make(chan *PayloadV1)
 	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	receiver.SetTCPListener(ln)
 
 	receiver.Start()
 
@@ -167,7 +209,7 @@ func TestServerShutdown(t *testing.T) {
 			defer wg.Done()
 			for n := 0; n < 200; n++ {
 				// Send to TCP endpoint
-				req, _ := http.NewRequest("POST", fmt.Sprintf("http://localhost:%d/v0.4/traces", conf.ReceiverPort), bytes.NewReader(bts))
+				req, _ := http.NewRequest("POST", fmt.Sprintf("http://%s/v0.4/traces", receiver.Addr()), bytes.NewReader(bts))
 				req.Header.Set("Content-Type", "application/msgpack")
 				resp, _ := tcpClient.Do(req)
 				if resp != nil {
@@ -195,38 +237,20 @@ func TestServerShutdown(t *testing.T) {
 func TestReceiverRequestBodyLength(t *testing.T) {
 	assert := assert.New(t)
 
-	conf := newTestReceiverConfig()
+	conf := newTestReceiverConfigNoPort()
 	conf.MaxRequestBytes = 2
+	ln := testutil.TCPListener(t)
+	tcpAddr := ln.Addr().(*net.TCPAddr)
+	conf.ReceiverHost = tcpAddr.IP.String()
+	conf.ReceiverPort = tcpAddr.Port
 	receiver := newTestReceiverFromConfig(conf)
-	go receiver.Start()
+	receiver.SetTCPListener(ln)
+	receiver.Start()
 
 	defer receiver.Stop()
 
-	url := fmt.Sprintf("http://%s:%d/v0.4/traces",
-		conf.ReceiverHost, conf.ReceiverPort)
+	url := fmt.Sprintf("http://%s/v0.4/traces", receiver.Addr())
 
-	// Before going further, make sure receiver is started
-	// since it's running in another goroutine
-	serverReady := false
-	for i := 0; i < 100; i++ {
-		var client http.Client
-
-		body := bytes.NewBufferString("[]")
-		req, err := http.NewRequest("POST", url, body)
-		assert.NoError(err)
-
-		resp, err := client.Do(req)
-		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				serverReady = true
-				break
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	assert.True(serverReady)
 	testBody := func(expectedStatus int, bodyData string) {
 		var client http.Client
 
@@ -268,6 +292,26 @@ func TestListenTCP(t *testing.T) {
 	})
 }
 
+func TestStartBindFailurePanics(t *testing.T) {
+	// Squat on a port so Start's own bind attempt fails, then assert that
+	// failure is loud (TestMain's killProcess override panics) rather than
+	// silently leaving the receiver unbound - see api_test.go's TestMain.
+	squatter := testutil.TCPListener(t)
+	tcpAddr := squatter.Addr().(*net.TCPAddr)
+
+	conf := newTestReceiverConfigNoPort()
+	conf.ReceiverHost = tcpAddr.IP.String()
+	conf.ReceiverPort = tcpAddr.Port
+
+	r := newTestReceiverFromConfig(conf)
+	assert.Panics(t, r.Start)
+	// Start launches the telemetry forwarder's workers before attempting the
+	// TCP bind that panics, and the panic recovery above skips the rest of
+	// Start, so nothing else stops them. r.Stop is not an option: it waits on
+	// r.exit, which is only drained by the serve loop that never started.
+	r.telemetryForwarder.Stop()
+}
+
 func TestNoDuplicatePatterns(t *testing.T) {
 	handlerPatternsMap := make(map[string]int)
 	for _, endpoint := range endpoints {
@@ -279,12 +323,11 @@ func TestNoDuplicatePatterns(t *testing.T) {
 }
 
 func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
-	r := newTestReceiverFromConfig(newTestReceiverConfig())
-	r.Start()
+	r := startTestReceiver(t, newTestReceiverConfigNoPort())
 	defer r.Stop()
 	data := []byte{0x96, 0x97, 0xa4, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x96, 0x94, 0x9c, 0x00, 0x00, 0x00, 0x30, 0x30, 0xd1, 0x30, 0x30, 0x30, 0x30, 0x30, 0xdf, 0x30, 0x30, 0x30, 0x30}
 
-	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	path := fmt.Sprintf("http://%s/v0.5/traces", r.Addr())
 	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -292,11 +335,10 @@ func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
 }
 
 func TestTracesDecodeSlowDecodeInvalid(t *testing.T) {
-	r := newTestReceiverFromConfig(newTestReceiverConfig())
-	r.Start()
+	r := startTestReceiver(t, newTestReceiverConfigNoPort())
 	defer r.Stop()
 	data := []byte("\x96\x90\xdd\x01\x7D\x78\x3F")
-	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	path := fmt.Sprintf("http://%s/v0.5/traces", r.Addr())
 	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -305,13 +347,11 @@ func TestTracesDecodeSlowDecodeInvalid(t *testing.T) {
 
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
-	cfg := newTestReceiverConfig()
+	cfg := newTestReceiverConfigNoPort()
 	cfg.AgentVersion = "testVersion"
-	url := fmt.Sprintf("http://%s:%d",
-		cfg.ReceiverHost, cfg.ReceiverPort)
-	r := newTestReceiverFromConfig(cfg)
-	r.Start()
+	r := startTestReceiver(t, cfg)
 	defer r.Stop()
+	url := fmt.Sprintf("http://%s", r.Addr())
 	data := msgpTraces(t, pb.Traces{
 		testutil.RandomTrace(10, 20),
 		testutil.RandomTrace(10, 20),
@@ -1291,16 +1331,15 @@ func TestStatsKeepaliveIdleTimeout(t *testing.T) {
 	// Tracers reuse connections across their ~10s stats flush interval, so IdleTimeout
 	// must be set independently to avoid "connection reset by peer" errors.
 	runTest := func(t *testing.T, idleTimeout time.Duration) (firstErr, secondErr error) {
-		cfg := newTestReceiverConfig()
+		cfg := newTestReceiverConfigNoPort()
 		cfg.ReceiverTimeoutDuration = 50 * time.Millisecond
 		cfg.ReceiverIdleTimeout = idleTimeout
 		readTimeout := cfg.ReceiverTimeoutDuration
 
-		rcv := newTestReceiverFromConfig(cfg)
-		rcv.Start()
+		rcv := startTestReceiver(t, cfg)
 		defer rcv.Stop()
 
-		addr := fmt.Sprintf("%s:%v", cfg.ReceiverHost, cfg.ReceiverPort)
+		addr := rcv.Addr().String()
 		require.Eventually(t, func() bool {
 			c, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
 			if err != nil {
@@ -2042,13 +2081,12 @@ func BenchmarkWatchdog(b *testing.B) {
 }
 
 func TestReplyOKV5(t *testing.T) {
-	r := newTestReceiverFromConfig(newTestReceiverConfig())
-	r.Start()
+	r := startTestReceiver(t, newTestReceiverConfigNoPort())
 	defer r.Stop()
 
 	data, err := vmsgp.Marshal([2][]interface{}{{}, {}})
 	assert.NoError(t, err)
-	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	path := fmt.Sprintf("http://%s/v0.5/traces", r.Addr())
 	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
 	assert.NoError(t, err)
 	slurp, err := io.ReadAll(resp.Body)
@@ -2278,15 +2316,12 @@ func TestUpdateAPIKey(t *testing.T) {
 	}
 	AttachEndpoint(testEndpoint)
 
-	conf := newTestReceiverConfig()
-	receiver := newTestReceiverFromConfig(conf)
-	receiver.Start()
+	receiver := startTestReceiver(t, newTestReceiverConfigNoPort())
 	defer receiver.Stop()
 
 	assert.Equal(1, counter)
 
-	url := fmt.Sprintf("http://%s:%d/test",
-		conf.ReceiverHost, conf.ReceiverPort)
+	url := fmt.Sprintf("http://%s/test", receiver.Addr())
 
 	for i := 1; i <= 10; i++ {
 		receiver.UpdateAPIKey() // force handler rebuild
