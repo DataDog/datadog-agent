@@ -21,8 +21,9 @@ clap = { workspace = true, features = ["derive"] }
 dd-agent-log.workspace = true
 dd-procmgr-client.workspace = true
 log.workspace = true
+reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_yaml.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = [
   "macros",
   "net",
@@ -30,10 +31,6 @@ tokio = { workspace = true, features = [
   "signal",
 ] }
 tonic = { workspace = true, features = ["transport"] }
-
-[target.'cfg(windows)'.dependencies]
-windows-registry.workspace = true
-windows-sys = { workspace = true, features = ["Win32_System_Registry"] }
 
 [dev-dependencies]
 tempfile.workspace = true
