@@ -172,7 +172,6 @@ deploy_containers-secret-generic-connector* @DataDog/fleet-automation
 # Trigger release
 trigger_manual_prod_release*            @DataDog/agent-delivery
 trigger_auto_staging_release*           @DataDog/agent-delivery
-generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
 
 # Trigger distribution
 trigger_distribution*         @DataDog/agent-delivery
