@@ -47,24 +47,28 @@ func describeField(output, label string) string {
 func assertInstallerLSASecretAbsent(c *assert.CollectT, host *components.RemoteHost) {
 	script := fmt.Sprintf(`
 $ErrorActionPreference = 'Stop'
-Add-Type -Namespace Datadog -Name LsaUtil -MemberDefinition @'
+if (-not ('Datadog.LsaUtil' -as [type])) {
+Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
-public static class LsaUtil {
-  [StructLayout(LayoutKind.Sequential)]
-  public struct LsaUnicodeString {
-    public ushort Length;
-    public ushort MaximumLength;
-    public IntPtr Buffer;
+namespace Datadog {
+  public static class LsaUtil {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct LsaUnicodeString {
+      public ushort Length;
+      public ushort MaximumLength;
+      public IntPtr Buffer;
+    }
+    [DllImport("advapi32.dll", SetLastError=true)]
+    public static extern uint LsaOpenPolicy(IntPtr systemName, IntPtr objectAttributes, uint accessMask, out IntPtr policyHandle);
+    [DllImport("advapi32.dll")]
+    public static extern uint LsaRetrievePrivateData(IntPtr policyHandle, ref LsaUnicodeString keyName, out IntPtr privateData);
+    [DllImport("advapi32.dll")]
+    public static extern uint LsaClose(IntPtr objectHandle);
   }
-  [DllImport("advapi32.dll", SetLastError=true)]
-  public static extern uint LsaOpenPolicy(IntPtr systemName, IntPtr objectAttributes, uint accessMask, out IntPtr policyHandle);
-  [DllImport("advapi32.dll")]
-  public static extern uint LsaRetrievePrivateData(IntPtr policyHandle, ref LsaUnicodeString keyName, out IntPtr privateData);
-  [DllImport("advapi32.dll")]
-  public static extern uint LsaClose(IntPtr objectHandle);
 }
 '@
+}
 $policy = [IntPtr]::Zero
 $status = [Datadog.LsaUtil]::LsaOpenPolicy([IntPtr]::Zero, [IntPtr]::Zero, 4, [ref]$policy)
 if ($status -ne 0) { throw "LsaOpenPolicy failed: 0x$($status.ToString('X8'))" }
