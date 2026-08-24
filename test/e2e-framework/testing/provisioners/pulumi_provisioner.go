@@ -129,25 +129,51 @@ func dumpRawResources(resources RawResources, secretKeys map[string]bool) string
 	return builder.String()
 }
 
-// redactPassword replaces the "password" field of a marshalled resource with a placeholder,
-// leaving the rest of the JSON untouched. If the value isn't a JSON object, the whole value
-// is redacted since we can't isolate the password field safely.
+// redactPassword replaces every "password" field found anywhere in a marshalled resource,
+// including inside nested objects/arrays (e.g. a HostAgent output embedding its Host), with
+// a placeholder, leaving the rest of the JSON untouched. If the top-level value isn't a JSON
+// object, the whole value is redacted since we can't isolate the password field safely.
 func redactPassword(raw []byte) []byte {
-	var data map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &data); err != nil {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &top); err != nil {
 		return []byte("[secret value redacted from logs]")
 	}
+	return redactPasswordDeep(raw)
+}
 
-	if _, ok := data["password"]; !ok {
-		return raw
+// redactPasswordDeep walks a JSON value, replacing any "password" object field with a
+// placeholder at every nesting level. Values that aren't objects/arrays (or that fail to
+// re-marshal) are returned unchanged.
+func redactPasswordDeep(raw json.RawMessage) json.RawMessage {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err == nil {
+		for k, v := range obj {
+			if k == "password" {
+				obj[k] = json.RawMessage(`"[redacted]"`)
+				continue
+			}
+			obj[k] = redactPasswordDeep(v)
+		}
+		marshalled, err := json.MarshalIndent(obj, "", "\t")
+		if err != nil {
+			return raw
+		}
+		return marshalled
 	}
-	data["password"] = json.RawMessage(`"[redacted]"`)
 
-	redacted, err := json.MarshalIndent(data, "", "\t")
-	if err != nil {
-		return []byte("[secret value redacted from logs]")
+	var arr []json.RawMessage
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		for i, v := range arr {
+			arr[i] = redactPasswordDeep(v)
+		}
+		marshalled, err := json.MarshalIndent(arr, "", "\t")
+		if err != nil {
+			return raw
+		}
+		return marshalled
 	}
-	return redacted
+
+	return raw
 }
 
 // Diagnose runs the diagnose function if it is set diagnoseFunc

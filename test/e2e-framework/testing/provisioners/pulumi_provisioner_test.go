@@ -31,6 +31,34 @@ func TestDumpRawResourcesRedactsSecrets(t *testing.T) {
 	assert.True(t, strings.Contains(output, `other-resource: {"foo":"bar"}`))
 }
 
+func TestDumpRawResourcesRedactsNestedPassword(t *testing.T) {
+	resources := RawResources{
+		"dd-HostAgent-aws-vm": []byte(`{
+			"fipsEnabled": false,
+			"host": {
+				"address": "10.255.100.97",
+				"username": "ubuntu",
+				"password": "super-secret-value"
+			},
+			"hosts": [
+				{"address": "10.255.100.98", "password": "another-secret"}
+			]
+		}`),
+	}
+	secretKeys := map[string]bool{
+		"dd-HostAgent-aws-vm": true,
+	}
+
+	output := dumpRawResources(resources, secretKeys)
+
+	assert.NotContains(t, output, "super-secret-value")
+	assert.NotContains(t, output, "another-secret")
+	assert.Contains(t, output, `"address": "10.255.100.97"`)
+	assert.Contains(t, output, `"username": "ubuntu"`)
+	assert.Contains(t, output, `"address": "10.255.100.98"`)
+	assert.Equal(t, 2, strings.Count(output, `"password": "[redacted]"`))
+}
+
 func TestDumpRawResourcesRedactsWholeValueWhenNotAnObject(t *testing.T) {
 	resources := RawResources{
 		"secret-scalar": []byte(`"super-secret-value"`),
