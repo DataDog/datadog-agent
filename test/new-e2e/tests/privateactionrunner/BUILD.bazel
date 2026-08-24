@@ -11,7 +11,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/privateactionrunner",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/remoteconfig/state",
         "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/command",
         "//test/e2e-framework/components/datadog/agent/helm",
@@ -28,7 +27,6 @@ go_library(
         "@com_github_go_jose_go_jose_v4//:go-jose",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
-        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )

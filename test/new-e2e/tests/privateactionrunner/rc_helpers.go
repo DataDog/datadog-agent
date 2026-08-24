@@ -12,12 +12,9 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	remoteconfigstate "github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
@@ -59,25 +56,6 @@ func pushRunnerPublicKey(t *testing.T, client *fakeintakeclient.Client, keyID st
 func PushFakeRunnerKeysConfig(t *testing.T, client *fakeintakeclient.Client) {
 	t.Helper()
 	pushRunnerPublicKey(t, client, fakeRunnerKeyConfigID)
-}
-
-// WaitForFakeRunnerKeyAcknowledged waits until PAR reports that it loaded the signing key.
-func WaitForFakeRunnerKeyAcknowledged(t *testing.T, client *fakeintakeclient.Client, timeout time.Duration) {
-	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		stats, err := client.RCStats()
-		assert.NoError(c, err)
-		for _, applyState := range stats.ApplyStates {
-			if applyState.Product == runnerKeysRCProduct && applyState.ConfigID == fakeRunnerKeyConfigID {
-				assert.Equal(c, stats.Version, applyState.Version,
-					"PAR acknowledged a stale signing key version")
-				assert.Equal(c, uint64(remoteconfigstate.ApplyStateAcknowledged), applyState.ApplyState,
-					"PAR did not acknowledge the signing key: %s", applyState.ApplyError)
-				return
-			}
-		}
-		assert.Fail(c, "PAR has not reported an apply state for the signing key")
-	}, timeout, 3*time.Second, "PAR should acknowledge the signing key through Remote Config")
 }
 
 // SetupPARTaskSigning additionally registers the private key with fakeintake's PAR

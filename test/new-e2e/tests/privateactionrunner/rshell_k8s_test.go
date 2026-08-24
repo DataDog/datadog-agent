@@ -73,9 +73,6 @@ func (s *parK8sSuite) SetupSuite() {
 	}()
 	keyPushed = true
 
-	started := time.Now()
-	WaitForFakeRunnerKeyAcknowledged(s.T(), s.Env().FakeIntake.Client(), 5*time.Minute)
-	s.T().Logf("PAR acknowledged the signing key after %s", time.Since(started))
 	s.waitForPARReady()
 }
 

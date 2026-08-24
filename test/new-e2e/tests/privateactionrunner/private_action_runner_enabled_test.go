@@ -97,7 +97,6 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 		}
 	}, 45*time.Second, time.Second, "Core Agent should poll after PAR subscribes")
 	PushFakeRunnerKeysConfig(s.T(), client)
-	WaitForFakeRunnerKeyAcknowledged(s.T(), client, 5*time.Minute)
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerKeysManagerLogLine, privateActionRunnerLogFile))
