@@ -102,6 +102,7 @@ jobs:
           INCLUDE_OTEL_MODULES: ${{ inputs.include_otel_modules && '--include-otel-modules' || '' }}
           CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}
           INPUT_GO_VERSION: ${{ inputs.go_version }}
+          TARGET_BRANCH: ${{ github.ref_name }}
           IMAGES_ID: ${{ inputs.images_id }}
           TMP_PR_BODY_PATH: /tmp/pr_body
           WINDOWS_FLAG: ${{ inputs.update_windows_images && '--windows' || '' }}
@@ -116,7 +117,8 @@ jobs:
           # Generate the PR description
           dda inv -- -e buildimages.generate-pr-body \
           "$CURRENT_GO_VERSION" \
-          "$INPUT_GO_VERSION" > $TMP_PR_BODY_PATH
+          "$INPUT_GO_VERSION" \
+          "$TARGET_BRANCH" > $TMP_PR_BODY_PATH
           echo "BODY<<EOF"$'\n'"$(cat $TMP_PR_BODY_PATH)"$'\n'EOF >> $GITHUB_OUTPUT
 
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
