@@ -13,8 +13,22 @@ use windows_sys::Win32::System::Services::{
 use super::sid::{lookup_account_sid, sid_to_string};
 use super::wide;
 
-const DATADOG_AGENT_SERVICE: &str = "datadogagent";
+pub(crate) const DATADOG_AGENT_SERVICE: &str = "datadogagent";
 const LOCAL_SYSTEM_SID: &str = "S-1-5-18";
+
+pub(crate) fn service_runs_as_agent_user(
+    service_name: &str,
+    domain: &str,
+    user: &str,
+) -> Result<bool> {
+    let service_user = service_start_name(service_name)
+        .with_context(|| format!("could not get {service_name} service user"))?;
+    let agent_sid = lookup_account_sid(domain, user)
+        .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
+    let service_sid = lookup_service_account_sid(&service_user)
+        .with_context(|| format!("lookup SID for service account {service_user}"))?;
+    Ok(sids_equal(&agent_sid, &service_sid))
+}
 
 pub(crate) fn datadog_agent_user_sid_string() -> Result<String> {
     let service_user = service_start_name(DATADOG_AGENT_SERVICE)
@@ -77,6 +91,26 @@ fn service_start_name(service_name: &str) -> Result<String> {
         bail!("QueryServiceConfigW({service_name}): empty service start name");
     }
     Ok(start_name)
+}
+
+fn lookup_service_account_sid(service_user: &str) -> Result<Vec<u8>> {
+    if service_user.eq_ignore_ascii_case("LocalSystem") {
+        return lookup_account_sid("NT AUTHORITY", "SYSTEM")
+            .or_else(|_| lookup_account_sid("", "SYSTEM"));
+    }
+
+    let mut parts = service_user.splitn(2, '\\');
+    match (parts.next(), parts.next()) {
+        (Some(domain), Some(user)) if domain == "." => lookup_account_sid("", user),
+        (Some(domain), Some(user)) => lookup_account_sid(domain, user),
+        (Some(user), None) => lookup_account_sid("", user),
+        _ => bail!("invalid service account name {service_user}"),
+    }
+}
+
+fn sids_equal(left: &[u8], right: &[u8]) -> bool {
+    use windows_sys::Win32::Security::EqualSid;
+    unsafe { EqualSid(left.as_ptr() as *mut _, right.as_ptr() as *mut _) != 0 }
 }
 
 fn service_user_for_sid_lookup(user: &str) -> String {
