@@ -77,18 +77,16 @@ func TestBuildEnvironment_PassesThroughAllowedEnvVar(t *testing.T) {
 	assert.Equal(t, "secret-value", value)
 }
 
-func TestBuildEnvironment_SessionEnvVarAppendsPath(t *testing.T) {
+func TestBuildEnvironment_SessionEnvVarRejectsPathOverride(t *testing.T) {
 	session := newTestSession(t)
 	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{
 		SetSessionEnvVars: []EnvironmentVariable{{Name: "PATH", Value: "/extra/bin", Kind: environmentKindValue}},
 	}}}
 
-	environment, err := pkg.BuildEnvironment(session)
+	_, err := pkg.BuildEnvironment(session)
 
-	require.NoError(t, err)
-	path, ok := lookupEnv(t, environment, "PATH")
-	require.True(t, ok)
-	assert.Equal(t, defaultExecutablePath+string(os.PathListSeparator)+"/extra/bin", path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot override the managed")
 }
 
 func TestBuildEnvironment_SessionEnvVarRejectsHomeOverride(t *testing.T) {

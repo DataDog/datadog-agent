@@ -23,9 +23,7 @@ const (
 
 // managedEnvironmentVariables are set by BuildEnvironment from session/package state.
 // AllowedEnvVars or setSessionEnvVars entries with these names will error out, since the
-// script cannot pass through the runner's own value for them. PATH is the only
-// exception: setSessionEnvVars may extend it, and its value is appended rather than
-// replacing the runner's computed PATH.
+// script cannot pass through or override the runner's own value for them.
 var managedEnvironmentVariables = map[string]struct{}{
 	"HOME":   {},
 	"PATH":   {},
@@ -60,14 +58,14 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 	}
 
 	for _, variable := range pkg.Manifest.Config.SetSessionEnvVars {
-		if variable.Name == "HOME" || variable.Name == "TMPDIR" {
+		if _, managed := managedEnvironmentVariables[variable.Name]; managed {
 			return nil, fmt.Errorf("authored-script session environment variable %q cannot override the managed %q value", variable.Name, variable.Name)
 		}
 		value, err := materializeEnvironmentVariable(session.RootDirectory, "session", variable)
 		if err != nil {
 			return nil, err
 		}
-		setEnvironmentVariable(environment, variable.Name, value)
+		environment[variable.Name] = value
 	}
 
 	result := make([]string, 0, len(environment))
@@ -96,14 +94,6 @@ func buildExecutablePath(toolPaths []string) (string, error) {
 	}
 	executablePaths = append(executablePaths, defaultExecutablePath)
 	return strings.Join(executablePaths, string(os.PathListSeparator)), nil
-}
-
-func setEnvironmentVariable(environment map[string]string, name, value string) {
-	if name == "PATH" {
-		environment[name] = environment[name] + string(os.PathListSeparator) + value
-		return
-	}
-	environment[name] = value
 }
 
 func materializeEnvironmentVariable(root, scope string, variable EnvironmentVariable) (string, error) {
