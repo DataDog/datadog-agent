@@ -181,7 +181,7 @@ func validateInstanceSchema(data []byte) error {
 
 	if !result.Valid() {
 		for _, e := range result.Errors() {
-			log.Errorf("powershell check: invalid config: %s", e)
+			log.Errorf("invalid config: %s", e)
 		}
 		return errors.New("powershell check config failed schema validation")
 	}

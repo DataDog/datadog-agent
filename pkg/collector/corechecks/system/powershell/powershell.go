@@ -80,22 +80,26 @@ func (c *PowershellCheck) Configure(senderManager sender.SenderManager, integrat
 
 	inst, err := parseInstanceConfig(data)
 	if err != nil {
-		log.Errorf("powershell check: invalid config: %s", err)
+		log.Errorf("invalid config: %s", err)
 		return fmt.Errorf("invalid powershell check config: %w", err)
 	}
 
 	al, err := loadAllowlist()
 	if err != nil {
-		log.Errorf("powershell check: could not load allowlist: %s", err)
+		log.Errorf("could not load allowlist: %s", err)
 		return fmt.Errorf("could not load PowerShell allowlist: %w", err)
 	}
 	if err := al.validateInstance(inst); err != nil {
-		log.Errorf("powershell check (cmdlet %q): rejected by allowlist: %s", inst.Cmdlet, err)
+		log.Errorf("cmdlet %s rejected by allowlist: %s", inst.Cmdlet, err)
 		return fmt.Errorf("instance rejected by allowlist: %w", err)
 	}
 
 	c.instance = inst
 	c.allowlist = al
+
+	log.Infof("configured cmdlet %s: module %s, %d parameter(s), %d filter(s), %d metric(s), %d join(s), timeout %ds",
+		inst.Cmdlet, al.AllowedCmdlets[inst.Cmdlet].Module,
+		len(inst.Parameters), len(inst.Where), len(inst.Metrics), len(inst.TagQueries), inst.Timeout)
 
 	s, err := c.GetSender()
 	if err != nil {
@@ -112,14 +116,14 @@ func (c *PowershellCheck) Run() error {
 		return err
 	}
 
+	start := time.Now()
+
 	rows, err := c.runCmdlet(c.instance.Cmdlet, c.instance.Parameters, c.instance.Where, c.instance.selectProperties())
 	if err != nil {
 		return fmt.Errorf("cmdlet %q failed: %w", c.instance.Cmdlet, err)
 	}
-	// Filtering happens inside the command, so the pre-filter row count is not
-	// observable here — only the rows that were kept.
-	if len(c.instance.Where) > 0 {
-		log.Debugf("powershell check: cmdlet %q returned %d rows after where filtering", c.instance.Cmdlet, len(rows))
+	if len(rows) == 0 {
+		log.Warnf("cmdlet %s returned no rows; no metrics submitted this interval", c.instance.Cmdlet)
 	}
 
 	joins := c.runTagQueries()
@@ -133,7 +137,28 @@ func (c *PowershellCheck) Run() error {
 		}
 	}
 
+	for i := range c.instance.TagBy {
+		tb := &c.instance.TagBy[i]
+		missing := 0
+		for _, row := range rows {
+			if tagValue(row[tb.Property]) == "" {
+				missing++
+			}
+		}
+		switch {
+		case len(rows) > 0 && missing == len(rows):
+			log.Warnf("cmdlet %s: tag_by %s had no value on any of the %d rows; check the property name against the cmdlet's real output (lookups are case-sensitive)",
+				c.instance.Cmdlet, tb.Property, len(rows))
+		case missing > 0:
+			log.Debugf("cmdlet %s: tag_by %s had no value on %d of %d rows",
+				c.instance.Cmdlet, tb.Property, missing, len(rows))
+		}
+	}
+
 	s.Commit()
+	log.Debugf("cmdlet %s run complete: %d metrics from %d rows in %s",
+		c.instance.Cmdlet, len(rows)*len(c.instance.Metrics), len(rows),
+		time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
@@ -151,7 +176,7 @@ func (c *PowershellCheck) runTagQueries() []map[string]string {
 		// instance's own rows, not the rows it looks tags up in.
 		rows, err := c.runCmdlet(q.TargetCmdlet, nil, nil, []string{q.LinkTargetProperty, q.TargetProperty})
 		if err != nil {
-			log.Warnf("powershell check: tag_queries cmdlet %q failed, skipping join: %s", q.TargetCmdlet, err)
+			log.Warnf("tag_queries cmdlet %s failed, skipping join: %s", q.TargetCmdlet, err)
 			continue
 		}
 		m := make(map[string]string, len(rows))
@@ -161,6 +186,13 @@ func (c *PowershellCheck) runTagQueries() []map[string]string {
 			if key != "" && val != "" {
 				m[key] = val
 			}
+		}
+		if len(m) == 0 {
+			log.Warnf("tag_queries cmdlet %s returned %d rows but no usable %s/%s pairs; the join will add no tags",
+				q.TargetCmdlet, len(rows), q.LinkTargetProperty, q.TargetProperty)
+		} else {
+			log.Debugf("tag_queries cmdlet %s resolved %d lookup keys from %d rows",
+				q.TargetCmdlet, len(m), len(rows))
 		}
 		joins[i] = m
 	}
@@ -224,6 +256,8 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, wher
 	if err != nil {
 		return nil, err
 	}
+	// Safe to log; the payload is not, since it carries configured values.
+	log.Debugf("generated script for cmdlet %s:\n%s", cmdlet, script)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.instance.Timeout)*time.Second)
 	defer cancel()
@@ -247,6 +281,7 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, wher
 	// auto-loaded module spawning a helper could otherwise wedge it past the deadline.
 	cmd.WaitDelay = waitDelay
 
+	cmdStart := time.Now()
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, fmt.Errorf("timed out after %ds", c.instance.Timeout)
@@ -257,11 +292,26 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, wher
 		return nil, fmt.Errorf("%w (stderr: %s)", err, strings.TrimSpace(stderr.String()))
 	}
 
+	// Capped because, unlike stdout, stderr is not bounded by maxOutputBytes.
+	if msg := strings.TrimSpace(stderr.String()); msg != "" {
+		log.Warnf("cmdlet %s wrote to stderr but exited successfully: %.512s", cmdlet, msg)
+	}
+
 	if stdout.truncated {
 		return nil, fmt.Errorf("output exceeded %d bytes", maxOutputBytes)
 	}
+	if n := len(stdout.Bytes()); n > maxOutputBytes*8/10 {
+		log.Warnf("cmdlet %s produced %d bytes, over 80%% of the %d byte cap", cmdlet, n, maxOutputBytes)
+	}
 
-	return parseRows(stdout.Bytes())
+	rows, err := parseRows(stdout.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("cmdlet %s returned %d rows (%d bytes, %s)",
+		cmdlet, len(rows), len(stdout.Bytes()), time.Since(cmdStart).Round(time.Millisecond))
+
+	return rows, nil
 }
 
 // parseRows decodes the compact JSON emitted by the dispatcher command into a
@@ -305,7 +355,12 @@ func loadAllowlist() (*allowlist, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not read allowlist %s: %w", path, err)
 	}
-	return parseAllowlist(data)
+	al, err := parseAllowlist(data)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("loaded allowlist %s (version %d, %d cmdlets accepted)", path, al.Version, len(al.AllowedCmdlets))
+	return al, nil
 }
 
 // allowlistPath returns the fixed, non-configurable allowlist location inside

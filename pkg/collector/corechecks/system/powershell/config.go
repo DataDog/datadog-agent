@@ -336,7 +336,7 @@ func parseInstanceConfig(data []byte) (*instanceConfig, error) {
 	// timeout is optional and defaults to defaultTimeout. A negative value is
 	// invalid; warn and fall back to the default rather than failing the check.
 	if inst.Timeout < 0 {
-		log.Warnf("powershell check: 'timeout' must be a positive number of seconds, got %d; using default of %ds", inst.Timeout, defaultTimeout)
+		log.Warnf("cmdlet %s: 'timeout' must be a positive number of seconds, got %d; using default of %ds", inst.Cmdlet, inst.Timeout, defaultTimeout)
 	}
 	if inst.Timeout <= 0 {
 		inst.Timeout = defaultTimeout
