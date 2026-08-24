@@ -83,6 +83,10 @@ type CloudService interface {
 
 	// AddStartMetric adds the start (and legacy start, if any) metric to the metric agent
 	AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent)
+
+	// GetInventoryData returns the per-platform serverless fields for the
+	// inventory metadata payload.
+	GetInventoryData() InventoryData
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter

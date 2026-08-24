@@ -12,7 +12,6 @@ import (
 	"maps"
 	"net/http"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +26,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
@@ -42,16 +42,13 @@ import (
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
 	// for testing
-	installinfoGet      = installinfo.Get
 	fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	fetchProcessConfig  = func(cfg model.Reader, client ipc.HTTPClient) (string, error) {
 		return configFetcher.ProcessAgentConfig(cfg, client, true)
@@ -79,24 +76,34 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 type inventoryagent struct {
 	util.InventoryPayload
 
-	log          log.Component
-	conf         config.Component
-	hostnameComp hostnameinterface.Component
-	sysprobeConf option.Option[sysprobeconfig.Component]
-	m            sync.Mutex
-	data         agentMetadata
-	hostname     string
-	client       ipc.HTTPClient
+	log                log.Component
+	conf               config.Component
+	hostnameComp       hostnameinterface.Component
+	sysprobeConf       option.Option[sysprobeconfig.Component]
+	m                  sync.Mutex
+	data               agentMetadata
+	hostname           string
+	client             ipc.HTTPClient
+	flavorName         string
+	uuidValue          string
+	extraFields        map[string]interface{}
+	skipRemoteMetadata bool
 }
 
 // Requires defines the dependencies for the inventoryagent component
 type Requires struct {
+	compdef.In
+
 	Log            log.Component
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
+	// Params is optional. When absent the component uses standard full-agent
+	// behavior; serverless-init supplies it (via NewServerlessParams) to adapt
+	// enablement, flavor, uuid, extra fields, and remote-metadata fetching.
+	Params *iainterface.Params `optional:"true"`
 }
 
 // Provides defines the output of the inventoryagent component
@@ -119,8 +126,11 @@ func NewComponent(deps Requires) Provides {
 		hostname:     hname,
 		data:         make(agentMetadata),
 		client:       deps.IPCClient,
+		flavorName:   flavor.GetFlavor(),
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
+
+	applyParams(ia, deps.Params)
 
 	if ia.Enabled {
 		ia.initData()
@@ -145,41 +155,17 @@ func scrub(s string) string {
 }
 
 func (ia *inventoryagent) initData() {
-	tool := "undefined"
-	toolVersion := ""
-	installerVersion := ""
-
-	install, err := installinfoGet(ia.conf)
-	if err == nil {
-		tool = install.Tool
-		toolVersion = install.ToolVersion
-		installerVersion = install.InstallerVersion
-	}
-	ia.data["install_method_tool"] = tool
-	ia.data["install_method_tool_version"] = toolVersion
-	ia.data["install_method_installer_version"] = installerVersion
-
+	hostnameSource := ""
 	data, err := ia.hostnameComp.GetWithProvider(context.Background())
 	if err == nil {
 		if data.Provider != "" && !data.FromFargate() {
-			ia.data["hostname_source"] = data.Provider
+			hostnameSource = data.Provider
 		}
 	} else {
 		ia.log.Warnf("could not fetch 'hostname_source': %v", err)
 	}
 
-	ia.data["agent_version"] = version.AgentVersion
-	ia.data["package_version"] = version.AgentPackageVersion
-	ia.data["agent_startup_time_ms"] = ia.conf.StartTime().UnixMilli()
-	ia.data["flavor"] = flavor.GetFlavor()
-
-	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
-	// fleet-automation: This validation should be done by the Config once we have such mechanism
-	if !slices.Contains([]string{"full", "end_user_device", "basic", "cloud_cost_only", "none"}, infraMode) {
-		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
-		infraMode = "full"
-	}
-	ia.data["infrastructure_mode"] = infraMode
+	util.PopulateCoreFields(ia.data, ia.conf, ia.flavorName, hostnameSource)
 }
 
 type configGetter interface {
@@ -529,11 +515,14 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
 
-	ia.refreshMetadata()
+	if !ia.skipRemoteMetadata {
+		ia.refreshMetadata()
+	}
 
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
 	maps.Copy(data, ia.data)
+	maps.Copy(data, ia.extraFields)
 
 	ia.getConfigs(data)
 
@@ -541,8 +530,34 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  data,
-		UUID:      uuid.GetUUID(),
+		UUID:      ia.payloadUUID(),
 	}
+}
+
+// applyParams adapts the component for a non-standard embedding binary (see
+// iainterface.Params). It is a no-op when params is nil.
+func applyParams(ia *inventoryagent, params *iainterface.Params) {
+	if params == nil {
+		return
+	}
+	if params.Enabled != nil {
+		ia.Enabled = *params.Enabled
+	}
+	if params.Flavor != "" {
+		ia.flavorName = params.Flavor
+	}
+	ia.uuidValue = params.UUID
+	ia.extraFields = params.ExtraFields
+	ia.skipRemoteMetadata = params.SkipRemoteMetadata
+}
+
+// payloadUUID returns the per-process uuid override when set, otherwise the
+// cached host machine GUID used by the full agent.
+func (ia *inventoryagent) payloadUUID() string {
+	if ia.uuidValue != "" {
+		return ia.uuidValue
+	}
+	return uuid.GetUUID()
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.

@@ -385,3 +385,73 @@ them), so no Windows build path is required here.
    `TestAgentConfigInit`.
 3. Tests (unit + e2e across platforms).
 4. Rollout (validate volume, then flip default to enabled).
+
+## Spike results: Option A (reuse `inventoryagent`) vs Option B (new component)
+
+Both spikes were built to the same "compiles + wired, emission gated off by
+default" bar, sharing `PopulateCoreFields` and the `cloudservice.GetInventoryData`
+per-platform seam. Option B lives on
+`aleksandr.pasechnik/svls-9645-serverless-init-inventory-component-spike`;
+Option A is on this branch.
+
+### What each option touched
+
+| Concern | Option A (reuse) | Option B (new component) |
+|---|---|---|
+| New component | none | `comp/metadata/serverlessinventory` (def/fx/impl, ~250 lines) |
+| Shared `inventoryagent` code changed | **yes** — `Requires` gains `compdef.In` + optional `Params`; struct gains 4 fields; `NewComponent`/`getPayload`/`initData` learn about params | none beyond the shared `PopulateCoreFields` extraction |
+| serverless-init fx graph additions | `serializer` adapter, `ipcfx-none` + `ipc.HTTPClient` adapter, `option.None[sysprobeconfig]`, `runnerfx`, `inventoryagentfx`, `Params` provider | `serializer` adapter, `runnerfx`, `serverlessinventoryfx`, `FieldProvider` provider |
+| Flavor injection | `Params.Flavor` → `initData` (shared code) | payload-local constant (component-local) |
+| Per-process uuid | `Params.UUID` → `getPayload` (shared code) | own `Payload` struct (component-local) |
+| Empty hostname | inherited from shared `getPayload` (`hostname` from `Hostname.Get`, empty in serverless build) | own `Payload` struct, explicit `""` |
+| Skip cross-process fetch (IPC/localhost incl. trace :5012) | `Params.SkipRemoteMetadata` guard in shared `getPayload` | never had it — component only builds core + serverless fields |
+| Serverless field injection | `Params.ExtraFields`, merged in shared `getPayload` | typed `Fields` flattened in component |
+| Enablement gate | `Params.Enabled` pointer overrides the cached `util.InventoryEnabled` | `Enabled` reassigned after `CreateInventoryPayload` |
+
+### Cost of reuse (Option A), concretely
+
+The shared `inventoryagent` needed a new optional **`Params` seam** (following
+the metadata/resources `Params`/`Disabled()` and rcclient `Params` convention:
+a construction-time struct supplied by the binary and received with
+`optional:"true"`, built via `inventoryagent.NewServerlessParams`) because every
+serverless divergence lands inside shared code that the full agent also runs:
+
+- `initData` hardwired `flavor.GetFlavor()`; `getPayload` hardwired
+  `uuid.GetUUID()`, `ia.hostname`, and an unconditional `refreshMetadata()` that
+  fetches from security/process/trace/system-probe. None of that is right for
+  serverless, and none of it is reachable via the existing `Set(...)` API (which
+  only adds keys, and only after `Enabled`). So the reuse path requires editing
+  the shared component's hot path (`getPayload`) and its init, guarded by an
+  optional dependency so the full agent is unaffected.
+- The IPC dependency is dead weight: serverless has no agent processes to query,
+  so we wire `ipcfx-none` (whose `GetClient()` returns `nil`) purely to satisfy
+  the graph, then set `SkipRemoteMetadata` so the nil client is never
+  dereferenced. Option B never takes on the dependency at all.
+- `Params` is 5 knobs (`Enabled`, `Flavor`, `UUID`, `ExtraFields`,
+  `SkipRemoteMetadata`). Each exists solely to bend full-agent behavior for
+  serverless. That surface is the ongoing maintenance tax of reuse: future
+  changes to `getPayload`/`initData` must keep the param branches correct,
+  and the full-agent payload now carries an `optional` dependency it never uses.
+  (The convention keeps `resources`/`rcclient` `Params` mostly plain data;
+  ours carries more behavioral surface, which is the honest cost signal.)
+
+### Read
+
+- Option A adds **no new component** (the stated long-term preference) but pays
+  for it by threading serverless-specific behavior through the shared component
+  via a `Params` struct and taking on an unused IPC dependency. The blast
+  radius is the full agent's own metadata hot path.
+- Option B keeps all serverless logic in serverless-owned code and touches
+  shared code only for the `PopulateCoreFields` extraction (which both options
+  want anyway), at the cost of one small new component.
+- Both still need the same follow-up work regardless of choice: the config
+  schema changes for real enablement gating (`inventories_*` +
+  `serverless.inventory_enabled`), the real `GetInventoryData` derivations, and
+  the `PopulateCoreFields` contract sign-off. Neither spike did the schema work;
+  both hardcode enablement to `false`.
+
+Decision heuristic: if the `Params` seam stays at ~5 stable knobs, Option A's
+"no new component" wins. If serverless divergence keeps growing (more envelope
+differences, `hostname: null`, force-send at shutdown, RC toggling), each new
+divergence is another branch in shared full-agent code — and Option B's
+component isolation becomes the cheaper long-term maintenance story.
