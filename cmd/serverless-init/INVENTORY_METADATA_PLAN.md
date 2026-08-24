@@ -255,23 +255,26 @@ per process lifetime is sufficient.
   has enough data.
 - Sending is non-blocking during the run: we do not want to hold up the
   customer's workload or the rest of serverless-init on metadata delivery.
-- At shutdown, check that at least one send has occurred. If one already has,
-  do nothing (no blocking final flush). If none has, attempt a best-effort
-  final send within the shutdown budget.
+- The at-least-one-send guarantee rests on the runner firing early (delay=0)
+  plus the forwarder's shutdown drain (`forwarder_stop_timeout`), not on a
+  manual final flush at shutdown.
 - No "force send" retry loop for short-lived workloads in v1 — revisit only if
   e2e shows the at-least-one-send guarantee is unreliable for Cloud Run Jobs /
   very short containers.
 
-Trigger mechanism: serverless-init does not wire `comp/metadata/runner`, and
-`InventoryPayload.collect()` is unexported. So we either wire the runner, or
-drive sends ourselves by calling `demux.Serializer().SendMetadata(getPayload())`
-directly. Driving it ourselves bypasses the util's `firstRunDelay` / interval /
-`forceRefresh` ordering, which only exists to avoid a backend host-creation
-race that does not apply to serverless (no host-metadata pipeline) — so the
-bypass is acceptable and gives us direct control over the early send and the
-non-blocking / at-least-one-send behavior. Note the util's serializer-nil skip
-is dead code here: `demux.Serializer()` is always non-nil, so send suppression
-must come from the enablement gate, not from a missing serializer.
+Trigger mechanism (decided): wire `comp/metadata/runner` and let it drive
+`collect()` on the normal schedule, with `inventories_first_run_delay` forced to
+`0` (via `setOverride`, see Config / enablement) so the first send happens
+promptly. We deliberately do **not** add a `ForceCollect` / synchronous-send
+hook to the shared `inventoryagent` / `util.InventoryPayload` code: the shared
+metadata pipeline stays untouched, and the early send comes purely from the
+runner + delay=0. This is simpler than a bespoke `SendMetadata` loop and avoids
+any shared-code change to the metadata agent. (The prototype added an
+`InventoryPayload.ForceCollect()` shared hook to force an immediate synchronous
+send at startup; we are not adopting that.) The util's `firstRunDelay` /
+interval / `forceRefresh` ordering exists to avoid a backend host-creation race
+that does not apply to serverless (no host-metadata pipeline), so running the
+runner as-is with delay=0 is safe.
 
 ## Config / enablement
 
@@ -339,6 +342,10 @@ first; `setOverride` sets a value, not schema membership.
 
 All supported serverless-init platforms/modes: Cloud Run, Cloud Run Jobs,
 Container Apps, App Service; init and sidecar modes.
+
+serverless-init is Linux-only. Windows-based Azure environments are not
+supported by serverless-init (a different instrumentation mechanism covers
+them), so no Windows build path is required here.
 
 ## Testing
 
