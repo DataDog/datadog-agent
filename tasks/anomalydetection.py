@@ -73,6 +73,10 @@ class _DDEvalOptions:
     agent_ci_api_timeout: int
 
 
+class _AgentCIAPITransientError(RuntimeError):
+    """An Agent CI API result request that is safe to retry."""
+
+
 # --- Build ---
 
 
@@ -1459,17 +1463,24 @@ def _run_agent_ci_api_ddeval_workflow(
             )
 
         wait_seconds = min(int(options.agent_ci_api_poll_wait), max(0, int(remaining)))
-        result_response = _agent_ci_api_post(
-            ctx,
-            options,
-            "observer-ablation/eval/result",
-            {
-                "workflow_id": workflow_id,
-                "run_id": run_id,
-                "wait_seconds": wait_seconds,
-            },
-            timeout=float(max(wait_seconds + 5, 15)),
-        )
+        try:
+            result_response = _agent_ci_api_post(
+                ctx,
+                options,
+                "observer-ablation/eval/result",
+                {
+                    "workflow_id": workflow_id,
+                    "run_id": run_id,
+                    "wait_seconds": wait_seconds,
+                },
+                timeout=float(max(wait_seconds + 5, 15)),
+            )
+        except _AgentCIAPITransientError as e:
+            polls.append({"transient_error": str(e)})
+            logger.detail(f"transient result poll for workflow {workflow_id}; retrying: {e}")
+            if options.agent_ci_api_poll_interval > 0:
+                time.sleep(min(options.agent_ci_api_poll_interval, max(0, deadline - time.monotonic())))
+            continue
         polls.append(result_response)
 
         status = str(result_response.get("status") or "")
@@ -1498,23 +1509,32 @@ def _agent_ci_api_post(
     timeout: float,
 ) -> dict[str, object]:
     url = _agent_ci_api_endpoint(options, endpoint)
-    response = requests.post(
-        url,
-        json={
-            "data": {
-                "type": _agent_ci_api_type(endpoint),
-                "attributes": attributes,
-            }
-        },
-        headers={
-            "Authorization": _agent_ci_api_token(ctx, options),
-            "X-DdOrigin": os.environ.get("CI_JOB_ID", "curl-authanywhere"),
-            "Content-Type": "application/json",
-        },
-        timeout=timeout,
-    )
+    try:
+        response = requests.post(
+            url,
+            json={
+                "data": {
+                    "type": _agent_ci_api_type(endpoint),
+                    "attributes": attributes,
+                }
+            },
+            headers={
+                "Authorization": _agent_ci_api_token(ctx, options),
+                "X-DdOrigin": os.environ.get("CI_JOB_ID", "curl-authanywhere"),
+                "Content-Type": "application/json",
+            },
+            timeout=timeout,
+        )
+    except requests.RequestException as e:
+        if endpoint.endswith("/result"):
+            raise _AgentCIAPITransientError(f"agent-ci-api request failed: {e}") from e
+        raise RuntimeError(f"agent-ci-api request failed: {e}") from e
+
     if not response.ok:
-        raise RuntimeError(f"agent-ci-api request failed with code {response.status_code}:\n{response.text}")
+        message = f"agent-ci-api request failed with code {response.status_code}:\n{response.text}"
+        if endpoint.endswith("/result") and (response.status_code == 429 or response.status_code >= 500):
+            raise _AgentCIAPITransientError(message)
+        raise RuntimeError(message)
     try:
         body = response.json()
     except ValueError as e:
