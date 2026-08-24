@@ -188,10 +188,6 @@ not embed a `correlationEmitter`.
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
 dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
-
-# Compare retained storage and column-array capacity across commits.
-dda inv test --targets=./comp/anomalydetection/observer/impl/ \
-  --extra-args="-run=^$ -bench=^BenchmarkTimeSeriesStorage_RetainedMemory$ -benchtime=1x"
 ```
 
 **Testbench** (algorithm iteration + scenario replay):

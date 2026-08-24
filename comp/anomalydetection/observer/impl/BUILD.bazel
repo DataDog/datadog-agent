@@ -74,7 +74,6 @@ dd_agent_go_test(
         "bench_log_ingestion_test.go",
         "bench_main_test.go",
         "bench_storage_listing_test.go",
-        "bench_storage_memory_test.go",
         "component_catalog_test.go",
         "component_test.go",
         "correlation_emitter_test.go",
