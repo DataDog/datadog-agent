@@ -942,7 +942,6 @@ def _prepare(
             ctx.run(f"install -D {src} {dst}")
     else:
         bazel(
-            ctx,
             "run",
             f"//internal/tools:install_gotestsum_linux_{arch_obj.kmt_arch}",
             "--",
@@ -1031,7 +1030,7 @@ def build_object_files(ctx, arch: Arch):
     build_dir = get_ebpf_build_dir(arch)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
-    bazel(ctx, "test", *ebpf_bazel_flags(arch), "//pkg/ebpf:verify_generated_files")
+    bazel("test", *ebpf_bazel_flags(arch), "//pkg/ebpf:verify_generated_files")
 
 
 def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
@@ -1203,7 +1202,7 @@ def kmt_sysprobe_prepare(
                         variables={
                             "go": go_path,
                             "chdir": "true",
-                            "tags": "-tags=\"test,linux_bpf\"",
+                            "tags": "-tags=\"test,bpf\"",
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
                             "env": env_str,
                         },

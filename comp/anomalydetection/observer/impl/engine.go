@@ -11,8 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Note: stateView is defined in stateview.go and provides read-only access
@@ -63,6 +63,11 @@ type engine struct {
 	// latestDataTime is the latest data timestamp seen across all ingested observations.
 	latestDataTime int64
 
+	// inactiveSeriesEvictionChecked tracks the advance timestamp of the last
+	// inactivity scan. It is engine-goroutine owned, like storage mutation.
+	inactiveSeriesEvictionChecked   bool
+	lastInactiveSeriesEvictionCheck int64
+
 	// Raw anomaly tracking (for telemetry and testbench display).
 	rawAnomalies         []observerdef.Anomaly
 	rawAnomalyIndex      map[anomalyDedupKey]int // O(1) dedup lookup
@@ -95,6 +100,7 @@ type engine struct {
 	onStorageCapacityHit   func()
 	onAdvanceSkipped       func(reason string)
 	onProcessingTime       func(detectorTag string, durationNs float64)
+	onDetectorEmission     func(detector, severity string)
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -405,10 +411,17 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 // taking their own locks. Adding a new caller of this function from a
 // different goroutine would break that invariant for every detector.
 func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
-	if len(refs) == 0 || len(e.detectors) == 0 {
+	e.mu.RLock()
+	detectors := e.detectors
+	e.mu.RUnlock()
+	fanOutSeriesRemoval(detectors, refs)
+}
+
+func fanOutSeriesRemoval(detectors []observerdef.Detector, refs []observerdef.SeriesRef) {
+	if len(refs) == 0 || len(detectors) == 0 {
 		return
 	}
-	for _, d := range e.detectors {
+	for _, d := range detectors {
 		if remover, ok := d.(observerdef.SeriesRemover); ok {
 			remover.RemoveSeries(refs)
 		}
@@ -503,6 +516,10 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	if e.logCounts != nil {
 		e.logCounts.flush(e.storage, upToSec)
 	}
+	// Inactivity eviction happens after materialized log-count buckets have
+	// restored their real last-observation activity time, and before detectors
+	// can recreate state for series that are no longer relevant.
+	e.evictInactiveSeries(upToSec, detectors)
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
@@ -535,6 +552,34 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	return result
 }
 
+func (e *engine) evictInactiveSeries(upToSec int64, detectors []observerdef.Detector) {
+	e.mu.Lock()
+	cfg := e.storage.cfg
+	if cfg.InactiveSeriesTTLSeconds <= 0 || cfg.InactiveSeriesCheckIntervalSeconds <= 0 {
+		e.mu.Unlock()
+		return
+	}
+	if e.inactiveSeriesEvictionChecked && upToSec-e.lastInactiveSeriesEvictionCheck < cfg.InactiveSeriesCheckIntervalSeconds {
+		e.mu.Unlock()
+		return
+	}
+	e.inactiveSeriesEvictionChecked = true
+	e.lastInactiveSeriesEvictionCheck = upToSec
+	e.mu.Unlock()
+
+	freed := e.storage.EvictInactiveBefore(upToSec - cfg.InactiveSeriesTTLSeconds)
+	if len(freed) == 0 {
+		return
+	}
+	if e.logCounts != nil {
+		e.logCounts.removeSeriesByRefs(freed)
+	}
+	if e.onStorageSeriesEvicted != nil {
+		e.onStorageSeriesEvicted("inactive", len(freed))
+	}
+	fanOutSeriesRemoval(detectors, freed)
+}
+
 // runDetectorsAndCorrelatorsSnapshot runs the given detectors and correlators.
 // Uses explicit slices so the caller can snapshot them under a lock.
 //
@@ -546,6 +591,13 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 // clusters are captured while still alive.
 func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
+	var severityConfig observerdef.AnomalyScorerConfig
+	if e.onDetectorEmission != nil {
+		severityConfig = DefaultAnomalyScorerConfig().AnomalyScorerConfig
+		if e.scorer != nil {
+			severityConfig = e.scorer.config.AnomalyScorerConfig
+		}
+	}
 
 	// Detect, deduplicate, and feed anomalies to correlators.
 	for _, detector := range detectors {
@@ -604,6 +656,13 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			}
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate
+			}
+			if e.onDetectorEmission != nil {
+				detectorName := anomaly.DetectorName
+				if detectorName == "" {
+					detectorName = detector.Name()
+				}
+				e.onDetectorEmission(detectorName, anomalySeverityLabel(anomalyLevel(anomaly, severityConfig)))
 			}
 			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
@@ -879,15 +938,15 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 		}
 	}
 
-	pkglog.Debugf("[observer] baseline %d/%d ended for detector %q: %d new series muted (%d anomalies seen)",
+	logging.Debugf("baseline %d/%d ended for detector %q: %d new series muted (%d anomalies seen)",
 		e.baseline.completedCount(), len(e.baseline.detectors), detectorName, len(newHashes), windowAnomalyCount)
 
 	if allComplete {
-		pkglog.Infof("[observer] all baseline windows ended: %d/%d series muted from anomaly detection", len(e.baseline.mutedHashes), totalSeries)
+		logging.Infof("all baseline windows ended: %d/%d series muted from anomaly detection", len(e.baseline.mutedHashes), totalSeries)
 	}
 	if allComplete && e.baseline.config.Verbose {
 		for _, name := range e.baseline.takeMutedDisplayNames() {
-			pkglog.Infof("[observer] baseline muted: %s", name)
+			logging.Infof("baseline muted: %s", name)
 		}
 	}
 }
@@ -939,6 +998,8 @@ func (e *engine) Reset() {
 
 	e.lastAnalyzedDataTime = 0
 	e.latestDataTime = 0
+	e.inactiveSeriesEvictionChecked = false
+	e.lastInactiveSeriesEvictionCheck = 0
 
 	for _, detector := range e.detectors {
 		if resetter, ok := detector.(interface{ Reset() }); ok {
@@ -1000,6 +1061,8 @@ func (e *engine) resetAnalysisState() {
 	e.mu.Lock()
 	e.lastAnalyzedDataTime = 0
 	e.latestDataTime = 0
+	e.inactiveSeriesEvictionChecked = false
+	e.lastInactiveSeriesEvictionCheck = 0
 	e.mu.Unlock()
 
 	for _, detector := range e.detectors {
