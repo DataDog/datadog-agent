@@ -93,6 +93,10 @@
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
+    # Populate AWS_SHARED_CREDENTIALS_FILE via CI Identities. macOS runners no longer
+    # carry an IAM instance role, so any `aws` call made by the job (e.g. the
+    # agent-version.cache download in `dda inv agent.build`) needs these credentials.
+    - ci-identities-gitlab-job-client assume-role
     - export GOCACHE="$TMPDIR/go-build"
     - dda inv -- -e install-tools --verbose
 
