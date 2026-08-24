@@ -37,7 +37,7 @@ func (m *mockRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAge
 
 func (m *mockRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData { return nil }
 
-func (m *mockRegistry) ListCommands(_ context.Context) []remoteagentregistry.AgentCommands {
+func (m *mockRegistry) ListCommands(_ context.Context) []*pb.CommandProvider {
 	return nil
 }
 

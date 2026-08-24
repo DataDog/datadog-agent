@@ -48,7 +48,7 @@ func (f *fakeRemoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.Re
 func (f *fakeRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
 	return nil
 }
-func (f *fakeRemoteAgentRegistry) ListCommands(_ context.Context) []remoteagentregistry.AgentCommands {
+func (f *fakeRemoteAgentRegistry) ListCommands(_ context.Context) []*pb.CommandProvider {
 	return nil
 }
 func (f *fakeRemoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {

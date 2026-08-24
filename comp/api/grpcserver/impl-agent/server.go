@@ -397,20 +397,7 @@ func (s *remoteCommandProviderServer) ListCommands(ctx context.Context, _ *pb.Li
 		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
-	agentCommands := s.remoteAgentRegistry.ListCommands(ctx)
-	providers := make([]*pb.CommandProvider, 0, len(agentCommands))
-	for _, ac := range agentCommands {
-		if len(ac.Commands) == 0 {
-			continue
-		}
-		providers = append(providers, &pb.CommandProvider{
-			CommandName:      ac.CommandName,
-			AgentDescription: ac.Description,
-			Commands:         ac.Commands,
-		})
-	}
-
-	return &pb.ListCommandsResponse{Providers: providers}, nil
+	return &pb.ListCommandsResponse{Providers: s.remoteAgentRegistry.ListCommands(ctx)}, nil
 }
 
 // ExecuteCommand routes a command execution request to the registered remote agent that owns the command.
