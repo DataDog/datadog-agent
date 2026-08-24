@@ -10,7 +10,6 @@ from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
-from tasks.schema.generate import schema_codegen
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_NAME = "otel-agent"
@@ -127,17 +126,3 @@ def image_build(ctx, arch='amd64', base_version='latest', tag=DDOT_AGENT_TAG, pu
 
     os.remove(os.path.join(build_context, BIN_NAME))
     os.remove(os.path.join(build_context, CFG_NAME))
-
-
-@task
-def integration_test(ctx):
-    """
-    Run the otel integration test
-    """
-    cmd = """go test -timeout 0s -tags otlp,test -run ^TestIntegration$ \
-        github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest -v"""
-
-    # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
-
-    ctx.run(cmd)

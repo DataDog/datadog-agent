@@ -12,6 +12,21 @@ locally.
 
 ## How the commands fit together
 
+The schema files under `pkg/config/schema/yaml/` are the source of truth and are
+edited by hand (or through `schema.add-setting`). Everything else is derived from
+them:
+
+- `schema.lint` validates the hand-written schema.
+- `schema.codegen` generates the `pkg/config/setup` Go files that register the
+  settings. Bazel runs the same logic automatically via
+  `//pkg/config/setup:codegen_settings`.
+- `schema.template` renders the shipped `datadog.yaml.example` and
+  `system-probe.yaml.example` files.
+- `schema.produce-embedded` / `schema.compress` build the artifact embedded into
+  the Agent binary; `schema.produce-jsonschema` builds the pure JSON Schema for
+  external consumers.
+- `schema.locate` finds where a setting is declared.
+
 ## `schema.add-setting`
 
 Interactive wizard to add a new setting to the schema. It prompts for the
@@ -37,8 +52,7 @@ problems are visible.
 ## `schema.lint`
 
 Validate the schema against the schema quality rules and exit
-non-zero on any violation. This is the check enforced in CI
-(`generate_config_schema-linux`).
+non-zero on any violation.
 
 ```bash
 dda inv schema.lint
@@ -59,7 +73,7 @@ look like in the generated example without running the whole build.
 ```bash
 dda inv schema.template \
   --schema=./pkg/config/schema/yaml/core_schema.yaml \
-  --build-type=agent-py3 \
+  --build-type=datadog-agent \
   --os-target=linux \
   --output=/tmp/datadog.yaml.example
 ```
@@ -67,34 +81,13 @@ dda inv schema.template \
 | Argument | Required | Description |
 | --- | --- | --- |
 | `--schema` | yes | Path to the enriched schema YAML file. |
-| `--build-type` | yes | One of: `agent-py3`, `iot-agent`, `system-probe`, `dogstatsd`, `dca`, `dcacf`. |
+| `--build-type` | yes | One of: `datadog-agent`, `iot-agent`, `system-probe`, `dogstatsd`, `dca`, `dcacf`. |
 | `--os-target` | yes | One of: `windows`, `linux`, `darwin`. |
 | `--output` | yes | Path to write the rendered template. |
 
 Only nodes with `visibility: public` are rendered. The build type selects which
 template sections are included; the OS target controls which platform-specific
 defaults and `platform_only` settings are emitted.
-
----
-
-## `schema.template-all`
-
-Render every combination of build type × OS target from the core and
-system-probe schemas at once. This is what the build pipeline uses to keep the
-shipped `*.yaml.example` files in sync.
-
-```bash
-dda inv schema.template-all \
-  --core-schema=./pkg/config/schema/yaml/core_schema.yaml \
-  --sysprobe-schema=./pkg/config/schema/yaml/system-probe_schema.yaml \
-  --output-dir=/tmp/templates
-```
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `--core-schema` | yes | Path to the enriched core Agent schema. |
-| `--sysprobe-schema` | yes | Path to the enriched system-probe schema. |
-| `--output-dir` | yes | Directory where `<build_type>_<os_target>.yaml` files are written. |
 
 ---
 
@@ -138,12 +131,11 @@ dda inv -- schema.locate 'apm_config\..*enabled' --json
 
 ## Typical workflows
 
-**I edited a setting in `pkg/config/setup` and want the schema to reflect it:**
+**I edited a setting in the schema and want the Go code to reflect it:**
 
 ```bash
-dda inv agent.build                                  # rebuild the binary
-dda inv schema.generate --agent-bin=./bin/agent/agent  # regenerate the schema
-dda inv schema.lint                                  # validate it
+dda inv schema.lint            # validate the schema
+dda inv schema.codegen        # regenerate pkg/config/setup from it
 ```
 
 **I want to preview the generated example for one platform:**
@@ -151,7 +143,7 @@ dda inv schema.lint                                  # validate it
 ```bash
 dda inv schema.template \
   --schema=./pkg/config/schema/yaml/core_schema.yaml \
-  --build-type=agent-py3 --os-target=linux --output=/tmp/datadog.yaml.example
+  --build-type=datadog-agent --os-target=linux --output=/tmp/datadog.yaml.example
 ```
 
 **I want to find where a setting is defined, or list every setting matching a pattern:**
