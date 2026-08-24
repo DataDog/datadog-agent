@@ -26,7 +26,6 @@ dd_agent_go_test(
     name = "helm_test",
     srcs = ["helm_test.go"],
     embed = [":helm"],
-    tags = ["manual"], # TODO: remove once the toolchain issue is fixed
     deps = [
         "//test/e2e-framework/components/datadog/fakeintake",
         "@com_github_stretchr_testify//assert",
