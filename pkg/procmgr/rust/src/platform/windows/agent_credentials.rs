@@ -16,6 +16,7 @@ use windows_sys::Win32::Security::{
 };
 
 use super::account_name::AccountName;
+use super::agent_service_sid::{service_runs_as_agent_user, DATADOG_AGENT_SERVICE};
 use super::local_account::is_local_account;
 use super::managed_service_account::ManagedServiceAccountState;
 #[cfg(not(test))]
@@ -28,6 +29,8 @@ use super::{open_datadog_agent_key, registry_nonempty_string};
 
 #[cfg(not(test))]
 const AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
+#[cfg(not(test))]
+const SCM_SERVICE_PASSWORD_LSA_PREFIX: &str = "_SC_";
 #[cfg(not(test))]
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 const NT_AUTHORITY: &str = "NT AUTHORITY";
@@ -127,7 +130,7 @@ fn resolve_domain_agent_account(domain: String, user: String, sid: &[u8]) -> Res
     let display = AccountName::new(&domain, &user).display();
     let is_local =
         is_local_account(sid).with_context(|| format!("classify local account for {display}"))?;
-    let lsa_password = read_agent_password_from_lsa()?;
+    let lsa_password = read_agent_password(&domain, &user)?;
     let msa = if should_query_managed_service_account(&user, lsa_password.as_deref()) {
         query_managed_service_account(&domain, &user)?
     } else {
@@ -298,9 +301,47 @@ fn is_well_known_sid(
     unsafe { IsWellKnownSid(sid.as_ptr() as *mut _, well_known) != 0 }
 }
 
+/// Pick the first non-empty Agent password from installer LSA storage or SCM service credentials.
+fn agent_password_from_sources(
+    installer_lsa_password: Option<&str>,
+    scm_service_password: Option<&str>,
+    scm_service_matches_agent: bool,
+) -> Option<String> {
+    if let Some(password) = installer_lsa_password.filter(|password| !password.is_empty()) {
+        return Some(password.to_string());
+    }
+    if scm_service_matches_agent {
+        scm_service_password
+            .filter(|password| !password.is_empty())
+            .map(str::to_string)
+    } else {
+        None
+    }
+}
+
 #[cfg(not(test))]
-fn read_agent_password_from_lsa() -> Result<Option<String>> {
-    let mut key_w = wide::null_terminated(AGENT_PASSWORD_LSA_KEY);
+fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
+    let installer_lsa_password = read_lsa_private_data(AGENT_PASSWORD_LSA_KEY)?;
+    if installer_lsa_password
+        .as_ref()
+        .is_some_and(|password| !password.is_empty())
+    {
+        return Ok(installer_lsa_password);
+    }
+
+    let scm_service_matches_agent =
+        service_runs_as_agent_user(DATADOG_AGENT_SERVICE, domain, user)?;
+    if !scm_service_matches_agent {
+        return Ok(None);
+    }
+
+    let scm_key = format!("{SCM_SERVICE_PASSWORD_LSA_PREFIX}{DATADOG_AGENT_SERVICE}");
+    read_lsa_private_data(&scm_key)
+}
+
+#[cfg(not(test))]
+fn read_lsa_private_data(key: &str) -> Result<Option<String>> {
+    let mut key_w = wide::null_terminated(key);
     let key_len = key_w.len().saturating_sub(1);
     let key_name = LSA_UNICODE_STRING {
         Length: (key_len * 2) as u16,
@@ -401,6 +442,31 @@ mod tests {
         assert_eq!(well_known_from_names("CORP", "gmsa$"), None);
         assert_eq!(well_known_from_names("CORP", "LocalSystem"), None);
         assert_eq!(well_known_from_names("CORP", "LocalService"), None);
+    }
+
+    #[test]
+    fn agent_password_prefers_installer_lsa_secret() {
+        assert_eq!(
+            agent_password_from_sources(Some("installer"), Some("scm"), true),
+            Some("installer".to_string())
+        );
+    }
+
+    #[test]
+    fn agent_password_falls_back_to_scm_when_installer_lsa_missing() {
+        assert_eq!(
+            agent_password_from_sources(None, Some("scm"), true),
+            Some("scm".to_string())
+        );
+        assert_eq!(
+            agent_password_from_sources(Some(""), Some("scm"), true),
+            Some("scm".to_string())
+        );
+    }
+
+    #[test]
+    fn agent_password_ignores_scm_when_service_account_mismatch() {
+        assert_eq!(agent_password_from_sources(None, Some("scm"), false), None);
     }
 
     #[test]
