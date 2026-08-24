@@ -26,6 +26,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
@@ -114,6 +115,7 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
+		selfIdent:        selfident.New(nil),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
@@ -508,6 +510,7 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
+		selfIdent:        selfident.New(nil),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),

@@ -135,7 +135,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 
 	uris := buildConfigURIs(params)
 
-	if err == agentConfig.ErrNoDDExporter {
+	if err == agentConfig.ErrNoDDExporter && !acfg.GetBool("otel_standalone") {
 		return fxutil.Run(
 			fx.Supply(uris),
 			fx.Provide(func() coreconfig.Component {

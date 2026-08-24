@@ -17,7 +17,7 @@ jobs:
       contents: read
       pull-requests: write
       checks: write
-    uses: DataDog/code-review-action/.github/workflows/code-review.yml@56d6862711348b11ec2603edfb29c52c09f4b84c # v1.1.0
+    uses: DataDog/code-review-action/.github/workflows/code-review.yml@545e81e5f77ce98458b2bd14ef9718fe17aae485 # v1.2.0
     with:
       provider: codex
       # 'always'    → runs automatically on pull_request events above

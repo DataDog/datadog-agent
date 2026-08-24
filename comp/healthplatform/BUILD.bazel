@@ -50,6 +50,8 @@ dd_agent_go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/issues/invalidconfig",
         "//comp/healthplatform/runner/def",
