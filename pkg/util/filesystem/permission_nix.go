@@ -107,6 +107,27 @@ func getDatadogUserUID() (uint32, error) {
 	return uint32(os.Getuid()), nil
 }
 
+// GetAgentUserGroupIDs returns the UID and primary GID of the agent service
+// account ("dd-agent" on Linux, "_dd-agent" on macOS). The GID is the
+// user's primary group (e.g. "root" in the standard container, where no
+// same-named group exists), not a separately-named group. ok is false if the
+// user does not exist on the system.
+func GetAgentUserGroupIDs() (uid, gid int, ok bool) {
+	u, err := user.Lookup(agentUsername())
+	if err != nil {
+		return 0, 0, false
+	}
+	uid, err = strconv.Atoi(u.Uid)
+	if err != nil {
+		return 0, 0, false
+	}
+	gid, err = strconv.Atoi(u.Gid)
+	if err != nil {
+		return 0, 0, false
+	}
+	return uid, gid, true
+}
+
 // isRootOrAgentUID reports whether uid is root (0) or the dd-agent service account.
 func (p *Permission) isRootOrAgentUID(uid uint32) bool {
 	return uid == 0 || uid == p.ddUserUID

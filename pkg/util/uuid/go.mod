@@ -15,7 +15,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
+	github.com/lufia/plan9stats v0.0.0-20260627054121-477a66015f15 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect

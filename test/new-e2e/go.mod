@@ -9,9 +9,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
-	github.com/DataDog/datadog-agent/pkg/proto v0.78.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.81.2
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.77.0-devel.0.20260211235139-a5361978c2b6
-	github.com/DataDog/datadog-agent/pkg/trace v0.78.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.81.2
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
@@ -21,8 +21,8 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go/v2 v2.63.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
-	github.com/DataDog/dd-trace-go/v2 v2.9.0
-	github.com/DataDog/orchestrion v1.11.0
+	github.com/DataDog/dd-trace-go/v2 v2.9.1
+	github.com/DataDog/orchestrion v1.12.0
 	github.com/aws/aws-sdk-go-v2 v1.43.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.36
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.90.1
@@ -71,7 +71,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.78.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.81.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
@@ -85,14 +85,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.78.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.78.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.78.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.81.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.81.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.81.2
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.78.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.78.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/stats v0.78.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.78.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.81.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.81.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.81.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
@@ -113,7 +113,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
-	github.com/antithesishq/antithesis-sdk-go v0.7.0 // indirect
+	github.com/antithesishq/antithesis-sdk-go v0.7.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
@@ -228,11 +228,11 @@ require (
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
-	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/lufia/plan9stats v0.0.0-20260627054121-477a66015f15 // indirect
+	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
-	github.com/mattn/go-runewidth v0.0.24 // indirect
+	github.com/mattn/go-runewidth v0.0.27 // indirect
 	github.com/mdlayher/socket v0.6.1 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
@@ -253,10 +253,10 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
-	github.com/nats-io/jwt/v2 v2.8.1 // indirect
-	github.com/nats-io/nats-server/v2 v2.14.0 // indirect
+	github.com/nats-io/jwt/v2 v2.8.2 // indirect
+	github.com/nats-io/nats-server/v2 v2.14.3 // indirect
 	github.com/nats-io/nats.go v1.52.0 // indirect
-	github.com/nats-io/nkeys v0.4.15 // indirect
+	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -265,7 +265,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.1-0.20220228012449-10b1cf09e00b // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	github.com/petermattis/goid v0.0.0-20260330135022-df67b199bc81 // indirect
+	github.com/petermattis/goid v0.0.0-20260725062400-500c67a39b75 // indirect
 	github.com/pgavlin/fx v0.1.6 // indirect
 	github.com/pgavlin/fx/v2 v2.0.12 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect

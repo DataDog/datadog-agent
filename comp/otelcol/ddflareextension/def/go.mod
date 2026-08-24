@@ -4,8 +4,6 @@ go 1.26.0
 
 require go.opentelemetry.io/collector/extension v1.65.0
 
-require go.yaml.in/yaml/v3 v3.0.5 // indirect
-
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -23,6 +21,8 @@ require (
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

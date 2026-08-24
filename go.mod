@@ -206,7 +206,7 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20260807013103-1518bb55e423
 	github.com/DataDog/datadog-traceroute v1.0.19
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
-	github.com/DataDog/dd-trace-go/v2 v2.9.0
+	github.com/DataDog/dd-trace-go/v2 v2.9.1
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
 	github.com/DataDog/ebpf-manager v0.8.1
 	github.com/DataDog/go-acl v1.0.1
@@ -245,7 +245,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/cilium/ebpf v0.22.0
+	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
 	github.com/clbanning/mxj/v2 v2.7.0
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
@@ -872,15 +872,15 @@ require (
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/linode/go-metadata v0.3.0 // indirect
 	github.com/linode/linodego v1.69.1 // indirect
-	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
+	github.com/lufia/plan9stats v0.0.0-20260627054121-477a66015f15 // indirect
 	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 // indirect
 	github.com/magefile/mage v1.15.0 // indirect
 	github.com/masahiro331/go-disk v0.0.0-20240625071113-56c933208fee // indirect
 	github.com/masahiro331/go-ext4-filesystem v0.0.0-20240620024024-ca14e6327bbd // indirect
 	github.com/masahiro331/go-mvn-version v0.0.0-20250131095131-f4974fa13b8a // indirect
 	github.com/masahiro331/go-xfs-filesystem v0.0.0-20231205045356-1b22259a6c44 // indirect
-	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/mattn/go-shellwords v1.0.13 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
@@ -982,7 +982,7 @@ require (
 	github.com/pb33f/libopenapi v0.37.2 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
-	github.com/petermattis/goid v0.0.0-20260330135022-df67b199bc81 // indirect
+	github.com/petermattis/goid v0.0.0-20260725062400-500c67a39b75 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pires/go-proxyproto v0.8.0 // indirect

@@ -28,6 +28,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.80.2
+	github.com/DataDog/datadog-agent/pkg/util/http v0.80.2
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.82.0
 	github.com/google/go-cmp v0.7.0
@@ -48,14 +50,15 @@ require (
 	go.opentelemetry.io/collector/exporter/exportertest v0.159.0
 	go.opentelemetry.io/collector/featuregate v1.65.0
 	go.opentelemetry.io/collector/pdata v1.65.0
+	go.opentelemetry.io/collector/config/configretry v1.64.0
+	go.opentelemetry.io/collector/consumer/consumererror v0.158.0
+	go.uber.org/atomic v1.11.0
 	go.uber.org/fx v1.24.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/net v0.57.0
 	google.golang.org/protobuf v1.36.12
 )
-
-require github.com/DataDog/datadog-agent/pkg/config/helper v0.82.0 // indirect
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.209 // indirect
@@ -74,6 +77,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/api v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.82.0
