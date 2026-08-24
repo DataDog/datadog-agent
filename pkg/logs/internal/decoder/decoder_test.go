@@ -294,6 +294,40 @@ func TestDecoderWithSinglelineKubernetes(t *testing.T) {
 	assert.Equal(t, "", output.ParsingExtra.Timestamp)
 }
 
+func TestDecoderWithInterleavedPartialKubernetesStreams(t *testing.T) {
+	d := InitializeDecoderForTest(sources.NewLogSource("", &config.LogsConfig{}), kubernetes.New())
+	d.Start()
+
+	lines := []string{
+		"2024-01-01T00:00:00.000000000Z stderr P long log line chunk 1...\n",
+		"2024-01-01T00:00:00.000000001Z stdout F short log line\n",
+		"2024-01-01T00:00:00.000000002Z stderr F long log line chunk 2...\n",
+	}
+
+	inputDone := make(chan struct{})
+	go func() {
+		defer close(inputDone)
+		for _, line := range lines {
+			d.InputChan() <- NewInput([]byte(line))
+		}
+	}()
+
+	outputs := []*message.Message{
+		<-d.OutputChan(),
+		<-d.OutputChan(),
+	}
+	<-inputDone
+
+	d.Stop()
+	for range d.OutputChan() {
+	}
+
+	require.Equal(t, "short log line", string(outputs[0].GetContent()))
+	require.Equal(t, message.StatusInfo, outputs[0].Status)
+	require.Equal(t, "long log line chunk 1...long log line chunk 2...", string(outputs[1].GetContent()))
+	require.Equal(t, message.StatusError, outputs[1].Status)
+}
+
 func TestDecoderWithMultilineKubernetes(t *testing.T) {
 	var output *message.Message
 	var line []byte
