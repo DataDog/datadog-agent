@@ -22,7 +22,8 @@ struct syscall_context_t {
 struct span_context_t {
     u64 span_id;
     u64 trace_id[2];
-    u64 extra_attrs_id; // reserved for extra span attributes; 0 when none are available
+    u32 extra_attrs_id; // reserved for extra span attributes; 0 when none are available
+    u32 error;          // enum span_context_error; 0 when no reader failed
 };
 
 // Handle to a set of Go pprof labels stored in the go_labels_ctx ring.

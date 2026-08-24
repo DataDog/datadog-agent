@@ -103,11 +103,17 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
 
     u64 tsd_base = read_thread_pointer();
     if (tsd_base == 0) {
+        span->error = SPAN_CONTEXT_ERROR_OTEL_TP;
         return 0;
     }
 
     void *record_ptr = NULL;
-    if (otel_tls_read(otls, tsd_base, &record_ptr) || record_ptr == NULL) {
+    if (otel_tls_read(otls, tsd_base, &record_ptr)) {
+        span->error = SPAN_CONTEXT_ERROR_OTEL_TLS;
+        return 0;
+    }
+    if (record_ptr == NULL) {
+        // The thread is not inside a span, which is the common case.
         return 0;
     }
 
@@ -117,12 +123,14 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
     int ret = bpf_probe_read_user(&valid_before, sizeof(valid_before),
                                   record_ptr + OTEL_THREAD_CTX_VALID_OFFSET);
     if (ret < 0 || valid_before != 1) {
+        span->error = SPAN_CONTEXT_ERROR_OTEL_RECORD;
         return 0;
     }
 
     struct otel_thread_ctx_record_t record = {};
     ret = bpf_probe_read_user(&record, sizeof(record), record_ptr);
     if (ret < 0) {
+        span->error = SPAN_CONTEXT_ERROR_OTEL_RECORD;
         return 0;
     }
 
@@ -130,6 +138,7 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
     ret = bpf_probe_read_user(&valid_after, sizeof(valid_after),
                               record_ptr + OTEL_THREAD_CTX_VALID_OFFSET);
     if (ret < 0 || record.valid != 1 || valid_after != 1) {
+        span->error = SPAN_CONTEXT_ERROR_OTEL_RECORD;
         return 0;
     }
 

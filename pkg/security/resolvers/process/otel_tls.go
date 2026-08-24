@@ -144,10 +144,10 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 	defer module.file.Close()
 
 	if sym.Size != otelTLSExportSize {
-		return otelTLSResolution{}, fmt.Errorf("TLS export has wrong size %d", sym.Size)
+		return otelTLSResolution{}, spanTrackingErrorf(spanTrackingReasonBadSymbol, "TLS export has wrong size %d", sym.Size)
 	}
 	if safeelf.ST_TYPE(sym.Info) != elf.STT_TLS {
-		return otelTLSResolution{}, errors.New("TLS export is not a TLS symbol")
+		return otelTLSResolution{}, spanTrackingErrorf(spanTrackingReasonBadSymbol, "TLS export is not a TLS symbol")
 	}
 
 	// resolveTLSAccess only reads the symbol's value, but takes the upstream
@@ -158,12 +158,12 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 		Size:    sym.Size,
 	})
 	if err != nil {
-		return otelTLSResolution{}, err
+		return otelTLSResolution{}, spanTrackingWrap(spanTrackingReasonTLSAccess, err)
 	}
 
 	res, err := attachOTelTLS(target, module.loadBias, access)
 	if err != nil {
-		return otelTLSResolution{}, err
+		return otelTLSResolution{}, spanTrackingWrap(spanTrackingReasonTLSAttach, err)
 	}
 	res.runtimeLang = runtimeLang
 	return res, nil
@@ -173,7 +173,7 @@ func openOTelTargetProcess(pid uint32) (*otelTargetProcess, error) {
 	pidStr := strconv.FormatUint(uint64(pid), 10)
 	exePath, err := os.Readlink(kernel.HostProc(pidStr, "exe"))
 	if err != nil {
-		return nil, fmt.Errorf("resolve /proc/%s/exe: %w", pidStr, err)
+		return nil, spanTrackingErrorf(spanTrackingReasonProcExe, "resolve /proc/%s/exe: %w", pidStr, err)
 	}
 	exePath = stripDeletedMapsSuffix(exePath)
 
@@ -262,7 +262,7 @@ func stripDeletedMapsSuffix(path string) string {
 func (p *otelTargetProcess) findOTelTLSModule() (*otelTLSModule, *safeelf.Symbol, error) {
 	grouped, order, err := p.groupedReadableFileMaps()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, spanTrackingWrap(spanTrackingReasonProcMaps, err)
 	}
 
 	for _, path := range order {
@@ -286,7 +286,8 @@ func (p *otelTargetProcess) findOTelTLSModule() (*otelTLSModule, *safeelf.Symbol
 		return &otelTLSModule{path: path, loadBias: loadBias, file: elfFile}, sym, nil
 	}
 
-	return nil, nil, fmt.Errorf("TLS symbol %q not found in currently mapped readable ELF objects", otelTLSSymbolName)
+	// Not an error worth reporting: most tracers do not implement OTEP 4947 yet.
+	return nil, nil, spanTrackingErrorf(spanTrackingReasonNone, "TLS symbol %q not found in currently mapped readable ELF objects", otelTLSSymbolName)
 }
 
 // findOTelTLSSymbol looks up otelTLSSymbolName in the object at path: first in

@@ -202,8 +202,9 @@ static void __attribute__((always_inline)) collect_go_bucket_slot(
 
 // Snapshot the current goroutine's pprof labels into the go_labels_ctx ring.
 // Returns the id, 0 when the process is not a tracked Go tracer / no labels are
-// available.
-static u32 __attribute__((always_inline)) collect_go_labels(void) {
+// available. span carries back why a walk failed, and is left untouched for the
+// expected outcomes; it is never NULL, fill_span_context dereferences it first.
+static u32 __attribute__((always_inline)) collect_go_labels(struct span_context_t *span) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
@@ -227,6 +228,7 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
         g_addr = read_go_g_register();
     }
     if (g_addr == 0) {
+        span->error = SPAN_CONTEXT_ERROR_GO_G;
         return 0;
     }
 
@@ -234,6 +236,7 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
     void *m_ptr = NULL;
     if (bpf_probe_read_user(&m_ptr, sizeof(m_ptr),
                             (void *)(g_addr + offs->m_offset)) < 0 || m_ptr == NULL) {
+        span->error = SPAN_CONTEXT_ERROR_GO_M;
         return 0;
     }
 
@@ -241,19 +244,26 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
     u64 curg_addr = 0;
     if (bpf_probe_read_user(&curg_addr, sizeof(curg_addr),
                             (void *)((u64)m_ptr + offs->curg)) < 0 || curg_addr == 0) {
+        span->error = SPAN_CONTEXT_ERROR_GO_CURG;
         return 0;
     }
 
     // curg -> labels
     void *labels_ptr = NULL;
     if (bpf_probe_read_user(&labels_ptr, sizeof(labels_ptr),
-                            (void *)(curg_addr + offs->labels)) < 0 || labels_ptr == NULL) {
+                            (void *)(curg_addr + offs->labels)) < 0) {
+        span->error = SPAN_CONTEXT_ERROR_GO_LABELS;
+        return 0;
+    }
+    if (labels_ptr == NULL) {
+        // The goroutine carries no pprof labels, which is the common case.
         return 0;
     }
 
     u32 zero = 0;
     struct go_labels_scratch_t *scratch = bpf_map_lookup_elem(&go_labels_scratch_gen, &zero);
     if (!scratch) {
+        span->error = SPAN_CONTEXT_ERROR_GO_SCRATCH;
         return 0;
     }
 
@@ -262,6 +272,7 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
     u32 id = mint_go_labels_id();
     struct go_labels_ctx_entry_t *entry = lookup_go_labels_entry(id);
     if (!entry) {
+        span->error = SPAN_CONTEXT_ERROR_GO_RING;
         return 0;
     }
     reset_go_labels_entry(entry);
@@ -270,6 +281,7 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
     if (offs->hmap_buckets == 0) {
         // Go >=1.24: slice format.
         if (bpf_probe_read_user(&scratch->slice, sizeof(scratch->slice), labels_ptr) < 0) {
+            span->error = SPAN_CONTEXT_ERROR_GO_LABELS;
             return 0;
         }
         if (scratch->slice.len == 0 || scratch->slice.array == NULL) {
@@ -295,7 +307,12 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
     } else {
         // Go <1.24: map[string]string format.
         void *labels_map_ptr = NULL;
-        if (bpf_probe_read_user(&labels_map_ptr, sizeof(labels_map_ptr), labels_ptr) < 0 || labels_map_ptr == NULL) {
+        if (bpf_probe_read_user(&labels_map_ptr, sizeof(labels_map_ptr), labels_ptr) < 0) {
+            span->error = SPAN_CONTEXT_ERROR_GO_LABELS;
+            return 0;
+        }
+        if (labels_map_ptr == NULL) {
+            // The labels map is empty, which is the common case.
             return 0;
         }
 

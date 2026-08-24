@@ -277,6 +277,25 @@ enum sysctl_action_t
     SYSCTL_WRITE,
 };
 
+// span_context_error says why a span context reader could not attach a span.
+enum span_context_error
+{
+    SPAN_CONTEXT_NO_ERROR = 0,
+
+    // Go pprof labels reader
+    SPAN_CONTEXT_ERROR_GO_G = 1,       // g unreadable from TLS and from the g register
+    SPAN_CONTEXT_ERROR_GO_M = 2,       // g.m unreadable
+    SPAN_CONTEXT_ERROR_GO_CURG = 3,    // m.curg unreadable
+    SPAN_CONTEXT_ERROR_GO_LABELS = 4,  // g.labels unreadable
+    SPAN_CONTEXT_ERROR_GO_SCRATCH = 5, // per-cpu scratch buffer unavailable
+    SPAN_CONTEXT_ERROR_GO_RING = 6,    // go_labels_ctx ring slot unavailable
+
+    // OTel thread local context record reader
+    SPAN_CONTEXT_ERROR_OTEL_TP = 7,     // thread pointer unavailable
+    SPAN_CONTEXT_ERROR_OTEL_TLS = 8,    // otel_thread_ctx_v1 unreadable
+    SPAN_CONTEXT_ERROR_OTEL_RECORD = 9, // record unreadable or caught mid-update
+};
+
 enum mount_source_t
 {
     SOURCE_INVALID = 0,

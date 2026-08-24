@@ -1243,15 +1243,23 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 		return
 	}
 
+	lang := spanTrackingLangOf(tmeta.TracerLanguage)
+
 	if tmeta.TracerLanguage == "go" {
 		if err := p.resolveGoLabels(pid); err != nil {
+			countSpanTrackingResolveError(lang, err)
 			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
+		} else {
+			countSpanTrackingResolveSuccess(lang)
 		}
 	}
 
 	if p.otelTLSMap != nil {
 		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
+			countSpanTrackingResolveError(lang, err)
 			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+		} else {
+			countSpanTrackingResolveSuccess(lang)
 		}
 	}
 }
@@ -1263,7 +1271,10 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, tracerLanguage string
 	}
 
 	value := serializeOTelTLSValue(res)
-	return p.otelTLSMap.Put(pid, value)
+	if err := p.otelTLSMap.Put(pid, value); err != nil {
+		return spanTrackingWrap(spanTrackingReasonMapPut, err)
+	}
+	return nil
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials

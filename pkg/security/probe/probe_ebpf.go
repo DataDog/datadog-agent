@@ -65,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -1447,6 +1448,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
+	p.countSpanContext(event)
+
 	// send related events; pool return is handled by the deferred drain.
 	for _, relatedEvent := range p.relatedEvents {
 		p.DispatchEvent(relatedEvent, true)
@@ -1461,6 +1464,20 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// flush pending actions
 	p.processKiller.FlushPendingReports()
 	p.fileHasher.FlushPendingReports()
+}
+
+// countSpanContext reports what the kernel span context readers left on this
+// event.
+func (p *EBPFProbe) countSpanContext(event *model.Event) {
+	var tracerLanguage string
+	if event.ProcessCacheEntry != nil {
+		tracerLanguage = event.ProcessCacheEntry.Tracer.Metadata.TracerLanguage
+	}
+
+	// A pprof labels snapshot counts: the kernel captured it, and user space
+	// turns it into a span context on its way out.
+	hasSpan := event.SpanContext.SpanID != 0 || event.GoLabels.ID != 0
+	sprocess.CountSpanContextRead(tracerLanguage, event.SpanContext.Error, hasSpan)
 }
 
 // handleRegularEvent performs the standard unmarshaling process common to all events.

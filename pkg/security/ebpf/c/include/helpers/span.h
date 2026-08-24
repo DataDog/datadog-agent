@@ -24,6 +24,7 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
     span->span_id = 0;
     span->trace_id[0] = span->trace_id[1] = 0;
     span->extra_attrs_id = 0;
+    span->error = SPAN_CONTEXT_NO_ERROR;
     if (go_labels) {
         go_labels->id = 0;
     }
@@ -37,7 +38,7 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
     }
 
     if (go_labels) {
-        go_labels->id = collect_go_labels();
+        go_labels->id = collect_go_labels(span);
     }
 }
 
@@ -46,6 +47,7 @@ void __attribute__((always_inline)) reset_span_context(struct span_context_t *sp
     span->trace_id[0] = 0;
     span->trace_id[1] = 0;
     span->extra_attrs_id = 0;
+    span->error = SPAN_CONTEXT_NO_ERROR;
     go_labels->id = 0;
 }
 
@@ -66,6 +68,7 @@ void __attribute__((always_inline)) copy_span_context(
     // event-side span_context only gets populated via this helper at
     // send_exec_event.
     dst->extra_attrs_id = src->extra_attrs_id;
+    dst->error = src->error;
 
     go_labels_dst->id = go_labels_src->id;
 }

@@ -18,11 +18,13 @@ go_library(
         "resolver_ebpfless.go",
         "resolver_linux.go",
         "resolver_windows.go",
+        "span_tracking.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/process",
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/def",
             "//pkg/discovery/tracermetadata",
             "//pkg/discovery/tracermetadata/model",
             "//pkg/security/ebpf",
@@ -56,6 +58,7 @@ go_library(
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/def",
             "//pkg/discovery/tracermetadata",
             "//pkg/discovery/tracermetadata/model",
             "//pkg/security/ebpf",
@@ -184,6 +187,7 @@ dd_agent_go_test(
         "go_labels_test.go",
         "otel_tls_test.go",
         "resolver_test.go",
+        "span_tracking_test.go",
     ],
     embed = [":process"],
     deps = select({

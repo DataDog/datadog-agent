@@ -545,7 +545,8 @@ func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
 	s.SpanID = binary.NativeEndian.Uint64(data[0:8])
 	s.TraceID.Lo = binary.NativeEndian.Uint64(data[8:16])
 	s.TraceID.Hi = binary.NativeEndian.Uint64(data[16:24])
-	s.ExtraAttrsID = binary.NativeEndian.Uint64(data[24:32])
+	s.ExtraAttrsID = binary.NativeEndian.Uint32(data[24:28])
+	s.Error = SpanContextError(binary.NativeEndian.Uint32(data[28:32]))
 	s.HasExtraAttrs = s.ExtraAttrsID != 0
 	return 32, nil
 }

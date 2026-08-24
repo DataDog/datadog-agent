@@ -198,8 +198,63 @@ type SpanContext struct {
 	SpanID        uint64            `field:"-"`
 	TraceID       utils.TraceID     `field:"-"`
 	HasExtraAttrs bool              `field:"-"`
-	ExtraAttrsID  uint64            `field:"-"`
+	ExtraAttrsID  uint32            `field:"-"`
+	Error         SpanContextError  `field:"-"`
 	Attributes    map[string]string `field:"-"`
+}
+
+// SpanContextError says why a span context reader could not attach a span to an
+// event. Mirrors enum span_context_error in
+// pkg/security/ebpf/c/include/constants/enums.h; keep both in sync.
+//
+// Only genuine failures get a value: a goroutine holding no pprof labels, or a
+// thread that is simply not inside a span, is the expected outcome for most
+// events and stays SpanContextNoError.
+type SpanContextError uint32
+
+// Span context reader failures, disjoint between the two readers so that the
+// reader a failure came from is derivable from the error alone.
+const (
+	SpanContextNoError SpanContextError = iota
+
+	// Go pprof labels reader
+	SpanContextErrorGoG       // g unreadable from TLS and from the g register
+	SpanContextErrorGoM       // g.m unreadable
+	SpanContextErrorGoCurg    // m.curg unreadable
+	SpanContextErrorGoLabels  // g.labels unreadable
+	SpanContextErrorGoScratch // per-cpu scratch buffer unavailable
+	SpanContextErrorGoRing    // go_labels_ctx ring slot unavailable
+
+	// OTel thread local context record reader
+	SpanContextErrorOTelTP     // thread pointer unavailable
+	SpanContextErrorOTelTLS    // otel_thread_ctx_v1 unreadable
+	SpanContextErrorOTelRecord // record unreadable or caught mid-update
+)
+
+// String returns the `reason` tag value of the error.
+func (e SpanContextError) String() string {
+	switch e {
+	case SpanContextErrorGoG:
+		return "go_g"
+	case SpanContextErrorGoM:
+		return "go_m"
+	case SpanContextErrorGoCurg:
+		return "go_curg"
+	case SpanContextErrorGoLabels:
+		return "go_labels"
+	case SpanContextErrorGoScratch:
+		return "go_scratch"
+	case SpanContextErrorGoRing:
+		return "go_ring"
+	case SpanContextErrorOTelTP:
+		return "otel_thread_pointer"
+	case SpanContextErrorOTelTLS:
+		return "otel_tls"
+	case SpanContextErrorOTelRecord:
+		return "otel_record"
+	default:
+		return "unknown"
+	}
 }
 
 // Tracer bundles the per-process APM tracer state: static metadata captured

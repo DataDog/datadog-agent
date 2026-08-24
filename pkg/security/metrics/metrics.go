@@ -379,6 +379,28 @@ var (
 	// Tags: -
 	MetricHashResolverHashCacheLen = newITRuntimeMetric("hash_resolver", "cache_len")
 
+	// Span tracking metrics
+
+	// MetricSpanTrackingResolveError is the name of the metric used to report
+	// processes the Go pprof labels or OTel thread local context record readers
+	// could not be set up for
+	// Tags: lang, reason
+	MetricSpanTrackingResolveError = newITRuntimeMetric("span_tracking", "resolve.error")
+	// MetricSpanTrackingResolveSuccess is the name of the metric used to report
+	// processes set up to be read from, the denominator of
+	// MetricSpanTrackingResolveError
+	// Tags: lang
+	MetricSpanTrackingResolveSuccess = newITRuntimeMetric("span_tracking", "resolve.success")
+	// MetricSpanTrackingReadError is the name of the metric used to report events
+	// whose span context a reader failed to capture
+	// Tags: lang, reason
+	MetricSpanTrackingReadError = newITRuntimeMetric("span_tracking", "read.error")
+	// MetricSpanTrackingReadSuccess is the name of the metric used to report
+	// events that came out of the kernel with a span context.
+	// MetricSpanTrackingReadError
+	// Tags: lang
+	MetricSpanTrackingReadSuccess = newITRuntimeMetric("span_tracking", "read.success")
+
 	// File resolver metrics
 
 	// MetricFileResolverCacheHit is the name of the metric used to report file resolver cache hits

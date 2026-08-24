@@ -180,6 +180,7 @@ func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermet
 func deepCopySpanContext(fieldToCopy SpanContext) SpanContext {
 	copied := SpanContext{}
 	copied.Attributes = deepCopystringMap(fieldToCopy.Attributes)
+	copied.Error = fieldToCopy.Error
 	copied.ExtraAttrsID = fieldToCopy.ExtraAttrsID
 	copied.HasExtraAttrs = fieldToCopy.HasExtraAttrs
 	copied.SpanID = fieldToCopy.SpanID

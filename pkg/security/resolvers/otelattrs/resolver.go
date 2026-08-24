@@ -52,15 +52,15 @@ type Attribute struct {
 // slot. The kernel stamps each snapshot with its id, so a mismatch means the slot
 // was recycled for a later snapshot before this event got drained, and the
 // attributes are gone.
-func (r *Resolver) Resolve(attrsID uint64) ([]Attribute, error) {
-	key := uint32(attrsID % maxEntries)
+func (r *Resolver) Resolve(attrsID uint32) ([]Attribute, error) {
+	key := attrsID % maxEntries
 
 	var entry kernelAttrsEntry
 	if err := r.attrsMap.Lookup(key, &entry); err != nil {
 		return nil, fmt.Errorf("unable to resolve the otel span attributes for `%d`: %w", attrsID, err)
 	}
 
-	if uint64(entry.ID) != attrsID {
+	if entry.ID != attrsID {
 		return nil, fmt.Errorf("incorrect id `%d` vs `%d`", attrsID, entry.ID)
 	}
 
