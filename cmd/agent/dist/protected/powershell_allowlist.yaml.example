@@ -1,7 +1,22 @@
 # Sample allowlist for the Datadog Agent "powershell" check (admin-owned policy).
 #
-# To use it: copy this file to `powershell_allowlist.yaml` in this same directory
-# and edit it to permit only the read-only Get-* cmdlets your environment needs.
+# To use it, open an elevated PowerShell session and copy this file:
+#
+#   $allowlist = "$env:ProgramData\Datadog\protected\powershell_allowlist.yaml"
+#   Copy-Item "$allowlist.example" $allowlist
+#
+# Edit the copied file to permit only the read-only Get-* cmdlets your
+# environment needs. After editing, set its owner to the built-in Administrators
+# group. The numeric SID works on localized Windows installations:
+#
+#   icacls $allowlist /setowner "*S-1-5-32-544"
+#
+# Run the ownership command after editing because some editors replace the file
+# when saving, which can reset its owner to the individual user. You can verify
+# the resulting owner with:
+#
+#   (Get-Acl $allowlist).Owner
+#
 # The powershell check reads ONLY `powershell_allowlist.yaml` (never this
 # .example file), so no cmdlet is permitted until you create it.
 #
