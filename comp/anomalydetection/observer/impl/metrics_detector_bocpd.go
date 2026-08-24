@@ -32,12 +32,7 @@ type bocpdSeriesState struct {
 	lastProcessedCount int   // PointCountUpTo(ref, dataTime) at last Detect
 	lastWriteGen       int64 // WriteGeneration at last Detect; used to catch same-bucket merges
 
-	// Warmup: Welford online mean/variance accumulation.
-	initialized  bool
-	warmupCount  int
-	warmupMean   float64
-	warmupM2     float64   // sum of squared deviations (Welford)
-	warmupBuffer []float64 // buffered values for posterior replay after init
+	initialized bool
 
 	// Baseline (set once after warmup).
 	baselineMean   float64
@@ -228,6 +223,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			}
 			if !exists {
 				state = &bocpdSeriesState{}
+				b.initializeFromStorage(storage, ref, dataTime, agg, state)
 				b.series[sk] = state
 			}
 
@@ -297,7 +293,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 	x := p.Value
 
 	if !state.initialized {
-		return b.warmupPoint(state, x)
+		return nil
 	}
 	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
 	if !allowAlert {
@@ -326,25 +322,26 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 	return nil
 }
 
-// warmupPoint accumulates a point during the warmup phase using Welford's algorithm.
-func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, x float64) *observer.Anomaly {
-	state.warmupCount++
-	state.warmupBuffer = append(state.warmupBuffer, x)
-	delta := x - state.warmupMean
-	state.warmupMean += delta / float64(state.warmupCount)
-	delta2 := x - state.warmupMean
-	state.warmupM2 += delta * delta2
-
-	if state.warmupCount >= b.config.WarmupPoints {
-		b.initializeFromWarmup(state)
-		b.ready = true
+// initializeFromStorage initializes the baseline and replays its samples from
+// storage. The two passes avoid retaining raw warmup values in detector state.
+func (b *BOCPDDetector) initializeFromStorage(storage observer.StorageReader, ref observer.SeriesRef, dataTime int64, agg observer.Aggregate, state *bocpdSeriesState) {
+	count := 0
+	mean, m2 := 0.0, 0.0
+	storage.ForEachPoint(ref, 0, dataTime, agg, func(_ *observer.Series, p observer.Point) {
+		if count >= b.config.WarmupPoints {
+			return
+		}
+		count++
+		delta := p.Value - mean
+		mean += delta / float64(count)
+		m2 += delta * (p.Value - mean)
+		state.lastProcessedTime = p.Timestamp
+	})
+	if count < b.config.WarmupPoints {
+		return
 	}
-	return nil
-}
 
-// initializeFromWarmup computes baseline parameters and initializes BOCPD posterior state.
-func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
-	variance := state.warmupM2 / float64(state.warmupCount-1) // sample variance (Bessel's correction)
+	variance := m2 / float64(count-1) // sample variance (Bessel's correction)
 	stddev := math.Sqrt(variance)
 
 	if variance < b.config.MinVariance {
@@ -352,10 +349,10 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 		stddev = math.Sqrt(variance)
 	}
 
-	state.baselineMean = state.warmupMean
+	state.baselineMean = mean
 	state.baselineStddev = stddev
 	state.obsVar = variance
-	state.priorMean = state.warmupMean
+	state.priorMean = mean
 	state.priorPrecision = 1.0 / (variance * b.config.PriorVarianceScale)
 
 	// Initialize posterior arrays.
@@ -371,15 +368,12 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 	state.newMeans = make([]float64, 0, bufSize)
 	state.newPrecisions = make([]float64, 0, bufSize)
 
-	// Replay warmup points through the posterior to build up run-length
-	// hypotheses. This ensures the detector has context when it starts
-	// checking triggers on post-warmup points.
-	for _, val := range state.warmupBuffer {
-		b.updatePosterior(state, val)
-	}
-	state.warmupBuffer = nil // free memory
+	storage.ForEachPoint(ref, 0, state.lastProcessedTime, agg, func(_ *observer.Series, p observer.Point) {
+		b.updatePosterior(state, p.Value)
+	})
 
 	state.initialized = true
+	b.ready = true
 }
 
 // updatePosterior performs one step of the BOCPD recurrence.
