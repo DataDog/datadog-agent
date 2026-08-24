@@ -207,7 +207,7 @@ func TestReadConfigFile(t *testing.T) {
 			if defaultPathGroups == nil {
 				defaultPathGroups = [][]string{defaultPaths}
 			}
-			file, ok, err := readConfigFile(ctx, reader, getTestConfigArg, matchesTestCommandline, defaultPathGroups...)
+			file, ok, err := readConfigFile(ctx, reader, getTestConfigArg, matchesTestCommandline, "", defaultPathGroups...)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
