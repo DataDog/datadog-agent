@@ -251,6 +251,7 @@ def get_vm_password(
     Alias for the cloud-agnostic `dda inv e2e.get-vm-password`, kept under the
     `aws` namespace for backward compatibility.
     """
+    tool.warn("`aws.get-vm-password` is deprecated, please use `dda inv e2e.get-vm-password` instead.")
     get_vm_password_func(ctx, stack_name=stack_name, ip=ip, ci=ci, config_path=config_path)
 
 
