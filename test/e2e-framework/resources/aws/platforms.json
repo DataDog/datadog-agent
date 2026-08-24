@@ -128,9 +128,13 @@
     "windows-server": {
         "x86_64": {
             "2016": "ami-02d12824a464a28ae",
+            "2016-e2e": "ami-0721eead097aa205f",
             "2019": "ami-0cd77a1bbde0488e2",
+            "2019-e2e": "ami-072125f8ef0bdebac",
             "2022": "ami-0fcc930391c87ec7b",
-            "2025": "ami-0d03f0a2f81ced53e"
+            "2022-e2e": "ami-013d4572f24b543a9",
+            "2025": "ami-0d03f0a2f81ced53e",
+            "2025-e2e": "ami-02e3f5a43a8e5c5da"
         }
     }
 }

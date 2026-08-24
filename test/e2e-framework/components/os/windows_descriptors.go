@@ -14,6 +14,11 @@ var (
 	WindowsServer2019    = NewDescriptor(WindowsServer, "2019")
 	WindowsServer2016    = NewDescriptor(WindowsServer, "2016")
 
+	WindowsServer2025E2E = NewDescriptor(WindowsServer, "2025-e2e")
+	WindowsServer2022E2E = NewDescriptor(WindowsServer, "2022-e2e")
+	WindowsServer2019E2E = NewDescriptor(WindowsServer, "2019-e2e")
+	WindowsServer2016E2E = NewDescriptor(WindowsServer, "2016-e2e")
+
 	WindowsClientDefault = WindowsClient1124H2
 	WindowsClient11      = WindowsClient1124H2
 	WindowsClient1124H2  = NewDescriptor(WindowsClient, "windows-11:win11-24h2-pro")
