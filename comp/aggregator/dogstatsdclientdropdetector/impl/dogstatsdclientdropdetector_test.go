@@ -119,6 +119,25 @@ func TestDropReasonBreakdown(t *testing.T) {
 	require.False(t, complete)
 }
 
+func TestComponentIgnoresWindowBeforeStartupReconciliation(t *testing.T) {
+	healthPlatform := healthplatformmock.New(t)
+	hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname(testHostname))
+	lifecycle := &testLifecycle{}
+	detector := NewComponent(Requires{
+		Lifecycle: lifecycle, Config: config.NewMock(t), Log: logmock.New(t),
+		Hostname: hostname, HealthPlatform: healthPlatform,
+	}).Comp.(*component)
+
+	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
+	require.Equal(t, clientByteStats{}, detector.stats)
+	require.Equal(t, noPendingTransition, detector.pending)
+	require.Nil(t, healthPlatform.GetIssue(detector.issueID))
+
+	lifecycle.start(t)
+	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
+	require.Equal(t, pendingUnhealthy, detector.pending)
+}
+
 func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 	detector, healthPlatform := newTestComponent(t)
 	require.Equal(t, time.Minute, detector.unhealthyConfirmationDuration)

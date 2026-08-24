@@ -8,6 +8,7 @@
 package dogstatsdclienttelemetryimpl
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"runtime"
@@ -32,9 +33,15 @@ type benchmarkFinalSerieObserver interface {
 	ObserveFinalDogStatsDSerie(serie *metrics.Serie)
 }
 
-type benchmarkLifecycle struct{}
+type benchmarkLifecycle struct {
+	b testing.TB
+}
 
-func (*benchmarkLifecycle) Append(compdef.Hook) {}
+func (l *benchmarkLifecycle) Append(hook compdef.Hook) {
+	if hook.OnStart != nil {
+		require.NoError(l.b, hook.OnStart(context.Background()))
+	}
+}
 
 type coatOnlyBenchmarkObserver struct {
 	bytesSent          telemetry.Counter
@@ -75,7 +82,7 @@ func (o *coatOnlyBenchmarkObserver) ObserveFinalDogStatsDSerie(serie *metrics.Se
 func newBenchmarkDetector(b *testing.B) dogstatsdclientdropdetector.Component {
 	hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname("benchmark-host"))
 	return dogstatsdclientdropdetectorimpl.NewComponent(dogstatsdclientdropdetectorimpl.Requires{
-		Lifecycle:      &benchmarkLifecycle{},
+		Lifecycle:      &benchmarkLifecycle{b: b},
 		Config:         config.NewMock(b),
 		Log:            logmock.New(b),
 		Hostname:       hostname,
