@@ -1,7 +1,7 @@
 # Global build settings
 # gazelle:dd_agent_go_test on
 # gazelle:go_canonical_test_tag_set cel clusterchecks kubeapiserver kubelet orchestrator
-# gazelle:go_canonical_test_tag_set linux_bpf
+# gazelle:go_canonical_test_tag_set bpf
 # gazelle:go_canonical_test_tag_set containerd cel
 # gazelle:go_canonical_test_tag_set docker kubelet cel
 
@@ -12,6 +12,7 @@ load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
+load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
@@ -50,7 +51,6 @@ exports_files(glob(
 exports_files(["go.mod"])
 
 # TODO(ABLD-519): remove below `gazelle:exclude` directives
-# gazelle:exclude cmd/serverless-init/*.go
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
 # binary out of Bazel, consistent with testprogs binaries relying on the
@@ -123,9 +123,9 @@ alias(
 )
 
 # bazel run //:go_mod_tidy_all -- -x
-alias(
+go_shim(
     name = "go_mod_tidy_all",
-    actual = "//bazel/tools:go_mod_tidy_all",
+    tool = "//bazel/rules/go_mod_tidy_all",
 )
 
 run_binary(

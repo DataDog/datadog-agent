@@ -16,10 +16,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	pkgstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
@@ -79,7 +78,6 @@ var splitTagKeyOrder = []string{"source", "service", "env", "host"}
 // on the heavyweight datadog-api-client-go module.
 type eventSender struct {
 	forwarder eventplatform.Forwarder
-	logger    log.Component
 	storage   observerdef.StorageReader
 	hostname  hostname.Component
 }
@@ -87,13 +85,12 @@ type eventSender struct {
 // newEventSender creates an eventSender backed by the given forwarder.
 // storage is used to compute windowed log rates for display in event messages;
 // it may be nil and will be set later via EventReporter.SetStorage.
-func newEventSender(forwarder eventplatform.Forwarder, logger log.Component, storage observerdef.StorageReader, hn hostname.Component) (*eventSender, error) {
+func newEventSender(forwarder eventplatform.Forwarder, storage observerdef.StorageReader, hn hostname.Component) (*eventSender, error) {
 	if forwarder == nil {
 		return nil, errors.New("event-platform forwarder is not available")
 	}
 	return &eventSender{
 		forwarder: forwarder,
-		logger:    logger,
 		storage:   storage,
 		hostname:  hn,
 	}, nil
@@ -162,19 +159,18 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 		if meta == nil {
 			continue
 		}
-		fullDisplay := observerdef.SeriesDescriptor{
-			Namespace: meta.Namespace,
-			Name:      meta.Name,
-			Tags:      meta.Tags,
-			Aggregate: contributor.Handle.Aggregate,
-		}.DisplayName()
+		context := storage.GetContext(contributor.Handle.Ref)
+		fullDisplay := scorerContributorDisplayName(meta, context, contributor.Handle.Aggregate)
 		compactDisplay := fullDisplay
 		if len(meta.Tags) > 0 {
-			compactDisplay = observerdef.SeriesDescriptor{
-				Namespace: meta.Namespace,
-				Name:      meta.Name,
-				Aggregate: contributor.Handle.Aggregate,
-			}.DisplayName() + "{...}"
+			compactMeta := *meta
+			compactMeta.Tags = nil
+			compactDisplay = scorerContributorDisplayName(&compactMeta, context, contributor.Handle.Aggregate)
+			if logDerivedContributorName(meta.Namespace, context) != "" {
+				compactDisplay += " — {...}"
+			} else {
+				compactDisplay += "{...}"
+			}
 		}
 		position := len(fullLines) + 1
 		fullLines = append(fullLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, fullDisplay))
@@ -184,7 +180,7 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 		return ""
 	}
 	if scorerContributorMessageLen(fullLines) <= changeEventMessageMaxLen {
-		return "Top contributing metrics:\n" + strings.Join(fullLines, "\n")
+		return "Top contributions:\n" + strings.Join(fullLines, "\n")
 	}
 
 	lines := append([]string(nil), fullLines...)
@@ -194,12 +190,53 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 	return truncateScorerContributorLines(lines)
 }
 
+// scorerContributorDisplayName uses the same human-readable identifier as the
+// regular reporter for log-derived metrics: a log-frequency example, or a log
+// pattern when no example is available. Other metrics retain their series name.
+func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
+	if name := logDerivedContributorName(meta.Namespace, context); name != "" {
+		if len(meta.Tags) == 0 {
+			return name
+		}
+		return name + " — {" + strings.Join(meta.Tags, ",") + "}"
+	}
+	return observerdef.SeriesDescriptor{
+		Namespace: meta.Namespace,
+		Name:      meta.Name,
+		Tags:      meta.Tags,
+		Aggregate: aggregate,
+	}.DisplayName()
+}
+
+// logDerivedContributorName returns the human-readable name for a log-derived
+// metric. An empty result lets callers fall back to the metric descriptor when
+// its context is no longer available.
+func logDerivedContributorName(namespace string, context *observerdef.MetricContext) string {
+	if context == nil {
+		return ""
+	}
+	switch namespace {
+	case logMetricsExtractorNamespace:
+		if example := strings.TrimSpace(context.Example); example != "" {
+			return "log: " + example
+		}
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	case logPatternExtractorNamespace:
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	}
+	return ""
+}
+
 func scorerContributorMessageLen(lines []string) int {
-	return len("Top contributing metrics:") + len(lines) + len(strings.Join(lines, ""))
+	return len("Top contributions:") + len(lines) + len(strings.Join(lines, ""))
 }
 
 func truncateScorerContributorLines(lines []string) string {
-	message := "Top contributing metrics:"
+	message := "Top contributions:"
 	for i, line := range lines {
 		remaining := len(lines) - i - 1
 		suffix := ""
@@ -232,7 +269,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 		host = s.hostname.GetSafe(context.TODO())
 	}
 
-	s.logger.Infof("[observer] sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
+	logging.Infof("reporter sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
 
 	payload := buildChangeEventPayload(c, msg, ts, aggKey, host)
 	body, err := json.Marshal(payload)
@@ -252,11 +289,11 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 	switch evt.Kind {
 	case observerdef.CorrelatorEventEpisodeStarted:
 		title = fmt.Sprintf("Anomaly scorer: episode started (%s → %s)",
-			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+			evt.FromLevel.String(), evt.ToLevel.String())
 		direction = "started"
 	case observerdef.CorrelatorEventEpisodeEnded:
 		title = fmt.Sprintf("Anomaly scorer: episode ended (%s → %s)",
-			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+			evt.FromLevel.String(), evt.ToLevel.String())
 		direction = "ended"
 	default:
 		return fmt.Errorf("unsupported CorrelatorEventKind %d", evt.Kind)
@@ -271,7 +308,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 		host = s.hostname.GetSafe(context.TODO())
 	}
 
-	s.logger.Infof("[observer] sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
+	logging.Infof("reporter sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
 		evt.Correlation.Pattern, direction, aggKey, ts)
 
 	tags := []string{
@@ -303,8 +340,8 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 					"change_metadata": map[string]any{
 						"episode_pattern":   evt.Correlation.Pattern,
 						"episode_direction": direction,
-						"from_level":        severityLevelName(evt.FromLevel),
-						"to_level":          severityLevelName(evt.ToLevel),
+						"from_level":        evt.FromLevel.String(),
+						"to_level":          evt.ToLevel.String(),
 						"first_seen":        time.Unix(evt.Correlation.FirstSeen, 0).UTC().Format(time.RFC3339),
 						"last_updated":      time.Unix(evt.Correlation.LastUpdated, 0).UTC().Format(time.RFC3339),
 					},
@@ -332,20 +369,6 @@ func formatScorerEpisodeMessage(evt observerdef.CorrelatorEvent, storage observe
 			evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
 	}
 	return truncateBytesValidUTF8(message, changeEventMessageMaxLen)
-}
-
-// severityLevelName returns a human-readable label for a SeverityLevel.
-func severityLevelName(level severityeventsdef.SeverityLevel) string {
-	switch level {
-	case severityeventsdef.SeverityLow:
-		return "low"
-	case severityeventsdef.SeverityMedium:
-		return "medium"
-	case severityeventsdef.SeverityHigh:
-		return "high"
-	default:
-		return fmt.Sprintf("level(%d)", int(level))
-	}
 }
 
 // buildChangeEventPayload returns the v2 Events API JSON envelope for a

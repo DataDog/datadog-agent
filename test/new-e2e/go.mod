@@ -20,13 +20,13 @@ require (
 	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go/v2 v2.62.0
-	github.com/DataDog/datadog-go/v5 v5.9.0
+	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/dd-trace-go/v2 v2.9.0
 	github.com/DataDog/orchestrion v1.11.0
-	github.com/aws/aws-sdk-go-v2 v1.43.3
-	github.com/aws/aws-sdk-go-v2/config v1.32.34
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.89.3
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.0
+	github.com/aws/aws-sdk-go-v2 v1.43.5
+	github.com/aws/aws-sdk-go-v2/config v1.32.36
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.90.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.107.1
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
@@ -48,7 +48,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.54.0
-	golang.org/x/mod v0.38.0
+	golang.org/x/mod v0.39.0
 	golang.org/x/net v0.57.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
@@ -64,7 +64,7 @@ require (
 	al.essio.dev/pkg/shellescape v1.6.0 // indirect
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.64.0 // indirect
+	cloud.google.com/go/compute v1.66.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
@@ -75,7 +75,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.0.0-00010101000000-000000000000 // indirect
@@ -118,26 +117,26 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.14 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.33 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.34 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.34 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.34 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.35 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.318.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.60.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.90.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.15 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.24 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.34 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.32 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.5.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.73.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.33.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.45.3 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.17 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.35 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.36 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.36 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.36 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.37 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.321.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.60.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.91.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.16 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.29 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.36 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.37 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.5.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.73.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.33.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.45.5 // indirect
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492 // indirect
-	github.com/aws/smithy-go v1.27.6 // indirect
+	github.com/aws/smithy-go v1.27.7 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
@@ -181,7 +180,7 @@ require (
 	github.com/go-git/gcfg/v2 v2.0.2 // indirect
 	github.com/go-git/go-billy/v6 v6.0.0-alpha.1 // indirect
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
@@ -208,8 +207,8 @@ require (
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
-	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.17 // indirect
+	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
@@ -224,7 +223,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.6.0 // indirect
 	github.com/klauspost/compress v1.19.1 // indirect
-	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
@@ -235,7 +234,7 @@ require (
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.24 // indirect
-	github.com/mdlayher/socket v0.6.0 // indirect
+	github.com/mdlayher/socket v0.6.1 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
@@ -353,12 +352,12 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/api v0.279.0 // indirect
+	google.golang.org/api v0.287.1 // indirect
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260615183401-62b3387ff324 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260630182238-925bb5da69e7 // indirect
 	google.golang.org/grpc v1.83.0 // indirect
-	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
@@ -462,7 +461,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../pkg/config/basic
-	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../pkg/config/helper
