@@ -46,9 +46,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	params := &cliParams{GlobalParams: globalParams}
 	remoteCmd := &cobra.Command{Use: "remote", Short: "Execute commands on registered remote agents", SilenceUsage: true, RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() }}
 	remoteCmd.PersistentFlags().BoolVarP(&params.jsonOutput, "json", "j", false, "format output as JSON")
-	remoteCmd.PersistentFlags().BoolVarP(&params.verbose, "verbose", "v", false, "verbose output")
 	listCmd := &cobra.Command{Use: "list", Short: "List commands available on registered remote agents", SilenceUsage: true, Args: cobra.NoArgs, RunE: func(_ *cobra.Command, _ []string) error { return runListCommands(params) }}
 	executeCmd := &cobra.Command{Use: "execute <command_path>", Short: "Execute a command on a registered remote agent", SilenceUsage: true, Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error { return runExecuteCommand(params, args[0]) }}
+	executeCmd.Flags().BoolVarP(&params.verbose, "verbose", "v", false, "verbose output")
 	executeCmd.Flags().StringVar(&params.agentID, "agent-id", "", "opaque agent ID from remote list")
 	executeCmd.Flags().StringVar(&params.argumentsJSON, "arguments", "{}", "JSON object of named command arguments")
 	_ = executeCmd.MarkFlagRequired("agent-id")

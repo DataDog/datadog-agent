@@ -102,7 +102,7 @@ message ExecuteCommandRequest {
   bool verbose = 4;
 
   // Required opaque routing key identifying the remote agent selected from command discovery.
-  string agent_id = 6;
+  string agent_id = 5;
 }
 
 message ExecuteCommandResponse {

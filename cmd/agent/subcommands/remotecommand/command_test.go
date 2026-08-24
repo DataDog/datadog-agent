@@ -139,6 +139,8 @@ func TestCommandArgumentContracts(t *testing.T) {
 	require.Error(t, execute.Args(execute, nil))
 	require.NoError(t, execute.Args(execute, []string{"agent.status"}))
 	require.Error(t, execute.Args(execute, []string{"one", "two"}))
+	require.Nil(t, remote.PersistentFlags().Lookup("verbose"))
+	require.NotNil(t, execute.Flags().Lookup("verbose"))
 	require.NotNil(t, execute.Flags().Lookup("agent-id"))
 	require.NotNil(t, execute.Flags().Lookup("arguments"))
 }
