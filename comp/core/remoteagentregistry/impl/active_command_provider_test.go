@@ -32,8 +32,8 @@ func TestActiveCommandProviderUsesOldestRegistrationAndPromotesOnRemoval(t *test
 	}
 
 	registry.agentMapMu.Lock()
-	require.Same(t, oldest, registry.activeCommandProviderForCommandNameLocked("data-plane"))
+	require.Same(t, oldest, registry.providerForCommand("data-plane"))
 	delete(registry.agentMap, "oldest")
-	require.Same(t, newest, registry.activeCommandProviderForCommandNameLocked("data-plane"))
+	require.Same(t, newest, registry.providerForCommand("data-plane"))
 	registry.agentMapMu.Unlock()
 }

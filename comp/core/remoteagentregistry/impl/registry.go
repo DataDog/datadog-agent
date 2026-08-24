@@ -232,7 +232,7 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 
 	log.Infof("Remote agent '%s' (flavor: %s, session_id: %s) registered. (exposed services: %v)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.Flavor, remoteAgentClient.RegisteredAgent.SessionID, remoteAgentClient.services)
 	if slices.Contains(remoteAgentClient.services, CommandProviderServiceName) {
-		if existing := ra.activeCommandProviderForCommandNameLocked(remoteAgentClient.RegisteredAgent.CommandName); existing != nil {
+		if existing := ra.providerForCommand(remoteAgentClient.RegisteredAgent.CommandName); existing != nil {
 			log.Warnf("Remote agent command provider %q registered with duplicate command name %q; oldest provider %q remains active", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.CommandName, existing.RegisteredAgent.DisplayName)
 		}
 	}
@@ -243,9 +243,9 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	return remoteAgentClient.RegisteredAgent.SessionID, recommendedRefreshInterval, nil
 }
 
-// activeCommandProviderForCommandNameLocked returns the oldest live command provider for command name.
+// providerForCommand returns the oldest live command provider for command name.
 // The caller must hold agentMapMu.
-func (ra *remoteAgentRegistry) activeCommandProviderForCommandNameLocked(commandName string) *remoteAgentClient {
+func (ra *remoteAgentRegistry) providerForCommand(commandName string) *remoteAgentClient {
 	var oldest *remoteAgentClient
 	for _, agent := range ra.agentMap {
 		if agent.RegisteredAgent.CommandName != commandName || !slices.Contains(agent.services, CommandProviderServiceName) {
@@ -434,7 +434,7 @@ func (ra *remoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.Execu
 	}
 
 	ra.agentMapMu.Lock()
-	target := ra.activeCommandProviderForCommandNameLocked(commandName)
+	target := ra.providerForCommand(commandName)
 	if target == nil {
 		ra.agentMapMu.Unlock()
 		return nil, grpcStatus.Errorf(codes.NotFound, "no remote command provider found for command name %q", commandName)
