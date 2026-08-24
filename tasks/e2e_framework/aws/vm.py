@@ -234,6 +234,8 @@ def _get_os_information(
         "ip": "Filter to VM with this IP address",
         "ci": "Look up a CI-created stack (state in CI's S3 backend) instead of a local one. "
         "Run wrapped in `aws-vault exec sso-agent-qa-read-only --`.",
+        "config_path": "Path to the local config file holding the Pulumi passphrase "
+        "(defaults to ~/.test_infra_config.yaml). Ignored when --ci is set.",
     }
 )
 def get_vm_password(
@@ -241,6 +243,7 @@ def get_vm_password(
     stack_name: str | None = None,
     ip: str | None = None,
     ci: bool = False,
+    config_path: str | None = None,
 ):
     """
     Get the password of a new virtual machine in a stack.
@@ -248,7 +251,7 @@ def get_vm_password(
     Alias for the cloud-agnostic `dda inv e2e.get-vm-password`, kept under the
     `aws` namespace for backward compatibility.
     """
-    get_vm_password_func(ctx, stack_name=stack_name, ip=ip, ci=ci)
+    get_vm_password_func(ctx, stack_name=stack_name, ip=ip, ci=ci, config_path=config_path)
 
 
 @task(
