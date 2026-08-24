@@ -18,7 +18,6 @@ use super::wide;
 pub(crate) const DATADOG_AGENT_SERVICE: &str = "datadogagent";
 const LOCAL_SYSTEM_SID: &str = "S-1-5-18";
 
-#[cfg(not(test))]
 pub(crate) fn service_runs_as_agent_user(
     service_name: &str,
     domain: &str,
@@ -26,42 +25,11 @@ pub(crate) fn service_runs_as_agent_user(
 ) -> Result<bool> {
     let service_user = service_start_name(service_name)
         .with_context(|| format!("could not get {service_name} service user"))?;
-    let agent_sid = lookup_installed_user_sid(domain, user)
-        .with_context(|| format!("lookup SID for installed agent user {domain}\\{user}"))?;
+    let agent_sid = lookup_account_sid(domain, user)
+        .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
     let service_sid = lookup_service_account_sid(&service_user)
         .with_context(|| format!("lookup SID for service account {service_user}"))?;
-    let matches = sids_equal(&agent_sid, &service_sid);
-    if !matches {
-        info!(
-            "datadogagent service account {service_user} (sid {}) does not match installed agent user {domain}\\{user} (sid {})",
-            sid_to_string(&service_sid).unwrap_or_else(|_| "<unknown>".to_string()),
-            sid_to_string(&agent_sid).unwrap_or_else(|_| "<unknown>".to_string()),
-        );
-    }
-    Ok(matches)
-}
-
-#[cfg(not(test))]
-pub(crate) fn lookup_installed_user_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
-    let mut last_err = None;
-    for (candidate_domain, candidate_user) in installed_user_lookup_candidates(domain, user) {
-        match lookup_account_sid(&candidate_domain, &candidate_user) {
-            Ok(sid) => return Ok(sid),
-            Err(err) => last_err = Some(err),
-        }
-    }
-    Err(last_err.unwrap_or_else(|| {
-        anyhow::anyhow!("no lookup candidates for installed agent user {domain}\\{user}")
-    }))
-}
-
-fn installed_user_lookup_candidates(domain: &str, user: &str) -> Vec<(String, String)> {
-    let mut candidates = vec![(domain.to_string(), user.to_string())];
-    if !domain.is_empty() {
-        candidates.push((String::new(), format!("{user}@{domain}")));
-        candidates.push((String::new(), user.to_string()));
-    }
-    candidates
+    Ok(sids_equal(&agent_sid, &service_sid))
 }
 
 pub(crate) fn datadog_agent_user_sid_string() -> Result<String> {
@@ -127,7 +95,6 @@ fn service_start_name(service_name: &str) -> Result<String> {
     Ok(start_name)
 }
 
-#[cfg(not(test))]
 fn lookup_service_account_sid(service_user: &str) -> Result<Vec<u8>> {
     if service_user.eq_ignore_ascii_case("LocalSystem") {
         return lookup_account_sid("NT AUTHORITY", "SYSTEM")
@@ -136,14 +103,13 @@ fn lookup_service_account_sid(service_user: &str) -> Result<Vec<u8>> {
 
     let mut parts = service_user.splitn(2, '\\');
     match (parts.next(), parts.next()) {
-        (Some("."), Some(user)) => lookup_account_sid("", user),
+        (Some(domain), Some(user)) if domain == "." => lookup_account_sid("", user),
         (Some(domain), Some(user)) => lookup_account_sid(domain, user),
         (Some(user), None) => lookup_account_sid("", user),
         _ => bail!("invalid service account name {service_user}"),
     }
 }
 
-#[cfg(not(test))]
 fn sids_equal(left: &[u8], right: &[u8]) -> bool {
     use windows_sys::Win32::Security::EqualSid;
     unsafe { EqualSid(left.as_ptr() as *mut _, right.as_ptr() as *mut _) != 0 }
