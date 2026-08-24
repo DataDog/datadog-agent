@@ -172,10 +172,14 @@ namespace Datadog.CustomActions
             // always get a generated password, and IsServiceAccount covers gMSA and the well known
             // accounts.
             var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
+            // When no password is supplied, leave the agent-user SCM credentials unchanged.
+            // Passing a reformatted account name (NetBIOS vs DNS) with a null password still
+            // clears the SCM LSA secret (_SC_datadogagent), which procmgr needs for spawn.
+            string agentServiceUsername = ddAgentUserName;
             if (passwordNotProvided)
             {
-                _session.Log("Password not provided, will not change service user password");
-                // set to null so we don't modify the service config
+                _session.Log("Password not provided, will not change service user account or password");
+                agentServiceUsername = null;
                 ddAgentUserPassword = null;
             }
             else if (isServiceAccount)
@@ -211,11 +215,11 @@ namespace Datadog.CustomActions
             {
                 ddAgentUserName = "NetworkService";
             }
-            _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
-            _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            _serviceController.SetCredentials(Constants.AgentServiceName, agentServiceUsername, ddAgentUserPassword);
+            _serviceController.SetCredentials(Constants.TraceAgentServiceName, agentServiceUsername, ddAgentUserPassword);
             if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
             {
-                _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
+                _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, agentServiceUsername, ddAgentUserPassword);
             }
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
@@ -225,7 +229,7 @@ namespace Datadog.CustomActions
             EnableProcmgrService();
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
-            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, agentServiceUsername, ddAgentUserPassword);
         }
 
         private void EnableProcmgrService()

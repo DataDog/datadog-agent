@@ -24,11 +24,34 @@ pub(crate) fn service_runs_as_agent_user(
 ) -> Result<bool> {
     let service_user = service_start_name(service_name)
         .with_context(|| format!("could not get {service_name} service user"))?;
-    let agent_sid = lookup_account_sid(domain, user)
-        .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
+    let agent_sid = lookup_installed_user_sid(domain, user)
+        .with_context(|| format!("lookup SID for installed agent user {domain}\\{user}"))?;
     let service_sid = lookup_service_account_sid(&service_user)
         .with_context(|| format!("lookup SID for service account {service_user}"))?;
     Ok(sids_equal(&agent_sid, &service_sid))
+}
+
+#[cfg(not(test))]
+pub(crate) fn lookup_installed_user_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
+    let mut last_err = None;
+    for (candidate_domain, candidate_user) in installed_user_lookup_candidates(domain, user) {
+        match lookup_account_sid(&candidate_domain, &candidate_user) {
+            Ok(sid) => return Ok(sid),
+            Err(err) => last_err = Some(err),
+        }
+    }
+    Err(last_err.unwrap_or_else(|| {
+        anyhow::anyhow!("no lookup candidates for installed agent user {domain}\\{user}")
+    }))
+}
+
+fn installed_user_lookup_candidates(domain: &str, user: &str) -> Vec<(String, String)> {
+    let mut candidates = vec![(domain.to_string(), user.to_string())];
+    if !domain.is_empty() {
+        candidates.push((String::new(), format!("{user}@{domain}")));
+        candidates.push((String::new(), user.to_string()));
+    }
+    candidates
 }
 
 pub(crate) fn datadog_agent_user_sid_string() -> Result<String> {
@@ -151,5 +174,18 @@ mod tests {
             "NT AUTHORITY\\LocalService"
         );
         assert_eq!(service_user_for_sid_lookup("LocalSystem"), "LocalSystem");
+    }
+
+    #[test]
+    fn installed_user_lookup_candidates_include_upn_and_default_domain() {
+        let candidates = installed_user_lookup_candidates("datadogqalab.com", "TestUser");
+        assert_eq!(
+            candidates,
+            vec![
+                ("datadogqalab.com".to_string(), "TestUser".to_string()),
+                (String::new(), "TestUser@datadogqalab.com".to_string()),
+                (String::new(), "TestUser".to_string()),
+            ]
+        );
     }
 }
