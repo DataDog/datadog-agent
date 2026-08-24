@@ -870,9 +870,9 @@ type conntrackStat struct {
 	ChainTooLong  float64
 }
 
-func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
+func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) []*conntrackStat {
 	if conntrackPath == "" {
-		return
+		return nil
 	}
 
 	// In CentOS, conntrack is located in /sbin and /usr/sbin which may not be in the agent user PATH
@@ -884,7 +884,7 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 	output, err := runCommandFunction(cmd, []string{})
 	if err != nil {
 		log.Debugf("Couldn't use %s to get conntrack stats: %v", conntrackPath, err)
-		return
+		return nil
 	}
 
 	// conntrack -S sample:
@@ -951,7 +951,7 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) {
 	statFilePath := filepath.Join(procfsPath, "net", "stat", "nf_conntrack")
 
-	f, err := fs.Open(statFilePath)
+	f, err := filesystem.Open(statFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -972,7 +972,7 @@ func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) 
 			headers = strings.Split(line, " ")
 		} else {
 			// each line is a cpu stat, top line is headers
-			stat := &conntrackStat{cpuID: lineNum - 1}
+			stat := &conntrackStat{cpuID: strconv.Itoa(lineNum - 1)}
 			for i, hexVal := range strings.Fields(line) {
 				val, err := strconv.ParseInt(hexVal, 16, 64)
 				if err != nil {
