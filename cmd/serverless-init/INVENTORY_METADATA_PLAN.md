@@ -1,6 +1,9 @@
 # Plan: serverless-init inventory metadata collection
 
-Status: planning — no implementation started.
+Status: two approaches under evaluation. Option B (a new `serverlessinventory`
+component) is built and wired here with specialized field/enablement logic
+stubbed; Option A (reuse the `inventoryagent` component) is being spiked on a
+separate branch. See "Architecture" and "Alternative under evaluation" below.
 
 ## Goal
 
@@ -16,6 +19,67 @@ Design principles:
 - Even if we build our own component, do **not** drift from the normal agent
   metadata pipeline for the fields the pipeline requires (see
   `PopulateCoreFields` below).
+
+## Architecture (Option B, built here)
+
+A `comp/metadata/serverlessinventory` component owns the payload and its
+submission; a `cmd/serverless-init` adapter supplies the serverless- and
+cloud-specific fields. The split is required because
+`comp/metadata/internal/util` (`InventoryPayload`, `InventoryEnabled`) is an
+internal package reachable only from `comp/metadata/...`, while a `comp`
+package must not depend on `cmd`. The adapter is injected through a
+`FieldProvider` interface, so the component reuses the shared inventory
+machinery without importing serverless code.
+
+### Component (`comp/metadata/serverlessinventory`, team `serverless-azure-gcp`)
+
+- `def/component.go`:
+  - `Component` interface (`Refresh()`).
+  - `Fields` struct — the typed, single-source-of-truth contract for the
+    serverless-specific fields. Each JSON tag is the downstream key name
+    (unprefixed); the component applies the `serverless_` prefix uniformly.
+  - `FieldProvider` interface (`GetInventoryFields() Fields`) — the seam that
+    keeps serverless field derivation in `cmd` while the component stays
+    generic.
+- `impl/serverlessinventory.go`:
+  - Embeds `util.InventoryPayload`, reusing scheduling, `SendMetadata`, and
+    flare (the same pattern as `inventoryhost`).
+  - Owns its `Payload` envelope: empty `hostname`, a per-process `uuid.New()`
+    (not the shared host GUID), and the `agent_metadata` map.
+  - `getPayload` = `populateCoreFields` + `addPrefixedFields`; the latter
+    flattens the typed `Fields` through a JSON round-trip and prefixes each
+    key, so adding a field to `Fields` needs no change here.
+  - `Enabled` is set from a local `enabled()` gate, overriding the cached
+    `util.InventoryEnabled` (which reads `inventories_enabled`, absent from the
+    serverless schema).
+- `fx/fx.go` — standard `fxutil.ProvideComponentConstructor` module.
+
+### serverless-init side
+
+- `cmd/serverless-init/inventory/fieldprovider.go` — implements `FieldProvider`
+  by mapping `cloudservice.InventoryData` + `mode.Conf` + extension version
+  into the typed `Fields`.
+- `cmd/serverless-init/cloudservice/{service.go,inventory.go}` —
+  `GetInventoryData()` on the `CloudService` interface, plus an `InventoryData`
+  struct and a per-service implementation on each platform.
+- `cmd/serverless-init/main.go` — wires `runnerfx.Module()` +
+  `serverlessinventoryfx.Module()`, a
+  `Demultiplexer → serializer.MetricSerializer` adapter, and the `FieldProvider`
+  provider built from the detected cloud service and run mode.
+
+### Stubbed, pending the sections below
+
+- `populateCoreFields` is a local placeholder for the shared
+  `PopulateCoreFields` seam (see below); `install_method_*` are placeholder
+  values.
+- Every `CloudService.GetInventoryData()` returns the zero struct; per-platform
+  derivation (workload_type, CCRID, region, deployment types, runtime) is not
+  implemented.
+- `enabled()` returns `false` (disabled by default); no serverless config key
+  exists yet.
+- `Fields` does not yet carry DD_* passthrough, core lineage duplicates
+  (`agent_version_base`, `agent_commit`), or `wrapped_command`.
+- No config-schema changes yet (`inventories_*`, `serverless.inventory_enabled`).
 
 ## Key findings that constrain the design
 
@@ -90,13 +154,20 @@ pipeline requires, not necessarily all of `initData`), and whether it is an
 exported method on the component or a package-level function operating on the
 `agent_metadata` map.
 
-## Reuse vs. new component (Phase 1 decision)
+## Alternative under evaluation: reuse the existing `inventoryagent` component
 
-Both options reuse `PopulateCoreFields` so neither drifts on core fields. We
-build both to a "compiles + emits a payload to a local fakeintake" level, then
-compare and pick one. Current lean is Option B.
+Two approaches are being explored in parallel:
 
-### Option A — Reuse the existing `inventoryagent` component
+- **Option B (built here):** a new `serverlessinventory` component that reuses
+  `util.InventoryPayload` but not the `inventoryagent` component itself (see
+  "Architecture").
+- **Option A (spiked on a separate branch):** reuse the `inventoryagent`
+  component directly, for automatic parity with future core-agent inventory
+  fields.
+
+The two will be compared once both reach a compiles-and-emits level. Option A
+requires the work and carries the risks below.
+
 - Needs (fx graph): three of the six `Requires` are NOT in the serverless-init
   graph today and would fail construction:
   - `serializer.MetricSerializer` is only reachable via `demux.Serializer()`,
@@ -124,22 +195,9 @@ compare and pick one. Current lean is Option B.
     `getPayload`/`Payload` struct (it hardcodes `uuid.GetUUID()`), a shared-code
     hook.
   - Serverless fields still injected via `Set(...)`; more shared-code coupling.
-- Benefit: automatic parity with future core-agent inventory fields.
-
-### Option B — New serverless-init-local payload reusing `PopulateCoreFields` + `util.InventoryPayload`
-- Needs: a small builder in `cmd/serverless-init` that calls
-  `PopulateCoreFields`, layers serverless fields, embeds
-  `util.InventoryPayload` (or calls `SendMetadata` directly with our own
-  scheduling), and registers a periodic trigger.
-- Risks: we own any schema drift beyond the shared core fields.
-- Benefit: no changes to shared `inventoryagent` behavior; only serverless-
-  relevant fields; simplest deps; logic stays in serverless-init. Best fit for
-  "minimal hooks."
-
-Each sketch must answer: (a) enablement/intervals given the missing config
-keys, (b) how the `serverless-init` flavor is set, (c) how serverless fields +
-resource id are injected, (d) how first-send/scheduling works, (e) exactly
-which lines of shared code change.
+- Benefit: automatic parity with future core-agent inventory fields. Under
+  Option B, the `PopulateCoreFields` seam (below) is what keeps the shared
+  fields from drifting.
 
 ## Serverless field derivation: delegate to the CloudService structs
 
@@ -371,17 +429,32 @@ them), so no Windows build path is required here.
 - Whether the downstream extractor prefers `hostname: null` over empty string
   (would push toward a serverless-owned payload struct with a pointer field).
 
-## Phasing
+## Remaining work
 
-0. Spikes: define the `PopulateCoreFields` contract with pipeline owners;
-   `full_configuration` content/size spike; finalize field list.
-1. Build both sketches (A and B) on top of `PopulateCoreFields` to
-   local-fakeintake level; compare; pick one.
-2. Implement chosen approach (flavor injected via `PopulateCoreFields`, payload
-   builder, resource id, enablement gate disabled-by-default, early send).
-   Includes: remove `full-agent-only:true` from the `inventories_*` keys, add
-   `serverless.inventory_enabled`, regenerate `all_settings.go`
-   (`dda inv schema.codegen`), and update `TestServerlessConfigInit` /
-   `TestAgentConfigInit`.
-3. Tests (unit + e2e across platforms).
-4. Rollout (validate volume, then flip default to enabled).
+Compare Option A and Option B once both reach a compiles-and-emits level and
+settle on one. The items below carry the Option B build forward; several
+(`PopulateCoreFields` extraction, per-platform `GetInventoryData`,
+config/enablement, tests) apply regardless of which option is chosen.
+
+- Extract the shared `PopulateCoreFields` seam into `inventoryagent` and have
+  both the core agent and this component call it, replacing the local
+  `populateCoreFields` placeholder. Requires the field contract with the
+  pipeline owners (which fields are required) and the shape (method vs.
+  package function).
+- Implement per-platform `CloudService.GetInventoryData()` (workload_type,
+  CCRID/resource_id, resource_name, region, gcp/azure deployment types,
+  runtime).
+- Add the remaining `Fields`: DD_* passthrough, `agent_version_base`,
+  `agent_commit`, `wrapped_command`.
+- Wire real `install_method_*` values into `populateCoreFields`.
+- Config/enablement: remove `full-agent-only:true` from the `inventories_*`
+  keys so they exist in the serverless schema, add `serverless.inventory_enabled`
+  (default false) as the ramp gate replacing the hardcoded `enabled()`, force
+  `inventories_first_run_delay=0` via `setOverride`, regenerate `all_settings.go`
+  (`dda inv schema.codegen`), and update `TestServerlessConfigInit` /
+  `TestAgentConfigInit`.
+- Tests: unit tests (payload/field mapping, prefix, flavor, enablement gating,
+  `PopulateCoreFields` output) and a fakeintake e2e asserting the payload lands
+  with `flavor: serverless-init` and expected fields across platforms (at
+  minimum Cloud Run; extend per `write-e2e` / `e2e-audit`).
+- Rollout: validate volume, then flip the enablement default to on.

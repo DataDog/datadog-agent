@@ -52,12 +52,17 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
+	serverlessinventory "github.com/DataDog/datadog-agent/comp/metadata/serverlessinventory/def"
+	serverlessinventoryfx "github.com/DataDog/datadog-agent/comp/metadata/serverlessinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
+	serverlessInitInventory "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -308,6 +313,17 @@ func main() {
 		fx.Provide(func() cloudservice.CloudService { return cloudService }),
 		fx.Supply(tagConfig),
 		fx.Supply(metricTags),
+		// The serverlessinventory component and metadata runner reuse the
+		// shared metadata pipeline. The runner drives collect() on the normal
+		// schedule; the serializer is reached through the demultiplexer rather
+		// than as a distinct fx type. The FieldProvider adapter supplies the
+		// serverless-specific fields from the cloud service and run mode.
+		fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() }),
+		fx.Provide(func(cs cloudservice.CloudService) serverlessinventory.FieldProvider {
+			return serverlessInitInventory.NewFieldProvider(cs, modeConf)
+		}),
+		runnerfx.Module(),
+		serverlessinventoryfx.Module(),
 		delegatedauthfx.Module(),
 		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
