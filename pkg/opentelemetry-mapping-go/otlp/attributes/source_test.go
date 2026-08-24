@@ -27,16 +27,20 @@ import (
 )
 
 const (
-	testLiteralHost            = "literal-host"
-	testHostID                 = "example-host-id"
-	testHostName               = "example-host-name"
-	testContainerID            = "example-container-id"
-	testClusterName            = "clusterName"
-	testNodeName               = "nodeName"
-	testCustomName             = "example-custom-host-name"
-	testCloudAccount           = "projectID"
-	testGCPHostname            = testHostName + ".c." + testCloudAccount + ".internal"
-	testGCPIntegrationHostname = testHostName + "." + testCloudAccount
+	testLiteralHost               = "literal-host"
+	testHostID                    = "example-host-id"
+	testHostName                  = "example-host-name"
+	testContainerID               = "example-container-id"
+	testClusterName               = "clusterName"
+	testNodeName                  = "nodeName"
+	testCustomName                = "example-custom-host-name"
+	testCloudAccount              = "projectID"
+	testGCPHostname               = testHostName + ".c." + testCloudAccount + ".internal"
+	testGCPIntegrationHostname    = testHostName + "." + testCloudAccount
+	testAzureAppServiceName       = "example-app"
+	testAzureSubscriptionID       = "example-subscription"
+	testAzureResourceGroup        = "example-resource-group"
+	testAzureAppServiceInstanceID = "example-instance"
 )
 
 func TestSourceFromAttrs(t *testing.T) {
@@ -104,6 +108,31 @@ func TestSourceFromAttrs(t *testing.T) {
 			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: "example-task-ARN"},
 		},
 		{
+			name: "Azure App Service",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+				string(conventions.ServiceNameKey):    testAzureAppServiceName,
+				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+				attributeAzureResourceGroupName:       testAzureResourceGroup,
+				attributeAzureAppServiceInstanceID:    testAzureAppServiceInstanceID,
+				string(conventions.HostIDKey):         testHostID,
+			}),
+			ok:  true,
+			src: source.Source{Kind: source.AzureAppServiceKind, Identifier: testAzureAppServiceInstanceID},
+		},
+		{
+			name: "Azure App Service legacy platform spelling",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppServiceLegacy,
+				string(conventions.ServiceNameKey):    testAzureAppServiceName,
+				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+				attributeAzureResourceGroupName:       testAzureResourceGroup,
+				attributeAzureAppServiceInstanceID:    testAzureAppServiceInstanceID,
+			}),
+			ok:  true,
+			src: source.Source{Kind: source.AzureAppServiceKind, Identifier: testAzureAppServiceInstanceID},
+		},
+		{
 			name: "GCP",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):  conventions.CloudProviderGCP.Value.AsString(),
@@ -160,6 +189,31 @@ func TestSourceFromAttrs(t *testing.T) {
 			assert.Equal(t, testInstance.src, source)
 		})
 
+	}
+}
+
+func TestAzureAppServiceSourceRequiresBillingIdentity(t *testing.T) {
+	requiredAttributes := []string{
+		string(conventions.ServiceNameKey),
+		string(conventions.CloudAccountIDKey),
+		attributeAzureResourceGroupName,
+		attributeAzureAppServiceInstanceID,
+	}
+
+	for _, missing := range requiredAttributes {
+		t.Run("missing "+missing, func(t *testing.T) {
+			attrs := map[string]string{
+				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+				string(conventions.ServiceNameKey):    testAzureAppServiceName,
+				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+				attributeAzureResourceGroupName:       testAzureResourceGroup,
+				attributeAzureAppServiceInstanceID:    testAzureAppServiceInstanceID,
+			}
+			delete(attrs, missing)
+
+			_, ok := SourceFromAttrs(testutils.NewAttributeMap(attrs), nil)
+			assert.False(t, ok)
+		})
 	}
 }
 
