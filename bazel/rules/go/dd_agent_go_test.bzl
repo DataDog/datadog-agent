@@ -49,11 +49,13 @@ def _excluded_os(gotags):
         excluded.append("aix")
     return excluded
 
-def _test_tag_set_tags(gotags = None):
-    if gotags == None:
-        tags = BASE_TEST_TAGS
-    else:
-        tags = sorted(set(BASE_TEST_TAGS) | set(gotags))
+def _test_tag_set_tags(gotags = None, extra_gotags = None):
+    tags = set(BASE_TEST_TAGS)
+    if gotags != None:
+        tags = tags | set(gotags)
+    if extra_gotags:
+        tags = tags | set(extra_gotags)
+    tags = sorted(tags)
 
     # Windows builds always define WINDOWS_INCLUDED_TAGS, as
     # filter_incompatible_tags() does in tasks/build_tags.py. Without them,
@@ -98,6 +100,7 @@ def _test_tag_set_target_compatible_with(gotags):
 
 def dd_agent_go_test(
         name,
+        extra_gotags = None,
         gotags_sets = None,
         include_default = True,
         tags = None,
@@ -107,6 +110,9 @@ def dd_agent_go_test(
 
     Args:
         name: Default target name and prefix for gotags-set variants.
+        extra_gotags: Extra Go build tags merged into every generated variant
+              (including the default), without affecting target naming or
+              platform compatibility.
         gotags_sets: Lists of Go build tags, such as [["zlib", "zstd"]].
         include_default: Whether to emit the minimally tagged default test.
         tags: Optional user-supplied Bazel tags.
@@ -121,7 +127,7 @@ def dd_agent_go_test(
         _test_tag_set_check_name(name)
         go_test(
             name = name,
-            gotags = _test_tag_set_tags(),
+            gotags = _test_tag_set_tags(extra_gotags = extra_gotags),
             tags = user_tags + ["dd_agent_go_test"],
             target_compatible_with = user_tcw,
             **kwargs
@@ -132,7 +138,7 @@ def dd_agent_go_test(
         _test_tag_set_check_name(name + "_" + suffix, gotags)
         go_test(
             name = name + "_" + suffix,
-            gotags = _test_tag_set_tags(gotags),
+            gotags = _test_tag_set_tags(gotags, extra_gotags),
             tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
             target_compatible_with = user_tcw + _test_tag_set_target_compatible_with(gotags),
             **kwargs
