@@ -41,6 +41,6 @@ func (m *mockRegistry) ListCommands(_ context.Context) []*pb.CommandProvider {
 	return nil
 }
 
-func (m *mockRegistry) ExecuteCommand(_ context.Context, _ *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
-	return nil, nil
+func (m *mockRegistry) ExecuteCommand(_ context.Context, _ *pb.ExecuteCommandRequest, _ func(*pb.ExecuteCommandResponse) error) error {
+	return nil
 }

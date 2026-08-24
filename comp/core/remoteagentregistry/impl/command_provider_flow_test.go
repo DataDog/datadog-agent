@@ -7,10 +7,12 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -21,17 +23,21 @@ import (
 
 type commandProviderFixture struct {
 	pb.UnimplementedRemoteCommandProviderServer
-	commands []*pb.Command
-	requests []*pb.ExecuteCommandRequest
+	provider  *pb.CommandProvider
+	sessionID string
+	requests  []*pb.ExecuteCommandRequest
 }
 
 func (p *commandProviderFixture) ListCommands(context.Context, *pb.ListCommandsRequest) (*pb.ListCommandsResponse, error) {
-	return &pb.ListCommandsResponse{Commands: p.commands}, nil
+	return &pb.ListCommandsResponse{Providers: []*pb.CommandProvider{p.provider}}, nil
 }
 
-func (p *commandProviderFixture) ExecuteCommand(_ context.Context, request *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+func (p *commandProviderFixture) ExecuteCommand(request *pb.ExecuteCommandRequest, stream grpc.ServerStreamingServer[pb.ExecuteCommandResponse]) error {
+	if err := stream.SetHeader(metadata.Pairs("session_id", p.sessionID)); err != nil {
+		return err
+	}
 	p.requests = append(p.requests, request)
-	return &pb.ExecuteCommandResponse{}, nil
+	return stream.Send(&pb.ExecuteCommandResponse{Frame: &pb.ExecuteCommandResponse_ExitCode{ExitCode: 0}})
 }
 
 func withCommandProvider(provider *commandProviderFixture) mockProvider {
@@ -44,11 +50,10 @@ func withCommandProvider(provider *commandProviderFixture) mockProvider {
 func registerCommandProvider(t *testing.T, registry *remoteAgentRegistry, ipcComponent ipc.Component, provider *commandProviderFixture, pid string) *testRemoteAgentServer {
 	t.Helper()
 	remote := buildRemoteAgent(t, ipcComponent, "fixture-agent", "Fixture Agent", pid, withCommandProvider(provider))
-	remote.RegistrationData.CommandName = "fixture-agent"
-	remote.RegistrationData.AgentDescription = "Fixture remote command provider"
 	sessionID, _, err := registry.RegisterRemoteAgent(&remote.RegistrationData)
 	require.NoError(t, err)
 	remote.registeredSessionID = sessionID
+	provider.sessionID = sessionID
 	return remote
 }
 
@@ -65,21 +70,17 @@ func TestCommandProviderRegistrationDiscoveryCLIAndExecutionFlow(t *testing.T) {
 			Parameters: []*pb.CommandParameter{{Name: "limit", ShortName: "l", Type: pb.ParameterType_TYPE_INT, IsFlag: true, Required: true}},
 		}},
 	}}
-	oldestProvider := &commandProviderFixture{commands: commandTree}
-	newestProvider := &commandProviderFixture{commands: commandTree}
+	providerGroup := &pb.CommandProvider{Name: "fixture-agent", Description: "Fixture remote command provider", Commands: commandTree}
+	oldestProvider := &commandProviderFixture{provider: providerGroup}
+	newestProvider := &commandProviderFixture{provider: providerGroup}
 	oldest := registerCommandProvider(t, registry, ipcComponent, oldestProvider, "100")
-	newest := registerCommandProvider(t, registry, ipcComponent, newestProvider, "200")
+	_ = registerCommandProvider(t, registry, ipcComponent, newestProvider, "200")
 
 	listed := registry.ListCommands(context.Background())
 	require.Len(t, listed, 1)
-	registry.agentMapMu.Lock()
-	active := registry.providerForCommand("fixture-agent")
-	require.Same(t, registry.agentMap[oldest.registeredSessionID], active)
-	registry.agentMapMu.Unlock()
-
 	remote := remotecommand.Commands(&command.GlobalParams{})[0]
-	require.NoError(t, remotecommand.AttachCommandProviders(remote, listed, func(commandName, commandPath string, arguments *structpb.Struct) (*pb.ExecuteCommandResponse, error) {
-		return registry.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{CommandName: commandName, CommandPath: commandPath, Arguments: arguments})
+	require.NoError(t, remotecommand.AttachCommandProviders(remote, listed, func(providerName string, commandPath []string, arguments *structpb.Struct, _, _ io.Writer) error {
+		return registry.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{ProviderName: providerName, CommandPath: commandPath, Arguments: arguments}, func(*pb.ExecuteCommandResponse) error { return nil })
 	}))
 
 	providerCommand, _, err := remote.Find([]string{"fixture-agent"})
@@ -89,14 +90,12 @@ func TestCommandProviderRegistrationDiscoveryCLIAndExecutionFlow(t *testing.T) {
 	require.NoError(t, remote.Execute())
 	require.Len(t, oldestProvider.requests, 1)
 	require.Empty(t, newestProvider.requests)
-	require.Equal(t, "fixture-agent", oldestProvider.requests[0].GetCommandName())
-	require.Equal(t, "diagnostics.inspect", oldestProvider.requests[0].GetCommandPath())
+	require.Equal(t, "fixture-agent", oldestProvider.requests[0].GetProviderName())
+	require.Equal(t, []string{"diagnostics", "inspect"}, oldestProvider.requests[0].GetCommandPath())
 	require.Equal(t, float64(7), oldestProvider.requests[0].GetArguments().GetFields()["limit"].GetNumberValue())
 
 	registry.agentMapMu.Lock()
 	delete(registry.agentMap, oldest.registeredSessionID)
-	active = registry.providerForCommand("fixture-agent")
-	require.Same(t, registry.agentMap[newest.registeredSessionID], active)
 	registry.agentMapMu.Unlock()
 	require.NoError(t, remote.Execute())
 	require.Len(t, newestProvider.requests, 1)

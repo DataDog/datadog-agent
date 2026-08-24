@@ -73,21 +73,6 @@ func TestRegistration(t *testing.T) {
 	require.Equal(t, "test-agent", agents[0].SanitizedDisplayName)
 }
 
-func TestRegistrationRequiresDescriptionForCommandProvider(t *testing.T) {
-	provides, _, _, _, ipcComp := buildComponent(t)
-	component := provides.Comp.(*remoteAgentRegistry)
-	remoteAgent := buildRemoteAgent(t, ipcComp, "test-agent", "Test Agent", "1234")
-	remoteAgent.RegistrationData.Services = append(remoteAgent.RegistrationData.Services, CommandProviderServiceName)
-
-	_, _, err := component.RegisterRemoteAgent(&remoteAgent.RegistrationData)
-	require.ErrorContains(t, err, "remote agent description must not be empty")
-
-	remoteAgent.RegistrationData.AgentDescription = "Test command provider"
-	remoteAgent.RegistrationData.CommandName = "test-provider"
-	_, _, err = component.RegisterRemoteAgent(&remoteAgent.RegistrationData)
-	require.NoError(t, err)
-}
-
 func TestReportRemoteAgentEvent(t *testing.T) {
 	provides, _, _, _, ipcComp := buildComponent(t)
 	component := provides.Comp.(*remoteAgentRegistry)

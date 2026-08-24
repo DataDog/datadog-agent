@@ -7,6 +7,7 @@ package remotecommand
 
 import (
 	"bytes"
+	"io"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -46,7 +47,8 @@ func TestRemoteCommandDetectionDoesNotSelectOtherCommands(t *testing.T) {
 
 func TestAttachCommandProvidersBuildsNestedTreeAndPassesTypedFlags(t *testing.T) {
 	remote := Commands(&command.GlobalParams{})[0]
-	var gotName, gotPath string
+	var gotName string
+	var gotPath []string
 	var gotArguments map[string]any
 	top := &pb.Command{
 		Name: "dogstatsd.top", ShortName: "top", IsRunnable: true,
@@ -56,19 +58,19 @@ func TestAttachCommandProvidersBuildsNestedTreeAndPassesTypedFlags(t *testing.T)
 		},
 	}
 	providers := []*pb.CommandProvider{{
-		CommandName:      "data-plane",
-		AgentDescription: "High-performance data plane",
+		Name:        "data-plane",
+		Description: "High-performance data plane",
 		Commands: []*pb.Command{{
 			Name: "dogstatsd", ShortName: "dogstatsd", Children: []*pb.Command{top},
 		}},
 	}}
-	require.NoError(t, AttachCommandProviders(remote, providers, func(name, path string, arguments *structpb.Struct) (*pb.ExecuteCommandResponse, error) {
+	require.NoError(t, AttachCommandProviders(remote, providers, func(name string, path []string, arguments *structpb.Struct, _, _ io.Writer) error {
 		gotName, gotPath = name, path
 		gotArguments = map[string]any{}
 		for key, value := range arguments.GetFields() {
 			gotArguments[key] = value.AsInterface()
 		}
-		return &pb.ExecuteCommandResponse{}, nil
+		return nil
 	}))
 
 	provider, _, err := remote.Find([]string{"data-plane"})
@@ -77,7 +79,7 @@ func TestAttachCommandProvidersBuildsNestedTreeAndPassesTypedFlags(t *testing.T)
 	remote.SetArgs([]string{"data-plane", "dogstatsd", "top", "--num-metrics", "7", "--include-inactive"})
 	require.NoError(t, remote.Execute())
 	require.Equal(t, "data-plane", gotName)
-	require.Equal(t, "dogstatsd.top", gotPath)
+	require.Equal(t, []string{"dogstatsd", "top"}, gotPath)
 	require.Equal(t, float64(7), gotArguments["num-metrics"])
 	require.Equal(t, true, gotArguments["include-inactive"])
 }
@@ -88,11 +90,14 @@ func TestAttachCommandProvidersRendersResponseAndReturnsExitCode(t *testing.T) {
 	remote.SetOut(&stdout)
 	remote.SetErr(&stderr)
 	providers := []*pb.CommandProvider{{
-		CommandName: "fixture-agent",
-		Commands:    []*pb.Command{{Name: "inspect", IsRunnable: true}},
+		Name:     "fixture-agent",
+		Commands: []*pb.Command{{Name: "inspect", IsRunnable: true}},
 	}}
-	require.NoError(t, AttachCommandProviders(remote, providers, func(string, string, *structpb.Struct) (*pb.ExecuteCommandResponse, error) {
-		return &pb.ExecuteCommandResponse{Stdout: "text-out", Stderr: "text-err", BinaryOutput: []byte{0, 1}, ExitCode: 7}, nil
+	require.NoError(t, AttachCommandProviders(remote, providers, func(_ string, _ []string, _ *structpb.Struct, stdout, stderr io.Writer) error {
+		_, _ = io.WriteString(stdout, "text-out")
+		_, _ = io.WriteString(stderr, "text-err")
+		_, _ = stdout.Write([]byte{0, 1})
+		return exitCodeError(7)
 	}))
 	remote.SetArgs([]string{"fixture-agent", "inspect"})
 	err := remote.Execute()
@@ -106,5 +111,5 @@ func TestAttachCommandProvidersRendersResponseAndReturnsExitCode(t *testing.T) {
 
 func TestAttachCommandProvidersRejectsMissingName(t *testing.T) {
 	remote := Commands(&command.GlobalParams{})[0]
-	require.Error(t, AttachCommandProviders(remote, []*pb.CommandProvider{{}}, func(string, string, *structpb.Struct) (*pb.ExecuteCommandResponse, error) { return nil, nil }))
+	require.Error(t, AttachCommandProviders(remote, []*pb.CommandProvider{{}}, func(string, []string, *structpb.Struct, io.Writer, io.Writer) error { return nil }))
 }

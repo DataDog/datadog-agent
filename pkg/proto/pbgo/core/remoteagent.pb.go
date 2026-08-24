@@ -48,12 +48,7 @@ type RegisterRemoteAgentRequest struct {
 	// List of services that the remote agent supports.
 	//
 	// Service names MUST be the full name of the gRPC service, such as "datadog.remoteagent.status.v1.StatusProvider".
-	Services []string `protobuf:"bytes,5,rep,name=services,proto3" json:"services,omitempty"`
-	// Concise operator-facing description of the remote agent. Required when
-	// services includes RemoteCommandProvider.
-	AgentDescription string `protobuf:"bytes,6,opt,name=agent_description,json=agentDescription,proto3" json:"agent_description,omitempty"`
-	// CLI-safe public name used below `agent remote`; required with RemoteCommandProvider.
-	CommandName   string `protobuf:"bytes,7,opt,name=command_name,json=commandName,proto3" json:"command_name,omitempty"`
+	Services      []string `protobuf:"bytes,5,rep,name=services,proto3" json:"services,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -121,20 +116,6 @@ func (x *RegisterRemoteAgentRequest) GetServices() []string {
 		return x.Services
 	}
 	return nil
-}
-
-func (x *RegisterRemoteAgentRequest) GetAgentDescription() string {
-	if x != nil {
-		return x.AgentDescription
-	}
-	return ""
-}
-
-func (x *RegisterRemoteAgentRequest) GetCommandName() string {
-	if x != nil {
-		return x.CommandName
-	}
-	return ""
 }
 
 type RegisterRemoteAgentResponse struct {
@@ -491,15 +472,13 @@ var File_datadog_remoteagent_remoteagent_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\n" +
-	"%datadog/remoteagent/remoteagent.proto\x12\x16datadog.remoteagent.v1\"\xff\x01\n" +
+	"%datadog/remoteagent/remoteagent.proto\x12\x16datadog.remoteagent.v1\"\xaf\x01\n" +
 	"\x1aRegisterRemoteAgentRequest\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\tR\x03pid\x12\x16\n" +
 	"\x06flavor\x18\x02 \x01(\tR\x06flavor\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12(\n" +
 	"\x10api_endpoint_uri\x18\x04 \x01(\tR\x0eapiEndpointUri\x12\x1a\n" +
-	"\bservices\x18\x05 \x03(\tR\bservices\x12+\n" +
-	"\x11agent_description\x18\x06 \x01(\tR\x10agentDescription\x12!\n" +
-	"\fcommand_name\x18\a \x01(\tR\vcommandName\"\x87\x01\n" +
+	"\bservices\x18\x05 \x03(\tR\bservices\"\x87\x01\n" +
 	"\x1bRegisterRemoteAgentResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12I\n" +

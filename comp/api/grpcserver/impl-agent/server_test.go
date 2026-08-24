@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -30,7 +31,24 @@ type fakeRemoteAgentRegistry struct {
 	gotEvents     []remoteagentregistry.RemoteAgentEvent
 	gotCommandCtx context.Context
 	gotCommandReq *pb.ExecuteCommandRequest
+	commandFrames []*pb.ExecuteCommandResponse
 	commandErr    error
+}
+
+type fakeCommandStream struct {
+	ctx    context.Context
+	frames []*pb.ExecuteCommandResponse
+}
+
+func (s *fakeCommandStream) SetHeader(metadata.MD) error  { return nil }
+func (s *fakeCommandStream) SendHeader(metadata.MD) error { return nil }
+func (s *fakeCommandStream) SetTrailer(metadata.MD)       {}
+func (s *fakeCommandStream) Context() context.Context     { return s.ctx }
+func (s *fakeCommandStream) SendMsg(any) error            { return nil }
+func (s *fakeCommandStream) RecvMsg(any) error            { return nil }
+func (s *fakeCommandStream) Send(frame *pb.ExecuteCommandResponse) error {
+	s.frames = append(s.frames, frame)
+	return nil
 }
 
 func (f *fakeRemoteAgentRegistry) RegisterRemoteAgent(*remoteagentregistry.RegistrationData) (string, uint32, error) {
@@ -51,10 +69,15 @@ func (f *fakeRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 func (f *fakeRemoteAgentRegistry) ListCommands(_ context.Context) []*pb.CommandProvider {
 	return nil
 }
-func (f *fakeRemoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+func (f *fakeRemoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest, send func(*pb.ExecuteCommandResponse) error) error {
 	f.gotCommandCtx = ctx
 	f.gotCommandReq = req
-	return &pb.ExecuteCommandResponse{}, f.commandErr
+	for _, frame := range f.commandFrames {
+		if err := send(frame); err != nil {
+			return err
+		}
+	}
+	return f.commandErr
 }
 
 func TestReportRemoteAgentEventHandler(t *testing.T) {
@@ -100,23 +123,26 @@ func TestReportRemoteAgentEventHandler(t *testing.T) {
 	})
 }
 
-func TestRemoteCommandProviderExecuteCommandForwardsContextAndStatus(t *testing.T) {
-	request := &pb.ExecuteCommandRequest{CommandPath: "dogstatsd.top", CommandName: "data-plane"}
-	registry := &fakeRemoteAgentRegistry{}
+func TestRemoteCommandProviderExecuteCommandForwardsContextAndFrames(t *testing.T) {
+	request := &pb.ExecuteCommandRequest{CommandPath: []string{"dogstatsd", "top"}, ProviderName: "data-plane"}
+	registry := &fakeRemoteAgentRegistry{commandFrames: []*pb.ExecuteCommandResponse{{Frame: &pb.ExecuteCommandResponse_Stdout{Stdout: "output"}}}}
 	srv := &remoteCommandProviderServer{remoteAgentRegistry: registry}
 
 	ctx := context.WithValue(context.Background(), commandContextKey{}, "caller-context")
-	_, err := srv.ExecuteCommand(ctx, request)
+	stream := &fakeCommandStream{ctx: ctx}
+	err := srv.ExecuteCommand(request, stream)
 	require.NoError(t, err)
 	require.Same(t, request, registry.gotCommandReq)
 	require.Equal(t, "caller-context", registry.gotCommandCtx.Value(commandContextKey{}))
+	require.Len(t, stream.frames, 1)
+	require.Equal(t, "output", stream.frames[0].GetStdout())
 }
 
 func TestRemoteCommandProviderPreservesRegistryStatus(t *testing.T) {
 	registry := &fakeRemoteAgentRegistry{commandErr: status.Error(codes.NotFound, "agent missing")}
 	srv := &remoteCommandProviderServer{remoteAgentRegistry: registry}
 
-	_, err := srv.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{CommandPath: "dogstatsd.top", CommandName: "missing"})
+	err := srv.ExecuteCommand(&pb.ExecuteCommandRequest{CommandPath: []string{"dogstatsd", "top"}, ProviderName: "missing"}, &fakeCommandStream{ctx: context.Background()})
 	require.Error(t, err)
 	require.Equal(t, codes.NotFound, status.Code(err))
 }

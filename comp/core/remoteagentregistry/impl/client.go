@@ -69,14 +69,6 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 	if strings.TrimSpace(registration.AgentDisplayName) == "" {
 		return nil, errors.New("remote agent display name must not be empty or whitespace-only")
 	}
-	if slices.Contains(registration.Services, CommandProviderServiceName) {
-		if strings.TrimSpace(registration.AgentDescription) == "" {
-			return nil, errors.New("remote agent description must not be empty or whitespace-only when command provider service is registered")
-		}
-		if !isCLICommandName(registration.CommandName) {
-			return nil, fmt.Errorf("command provider command name %q must be a lowercase kebab-case token", registration.CommandName)
-		}
-	}
 	sanitizedDisplayName := sanitizeString(registration.AgentDisplayName)
 
 	target, dialOpts, err := resolveDialTarget(registration.APIEndpointURI, ra.ipc.GetTLSClientConfig())
@@ -98,9 +90,7 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 	client := &remoteAgentClient{
 		RegisteredAgent: remoteagentregistry.RegisteredAgent{
 			Flavor:               registration.AgentFlavor,
-			CommandName:          registration.CommandName,
 			DisplayName:          registration.AgentDisplayName,
-			Description:          registration.AgentDescription,
 			SanitizedDisplayName: sanitizedDisplayName,
 			PID:                  registration.AgentPID,
 			LastSeen:             time.Now(),
@@ -245,9 +235,6 @@ func callAgentsForService[PbType any, StructuredType any](
 		if !slices.Contains(remoteAgent.services, service) {
 			continue
 		}
-		if service == CommandProviderServiceName && registry.providerForCommand(remoteAgent.RegisteredAgent.CommandName) != remoteAgent {
-			continue
-		}
 		filteredAgents = append(filteredAgents, remoteAgent)
 	}
 
@@ -314,18 +301,6 @@ func callAgentsForService[PbType any, StructuredType any](
 	wg.Wait()
 
 	return resultSlice
-}
-
-func isCLICommandName(name string) bool {
-	if name == "" || name[0] == '-' || name[len(name)-1] == '-' {
-		return false
-	}
-	for _, char := range name {
-		if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '-' {
-			return false
-		}
-	}
-	return true
 }
 
 func sanitizeString(in string) string {

@@ -22,7 +22,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ParameterType defines the supported parameter types for command parameters.
 type ParameterType int32
 
 const (
@@ -93,23 +92,15 @@ func (ParameterType) EnumDescriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_command_proto_rawDescGZIP(), []int{0}
 }
 
-// CommandParameter describes a single parameter (flag or positional argument) accepted by a command.
 type CommandParameter struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name of the parameter, e.g., "num-metrics".
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Short name of the parameter, e.g., "m".
-	ShortName string `protobuf:"bytes,2,opt,name=short_name,json=shortName,proto3" json:"short_name,omitempty"`
-	// Helper text shown in command usage.
-	Helper string `protobuf:"bytes,3,opt,name=helper,proto3" json:"helper,omitempty"`
-	// Type of the parameter value.
-	Type ParameterType `protobuf:"varint,4,opt,name=type,proto3,enum=datadog.remoteagent.command.v1.ParameterType" json:"type,omitempty"`
-	// Whether the parameter is required.
-	Required bool `protobuf:"varint,5,opt,name=required,proto3" json:"required,omitempty"`
-	// Whether this is a flag (--flag) or a positional argument.
-	IsFlag bool `protobuf:"varint,6,opt,name=is_flag,json=isFlag,proto3" json:"is_flag,omitempty"`
-	// Whether the flag is persistent (applies to all child commands).
-	IsPersistent  bool `protobuf:"varint,7,opt,name=is_persistent,json=isPersistent,proto3" json:"is_persistent,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	ShortName     string                 `protobuf:"bytes,2,opt,name=short_name,json=shortName,proto3" json:"short_name,omitempty"`
+	Helper        string                 `protobuf:"bytes,3,opt,name=helper,proto3" json:"helper,omitempty"`
+	Type          ParameterType          `protobuf:"varint,4,opt,name=type,proto3,enum=datadog.remoteagent.command.v1.ParameterType" json:"type,omitempty"`
+	Required      bool                   `protobuf:"varint,5,opt,name=required,proto3" json:"required,omitempty"`
+	IsFlag        bool                   `protobuf:"varint,6,opt,name=is_flag,json=isFlag,proto3" json:"is_flag,omitempty"`
+	IsPersistent  bool                   `protobuf:"varint,7,opt,name=is_persistent,json=isPersistent,proto3" json:"is_persistent,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -193,26 +184,17 @@ func (x *CommandParameter) GetIsPersistent() bool {
 	return false
 }
 
-// Command describes a single command (or subcommand tree) that a remote agent exposes.
 type Command struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Full name of the command, e.g., "dogstatsd.top".
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Short name of the command, e.g., "top".
-	ShortName string `protobuf:"bytes,2,opt,name=short_name,json=shortName,proto3" json:"short_name,omitempty"`
-	// Helper text shown in command listing.
-	Helper string `protobuf:"bytes,3,opt,name=helper,proto3" json:"helper,omitempty"`
-	// Long description of the command, for help text.
-	LongDescription string `protobuf:"bytes,4,opt,name=long_description,json=longDescription,proto3" json:"long_description,omitempty"`
-	// Parameters accepted by this command.
-	Parameters []*CommandParameter `protobuf:"bytes,5,rep,name=parameters,proto3" json:"parameters,omitempty"`
-	// Child commands, forming a tree structure for nested subcommands.
-	Children []*Command `protobuf:"bytes,6,rep,name=children,proto3" json:"children,omitempty"`
-	// Whether this command can be executed (has a Run function). Non-runnable commands
-	// serve as grouping nodes for child commands (e.g., a "dogstatsd" parent).
-	IsRunnable    bool `protobuf:"varint,7,opt,name=is_runnable,json=isRunnable,proto3" json:"is_runnable,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Name            string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	ShortName       string                 `protobuf:"bytes,2,opt,name=short_name,json=shortName,proto3" json:"short_name,omitempty"`
+	Helper          string                 `protobuf:"bytes,3,opt,name=helper,proto3" json:"helper,omitempty"`
+	LongDescription string                 `protobuf:"bytes,4,opt,name=long_description,json=longDescription,proto3" json:"long_description,omitempty"`
+	Parameters      []*CommandParameter    `protobuf:"bytes,5,rep,name=parameters,proto3" json:"parameters,omitempty"`
+	Children        []*Command             `protobuf:"bytes,6,rep,name=children,proto3" json:"children,omitempty"`
+	IsRunnable      bool                   `protobuf:"varint,7,opt,name=is_runnable,json=isRunnable,proto3" json:"is_runnable,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Command) Reset() {
@@ -330,14 +312,13 @@ func (*ListCommandsRequest) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_command_proto_rawDescGZIP(), []int{2}
 }
 
-// CommandProvider is the active provider exposed as one child of `agent remote`.
 type CommandProvider struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	CommandName      string                 `protobuf:"bytes,1,opt,name=command_name,json=commandName,proto3" json:"command_name,omitempty"`
-	AgentDescription string                 `protobuf:"bytes,2,opt,name=agent_description,json=agentDescription,proto3" json:"agent_description,omitempty"`
-	Commands         []*Command             `protobuf:"bytes,3,rep,name=commands,proto3" json:"commands,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	Commands      []*Command             `protobuf:"bytes,3,rep,name=commands,proto3" json:"commands,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CommandProvider) Reset() {
@@ -370,16 +351,16 @@ func (*CommandProvider) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_command_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *CommandProvider) GetCommandName() string {
+func (x *CommandProvider) GetName() string {
 	if x != nil {
-		return x.CommandName
+		return x.Name
 	}
 	return ""
 }
 
-func (x *CommandProvider) GetAgentDescription() string {
+func (x *CommandProvider) GetDescription() string {
 	if x != nil {
-		return x.AgentDescription
+		return x.Description
 	}
 	return ""
 }
@@ -392,11 +373,8 @@ func (x *CommandProvider) GetCommands() []*Command {
 }
 
 type ListCommandsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Commands returned by an individual remote provider.
-	Commands []*Command `protobuf:"bytes,1,rep,name=commands,proto3" json:"commands,omitempty"`
-	// Active provider groups returned by the Core Agent.
-	Providers     []*CommandProvider `protobuf:"bytes,2,rep,name=providers,proto3" json:"providers,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Providers     []*CommandProvider     `protobuf:"bytes,1,rep,name=providers,proto3" json:"providers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -431,13 +409,6 @@ func (*ListCommandsResponse) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_command_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *ListCommandsResponse) GetCommands() []*Command {
-	if x != nil {
-		return x.Commands
-	}
-	return nil
-}
-
 func (x *ListCommandsResponse) GetProviders() []*CommandProvider {
 	if x != nil {
 		return x.Providers
@@ -446,21 +417,12 @@ func (x *ListCommandsResponse) GetProviders() []*CommandProvider {
 }
 
 type ExecuteCommandRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Public command-provider name, e.g. "data-plane".
-	CommandName string `protobuf:"bytes,1,opt,name=command_name,json=commandName,proto3" json:"command_name,omitempty"`
-	// Full path of the command including subcommands, e.g., "dogstatsd top".
-	// This should match the command structure registered by the remote agent.
-	CommandPath string `protobuf:"bytes,2,opt,name=command_path,json=commandPath,proto3" json:"command_path,omitempty"`
-	// Arguments to pass to the command as a structured key-value map.
-	// Keys should match the parameter names registered by the command.
-	// Values should be appropriate for the registered parameter types.
-	// Example: {"verbose": true, "count": 5, "filter": "status=running"}
-	Arguments *structpb.Struct `protobuf:"bytes,3,opt,name=arguments,proto3" json:"arguments,omitempty"`
-	// Whether to format the output as JSON.
-	JsonOutput bool `protobuf:"varint,4,opt,name=json_output,json=jsonOutput,proto3" json:"json_output,omitempty"`
-	// Verbose output flag.
-	Verbose       bool `protobuf:"varint,5,opt,name=verbose,proto3" json:"verbose,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProviderName  string                 `protobuf:"bytes,1,opt,name=provider_name,json=providerName,proto3" json:"provider_name,omitempty"`
+	CommandPath   []string               `protobuf:"bytes,2,rep,name=command_path,json=commandPath,proto3" json:"command_path,omitempty"`
+	Arguments     *structpb.Struct       `protobuf:"bytes,3,opt,name=arguments,proto3" json:"arguments,omitempty"`
+	JsonOutput    bool                   `protobuf:"varint,4,opt,name=json_output,json=jsonOutput,proto3" json:"json_output,omitempty"`
+	Verbose       bool                   `protobuf:"varint,5,opt,name=verbose,proto3" json:"verbose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -495,18 +457,18 @@ func (*ExecuteCommandRequest) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_command_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *ExecuteCommandRequest) GetCommandName() string {
+func (x *ExecuteCommandRequest) GetProviderName() string {
 	if x != nil {
-		return x.CommandName
+		return x.ProviderName
 	}
 	return ""
 }
 
-func (x *ExecuteCommandRequest) GetCommandPath() string {
+func (x *ExecuteCommandRequest) GetCommandPath() []string {
 	if x != nil {
 		return x.CommandPath
 	}
-	return ""
+	return nil
 }
 
 func (x *ExecuteCommandRequest) GetArguments() *structpb.Struct {
@@ -532,14 +494,13 @@ func (x *ExecuteCommandRequest) GetVerbose() bool {
 
 type ExecuteCommandResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Exit code of the command (0 for success).
-	ExitCode int32 `protobuf:"varint,1,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
-	// Standard output of the command.
-	Stdout string `protobuf:"bytes,2,opt,name=stdout,proto3" json:"stdout,omitempty"`
-	// Error output of the command.
-	Stderr string `protobuf:"bytes,3,opt,name=stderr,proto3" json:"stderr,omitempty"`
-	// Binary output for non-text responses.
-	BinaryOutput  []byte `protobuf:"bytes,4,opt,name=binary_output,json=binaryOutput,proto3" json:"binary_output,omitempty"`
+	// Types that are valid to be assigned to Frame:
+	//
+	//	*ExecuteCommandResponse_Stdout
+	//	*ExecuteCommandResponse_Stderr
+	//	*ExecuteCommandResponse_BinaryOutput
+	//	*ExecuteCommandResponse_ExitCode
+	Frame         isExecuteCommandResponse_Frame `protobuf_oneof:"frame"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -574,33 +535,76 @@ func (*ExecuteCommandResponse) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_command_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ExecuteCommandResponse) GetExitCode() int32 {
+func (x *ExecuteCommandResponse) GetFrame() isExecuteCommandResponse_Frame {
 	if x != nil {
-		return x.ExitCode
+		return x.Frame
 	}
-	return 0
+	return nil
 }
 
 func (x *ExecuteCommandResponse) GetStdout() string {
 	if x != nil {
-		return x.Stdout
+		if x, ok := x.Frame.(*ExecuteCommandResponse_Stdout); ok {
+			return x.Stdout
+		}
 	}
 	return ""
 }
 
 func (x *ExecuteCommandResponse) GetStderr() string {
 	if x != nil {
-		return x.Stderr
+		if x, ok := x.Frame.(*ExecuteCommandResponse_Stderr); ok {
+			return x.Stderr
+		}
 	}
 	return ""
 }
 
 func (x *ExecuteCommandResponse) GetBinaryOutput() []byte {
 	if x != nil {
-		return x.BinaryOutput
+		if x, ok := x.Frame.(*ExecuteCommandResponse_BinaryOutput); ok {
+			return x.BinaryOutput
+		}
 	}
 	return nil
 }
+
+func (x *ExecuteCommandResponse) GetExitCode() int32 {
+	if x != nil {
+		if x, ok := x.Frame.(*ExecuteCommandResponse_ExitCode); ok {
+			return x.ExitCode
+		}
+	}
+	return 0
+}
+
+type isExecuteCommandResponse_Frame interface {
+	isExecuteCommandResponse_Frame()
+}
+
+type ExecuteCommandResponse_Stdout struct {
+	Stdout string `protobuf:"bytes,1,opt,name=stdout,proto3,oneof"`
+}
+
+type ExecuteCommandResponse_Stderr struct {
+	Stderr string `protobuf:"bytes,2,opt,name=stderr,proto3,oneof"`
+}
+
+type ExecuteCommandResponse_BinaryOutput struct {
+	BinaryOutput []byte `protobuf:"bytes,3,opt,name=binary_output,json=binaryOutput,proto3,oneof"`
+}
+
+type ExecuteCommandResponse_ExitCode struct {
+	ExitCode int32 `protobuf:"varint,4,opt,name=exit_code,json=exitCode,proto3,oneof"`
+}
+
+func (*ExecuteCommandResponse_Stdout) isExecuteCommandResponse_Frame() {}
+
+func (*ExecuteCommandResponse_Stderr) isExecuteCommandResponse_Frame() {}
+
+func (*ExecuteCommandResponse_BinaryOutput) isExecuteCommandResponse_Frame() {}
+
+func (*ExecuteCommandResponse_ExitCode) isExecuteCommandResponse_Frame() {}
 
 var File_datadog_remoteagent_command_proto protoreflect.FileDescriptor
 
@@ -628,26 +632,26 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"\bchildren\x18\x06 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bchildren\x12\x1f\n" +
 	"\vis_runnable\x18\a \x01(\bR\n" +
 	"isRunnable\"\x15\n" +
-	"\x13ListCommandsRequest\"\xa6\x01\n" +
-	"\x0fCommandProvider\x12!\n" +
-	"\fcommand_name\x18\x01 \x01(\tR\vcommandName\x12+\n" +
-	"\x11agent_description\x18\x02 \x01(\tR\x10agentDescription\x12C\n" +
-	"\bcommands\x18\x03 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands\"\xaa\x01\n" +
-	"\x14ListCommandsResponse\x12C\n" +
-	"\bcommands\x18\x01 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands\x12M\n" +
-	"\tproviders\x18\x02 \x03(\v2/.datadog.remoteagent.command.v1.CommandProviderR\tproviders\"\xcf\x01\n" +
-	"\x15ExecuteCommandRequest\x12!\n" +
-	"\fcommand_name\x18\x01 \x01(\tR\vcommandName\x12!\n" +
-	"\fcommand_path\x18\x02 \x01(\tR\vcommandPath\x125\n" +
+	"\x13ListCommandsRequest\"\x8c\x01\n" +
+	"\x0fCommandProvider\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12C\n" +
+	"\bcommands\x18\x03 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands\"e\n" +
+	"\x14ListCommandsResponse\x12M\n" +
+	"\tproviders\x18\x01 \x03(\v2/.datadog.remoteagent.command.v1.CommandProviderR\tproviders\"\xd1\x01\n" +
+	"\x15ExecuteCommandRequest\x12#\n" +
+	"\rprovider_name\x18\x01 \x01(\tR\fproviderName\x12!\n" +
+	"\fcommand_path\x18\x02 \x03(\tR\vcommandPath\x125\n" +
 	"\targuments\x18\x03 \x01(\v2\x17.google.protobuf.StructR\targuments\x12\x1f\n" +
 	"\vjson_output\x18\x04 \x01(\bR\n" +
 	"jsonOutput\x12\x18\n" +
-	"\averbose\x18\x05 \x01(\bR\averbose\"\x8a\x01\n" +
-	"\x16ExecuteCommandResponse\x12\x1b\n" +
-	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12\x16\n" +
-	"\x06stdout\x18\x02 \x01(\tR\x06stdout\x12\x16\n" +
-	"\x06stderr\x18\x03 \x01(\tR\x06stderr\x12#\n" +
-	"\rbinary_output\x18\x04 \x01(\fR\fbinaryOutput*\xc8\x01\n" +
+	"\averbose\x18\x05 \x01(\bR\averbose\"\x9b\x01\n" +
+	"\x16ExecuteCommandResponse\x12\x18\n" +
+	"\x06stdout\x18\x01 \x01(\tH\x00R\x06stdout\x12\x18\n" +
+	"\x06stderr\x18\x02 \x01(\tH\x00R\x06stderr\x12%\n" +
+	"\rbinary_output\x18\x03 \x01(\fH\x00R\fbinaryOutput\x12\x1d\n" +
+	"\texit_code\x18\x04 \x01(\x05H\x00R\bexitCodeB\a\n" +
+	"\x05frame*\xc8\x01\n" +
 	"\rParameterType\x12\x14\n" +
 	"\x10TYPE_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vTYPE_STRING\x10\x01\x12\f\n" +
@@ -659,10 +663,10 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"\x11TYPE_STRING_SLICE\x10\x06\x12\x12\n" +
 	"\x0eTYPE_INT_SLICE\x10\a\x12\x13\n" +
 	"\x0fTYPE_UINT_SLICE\x10\b\x12\x14\n" +
-	"\x10TYPE_FLOAT_SLICE\x10\t2\x93\x02\n" +
+	"\x10TYPE_FLOAT_SLICE\x10\t2\x96\x02\n" +
 	"\x15RemoteCommandProvider\x12y\n" +
-	"\fListCommands\x123.datadog.remoteagent.command.v1.ListCommandsRequest\x1a4.datadog.remoteagent.command.v1.ListCommandsResponse\x12\x7f\n" +
-	"\x0eExecuteCommand\x125.datadog.remoteagent.command.v1.ExecuteCommandRequest\x1a6.datadog.remoteagent.command.v1.ExecuteCommandResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\fListCommands\x123.datadog.remoteagent.command.v1.ListCommandsRequest\x1a4.datadog.remoteagent.command.v1.ListCommandsResponse\x12\x81\x01\n" +
+	"\x0eExecuteCommand\x125.datadog.remoteagent.command.v1.ExecuteCommandRequest\x1a6.datadog.remoteagent.command.v1.ExecuteCommandResponse0\x01B\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
 	file_datadog_remoteagent_command_proto_rawDescOnce sync.Once
@@ -694,24 +698,29 @@ var file_datadog_remoteagent_command_proto_depIdxs = []int32{
 	1, // 1: datadog.remoteagent.command.v1.Command.parameters:type_name -> datadog.remoteagent.command.v1.CommandParameter
 	2, // 2: datadog.remoteagent.command.v1.Command.children:type_name -> datadog.remoteagent.command.v1.Command
 	2, // 3: datadog.remoteagent.command.v1.CommandProvider.commands:type_name -> datadog.remoteagent.command.v1.Command
-	2, // 4: datadog.remoteagent.command.v1.ListCommandsResponse.commands:type_name -> datadog.remoteagent.command.v1.Command
-	4, // 5: datadog.remoteagent.command.v1.ListCommandsResponse.providers:type_name -> datadog.remoteagent.command.v1.CommandProvider
-	8, // 6: datadog.remoteagent.command.v1.ExecuteCommandRequest.arguments:type_name -> google.protobuf.Struct
-	3, // 7: datadog.remoteagent.command.v1.RemoteCommandProvider.ListCommands:input_type -> datadog.remoteagent.command.v1.ListCommandsRequest
-	6, // 8: datadog.remoteagent.command.v1.RemoteCommandProvider.ExecuteCommand:input_type -> datadog.remoteagent.command.v1.ExecuteCommandRequest
-	5, // 9: datadog.remoteagent.command.v1.RemoteCommandProvider.ListCommands:output_type -> datadog.remoteagent.command.v1.ListCommandsResponse
-	7, // 10: datadog.remoteagent.command.v1.RemoteCommandProvider.ExecuteCommand:output_type -> datadog.remoteagent.command.v1.ExecuteCommandResponse
-	9, // [9:11] is the sub-list for method output_type
-	7, // [7:9] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	4, // 4: datadog.remoteagent.command.v1.ListCommandsResponse.providers:type_name -> datadog.remoteagent.command.v1.CommandProvider
+	8, // 5: datadog.remoteagent.command.v1.ExecuteCommandRequest.arguments:type_name -> google.protobuf.Struct
+	3, // 6: datadog.remoteagent.command.v1.RemoteCommandProvider.ListCommands:input_type -> datadog.remoteagent.command.v1.ListCommandsRequest
+	6, // 7: datadog.remoteagent.command.v1.RemoteCommandProvider.ExecuteCommand:input_type -> datadog.remoteagent.command.v1.ExecuteCommandRequest
+	5, // 8: datadog.remoteagent.command.v1.RemoteCommandProvider.ListCommands:output_type -> datadog.remoteagent.command.v1.ListCommandsResponse
+	7, // 9: datadog.remoteagent.command.v1.RemoteCommandProvider.ExecuteCommand:output_type -> datadog.remoteagent.command.v1.ExecuteCommandResponse
+	8, // [8:10] is the sub-list for method output_type
+	6, // [6:8] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteagent_command_proto_init() }
 func file_datadog_remoteagent_command_proto_init() {
 	if File_datadog_remoteagent_command_proto != nil {
 		return
+	}
+	file_datadog_remoteagent_command_proto_msgTypes[6].OneofWrappers = []any{
+		(*ExecuteCommandResponse_Stdout)(nil),
+		(*ExecuteCommandResponse_Stderr)(nil),
+		(*ExecuteCommandResponse_BinaryOutput)(nil),
+		(*ExecuteCommandResponse_ExitCode)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
