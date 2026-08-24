@@ -216,7 +216,18 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
+	c.set(key, newValue, source)
+}
 
+// IngestStreamedSetting assigns the newValue to the given key and marks it as originating from the
+// given source, same as Set but without the SourceEnvVar guardrail. It exists so a configstream
+// client can mirror the core agent's resolved config, including settings sourced from its env vars,
+// without opening up Set itself to writing to the env var layer.
+func (c *ntmConfig) IngestStreamedSetting(key string, newValue interface{}, source model.Source) {
+	c.set(key, newValue, source)
+}
+
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source) {
 	c.maybeRebuild()
 
 	c.Lock()

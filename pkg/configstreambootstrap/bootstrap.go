@@ -92,9 +92,21 @@ func IPCCertFilepath() string {
 	return pkgconfigsetup.Datadog().GetString("ipc_cert_file_path")
 }
 
-// ApplySetting writes one streamed setting to the global config, preserving the source.
+// ApplySetting writes one streamed setting to the global config, preserving the source. Bypasses
+// the ordinary Set() guardrail against SourceEnvVar (nodetreemodel only) so streamed settings mirror
+// the core agent's resolved config exactly, including ones sourced from its own env vars.
 func ApplySetting(key string, value *structpb.Value, source string) {
-	pkgconfigsetup.Datadog().Set(key, pbValueToGo(value), pkgconfigmodel.Source(source))
+	b := pkgconfigsetup.Datadog()
+	goValue := pbValueToGo(value)
+	streamedSource := pkgconfigmodel.Source(source)
+	type streamIngester interface {
+		IngestStreamedSetting(key string, newValue any, source pkgconfigmodel.Source)
+	}
+	if ingester, ok := b.(streamIngester); ok {
+		ingester.IngestStreamedSetting(key, goValue, streamedSource)
+		return
+	}
+	b.Set(key, goValue, streamedSource)
 }
 
 // pbValueToGo converts a protobuf Value to a Go value. It preserves integer types that structpb widens to float64.
