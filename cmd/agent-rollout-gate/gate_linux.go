@@ -53,7 +53,9 @@ func waitAndExec(opts options, stderr io.Writer) error {
 	if err := waitForComponentLock(lock, terminationSignals); err != nil {
 		return fmt.Errorf("acquire component lock: %w", err)
 	}
-	signal.Stop(terminationSignals)
+	if err := stopTerminationNotifications(terminationSignals); err != nil {
+		return err
+	}
 	if err := setCloseOnExec(lock.Fd(), false); err != nil {
 		return fmt.Errorf("preserve component lock across exec: %w", err)
 	}
@@ -94,6 +96,18 @@ func waitAndExec(opts options, stderr io.Writer) error {
 		return fmt.Errorf("exec command after acquiring component lock: %w", err)
 	}
 	return nil
+}
+
+func stopTerminationNotifications(terminationSignals chan os.Signal) error {
+	// Stop waits for any signal delivery already in flight. Drain the channel
+	// afterwards so a signal at the lock handoff cannot be lost.
+	signal.Stop(terminationSignals)
+	select {
+	case received := <-terminationSignals:
+		return fmt.Errorf("received %s", received)
+	default:
+		return nil
+	}
 }
 
 func waitForComponentLock(lock *os.File, terminationSignals <-chan os.Signal) error {

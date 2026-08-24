@@ -286,6 +286,16 @@ func TestTerminatedWaitingGateHasNoLivePreparedDescriptor(t *testing.T) {
 	}
 }
 
+func TestStopTerminationNotificationsHandlesQueuedSignal(t *testing.T) {
+	terminationSignals := make(chan os.Signal, 1)
+	terminationSignals <- syscall.SIGTERM
+
+	err := stopTerminationNotifications(terminationSignals)
+	if err == nil || !strings.Contains(err.Error(), "terminated") {
+		t.Fatalf("got %v, want queued SIGTERM error", err)
+	}
+}
+
 func TestStartupProbeFailsWhilePreparedAndPassesWhenActive(t *testing.T) {
 	dir := t.TempDir()
 	preparedPath := filepath.Join(dir, "agent.prepared")
