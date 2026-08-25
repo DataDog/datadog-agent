@@ -212,7 +212,7 @@ dd_agent_go_test(
     srcs = [
         "data_scrubber_test.go",  # keep
         "data_scrubber_windows_test.go",
-    ]
+    ],
     data = glob(["testdata/**"]),
     embed = [":procutil"],
     target_compatible_with = ["@platforms//os:windows"],
