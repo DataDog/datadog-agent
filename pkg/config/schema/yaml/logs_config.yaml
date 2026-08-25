@@ -146,7 +146,9 @@ properties:
     default: 60
     visibility: public
     description: The maximum number of seconds the Agent spends reading from a file
-      after it has been rotated.
+      after it has been rotated. Not used when ``rotation_handoff_mode`` is
+      ``sequential``; sequential drains use ``sequential_rotation_quiet_period``
+      and ``sequential_rotation_max_drain`` instead.
     comment: maximum time that the unix tailer will hold a log file open after it
       has been rotated
   rotation_handoff_mode:

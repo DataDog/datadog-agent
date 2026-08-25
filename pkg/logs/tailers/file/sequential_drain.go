@@ -26,7 +26,7 @@ func (t *Tailer) BeginSequentialDrain(quietPeriod, maxDrain time.Duration) {
 	t.emptySince = nil
 	t.sequentialQuietPeriod = quietPeriod
 	t.sequentialMaxDrain = maxDrain
-	t.sequentialDrainStart = time.Now()
+	t.sequentialDrainStart = t.drainClock.Now()
 	t.sequentialDrainMu.Unlock()
 
 	go t.runSequentialDrainWatchdog()
@@ -40,7 +40,7 @@ func (t *Tailer) noteSequentialRead(n int) {
 	}
 	if n == 0 {
 		if t.emptySince == nil {
-			now := time.Now()
+			now := t.drainClock.Now()
 			t.emptySince = &now
 		}
 		return
@@ -53,7 +53,7 @@ func (t *Tailer) runSequentialDrainWatchdog() {
 	if pollInterval <= 0 {
 		pollInterval = 100 * time.Millisecond
 	}
-	ticker := time.NewTicker(pollInterval)
+	ticker := t.drainClock.Ticker(pollInterval)
 	defer ticker.Stop()
 
 	maxDrainEscalated := false
@@ -68,9 +68,9 @@ func (t *Tailer) runSequentialDrainWatchdog() {
 		t.sequentialDrainMu.Lock()
 		quietReady := false
 		if t.emptySince != nil {
-			quietReady = time.Since(*t.emptySince) >= t.sequentialQuietPeriod
+			quietReady = t.drainClock.Since(*t.emptySince) >= t.sequentialQuietPeriod
 		}
-		maxDrainReached := time.Since(t.sequentialDrainStart) >= t.sequentialMaxDrain
+		maxDrainReached := t.drainClock.Since(t.sequentialDrainStart) >= t.sequentialMaxDrain
 		t.sequentialDrainMu.Unlock()
 
 		if quietReady {
@@ -86,7 +86,7 @@ func (t *Tailer) runSequentialDrainWatchdog() {
 			if t.sequentialForceCloseGrace > 0 {
 				forceCloseGrace = t.sequentialForceCloseGrace
 			}
-			if !t.IsReaderClosed() && time.Since(t.sequentialDrainStart) >= t.sequentialMaxDrain+forceCloseGrace {
+			if !t.IsReaderClosed() && t.drainClock.Since(t.sequentialDrainStart) >= t.sequentialMaxDrain+forceCloseGrace {
 				t.forceCloseReader()
 			}
 		}

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,6 +25,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
 
+func waitForTailerOutput(t *testing.T, outputChan <-chan *message.Message) {
+	t.Helper()
+	select {
+	case <-outputChan:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for tailer output")
+	}
+}
+
+func newSequentialDrainTestTailer(t *testing.T, path string, outputChan chan *message.Message, drainClock clock.Clock, sleepDuration time.Duration) *Tailer {
+	t.Helper()
+	logSource := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType, Path: path})
+	source := sources.NewReplaceableSource(logSource)
+	info := status.NewInfoRegistry()
+	return NewTailer(&TailerOptions{
+		OutputChan:      outputChan,
+		File:            NewFile(path, logSource, false),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(source, info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewFileOpener(),
+		DrainClock:      drainClock,
+	})
+}
+
 func TestBeginSequentialDrainQuietPeriod(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("logs_config.close_timeout", 60)
@@ -37,41 +65,23 @@ func TestBeginSequentialDrainQuietPeriod(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	outputChan := make(chan *message.Message, 10)
-	logSource := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType, Path: path})
-	source := sources.NewReplaceableSource(logSource)
-	info := status.NewInfoRegistry()
-	tailer := NewTailer(&TailerOptions{
-		OutputChan:      outputChan,
-		File:            NewFile(path, logSource, false),
-		SleepDuration:   50 * time.Millisecond,
-		Decoder:         decoder.NewDecoderFromSource(source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-		FileOpener:      opener.NewFileOpener(),
-	})
+	mockClk := clock.NewMock()
+	tailer := newSequentialDrainTestTailer(t, path, outputChan, mockClk, 50*time.Millisecond)
 	require.NoError(t, tailer.StartFromBeginning())
-
-	// Drain the initial line so the tailer reaches EOF before rotation bookkeeping.
-	require.Eventually(t, func() bool {
-		select {
-		case <-outputChan:
-			return true
-		default:
-			return false
-		}
-	}, time.Second, 10*time.Millisecond)
+	waitForTailerOutput(t, outputChan)
 
 	tailer.BeginSequentialDrain(200*time.Millisecond, 2*time.Second)
 
-	// Pre-rotation EOF must not satisfy quiet period immediately.
 	assert.False(t, tailer.IsReaderClosed())
 	assert.False(t, tailer.IsFinished())
 
-	// Post-detection zero-byte read starts quiet period; reader stop follows.
+	// Allow readForever to observe EOF and start the quiet-period clock.
+	time.Sleep(60 * time.Millisecond)
+	mockClk.Add(250 * time.Millisecond)
+
 	require.Eventually(t, func() bool {
 		return tailer.IsFinished()
-	}, 3*time.Second, 50*time.Millisecond)
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestBeginSequentialDrainRotationBookkeeping(t *testing.T) {
@@ -87,32 +97,14 @@ func TestBeginSequentialDrainRotationBookkeeping(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	outputChan := make(chan *message.Message, 10)
-	logSource := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType, Path: path})
-	source := sources.NewReplaceableSource(logSource)
-	info := status.NewInfoRegistry()
-	tailer := NewTailer(&TailerOptions{
-		OutputChan:      outputChan,
-		File:            NewFile(path, logSource, false),
-		SleepDuration:   50 * time.Millisecond,
-		Decoder:         decoder.NewDecoderFromSource(source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-		FileOpener:      opener.NewFileOpener(),
-	})
+	mockClk := clock.NewMock()
+	tailer := newSequentialDrainTestTailer(t, path, outputChan, mockClk, 50*time.Millisecond)
 	require.NoError(t, tailer.StartFromBeginning())
-	require.Eventually(t, func() bool {
-		select {
-		case <-outputChan:
-			return true
-		default:
-			return false
-		}
-	}, time.Second, 10*time.Millisecond)
+	waitForTailerOutput(t, outputChan)
 
 	tailer.BeginSequentialDrain(50*time.Millisecond, time.Second)
+	time.Sleep(60 * time.Millisecond)
 
-	// Append after rotation detect; drained message should use rotation identifier semantics.
 	f, err = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
 	require.NoError(t, err)
 	_, err = f.WriteString("after\n")
@@ -120,22 +112,20 @@ func TestBeginSequentialDrainRotationBookkeeping(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	var msg *message.Message
-	require.Eventually(t, func() bool {
-		select {
-		case msg = <-outputChan:
-			return true
-		default:
-			return false
-		}
-	}, 2*time.Second, 20*time.Millisecond)
+	select {
+	case msg = <-outputChan:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for post-rotation message")
+	}
 
 	assert.True(t, tailer.didFileRotate.Load())
 	assert.Equal(t, "", msg.Origin.Identifier)
 	assert.Equal(t, "0", msg.Origin.Offset)
 
+	mockClk.Add(100 * time.Millisecond)
 	require.Eventually(t, func() bool {
 		return tailer.IsFinished()
-	}, 2*time.Second, 20*time.Millisecond)
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestBeginSequentialDrainMaxDrainReaderClosedAtShutdown(t *testing.T) {
@@ -151,35 +141,19 @@ func TestBeginSequentialDrainMaxDrainReaderClosedAtShutdown(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	outputChan := make(chan *message.Message, 10)
-	logSource := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType, Path: path})
-	source := sources.NewReplaceableSource(logSource)
-	info := status.NewInfoRegistry()
-	tailer := NewTailer(&TailerOptions{
-		OutputChan:      outputChan,
-		File:            NewFile(path, logSource, false),
-		SleepDuration:   20 * time.Millisecond,
-		Decoder:         decoder.NewDecoderFromSource(source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-		FileOpener:      opener.NewFileOpener(),
-	})
+	mockClk := clock.NewMock()
+	tailer := newSequentialDrainTestTailer(t, path, outputChan, mockClk, 20*time.Millisecond)
 	require.NoError(t, tailer.StartFromBeginning())
-	require.Eventually(t, func() bool {
-		select {
-		case <-outputChan:
-			return true
-		default:
-			return false
-		}
-	}, time.Second, 10*time.Millisecond)
+	waitForTailerOutput(t, outputChan)
 
 	tailer.sequentialForceCloseGrace = 30 * time.Millisecond
 	tailer.BeginSequentialDrain(time.Second, 50*time.Millisecond)
+	mockClk.Add(50 * time.Millisecond)
+	mockClk.Add(30 * time.Millisecond)
 
 	require.Eventually(t, func() bool {
 		return tailer.IsFinished()
-	}, 2*time.Second, 10*time.Millisecond)
+	}, time.Second, 10*time.Millisecond)
 	assert.True(t, tailer.IsReaderClosed(), "reader fd must be closed when sequential drain completes")
 }
 
@@ -195,21 +169,8 @@ func TestBeginSequentialDrainMaxDrainReaderClosedBeforeForwardFinishes(t *testin
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
-	// Buffer one message so the next forward send blocks while the reader is still active.
 	outputChan := make(chan *message.Message, 1)
-	logSource := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType, Path: path})
-	source := sources.NewReplaceableSource(logSource)
-	info := status.NewInfoRegistry()
-	tailer := NewTailer(&TailerOptions{
-		OutputChan:      outputChan,
-		File:            NewFile(path, logSource, false),
-		SleepDuration:   20 * time.Millisecond,
-		Decoder:         decoder.NewDecoderFromSource(source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-		FileOpener:      opener.NewFileOpener(),
-	})
+	tailer := newSequentialDrainTestTailer(t, path, outputChan, clock.New(), 20*time.Millisecond)
 	require.NoError(t, tailer.StartFromBeginning())
 	require.Eventually(t, func() bool {
 		return tailer.bytesRead.Get() > int64(len("line1\n"))
@@ -226,5 +187,5 @@ func TestBeginSequentialDrainMaxDrainReaderClosedBeforeForwardFinishes(t *testin
 		return tailer.IsFinished()
 	}, 2*time.Second, 5*time.Millisecond)
 	require.True(t, readerClosedBeforeFinished, "reader fd should close before forward finishes")
-	<-outputChan // release buffered message from before the drain
+	<-outputChan
 }

@@ -150,6 +150,8 @@ type Tailer struct {
 	readerClosed *atomic.Bool
 	// sequentialForceCloseGrace overrides sequentialReaderForceCloseGrace in unit tests.
 	sequentialForceCloseGrace time.Duration
+	// drainClock drives sequential drain timing; defaults to a real clock.
+	drainClock clock.Clock
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -166,6 +168,7 @@ type TailerOptions struct {
 	Registry        auditor.Registry         // Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
 	FileOpener      opener.FileOpener        // Required
+	DrainClock      clock.Clock              // Optional; used by sequential drain timing
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -227,6 +230,10 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		CapacityMonitor:              opts.CapacityMonitor,
 		registry:                     opts.Registry,
 		fileOpener:                   opts.FileOpener,
+		drainClock:                   clock.New(),
+	}
+	if opts.DrainClock != nil {
+		t.drainClock = opts.DrainClock
 	}
 
 	if fileRotated {

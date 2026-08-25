@@ -146,6 +146,11 @@ func NewComponent(deps Requires) (Provides, error) {
 			fingerprintCfg = &types.FingerprintConfig{}
 		}
 		fileOpener := opener.NewFileOpener()
+		handoffSettings, err := logsconfig.GlobalRotationHandoffSettings(deps.Config)
+		if err != nil {
+			logging.Warnf("Invalid global rotation handoff settings, using defaults: %v", err)
+			handoffSettings = types.DefaultRotationHandoffSettings()
+		}
 		fileLauncher := filelauncher.NewLauncher(
 			deps.Config.GetInt("logs_config.open_files_limit"),
 			filelauncher.DefaultSleepDuration,
@@ -156,7 +161,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			deps.Tagger,
 			fileOpener,
 			fileTailer.NewFingerprinter(*fingerprintCfg, fileOpener),
-			types.DefaultRotationHandoffSettings(),
+			handoffSettings,
 		)
 		launchersMgr.AddLauncher(fileLauncher)
 		launchersMgr.AddLauncher(containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger))

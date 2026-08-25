@@ -59,6 +59,7 @@ dd_agent_go_test(
         "//pkg/logs/status/utils",
         "//pkg/logs/types",
         "//pkg/logs/util/opener",
+        "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
