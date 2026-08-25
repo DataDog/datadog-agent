@@ -6,17 +6,23 @@
 package server
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+const parTaskTTL = 5 * time.Minute
 
 // parServerState holds the in-memory task queue and result map for PAR e2e tests.
 // The Private Action Runner polls /api/v2/on-prem-management-service/workflow-tasks/dequeue
@@ -27,6 +33,14 @@ type parServerState struct {
 	queue        []parQueuedTask
 	results      map[string]*api.PARTaskResult
 	dequeueCalls int // counts how many times PAR has called the dequeue endpoint
+
+	// Signing identity registered via /fakeintake/par/signing-key. Left zero-valued,
+	// dequeued tasks carry an unsigned envelope.
+	signingKeyID string
+	signingKey   ed25519.PrivateKey
+	orgID        int64
+	runnerID     string
+	connectionID string
 }
 
 type parQueuedTask struct {
@@ -65,11 +79,19 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pbTask := &privateactionspb.PrivateActionTask{
-		ActionName: actionName,
-		BundleId:   bundleID,
-		OrgId:      0,
-		TaskId:     task.TaskID,
-		Inputs:     inputs,
+		ActionName:     actionName,
+		BundleId:       bundleID,
+		OrgId:          fi.par.orgID,
+		TaskId:         task.TaskID,
+		Inputs:         inputs,
+		ExpirationTime: timestamppb.New(time.Now().Add(parTaskTTL)),
+	}
+	if fi.par.runnerID != "" {
+		pbTask.ConnectionInfo = &privateactionspb.ConnectionInfo{
+			ConnectionId:    fi.par.connectionID,
+			CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
+			RunnerId:        fi.par.runnerID,
+		}
 	}
 	if remoteAction != nil {
 		pbTask.SystemInputs = &privateactionspb.SystemInputs{
@@ -85,16 +107,27 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	envelope := map[string]interface{}{"data": signedTaskData}
+	if fi.par.signingKey != nil {
+		hashedPayload := sha256.Sum256(signedTaskData)
+		envelope["hash_type"] = int32(privateactionspb.HashType_SHA256)
+		envelope["signatures"] = []map[string]interface{}{
+			{
+				"key_type":  int32(privateactionspb.KeyType_ED25519),
+				"key_id":    fi.par.signingKeyID,
+				"signature": ed25519.Sign(fi.par.signingKey, hashedPayload[:]),
+			},
+		}
+	}
+
 	attributes := map[string]interface{}{
-		"name":      actionName,
-		"bundle_id": bundleID,
-		"task_id":   task.TaskID,
-		"job_id":    task.TaskID,
-		"org_id":    0,
-		"inputs":    actionInputs,
-		"signed_envelope": map[string]interface{}{
-			"data": signedTaskData,
-		},
+		"name":            actionName,
+		"bundle_id":       bundleID,
+		"task_id":         task.TaskID,
+		"job_id":          task.TaskID,
+		"org_id":          fi.par.orgID,
+		"inputs":          actionInputs,
+		"signed_envelope": envelope,
 	}
 	resp := map[string]interface{}{
 		"data": map[string]interface{}{
@@ -319,6 +352,40 @@ func (fi *Server) handlePARResult(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+// handlePARSetSigningKey registers a signing identity used by handlePARDequeue.
+func (fi *Server) handlePARSetSigningKey(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		KeyID        string `json:"key_id"`
+		PrivateKey   []byte `json:"private_key"`
+		OrgID        int64  `json:"org_id"`
+		RunnerID     string `json:"runner_id"`
+		ConnectionID string `json:"connection_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.KeyID == "" || req.RunnerID == "" || req.ConnectionID == "" || len(req.PrivateKey) != ed25519.PrivateKeySize {
+		http.Error(w, "invalid signing configuration", http.StatusBadRequest)
+		return
+	}
+
+	fi.par.mu.Lock()
+	fi.par.signingKeyID = req.KeyID
+	fi.par.signingKey = ed25519.PrivateKey(req.PrivateKey)
+	fi.par.orgID = req.OrgID
+	fi.par.runnerID = req.RunnerID
+	fi.par.connectionID = req.ConnectionID
+	fi.par.mu.Unlock()
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (fi *Server) handlePARFlush(w http.ResponseWriter, _ *http.Request) {

@@ -1072,7 +1072,7 @@ When a `verify_generated_files` test fails, run the corresponding
 
 ```bash
 # Update a single cgo godefs output
-bazel run //pkg/ebpf:types_godefs
+bazel run //pkg/ebpf/lockcontention:types_godefs
 ```
 
 Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are

@@ -10,7 +10,6 @@ package configimpl
 import (
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // NewMock exported mock builder to allow modifying mocks that might be
@@ -23,7 +22,6 @@ func NewMock(reqs Requires) (traceconfig.Component, error) {
 	}
 
 	c := cfg{
-		warnings:    &model.Warnings{},
 		coreConfig:  reqs.Config,
 		AgentConfig: traceCfg,
 		ipc:         reqs.IPC,
