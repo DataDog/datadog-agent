@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -143,6 +144,10 @@ type HoltResidualDetector struct {
 	// every series' metadata and tag slice for Holt's lifetime.
 	cachedRefs []observer.SeriesRef
 	cachedGen  uint64
+
+	// scratch is reused by the single-threaded detection loop for median/MAD
+	// calculations. It never aliases series state windows.
+	scratch []float64
 }
 
 // HoltResidualConfig holds catalog/testbench tunables for HoltResidualDetector.
@@ -218,6 +223,7 @@ func (d *HoltResidualDetector) Reset() {
 	d.series = make(map[holtStateKey]*holtSeriesState)
 	d.cachedRefs = nil
 	d.cachedGen = 0
+	d.scratch = d.scratch[:0]
 	d.ready = false
 }
 
@@ -432,16 +438,14 @@ func (d *HoltResidualDetector) processPoint(
 	// post-refractory fires once the smoother is mid-adaptation. Using
 	// 5% of the observed value range as a noise floor keeps the threshold
 	// proportional to the data's natural scale.
-	medianResidual := detectorMedian(state.resWin)
-	sigmaResidual := detectorMAD(state.resWin, medianResidual, true)
+	medianResidual, sigmaResidual := d.medianMAD(state.resWin)
 	sigmaResidual = floorSigma(sigmaResidual, state.resWin)
 	z := (residual - medianResidual) / sigmaResidual
 
 	// σ_value gate denominator: rolling MAD over raw values. Same window
 	// size, same scaleToSigma=true → MAD ≈ σ. Uses the same range-based
 	// floor for the same bimodal-distribution reason.
-	medianValue := detectorMedian(state.valWin)
-	sigmaValue := detectorMAD(state.valWin, medianValue, true)
+	_, sigmaValue := d.medianMAD(state.valWin)
 	sigmaValue = floorSigma(sigmaValue, state.valWin)
 	devMAD := math.Abs(p.Value-state.level) / sigmaValue
 
@@ -484,7 +488,7 @@ func (d *HoltResidualDetector) processPoint(
 	// blinding us to subsequent shifts.
 	residualForWindow := residual
 	if fire {
-		residualForWindow = medianOfTail(state.resWin, holtPostFireSampleN)
+		residualForWindow = d.medianOfTail(state.resWin, holtPostFireSampleN)
 	}
 	pushFIFO(&state.resWin, d.ResidualWindow, residualForWindow)
 	pushFIFO(&state.valWin, d.ResidualWindow, p.Value)
@@ -532,6 +536,56 @@ func (d *HoltResidualDetector) processPoint(
 	state.refractoryRemaining = d.Refractory
 
 	return anomaly, true
+}
+
+// medianMAD returns the median and normal-sigma-scaled MAD without allocating.
+// Detect is single-writer, so one detector-owned scratch buffer is sufficient.
+func (d *HoltResidualDetector) medianMAD(vals []float64) (float64, float64) {
+	if len(vals) == 0 {
+		return 0, 0
+	}
+	if cap(d.scratch) < len(vals) {
+		d.scratch = make([]float64, len(vals))
+	} else {
+		d.scratch = d.scratch[:len(vals)]
+	}
+	copy(d.scratch, vals)
+	sort.Float64s(d.scratch)
+	n := len(d.scratch)
+	median := d.scratch[n/2]
+	if n%2 == 0 {
+		median = (d.scratch[n/2-1] + median) / 2
+	}
+	for i, v := range vals {
+		d.scratch[i] = math.Abs(v - median)
+	}
+	sort.Float64s(d.scratch)
+	mad := d.scratch[n/2]
+	if n%2 == 0 {
+		mad = (d.scratch[n/2-1] + mad) / 2
+	}
+	return median, mad * 1.4826
+}
+
+func (d *HoltResidualDetector) medianOfTail(buf []float64, n int) float64 {
+	if len(buf) == 0 {
+		return 0
+	}
+	if n > len(buf) {
+		n = len(buf)
+	}
+	tail := buf[len(buf)-n:]
+	if cap(d.scratch) < n {
+		d.scratch = make([]float64, n)
+	} else {
+		d.scratch = d.scratch[:n]
+	}
+	copy(d.scratch, tail)
+	sort.Float64s(d.scratch)
+	if n%2 == 0 {
+		return (d.scratch[n/2-1] + d.scratch[n/2]) / 2
+	}
+	return d.scratch[n/2]
 }
 
 // seedLevelTrend bootstraps the smoother from warmup aggregates using the
