@@ -196,6 +196,10 @@ func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(namespace string, ga
 	}
 	labels[kubernetes.KubeAppManagedByLabelKey] = appsecconfig.ManagedByLabelValue
 	annotations := maps.Clone(g.config.CommonAnnotations)
+	// GKE always routes the callout to a Service in the Gateway's own namespace, so the
+	// processor endpoint derived from Processor.Namespace (or "localhost" in sidecar mode)
+	// would advertise an address that does not apply here.
+	delete(annotations, appsecconfig.AppsecProcessorResourceAnnotation)
 
 	extension := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "networking.gke.io/v1",

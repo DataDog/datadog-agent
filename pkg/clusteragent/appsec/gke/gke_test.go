@@ -492,6 +492,27 @@ func TestAdded_createsManagedExtension_whenCommonLabelsAreNil(t *testing.T) {
 	require.Equal(t, appsecconfig.ManagedByLabelValue, extension.GetLabels()[kubernetes.KubeAppManagedByLabelKey])
 }
 
+func TestAdded_omitsProcessorAnnotation_onExtension(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	config := defaultGKEConfig()
+	config.CommonAnnotations = map[string]string{
+		appsecconfig.AppsecProcessorResourceAnnotation: "appsec-processor.ignored-by-gke.svc:8080",
+		"managed-by":                                   "datadog",
+	}
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
+	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), config)
+
+	// When
+	err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	annotations := getExtension(t, client, "test-ns", "test-gateway").GetAnnotations()
+	require.NotContains(t, annotations, appsecconfig.AppsecProcessorResourceAnnotation)
+	require.Equal(t, "datadog", annotations["managed-by"])
+}
+
 func TestAdded_returnsNilAndRecordsNoEvent_whenAlreadyExistsReGetShowsManagedObject(t *testing.T) {
 	// Given
 	ctx := context.Background()
