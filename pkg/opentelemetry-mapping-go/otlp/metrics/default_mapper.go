@@ -524,6 +524,12 @@ func (m *defaultMapper) exponentialHistogramToDDSketch(
 		return nil, errors.New("cumulative exponential histograms are not supported")
 	}
 
+	// Bucket boundaries that are not representable as finite float64 values panic
+	// further down in DDSketch.ChangeMapping, so reject them before building the sketch.
+	if err := checkExponentialHistogramBounds(p, p.Scale(), 1); err != nil {
+		return nil, err
+	}
+
 	// Create the DDSketch stores
 	positiveStore := toStore(p.Positive())
 	negativeStore := toStore(p.Negative())

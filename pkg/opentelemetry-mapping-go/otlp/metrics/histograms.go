@@ -174,6 +174,16 @@ func CreateDDSketchFromExponentialHistogramOfDuration(p *pmetric.ExponentialHist
 	// Create the DDSketch stores
 	scaleToNanos := getTimeUnitScaleToNanos(unit)
 
+	// toStoreFromExponentialBucketsWithUnitScale computes each bucket boundary as
+	// base^bucketIndex * scaleToNanos with an unclamped base, so out-of-range indices
+	// reach LogarithmicMapping.Index as +Inf and panic in DenseStore. The gamma clamp
+	// below only bounds the output mapping and does not protect against this.
+	if p != nil {
+		if err := checkExponentialHistogramBounds(*p, scale, scaleToNanos); err != nil {
+			return nil, err
+		}
+	}
+
 	// Create the DDSketch mapping that corresponds to the ExponentialHistogram settings
 	gammaWithOnePercentAccuracy := 1.01 / 0.99
 	gamma := math.Pow(2, math.Pow(2, float64(-scale)))
