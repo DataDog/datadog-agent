@@ -22,11 +22,27 @@ import (
 // taskID must be a unique identifier (e.g. uuid.New().String()).
 // actionFQN is the fully-qualified action name (e.g. "com.datadoghq.remoteaction.rshell.runCommand").
 func (c *Client) EnqueuePARTask(taskID, actionFQN string, inputs map[string]interface{}) error {
-	body, err := json.Marshal(map[string]interface{}{
-		"task_id":    taskID,
-		"action_fqn": actionFQN,
-		"inputs":     inputs,
+	return c.enqueuePARTask(api.PAREnqueueTaskRequest{TaskID: taskID, ActionFQN: actionFQN, Inputs: inputs})
+}
+
+// EnqueueSignedPARTask enqueues a task with a real ED25519 signature envelope.
+func (c *Client) EnqueueSignedPARTask(taskID, actionFQN string, inputs map[string]interface{}, keyID string, privateKey ed25519.PrivateKey, orgID int64, runnerID string) error {
+	return c.enqueuePARTask(api.PAREnqueueTaskRequest{
+		TaskID:    taskID,
+		ActionFQN: actionFQN,
+		Inputs:    inputs,
+		Signing: &api.PARTaskSigning{
+			KeyID:        keyID,
+			PrivateKey:   append([]byte(nil), privateKey...),
+			OrgID:        orgID,
+			RunnerID:     runnerID,
+			ConnectionID: "connection:execgroup_ddagent:par-rshell-e2e",
+		},
 	})
+}
+
+func (c *Client) enqueuePARTask(task api.PAREnqueueTaskRequest) error {
+	body, err := json.Marshal(task)
 	if err != nil {
 		return fmt.Errorf("marshal enqueue request: %w", err)
 	}
@@ -96,21 +112,51 @@ func (c *Client) FlushPAR() error {
 // GetPARDequeueCount returns how many times PAR has called the dequeue endpoint.
 // A non-zero value confirms PAR is actively polling fakeintake.
 func (c *Client) GetPARDequeueCount() (int, error) {
+	stats, err := c.getPARStats()
+	if err != nil {
+		return 0, err
+	}
+	return stats.DequeueCalls, nil
+}
+
+// GetPARHealthCheckCount returns how many times PAR has reported runner liveness.
+func (c *Client) GetPARHealthCheckCount() (int, error) {
+	stats, err := c.getPARStats()
+	if err != nil {
+		return 0, err
+	}
+	return stats.HealthCheckCalls, nil
+}
+
+// GetPAREnrollmentCount returns how many runners fakeintake has enrolled.
+func (c *Client) GetPAREnrollmentCount() (int, error) {
+	stats, err := c.getPARStats()
+	if err != nil {
+		return 0, err
+	}
+	return stats.EnrollmentCalls, nil
+}
+
+type parStats struct {
+	DequeueCalls     int `json:"dequeue_calls"`
+	HealthCheckCalls int `json:"health_check_calls"`
+	EnrollmentCalls  int `json:"enrollment_calls"`
+}
+
+func (c *Client) getPARStats() (parStats, error) {
+	var stats parStats
 	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/par/stats")
 	if err != nil {
-		return 0, fmt.Errorf("get PAR stats: %w", err)
+		return stats, fmt.Errorf("get PAR stats: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("get PAR stats: status %d", resp.StatusCode)
-	}
-	var stats struct {
-		DequeueCalls int `json:"dequeue_calls"`
+		return stats, fmt.Errorf("get PAR stats: status %d", resp.StatusCode)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
-		return 0, fmt.Errorf("decode PAR stats: %w", err)
+		return stats, fmt.Errorf("decode PAR stats: %w", err)
 	}
-	return stats.DequeueCalls, nil
+	return stats, nil
 }
 
 func (c *Client) getPARResult(taskID string) (*api.PARTaskResult, error) {
