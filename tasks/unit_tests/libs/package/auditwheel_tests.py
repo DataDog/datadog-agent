@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -147,7 +148,10 @@ class TestAuditwheelLibrary(unittest.TestCase):
             self.assertEqual(runner.needed_by_file[str(libpq)], ['libcrypto.so.3', 'libssl.so.3'])
             self.assertEqual(runner.needed_by_file[str(librdkafka)], ['libcurl.so.4', 'libssl.so.3'])
             for consumer in (extension, libpq, librdkafka):
-                self.assertIn(str(embedded_lib), runner.rpaths[str(consumer)].split(':'))
+                relative_embedded_lib = os.path.relpath(embedded_lib, consumer.parent)
+                expected_rpath = f'$ORIGIN/{relative_embedded_lib}'
+                self.assertIn(expected_rpath, runner.rpaths[str(consumer)].split(':'))
+                self.assertNotIn(str(embedded_lib), runner.rpaths[str(consumer)].split(':'))
             for duplicate_name in duplicate_names:
                 self.assertFalse((site_packages / 'wheel.libs' / duplicate_name).exists())
             for unique_library in (libpq, librdkafka, zstd, lmdb):

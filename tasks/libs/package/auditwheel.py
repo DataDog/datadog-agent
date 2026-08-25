@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 from collections.abc import Callable, Sequence
@@ -130,8 +131,9 @@ def normalize_auditwheel_libraries(
             runner(('--replace-needed', needed, canonical_name, consumer))
             patched_consumers.add(consumer)
 
-    embedded_lib_rpath = str(embedded_lib)
     for consumer in sorted(patched_consumers):
+        relative_embedded_lib = os.path.relpath(embedded_lib, consumer.parent)
+        embedded_lib_rpath = '$ORIGIN' if relative_embedded_lib == '.' else f'$ORIGIN/{relative_embedded_lib}'
         existing_rpath = runner(('--print-rpath', consumer))
         if embedded_lib_rpath not in existing_rpath.split(':'):
             runner(('--add-rpath', embedded_lib_rpath, consumer))
