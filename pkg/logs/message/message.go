@@ -253,13 +253,22 @@ func (m *MessageContent) SetEncoded(content []byte) {
 // E.g. Timestamp is used by the docker parsers to transmit a tailing offset.
 type ParsingExtra struct {
 	// Used by docker parsers to transmit an offset.
-	Timestamp   string
+	Timestamp string
+	// Stream identifies the container output stream used to reassemble partial lines.
+	Stream      string
 	IsPartial   bool
 	IsTruncated bool
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
 }
+
+const (
+	// StreamStdout identifies a container log record emitted on stdout.
+	StreamStdout = "stdout"
+	// StreamStderr identifies a container log record emitted on stderr.
+	StreamStderr = "stderr"
+)
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
 type ServerlessExtra struct {

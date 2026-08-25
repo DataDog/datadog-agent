@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -214,6 +215,78 @@ func TestMultilineParserTimeout(t *testing.T) {
 
 	assert.Equal(t, "message", string(message.GetContent()))
 	assert.Equal(t, message.RawDataLen, 14)
+}
+
+func TestMultilineParserFlushesOnlyExpiredStream(t *testing.T) {
+	timeout := time.Hour
+	lineHandler := NewMockLineHandler()
+	lineParser := NewMultiLineParser(lineHandler, timeout, noop.New(), 256*100)
+
+	stderr := message.NewMessage([]byte("stderr"), nil, "", 0)
+	stderr.ParsingExtra.Stream = message.StreamStderr
+	stderr.ParsingExtra.IsPartial = true
+	lineParser.process(stderr, 6)
+
+	stdout := message.NewMessage([]byte("stdout"), nil, "", 0)
+	stdout.ParsingExtra.Stream = message.StreamStdout
+	stdout.ParsingExtra.IsPartial = true
+	lineParser.process(stdout, 6)
+
+	now := time.Now()
+	lineParser.buffers[message.StreamStderr].deadline = now.Add(-time.Second)
+	lineParser.buffers[message.StreamStdout].deadline = now.Add(time.Hour)
+	lineParser.flushTimedOut()
+
+	flushed := <-lineHandler.ch
+	assert.Equal(t, "stderr", string(flushed.GetContent()))
+	assert.Equal(t, message.StreamStderr, flushed.ParsingExtra.Stream)
+	select {
+	case msg := <-lineHandler.ch:
+		t.Fatalf("unexpected unexpired stream flush: %q", msg.GetContent())
+	default:
+	}
+
+	lineParser.flush()
+	remaining := <-lineHandler.ch
+	assert.Equal(t, "stdout", string(remaining.GetContent()))
+	assert.Equal(t, message.StreamStdout, remaining.ParsingExtra.Stream)
+}
+
+func TestMultilineParserLimitIsIndependentPerStream(t *testing.T) {
+	timeout := time.Hour
+	lineHandler := NewMockLineHandler()
+	lineParser := NewMultiLineParser(lineHandler, timeout, noop.New(), 5)
+
+	stderr := message.NewMessage([]byte("1234"), nil, "", 0)
+	stderr.ParsingExtra.Stream = message.StreamStderr
+	stderr.ParsingExtra.IsPartial = true
+	lineParser.process(stderr, 4)
+
+	stdout := message.NewMessage([]byte("a"), nil, "", 0)
+	stdout.ParsingExtra.Stream = message.StreamStdout
+	stdout.ParsingExtra.IsPartial = true
+	lineParser.process(stdout, 1)
+
+	stderr = message.NewMessage([]byte("56"), nil, "", 0)
+	stderr.ParsingExtra.Stream = message.StreamStderr
+	stderr.ParsingExtra.IsPartial = true
+	lineParser.process(stderr, 2)
+
+	truncated := <-lineHandler.ch
+	assert.Equal(t, "123456", string(truncated.GetContent()))
+	assert.Equal(t, message.StreamStderr, truncated.ParsingExtra.Stream)
+	assert.True(t, truncated.ParsingExtra.IsTruncated)
+	assert.Equal(t, 6, truncated.RawDataLen)
+
+	stdout = message.NewMessage([]byte("b"), nil, "", 0)
+	stdout.ParsingExtra.Stream = message.StreamStdout
+	lineParser.process(stdout, 1)
+
+	complete := <-lineHandler.ch
+	assert.Equal(t, "ab", string(complete.GetContent()))
+	assert.Equal(t, message.StreamStdout, complete.ParsingExtra.Stream)
+	assert.False(t, complete.ParsingExtra.IsTruncated)
+	assert.Equal(t, 2, complete.RawDataLen)
 }
 
 func TestMultilineParserLimit(t *testing.T) {

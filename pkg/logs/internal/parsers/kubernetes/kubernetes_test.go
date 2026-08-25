@@ -22,12 +22,19 @@ func TestKubernetesGetStatus(t *testing.T) {
 	assert.Equal(t, message.StatusInfo, getStatus([]byte("")))
 }
 
+func TestKubernetesGetStream(t *testing.T) {
+	assert.Equal(t, message.StreamStdout, getStream([]byte("stdout")))
+	assert.Equal(t, message.StreamStderr, getStream([]byte("stderr")))
+	assert.Empty(t, getStream([]byte("unknown")))
+}
+
 func TestKubernetesParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := containerdHeaderOut + " " + "anything"
 	logMessage := message.NewMessage([]byte(validMessage), nil, "", 0)
 	msg, err := New().Parse(logMessage)
 	assert.Nil(t, err)
 	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, message.StreamStdout, msg.ParsingExtra.Stream)
 	assert.Equal(t, message.StatusInfo, msg.Status)
 	assert.Equal(t, []byte("anything"), msg.GetContent())
 }
@@ -37,6 +44,7 @@ func TestKubernetesParserShouldSucceedWithPartialFlag(t *testing.T) {
 	msg, err := New().Parse(logMessage)
 	assert.Nil(t, err)
 	assert.True(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, message.StreamStdout, msg.ParsingExtra.Stream)
 	assert.Equal(t, message.StatusInfo, msg.Status)
 	assert.Equal(t, []byte("anything"), msg.GetContent())
 }
@@ -47,6 +55,7 @@ func TestKubernetesParserShouldHandleEmptyMessage(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.GetContent()))
 	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, message.StreamStdout, msg.ParsingExtra.Stream)
 	assert.Equal(t, message.StatusInfo, msg.Status)
 	assert.Equal(t, "2018-09-20T11:54:11.753589172Z", msg.ParsingExtra.Timestamp)
 }
@@ -57,6 +66,7 @@ func TestKubernetesParserShouldFailWithInvalidInput(t *testing.T) {
 	logMessage := message.NewMessage([]byte("2018-09-20T11:54:11.753589172Z foo"), nil, "", 0)
 	msg, err := New().Parse(logMessage)
 	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Empty(t, msg.ParsingExtra.Stream)
 	assert.NotNil(t, err)
 	assert.Equal(t, logMessage.GetContent(), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
@@ -67,6 +77,15 @@ func TestKubernetesParserShouldFailWithInvalidInput(t *testing.T) {
 	_, err = New().Parse(logMessage)
 	assert.NotNil(t, err)
 	assert.Equal(t, "invalid timestamp format", err.Error())
+}
+
+func TestKubernetesParserPreservesStderrStream(t *testing.T) {
+	logMessage := message.NewMessage([]byte("2018-09-20T11:54:11.753589172Z stderr P anything"), nil, "", 0)
+	msg, err := New().Parse(logMessage)
+
+	assert.NoError(t, err)
+	assert.Equal(t, message.StreamStderr, msg.ParsingExtra.Stream)
+	assert.Equal(t, message.StatusError, msg.Status)
 }
 
 func TestKubernetesParserShouldRejectInvalidTimestamp(t *testing.T) {
