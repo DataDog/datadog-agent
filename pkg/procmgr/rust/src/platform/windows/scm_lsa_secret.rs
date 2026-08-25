@@ -205,7 +205,7 @@ fn enable_privilege(name: &str) -> Result<()> {
         );
     }
 
-    let mut privileges = TOKEN_PRIVILEGES {
+    let privileges = TOKEN_PRIVILEGES {
         PrivilegeCount: 1,
         Privileges: [LUID_AND_ATTRIBUTES {
             Luid: luid,
@@ -213,14 +213,7 @@ fn enable_privilege(name: &str) -> Result<()> {
         }],
     };
     let ok = unsafe {
-        AdjustTokenPrivileges(
-            token,
-            0,
-            &privileges,
-            0,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        )
+        AdjustTokenPrivileges(token, 0, &privileges, 0, ptr::null_mut(), ptr::null_mut())
     };
     if ok == 0 {
         bail!(
