@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "otelprocessctx",
+    srcs = [
+        "attributes.go",
+        "process_ctx.go",
+        "protobuf.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/otelprocessctx",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/probe/procfs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/probe/procfs",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "otelprocessctx_test",
+    srcs = ["process_ctx_test.go"],
+    embed = [":otelprocessctx"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/probe/procfs",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/probe/procfs",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
