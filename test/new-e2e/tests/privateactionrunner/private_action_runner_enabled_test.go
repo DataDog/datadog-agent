@@ -22,7 +22,9 @@ import (
 )
 
 const (
-	privateActionRunnerStartedLogLine = "Private action runner starting"
+	privateActionRunnerStartedLogLine      = "Private action runner starting"
+	privateActionRunnerRCSubscribedLogLine = "Subscribing to remote config updates"
+	privateActionRunnerKeysManagerLogLine  = "Keys manager ready"
 )
 
 func generateTestPrivateActionRunnerConfig(t *testing.T) string {
@@ -37,9 +39,8 @@ func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 	t.Parallel()
 	config := generateTestPrivateActionRunnerConfig(t)
 	e2e.Run(t, &linuxPrivateActionRunnerEnabledSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoFakeIntake(
+		awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithoutFakeIntake(),
 				scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
 			),
 		),
@@ -78,12 +79,36 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
+
+	// Push the key only after PAR has subscribed and the Core Agent has had time
+	// to report the AP_RUNNER_KEYS client in its backend requests.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerRCSubscribedLogLine, privateActionRunnerLogFile))
+	}, 2*time.Minute, 5*time.Second, "private action runner should subscribe to remote config")
+
+	client := s.Env().FakeIntake.Client()
+	stats, err := client.RCStats()
+	s.Require().NoError(err)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		current, statsErr := client.RCStats()
+		assert.NoError(c, statsErr)
+		if statsErr == nil {
+			assert.GreaterOrEqual(c, current.Polls, stats.Polls+2)
+		}
+	}, 45*time.Second, time.Second, "Core Agent should poll after PAR subscribes")
+	PushFakeRunnerKeysConfig(s.T(), client)
+
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerKeysManagerLogLine, privateActionRunnerLogFile))
+	}, 30*time.Second, time.Second, "private action runner log should report the keys manager ready")
 }
 
 func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerServiceRestart() {
 	host := s.Env().RemoteHost
 	svcManager := common.GetServiceManager(host)
 	s.Require().NotNil(svcManager)
+
+	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
 	// Ensure service is started
 	_, err := svcManager.Start(privateActionRunnerServiceName)

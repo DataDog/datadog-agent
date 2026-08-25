@@ -40,6 +40,12 @@ build do
   env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
 
   if linux_target?
+    # Temporary while we are still building with dda.
+    # We need the systemd headers in place for to build coreos/go-systemd.
+    # After migration we can delete this.
+    command "bazel run #{omnibazel_flags} -- @systemd//:install --destdir=#{install_dir}", \
+        :live_stream => Omnibus.logger.live_stream(:info)
+
     # Next steps:
     # - Add //cmd/installer:installer to the deps in //packages/agent/iot
     # - Drop the invoke here
