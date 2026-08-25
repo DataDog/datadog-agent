@@ -1723,6 +1723,14 @@ properties:
             description: Enables Network Path Dynamic Test for monitoring network
               connections via Network Path.
             example: 'true'
+          baseline_tests_enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: Enables baseline Network Path Dynamic Tests for a representative subset of
+              eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and
+              system-probe traceroute. Standard connection-monitoring Dynamic Tests take precedence
+              when both options are enabled.
       collector:
         node_type: section
         type: object
@@ -4851,6 +4859,9 @@ properties:
           This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
           for a full list of available settings:
           https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/debugexporter#getting-started
+          The debugexporter is off by default; it is attached only when this debug section
+          is configured. Declaring the section (even empty) enables it with the default
+          verbosity; set verbosity to none to leave it detached.
         tags:
         - template_section:CoreAgent
         properties:
@@ -4862,6 +4873,8 @@ properties:
             description: |-
               Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
               Valid values are basic, normal, detailed, none.
+              This default applies only once the debug section is configured; set it to
+              none to keep the debugexporter detached even when the section is present.
             comment: Debug settings (default from OTel debugexporter)
       grpc_port:
         node_type: setting
@@ -5100,23 +5113,15 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+              warmup_points:
+                node_type: setting
+                type: integer
+                default: 60
+              max_run_length:
+                node_type: setting
+                type: integer
+                default: 120
           connection_error_extractor:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-          cross_signal:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-          cusum:
             node_type: section
             type: object
             properties:
@@ -5132,6 +5137,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              warmup_points:
+                node_type: setting
+                type: integer
+                default: 24
+              residual_window:
+                node_type: setting
+                type: integer
+                default: 60
           log_metrics_extractor:
             node_type: section
             type: object
@@ -5149,14 +5162,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-          passthrough:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
           rrcf:
             node_type: section
             type: object
@@ -5173,6 +5178,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              min_points:
+                node_type: setting
+                type: integer
+                default: 30
+              max_points:
+                node_type: setting
+                type: integer
+                default: 120
           scanwelch:
             node_type: section
             type: object
@@ -5181,6 +5194,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              min_points:
+                node_type: setting
+                type: integer
+                default: 30
+              max_points:
+                node_type: setting
+                type: integer
+                default: 120
           time_cluster:
             node_type: section
             type: object
@@ -5188,7 +5209,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: true
+                default: false
               min_cluster_size:
                 node_type: setting
                 type: integer
@@ -5201,6 +5222,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              min_points:
+                node_type: setting
+                type: integer
+                default: 80
+              window_size:
+                node_type: setting
+                type: integer
+                default: 80
       logs:
         node_type: section
         type: object
@@ -5417,7 +5446,7 @@ properties:
                 default: true
                 comment: |-
                   Stdout reporting verbosity.
-                  stdout.enabled: set to false to silence all [observer] stdout log lines.
+                  stdout.enabled: set to false to silence all [anomalydetection] reporter stdout log lines.
                   stdout.verbose: set to true to print individual anomaly series after the title line.
                   Default: title-only (stdout.enabled=true, stdout.verbose=false).
               verbose:
@@ -5434,6 +5463,20 @@ properties:
             default: 0.5
             tags:
             - golang_type:float64
+          inactive_series_check_interval:
+            node_type: setting
+            type: string
+            default: 5m0s
+            format: duration
+            tags:
+            - golang_type:duration
+          inactive_series_ttl:
+            node_type: setting
+            type: string
+            default: 5m0s
+            format: duration
+            tags:
+            - golang_type:duration
           max_series:
             node_type: setting
             type: integer
@@ -5442,8 +5485,9 @@ properties:
           point_retention:
             node_type: setting
             type: string
-            default: 2m0s
+            default: 0s
             format: duration
+            comment: 0s derives retention from the maximum point window of enabled detectors.
             tags:
             - golang_type:duration
     tags:
@@ -6286,6 +6330,19 @@ properties:
           UDS or named pipe under run_path, and only runs when data_plane.enabled has not been set at all.
 
           See comp/dataplane/preflightmode for more details.
+      preflight_mode_duration:
+        node_type: setting
+        type: string
+        default: 90s
+        format: duration
+        comment: |-
+          How long the preflight process is left running. Clamped to a minimum of 90s, which is the window the
+          pre-flight was sized for: anything shorter stops ADP while startup is still in progress and turns a
+          healthy host into a finding.
+
+          The knob exists for benchmarking harnesses that need ADP resident for the whole of a fixed-length run
+          -- see test/regression/cases/quality_gate_* -- rather than for tuning on real hosts, where the only
+          knob that matters is data_plane.preflight_mode.
       remote_agent_enabled:
         node_type: setting
         type: boolean

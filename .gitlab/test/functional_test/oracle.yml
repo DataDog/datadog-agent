@@ -6,7 +6,7 @@ oracle:
   needs: ["go_deps"]
   rules:
     - !reference [.except_mergequeue]
-    - when: on_success
+    - when: manual
   services:
     - alias: "oracle"
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"

@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
+        "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/config/schema",
@@ -32,6 +33,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/healthplatform/issueregistry/utils/selfident",
         "//pkg/config/schema",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
