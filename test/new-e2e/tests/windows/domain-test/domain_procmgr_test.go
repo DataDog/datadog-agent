@@ -76,12 +76,10 @@ if ($status -ne 0) { throw "LsaOpenPolicy failed: 0x$($status.ToString('X8'))" }
 $keyBuffer = [IntPtr]::Zero
 try {
   $key = '%s'
-  $bytes = [System.Text.Encoding]::Unicode.GetBytes($key)
-  $keyBuffer = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($bytes.Length)
-  [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $keyBuffer, $bytes.Length)
+  $keyBuffer = [System.Runtime.InteropServices.Marshal]::StringToHGlobalUni($key)
   $lsaKey = New-Object Datadog.LsaUtil+LsaUnicodeString
-  $lsaKey.Length = [uint16]($bytes.Length - 2)
-  $lsaKey.MaximumLength = [uint16]$bytes.Length
+  $lsaKey.Length = [uint16]($key.Length * 2)
+  $lsaKey.MaximumLength = [uint16](($key.Length + 1) * 2)
   $lsaKey.Buffer = $keyBuffer
   $secret = [IntPtr]::Zero
   $status = [Datadog.LsaUtil]::LsaRetrievePrivateData($policy, [ref]$lsaKey, [ref]$secret)
