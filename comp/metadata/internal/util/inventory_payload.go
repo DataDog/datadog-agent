@@ -81,6 +81,24 @@ var (
 // PayloadGetter is the callback to generate a new payload exposed by each inventory payload to InventoryPayload utils
 type PayloadGetter func() marshaler.JSONMarshaler
 
+// CollectionReason identifies why an inventory payload was submitted.
+type CollectionReason string
+
+const (
+	// CollectionReasonStartup is the synchronous collection performed when a
+	// serverless process starts.
+	CollectionReasonStartup CollectionReason = "startup"
+	// CollectionReasonPeriodic is the unchanged refresh performed after
+	// MaxInterval has elapsed.
+	CollectionReasonPeriodic CollectionReason = "periodic"
+	// CollectionReasonRefresh is a collection requested after metadata changes.
+	CollectionReasonRefresh CollectionReason = "refresh"
+)
+
+// CollectionObserver is called after an inventory submission attempt. It is
+// used by serverless-init to emit one producer log for every submission path.
+type CollectionObserver func(reason CollectionReason, err error)
+
 // InventoryPayload offers helpers for all inventory payloads providing all the common part to create a new payload.
 // InventoryPayload will handle the common configuration as well as refresh rates and flare. This type is meant to be
 // embedded.
@@ -111,6 +129,8 @@ type InventoryPayload struct {
 	MinInterval   time.Duration
 	MaxInterval   time.Duration
 	forceRefresh  atomic.Bool
+	collectReason CollectionReason
+	observer      CollectionObserver
 	FlareFileName string
 }
 
@@ -207,14 +227,19 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 
 	// Collect will be called every MinInterval second. We send a new payload if a refresh was trigger or if it's
 	// been at least MaxInterval seconds since the last payload.
-	if !i.forceRefresh.Load() && i.MaxInterval-timeSince(i.LastCollect) > 0 {
+	refreshTriggered := i.forceRefresh.Load()
+	if !refreshTriggered && i.MaxInterval-timeSince(i.LastCollect) > 0 {
 		return i.MinInterval
 	}
 
 	i.forceRefresh.Store(false)
 	i.LastCollect = time.Now()
+	reason := CollectionReasonPeriodic
+	if refreshTriggered {
+		reason = CollectionReasonRefresh
+	}
 
-	p := i.getPayload()
+	p := i.payloadForReason(reason)
 	// If the payload is nil, we don't want to send it to the backend.
 	if p == nil {
 		i.log.Debugf("inventory payload is nil, skipping submission")
@@ -222,6 +247,9 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	}
 	if err := i.serializer.SendMetadata(p); err != nil {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
+		i.observeCollection(reason, err)
+	} else {
+		i.observeCollection(reason, nil)
 	}
 	return i.MinInterval
 }
@@ -255,8 +283,9 @@ func (i *InventoryPayload) RefreshTriggered() bool {
 // lifetime is shorter than the normal firstRunDelay + MinInterval window.
 //
 // ForceCollect is safe to call concurrently with the runner's periodic collect
-// loop; it holds the same mutex. It does NOT update LastCollect or forceRefresh,
-// so the periodic loop continues on its normal schedule after this call.
+// loop; it holds the same mutex. It records the startup as the latest collection
+// and clears refreshes queued while startup metadata was populated. This avoids
+// an immediate duplicate from the periodic runner after firstRunDelay.
 func (i *InventoryPayload) ForceCollect() error {
 	if !i.Enabled {
 		return nil
@@ -266,11 +295,37 @@ func (i *InventoryPayload) ForceCollect() error {
 	if i.serializer == nil {
 		return nil
 	}
-	p := i.getPayload()
+	i.forceRefresh.Store(false)
+	i.LastCollect = time.Now()
+	p := i.payloadForReason(CollectionReasonStartup)
 	if p == nil {
 		return nil
 	}
-	return i.serializer.SendMetadata(p)
+	err := i.serializer.SendMetadata(p)
+	i.observeCollection(CollectionReasonStartup, err)
+	return err
+}
+
+// CollectionReason returns the reason assigned to the payload currently being
+// built. Payload implementations can include it as low-cardinality metadata.
+func (i *InventoryPayload) CollectionReason() CollectionReason {
+	return i.collectReason
+}
+
+// SetCollectionObserver registers a callback for completed submission attempts.
+func (i *InventoryPayload) SetCollectionObserver(observer CollectionObserver) {
+	i.observer = observer
+}
+
+func (i *InventoryPayload) payloadForReason(reason CollectionReason) marshaler.JSONMarshaler {
+	i.collectReason = reason
+	return i.getPayload()
+}
+
+func (i *InventoryPayload) observeCollection(reason CollectionReason, err error) {
+	if i.observer != nil {
+		i.observer(reason, err)
+	}
 }
 
 // GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.

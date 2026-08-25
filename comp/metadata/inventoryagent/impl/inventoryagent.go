@@ -121,6 +121,7 @@ func NewComponent(deps Requires) Provides {
 		client:       deps.IPCClient,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
+	ia.SetCollectionObserver(ia.observeCollection)
 
 	if ia.Enabled {
 		ia.initData()
@@ -534,6 +535,9 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
 	maps.Copy(data, ia.data)
+	if flavor.GetFlavor() == "serverless-init" && ia.CollectionReason() != "" {
+		data["report_reason"] = string(ia.CollectionReason())
+	}
 
 	ia.getConfigs(data)
 
@@ -543,6 +547,24 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		Metadata:  data,
 		UUID:      uuid.GetUUID(),
 	}
+}
+
+func (ia *inventoryagent) observeCollection(reason util.CollectionReason, err error) {
+	if flavor.GetFlavor() != "serverless-init" {
+		return
+	}
+	metadata := ia.Get()
+	if err != nil {
+		ia.log.Warnf(
+			"serverless-init: inventory report failed reason=%s process_id=%s resource_id=%v workload_type=%v deployment_id=%v error=%v",
+			reason, uuid.GetUUID(), metadata["resource_id"], metadata["workload_type"], metadata["deployment_id"], err,
+		)
+		return
+	}
+	ia.log.Infof(
+		"serverless-init: inventory report queued reason=%s process_id=%s resource_id=%v workload_type=%v deployment_id=%v",
+		reason, uuid.GetUUID(), metadata["resource_id"], metadata["workload_type"], metadata["deployment_id"],
+	)
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.

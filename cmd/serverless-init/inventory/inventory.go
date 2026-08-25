@@ -52,6 +52,9 @@ func SetInventoryFields(ia inventoryagent.Component, cs cloudservice.CloudServic
 	if rid := resourceIDFromTags(origin, tags); rid != "" {
 		ia.Set("resource_id", rid)
 	}
+	if parentID := parentResourceIDFromTags(origin, tags); parentID != "" {
+		ia.Set("parent_resource_id", parentID)
+	}
 	if name := resourceNameFromOrigin(origin, tags); name != "" {
 		ia.Set("resource_name", name)
 	}
@@ -188,16 +191,15 @@ func lastPathSegment(path string) string {
 func resourceIDFromTags(origin string, tags map[string]string) string {
 	switch origin {
 	case cloudservice.CloudRunOrigin:
-		// tags["gcr.resource_name"] = "projects/<p>/locations/<l>/services/<s>"
-		// Gen2 function entrypoints are not separate Cloud Run resources, so do
-		// not append /functions/<target> to the stable resource identity.
-		return canonicalGCPRunID(tags["gcr.resource_name"])
+		// Cloud Run revisions are independently active and can receive traffic at
+		// the same time. Key their reports to the crawler's revision CCRID, while
+		// parent_resource_id retains the stable service identity.
+		return canonicalGCPRunRevisionID(tags["gcr.resource_name"], os.Getenv("K_REVISION"))
 	case cloudservice.CloudRunJobsOrigin:
 		// tags["gcrj.resource_name"] = "projects/<p>/locations/<l>/jobs/<j>"
 		return canonicalGCPRunID(tags["gcrj.resource_name"])
 	case cloudservice.ContainerAppOrigin:
-		// tags["resource_id"] = "/subscriptions/<s>/resourcegroups/<r>/providers/microsoft.app/containerapps/<a>"
-		return canonicalAzureID(tags["resource_id"])
+		return canonicalAzureRevisionID(tags["resource_id"], os.Getenv("CONTAINER_APP_REVISION"))
 	case cloudservice.AppServiceOrigin:
 		// AppService tags do not include a resource_id; construct from env.
 		sub := os.Getenv(cloudservice.AzureSubscriptionIdEnvVar)
@@ -206,14 +208,29 @@ func resourceIDFromTags(origin string, tags map[string]string) string {
 		if sub == "" || rg == "" || name == "" {
 			return ""
 		}
-		return fmt.Sprintf("//microsoft.azure/appServices/%s/%s/%s", sub, rg, strings.ToLower(name))
+		return canonicalAzureID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Web/sites/%s", sub, rg, name))
 	}
 	return ""
 }
 
+// parentResourceIDFromTags returns the stable parent resource for workloads
+// whose REDAPL row identity is revision-scoped. It is omitted for workloads
+// without a separately crawlable revision resource.
+func parentResourceIDFromTags(origin string, tags map[string]string) string {
+	switch origin {
+	case cloudservice.CloudRunOrigin:
+		return canonicalGCPRunID(tags["gcr.resource_name"])
+	case cloudservice.ContainerAppOrigin:
+		return canonicalAzureID(tags["resource_id"])
+	default:
+		return ""
+	}
+}
+
 // deploymentIDFromOriginAndTags returns revision/deployment context for a
-// report. It is useful for explaining which revision produced a report, but it
-// is deliberately not part of REDAPL row identity.
+// report. resource_id is the canonical revision CCRID for revision-capable
+// workloads; deployment_id keeps the provider's short revision name available
+// for display and diagnostics.
 func deploymentIDFromOriginAndTags(origin string, tags map[string]string) string {
 	switch origin {
 	case cloudservice.CloudRunOrigin:
@@ -233,32 +250,31 @@ func canonicalGCPRunID(path string) string {
 	return "//run.googleapis.com/" + path
 }
 
-// canonicalAzureID normalizes an Azure ARM resource ID to the lowercase
-// //microsoft.azure/... CCRID scheme used by the crawler.
+func canonicalGCPRunRevisionID(servicePath, revision string) string {
+	if servicePath == "" || revision == "" {
+		return ""
+	}
+	parts := strings.Split(strings.TrimPrefix(servicePath, "/"), "/")
+	if len(parts) < 4 || parts[0] != "projects" || parts[2] != "locations" {
+		return ""
+	}
+	return fmt.Sprintf("//run.googleapis.com/projects/%s/locations/%s/revisions/%s", parts[1], parts[3], revision)
+}
+
+// canonicalAzureID normalizes an Azure ARM resource ID to the lowercase ARM
+// canonical_resource_id emitted by the Azure crawler.
 func canonicalAzureID(armID string) string {
 	if armID == "" {
 		return ""
 	}
-	// ARM IDs look like "/subscriptions/<s>/resourcegroups/<r>/providers/microsoft.app/containerapps/<a>"
-	// Normalize to //microsoft.azure/containerApps/<s>/<r>/<a>
-	parts := strings.Split(strings.TrimPrefix(armID, "/"), "/")
-	// find subscriptions, resourcegroups, containerapps segments
-	var sub, rg, name string
-	for i := 0; i < len(parts)-1; i++ {
-		switch strings.ToLower(parts[i]) {
-		case "subscriptions":
-			sub = parts[i+1]
-		case "resourcegroups":
-			rg = parts[i+1]
-		case "containerapps":
-			name = parts[i+1]
-		}
+	return "/" + strings.ToLower(strings.TrimPrefix(armID, "/"))
+}
+
+func canonicalAzureRevisionID(appARMID, revision string) string {
+	if appARMID == "" || revision == "" {
+		return ""
 	}
-	if sub == "" || rg == "" || name == "" {
-		// fall back to the raw ARM ID lowercased if we can't parse it
-		return "//microsoft.azure/" + strings.ToLower(armID)
-	}
-	return fmt.Sprintf("//microsoft.azure/containerApps/%s/%s/%s", sub, rg, strings.ToLower(name))
+	return canonicalAzureID(strings.TrimSuffix(appARMID, "/") + "/revisions/" + revision)
 }
 
 // gcpProjectIDFromTags extracts the GCP project id from cloudservice tags.

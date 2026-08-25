@@ -227,6 +227,54 @@ func TestCollect(t *testing.T) {
 	assert.False(t, i.forceRefresh.Load())
 }
 
+func TestCollectionReasons(t *testing.T) {
+	i := getTestInventoryPayload(t, map[string]any{
+		"inventories_first_run_delay": 0,
+	})
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
+	serializerMock.On("SendMetadata", mock.Anything).Return(nil).Times(3)
+
+	var reasons []CollectionReason
+	i.SetCollectionObserver(func(reason CollectionReason, err error) {
+		assert.NoError(t, err)
+		reasons = append(reasons, reason)
+	})
+
+	i.Refresh()
+	assert.NoError(t, i.ForceCollect())
+	assert.False(t, i.forceRefresh.Load(), "startup should consume queued metadata refreshes")
+	assert.Equal(t, CollectionReasonStartup, i.CollectionReason())
+
+	i.Refresh()
+	i.collect(context.Background())
+	assert.Equal(t, CollectionReasonRefresh, i.CollectionReason())
+
+	i.LastCollect = time.Now().Add(-i.MaxInterval - time.Second)
+	i.collect(context.Background())
+	assert.Equal(t, CollectionReasonPeriodic, i.CollectionReason())
+	assert.Equal(t, []CollectionReason{
+		CollectionReasonStartup,
+		CollectionReasonRefresh,
+		CollectionReasonPeriodic,
+	}, reasons)
+	serializerMock.AssertExpectations(t)
+}
+
+func TestForceCollectResetsPeriodicSchedule(t *testing.T) {
+	i := getTestInventoryPayload(t, map[string]any{
+		"inventories_first_run_delay": 0,
+	})
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
+	serializerMock.On("SendMetadata", mock.Anything).Return(nil).Once()
+
+	assert.NoError(t, i.ForceCollect())
+	lastCollect := i.LastCollect
+	i.collect(context.Background())
+
+	assert.Equal(t, lastCollect, i.LastCollect)
+	serializerMock.AssertExpectations(t)
+}
+
 func TestCollectEmptyPayload(t *testing.T) {
 	i := getEmptyInventoryPayload(t, nil)
 

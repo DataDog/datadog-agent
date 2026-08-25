@@ -434,12 +434,6 @@ func run(
 	// MinInterval (~60 s), which is longer than most scale-to-zero windows.
 	if err := inventoryAgentComp.ForceCollect(); err != nil {
 		log.Warnf("serverless-init: initial inventory collection failed: %v", err)
-	} else {
-		metadata := inventoryAgentComp.Get()
-		log.Infof(
-			"serverless-init: inventory report queued reason=startup process_id=%s resource_id=%v workload_type=%v deployment_id=%v",
-			uuid.GetUUID(), metadata["resource_id"], metadata["workload_type"], metadata["deployment_id"],
-		)
 	}
 
 	err := modeConf.Runner(logConfig)
