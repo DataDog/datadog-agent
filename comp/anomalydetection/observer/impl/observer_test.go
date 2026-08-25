@@ -56,6 +56,22 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	}
 }
 
+func TestAddTelemetryUsesTelemetryMetricIdentity(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	obs := &observerImpl{engine: newEngine(engineConfig{storage: storage})}
+
+	obs.AddTelemetry("observer.input.count", 1, 100, []string{"source:parquet"})
+	obs.AddTelemetry("observer.input.count", 2, 100, []string{"source:parquet"})
+	obs.AddTelemetry("observer.input.cardinality", 3, 100, []string{"source:parquet"})
+
+	series := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.TelemetryNamespace})
+	require.Len(t, series, 2)
+	count := storage.GetSeries(observerdef.TelemetryNamespace, "observer.input.count", []string{"source:parquet"}, observerdef.AggregateAverage)
+	require.NotNil(t, count)
+	require.Len(t, count.Points, 1)
+	require.Equal(t, 1.5, count.Points[0].Value)
+}
+
 func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 100, nil)
