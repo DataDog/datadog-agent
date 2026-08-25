@@ -120,6 +120,7 @@ func (c *PowershellCheck) Run() error {
 	if err != nil {
 		return err
 	}
+	defer s.Commit()
 
 	start := time.Now()
 
@@ -160,7 +161,6 @@ func (c *PowershellCheck) Run() error {
 		}
 	}
 
-	s.Commit()
 	log.Debugf("cmdlet %s run complete: %d metrics from %d rows in %s",
 		c.instance.Cmdlet, len(rows)*len(c.instance.Metrics), len(rows),
 		time.Since(start).Round(time.Millisecond))
