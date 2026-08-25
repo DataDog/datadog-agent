@@ -26,7 +26,6 @@ go_library(
         "//pkg/discovery/tracermetadata/model",
         "//pkg/languagedetection/languagemodels",
         "//pkg/util/log",
-        "@com_github_stretchr_testify//assert",  # keep
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/filesystem",
