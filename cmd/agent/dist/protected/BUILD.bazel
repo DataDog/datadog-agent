@@ -13,5 +13,5 @@ pkg_files(
     attributes = pkg_attributes(mode = "0644"),
     prefix = "etc/datadog-agent/protected",
     strip_prefix = strip_prefix.from_pkg(),
-    visibility = ["//packages:__subpackages__"],
+    visibility = ["//cmd/agent/dist:__pkg__"],
 )

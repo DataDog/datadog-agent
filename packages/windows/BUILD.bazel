@@ -17,7 +17,6 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":drivers",
-        "//cmd/agent/dist/protected:protected_files",
     ],
 )
 
