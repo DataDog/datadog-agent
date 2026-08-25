@@ -101,12 +101,14 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		OpmsExtraHeaders:            config.GetStringMapString(setup.PAROpmsExtraHeaders),
 		DDHost:                      ddHost,
 		DDApiHost:                   "api." + ddSite,
+		APIKey:                      config.GetString("api_key"),
 		Modes:                       []modes.Mode{modes.ModePull},
 		OrgId:                       orgID,
 		PrivateKey:                  privateKey,
 		RunnerId:                    runnerID,
 		Urn:                         urn,
 		DatadogSite:                 ddSite,
+		NetworkPcapLogsDDURL:        config.GetString("network_pcap.logs_dd_url"),
 	}, nil
 }
 

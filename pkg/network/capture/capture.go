@@ -32,7 +32,8 @@ import (
 //	+8  orig_len  uint32  — on-wire packet length (skb->len)
 //	+12 ifindex   uint32  — skb->ifindex
 //	+16 ingress   uint32  — 1 if TC ingress hook, 0 if egress
-//	+20 _pad      uint32  — reserved, always 0
+//	+20 caplen    uint32  — bytes actually loaded into this record's data
+//	                        (min(orig_len, snapLen))
 //
 // Total: 24 bytes. Must match recXxxOffset constants in buildProgram().
 const ringBufMetaSize = 24
@@ -351,11 +352,6 @@ func (c *capturer) drainLoop(ctx context.Context) {
 			continue
 		}
 
-		// LostSamples > 0 means the ring buffer overflowed before this record.
-		if rec.LostSamples > 0 {
-			c.packetsDropped.Add(rec.LostSamples)
-		}
-
 		if len(rec.RawSample) < ringBufMetaSize {
 			c.errCount.Add(1)
 			continue
@@ -398,7 +394,7 @@ func (c *capturer) drainLoop(ctx context.Context) {
 //	[8:12]  orig_len uint32
 //	[12:16] ifindex  uint32
 //	[16:20] ingress  uint32  (1=ingress, 0=egress)
-//	[20:24] _pad     uint32
+//	[20:24] caplen   uint32  (bytes actually loaded, min(orig_len, snapLen))
 //	[24:]   packet data bytes
 func parseRecord(raw []byte) (RawPacket, bool) {
 	if len(raw) < ringBufMetaSize {
@@ -409,9 +405,16 @@ func parseRecord(raw []byte) (RawPacket, bool) {
 	origLen := le.Uint32(raw[8:12])
 	ifindex := le.Uint32(raw[12:16])
 	ingress := le.Uint32(raw[16:20]) != 0
+	capLen := le.Uint32(raw[20:24])
 
-	data := make([]byte, len(raw)-ringBufMetaSize)
-	copy(data, raw[ringBufMetaSize:])
+	// capLen is written by the eBPF program as min(orig_len, snapLen), but
+	// clamp defensively against a truncated/malformed record.
+	if maxCap := uint32(len(raw) - ringBufMetaSize); capLen > maxCap {
+		capLen = maxCap
+	}
+
+	data := make([]byte, capLen)
+	copy(data, raw[ringBufMetaSize:ringBufMetaSize+int(capLen)])
 
 	// We use the wall-clock time at read time as the packet timestamp.
 	// bpf_ktime_get_ns() returns boot-relative monotonic time; converting to
@@ -458,8 +461,10 @@ func (c *capturer) directionAllowed(ingress bool) bool {
 //	R8  skb->len  (original packet length)
 //	R9  skb->ifindex
 //
-// cbpfc is configured with Working=[R1,R2,R3,R4] so R5–R9 are untouched by the
-// filter. cbpfc's PacketStart=R1, PacketEnd=R2, Result=R3.
+// cbpfc is configured with Working=[R0,R3,R4,R5] (disjoint from
+// PacketStart/PacketEnd, per cbpfc's contract) so R1,R2,R6–R9 are untouched
+// by the filter except as PacketStart/PacketEnd. cbpfc's PacketStart=R1,
+// PacketEnd=R2, Result=R3.
 func (c *capturer) buildProgram(ingress bool) (*ebpf.Program, error) {
 	const (
 		tcActUnspec = -1
@@ -474,6 +479,7 @@ func (c *capturer) buildProgram(ingress bool) (*ebpf.Program, error) {
 		recOrigLenOffset int16 = 8
 		recIfindexOffset int16 = 12
 		recIngressOffset int16 = 16
+		recCapLenOffset  int16 = 20
 		recDataOffset    int16 = ringBufMetaSize
 	)
 
@@ -514,14 +520,33 @@ func (c *capturer) buildProgram(ingress bool) (*ebpf.Program, error) {
 	)
 
 	// ── 3. Load packet data into reservation[recDataOffset:] ─────────────────
-	// bpf_skb_load_bytes(skb, offset, to, len) → 0 on success, negative on error
+	// bpf_skb_load_bytes(skb, offset, to, len) → 0 on success, negative on error.
+	// len must not exceed the skb's actual length — most packets are far
+	// shorter than snapLen, and asking to load more bytes than the skb has
+	// makes the helper fail (so we'd silently discard every packet). Clamp to
+	// min(skb->len, snapLen) using R8 (skb->len, set in the prologue).
+	//
+	// bpf_skb_load_bytes' len argument also requires a provably non-zero
+	// minimum — the verifier rejects the call if it cannot prove len > 0
+	// (raw LoadMem gives skb->len an unconstrained [0, X] range). Explicitly
+	// branch on R4 == 0 so the verifier can narrow R4's range on every path
+	// into the call, instead of relying on a single comparison.
 	insts = append(insts,
 		asm.Mov.Reg(asm.R1, asm.R6),                   // R1 = skb
 		asm.Mov.Imm(asm.R2, 0),                         // R2 = byte offset = 0
 		asm.Mov.Reg(asm.R3, asm.R7),                    // R3 = reservation base
 		asm.Add.Imm(asm.R3, int32(recDataOffset)),       // R3 = &reservation[recDataOffset]
-		asm.Mov.Imm(asm.R4, int32(c.snapLen)),           // R4 = length to load
-		asm.FnSkbLoadBytes.Call(),                        // R0 = 0 or <0
+		asm.Mov.Reg(asm.R4, asm.R8),                     // R4 = skb->len
+		asm.JGT.Imm(asm.R4, int32(c.snapLen), "clamp_len"),
+		asm.JGT.Imm(asm.R4, 0, "load_len_ready"), // 0 < R4 <= snapLen already
+		// R4 == 0 — nothing to load; discard the reservation and pass.
+		asm.Mov.Reg(asm.R1, asm.R7),
+		asm.Mov.Imm(asm.R2, 0),
+		asm.FnRingbufDiscard.Call(),
+		asm.Mov.Imm(asm.R0, tcActUnspec),
+		asm.Return(),
+		asm.Mov.Imm(asm.R4, int32(c.snapLen)).WithSymbol("clamp_len"), // R4 = snapLen (>0 constant)
+		asm.FnSkbLoadBytes.Call().WithSymbol("load_len_ready"), // R0 = 0 or <0
 		// Non-zero (error) → discard reservation and pass.
 		asm.JEq.Imm(asm.R0, 0, "skb_load_ok"),
 		asm.Mov.Reg(asm.R1, asm.R7),
@@ -541,9 +566,15 @@ func (c *capturer) buildProgram(ingress bool) (*ebpf.Program, error) {
 	)
 
 	if len(c.filterInsts) > 0 {
-		// filterInsts: uses R1(start), R2(end), R3(result), R4 scratch.
-		// R6–R9 are untouched (cbpfc Working=[R1,R2,R3,R4]).
+		// filterInsts: uses R1(start), R2(end), R3(result), R0/R4/R5 scratch.
+		// R6–R9 are untouched (cbpfc Working=[R0,R3,R4,R5]).
 		insts = append(insts, c.filterInsts...)
+
+		// cbpfc's generated code always ends by jumping to ResultLabel with
+		// the result in R3 — the caller must anchor that label itself.
+		insts = append(insts,
+			asm.Mov.Reg(asm.R3, asm.R3).WithSymbol(cbpfcResultLabel),
+		)
 
 		// R3 = 0 → no match.
 		insts = append(insts,
@@ -565,9 +596,24 @@ func (c *capturer) buildProgram(ingress bool) (*ebpf.Program, error) {
 		asm.StoreMem(asm.R7, recKtimeOffset, asm.R0, asm.DWord),   // rec[0]  = ktime_ns
 		asm.StoreMem(asm.R7, recOrigLenOffset, asm.R8, asm.Word),   // rec[8]  = orig_len
 		asm.StoreMem(asm.R7, recIfindexOffset, asm.R9, asm.Word),   // rec[12] = ifindex
-		asm.StoreImm(asm.R7, recIngressOffset, ingressVal, asm.Word), // rec[16] = ingress (constant)
-		asm.StoreImm(asm.R7, recIngressOffset+4, 0, asm.Word),      // rec[20] = pad = 0
+		asm.StoreImm(asm.R7, recIngressOffset, int64(ingressVal), asm.Word), // rec[16] = ingress (constant)
 	)
+
+	if c.cfg.HeaderOnly {
+		// rec[20] = caplen = dynamic per-packet L3/L4 header boundary, capped
+		// at snapLen — see buildHeaderOffsetInsts (bpf.go) and Confluence NET
+		// "Dynamic Header Snap Length — Implementation" (page 7027392746).
+		insts = append(insts, buildHeaderOffsetInsts(c.snapLen)...)
+		insts = append(insts, asm.StoreMem(asm.R7, recCapLenOffset, asm.R4, asm.Word))
+	} else {
+		// rec[20] = caplen = min(orig_len, snapLen) — same clamp as step 3.
+		insts = append(insts,
+			asm.Mov.Reg(asm.R0, asm.R8),
+			asm.JLE.Imm(asm.R0, int32(c.snapLen), "caplen_ready"),
+			asm.Mov.Imm(asm.R0, int32(c.snapLen)),
+			asm.StoreMem(asm.R7, recCapLenOffset, asm.R0, asm.Word).WithSymbol("caplen_ready"),
+		)
+	}
 
 	// ── 6. Submit and return ──────────────────────────────────────────────────
 	insts = append(insts,

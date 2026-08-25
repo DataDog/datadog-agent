@@ -46,6 +46,7 @@ const (
 	InjectorModule               types.ModuleName = "injector"
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
 	LogonDurationModule          types.ModuleName = "logon_duration"
+	PacketCaptureModule          types.ModuleName = "packet_capture"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -195,6 +196,9 @@ func load() (*types.Config, error) {
 	}
 	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
 		c.EnabledModules[NoisyNeighborModule] = struct{}{}
+	}
+	if cfg.GetBool(pktcapNS("enabled")) {
+		c.EnabledModules[PacketCaptureModule] = struct{}{}
 	}
 	// Read from the core config (datadog.yaml), not the system-probe config, so that
 	// enabling logon_duration in the core agent (e.g. via infrastructure_mode:

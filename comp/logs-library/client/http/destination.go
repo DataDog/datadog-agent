@@ -40,9 +40,10 @@ import (
 
 // ContentType options,
 const (
-	TextContentType     = "text/plain"
-	JSONContentType     = "application/json"
-	ProtobufContentType = "application/x-protobuf"
+	TextContentType        = "text/plain"
+	JSONContentType        = "application/json"
+	ProtobufContentType    = "application/x-protobuf"
+	OctetStreamContentType = "application/octet-stream"
 )
 
 // NoTimeoutOverride is a special value that tells the httpClientFactory to use the logs_config.http_timeout setting.
