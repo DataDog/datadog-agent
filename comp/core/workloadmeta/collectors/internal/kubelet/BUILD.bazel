@@ -44,6 +44,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/errors",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes",

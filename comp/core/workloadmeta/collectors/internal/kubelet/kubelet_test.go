@@ -28,6 +28,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -48,9 +49,9 @@ func TestDisabledCLCRunner(t *testing.T) {
 	})
 
 	c := &collector{
-		id:      collectorID,
-		cfg:     cfg,
-		catalog: workloadmeta.NodeAgent,
+		id:          collectorID,
+		isCLCRunner: helper.IsCLCRunner(cfg),
+		catalog:     workloadmeta.NodeAgent,
 	}
 
 	err := c.Start(context.Background(), nil)

@@ -40,7 +40,7 @@ type dependencies struct {
 
 type collector struct {
 	id                         string
-	cfg                        config.Component
+	isCLCRunner                bool
 	catalog                    workloadmeta.AgentType
 	store                      workloadmeta.Component
 	collectEphemeralContainers bool
@@ -59,7 +59,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                         collectorID,
-			cfg:                        deps.Config,
+			isCLCRunner:                helper.IsCLCRunner(deps.Config),
 			catalog:                    workloadmeta.NodeAgent,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 			pullInterval:               time.Duration(deps.Config.GetInt("kubelet_collector_pull_interval")) * time.Second,
@@ -81,7 +81,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
-	if helper.IsCLCRunner(c.cfg) {
+	if c.isCLCRunner {
 		return errors.NewDisabled(componentName, "Agent is a Cluster Checks Runner and has no reachable local Kubelet")
 	}
 
