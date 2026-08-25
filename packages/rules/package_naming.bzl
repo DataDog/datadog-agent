@@ -73,7 +73,7 @@ def make_version():
     milestone = release_json.get("current_milestone")
 
     # 'localbuild' is just a placeholder choice for now.
-    return milestone + "-localbuild"
+    return milestone + "~localbuild"
 
 def _extract_arch(ctx, cpu, style):
     """Extract the arch part from a os/arch pair."""
