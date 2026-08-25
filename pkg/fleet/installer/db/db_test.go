@@ -106,12 +106,6 @@ func TestHasPackage(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
-	// bbolt uses fcntl(2) on AIX (vs flock(2) on Linux). fcntl locks are
-	// per-(process, inode), so a second open in the same process can't
-	// conflict with its own lock and succeeds immediately instead of blocking.
-	if runtime.GOOS == "aix" {
-		t.Skip("bbolt file locking does not block on AIX")
-	}
 	dbFile := filepath.Join(t.TempDir(), "test.db")
 	dbLock, err := New(context.Background(), dbFile)
 	assert.NoError(t, err)
