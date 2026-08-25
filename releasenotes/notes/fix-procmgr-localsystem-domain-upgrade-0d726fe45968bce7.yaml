@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    On Windows, upgrading the Agent without providing ``DDAGENTUSER_PASSWORD`` no
+    longer disables ``dd-procmgr-service``. The installer now runs the process
+    manager as ``LocalSystem`` and keeps it enabled (manual start), so the service
+    does not retry failed logons as the domain Agent user. Agent-profile children
+    continue to spawn as the Agent user using the SCM-stored ``datadogagent``
+    service password when the installer LSA secret is unavailable.
