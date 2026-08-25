@@ -20,6 +20,7 @@ import (
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -33,6 +34,21 @@ type stepByStepSuite struct {
 	osVersion    float64
 	osDesc       e2eos.Descriptor
 	cwsSupported bool
+}
+
+func (is *stepByStepSuite) SetupSuite() {
+	is.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer is.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer is.CleanupOnSetupFailure()
+
+	// Harden apt/yum against package-mirror outages before the install steps run. On CentOS 7
+	// this repoints the EOL base/updates/extras repos away from the now-403ing vault.centos.org
+	// /centos/7/ path (incident 58780); on Ubuntu/Debian it bounds apt's timeout/retries and adds
+	// mirror fallbacks. Each call is a no-op on the other's package manager. Same helper already
+	// used by the installer and ddot install suites.
+	h := host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	h.ConfigureYumMirrors()
+	h.ConfigureAptMirrors()
 }
 
 func TestStepByStepScript(t *testing.T) {
