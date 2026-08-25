@@ -12,20 +12,11 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeServer, ServerOptions};
-use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
-
-const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\datadog-procmgrd";
+use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 const DEFAULT_PIPE_INSTANCES: usize = 4;
 
-/// Placeholder URI for tonic Endpoint when connecting over Named Pipes.
-/// The actual address is irrelevant because `connect_with_connector` bypasses it.
-pub const DUMMY_ENDPOINT: &str = "http://[::]:50051";
-
 pub fn ipc_path() -> PathBuf {
-    std::env::var("DD_PM_SOCKET_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(DEFAULT_PIPE_PATH))
+    dd_procmgr_client::ipc_path()
 }
 
 /// Named pipes don't require filesystem preparation.
@@ -162,47 +153,4 @@ async fn accept_loop(
     }
 
     Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Client
-// ---------------------------------------------------------------------------
-
-pub async fn connect(path: &Path) -> Result<tonic::transport::Channel> {
-    let pipe_name = path.as_os_str().to_os_string();
-    let channel = tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT)
-        .connect_with_connector(tower::service_fn(move |_| {
-            let name = pipe_name.clone();
-            async move { open_pipe_with_retry(&name).await }
-        }))
-        .await
-        .with_context(|| format!("failed to connect to named pipe {}", path.display()))?;
-    Ok(channel)
-}
-
-const PIPE_BUSY_RETRIES: u32 = 5;
-const PIPE_BUSY_BACKOFF_MS: u64 = 50;
-
-/// Open a named pipe client, retrying on `ERROR_PIPE_BUSY`.
-///
-/// All server instances may be occupied when the client calls `open()`.
-/// Windows named pipe clients are expected to wait and retry in this case.
-async fn open_pipe_with_retry(
-    name: &std::ffi::OsStr,
-) -> io::Result<hyper_util::rt::TokioIo<tokio::net::windows::named_pipe::NamedPipeClient>> {
-    let mut backoff = PIPE_BUSY_BACKOFF_MS;
-    for attempt in 0..PIPE_BUSY_RETRIES {
-        match ClientOptions::new().open(name) {
-            Ok(client) => return Ok(hyper_util::rt::TokioIo::new(client)),
-            Err(e)
-                if e.raw_os_error() == Some(ERROR_PIPE_BUSY as i32)
-                    && attempt + 1 < PIPE_BUSY_RETRIES =>
-            {
-                tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
-                backoff *= 2;
-            }
-            Err(e) => return Err(e),
-        }
-    }
-    unreachable!()
 }

@@ -177,7 +177,7 @@
 // # Contents Overview
 //
 // Files Overview:
-//   - install_script.go: Contains the `DatadogInstallScript` struct and methods to run the Datadog Install script on a remote Windows host.
+//   - install_script.go: Contains the `DatadogInstallExe` struct and methods to run the Datadog Installer exe on a remote Windows host.
 //   - installer.go: Contains the `DatadogInstaller` struct and methods to manage the Datadog Installer executable on a remote Windows host, including installation, uninstallation, and package management.
 //
 // Test Suites Overview:
