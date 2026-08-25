@@ -317,30 +317,18 @@ func (ra *remoteAgentRegistry) start() {
 			case <-ticker.C:
 				ra.agentMapMu.Lock()
 
-				agentsToRemove := make([]string, 0)
 				for sessionID, details := range ra.agentMap {
 					details.unhealthyMu.Lock()
-					isUnhealthy := details.unhealthyReason != nil
+					reason := details.unhealthyReason
 					details.unhealthyMu.Unlock()
-					if time.Since(details.RegisteredAgent.LastSeen) > remoteAgentIdleTimeout || isUnhealthy {
-						agentsToRemove = append(agentsToRemove, sessionID)
-					}
-				}
-
-				for _, sessionID := range agentsToRemove {
-					remoteAgentClient, ok := ra.agentMap[sessionID]
-					if ok {
-						remoteAgentClient.unhealthyMu.Lock()
-						reason := remoteAgentClient.unhealthyReason
-						remoteAgentClient.unhealthyMu.Unlock()
+					if time.Since(details.RegisteredAgent.LastSeen) > remoteAgentIdleTimeout || reason != nil {
 						if reason != nil {
-							log.Warnf("Remote agent '%s' deregistered: %v", remoteAgentClient.RegisteredAgent.DisplayName, reason)
+							log.Warnf("Remote agent '%s' deregistered: %v", details.RegisteredAgent.DisplayName, reason)
 						} else {
-							log.Infof("Remote agent '%s' deregistered after being idle for %s.", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
+							log.Infof("Remote agent '%s' deregistered after being idle for %s.", details.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
 						}
-						ra.telemetryStore.remoteAgentRegistered.Dec(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
-						// close the remote agent client and remove it from the registry
-						_ = remoteAgentClient.close()
+						ra.telemetryStore.remoteAgentRegistered.Dec(details.RegisteredAgent.SanitizedDisplayName)
+						_ = details.close()
 						delete(ra.agentMap, sessionID)
 					}
 				}
