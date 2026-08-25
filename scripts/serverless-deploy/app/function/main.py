@@ -1,7 +1,7 @@
-import functions_framework
 import json
 import logging
-import os
+
+import functions_framework
 
 
 @functions_framework.http
