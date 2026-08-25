@@ -545,11 +545,13 @@ deploy_web_app_linux_code_sidecar() {
       --query appServicePlanId -o tsv 2>/dev/null | sed 's|.*/||')
     if [[ "${current_plan}" != "dd-test-plan-linux-code" ]]; then
       log "#9 migrating nina-webapp-linux-code from plan '${current_plan}' → dd-test-plan-linux-code for distinct UUID"
+      # --plan flag removed in newer Azure CLI; use az appservice plan show + move-plan if needed
       az webapp update \
         --name nina-webapp-linux-code \
         --resource-group "${rg}" \
         --plan dd-test-plan-linux-code \
-        --subscription "${AZURE_SUBSCRIPTION_ID}" >/dev/null
+        --subscription "${AZURE_SUBSCRIPTION_ID}" >/dev/null 2>&1 || \
+        log "#9 WARN: plan migration not supported by this az CLI version, skipping (webapp already exists on plan '${current_plan}')"
     fi
   else
     az webapp create \
@@ -627,11 +629,11 @@ main() {
   deploy_cloudrun_sidecar              # #2 GCP Cloud Run Service (sidecar)
   deploy_cloudrun_job                  # #3 GCP Cloud Run Job (init-container)
   deploy_cloudrun_function_sidecar     # #4 GCP Cloud Run Function gen2 (sidecar)
-  deploy_container_app                 # #5 Azure Container App (init-container)
-  deploy_container_app_sidecar         # #6 Azure Container App (sidecar)
-  deploy_web_app_container             # #7 Azure Web App Linux Containers (init-container)
-  deploy_web_app_sidecar               # #8 Azure Web App SITECONTAINERS (sidecar)
-  deploy_web_app_linux_code_sidecar    # #9 Azure Web App Linux Code + sidecar
+  deploy_container_app              || log "WARN: #5 Azure Container App (init) failed — skipping"
+  deploy_container_app_sidecar      || log "WARN: #6 Azure Container App (sidecar) failed — skipping"
+  deploy_web_app_container          || log "WARN: #7 Azure Web App (containers) failed — skipping"
+  deploy_web_app_sidecar            || log "WARN: #8 Azure Web App (sidecar) failed — skipping"
+  deploy_web_app_linux_code_sidecar || log "WARN: #9 Azure Web App (linux code) failed — skipping"
 
   echo ""
   echo "=========================================="

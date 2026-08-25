@@ -2,6 +2,7 @@ FROM golang:1.26-alpine AS builder
 
 ARG GIT_COMMIT=unknown
 ARG AGENT_VERSION=dev
+ARG SERVERLESS_INIT_VERSION=dev
 
 RUN apk add --no-cache gcc musl-dev
 
@@ -19,7 +20,8 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
   -tags "serverless otlp" \
   -ldflags="-linkmode external -extldflags '-static' \
     -X github.com/DataDog/datadog-agent/pkg/version.Commit=${GIT_COMMIT} \
-    -X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=${AGENT_VERSION}" \
+    -X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=${AGENT_VERSION} \
+    -X github.com/DataDog/datadog-agent/pkg/serverless/tags.currentExtensionVersion=${SERVERLESS_INIT_VERSION}" \
   -o /serverless-init \
   ./cmd/serverless-init/
 
