@@ -5,10 +5,10 @@
 
 //go:build ignore
 
-package ebpf
+package lockcontention
 
 /*
-#include "./c/lock_contention.h"
+#include "../c/lock_contention.h"
 */
 import "C"
 
