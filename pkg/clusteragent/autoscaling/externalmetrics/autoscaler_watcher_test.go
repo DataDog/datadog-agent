@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
 	kube_informer "k8s.io/client-go/informers"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 )
 
 const (
@@ -80,13 +82,20 @@ func (f *autoscalerFixture) newAutoscalerWatcher(selector labels.Selector) (*Aut
 	}
 	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
 
+	// Discover the HPA GVR the same way the server does, so the watcher is
+	// constructed with a pre-discovered GVR instead of a live client.
+	hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(kubeClient)
+	if err != nil {
+		return nil, nil, nil
+	}
+
 	for _, wpa := range f.wpaLister {
 		f.wpaObjects = append(f.wpaObjects, wpa)
 	}
 	wpaClient := fake.NewSimpleDynamicClient(scheme, f.wpaObjects...)
 	wpaInformer := dynamic_informer.NewDynamicSharedInformerFactory(wpaClient, noResyncPeriodFunc())
 
-	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", selector, kubeClient, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", selector, hpaGVR, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -686,4 +695,22 @@ func TestAutoscalerAutogenLabelSelectorFiltering(t *testing.T) {
 
 	// wpa1 should be excluded — no label match, no datadogmetric@ reference
 	assert.False(t, foundWpa1Ref, "wpa1 should be excluded (no label match and no datadogmetric@ reference)")
+}
+
+// NewAutoscalerWatcher must not perform live HPA discovery. The caller discovers
+// the HPA GroupVersionResource and passes it in, so a kubeClient whose discovery
+// would fail must not prevent construction. This guards the CONTINT-5549 fix: if
+// discovery moves back inside the watcher, this test fails with a discovery error.
+func TestNewAutoscalerWatcherDoesNotDiscoverHPA(t *testing.T) {
+	f := newAutoscalerFixture(t)
+
+	// kubeClient has no autoscaling group registered, so DiscoverHPAGroupVersionResource
+	// against it would fail. The watcher must not call it.
+	kubeClient := kube_fake.NewSimpleClientset()
+	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
+
+	hpaGVR := schema.GroupVersionResource{Group: "autoscaling", Version: "v2beta1", Resource: "horizontalpodautoscalers"}
+
+	_, err := NewAutoscalerWatcher(0, true, 1, "default", labels.Everything(), hpaGVR, kubeInformer, nil, getIsLeaderFunction(true), &f.store)
+	assert.NoError(t, err)
 }

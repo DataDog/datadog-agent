@@ -25,10 +25,12 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 )
@@ -174,9 +176,10 @@ type apiServerDeps struct {
 	client dynamic.Interface
 	mapper apimeta.RESTMapper
 	store  custommetrics.Store
+	hpaGVR schema.GroupVersionResource
 }
 
-// setupAPIServerDeps constructs the dynamic client, REST mapper, and configmap store.
+// setupAPIServerDeps constructs the dynamic client, REST mapper, configmap store, and HPA GroupVersionResource (if using the CRD provider path).
 func (a *DatadogMetricsAdapter) setupAPIServerDeps(apiCl *as.APIClient) (apiServerDeps, error) {
 	client, err := a.DynamicClient()
 	if err != nil {
@@ -193,7 +196,12 @@ func (a *DatadogMetricsAdapter) setupAPIServerDeps(apiCl *as.APIClient) (apiServ
 	// The CRD provider path starts shared informers inside its constructor, so
 	// its store handle is unused; only the configmap-backed path needs a store.
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
-		return apiServerDeps{client: client, mapper: mapper}, nil
+		hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(apiCl.Cl)
+		if err != nil {
+			log.Errorf("Unable to discover HPA GroupVersionResource: %v", err)
+			return apiServerDeps{}, err
+		}
+		return apiServerDeps{client: client, mapper: mapper, hpaGVR: hpaGVR}, nil
 	}
 
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
@@ -210,7 +218,7 @@ func (a *DatadogMetricsAdapter) setupAPIServerDeps(apiCl *as.APIClient) (apiServ
 func (a *DatadogMetricsAdapter) buildProvider(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component], deps apiServerDeps) (provider.ExternalMetricsProvider, error) {
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
 		if dc, ok := datadogCl.Get(); ok {
-			return externalmetrics.NewDatadogMetricProvider(ctx, apiCl, dc)
+			return externalmetrics.NewDatadogMetricProvider(ctx, apiCl, dc, deps.hpaGVR)
 		}
 		return nil, errors.New("unable to create DatadogMetricProvider as DatadogClient failed with uninitialized datadog client")
 	}
