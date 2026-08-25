@@ -81,7 +81,9 @@ func prepare(root *cobra.Command, args []string, discover providerDiscovery) err
 		return errors.New("remote command was not initialized")
 	}
 	params := globalParams.(*command.GlobalParams)
-	applyRootFlags(args, params)
+	if err := command.ParseGlobalFlagsBeforeSubcommand(args, "remote", params); err != nil {
+		return err
+	}
 	return discover(remote, params, args)
 }
 
@@ -126,53 +128,6 @@ func discoverProviders(remote *cobra.Command, globalParams *command.GlobalParams
 			}
 		})
 	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams)), core.Bundle(), ipcfx.ModuleReadOnly())
-}
-
-func applyRootFlags(args []string, params *command.GlobalParams) {
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		if arg == "remote" {
-			break
-		}
-
-		name, value, hasValue := strings.Cut(arg, "=")
-		if !hasValue && index+1 < len(args) {
-			value = args[index+1]
-		}
-
-		switch name {
-		case "--cfgpath", "-c":
-			if hasValue || index+1 < len(args) {
-				params.ConfFilePath = value
-				if !hasValue {
-					index++
-				}
-			}
-		case "--extracfgpath", "-E":
-			if hasValue || index+1 < len(args) {
-				params.ExtraConfFilePath = append(params.ExtraConfFilePath, value)
-				if !hasValue {
-					index++
-				}
-			}
-		case "--sysprobecfgpath":
-			if hasValue || index+1 < len(args) {
-				params.SysProbeConfFilePath = value
-				if !hasValue {
-					index++
-				}
-			}
-		case "--fleetcfgpath":
-			if hasValue || index+1 < len(args) {
-				params.FleetPoliciesDirPath = value
-				if !hasValue {
-					index++
-				}
-			}
-		case "--no-color", "-n":
-			params.NoColor = true
-		}
-	}
 }
 
 func isBareRemoteInvocation(args []string) bool {
