@@ -59,7 +59,7 @@ And other thing which might be useful:
 - milestone: Next product milestone version.
 """
 
-def _make_version():
+def make_version():
     """Make the version component of the file name.
 
     Use PACKAGE_VERSION, if it is availble, otherwise guess from release.json
@@ -111,7 +111,7 @@ def _package_name_variables_impl(ctx):
 
     flavor = ctx.attr._flavor[BuildSettingInfo].value
     values["product_name"] = _inject_flavor(ctx.attr.product_name, flavor)
-    values["version"] = _make_version()
+    values["version"] = make_version()
     values["base_branch"] = release_json.get("base_branch")
     values["milestone"] = release_json.get("current_milestone")
 
