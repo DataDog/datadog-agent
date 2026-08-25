@@ -131,6 +131,7 @@ type remoteConfigPackageState struct {
 	Task                    *remoteConfigPackageTask `json:"task,omitempty"`
 	StableConfigVersion     string                   `json:"stable_config_version,omitempty"`
 	ExperimentConfigVersion string                   `json:"experiment_config_version,omitempty"`
+	DdotProcessState        string                   `json:"ddot_process_state,omitempty"`
 }
 
 type remoteConfigPackageTask struct {

@@ -15,9 +15,6 @@ import (
 	"strings"
 )
 
-// cliClient reports dd-procmgrd state by exec'ing the dd-procmgr CLI instead of dialing gRPC
-// directly, so binaries that only need this collector (e.g. datadog-installer) don't link
-// google.golang.org/grpc or the generated procmgr protobuf stubs.
 type cliClient struct {
 	cli string
 }
@@ -75,12 +72,11 @@ func (s *cliSession) Disconnect() error {
 	return nil
 }
 
-// runProcmgrCLI invokes the dd-procmgr CLI. cli is resolved to a fixed path under the agent
-// install root (see procmgrCLIPath) and args are static subcommand/flag literals, never
-// derived from external input.
-// no-dd-sa:go-security/command-injection
 func runProcmgrCLI(ctx context.Context, cli string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, cli, args...)
+	if err := runAsDDAgent(cmd); err != nil {
+		return nil, fmt.Errorf("dd-procmgr %s: %w", strings.Join(args, " "), err)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

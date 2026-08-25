@@ -16,6 +16,9 @@ Packages installed:
       ExperimentVersion: {{ $remoteConfig.ExperimentVersion }}
       StableConfigVersion: {{ $remoteConfig.StableConfigVersion }}
       ExperimentConfigVersion: {{ $remoteConfig.ExperimentConfigVersion }}
+      {{- if $remoteConfig.DdotProcessState }}
+      DdotProcessState: {{ $remoteConfig.DdotProcessState }}
+      {{- end }}
       Task:
         {{- if $remoteConfig.Task }}
         Id: {{ $remoteConfig.Task.ID }}

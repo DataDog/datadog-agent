@@ -7,8 +7,15 @@
 
 package coat
 
-import "path/filepath"
+import (
+	"os/exec"
+	"path/filepath"
+)
 
 func procmgrCLIPath(installRoot string) string {
 	return filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
+}
+
+func runAsDDAgent(_ *exec.Cmd) error {
+	return nil
 }
