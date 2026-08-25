@@ -641,7 +641,7 @@ properties:
     - template_section:Common
   forwarder_backoff_base:
     node_type: setting
-    type: integer
+    type: number
     default: 2
     visibility: public
     description: |-
@@ -650,9 +650,10 @@ properties:
       higher rate of exponential growth.
     tags:
     - template_section:Common
+    - golang_type:float64
   forwarder_backoff_max:
     node_type: setting
-    type: integer
+    type: number
     default: 64
     visibility: public
     description: |-
@@ -661,6 +662,7 @@ properties:
       higher maximum backoff time.
     tags:
     - template_section:Common
+    - golang_type:float64
   cloud_provider_metadata:
     node_type: setting
     type: array
@@ -7527,8 +7529,10 @@ properties:
     comment: in minutes
   forwarder_backoff_factor:
     node_type: setting
-    type: integer
+    type: number
     default: 2
+    tags:
+      - golang_type:float64
   forwarder_connection_reset_interval:
     node_type: setting
     type: integer
