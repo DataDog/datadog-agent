@@ -19,6 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/tools/cache"
+
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 )
 
 // fakeLister creates a cache.GenericLister backed by the given CRs.
@@ -132,10 +134,11 @@ func TestReconcile(t *testing.T) {
 			}
 
 			c := &Controller{
-				lister:   lister,
-				handlers: []Handler{handler},
-				isLeader: func() bool { return false },
-				lastSeen: make(map[string]*datadoghq.DatadogInstrumentation),
+				lister:    lister,
+				handlers:  []Handler{handler},
+				isLeader:  func() bool { return false },
+				telemetry: newControllerTelemetry(telemetrymock.New(t)),
+				lastSeen:  make(map[string]*datadoghq.DatadogInstrumentation),
 			}
 			if tt.lastSeen != nil {
 				key, _ := cache.MetaNamespaceKeyFunc(tt.lastSeen)
@@ -174,10 +177,11 @@ func TestReconcileMultipleHandlers(t *testing.T) {
 	}
 
 	c := &Controller{
-		lister:   fakeLister(crWith),
-		handlers: []Handler{handlerA, handlerB},
-		isLeader: func() bool { return false },
-		lastSeen: make(map[string]*datadoghq.DatadogInstrumentation),
+		lister:    fakeLister(crWith),
+		handlers:  []Handler{handlerA, handlerB},
+		isLeader:  func() bool { return false },
+		telemetry: newControllerTelemetry(telemetrymock.New(t)),
+		lastSeen:  make(map[string]*datadoghq.DatadogInstrumentation),
 	}
 
 	err := c.reconcile(t.Context(), "default/test-ddi")
@@ -229,6 +233,7 @@ func TestReconcile_UpdateStatusOnlyAsLeader(t *testing.T) {
 				lister:       fakeLister(crWith),
 				handlers:     []Handler{handler},
 				isLeader:     func() bool { return tt.isLeader },
+				telemetry:    newControllerTelemetry(telemetrymock.New(t)),
 				lastSeen:     make(map[string]*datadoghq.DatadogInstrumentation),
 			}
 
@@ -275,6 +280,7 @@ func TestReconcileDeleteSkipsStatusUpdate(t *testing.T) {
 		lister:       fakeLister(), // CR not in cache (deleted)
 		handlers:     []Handler{handler},
 		isLeader:     func() bool { return true },
+		telemetry:    newControllerTelemetry(telemetrymock.New(t)),
 		lastSeen:     map[string]*datadoghq.DatadogInstrumentation{"default/test-ddi": crWith.DeepCopy()},
 	}
 
@@ -299,10 +305,11 @@ func TestReconcileUpdatesLastSeen(t *testing.T) {
 	}
 
 	c := &Controller{
-		lister:   fakeLister(crWith),
-		handlers: []Handler{handler},
-		isLeader: func() bool { return false },
-		lastSeen: make(map[string]*datadoghq.DatadogInstrumentation),
+		lister:    fakeLister(crWith),
+		handlers:  []Handler{handler},
+		isLeader:  func() bool { return false },
+		telemetry: newControllerTelemetry(telemetrymock.New(t)),
+		lastSeen:  make(map[string]*datadoghq.DatadogInstrumentation),
 	}
 
 	// First reconcile: create
@@ -335,10 +342,11 @@ func TestReconcileDeduplicatesCreateThenUpdate(t *testing.T) {
 	// key-only queue deduplicates them. By the time the worker processes the
 	// key, the lister cache already has v2.
 	c := &Controller{
-		lister:   fakeLister(crV2),
-		handlers: []Handler{handler},
-		isLeader: func() bool { return false },
-		lastSeen: make(map[string]*datadoghq.DatadogInstrumentation),
+		lister:    fakeLister(crV2),
+		handlers:  []Handler{handler},
+		isLeader:  func() bool { return false },
+		telemetry: newControllerTelemetry(telemetrymock.New(t)),
+		lastSeen:  make(map[string]*datadoghq.DatadogInstrumentation),
 	}
 
 	// Single reconcile — no lastSeen entry, cache has v2
@@ -368,10 +376,11 @@ func TestReconcileDeleteClearsLastSeen(t *testing.T) {
 	}
 
 	c := &Controller{
-		lister:   fakeLister(), // CR not in cache
-		handlers: []Handler{handler},
-		isLeader: func() bool { return false },
-		lastSeen: map[string]*datadoghq.DatadogInstrumentation{"default/test-ddi": crWith.DeepCopy()},
+		lister:    fakeLister(), // CR not in cache
+		handlers:  []Handler{handler},
+		isLeader:  func() bool { return false },
+		telemetry: newControllerTelemetry(telemetrymock.New(t)),
+		lastSeen:  map[string]*datadoghq.DatadogInstrumentation{"default/test-ddi": crWith.DeepCopy()},
 	}
 
 	err := c.reconcile(t.Context(), "default/test-ddi")

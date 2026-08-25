@@ -28,6 +28,6 @@ build do
   #   <install_dir>/ai_usage_native_host.yaml.example
   # (see pkg/fleet/installer/packages/datadog_agent_eudm_windows.go).
   if windows_target?
-    command "bazel run -- //cmd/ai_prompt_logger:install-extension --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- //cmd/ai_prompt_logger:install-extension --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
   end
 end

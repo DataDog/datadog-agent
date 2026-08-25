@@ -123,6 +123,13 @@ A few invoke tasks are available that help with automatically updating module ve
 
     /// info
     For Agent version `7.X.Y` the module will have version `v0.X.Y`.
+
+    Agent 6 release candidates do not receive nested module tags. Use the commit
+    referenced by the global release candidate tag to derive a Go pseudo-version
+    instead. During an Agent 6 release candidate, internal module requirements
+    use pseudo-versions derived from the release branch commit so same-RC module
+    changes remain available. Final Agent 6 releases continue to receive nested
+    module tags.
     ///
 
 * `dda inv release.update-modules`
@@ -149,7 +156,7 @@ For each module, you can specify:
 * `default` - for modules with default attribute values
 * `ignored` - for ignored modules.
 
-To create a special configuration, the attributes of the `GoModule` class can be overriden - see the definition [here](https://github.com/DataDog/datadog-agent/blob/main/tasks/libs/common/gomodules.py) for the list of attributes and their details.
+To create a special configuration, the attributes of the `GoModule` class can be overriden - see the definition <<<repo("tasks/libs/common/gomodules.py", "here")>>> for the list of attributes and their details.
 
 /// tip
 This file can be linted and checked by using `dda inv modules.validate [--fix-format]`.

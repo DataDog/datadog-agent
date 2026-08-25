@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "payload",
@@ -13,10 +14,9 @@ go_library(
     deps = ["//pkg/network/payload"],  # keep
 )
 
-go_test(
+dd_agent_go_test(
     name = "payload_test",
     srcs = ["payload_test.go"],
     embed = [":payload"],
-    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//require"],
 )

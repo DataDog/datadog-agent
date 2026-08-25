@@ -110,6 +110,7 @@ sh_test(
         ":foo",
         ":rewrite_tree_with_install_name_tool.sh",
         ":rewrite_with_install_name_tool.sh",
+        ":rpath_helpers.sh",
         "@llvm_toolchain_llvm//:install-name-tool",
     ],
     target_compatible_with = ["@platforms//os:macos"],

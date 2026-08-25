@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Added the ``data_security.enabled`` configuration flag (disabled by
+    default) which enables the ``sds-result`` event platform forwarder used to
+    send sensitive-data-scanner results to Datadog.

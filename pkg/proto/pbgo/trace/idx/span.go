@@ -189,6 +189,11 @@ func (s *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 			s.span.Kind = SpanKind(kind)
 		default:
+			o, err = harvestUnknownFieldStrings(o, s.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown span field")
+				return
+			}
 		}
 	}
 	return
@@ -256,6 +261,11 @@ func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []
 			}
 			spanEvent.Attributes = kvl
 		default:
+			o, err = harvestUnknownFieldStrings(o, strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown span event field")
+				return
+			}
 		}
 	}
 	return
@@ -464,6 +474,81 @@ func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o
 	return
 }
 
+// harvestUnknownFieldStrings walks the value of an unrecognized field and adds
+// any inline strings it carries to the string table, preserving stream order.
+// It returns the bytes remaining after the value.
+//
+// The idx wire format encodes strings as "streaming strings" (see
+// UnmarshalStreamingString): the first occurrence of a string is written inline
+// and appended to the string table, and later occurrences are written as a
+// uint32 index into that table. Indices are therefore purely positional in
+// stream order. A newer producer may add a field an older consumer does not
+// recognize; if that field carries a new inline string, the consumer must still
+// add it to the table, otherwise every subsequent streaming-string index in the
+// known fields that follow would be shifted or point out of range. Simply
+// skipping the value's bytes with msgp.Skip is not enough.
+//
+// Every inline msgpack string in the payload (outside the string table array
+// itself, which is a known field) is a streaming string, so we add each string
+// we encounter and skip all other scalars, recursing into arrays and maps.
+func harvestUnknownFieldStrings(bts []byte, strings *StringTable) (o []byte, err error) {
+	return harvestUnknownFieldStringsDepth(bts, strings, 0)
+}
+
+func harvestUnknownFieldStringsDepth(bts []byte, strings *StringTable, depth int) (o []byte, err error) {
+	if depth > maxAnyValueDepth {
+		return bts, fmt.Errorf("Unknown field nesting depth exceeds maximum of %d", maxAnyValueDepth)
+	}
+	switch msgp.NextType(bts) {
+	case msgp.StrType:
+		var s string
+		s, o, err = msgp.ReadStringBytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to read string in unknown field")
+			return
+		}
+		strings.Add(s)
+	case msgp.ArrayType:
+		var sz uint32
+		sz, o, err = limitedReadArrayHeaderBytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to read array header in unknown field")
+			return
+		}
+		for i := uint32(0); i < sz; i++ {
+			o, err = harvestUnknownFieldStringsDepth(o, strings, depth+1)
+			if err != nil {
+				return
+			}
+		}
+	case msgp.MapType:
+		var sz uint32
+		sz, o, err = limitedReadMapHeaderBytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to read map header in unknown field")
+			return
+		}
+		// Both keys and values may be (or contain) streaming strings.
+		for i := uint32(0); i < sz; i++ {
+			o, err = harvestUnknownFieldStringsDepth(o, strings, depth+1)
+			if err != nil {
+				return
+			}
+			o, err = harvestUnknownFieldStringsDepth(o, strings, depth+1)
+			if err != nil {
+				return
+			}
+		}
+	default:
+		o, err = msgp.Skip(bts)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to skip unknown field value")
+			return
+		}
+	}
+	return
+}
+
 // Helper functions for msgp deserialization
 const (
 	first3        = 0xe0
@@ -558,6 +643,11 @@ func (sl *SpanLink) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, er
 				return
 			}
 		default:
+			o, err = harvestUnknownFieldStrings(o, strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown span link field")
+				return
+			}
 		}
 	}
 	return
@@ -1797,17 +1887,39 @@ func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convert
 	}
 }
 
-// parseStringBytes reads the next type in the msgpack payload and
+// parseStringBytesRef reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string returning the index of the string in the string table
 func parseStringBytesRef(stringTable *StringTable, bts []byte) (uint32, []byte, error) {
-	ref, bts, err := parseStringBytes(bts)
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return stringTable.Add(""), bts, err
+	}
+	// read the generic representation type without decoding
+	t := msgp.NextType(bts)
+
+	var (
+		err error
+		i   []byte
+	)
+	switch t {
+	case msgp.BinType:
+		i, bts, err = msgp.ReadBytesZC(bts)
+	case msgp.StrType:
+		i, bts, err = msgp.ReadStringZC(bts)
+	default:
+		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.StrType}
+	}
 	if err != nil {
 		return 0, bts, err
 	}
-	return stringTable.Add(ref), bts, nil
+	if !utf8.Valid(i) {
+		return stringTable.Add(repairUTF8(msgp.UnsafeString(i))), bts, nil
+	}
+	// Intern directly from the bytes: a string is only allocated on a miss.
+	return stringTable.AddBytes(i), bts, nil
 }
 
-// parseStringBytesRef reads the next type in the msgpack payload and
+// parseStringBytes reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string returning the string itself
 func parseStringBytes(bts []byte) (string, []byte, error) {
 	if msgp.IsNil(bts) {

@@ -36,7 +36,7 @@ VALID_ENV_PARSERS = {
     "json_list_or_space_separated",
 }
 
-SLACK_HINT = "If you have any question please reach out on #agent-configuration"
+SLACK_HINT = "If you have any question please reach out on #fleet-automation"
 
 
 # ---------------------------------------------------------------------------
@@ -523,6 +523,143 @@ def check_env_parser(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 14: generate_const tag validation
+# ---------------------------------------------------------------------------
+
+GENERATE_CONST_PREFIX = "generate_const:"
+# The constant name must start with an ASCII letter (any case) and otherwise be composed only of
+# ASCII letters and digits.
+GENERATE_CONST_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+
+
+def check_generate_const_tag(path, schema):
+    """
+    Check that 'generate_const:<name>' tags:
+      - only appear on setting nodes (not section nodes)
+      - have the form 'generate_const:<name>' where <name> starts with a letter and is
+        otherwise composed only of ASCII letters (lower and upper case) and digits
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        for tag in get_tags(node):
+            if not isinstance(tag, str) or not tag.startswith(GENERATE_CONST_PREFIX):
+                continue
+            if node.get("node_type") != "setting":
+                errors.append(
+                    f"{path}: [{node_path}] '{tag}' tag is only valid on setting nodes, not sections. "
+                    f"Fix: remove the '{GENERATE_CONST_PREFIX}...' tag from this section node."
+                )
+                continue
+            name = tag[len(GENERATE_CONST_PREFIX) :]
+            if not GENERATE_CONST_NAME_RE.match(name):
+                errors.append(
+                    f"{path}: [{node_path}] Invalid tag '{tag}'. "
+                    f"The name must have the form '{GENERATE_CONST_PREFIX}<name>' where <name> starts "
+                    f"with a letter and is otherwise composed only of letters and digits. "
+                    f"Fix: use a valid Go constant name after '{GENERATE_CONST_PREFIX}'."
+                )
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Check 15: renamed_from validation
+# ---------------------------------------------------------------------------
+
+# A full semantic Agent version: 'MAJOR.MINOR.BUGFIX' (for example '7.71.0').
+RENAMED_FROM_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+
+
+def check_renamed_from(path, schema):
+    """
+    Check that 'renamed_from' fields:
+      - only appear on setting nodes
+      - are a mapping of former name -> Agent version that deprecated that name
+      - contain at least one entry
+      - only use non-empty strings as former names
+      - only use quoted, full semantic versions ('MAJOR.MINOR.BUGFIX') as versions
+      - never reuse the same version for two former names of the same setting
+
+    Every former name is a fully qualified name of the setting.
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if "renamed_from" not in node:
+            continue
+
+        if node.get("node_type") != "setting":
+            errors.append(
+                f"{path}: [{node_path}] 'renamed_from' is only allowed on setting nodes, "
+                f"not on sections. "
+                f"Fix: remove 'renamed_from' from this section and add it to each renamed "
+                f"setting it contains, using their former fully qualified names."
+            )
+            continue
+
+        renamed_from = node["renamed_from"]
+
+        if not isinstance(renamed_from, dict):
+            errors.append(
+                f"{path}: [{node_path}] 'renamed_from' must be a mapping of former name to the "
+                f"Agent version that deprecated it, got {type(renamed_from).__name__}. "
+                f"Fix: use a YAML mapping, e.g. 'renamed_from: {{old_name: \"7.71.0\"}}'."
+            )
+            continue
+
+        if len(renamed_from) == 0:
+            errors.append(
+                f"{path}: [{node_path}] 'renamed_from' is empty. "
+                f"Fix: list at least one former name of this setting, or remove 'renamed_from'."
+            )
+            continue
+
+        names_by_version = {}
+        for name, version in renamed_from.items():
+            if not isinstance(name, str) or not name.strip():
+                errors.append(
+                    f"{path}: [{node_path}] 'renamed_from' contains an invalid former name '{name}'. "
+                    f"Fix: every key must be a non-empty string holding a former "
+                    f"fully qualified name of this setting."
+                )
+                continue
+
+            if not isinstance(version, str):
+                errors.append(
+                    f"{path}: [{node_path}] 'renamed_from' entry '{name}' has a non-string version "
+                    f"'{version}' ({type(version).__name__}). "
+                    f"Fix: quote the Agent version so YAML keeps it as a string, "
+                    f"e.g. '{name}: \"7.71.0\"'."
+                )
+                continue
+
+            if not RENAMED_FROM_VERSION_RE.match(version):
+                errors.append(
+                    f"{path}: [{node_path}] 'renamed_from' entry '{name}' has an invalid version "
+                    f"'{version}'. "
+                    f"Fix: use the full semantic Agent version that deprecated this name, as "
+                    f"'MAJOR.MINOR.BUGFIX', e.g. '{name}: \"7.71.0\"'."
+                )
+                continue
+
+            # Versions are what order the renames, so each one must identify a single rename.
+            names_by_version.setdefault(tuple(int(part) for part in version.split(".")), []).append(name)
+
+        for version, names in names_by_version.items():
+            if len(names) > 1:
+                shared = ", ".join(f"'{name}'" for name in sorted(names))
+                errors.append(
+                    f"{path}: [{node_path}] 'renamed_from' reuses version "
+                    f"'{'.'.join(str(part) for part in version)}' for {shared}. "
+                    f"Fix: a setting cannot be renamed twice in the same Agent version. Give each "
+                    f"former name the version that deprecated it, so the renames stay ordered."
+                )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -591,6 +728,8 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_text_scalar_mode(schema_path))
         all_errors.extend(check_relative_defaults(schema_path, schema))
         all_errors.extend(check_env_parser(schema_path, schema))
+        all_errors.extend(check_generate_const_tag(schema_path, schema))
+        all_errors.extend(check_renamed_from(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

@@ -5,7 +5,6 @@ load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dep
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load(
     "lib_contents.bzl",
@@ -275,12 +274,4 @@ pkg_filegroup(
     name = "installed_libs",
     srcs = [":_installed_libs"],
     prefix = "embedded",
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-        ":installed_libs",
-    ],
 )

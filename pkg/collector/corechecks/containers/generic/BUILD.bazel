@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "generic",
     srcs = [
@@ -54,13 +52,18 @@ dd_agent_go_test(
     embed = [":generic"],
     deps = [
         "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
         "//comp/core/tagger/utils",
+        "//comp/core/telemetry/mock",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/containers/agentperformance",
         "//pkg/util/cache",
         "//pkg/util/containers/metrics",
         "//pkg/util/containers/metrics/mock",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/kubernetes",
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",

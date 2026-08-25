@@ -121,6 +121,9 @@
 
   # E2E framework
   - test/e2e-framework/components/activedirectory/**/*
+  - test/e2e-framework/components/os/scripts/setup-ssh.ps1
+  - test/e2e-framework/components/os/windows*
+  - test/e2e-framework/scenarios/aws/ec2/os_win.go
 
 # Process manager
 .windows_path_4: &windows_path_4
@@ -170,6 +173,11 @@ default:
   retry:
     max: 1 # Retry everything once on failure
     when: always
+
+# Full git history. Override the default shallow clone.
+.needs_full_git_history:
+  variables:
+    GIT_DEPTH: 0
 
 stages:
   - .pre
@@ -266,7 +274,6 @@ variables:
   # Symbols for release builds are handled by agent-release-management.
   WINDOWS_SYMBOLS_S3_BUCKET: pipelines/windows-symbols
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
@@ -291,25 +298,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v125663755-498a6dee
+  CI_IMAGE_BTF_GEN: v132333024-4b82e653
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v125663755-498a6dee
+  CI_IMAGE_DOCKER_X64: v132333024-4b82e653
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v125663755-498a6dee
+  CI_IMAGE_DOCKER_ARM64: v132333024-4b82e653
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v125663755-498a6dee
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v132333024-4b82e653
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v125663755-498a6dee
+  CI_IMAGE_LINUX: v132333024-4b82e653
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v125663755-498a6dee
+  CI_IMAGE_RPM_X64: v132333024-4b82e653
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v125663755-498a6dee
+  CI_IMAGE_RPM_ARM64: v132333024-4b82e653
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v125663755-498a6dee
+  CI_IMAGE_RPM_ARMHF: v132333024-4b82e653
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v125663755-498a6dee
+  CI_IMAGE_WIN_LTSC2022_X64: v130938967-3a9f81bc
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v125663755-498a6dee
+  CI_IMAGE_WIN_LTSC2025_X64: v130938967-3a9f81bc
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -372,8 +379,9 @@ variables:
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
-  # Job cloning strategy
+  # Shallow clone by default.
   GIT_STRATEGY: "fetch"
+  GIT_DEPTH: 1
   DISABLE_GIT_CACHE: true
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
@@ -474,12 +482,15 @@ variables:
 
 # fakeintake changes that rebuild the published image (server binary only).
 # Client/CLI/docs changes don't. Keep in sync with _is_server_file() in tasks/fakeintake.py.
+# Only `.go` files under the server paths matter: the image is built from the Go sources
+# via test/fakeintake/Dockerfile, so BUILD.bazel and test fixtures don't affect it
+# (rules:changes has no exclusion syntax, hence the extension in the glob).
 .fakeintake_server_paths: &fakeintake_server_paths
   paths:
-    - test/fakeintake/cmd/server/**/*
-    - test/fakeintake/server/**/*
-    - test/fakeintake/aggregator/**/*
-    - test/fakeintake/api/**/*
+    - test/fakeintake/cmd/server/**/*.go
+    - test/fakeintake/server/**/*.go
+    - test/fakeintake/aggregator/**/*.go
+    - test/fakeintake/api/**/*.go
     - test/fakeintake/go.mod
     - test/fakeintake/go.sum
     - test/fakeintake/Dockerfile
@@ -519,8 +530,6 @@ variables:
   changes:
     paths:
       - omnibus/**/*
-      - pkg/config/config_template.yaml
-      - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
 #
@@ -545,6 +554,19 @@ workflow:
     - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
     - <<: *if_mergequeue
+    # ADP is shipped in every Agent package and exercised across several test suites.
+    # Treat an ADP version bump like a full pipeline so platform-specific regressions
+    # (notably in new-e2e-agent-runtimes-windows) are caught before merge.
+    - changes:
+        paths:
+          - deps/agent_data_plane/agent_data_plane.MODULE.bazel
+        compare_to: $COMPARE_TO_BRANCH
+      variables:
+        RUN_ALL_BUILDS: "true"
+        RUN_E2E_TESTS: "on"
+        RUN_KMT_TESTS: "on"
+        RUN_UNIT_TESTS: "on"
+        SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path
         compare_to: main
@@ -771,6 +793,12 @@ workflow:
     when: never
   - <<: *if_installer_tests
   - <<: *on_build_changes
+  - changes:
+      paths:
+        - pkg/fleet/installer/packages/**/*
+        - omnibus/package-scripts/agent-*/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
 
 # Specific rules for each e2e test type
 .on_install_script_tests:
@@ -963,33 +991,13 @@ workflow:
   - changes:
       paths:
         - .gitlab/test/e2e/e2e.yml
+        - bazel/rules/go_shim/**/* # Runs bazelified Go tools
+        - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)
         - test/e2e-framework/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
-
-.except_e2e_main_release_or_rc: # This rule is to not trigger dynamic test evaluation when we force all e2e tests to run
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_run_all_e2e_tests
-    when: never
-  - <<: *if_main_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: never
-  - changes:
-      paths:
-        - .gitlab/test/e2e/e2e.yml
-        - test/e2e-framework/testing/**/*
-        - test/new-e2e/go.mod
-        - flakes.yaml
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
-    when: never
 
 .dynamic_tests:
   - changes:
@@ -1010,7 +1018,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/tests/agent-devx/pre-test/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
@@ -1114,10 +1122,26 @@ workflow:
   - changes:
       paths:
         - cmd/agent/dist/conf.d/discovery.d/*
+        - comp/core/autodiscovery/discoverer/**/*
+        - comp/core/autodiscovery/impl/configmgr*
         - comp/core/autodiscovery/providers/process_log.go
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/discovery/**/*
         - pkg/discovery/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+.on_adp_preflight_mode_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/dataplane/preflightmode/**/*
+        - test/new-e2e/tests/agent-data-plane/**/*
+        # Preflight mode's eligibility gate lives in the config layer, not in the component:
+        # sanitizeDataPlaneConfig decides whether data_plane.enabled stays at its default
+        # source, which is what makes the pre-flight run at all.
+        - pkg/config/setup/config.go
+        # The pre-flight has nothing to run if ADP stops being packaged.
+        - deps/agent_data_plane/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_amp_or_e2e_changes:
@@ -1263,6 +1287,8 @@ workflow:
         - cmd/system-probe/modules/traceroute.go
         - pkg/collector/corechecks/networkpath/**/*
         - pkg/networkpath/**/*
+        - pkg/network/sender/sender_linux.go
+        - pkg/process/checks/net.go
         - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
@@ -1376,6 +1402,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - comp/core/workloadmeta/collectors/internal/remote/sbomcollector/**/*
         - pkg/sbom/**/*
         - pkg/security/resolvers/sbom/**/*
         - test/new-e2e/tests/sbom/**/*

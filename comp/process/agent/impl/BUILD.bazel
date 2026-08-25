@@ -28,6 +28,7 @@ go_library(
         "//comp/process/runner/def",
         "//comp/process/submitter/def",
         "//comp/process/types",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/process/checks",
         "//pkg/process/util/status",

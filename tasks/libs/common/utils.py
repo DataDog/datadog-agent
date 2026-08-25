@@ -7,18 +7,20 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shlex
 import shutil
 import sys
 import tempfile
 import time
 import traceback
 import uuid
+from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from subprocess import check_output
+from subprocess import check_output, list2cmdline
 from types import SimpleNamespace
 
 import requests
@@ -262,6 +264,34 @@ def _resolve_target_platform(platform: str | None = None) -> str:
     return _GOOS_TO_SYS_PLATFORM.get(platform, platform)
 
 
+def _find_cross_compiler(target_platform: str, *compilers) -> str:
+    # remove empty/None values
+    compilers = list(filter(lambda cc: cc, compilers))
+
+    # find the first compiler that is available on PATH
+    for cc in compilers:
+        if shutil.which(cc):
+            return cc
+
+    # fail with a clear error message
+    if target_platform == "darwin":
+        instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
+    elif target_platform == "win32":
+        instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+    elif target_platform == "aix":
+        instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh (requires an AIX sysroot)"
+    else:
+        instr = "the appropriate cross-compilation toolchain"
+    print(
+        color_message(
+            f"Error: Couldn't find any of the following compilers on PATH: {', '.join(compilers)}. "
+            f"Cross-linting for {target_platform} requires {instr}, or explicitly setting DD_CC and DD_CXX.",
+            "red",
+        )
+    )
+    raise Exit(code=1)
+
+
 def get_build_flags(
     ctx: Context,
     static=False,
@@ -282,7 +312,7 @@ def get_build_flags(
     Context object.
     """
     if arch is None:
-        arch = Arch.local()
+        arch = Arch.from_str(os.getenv("GOARCH") or "local")
     target_platform = _resolve_target_platform(platform)
 
     gcflags = ""
@@ -403,20 +433,44 @@ def get_build_flags(
         # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
         extldflags += "-Wl,-z,lazy "
 
-    if os.getenv("DD_CC"):
-        env["CC"] = os.getenv("DD_CC")
-    if os.getenv("DD_CXX"):
-        env["CXX"] = os.getenv("DD_CXX")
-
-    if arch.is_cross_compiling():
-        # For cross-compilation we need to be explicit about certain Go settings
-        env["GOARCH"] = arch.go_arch
-        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
-        env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
-        env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
-
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
+
+    if dd_cc := os.getenv("DD_CC"):
+        env["CC"] = dd_cc
+    if dd_cxx := os.getenv("DD_CXX"):
+        env["CXX"] = dd_cxx
+
+    # Cross-OS lint/build setup: configure cross-compilation environment
+    if target_platform != sys.platform or arch.is_cross_compiling():
+        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
+        env["GOARCH"] = arch.go_arch
+
+        env["CC"] = _find_cross_compiler(
+            target_platform,
+            os.getenv("DD_CC"),
+            arch.compiler_name("gcc", target_platform),
+            arch.compiler_name("clang", target_platform),
+        )
+        env["CXX"] = _find_cross_compiler(
+            target_platform,
+            os.getenv("DD_CXX"),
+            arch.compiler_name("g++", target_platform),
+            arch.compiler_name("clang++", target_platform),
+        )
+        print(f"Using CC {env['CC']} and CXX {env['CXX']} for cross-compilation")
+
+        if target_platform == "aix":
+            # Set the sysroot flag for the cross compiler
+            sysroot = "/opt/aix-cross/sysroot"
+            env["CGO_CFLAGS"] = env.get("CGO_CFLAGS", "") + f" --sysroot={sysroot} -maix64"
+            env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" --sysroot={sysroot} -maix64 -Wl,-brtl -Wl,-bbigtoc"
+
+            # Go's DWARF-on-AIX support probes the external linker but fails to parse the output of
+            # our gcc based cross compiler. -w skips the probe outright
+            ldflags += "-w "
+            # Ignore multiple definition errors
+            ldflags += "-extldflags=-Wl,--allow-multiple-definition "
 
     return ldflags, gcflags, env
 
@@ -728,6 +782,42 @@ def is_windows():
 
 def is_installed(binary) -> bool:
     return shutil.which(binary) is not None
+
+
+# Characters cmd.exe acts on rather than passing through, per
+# https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd#remarks.
+_CMD_METACHARACTERS = frozenset("&|<>^()")
+
+
+def join_command(args: Sequence[str]) -> str:
+    """
+    Join arguments into a command line for the shell Invoke runs commands through.
+
+    That shell is cmd.exe on Windows, where the single quotes shlex produces are literal characters
+    rather than quoting.
+    """
+    if not is_windows():
+        return shlex.join(args)
+
+    return " ".join(_quote_for_cmd(arg) for arg in args)
+
+
+def _quote_for_cmd(arg: str) -> str:
+    """
+    Quote a single argument so that cmd.exe passes it to the program unaltered.
+
+    list2cmdline quotes for the C runtime's argument parsing, which leaves cmd.exe free to act on any
+    metacharacter it finds outside quotes: `HEAD^...HEAD` reaches git as `HEAD...HEAD`, and a path
+    such as `C:\\src\\R&D` is split at the ampersand. Double quotes suppress all of them, so add them
+    to any argument list2cmdline left bare. Note that cmd.exe still expands `%VAR%` inside quotes.
+    """
+    quoted = list2cmdline([arg])
+    if quoted.startswith('"') or not _CMD_METACHARACTERS.intersection(arg):
+        return quoted
+
+    # Adding quotes would turn a trailing backslash into an escape for the closing quote, so double
+    # any trailing backslashes the way list2cmdline does when it quotes an argument itself.
+    return '"{}"'.format(quoted + "\\" * (len(quoted) - len(quoted.rstrip("\\"))))
 
 
 def is_conductor_scheduled_pipeline() -> bool:

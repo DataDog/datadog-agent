@@ -102,7 +102,8 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 - Key docs: `test/e2e-framework/AGENTS.md` (framework), `test/fakeintake/AGENTS.md`
   (intake mock), `docs/public/how-to/test/e2e.md` (setup & running)
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests
-- Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`
+- Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`, or use the `/run-e2e`
+  skill, which runs the test in a `dda env dev` sandbox and triages setup failures
 
 ### Manual QA
 - When the agent needs to be inspected in a given environment (e.g. EKS, ECS, a cloud VM) that is not easily reproducible locally, use the manual QA infrastructure.
@@ -204,14 +205,15 @@ AGENTS.md                          ← repo-wide: architecture, workflow, review
 ├── bazel/AGENTS.md                ← Bazel build system: conventions, pitfalls, rule writing
 ├── tasks/AGENTS.md                ← invoke tasks: categories, libs layout, Bazel migration idioms
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
+├── test/new-e2e/AGENTS.md         ← E2E test tree: layout, suite naming, build tags
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls
 └── .agents/skills/*/SKILL.md      ← task-specific: step-by-step procedures
 ```
 
-Each level inherits context from its parent via `CLAUDE.md` (`@../../CLAUDE.md`
-→ `@AGENTS.md`). Keep information at the right level — don't duplicate
-repo-wide rules in sub-project files.
+Nested context files should not reference those in parent directories as they
+are already loaded by agents during initialization. Keep information at the
+right level; don't duplicate repo-wide rules in sub-project files.
 
 ### What to update and when
 

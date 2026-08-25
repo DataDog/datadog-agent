@@ -51,7 +51,7 @@ const tracesToMetricsStability = component.StabilityLevel(component.StabilityLev
 
 // this is only used for config unmarshalling.
 func addFactories(factories otelcol.Factories) {
-	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{})
+	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, func(context.Context) (string, error) {
 		return "hostname", nil
 	})
@@ -77,8 +77,11 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewComponent(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.None[ipc.Component](), true, false)
+	extension, err := NewComponent(t.Context(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.None[ipc.Component](), true, false)
 	assert.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, extension.Shutdown(t.Context()))
+	})
 
 	ext, ok := extension.(*ddExtension)
 	assert.True(t, ok)
@@ -125,14 +128,14 @@ func TestGetConfDump(t *testing.T) {
 	cp, err := otelcol.NewConfigProvider(newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), true))
 	assert.NoError(t, err)
 
-	c, err := cp.Get(context.Background(), factories)
+	c, err := cp.Get(t.Context(), factories)
 	assert.NoError(t, err)
 
 	conf := confmap.New()
 	err = conf.Marshal(c)
 	assert.NoError(t, err)
 
-	err = ext.NotifyConfig(context.TODO(), conf)
+	err = ext.NotifyConfig(t.Context(), conf)
 	assert.NoError(t, err)
 
 	t.Run("enhanced-string", func(t *testing.T) {
@@ -168,7 +171,7 @@ func TestGetConfDump(t *testing.T) {
 func confmapFromResolverSettings(t *testing.T, resolverSettings confmap.ResolverSettings) *confmap.Conf {
 	resolver, err := confmap.NewResolver(resolverSettings)
 	assert.NoError(t, err)
-	conf, err := resolver.Resolve(context.TODO())
+	conf, err := resolver.Resolve(t.Context())
 	assert.NoError(t, err)
 	return conf
 }

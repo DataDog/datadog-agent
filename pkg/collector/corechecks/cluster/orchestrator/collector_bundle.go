@@ -117,6 +117,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		ClusterID:             runCfg.ClusterID,
 		Config:                runCfg.Config,
 		MsgGroupRef:           runCfg.MsgGroupRef,
+		AgentVersion:          runCfg.AgentVersion,
 		TerminatedResources:   true,
 	}
 
@@ -529,6 +530,7 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isOOTBCRDEnabled, "v1alpha2"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalerclusterprofiles", isOOTBCRDEnabled, "v1alpha2"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isOOTBCRDEnabled, "v2alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadoginstrumentations", isOOTBCRDEnabled, "v1alpha1"),
 
 		// Argo resources
 		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isOOTBCRDEnabled, "v1alpha1"),

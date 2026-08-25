@@ -92,6 +92,16 @@ func (s *StringTable) Add(str string) uint32 {
 	return s.addUnchecked(str)
 }
 
+// AddBytes is Add for a byte slice. It avoids materializing a string when the value
+// is already interned, which is the common case when decoding a payload. On a miss
+// the string is copied, so the table never aliases the caller's buffer.
+func (s *StringTable) AddBytes(b []byte) uint32 {
+	if idx, ok := s.lookup[string(b)]; ok {
+		return idx
+	}
+	return s.addUnchecked(string(b))
+}
+
 // Get returns the string at the given index - panics if out of bounds
 func (s *StringTable) Get(idx uint32) string {
 	return s.strings[idx]
@@ -204,6 +214,10 @@ func (x *TracerPayload) CompactStrings() {
 	markRef(x.HostnameRef)
 	markRef(x.AppVersionRef)
 	markAttributeRefs(x.Attributes, markRef)
+	if x.ContainerDebug != nil {
+		markRef(x.ContainerDebug.ErrorRef)
+		markRef(x.ContainerDebug.BufferEvictionReasonRef)
+	}
 
 	// Collect refs from chunks and spans
 	for _, chunk := range x.Chunks {
@@ -274,6 +288,10 @@ func (x *TracerPayload) CompactStrings() {
 	x.HostnameRef = remap(x.HostnameRef)
 	x.AppVersionRef = remap(x.AppVersionRef)
 	remapAttributes(x.Attributes, remap)
+	if x.ContainerDebug != nil {
+		x.ContainerDebug.ErrorRef = remap(x.ContainerDebug.ErrorRef)
+		x.ContainerDebug.BufferEvictionReasonRef = remap(x.ContainerDebug.BufferEvictionReasonRef)
+	}
 
 	// Remap chunks
 	for _, chunk := range x.Chunks {

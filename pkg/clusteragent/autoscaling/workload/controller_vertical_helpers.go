@@ -51,6 +51,9 @@ var removeLimitSentinel = resource.MustParse("-1")
 // subresource, which requires InPlacePodVerticalScaling to be enabled. The result
 // is cached for 15 minutes.
 func (u *verticalController) isInPlaceResizeSupported() bool {
+	u.inPlaceResizeMu.Lock()
+	defer u.inPlaceResizeMu.Unlock()
+
 	if u.inPlaceResizeSupported != nil && u.clock.Since(u.inPlaceResizeSupportedTime) < inPlaceResizeSupportedCacheTTL {
 		return *u.inPlaceResizeSupported
 	}

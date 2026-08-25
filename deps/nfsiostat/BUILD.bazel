@@ -1,6 +1,5 @@
 """nfsiostat"""
 
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 package(default_visibility = [
@@ -28,11 +27,4 @@ pkg_filegroup(
         ":bin_files",
     ],
     prefix = "embedded",
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
 )

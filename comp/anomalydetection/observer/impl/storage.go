@@ -14,8 +14,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -32,6 +32,19 @@ type StorageConfig struct {
 	// Points older than (latest timestamp - PointRetentionSecs) are trimmed
 	// on each Add. 0 disables trimming.
 	PointRetentionSecs int64
+
+	// MaxPointsPerSeries is the maximum number of processable points retained
+	// for a series. Storage keeps one additional pending scheduler bucket.
+	// Zero disables count-based trimming.
+	MaxPointsPerSeries int
+
+	// InactiveSeriesTTLSeconds is how long a non-telemetry series may remain
+	// inactive before an engine advance evicts it. 0 disables inactivity eviction.
+	InactiveSeriesTTLSeconds int64
+
+	// InactiveSeriesCheckIntervalSeconds is the minimum advance-time interval
+	// between inactivity scans. 0 disables inactivity eviction.
+	InactiveSeriesCheckIntervalSeconds int64
 
 	// MaxCorrelations caps how many unique correlation patterns are retained in
 	// the engine's accumulated-correlations map. 0 uses the built-in default
@@ -52,9 +65,11 @@ type StorageConfig struct {
 // DefaultStorageConfig returns the hard-coded production defaults.
 func DefaultStorageConfig() StorageConfig {
 	return StorageConfig{
-		MaxSeries:          storageMaxSeries,
-		EvictionFloorRatio: storageEvictionBandRatio,
-		PointRetentionSecs: storagePointRetentionSecs,
+		MaxSeries:                          storageMaxSeries,
+		EvictionFloorRatio:                 storageEvictionBandRatio,
+		PointRetentionSecs:                 storagePointRetentionSecs,
+		InactiveSeriesTTLSeconds:           storageInactiveSeriesTTLSeconds,
+		InactiveSeriesCheckIntervalSeconds: storageInactiveSeriesCheckIntervalSeconds,
 		// TrackCorrelationHistory defaults to false: live agent incurs no overhead.
 	}
 }
@@ -70,6 +85,14 @@ const (
 	// storagePointRetentionSecs is the default point retention window.
 	// Points older than (latest_ts - 120s) are trimmed on each Add.
 	storagePointRetentionSecs = 120
+
+	// storageInactiveSeriesTTLSeconds is the default inactivity lifetime for
+	// non-telemetry series. Inactivity is evaluated against advance timestamps.
+	storageInactiveSeriesTTLSeconds = 5 * 60
+
+	// storageInactiveSeriesCheckIntervalSeconds bounds the work done by
+	// inactivity scans while keeping eviction deterministic under replay.
+	storageInactiveSeriesCheckIntervalSeconds = 5 * 60
 )
 
 // timeSeriesStorage is an internal storage for time series data.
@@ -82,9 +105,15 @@ type timeSeriesStorage struct {
 	// even if no metric series was written for that timestamp.
 	observationTimestamps map[int64]struct{}
 
-	// Compact numeric IDs for O(1) lookups and API responses.
-	// seriesIDStats[ref] is the live *seriesStats (nil when the slot is retired).
-	seriesIDStats []*seriesStats // numeric ID → *seriesStats (index = ID)
+	// Compact numeric IDs for O(1) lookups and API responses. Retired refs are
+	// removed from the map and never reused, keeping this index bounded by live
+	// series instead of cumulative series churn.
+	seriesIDStats map[observer.SeriesRef]*seriesStats
+	nextSeriesRef observer.SeriesRef
+
+	// liveSeriesCount is the number of non-telemetry series in the catalog.
+	// It is updated under mu whenever a non-telemetry series is added or removed.
+	liveSeriesCount int
 
 	// Global generation for the series catalog; increments only when a new
 	// series key is created, not on every write to an existing series.
@@ -121,6 +150,17 @@ type seriesStats struct {
 	tagsHash  uint64                  // fnv64a hash of Tags; 0 means not interned
 	ref       observer.SeriesRef      // compact numeric ID assigned on creation
 	context   *observer.MetricContext // optional; set by extractors for anomaly enrichment
+	// supportedAggregations is a bit mask. Zero means all aggregations are
+	// supported; materialized log count buckets set only Average because each
+	// stored point is already one aggregated window count.
+	supportedAggregations uint8
+	// retentionOverrideSecs, when positive, replaces the storage-wide point
+	// retention for this series. Zero uses the storage default.
+	retentionOverrideSecs int64
+	// lastActivityTimestamp drives capacity eviction. It normally follows the
+	// latest stored timestamp, but producers of synthetic points may override it
+	// so generated data does not make an otherwise-idle series look active.
+	lastActivityTimestamp int64
 
 	// writeGeneration is per-series and increments on every Add, including
 	// same-bucket merges into an existing point.
@@ -132,6 +172,10 @@ type seriesStats struct {
 	counts     []int64
 	mins       []float64
 	maxes      []float64
+}
+
+func aggregateMask(agg observer.Aggregate) uint8 {
+	return 1 << uint8(agg)
 }
 
 // pointCount returns the number of stored points.
@@ -249,6 +293,7 @@ func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 	return &timeSeriesStorage{
 		cfg:                   cfg,
 		series:                make(map[uint64]*seriesStats),
+		seriesIDStats:         make(map[observer.SeriesRef]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
 		droppedByMetric:       make(map[string]int64),
@@ -298,7 +343,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	// Collision guard: verify full identity (namespace + name + sorted tags).
 	if exists && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonTags)) {
 		// Hash collision — extremely rare with FNV-64a (~10^-14 at 1000 series).
-		pkglog.Warnf("[observer] seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
+		logging.Warnf("seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
 			h, stats.Namespace, stats.Name, namespace, name)
 		exists = false
 		for _, st := range s.seriesIDStats {
@@ -313,7 +358,8 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		// Only intern on new series creation so the ref count tracks exactly
 		// the number of live series holding the canonical slice.
 		canonical, th := s.internTags(tags)
-		id := observer.SeriesRef(len(s.seriesIDStats))
+		id := s.nextSeriesRef
+		s.nextSeriesRef++
 		stats = &seriesStats{
 			Namespace: namespace,
 			Name:      name,
@@ -326,11 +372,17 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		if _, occupied := s.series[h]; !occupied {
 			s.series[h] = stats
 		}
-		s.seriesIDStats = append(s.seriesIDStats, stats)
+		s.seriesIDStats[id] = stats
+		if namespace != observer.TelemetryNamespace {
+			s.liveSeriesCount++
+		}
 		s.seriesGen++
 	}
 	res := AddResult{IsNew: !exists, Ref: stats.ref}
 	stats.writeGeneration++
+	if len(stats.timestamps) == 0 || timestamp > stats.lastActivityTimestamp {
+		stats.lastActivityTimestamp = timestamp
+	}
 
 	// Bucket by second.
 	bucket := timestamp
@@ -359,12 +411,26 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
 
-	if s.cfg.PointRetentionSecs > 0 {
+	retentionSecs := s.cfg.PointRetentionSecs
+	if stats.retentionOverrideSecs > 0 {
+		retentionSecs = stats.retentionOverrideSecs
+	}
+	if retentionSecs > 0 {
 		// Trim points outside the retention window. Use the series' latest
 		// timestamp (not the incoming bucket) so that backfilled/out-of-order
 		// points don't shift the cutoff backwards and over-retain stale data.
 		latestTS := stats.timestamps[len(stats.timestamps)-1]
-		if trim := searchAfter(stats.timestamps, latestTS-s.cfg.PointRetentionSecs-1); trim > 0 {
+		if trim := searchAfter(stats.timestamps, latestTS-retentionSecs-1); trim > 0 {
+			stats.timestamps = trimFront(stats.timestamps, trim)
+			stats.sums = trimFront(stats.sums, trim)
+			stats.counts = trimFront(stats.counts, trim)
+			stats.mins = trimFront(stats.mins, trim)
+			stats.maxes = trimFront(stats.maxes, trim)
+		}
+	}
+	if s.cfg.MaxPointsPerSeries > 0 {
+		physicalCapacity := s.cfg.MaxPointsPerSeries + 1
+		if trim := len(stats.timestamps) - physicalCapacity; trim > 0 {
 			stats.timestamps = trimFront(stats.timestamps, trim)
 			stats.sums = trimFront(stats.sums, trim)
 			stats.counts = trimFront(stats.counts, trim)
@@ -412,7 +478,7 @@ func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, v
 	sampled := s.sampledDrops[metricKey]
 	if sampled < 3 {
 		s.sampledDrops[metricKey] = sampled + 1
-		pkglog.Warnf("[observer] dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
+		logging.Warnf("dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
 			reason, namespace, name, value, timestamp, tags, sampled+1)
 	}
 }
@@ -781,9 +847,9 @@ func seriesKeyHash(namespace, name string, tags []string) uint64 {
 }
 
 // resolveByID returns the seriesStats for a numeric series ID.
-// Returns nil for out-of-range IDs. Caller must hold s.mu (read or write).
+// Returns nil for unknown or retired IDs. Caller must hold s.mu (read or write).
 func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
-	if ref < 0 || int(ref) >= len(s.seriesIDStats) {
+	if ref < 0 {
 		return nil
 	}
 	return s.seriesIDStats[ref]
@@ -1014,9 +1080,9 @@ func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 }
 
 // RemoveSeriesByRefs deletes series by their compact numeric refs. Each removed
-// series has its seriesIDStats slot set to nil (ref is never reused) and its
-// hash slot deleted from s.series. Returns the refs actually freed; out-of-range
-// or already-nil refs are silently skipped. seriesGen is bumped iff at least
+// series is deleted from seriesIDStats (ref is never reused) and its hash slot
+// is deleted from s.series. Returns the refs actually freed; unknown or already
+// removed refs are silently skipped. seriesGen is bumped iff at least
 // one series was removed so cached ListSeries results are invalidated.
 //
 // Callers use the returned refs to fan out per-series teardown to detector
@@ -1030,23 +1096,36 @@ func (s *timeSeriesStorage) RemoveSeriesByRefs(refs []observer.SeriesRef) []obse
 	defer s.mu.Unlock()
 	var removed []observer.SeriesRef
 	for _, ref := range refs {
-		if ref < 0 || int(ref) >= len(s.seriesIDStats) {
-			continue
-		}
-		stats := s.seriesIDStats[ref]
+		stats := s.resolveByID(ref)
 		if stats == nil {
 			continue
 		}
-		s.releaseTagIntern(stats.tagsHash)
-		h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
-		delete(s.series, h)
-		s.seriesIDStats[ref] = nil
-		removed = append(removed, ref)
+		if s.removeSeries(stats) {
+			removed = append(removed, ref)
+		}
 	}
 	if len(removed) > 0 {
 		s.seriesGen++
 	}
 	return removed
+}
+
+// removeSeries removes a live series from every catalog index and cardinality
+// counter. The caller must hold s.mu for writing.
+func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
+	if stats == nil || stats.ref < 0 || s.seriesIDStats[stats.ref] != stats {
+		return false
+	}
+	s.releaseTagIntern(stats.tagsHash)
+	h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
+	if s.series[h] == stats {
+		delete(s.series, h)
+	}
+	delete(s.seriesIDStats, stats.ref)
+	if stats.Namespace != observer.TelemetryNamespace {
+		s.liveSeriesCount--
+	}
+	return true
 }
 
 // SetContext stores a MetricContext on the series identified by ref.
@@ -1071,6 +1150,54 @@ func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricC
 	return nil
 }
 
+// SetSupportedAggregations limits which interpretations detectors should use
+// for a series. An empty list restores the default of supporting all.
+func (s *timeSeriesStorage) SetSupportedAggregations(ref observer.SeriesRef, aggregations ...observer.Aggregate) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return
+	}
+	var mask uint8
+	for _, agg := range aggregations {
+		mask |= aggregateMask(agg)
+	}
+	stats.supportedAggregations = mask
+}
+
+// SupportsAggregate implements the optional detector aggregate policy.
+func (s *timeSeriesStorage) SupportsAggregate(ref observer.SeriesRef, agg observer.Aggregate) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats := s.resolveByID(ref)
+	if stats == nil || stats.supportedAggregations == 0 {
+		return true
+	}
+	return stats.supportedAggregations&aggregateMask(agg) != 0
+}
+
+// SetSeriesRetention overrides point retention for one series. Zero restores
+// the storage-wide default.
+func (s *timeSeriesStorage) SetSeriesRetention(ref observer.SeriesRef, retentionSecs int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stats := s.resolveByID(ref); stats != nil {
+		stats.retentionOverrideSecs = max(retentionSecs, 0)
+	}
+}
+
+// SetSeriesActivityTimestamp overrides the timestamp used to rank a series for
+// capacity eviction. Materialized log-count series use the last real log time
+// so synthetic zero buckets do not keep an idle series artificially hot.
+func (s *timeSeriesStorage) SetSeriesActivityTimestamp(ref observer.SeriesRef, timestamp int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stats := s.resolveByID(ref); stats != nil {
+		stats.lastActivityTimestamp = timestamp
+	}
+}
+
 // RemoveSeriesByMetricName removes all series in the given namespace whose Name
 // matches name. Used when an extractor GC/LRU evicts a pattern cluster — the
 // cluster identity (namespace + metric name) is deterministic, so we can clean
@@ -1087,11 +1214,9 @@ func (s *timeSeriesStorage) RemoveSeriesByMetricName(namespace, name string) []o
 		if stats == nil || stats.Namespace != namespace || stats.Name != name {
 			continue
 		}
-		s.releaseTagIntern(stats.tagsHash)
-		h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
-		delete(s.series, h)
-		s.seriesIDStats[stats.ref] = nil
-		removed = append(removed, stats.ref)
+		if s.removeSeries(stats) {
+			removed = append(removed, stats.ref)
+		}
 	}
 	if len(removed) > 0 {
 		s.seriesGen++
@@ -1099,7 +1224,7 @@ func (s *timeSeriesStorage) RemoveSeriesByMetricName(namespace, name string) []o
 	return removed
 }
 
-// EvictToCapacity evicts the oldest series (by last written timestamp) when
+// EvictToCapacity evicts the oldest series (by last activity timestamp) when
 // the live series count exceeds seriesLimit, draining down to target. The band
 // between the two thresholds prevents a fan-out on every Advance when the
 // count hovers near the cap. Returns the freed SeriesRefs for detector cleanup.
@@ -1110,13 +1235,8 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Count first — common case is under the limit, skip allocation entirely.
-	count := 0
-	for _, st := range s.seriesIDStats {
-		if st != nil {
-			count++
-		}
-	}
+	// Common case is under the limit, skip allocation entirely.
+	count := s.liveSeriesCount
 	if count <= seriesLimit {
 		return nil
 	}
@@ -1130,11 +1250,7 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 		if st == nil {
 			continue
 		}
-		lastTs := int64(0)
-		if n := len(st.timestamps); n > 0 {
-			lastTs = st.timestamps[n-1]
-		}
-		candidates = append(candidates, entry{ref: st.ref, lastTs: lastTs})
+		candidates = append(candidates, entry{ref: st.ref, lastTs: st.lastActivityTimestamp})
 	}
 
 	excess := count - target
@@ -1143,7 +1259,10 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	}
 
 	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].lastTs < candidates[j].lastTs
+		if candidates[i].lastTs != candidates[j].lastTs {
+			return candidates[i].lastTs < candidates[j].lastTs
+		}
+		return candidates[i].ref < candidates[j].ref
 	})
 
 	var freed []observer.SeriesRef
@@ -1152,13 +1271,31 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 		if st == nil {
 			continue
 		}
-		h := seriesKeyHash(st.Namespace, st.Name, st.Tags)
-		s.releaseTagIntern(st.tagsHash)
-		if s.series[h] == st {
-			delete(s.series, h)
+		if s.removeSeries(st) {
+			freed = append(freed, candidates[i].ref)
 		}
-		s.seriesIDStats[candidates[i].ref] = nil
-		freed = append(freed, candidates[i].ref)
+	}
+	if len(freed) > 0 {
+		s.seriesGen++
+	}
+	return freed
+}
+
+// EvictInactiveBefore removes non-telemetry series whose last activity is at
+// or before cutoff. The caller supplies a data-time cutoff so eviction is
+// deterministic in both live operation and replay.
+func (s *timeSeriesStorage) EvictInactiveBefore(cutoff int64) []observer.SeriesRef {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var freed []observer.SeriesRef
+	for _, stats := range s.seriesIDStats {
+		if stats == nil || stats.Namespace == observer.TelemetryNamespace || stats.lastActivityTimestamp > cutoff {
+			continue
+		}
+		if s.removeSeries(stats) {
+			freed = append(freed, stats.ref)
+		}
 	}
 	if len(freed) > 0 {
 		s.seriesGen++
@@ -1295,22 +1432,12 @@ func (s *timeSeriesStorage) TotalSampleCount(excludeNamespace string) int64 {
 	return total
 }
 
-// TotalSeriesCount returns the number of unique series (name + tag combinations),
-// excluding series in excludeNamespace (pass "" to include all namespaces).
-func (s *timeSeriesStorage) TotalSeriesCount(excludeNamespace string) int {
+// TotalSeriesCount returns the number of unique non-telemetry series (name +
+// tag combinations).
+func (s *timeSeriesStorage) TotalSeriesCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	total := 0
-	for _, stats := range s.seriesIDStats {
-		if stats == nil {
-			continue
-		}
-		if excludeNamespace != "" && stats.Namespace == excludeNamespace {
-			continue
-		}
-		total++
-	}
-	return total
+	return s.liveSeriesCount
 }
 
 // PointCountUpTo returns the number of raw data points with timestamp <= endTime.
@@ -1511,6 +1638,43 @@ func (s *timeSeriesStorage) ForEachPoint(
 	return true
 }
 
+// ForEachLastPoints calls fn for up to n of the newest points with timestamp
+// <= end. Like ForEachPoint, it snapshots points under the read lock and runs
+// the callback outside the lock. The Series pointer is valid only during fn.
+func (s *timeSeriesStorage) ForEachLastPoints(
+	ref observer.SeriesRef, end int64, n int, agg Aggregate,
+	fn func(*observer.Series, observer.Point),
+) bool {
+	if n <= 0 {
+		return false
+	}
+
+	bufp := pointBufPool.Get().(*[]observer.Point)
+	buf := *bufp
+
+	s.mu.RLock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		s.mu.RUnlock()
+		*bufp = buf
+		pointBufPool.Put(bufp)
+		return false
+	}
+	endIndex := searchAfter(stats.timestamps, end)
+	startIndex := max(0, endIndex-n)
+	series := observer.Series{Namespace: stats.Namespace, Name: stats.Name, Tags: stats.Tags}
+	buf = snapshotPoints(stats, startIndex, endIndex, agg, buf)
+	s.mu.RUnlock()
+
+	for _, p := range buf {
+		fn(&series, p)
+	}
+
+	*bufp = buf
+	pointBufPool.Put(bufp)
+	return true
+}
+
 // SumRange returns the aggregate total over the time range (start, end] without
 // allocating any intermediate slices. It operates directly on the columnar
 // data arrays, using binary search to locate the range boundaries.
@@ -1573,24 +1737,29 @@ func (s *timeSeriesStorage) snapshotRange(
 
 	lo := searchAfter(stats.timestamps, start)
 	hi := searchAfter(stats.timestamps, end)
-	n := hi - lo
-
-	if cap(buf) >= n {
-		buf = buf[:n]
-	} else {
-		buf = make([]observer.Point, n)
-	}
-
-	for i := 0; i < n; i++ {
-		buf[i] = observer.Point{
-			Timestamp: stats.timestamps[lo+i],
-			Value:     stats.aggregateAt(lo+i, agg),
-		}
-	}
+	buf = snapshotPoints(stats, lo, hi, agg, buf)
 
 	return observer.Series{
 		Namespace: stats.Namespace,
 		Name:      stats.Name,
 		Tags:      stats.Tags,
 	}, buf, true
+}
+
+// snapshotPoints copies [lo, hi) from stats into buf. The caller must hold
+// stats' storage read lock.
+func snapshotPoints(stats *seriesStats, lo, hi int, agg Aggregate, buf []observer.Point) []observer.Point {
+	n := hi - lo
+	if cap(buf) >= n {
+		buf = buf[:n]
+	} else {
+		buf = make([]observer.Point, n)
+	}
+	for i := range buf {
+		buf[i] = observer.Point{
+			Timestamp: stats.timestamps[lo+i],
+			Value:     stats.aggregateAt(lo+i, agg),
+		}
+	}
+	return buf
 }
