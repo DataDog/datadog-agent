@@ -18,6 +18,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/DataDog/dd-policy-engine/go/policies"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -28,7 +30,6 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/dd-policy-engine/go/policies"
 )
 
 const (
@@ -61,10 +62,13 @@ type TargetMutator struct {
 	// as a namespace target (Helm, Operator, or datadog.yaml). Empty when SSI
 	// is off or when SSI is on with no targeting.
 	staticPolicies policySet
-	// injectAll is the SSI-on fallback when there is no static targeting and no RC.
-	injectAll *targetInternal
 	// remotePolicies is the current RC policy set. Nil when none are installed.
 	remotePolicies atomic.Pointer[policySet]
+	// allowInjectAll gates the SSI-on fallback when there is no static
+	// targeting and no remote policies. The zero value is false (fail-closed).
+	allowInjectAll atomic.Bool
+	// injectAll is the SSI-on fallback when there is no static targeting and no RC.
+	injectAll *targetInternal
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -106,7 +110,8 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		ssiEnabled:                    ssiEnabled,
 		staticPolicies:                staticPolicies,
 	}
-	// SSI on and no static targeting: prepare inject-all. Applied only when RC is also absent.
+	// SSI on and no static targeting: prepare inject-all. Applied only when RC
+	// policies are also absents (after sync is complete).
 	if ssiEnabled && len(targets) == 0 {
 		fallback, err := buildInternalTargets(config, []Target{createDefaultTarget(nil, config.Instrumentation.LibVersions)}, defaultLibVersions)
 		if err != nil {
@@ -120,9 +125,11 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 	// On-demand instrumentation is the local gate for remote-config SSI
 	// policies. subscribeRemoteConfig is a no-op when rcClient is nil (e.g. in
-	// tests or when remote config is disabled).
+	// tests or when remote config is disabled) and enables inject-all immediately.
 	if config.Instrumentation.OnDemand {
 		m.subscribeRemoteConfig(rcClient)
+	} else {
+		m.allowInjectAll.Store(true)
 	}
 
 	return m, nil
@@ -220,7 +227,8 @@ func (m *TargetMutator) SetRemotePolicies(ps []policies.Policy) error {
 }
 
 // ClearRemotePolicies drops remote-config policies. Matching falls back to
-// static targets, then the SSI inject-all default if there is no static targeting.
+// static targets, then the SSI inject-all default if there is no static
+// targeting and inject-all is allowed.
 func (m *TargetMutator) ClearRemotePolicies() {
 	m.remotePolicies.Store(nil)
 }
@@ -480,7 +488,8 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 }
 
 // getMatchingTarget: static targets first, then RC, then SSI inject-all if both
-// are absent. A matched deny returns nil and does not fall through.
+// are absent. Inject-all is withheld until the first RC snapshot when on-demand
+// RC is subscribed. A matched deny returns nil and does not fall through.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
@@ -494,6 +503,10 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 		return t
 	}
 	if m.ssiEnabled && !hasTargets(&m.staticPolicies) && remotePolicies == nil {
+		if !m.allowInjectAll.Load() {
+			log.Debugf("Pod %q skipped SSI inject-all while waiting for the first remote config snapshot", mutatecommon.PodString(pod))
+			return nil
+		}
 		return m.injectAll
 	}
 	return nil

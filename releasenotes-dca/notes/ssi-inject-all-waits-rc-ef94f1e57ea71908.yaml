@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Single Step Instrumentation no longer instruments every eligible pod while
+    the Cluster Agent is still waiting for the first Remote Config workload
+    selection snapshot. Pods created in that window are left unchanged until
+    remote policies arrive, or until an empty snapshot confirms that the
+    organization has no remote policies.

@@ -276,3 +276,77 @@ func TestOnRemoteConfigUpdate_InvalidPayloadKeepsBaseline(t *testing.T) {
 	require.Equal(t, "config-default", name)
 	require.False(t, fromPolicy)
 }
+
+// TestRemotePolicies_InjectAllWaitsForFirstSnapshot verifies that SSI-on with no
+// static targets does not inject-all until a remote-config round-trip has been
+// observed. An empty snapshot then unblocks inject-all; a policy snapshot
+// evaluates RC instead.
+func TestRemotePolicies_InjectAllWaitsForFirstSnapshot(t *testing.T) {
+	wmeta := newMatchTestWmeta(t)
+	m := newMatchMutator(t, rcSSIOnNoTargets, wmeta)
+	pod := rcPod("ns", map[string]string{"app": "db"})
+
+	name, fromPolicy := matchedTarget(t, m, pod)
+	require.Equal(t, "default", name)
+	require.False(t, fromPolicy)
+
+	m.allowInjectAll.Store(false)
+	require.Nil(t, m.getMatchingTarget(pod))
+
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
+	require.True(t, m.allowInjectAll.Load())
+	name, fromPolicy = matchedTarget(t, m, pod)
+	require.Equal(t, "default", name)
+	require.False(t, fromPolicy)
+}
+
+func TestRemotePolicies_FirstSnapshotAppliesPolicies(t *testing.T) {
+	wmeta := newMatchTestWmeta(t)
+	m := newMatchMutator(t, rcSSIOnNoTargets, wmeta)
+	pod := rcPod("ns", map[string]string{"app": "db-user"})
+
+	m.allowInjectAll.Store(false)
+	require.Nil(t, m.getMatchingTarget(pod))
+
+	const raw = `{
+      "policies": [{
+        "description": "java for db-user",
+        "rules": {
+          "node_type": "EvaluatorNode",
+          "node": {
+            "eval_type": "StrEvaluator",
+            "eval": {"id": "POD_LABEL", "cmp": "CMP_EXACT", "value": "app=db-user"}
+          }
+        },
+        "actions": [
+          {"action": "INJECT_ALLOW"},
+          {"action": "ENABLE_SDK", "values": ["java=latest"]}
+        ]
+      }]
+    }`
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{
+		"datadog/2/APM_POLICIES/policy-1/config": {Config: []byte(raw)},
+	}, func(string, state.ApplyStatus) {})
+
+	require.True(t, m.allowInjectAll.Load())
+	name, fromPolicy := matchedTarget(t, m, pod)
+	require.Equal(t, "java for db-user", name)
+	require.True(t, fromPolicy)
+	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "other"})))
+}
+
+func TestOnRemoteConfigUpdate_InvalidFirstSnapshotStaysPending(t *testing.T) {
+	wmeta := newMatchTestWmeta(t)
+	m := newMatchMutator(t, rcSSIOnNoTargets, wmeta)
+	pod := rcPod("ns", map[string]string{"app": "db"})
+
+	m.allowInjectAll.Store(false)
+	applied := 0
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{
+		"datadog/2/APM_POLICIES/1.bad/config": {Config: []byte("{")},
+	}, func(string, state.ApplyStatus) { applied++ })
+
+	require.Equal(t, 1, applied)
+	require.False(t, m.allowInjectAll.Load())
+	require.Nil(t, m.getMatchingTarget(pod))
+}

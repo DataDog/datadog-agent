@@ -124,6 +124,7 @@ apm_config:
 //	SSI | static targets | RC          | Decision
 //	off | —              | none        | nothing
 //	off | —              | policies    | last matching policy, else nothing
+//	on  | none           | awaiting    | nothing (no inject-all before first RC snapshot)
 //	on  | none           | none        | everything
 //	on  | none           | policies    | last matching policy, else nothing
 //	on  | present        | none        | first matching target, else nothing
@@ -210,6 +211,13 @@ apm_config:
 		assertMatch(t, m, "ns", map[string]string{"app": "other"}, helm("default"))
 	})
 
+	t.Run("ssi on / no targets / awaiting first RC snapshot / nothing", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOnNoTargets, newMatchTestWmeta(t))
+		m.allowInjectAll.Store(false)
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
+		assertMatch(t, m, "ns", map[string]string{"app": "other"}, nothing)
+	})
+
 	t.Run("ssi on / no targets / RC / last matching policy, else nothing", func(t *testing.T) {
 		m := newMatchMutator(t, ssiOnNoTargets, newMatchTestWmeta(t))
 		require.NoError(t, m.SetRemotePolicies(rcPolicies))
@@ -235,6 +243,13 @@ apm_config:
 
 	t.Run("ssi on / targets / no RC / first matching target, else nothing", func(t *testing.T) {
 		m := newMatchMutator(t, ssiOnTargets, newMatchTestWmeta(t))
+		assertMatch(t, m, "ns", map[string]string{"language": "python"}, helm("helm-python"))
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
+	})
+
+	t.Run("ssi on / targets / awaiting first RC snapshot / static still matches", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOnTargets, newMatchTestWmeta(t))
+		m.allowInjectAll.Store(false)
 		assertMatch(t, m, "ns", map[string]string{"language": "python"}, helm("helm-python"))
 		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
 	})

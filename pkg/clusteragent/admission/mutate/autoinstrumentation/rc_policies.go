@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"time"
 
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -63,14 +64,46 @@ func remotePolicyPathOrder(path string) int {
 // format is the dd-wls policies document; targets do not appear on this path.
 func (m *TargetMutator) subscribeRemoteConfig(client *rcclient.Client) {
 	if client == nil {
+		m.allowInjectAll.Store(true)
 		return
 	}
 
 	log.Infof("auto-instrumentation: subscribing to remote config product %q for SSI policies", state.ProductApmPolicies)
-	// Apply the latest snapshot already held by the client, then subscribe for
-	// future updates.
+
+	if client.HasSynced() {
+		m.applySnapshotAndSubscribe(client)
+		return
+	}
+
+	log.Infof("auto-instrumentation: waiting for the first remote config snapshot of %q before applying SSI inject-all", state.ProductApmPolicies)
+	go m.waitForFirstRemoteConfigUpdate(client)
+}
+
+// applySnapshotAndSubscribe applies the current APM_POLICIES snapshot then
+// subscribes for subsequent updates.
+func (m *TargetMutator) applySnapshotAndSubscribe(client *rcclient.Client) {
 	m.onRemoteConfigUpdate(client.GetConfigs(state.ProductApmPolicies), client.UpdateApplyStatus)
 	client.Subscribe(state.ProductApmPolicies, m.onRemoteConfigUpdate)
+}
+
+// waitForFirstRemoteConfigUpdate waits until the RC client has completed a
+// poll, then applies the snapshot and subscribes. This is local to the mutator:
+// the RC client must not fan that signal out to other product listeners.
+func (m *TargetMutator) waitForFirstRemoteConfigUpdate(client *rcclient.Client) {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for range ticker.C {
+		if client.HasSynced() {
+			m.applySnapshotAndSubscribe(client)
+			return
+		}
+	}
+}
+
+func (m *TargetMutator) enableInjectAll() {
+	if m.allowInjectAll.CompareAndSwap(false, true) {
+		log.Infof("auto-instrumentation: first remote config snapshot for SSI policies received")
+	}
 }
 
 func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
@@ -78,6 +111,7 @@ func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig,
 
 	if len(updates) == 0 {
 		m.ClearRemotePolicies()
+		m.enableInjectAll()
 		return
 	}
 
@@ -116,4 +150,5 @@ func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig,
 	for path := range updates {
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
+	m.enableInjectAll()
 }

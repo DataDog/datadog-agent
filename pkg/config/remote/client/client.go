@@ -122,6 +122,10 @@ type Client struct {
 	backoffPolicy     backoff.Policy
 	backoffErrorCount int
 
+	// synced is set after the first successful ClientGetConfigs round-trip,
+	// including an empty snapshot. It is not cleared on later poll failures.
+	synced atomic.Bool
+
 	configFetcher ConfigFetcher
 
 	state *state.Repository
@@ -401,6 +405,14 @@ func (c *Client) GetConfigs(product string) map[string]state.RawConfig {
 	return c.state.GetConfigs(product)
 }
 
+// HasSynced reports whether this client has completed at least one successful
+// config poll against the remote-config service. An empty snapshot counts: the
+// round-trip happened, there were simply no configs for the subscribed
+// products. Later poll failures do not clear this.
+func (c *Client) HasSynced() bool {
+	return c.synced.Load()
+}
+
 // SetCWSWorkloads updates the list of workloads that needs cws profiles
 func (c *Client) SetCWSWorkloads(workloads []string) {
 	c.cwsWorkloads.Store(workloads)
@@ -525,6 +537,7 @@ func (c *Client) update() error {
 	if err != nil {
 		return err
 	}
+	c.synced.Store(true)
 	// We don't want to force the products to reload config if nothing changed
 	// in the latest update.
 	if len(changedProducts) == 0 {
