@@ -35,6 +35,7 @@ dd_agent_go_test(
         "suite_serial_kube_test.go",
         "vm_localpodman_test.go",
         "vm_test.go",
+        "vm_win_test.go",
         "vm_with_file_operations_test.go",
         "vmenv_artifacts_test.go",
         "vmenv_withami_test.go",
