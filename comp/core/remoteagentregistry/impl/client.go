@@ -280,7 +280,10 @@ func callAgentsForService[PbType any, StructuredType any](
 		}()
 	}
 
-	registry.agentMapMu.Unlock()
+	// Keep agentMapMu held until the goroutines finish. They read remoteAgent.RegisteredAgent
+	// fields (e.g. SanitizedDisplayName for telemetry) which race with RefreshRemoteAgent
+	// writing RegisteredAgent.LastSeen under the same lock.
+	defer registry.agentMapMu.Unlock()
 
 	wg.Wait()
 
