@@ -216,7 +216,7 @@ fn enable_privilege(name: &str) -> Result<()> {
         AdjustTokenPrivileges(
             token,
             0,
-            &mut privileges,
+            &privileges,
             0,
             ptr::null_mut(),
             ptr::null_mut(),

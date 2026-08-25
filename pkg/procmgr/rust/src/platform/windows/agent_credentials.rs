@@ -4,7 +4,6 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result, bail};
-#[cfg(not(test))]
 use log::info;
 use windows_sys::Win32::Security::{
     IsWellKnownSid, WinLocalServiceSid, WinLocalSystemSid, WinNetworkServiceSid,
