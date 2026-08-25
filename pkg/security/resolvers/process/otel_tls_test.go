@@ -30,7 +30,48 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const otelTLSFixtureMain = `
+// otelProcessCtxPublisher publishes the smallest process context a resolution
+// needs: the OTEP 4719 header in a mapping named OTEL_CTX, pointing at a payload
+// holding nothing but an empty resource. Prepended to every fixture that gets
+// resolved, since a process that publishes none is not resolved at all.
+const otelProcessCtxPublisher = `
+#define _GNU_SOURCE
+#include <stdint.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+static void publish_otel_process_ctx(void) {
+    long page_size = sysconf(_SC_PAGESIZE);
+
+    int fd = (int)syscall(SYS_memfd_create, "OTEL_CTX", 0);
+    if (fd < 0 || ftruncate(fd, page_size) < 0) {
+        return;
+    }
+    unsigned char *mapping = mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+    close(fd);
+    if (mapping == MAP_FAILED) {
+        return;
+    }
+
+    // ProcessContext { Resource resource = 1 }, empty: the reader rejects a
+    // zero-sized payload, so there has to be something.
+    static const unsigned char payload[] = {0x0a, 0x00};
+    memcpy(mapping + 32, payload, sizeof(payload));
+
+    uint32_t version = 2, payload_size = sizeof(payload);
+    uint64_t payload_ptr = (uint64_t)(uintptr_t)(mapping + 32), published_at = 1;
+    memcpy(mapping, "OTEL_CTX", 8);
+    memcpy(mapping + 8, &version, sizeof(version));
+    memcpy(mapping + 12, &payload_size, sizeof(payload_size));
+    memcpy(mapping + 24, &payload_ptr, sizeof(payload_ptr));
+    // Published last, as the protocol requires.
+    memcpy(mapping + 16, &published_at, sizeof(published_at));
+}
+`
+
+const otelTLSFixtureMain = otelProcessCtxPublisher + `
 #include <stdio.h>
 #include <unistd.h>
 
@@ -41,6 +82,7 @@ __attribute__((visibility("default"))) void touch_otel_thread_ctx_v1(void) {
 }
 
 int main(void) {
+    publish_otel_process_ctx();
     touch_otel_thread_ctx_v1();
     puts("ready");
     fflush(stdout);
@@ -67,8 +109,7 @@ __attribute__((visibility("default"))) void touch_otel_thread_ctx_v1(void) {
 }
 `
 
-const otelTLSFixtureDlopenMain = `
-#define _GNU_SOURCE
+const otelTLSFixtureDlopenMain = otelProcessCtxPublisher + `
 #include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -92,6 +133,7 @@ int main(int argc, char **argv) {
         return 4;
     }
 
+    publish_otel_process_ctx();
     touch();
     puts("ready");
     fflush(stdout);
@@ -185,7 +227,7 @@ func TestResolveOTelTLSStaticPIEMain(t *testing.T) {
 	requireNoInterpreter(t, bin)
 
 	cmd := startOTelTLSFixture(t, bin)
-	res, err := resolveOTelTLS(uint32(cmd.Process.Pid), "cpp")
+	res, err := resolveOTelTLS(uint32(cmd.Process.Pid))
 	require.NoError(t, err)
 
 	require.Equal(t, uint32(otelRuntimeNative), res.runtimeLang)
@@ -207,7 +249,7 @@ func TestResolveOTelTLSStaticNonPIEMainSymtab(t *testing.T) {
 	requireNoInterpreter(t, bin)
 
 	cmd := startOTelTLSFixture(t, bin)
-	res, err := resolveOTelTLS(uint32(cmd.Process.Pid), "cpp")
+	res, err := resolveOTelTLS(uint32(cmd.Process.Pid))
 	require.NoError(t, err)
 
 	require.Equal(t, uint32(otelRuntimeNative), res.runtimeLang)
@@ -228,7 +270,7 @@ func TestResolveOTelTLSStaticMuslNonPIEMainSymtab(t *testing.T) {
 	requireNoInterpreter(t, bin)
 
 	cmd := startOTelTLSFixture(t, bin)
-	res, err := resolveOTelTLS(uint32(cmd.Process.Pid), "cpp")
+	res, err := resolveOTelTLS(uint32(cmd.Process.Pid))
 	require.NoError(t, err)
 
 	require.Equal(t, uint32(otelRuntimeNative), res.runtimeLang)
@@ -262,7 +304,7 @@ func TestResolveOTelTLSMuslDTV(t *testing.T) {
 	}
 
 	cmd := startOTelTLSFixture(t, bin, lib)
-	res, err := resolveOTelTLS(uint32(cmd.Process.Pid), "cpp")
+	res, err := resolveOTelTLS(uint32(cmd.Process.Pid))
 	require.NoError(t, err)
 
 	require.Equal(t, uint32(otelRuntimeNative), res.runtimeLang)

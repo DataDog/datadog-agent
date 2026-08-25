@@ -20,6 +20,53 @@ int __attribute__((always_inline)) unregister_otel_tls() {
     return 0;
 }
 
+// --- OTel process context (OTEP 4719) ---
+
+// prctl(2) options, hardcoded because the kernel headers the agent builds
+// against predate them.
+#ifndef PR_SET_VMA
+#define PR_SET_VMA 0x53564d41
+#endif
+#ifndef PR_SET_VMA_ANON_NAME
+#define PR_SET_VMA_ANON_NAME 0
+#endif
+
+#define OTEL_CTX_VMA_NAME "OTEL_CTX"
+#define OTEL_CTX_VMA_NAME_SIZE sizeof(OTEL_CTX_VMA_NAME)
+
+// handle_otel_process_ctx_naming tells user space that a process just published
+// or updated its OTel process context.
+static void __attribute__((always_inline)) handle_otel_process_ctx_naming(void *ctx, int option, unsigned long arg2, const char *name) {
+    if (!is_span_tracking_enabled()) {
+        return;
+    }
+    if (option != PR_SET_VMA || arg2 != PR_SET_VMA_ANON_NAME) {
+        return;
+    }
+
+    // 1 more than the size to count the NUL terminator
+    char vma_name[OTEL_CTX_VMA_NAME_SIZE + 1] = {};
+    if (bpf_probe_read_str(&vma_name, sizeof(vma_name), name) != OTEL_CTX_VMA_NAME_SIZE) {
+        return;
+    }
+
+    char expected[OTEL_CTX_VMA_NAME_SIZE] = OTEL_CTX_VMA_NAME;
+#pragma unroll
+    for (int i = 0; i < OTEL_CTX_VMA_NAME_SIZE - 1; i++) {
+        if (vma_name[i] != expected[i]) {
+            return;
+        }
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    struct otel_process_ctx_event_t event = {};
+    event.event.type = EVENT_OTEL_PROCESS_CTX;
+    event.pid = pid_tgid >> 32;
+
+    send_event(ctx, EVENT_OTEL_PROCESS_CTX, event);
+}
+
 // A forked child keeps the parent's address space, so its TLS copy still holds
 // the record.
 static int __attribute__((always_inline)) inherit_otel_tls(u32 ppid, u32 pid) {

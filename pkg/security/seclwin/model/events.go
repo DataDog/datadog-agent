@@ -153,6 +153,8 @@ const (
 	NopEventType
 	// SocketEventType is sent when a socket is created
 	SocketEventType
+	// OTelProcessCtxEventType is sent when a process publishes its OTel process context
+	OTelProcessCtxEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -356,6 +358,8 @@ func (t EventType) String() string {
 		return "nop"
 	case SocketEventType:
 		return "socket"
+	case OTelProcessCtxEventType:
+		return "otel_process_ctx"
 	default:
 		return "unknown"
 	}

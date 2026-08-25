@@ -1229,41 +1229,67 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 }
 
 // applyTracerMetadata stores tracer metadata on the process cache entry and, when
-// span tracking is enabled, resolves the thread-context reader for the process:
-// the pprof label offsets for Go, the OTel TLS layout for every language. Must be
-// called WITHOUT the resolver lock held, since ELF I/O happens outside the lock.
+// span tracking is enabled, resolves the pprof label offsets of a Go process.
+// The thread-context readers hang off the OTel process context instead, which a
+// tracer publishes separately -- see ResolveOTelProcessContext. Must be called
+// WITHOUT the resolver lock held, since ELF I/O happens outside the lock.
 func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
+		// The attribute key map is not the tracer metadata's to carry: it comes
+		// from the process context.
+		tmeta.ThreadlocalAttributeKeys = entry.Tracer.Metadata.ThreadlocalAttributeKeys
 		entry.Tracer.Metadata = tmeta
 	}
 	p.Unlock()
 
-	if !p.config.SpanTrackingEnabled {
+	if !p.config.SpanTrackingEnabled || tmeta.TracerLanguage != "go" {
 		return
 	}
 
-	if tmeta.TracerLanguage == "go" {
-		if err := p.resolveGoLabels(pid); err != nil {
-			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
-		}
-	}
-
-	if p.otelTLSMap != nil {
-		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
-			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
-		}
+	if err := p.resolveGoLabels(pid); err != nil {
+		seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
 	}
 }
 
-func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, tracerLanguage string) error {
-	res, err := resolveOTelTLS(pid, tracerLanguage)
+// ResolveOTelProcessContext resolves how to the OTel process context the given PID publishes
+func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
+	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
+		return
+	}
+
+	if err := p.resolveAndUpdateOTelTLS(pid); err != nil {
+		seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+	}
+}
+
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) error {
+	// Only do the (mildly expensive) resolution for pids that SyncCache actually entered into the cache
+	p.RLock()
+	hasEntry := p.entryCache[pid] != nil
+	p.RUnlock()
+	if !hasEntry {
+		return nil
+	}
+
+	res, err := resolveOTelTLS(pid)
 	if err != nil {
 		return err
 	}
 
 	value := serializeOTelTLSValue(res)
-	return p.otelTLSMap.Put(pid, value)
+	if err := p.otelTLSMap.Put(pid, value); err != nil {
+		return err
+	}
+
+	// The process context is the only thing that publishes the attribute key map.
+	p.Lock()
+	if entry := p.entryCache[pid]; entry != nil {
+		entry.Tracer.Metadata.ThreadlocalAttributeKeys = res.attributeKeys
+	}
+	p.Unlock()
+
+	return nil
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials

@@ -101,6 +101,7 @@ var (
 		model.ExecEventType.String(),
 		model.ExitEventType.String(),
 		model.TracerMemfdSealEventType.String(),
+		model.OTelProcessCtxEventType.String(),
 	}
 )
 
@@ -2003,6 +2004,12 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			p.profileManager.HandleSampleRefresh(ev.Cookie)
 		}
 		return false
+	case model.OTelProcessCtxEventType:
+		var ev model.OTelProcessCtxEvent
+		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			p.Resolvers.ProcessResolver.ResolveOTelProcessContext(ev.Pid)
+		}
+		return false
 	case model.NopEventType:
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
@@ -2348,6 +2355,8 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 		return p.probe.IsNetworkFlowMonitorEnabled()
 	case model.SyscallsEventType.String():
 		return p.config.RuntimeSecurity.IsSysctlEventEnabled()
+	case model.OTelProcessCtxEventType.String():
+		return p.config.Probe.SpanTrackingEnabled
 	}
 	return true
 }
