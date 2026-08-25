@@ -366,7 +366,8 @@ func (s *timeSeriesStorage) AddWithKey(namespace string, key uint64, name string
 	stats, exists := s.series[key]
 	// Collision guard: verify full identity (namespace + name + sorted tags).
 	if exists && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonTags)) {
-		// Hash collision — extremely rare with FNV-64a (~10^-14 at 1000 series).
+		// A collision in the 64-bit storage-key domain. Keep the metadata guard:
+		// it makes a collision unable to merge two distinct series.
 		logging.Warnf("metric storage key collision h=%d: incumbent={%s,%s} new={%s,%s}",
 			key, stats.Namespace, stats.Name, namespace, name)
 		exists = false
