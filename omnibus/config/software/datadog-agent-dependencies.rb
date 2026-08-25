@@ -7,6 +7,12 @@ dependency 'datadog-agent-integrations-py3'
 build do
     command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
         :live_stream => Omnibus.logger.live_stream(:info)
+
+    if linux_target? && !fips_mode? && !heroku_target?
+        python = "#{install_dir}/embedded/bin/python3"
+        site_packages_path = "#{install_dir}/embedded/lib/python3.13/site-packages"
+        command_on_repo_root "#{python} -B tasks/libs/package/auditwheel.py #{site_packages_path} #{install_dir}/embedded/lib"
+    end
 end
 
 build do

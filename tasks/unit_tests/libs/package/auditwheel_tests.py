@@ -261,13 +261,19 @@ class TestAuditwheelLibrary(unittest.TestCase):
 
 
 class TestAuditwheelRecipe(unittest.TestCase):
-    def test_runs_normalization_only_for_standard_non_heroku_linux(self):
+    def test_runs_normalization_after_installing_canonical_dependencies_on_standard_linux(self):
         repository_root = Path(__file__).resolve().parents[4]
-        recipe = (repository_root / 'omnibus/config/software/datadog-agent-integrations-py3.rb').read_text()
+        integrations_recipe = (
+            repository_root / 'omnibus/config/software/datadog-agent-integrations-py3.rb'
+        ).read_text()
+        dependencies_recipe = (repository_root / 'omnibus/config/software/datadog-agent-dependencies.rb').read_text()
 
-        self.assertIn("elsif linux_target? && !heroku_target?", recipe)
-        self.assertIn("tasks/libs/package/auditwheel.py", recipe)
-        self.assertLess(recipe.index("if fips_mode?"), recipe.index("elsif linux_target? && !heroku_target?"))
+        self.assertNotIn("tasks/libs/package/auditwheel.py", integrations_recipe)
+        self.assertIn("if linux_target? && !fips_mode? && !heroku_target?", dependencies_recipe)
+        self.assertLess(
+            dependencies_recipe.index("//packages/agent/dependencies:install"),
+            dependencies_recipe.index("tasks/libs/package/auditwheel.py"),
+        )
 
 
 if __name__ == '__main__':

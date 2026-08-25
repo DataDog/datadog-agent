@@ -117,9 +117,5 @@ build do
         end
       end
     end
-  elsif linux_target? && !heroku_target?
-    block "Normalize auditwheel libraries" do
-      command_on_repo_root "#{python} -B tasks/libs/package/auditwheel.py #{site_packages_path} #{install_dir}/embedded/lib"
-    end
   end
 end
