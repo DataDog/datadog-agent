@@ -82,8 +82,6 @@ func (f *autoscalerFixture) newAutoscalerWatcher(selector labels.Selector) (*Aut
 	}
 	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
 
-	// Discover the HPA GVR the same way the server does, so the watcher is
-	// constructed with a pre-discovered GVR instead of a live client.
 	hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(kubeClient)
 	if err != nil {
 		return nil, nil, nil
@@ -697,15 +695,10 @@ func TestAutoscalerAutogenLabelSelectorFiltering(t *testing.T) {
 	assert.False(t, foundWpa1Ref, "wpa1 should be excluded (no label match and no datadogmetric@ reference)")
 }
 
-// NewAutoscalerWatcher must not perform live HPA discovery. The caller discovers
-// the HPA GroupVersionResource and passes it in, so a kubeClient whose discovery
-// would fail must not prevent construction. This guards the CONTINT-5549 fix: if
-// discovery moves back inside the watcher, this test fails with a discovery error.
+// TestNewAutoscalerWatcherDoesNotDiscoverHPA verifies the watcher does not perform live HPA discovery.
 func TestNewAutoscalerWatcherDoesNotDiscoverHPA(t *testing.T) {
 	f := newAutoscalerFixture(t)
 
-	// kubeClient has no autoscaling group registered, so DiscoverHPAGroupVersionResource
-	// against it would fail. The watcher must not call it.
 	kubeClient := kube_fake.NewSimpleClientset()
 	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
 

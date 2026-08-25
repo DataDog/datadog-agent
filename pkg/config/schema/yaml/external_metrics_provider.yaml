@@ -132,9 +132,7 @@ properties:
     node_type: setting
     type: integer
     default: 5
-    comment: Number of attempts to set up the External Metrics Provider on transient
-      APIServer failures during startup. The first attempt counts, so a value of
-      5 yields one initial try plus four retries.
+    comment: Number of attempts to set up the External Metrics Provider.
   use_datadogmetric_crd:
     node_type: setting
     type: boolean

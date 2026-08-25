@@ -83,12 +83,28 @@ func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option
 
 // buildServerWithRetry constructs the custom metrics API server with exponential backoff.
 func buildServerWithRetry(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component]) (*apiserver.CustomMetricsAdapterServer, func(), error) {
+	retries := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.startup_retries")
+	retryDelay := pkgconfigsetup.Datadog().GetDuration("external_metrics_provider.startup_retry_delay")
+	retryMaxDelay := pkgconfigsetup.Datadog().GetDuration("external_metrics_provider.startup_retry_max_delay")
+	if retries < 1 {
+		return nil, nil, fmt.Errorf("external_metrics_provider.startup_retries must be a positive integer, got %d", retries)
+	}
+	if retryDelay <= 0 {
+		return nil, nil, fmt.Errorf("external_metrics_provider.startup_retry_delay must be a positive duration, got %s", retryDelay)
+	}
+	if retryMaxDelay <= 0 {
+		return nil, nil, fmt.Errorf("external_metrics_provider.startup_retry_max_delay must be a positive duration, got %s", retryMaxDelay)
+	}
+	if retryMaxDelay < retryDelay {
+		return nil, nil, fmt.Errorf("external_metrics_provider.startup_retry_max_delay (%s) must be greater than or equal to startup_retry_delay (%s)", retryMaxDelay, retryDelay)
+	}
+
 	backoff := wait.Backoff{
-		Steps:    pkgconfigsetup.Datadog().GetInt("external_metrics_provider.startup_retries"),
-		Duration: pkgconfigsetup.Datadog().GetDuration("external_metrics_provider.startup_retry_delay"),
+		Steps:    retries,
+		Duration: retryDelay,
 		Factor:   2.0,
 		Jitter:   0.1,
-		Cap:      pkgconfigsetup.Datadog().GetDuration("external_metrics_provider.startup_retry_max_delay"),
+		Cap:      retryMaxDelay,
 	}
 
 	var deps apiServerDeps
@@ -123,12 +139,10 @@ func buildServerWithRetry(ctx context.Context, apiCl *as.APIClient, datadogCl op
 }
 
 // retrySetup runs setup with exponential backoff until it succeeds, the context
-// is cancelled, or the attempt budget is spent.
+// is cancelled, or the attempt budget is spent. The backoff must be validated by
+// the caller; this function assumes backoff.Steps >= 1 and a positive Duration.
 func retrySetup(ctx context.Context, backoff wait.Backoff, setup func(context.Context) error) error {
 	attempts := backoff.Steps
-	if attempts < 1 {
-		return fmt.Errorf("external_metrics_provider.startup_retries must be a positive integer, got %d", backoff.Steps)
-	}
 	delay := backoff.Duration
 
 	var lastErr error
@@ -167,7 +181,7 @@ func retrySetup(ctx context.Context, backoff wait.Backoff, setup func(context.Co
 		}
 	}
 
-	return fmt.Errorf("External Metrics Provider setup failed after %d attempts: %w", attempts, lastErr)
+	return fmt.Errorf("setup failed after %d attempts: %w", attempts, lastErr)
 }
 
 // apiServerDeps holds the APIServer-dependent handles gathered during the
