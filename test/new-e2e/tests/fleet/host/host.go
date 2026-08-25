@@ -150,6 +150,9 @@ type ProcmgrProcess struct {
 	Args         []string
 	RestartCount int
 	AutoStart    bool
+	Profile      string
+	User         string
+	RuntimeUser  string
 }
 
 // DescribeProcess returns the dd-procmgrd-reported state of a supervised process. ok is false if
@@ -172,6 +175,9 @@ func (h *Host) DescribeProcess(name, installDir string) (info ProcmgrProcess, ok
 		Args         []string `json:"args"`
 		RestartCount int      `json:"restart_count"`
 		AutoStart    bool     `json:"auto_start"`
+		Profile      string   `json:"profile"`
+		User         string   `json:"user"`
+		RuntimeUser  string   `json:"runtime_user"`
 	}
 	if err := json.Unmarshal([]byte(out), &detail); err != nil {
 		return ProcmgrProcess{}, false, fmt.Errorf("failed to parse dd-procmgr describe output: %w", err)
@@ -185,6 +191,9 @@ func (h *Host) DescribeProcess(name, installDir string) (info ProcmgrProcess, ok
 		Args:         detail.Args,
 		RestartCount: detail.RestartCount,
 		AutoStart:    detail.AutoStart,
+		Profile:      detail.Profile,
+		User:         detail.User,
+		RuntimeUser:  detail.RuntimeUser,
 	}, true, nil
 }
 
