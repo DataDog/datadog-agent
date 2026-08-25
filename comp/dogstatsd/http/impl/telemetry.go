@@ -40,6 +40,7 @@ func newTelemetryStore(telemetrycomp telemetry.Component) *telemetryStore {
 type endpointTelemetry struct {
 	requestOK           telemetry.SimpleCounter
 	requestOriginError  telemetry.SimpleCounter
+	requestTooLarge     telemetry.SimpleCounter
 	requestReadError    telemetry.SimpleCounter
 	requestParseError   telemetry.SimpleCounter
 	requestProcessError telemetry.SimpleCounter
@@ -57,6 +58,7 @@ func (s *telemetryStore) forEndpoint(endpoint string) endpointTelemetry {
 	return endpointTelemetry{
 		requestOK:           s.requests.WithValues(endpoint, "ok"),
 		requestOriginError:  s.requests.WithValues(endpoint, "origin_error"),
+		requestTooLarge:     s.requests.WithValues(endpoint, "too_large"),
 		requestReadError:    s.requests.WithValues(endpoint, "read_error"),
 		requestParseError:   s.requests.WithValues(endpoint, "parse_error"),
 		requestProcessError: s.requests.WithValues(endpoint, "process_error"),

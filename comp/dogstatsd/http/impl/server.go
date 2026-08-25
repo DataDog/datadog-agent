@@ -50,12 +50,13 @@ func (s *server) start(ctx context.Context) error {
 
 	newBase := func(endpoint string) handlerBase {
 		return handlerBase{
-			log:        s.log,
-			tagger:     s.tagger,
-			hostname:   hostname,
-			filterList: s.filterList,
-			out:        s.out,
-			tlm:        s.telemetry.forEndpoint(endpoint),
+			log:            s.log,
+			tagger:         s.tagger,
+			hostname:       hostname,
+			filterList:     s.filterList,
+			out:            s.out,
+			tlm:            s.telemetry.forEndpoint(endpoint),
+			maxPayloadSize: s.config.GetInt64("dogstatsd_experimental_http.max_payload_size"),
 		}
 	}
 

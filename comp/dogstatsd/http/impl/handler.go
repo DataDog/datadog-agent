@@ -6,6 +6,7 @@
 package httpimpl
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,6 +45,10 @@ type handlerBase struct {
 	filterList filterlist.Component
 	out        serializer
 	tlm        endpointTelemetry
+
+	// maxPayloadSize caps the request body we are willing to buffer. Zero or
+	// less disables the cap.
+	maxPayloadSize int64
 }
 
 func (h *handlerBase) handle(
@@ -68,11 +73,21 @@ func (h *handlerBase) handle(
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	reader := io.Reader(r.Body)
+	if h.maxPayloadSize > 0 {
+		reader = http.MaxBytesReader(w, r.Body, h.maxPayloadSize)
+	}
+	body, err := io.ReadAll(reader)
 	r.Body.Close()
 	// A failed read still consumed whatever it returned.
 	h.tlm.requestBytes.Add(float64(len(body)))
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			h.tlm.requestTooLarge.Inc()
+			ctx.respond(http.StatusRequestEntityTooLarge, "payload exceeds the %d byte limit", h.maxPayloadSize)
+			return
+		}
 		h.tlm.requestReadError.Inc()
 		ctx.respond(http.StatusBadRequest, "error reading body: %v", err)
 		return
