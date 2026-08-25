@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
 	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,6 +79,14 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 	err := proto.Unmarshal(event.Data, &newBom)
 	if err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
+	}
+
+	if event.Kind == sbompkg.HostEntityKind {
+		// The host has no workloadmeta entity to merge onto, so the overlay goes
+		// straight to the sbom check, which owns the host SBOM it enriches.
+		log.Debug("Received forwarded SBOM for the host")
+		usage.PublishHostOverlay(&newBom)
+		return workloadmeta.Event{}, nil
 	}
 
 	if event.Kind != string(workloadmeta.KindContainer) {

@@ -1,0 +1,35 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The SBOM runtime usage enrichment ("package in use") now covers the host. A
+    host package carries the ``LastSeenRunning``, ``HasSetSuidBit`` and
+    ``RunningAsRoot`` properties, computed from the binaries the host's processes
+    run, alongside the container images that already carried them. Set
+    ``sbom.host.enabled`` and ``sbom.enrichment.usage.enabled`` to collect it.
+
+    The host's package index is recomputed every
+    ``runtime_security_config.sbom.host.refresh_interval`` (one hour by default),
+    so a package installed or upgraded while the Agent runs is picked up. A
+    container is indexed when its workload appears, and the host is indexed at
+    startup, which is why it has a period of its own.
+fixes:
+  - |
+    Fixed a crash of system-probe when a host package was installed or upgraded
+    while the CWS SBOM resolver tracked the host
+    (``runtime_security_config.sbom.host.enabled``). Writing the package database
+    asks the resolver to refresh the host index, and the refresh looked for the
+    scan root in the cgroup of a container, which the host has none of.
+  - |
+    Fixed the ``version`` tag of a systemd service, which reported ``latest``
+    whatever version of the package owning the unit file was installed.
+  - |
+    A host whose package database the CWS SBOM resolver cannot read now leaves
+    system-probe running, reporting no packages in use on the host, where before
+    it stopped system-probe from starting.

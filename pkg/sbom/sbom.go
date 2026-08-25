@@ -23,6 +23,12 @@ const (
 	ScanMethodTagName  = "scan_method" // ScanMethodTagName defines the tag name for scan method
 )
 
+// HostEntityKind is the Kind of an SBOMMessage carrying the host's runtime usage
+// enrichment. It sits alongside the workloadmeta kinds the other messages use,
+// which have no host entity, and carries no ID: the core agent names the host
+// with the hostname it reports everywhere else.
+const HostEntityKind = "host"
+
 // ErrScanNotSupported reports that a scan can never succeed for the given image
 // and must not be retried. Exporting an image on a remote snapshotter such as
 // nydus to a tarball is such a case. Its layers live in the snapshotter rather

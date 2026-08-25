@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -438,4 +440,37 @@ func TestWorkloadmetaEventFromSBOMEventSet_BadInput(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, event.Entity)
 	})
+}
+
+// TestWorkloadmetaEventFromSBOMEventSet_HostOverlay checks that a host message
+// hands its BOM to the sbom check and produces no workloadmeta event: the host
+// has no entity to merge onto, and the check owns the host SBOM it enriches.
+func TestWorkloadmetaEventFromSBOMEventSet_HostOverlay(t *testing.T) {
+	store := newFakeStore()
+
+	bom := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			component("bash", "5.2.26", prop(sbomutil.LastAccessProperty, "1770000000")),
+		},
+	}
+	data, err := proto.Marshal(bom)
+	require.NoError(t, err)
+
+	event, err := workloadmetaEventFromSBOMEventSet(store, &sbompb.SBOMMessage{
+		Kind: sbompkg.HostEntityKind,
+		Data: data,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, event.Entity)
+
+	select {
+	case published := <-usage.HostOverlays():
+		require.Len(t, published.Components, 1)
+		assert.Equal(t, "bash", published.Components[0].Name)
+		lastSeen, ok := findProp(published.Components[0], sbomutil.LastAccessProperty)
+		assert.True(t, ok)
+		assert.Equal(t, "1770000000", lastSeen)
+	default:
+		t.Fatal("no host overlay was published")
+	}
 }

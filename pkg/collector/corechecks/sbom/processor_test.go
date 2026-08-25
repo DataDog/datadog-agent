@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,6 +36,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -1128,4 +1130,220 @@ func mustCompressSBOM(t *testing.T, sbom *workloadmeta.SBOM) *workloadmeta.Compr
 	assert.Nil(t, err)
 
 	return csbom
+}
+
+// hostReport is a minimal sbom.Report over a fixed component list.
+type hostReport struct {
+	id  string
+	bom *cyclonedx_v1_4.Bom
+}
+
+func (r hostReport) ToCycloneDX() *cyclonedx_v1_4.Bom { return r.bom }
+func (r hostReport) ID() string                       { return r.id }
+
+func hostComponent(name, version string) *cyclonedx_v1_4.Component {
+	return &cyclonedx_v1_4.Component{Name: name, Version: version}
+}
+
+// newHostProcessor builds a processor sending host SBOMs, alongside a function
+// returning the entities sent so far.
+func newHostProcessor(t *testing.T, usageEnrichment bool) (*processor, func() []*model.SBOMEntity) {
+	t.Helper()
+
+	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
+		"sbom.cache_directory":          t.TempDir(),
+		"sbom.host.enabled":             true,
+		"sbom.enrichment.usage.enabled": usageEnrichment,
+		"sbom.container_image.enabled":  false,
+	})
+
+	if sbomscanner.GetGlobalScanner() == nil {
+		wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
+			core.MockBundle(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
+		_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
+		assert.NoError(t, err)
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	var mu sync.Mutex
+	var sent []*model.SBOMEntity
+	sender := mocksender.NewMockSender(t, "")
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
+		var payload model.SBOMPayload
+		assert.NoError(t, proto.Unmarshal(args.Get(0).([]byte), &payload))
+		mu.Lock()
+		defer mu.Unlock()
+		sent = append(sent, payload.Entities...)
+	})
+
+	// One entity per payload, so every send is observable on its own.
+	p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Hour)
+	assert.NoError(t, err)
+	t.Cleanup(p.stop)
+
+	return p, func() []*model.SBOMEntity {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]*model.SBOMEntity(nil), sent...)
+	}
+}
+
+func waitForEntities(t *testing.T, entities func() []*model.SBOMEntity, want int) []*model.SBOMEntity {
+	t.Helper()
+	assert.Eventually(t, func() bool { return len(entities()) >= want }, 5*time.Second, 10*time.Millisecond,
+		"waiting for %d host payloads", want)
+	return entities()
+}
+
+// TestHostSBOMRuntimeUsage checks the host "package in use" enrichment: a usage
+// overlay is merged onto the host SBOM of the last scan, and a later overlay
+// re-sends the whole SBOM rather than a heartbeat. The Trivy report id hashes the
+// package list alone, so a heartbeat would leave the back end on the usage of the
+// previous payload.
+func TestHostSBOMRuntimeUsage(t *testing.T) {
+	p, entities := newHostProcessor(t, true)
+
+	scannedAt := time.Now().Truncate(time.Second)
+	p.processHostScanResult(sbom.ScanResult{
+		CreatedAt: scannedAt,
+		Duration:  42 * time.Second,
+		Report: hostReport{id: "sha256:packages", bom: &cyclonedx_v1_4.Bom{
+			Components: []*cyclonedx_v1_4.Component{
+				hostComponent("bash", "5.2.26"),
+				hostComponent("shadow-utils", "4.15.1"),
+			},
+		}},
+	})
+
+	sent := waitForEntities(t, entities, 1)
+	scanned := sent[0]
+	assert.Equal(t, model.SBOMSourceType_HOST_FILE_SYSTEM, scanned.GetType())
+	assert.False(t, scanned.GetHeartbeat())
+	assert.Len(t, scanned.GetCyclonedx().GetComponents(), 2)
+
+	// The overlay reports shadow-utils running as a setuid root binary.
+	overlay := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			{
+				Name:    "shadow-utils",
+				Version: "4.15.1",
+				Properties: []*cyclonedx_v1_4.Property{
+					{Name: sbomutil.LastAccessProperty, Value: pointer.Ptr("1770000000")},
+					{Name: sbomutil.HasSetSuidBitProperty, Value: pointer.Ptr("true")},
+					{Name: sbomutil.RunningAsRootProperty, Value: pointer.Ptr("true")},
+				},
+			},
+		},
+	}
+	p.processHostUsage(overlay)
+
+	sent = waitForEntities(t, entities, 2)
+	enriched := sent[1]
+	assert.Equal(t, model.SBOMSourceType_HOST_FILE_SYSTEM, enriched.GetType())
+	assert.False(t, enriched.GetHeartbeat(), "a usage change must send the SBOM, not a heartbeat")
+	// The hash names the package list, which the usage change leaves alone, and
+	// the payload keeps the scan's own time and duration: its packages come from
+	// that scan, exactly as an enriched container image keeps the image SBOM's.
+	assert.Equal(t, "sha256:packages", enriched.GetHash())
+	assert.Equal(t, scannedAt.Unix(), enriched.GetGeneratedAt().GetSeconds())
+	assert.Equal(t, int64(42), enriched.GetGenerationDuration().GetSeconds())
+
+	comps := enriched.GetCyclonedx().GetComponents()
+	assert.Len(t, comps, 2)
+	for _, comp := range comps {
+		props := map[string]string{}
+		for _, prop := range comp.GetProperties() {
+			props[prop.GetName()] = prop.GetValue()
+		}
+		switch comp.GetName() {
+		case "shadow-utils":
+			assert.Equal(t, "1770000000", props[sbomutil.LastAccessProperty])
+			assert.Equal(t, "true", props[sbomutil.HasSetSuidBitProperty])
+			assert.Equal(t, "true", props[sbomutil.RunningAsRootProperty])
+		case "bash":
+			// A package the overlay says nothing about is reported as not in use,
+			// which the back end can tell apart from unknown.
+			assert.Equal(t, "0", props[sbomutil.LastAccessProperty])
+			assert.Equal(t, "false", props[sbomutil.HasSetSuidBitProperty])
+			assert.Equal(t, "false", props[sbomutil.RunningAsRootProperty])
+		}
+	}
+
+	// The same overlay again describes the same usage, so nothing goes out. The
+	// resolver re-forwards on a debouncer, and a host SBOM is thousands of
+	// components wide.
+	p.processHostUsage(overlay)
+	assert.Never(t, func() bool { return len(entities()) > 2 }, 200*time.Millisecond, 10*time.Millisecond)
+}
+
+// TestHostSBOMRuntimeUsageDisabled checks that the overlay is dropped when the
+// enrichment is off, leaving the host SBOM as the scan produced it.
+func TestHostSBOMRuntimeUsageDisabled(t *testing.T) {
+	p, entities := newHostProcessor(t, false)
+
+	p.processHostScanResult(sbom.ScanResult{
+		CreatedAt: time.Now(),
+		Report: hostReport{id: "sha256:packages", bom: &cyclonedx_v1_4.Bom{
+			Components: []*cyclonedx_v1_4.Component{hostComponent("bash", "5.2.26")},
+		}},
+	})
+	sent := waitForEntities(t, entities, 1)
+
+	p.processHostUsage(&cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{{
+			Name:    "bash",
+			Version: "5.2.26",
+			Properties: []*cyclonedx_v1_4.Property{
+				{Name: sbomutil.LastAccessProperty, Value: pointer.Ptr("1770000000")},
+			},
+		}},
+	})
+
+	assert.Never(t, func() bool { return len(entities()) > len(sent) }, 200*time.Millisecond, 10*time.Millisecond)
+	for _, comp := range sent[0].GetCyclonedx().GetComponents() {
+		assert.Empty(t, comp.GetProperties())
+	}
+}
+
+// TestHostSBOMUsageBeforeFirstScan checks that an overlay arriving before the
+// first host scan is kept and merged onto its result. The first scan of a host
+// walks the whole filesystem, so the resolver, which indexes packages from the
+// package database alone, regularly gets there first.
+func TestHostSBOMUsageBeforeFirstScan(t *testing.T) {
+	p, entities := newHostProcessor(t, true)
+
+	p.processHostUsage(&cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{{
+			Name:    "bash",
+			Version: "5.2.26",
+			Properties: []*cyclonedx_v1_4.Property{
+				{Name: sbomutil.LastAccessProperty, Value: pointer.Ptr("1770000000")},
+			},
+		}},
+	})
+	assert.Never(t, func() bool { return len(entities()) > 0 }, 200*time.Millisecond, 10*time.Millisecond)
+
+	p.processHostScanResult(sbom.ScanResult{
+		CreatedAt: time.Now(),
+		Report: hostReport{id: "sha256:packages", bom: &cyclonedx_v1_4.Bom{
+			Components: []*cyclonedx_v1_4.Component{hostComponent("bash", "5.2.26")},
+		}},
+	})
+
+	sent := waitForEntities(t, entities, 1)
+	comps := sent[0].GetCyclonedx().GetComponents()
+	assert.Len(t, comps, 1)
+	props := map[string]string{}
+	for _, prop := range comps[0].GetProperties() {
+		props[prop.GetName()] = prop.GetValue()
+	}
+	assert.Equal(t, "1770000000", props[sbomutil.LastAccessProperty])
 }
