@@ -34,6 +34,7 @@ const (
 	// multiClusterGatewayClassSuffix identifies the GKE multi-cluster GatewayClasses
 	// (gke-l7-global-external-managed-mc, gke-l7-rilb-mc, ...).
 	multiClusterGatewayClassSuffix = "-mc"
+	gatewayKind                    = "Gateway"
 )
 
 var _ appsecconfig.InjectionPattern = (*gkeGatewayInjectionPattern)(nil)
@@ -116,7 +117,7 @@ func (g *gkeGatewayInjectionPattern) Added(ctx context.Context, obj *unstructure
 		return fmt.Errorf("could not check if GCPTrafficExtension %s/%s already exists: %w", namespace, extName, err)
 	}
 
-	extension := g.newGCPTrafficExtension(namespace, gatewayName)
+	extension := g.newGCPTrafficExtension(obj)
 	_, err = g.client.Resource(trafficExtensionGVR).Namespace(namespace).Create(ctx, extension, metav1.CreateOptions{})
 	if apierrors.IsAlreadyExists(err) {
 		// AlreadyExists means someone created the same name between our Get(NotFound) and Create;
@@ -163,8 +164,34 @@ func (g *gkeGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstructu
 		g.logger.Warnf("Skipping GCPTrafficExtension %s/%s deletion: object is not managed by Datadog", namespace, extName)
 		return nil
 	}
+	// A delayed delete event for an old Gateway must not remove the extension that
+	// belongs to a Gateway recreated under the same name. Extensions created before
+	// owner references were emitted carry none, and stay deletable on the label check
+	// alone; an incoming Gateway without a UID is likewise not treated as a mismatch.
+	if gatewayUID := obj.GetUID(); gatewayUID != "" {
+		for _, owner := range existing.GetOwnerReferences() {
+			if owner.Kind == gatewayKind && owner.UID != gatewayUID {
+				g.logger.Warnf("Skipping GCPTrafficExtension %s/%s deletion: it is owned by Gateway %q with UID %q, not by Gateway %s/%s with UID %q", namespace, extName, owner.Name, owner.UID, namespace, gatewayName, gatewayUID)
+				return nil
+			}
+		}
+	}
 
-	err = g.client.Resource(trafficExtensionGVR).Namespace(namespace).Delete(ctx, extName, metav1.DeleteOptions{})
+	// Guard the delete with the UID we just read, so a resource recreated between the
+	// Get above and this Delete is never removed. The API server reports the mismatch
+	// as a conflict. A blank UID cannot be sent, as it would reject every delete.
+	deleteOptions := metav1.DeleteOptions{}
+	if uid := existing.GetUID(); uid != "" {
+		deleteOptions.Preconditions = &metav1.Preconditions{UID: &uid}
+	}
+
+	err = g.client.Resource(trafficExtensionGVR).Namespace(namespace).Delete(ctx, extName, deleteOptions)
+	if apierrors.IsConflict(err) {
+		// The object we read was replaced by a different one, which is not ours to
+		// delete. Retrying cannot help, so do not requeue the reconcile.
+		g.logger.Warnf("Skipping GCPTrafficExtension %s/%s deletion: it was recreated between read and delete: %v", namespace, extName, err)
+		return nil
+	}
 	if err != nil && !apierrors.IsNotFound(err) {
 		g.recordExtensionDeleteFailed(namespace, gatewayName, extName, err)
 		return fmt.Errorf("could not delete GCPTrafficExtension %s/%s: %w", namespace, extName, err)
@@ -189,7 +216,9 @@ func extensionName(gatewayName string) string {
 	return extensionNamePrefix + gatewayName[:maxGatewayNameLength] + "-" + hex.EncodeToString(hash[:])[:8]
 }
 
-func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(namespace string, gatewayName string) *unstructured.Unstructured {
+func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(gateway *unstructured.Unstructured) *unstructured.Unstructured {
+	namespace := gateway.GetNamespace()
+	gatewayName := gateway.GetName()
 	labels := maps.Clone(g.config.CommonLabels)
 	if labels == nil {
 		labels = map[string]string{}
@@ -212,7 +241,7 @@ func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(namespace string, ga
 			"targetRefs": []any{
 				map[string]any{
 					"group": "gateway.networking.k8s.io",
-					"kind":  "Gateway",
+					"kind":  gatewayKind,
 					"name":  gatewayName,
 				},
 			},
@@ -249,6 +278,27 @@ func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(namespace string, ga
 	}}
 	extension.SetLabels(labels)
 	extension.SetAnnotations(annotations)
+
+	// Own the extension from the Gateway so Kubernetes garbage-collects it even when a
+	// Gateway delete event is missed, for example while the cluster-agent is down. The
+	// reference is always namespace-valid because GKE targetRefs and backendRefs have no
+	// namespace field, so the extension always lives in the Gateway's own namespace.
+	// Controller and BlockOwnerDeletion are deliberately omitted, as in the nginx
+	// ConfigMap owner reference: BlockOwnerDeletion needs update access on the owner's
+	// finalizers subresource, which this feature does not request.
+	if uid := gateway.GetUID(); uid != "" {
+		extension.SetOwnerReferences([]metav1.OwnerReference{{
+			APIVersion: gateway.GetAPIVersion(),
+			Kind:       gateway.GetKind(),
+			Name:       gatewayName,
+			UID:        uid,
+		}})
+	} else {
+		// An owner reference with a blank UID is invalid and the API server rejects it,
+		// so emit none at all and fall back to label-based cleanup.
+		g.logger.Debugf("Creating GCPTrafficExtension %s/%s without an owner reference: Gateway %s/%s has no UID", namespace, extensionName(gatewayName), namespace, gatewayName)
+	}
+
 	return extension
 }
 

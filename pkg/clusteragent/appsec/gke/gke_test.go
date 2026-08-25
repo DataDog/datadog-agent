@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
@@ -34,6 +35,14 @@ const (
 	testGatewayClass = "gke-l7-global-external-managed"
 	testServiceName  = "appsec-processor"
 	testServicePort  = 8080
+)
+
+// The fake client never generates UIDs, so fixtures set them explicitly. The three
+// values are distinct so that every UID assertion fails if the wrong one is read.
+const (
+	testGatewayUID      types.UID = "11111111-1111-1111-1111-111111111111"
+	testOtherGatewayUID types.UID = "22222222-2222-2222-2222-222222222222"
+	testExtensionUID    types.UID = "33333333-3333-3333-3333-333333333333"
 )
 
 func newTestGKEPattern(_ *testing.T, client dynamic.Interface, logger log.Component, config appsecconfig.Config) (*gkeGatewayInjectionPattern, *record.FakeRecorder) {
@@ -53,12 +62,22 @@ func newTestGateway(namespace string, name string, gatewayClass string) *unstruc
 		"metadata": map[string]any{
 			"name":      name,
 			"namespace": namespace,
+			"uid":       string(testGatewayUID),
 		},
 		"spec": map[string]any{
 			"gatewayClassName": gatewayClass,
 		},
 	}}
 	return gateway
+}
+
+func gatewayOwnerReference(gatewayName string, uid types.UID) metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion: "gateway.networking.k8s.io/v1",
+		Kind:       "Gateway",
+		Name:       gatewayName,
+		UID:        uid,
+	}
 }
 
 func newTestCRD() *unstructured.Unstructured {
@@ -695,4 +714,187 @@ func TestDeleted_returnsErrorAndRecordsEvent_whenGetOrDeleteFails(t *testing.T) 
 			requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionDeleteFailed)
 		})
 	}
+}
+
+func TestAdded_setsOwnerReferenceToGateway(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	extension := getExtension(t, client, "test-ns", "test-gateway")
+	require.Equal(t, []metav1.OwnerReference{gatewayOwnerReference("test-gateway", testGatewayUID)}, extension.GetOwnerReferences())
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionCreated)
+}
+
+func TestAdded_omitsOwnerReference_whenGatewayUIDIsEmpty(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+	gateway := newTestGateway("test-ns", "test-gateway", testGatewayClass)
+	gateway.SetUID("")
+
+	// When
+	err := pattern.Added(ctx, gateway)
+
+	// Then
+	require.NoError(t, err)
+	extension := getExtension(t, client, "test-ns", "test-gateway")
+	require.Empty(t, extension.GetOwnerReferences())
+	// An ownerReference with a blank UID is invalid, so the field must be absent
+	// entirely rather than present and empty.
+	require.NotContains(t, extension.Object["metadata"], "ownerReferences")
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionCreated)
+}
+
+func TestDeleted_skipsExtension_whenOwnerUIDBelongsToDifferentGateway(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
+	existing.SetOwnerReferences([]metav1.OwnerReference{gatewayOwnerReference("test-gateway", testOtherGatewayUID)})
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	requireSingleExtensionObjectEqual(t, client, "test-ns", existing.Object)
+	requireNoEvents(t, recorder)
+}
+
+func TestDeleted_deletesLegacyExtension_withoutOwnerReference(t *testing.T) {
+	// Given extensions created by earlier agent versions carry no ownerReference and
+	// must stay deletable, otherwise disabling AppSec orphans every one of them.
+	ctx := context.Background()
+	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
+	require.Empty(t, existing.GetOwnerReferences())
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	requireExtensionNotFound(t, client, "test-ns", "test-gateway")
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionDeleted)
+}
+
+func TestDeleted_deletesExtension_whenOwnerUIDMatchesGateway(t *testing.T) {
+	// Given the Gateway cleanupPattern hands us is the live owner of the extension.
+	ctx := context.Background()
+	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
+	existing.SetOwnerReferences([]metav1.OwnerReference{gatewayOwnerReference("test-gateway", testGatewayUID)})
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	requireExtensionNotFound(t, client, "test-ns", "test-gateway")
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionDeleted)
+}
+
+func TestDeleted_deletesExtension_whenGatewayUIDIsEmpty(t *testing.T) {
+	// Given a Gateway with no UID, an owned extension must not be read as a mismatch.
+	ctx := context.Background()
+	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
+	existing.SetOwnerReferences([]metav1.OwnerReference{gatewayOwnerReference("test-gateway", testOtherGatewayUID)})
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+	gateway := newTestGateway("test-ns", "test-gateway", testGatewayClass)
+	gateway.SetUID("")
+
+	// When
+	err := pattern.Deleted(ctx, gateway)
+
+	// Then
+	require.NoError(t, err)
+	requireExtensionNotFound(t, client, "test-ns", "test-gateway")
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionDeleted)
+}
+
+func TestDeleted_sendsResourceUIDPrecondition(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
+	existing.SetUID(testExtensionUID)
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
+	var gotOptions metav1.DeleteOptions
+	client.PrependReactor("delete", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		gotOptions = action.(k8stesting.DeleteActionImpl).DeleteOptions
+		// The fake object tracker drops delete preconditions, so fall through to the
+		// default reaction and assert on the options the client actually sent.
+		return false, nil, nil
+	})
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	require.NotNil(t, gotOptions.Preconditions, "delete must carry a resource UID precondition")
+	require.NotNil(t, gotOptions.Preconditions.UID)
+	require.Equal(t, testExtensionUID, *gotOptions.Preconditions.UID)
+	requireExtensionNotFound(t, client, "test-ns", "test-gateway")
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionDeleted)
+}
+
+func TestDeleted_omitsPrecondition_whenExtensionUIDIsEmpty(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
+	require.Empty(t, existing.GetUID())
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
+	var gotOptions metav1.DeleteOptions
+	client.PrependReactor("delete", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		gotOptions = action.(k8stesting.DeleteActionImpl).DeleteOptions
+		return false, nil, nil
+	})
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	require.Nil(t, gotOptions.Preconditions, "a blank UID precondition would reject every delete")
+	requireExtensionNotFound(t, client, "test-ns", "test-gateway")
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionDeleted)
+}
+
+func TestDeleted_returnsNilOnUIDPreconditionConflict(t *testing.T) {
+	// Given the fake object tracker drops delete preconditions, the conflict a real
+	// API server raises on a UID mismatch is injected through a reactor instead.
+	ctx := context.Background()
+	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
+	existing.SetUID(testExtensionUID)
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
+	client.PrependReactor("delete", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewConflict(
+			schema.GroupResource{Group: trafficExtensionGVR.Group, Resource: trafficExtensionGVR.Resource},
+			action.(k8stesting.DeleteAction).GetName(),
+			errors.New("UID in precondition does not match UID in record"),
+		)
+	})
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.NoError(t, err)
+	requireSingleExtensionObjectEqual(t, client, "test-ns", existing.Object)
+	requireNoEvents(t, recorder)
 }
