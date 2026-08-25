@@ -20,6 +20,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
+var dummyObjective = []datadoghqcommon.DatadogPodAutoscalerObjective{
+	{
+		Type:        datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+		PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{},
+	},
+}
+
 func TestValidateAutoscalerSpec(t *testing.T) {
 	tests := map[string]struct {
 		spec    datadoghq.DatadogPodAutoscalerSpec
@@ -97,6 +104,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		// Fallback objective checks
 		"fallback objective custom query not allowed": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Fallback: &datadoghq.DatadogFallbackPolicy{
 					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
 						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
@@ -109,6 +117,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"fallback objective cpu allowed": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Fallback: &datadoghq.DatadogFallbackPolicy{
 					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
 						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
@@ -121,6 +130,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"fallback objective pod resource type without resource": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Fallback: &datadoghq.DatadogFallbackPolicy{
 					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
 						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
@@ -133,6 +143,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"fallback objective container resource type without resource": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Fallback: &datadoghq.DatadogFallbackPolicy{
 					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
 						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
@@ -147,6 +158,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		// Constraints: minReplicas / maxReplicas
 		"maxReplicas less than minReplicas": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					MinReplicas: pointer.Ptr[int32](5),
 					MaxReplicas: pointer.Ptr[int32](2),
@@ -156,6 +168,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"maxReplicas equals minReplicas": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					MinReplicas: pointer.Ptr[int32](3),
 					MaxReplicas: pointer.Ptr[int32](3),
@@ -164,6 +177,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"only minReplicas set": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					MinReplicas: pointer.Ptr[int32](5),
 				},
@@ -171,6 +185,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"only maxReplicas set": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					MaxReplicas: pointer.Ptr[int32](10),
 				},
@@ -180,6 +195,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		// Constraints: duplicate container names
 		"duplicate container name in constraints": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{Name: "app"},
@@ -192,6 +208,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"unique container names in constraints": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{Name: "app"},
@@ -204,6 +221,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		// Constraints: minAllowed > maxAllowed (top-level)
 		"container cpu minAllowed greater than maxAllowed": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{
@@ -218,6 +236,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"container memory minAllowed greater than maxAllowed": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{
@@ -232,6 +251,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"container minAllowed equals maxAllowed": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{
@@ -245,6 +265,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"container only minAllowed set": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{
@@ -257,6 +278,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"container only maxAllowed set": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{
@@ -269,6 +291,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"container cpu valid memory invalid": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{
@@ -291,6 +314,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		// Constraints: legacy Requests field
 		"legacy requests minAllowed greater than maxAllowed": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{
@@ -307,6 +331,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"legacy requests valid bounds": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 					Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 						{
@@ -320,8 +345,48 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 				},
 			},
 		},
+		// Empty objectives checks
+		"empty objectives with horizontal enabled (default policy)": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{},
+			},
+			wantErr: "at least one objective is required when horizontal scaling is enabled",
+		},
+		"empty objectives with horizontal enabled (nil policy)": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: nil,
+				Objectives:  []datadoghqcommon.DatadogPodAutoscalerObjective{},
+			},
+			wantErr: "at least one objective is required when horizontal scaling is enabled",
+		},
+		"empty objectives with vertical only (both scale directions disabled)": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+						Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect),
+					},
+					ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+						Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect),
+					},
+				},
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{},
+			},
+		},
+		"empty objectives with only scaleUp disabled": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+						Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect),
+					},
+				},
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{},
+			},
+			wantErr: "at least one objective is required when horizontal scaling is enabled",
+		},
+
 		"resizePendingPeriod zero is valid (disabled)": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
 						ResizePendingPeriod: 0,
@@ -331,6 +396,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"resizePendingPeriod 1 is valid": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
 						ResizePendingPeriod: 1,
@@ -340,6 +406,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"rolloutFallbackDelay 1 is valid": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 1},
 				},
@@ -347,6 +414,7 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 		},
 		"rolloutFallbackDelay 3599 is valid": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: dummyObjective,
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 3599},
 				},

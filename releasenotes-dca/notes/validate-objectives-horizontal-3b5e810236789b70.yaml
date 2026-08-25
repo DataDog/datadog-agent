@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    DPA: Validate that at least one objective is defined when horizontal scaling is enabled.

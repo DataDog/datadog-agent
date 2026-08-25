@@ -22,7 +22,7 @@ func ValidateAutoscalerSpec(spec *datadoghq.DatadogPodAutoscalerSpec) error {
 	if err := validateConstraints(spec.Constraints); err != nil {
 		return err
 	}
-	if err := validateObjectives(spec.Objectives); err != nil {
+	if err := validateObjectives(spec.Objectives, spec.ApplyPolicy); err != nil {
 		return err
 	}
 	if err := validateFallback(spec.Fallback); err != nil {
@@ -68,7 +68,11 @@ func validateConstraints(constraints *datadoghqcommon.DatadogPodAutoscalerConstr
 	return nil
 }
 
-func validateObjectives(objectives []datadoghqcommon.DatadogPodAutoscalerObjective) error {
+func validateObjectives(objectives []datadoghqcommon.DatadogPodAutoscalerObjective, applyPolicy *datadoghq.DatadogPodAutoscalerApplyPolicy) error {
+	if isHorizontalEnabledFromSpec(applyPolicy) && len(objectives) == 0 {
+		return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec,
+			"at least one objective is required when horizontal scaling is enabled")
+	}
 	for _, objective := range objectives {
 		if err := validateSingleObjective(objective); err != nil {
 			return err
@@ -119,6 +123,24 @@ func validateResourceBounds(containerName string, minAllowed, maxAllowed corev1.
 		}
 	}
 	return nil
+}
+
+// isHorizontalEnabledFromSpec mirrors IsHorizontalScalingEnabled (pod_autoscaler.go)
+// but operates on the spec directly for use during validation.
+func isHorizontalEnabledFromSpec(applyPolicy *datadoghq.DatadogPodAutoscalerApplyPolicy) bool {
+	if applyPolicy == nil {
+		return true
+	}
+
+	scaleUpDisabled := applyPolicy.ScaleUp != nil &&
+		applyPolicy.ScaleUp.Strategy != nil &&
+		*applyPolicy.ScaleUp.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+
+	scaleDownDisabled := applyPolicy.ScaleDown != nil &&
+		applyPolicy.ScaleDown.Strategy != nil &&
+		*applyPolicy.ScaleDown.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+
+	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
 func validateSingleObjective(objective datadoghqcommon.DatadogPodAutoscalerObjective) error {
