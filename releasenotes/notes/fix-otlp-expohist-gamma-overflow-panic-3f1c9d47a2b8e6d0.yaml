@@ -7,3 +7,9 @@ fixes:
     the bucket ``offset`` places a populated bucket beyond the ``float64`` range.
     Such data points are now rejected with an error instead of crashing the
     Agent.
+  - |
+    Fix a panic when converting an exponential histogram of durations whose
+    bucket boundaries fall outside the range its DDSketch mapping can index.
+    Boundaries too small to index are now counted in the sketch's zero bin, and a
+    ``scale`` fine enough to leave the mapping with no indexable values at all is
+    rejected with an error.

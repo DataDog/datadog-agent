@@ -8,9 +8,11 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
+	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -189,4 +191,81 @@ func TestCreateDDSketchFromExponentialHistogramOfDurationUnitOverflow(t *testing
 	sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(nil, 0, "s")
 	require.NoError(t, err)
 	require.NotNil(t, sketch)
+}
+
+// TestCreateDDSketchFromExponentialHistogramOfDurationUnderflowToZeroBin checks that
+// boundaries too small for the mapping to index are counted in the zero bin instead
+// of being passed to LogarithmicMapping.Index, where Log(0) = -Inf used to panic in
+// DenseStore.
+func TestCreateDDSketchFromExponentialHistogramOfDurationUnderflowToZeroBin(t *testing.T) {
+	for _, half := range []string{"positive", "negative"} {
+		t.Run(half, func(t *testing.T) {
+			// base^math.MinInt32 underflows to 0 at any scale.
+			md := newExpHistogramMetrics(0, 0, nil)
+			dp := md.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).
+				ExponentialHistogram().DataPoints().At(0)
+			buckets := dp.Positive()
+			if half == "negative" {
+				buckets = dp.Negative()
+			}
+			buckets.SetOffset(math.MinInt32)
+			buckets.BucketCounts().Append(1)
+			buckets.BucketCounts().Append(1)
+
+			// The bounds check allows underflow: it is only the overflow side that
+			// produces a non-finite boundary.
+			require.NoError(t, checkExponentialHistogramBounds(dp, 0, float64(time.Second)))
+
+			var sketch *ddsketch.DDSketch
+			var err error
+			require.NotPanics(t, func() {
+				sketch, err = CreateDDSketchFromExponentialHistogramOfDuration(&dp, 0, "s")
+			})
+			require.NoError(t, err)
+			require.NotNil(t, sketch)
+			// Both observations are preserved, in the zero bin.
+			assert.Equal(t, 2.0, sketch.GetCount())
+			assert.Equal(t, 2.0, sketch.GetZeroCount())
+		})
+	}
+}
+
+// TestCreateDDSketchFromExponentialHistogramOfDurationDegenerateMapping checks the
+// case where the clamped gamma sits so close to 1 that the mapping's multiplier
+// explodes and its indexable range inverts. mapping.Index then returns an index far
+// too large for DenseStore to allocate, which used to panic with
+// "growslice: len out of range".
+func TestCreateDDSketchFromExponentialHistogramOfDurationDegenerateMapping(t *testing.T) {
+	// 2^(2^-52) is 1+1.5e-16, below the 1.01/0.99 clamp, so the clamp does not apply.
+	// Scale 53 rounds gamma to exactly 1, which NewLogarithmicMappingWithGamma rejects.
+	for _, scale := range []int32{40, 52} {
+		t.Run(fmt.Sprintf("scale%d", scale), func(t *testing.T) {
+			md := newExpHistogramMetrics(scale, 0, []uint64{1, 1})
+			dp := md.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).
+				ExponentialHistogram().DataPoints().At(0)
+
+			// The boundaries themselves are perfectly representable.
+			require.NoError(t, checkExponentialHistogramBounds(dp, scale, float64(time.Second)))
+
+			require.NotPanics(t, func() {
+				sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(&dp, scale, "s")
+				assert.Error(t, err)
+				assert.Nil(t, sketch)
+			})
+		})
+	}
+
+	// In-spec scales are unaffected: their indexable range still covers nanosecond
+	// magnitudes.
+	for _, scale := range []int32{-4, 0, 10, 20} {
+		t.Run(fmt.Sprintf("inspec_scale%d", scale), func(t *testing.T) {
+			md := newExpHistogramMetrics(scale, 0, []uint64{1, 1})
+			dp := md.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).
+				ExponentialHistogram().DataPoints().At(0)
+			sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(&dp, scale, "s")
+			require.NoError(t, err)
+			require.NotNil(t, sketch)
+			assert.Equal(t, 2.0, sketch.GetCount())
+		})
+	}
 }
