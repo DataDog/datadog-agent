@@ -111,11 +111,17 @@ func (g *gkeGatewayInjectionPattern) Added(ctx context.Context, obj *unstructure
 		// AlreadyExists means someone created the same name between our Get(NotFound) and Create;
 		// re-check ownership so we do not silently claim a foreign object as our success.
 		existing, getErr := g.client.Resource(trafficExtensionGVR).Namespace(namespace).Get(ctx, extName, metav1.GetOptions{})
-		if getErr == nil && !appsecconfig.IsManagedByDatadog(existing.GetLabels()) {
+		if getErr != nil {
+			// Ownership is unknown: report the failure so the reconcile is retried instead of
+			// silently claiming an object we never established ownership of.
+			g.recordExtensionCreateFailed(namespace, gatewayName, extName, getErr)
+			return fmt.Errorf("could not check ownership of existing GCPTrafficExtension %s/%s: %w", namespace, extName, getErr)
+		}
+		if !appsecconfig.IsManagedByDatadog(existing.GetLabels()) {
 			g.logger.Warnf("Skipping GCPTrafficExtension %s/%s: object already exists and is not managed by Datadog", namespace, extName)
 			return nil
 		}
-		g.logger.Debugf("GCPTrafficExtension %s/%s already exists", namespace, extName)
+		g.logger.Debugf("GCPTrafficExtension %s/%s already exists and is managed by Datadog", namespace, extName)
 		return nil
 	}
 	if err != nil {

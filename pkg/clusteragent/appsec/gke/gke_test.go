@@ -471,10 +471,20 @@ func TestAdded_createsManagedExtension_whenCommonLabelsAreNil(t *testing.T) {
 	require.Equal(t, appsecconfig.ManagedByLabelValue, extension.GetLabels()[kubernetes.KubeAppManagedByLabelKey])
 }
 
-func TestAdded_returnsNilAndRecordsNoCreateFailedEvent_whenCreateAlreadyExists(t *testing.T) {
+func TestAdded_returnsNilAndRecordsNoEvent_whenAlreadyExistsReGetShowsManagedObject(t *testing.T) {
 	// Given
 	ctx := context.Background()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
+	managed := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
+	before := managed.DeepCopy()
+	getCalls := 0
+	client.PrependReactor("get", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		getCalls++
+		if getCalls == 1 {
+			return true, nil, apierrors.NewNotFound(schema.GroupResource{Group: trafficExtensionGVR.Group, Resource: trafficExtensionGVR.Resource}, action.(k8stesting.GetAction).GetName())
+		}
+		return true, managed.DeepCopy(), nil
+	})
 	client.PrependReactor("create", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		created := action.(k8stesting.CreateAction).GetObject().(*unstructured.Unstructured)
 		return true, nil, apierrors.NewAlreadyExists(schema.GroupResource{Group: trafficExtensionGVR.Group, Resource: trafficExtensionGVR.Resource}, created.GetName())
@@ -486,7 +496,9 @@ func TestAdded_returnsNilAndRecordsNoCreateFailedEvent_whenCreateAlreadyExists(t
 
 	// Then
 	require.NoError(t, err)
-	requireNoExtensions(t, client, "test-ns")
+	require.Equal(t, 2, getCalls)
+	after := getExtension(t, client, "test-ns", "test-gateway")
+	require.Equal(t, before.Object, after.Object)
 	requireNoEvents(t, recorder)
 }
 
@@ -519,6 +531,34 @@ func TestAdded_skipsForeignExtensionAndRecordsNoEvent_whenCreateAlreadyExistsRac
 	after := getExtension(t, client, "test-ns", "test-gateway")
 	require.Equal(t, before.Object, after.Object)
 	requireNoEvents(t, recorder)
+}
+
+func TestAdded_returnsErrorAndRecordsCreateFailed_whenAlreadyExistsReGetFails(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
+	getCalls := 0
+	client.PrependReactor("get", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		getCalls++
+		if getCalls == 1 {
+			return true, nil, apierrors.NewNotFound(schema.GroupResource{Group: trafficExtensionGVR.Group, Resource: trafficExtensionGVR.Resource}, action.(k8stesting.GetAction).GetName())
+		}
+		return true, nil, apierrors.NewInternalError(errors.New("internal server error"))
+	})
+	client.PrependReactor("create", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		created := action.(k8stesting.CreateAction).GetObject().(*unstructured.Unstructured)
+		return true, nil, apierrors.NewAlreadyExists(schema.GroupResource{Group: trafficExtensionGVR.Group, Resource: trafficExtensionGVR.Resource}, created.GetName())
+	})
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
+
+	// When
+	err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway", testGatewayClass))
+
+	// Then
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "GCPTrafficExtension")
+	require.Equal(t, 2, getCalls)
+	requireEventReasons(t, recorder, EventReasonGCPTrafficExtensionCreateFailed)
 }
 
 func TestAdded_returnsErrorAndRecordsEvent_whenGetOrCreateFails(t *testing.T) {
