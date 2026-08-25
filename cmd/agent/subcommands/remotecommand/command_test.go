@@ -61,6 +61,48 @@ func TestPrepareFxDependencies(t *testing.T) {
 	})
 }
 
+func TestPrepareDiscoversRemoteProvidersBeforeCobraDispatch(t *testing.T) {
+	globalParams := &command.GlobalParams{}
+	root := &cobra.Command{Use: "agent"}
+	root.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "")
+	remote := Commands(globalParams)[0]
+	root.AddCommand(remote)
+
+	var discovered bool
+	discover := func(remote *cobra.Command, params *command.GlobalParams, _ []string) error {
+		discovered = true
+		require.Equal(t, "custom.yaml", params.ConfFilePath)
+		return AttachCommandProviders(remote, []*pb.CommandProvider{{
+			Name:     "fixture-agent",
+			Commands: []*pb.Command{{Name: "inspect", IsRunnable: true}},
+		}}, func(_ string, _ []string, _ *structpb.Struct, stdout, _ io.Writer) error {
+			_, err := io.WriteString(stdout, "executed\n")
+			return err
+		})
+	}
+
+	args := []string{"--cfgpath", "custom.yaml", "remote", "fixture-agent", "inspect"}
+	require.NoError(t, prepare(root, args, discover))
+	require.True(t, discovered)
+	root.SetArgs(args)
+	var output bytes.Buffer
+	root.SetOut(&output)
+	require.NoError(t, root.Execute())
+	require.Equal(t, "executed\n", output.String())
+}
+
+func TestPrepareSkipsDiscoveryForNonRemoteCommand(t *testing.T) {
+	root := &cobra.Command{Use: "agent"}
+	root.AddCommand(Commands(&command.GlobalParams{})...)
+	root.AddCommand(&cobra.Command{Use: "status"})
+
+	discover := func(*cobra.Command, *command.GlobalParams, []string) error {
+		t.Fatal("non-remote command must not discover providers")
+		return nil
+	}
+	require.NoError(t, prepare(root, []string{"status"}, discover))
+}
+
 func TestApplyRootFlags(t *testing.T) {
 	params := &command.GlobalParams{}
 	applyRootFlags([]string{"--cfgpath", "/tmp/config", "--extracfgpath=extra.yaml", "--sysprobecfgpath", "/tmp/sysprobe", "--fleetcfgpath=/tmp/fleet", "--no-color", "remote", "fixture", "--provider-flag"}, params)
