@@ -101,6 +101,13 @@ type FakeSSHServer struct {
 	hostKey   ssh.Signer
 	getOutput ShellFunc
 
+	// Interactive-shell mode: when interactivePrompt is non-empty, the server
+	// handles pty-req/shell requests by running a prompt-driven REPL against
+	// interactiveData (mimicking a device like PAN-OS) instead of replying to
+	// one-shot exec requests.
+	interactivePrompt string
+	interactiveData   map[string]FakeResponse
+
 	expectedUser     string
 	expectedPassword string
 
@@ -127,6 +134,18 @@ func WithCredentials(user, password string) FakeServerOption {
 // listener and every accepted connection.
 func StartFakeSSHServer(t *testing.T, outputs map[string]FakeResponse, opts ...FakeServerOption) *FakeSSHServer {
 	return StartFakeSSHServerWithFunc(t, FakeData(outputs), opts...)
+}
+
+// StartFakeInteractiveSSHServer launches an in-process SSH server that serves an
+// interactive prompt-driven shell (pty-req + shell) rather than one-shot exec.
+// It prints prompt, then for each line it reads: echoes the command (as real
+// devices do), writes the canned stdout for that command, and prints prompt
+// again, until it reads "exit"/"quit". This mimics devices like PAN-OS.
+func StartFakeInteractiveSSHServer(t *testing.T, prompt string, outputs map[string]FakeResponse, opts ...FakeServerOption) *FakeSSHServer {
+	srv := StartFakeSSHServerWithFunc(t, nil, opts...)
+	srv.interactivePrompt = prompt
+	srv.interactiveData = outputs
+	return srv
 }
 
 // StartFakeSSHServerWithFunc starts an in-process SSH server using the given
@@ -243,11 +262,60 @@ func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) 
 			_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: exitStatus}))
 			return
 
+		case "pty-req":
+			// Accept the PTY request; we don't model terminal modes.
+			if req.WantReply {
+				_ = req.Reply(s.interactivePrompt != "", nil)
+			}
+
+		case "shell":
+			if s.interactivePrompt == "" {
+				if req.WantReply {
+					_ = req.Reply(false, nil)
+				}
+				continue
+			}
+			if req.WantReply {
+				_ = req.Reply(true, nil)
+			}
+			s.runInteractiveShell(ch)
+			_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: 0}))
+			return
+
 		default:
 			if req.WantReply {
 				_ = req.Reply(false, nil)
 			}
 		}
+	}
+}
+
+// runInteractiveShell services an interactive shell session: it writes the
+// prompt, reads a command line, echoes it, writes the canned output for that
+// command, and repeats until it reads an exit/quit line.
+func (s *FakeSSHServer) runInteractiveShell(ch ssh.Channel) {
+	_, _ = io.WriteString(ch, s.interactivePrompt)
+	reader := bufio.NewReader(ch)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return
+		}
+		command := strings.TrimSpace(line)
+		// Real devices echo the typed command back on the TTY.
+		_, _ = io.WriteString(ch, command+"\r\n")
+
+		s.mu.Lock()
+		s.received = append(s.received, command)
+		s.mu.Unlock()
+
+		if command == "exit" || command == "quit" {
+			return
+		}
+		if resp, ok := s.interactiveData[command]; ok && resp.Stdout != "" {
+			_, _ = io.WriteString(ch, resp.Stdout)
+		}
+		_, _ = io.WriteString(ch, s.interactivePrompt)
 	}
 }
 
