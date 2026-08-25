@@ -1,0 +1,257 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build linux
+
+package kernel
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"golang.org/x/sys/unix"
+)
+
+const (
+	kmsgPath               = "/dev/kmsg"
+	defaultKmsgChannelSize = 128
+	maxKmsgRecordSize      = 16 * 1024
+)
+
+// KmsgRecord is a single record read from /dev/kmsg.
+type KmsgRecord struct {
+	Facility  uint8
+	Priority  uint8
+	Sequence  uint64
+	Timestamp uint64
+	Flags     string
+	Message   string
+}
+
+// KmsgFilter determines whether a parsed kmsg record is delivered to the reader's output channel.
+type KmsgFilter func(KmsgRecord) bool
+
+// KmsgReader reads records from /dev/kmsg in a background goroutine.
+type KmsgReader struct {
+	source kmsgSource
+	filter KmsgFilter
+
+	records chan KmsgRecord
+	errors  chan error
+	stop    chan struct{}
+	done    chan struct{}
+
+	stopOnce  sync.Once
+	telemetry *kmsgTelemetry
+}
+
+type kmsgSource interface {
+	io.ReadSeeker
+	io.Closer
+}
+
+type kmsgTelemetry struct {
+	read      telemetry.Counter
+	delivered telemetry.Counter
+	errors    telemetry.Counter
+	losses    telemetry.Counter
+}
+
+func newKmsgTelemetry(component telemetry.Component) *kmsgTelemetry {
+	const subsystem = "kernel__kmsg"
+
+	return &kmsgTelemetry{
+		read:      component.NewCounter(subsystem, "records_read", nil, "Number of records read from /dev/kmsg"),
+		delivered: component.NewCounter(subsystem, "records_delivered", nil, "Number of /dev/kmsg records delivered to subscribers"),
+		errors:    component.NewCounter(subsystem, "errors", nil, "Number of /dev/kmsg reader errors"),
+		losses:    component.NewCounter(subsystem, "losses", nil, "Number of /dev/kmsg records lost because the ring buffer or output channel was full"),
+	}
+}
+
+// NewKmsgReader opens /dev/kmsg, seeks to the end of its current buffer, and starts delivering future records.
+func NewKmsgReader(component telemetry.Component, filter KmsgFilter) (*KmsgReader, error) {
+	source, err := openKmsg()
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", kmsgPath, err)
+	}
+
+	reader, err := newKmsgReader(source, component, filter, defaultKmsgChannelSize)
+	if err != nil {
+		_ = source.Close()
+		return nil, err
+	}
+	return reader, nil
+}
+
+// newKmsgReader creates a reader around a source. Tests use it to substitute /dev/kmsg with a fake source.
+func newKmsgReader(source kmsgSource, component telemetry.Component, filter KmsgFilter, channelSize int) (*KmsgReader, error) {
+	if source == nil {
+		return nil, errors.New("kmsg source is nil")
+	}
+	if component == nil {
+		return nil, errors.New("kmsg telemetry component is nil")
+	}
+	if channelSize <= 0 {
+		return nil, fmt.Errorf("kmsg channel size must be positive, got %d", channelSize)
+	}
+	if _, err := source.Seek(0, io.SeekEnd); err != nil {
+		return nil, fmt.Errorf("seek kmsg to end: %w", err)
+	}
+
+	reader := &KmsgReader{
+		source:    source,
+		filter:    filter,
+		records:   make(chan KmsgRecord, channelSize),
+		errors:    make(chan error, 1),
+		stop:      make(chan struct{}),
+		done:      make(chan struct{}),
+		telemetry: newKmsgTelemetry(component),
+	}
+	go reader.run()
+	return reader, nil
+}
+
+// Records returns a channel of records that passed the configured filter.
+func (r *KmsgReader) Records() <-chan KmsgRecord {
+	return r.records
+}
+
+// Errors returns a channel that receives at most one terminal reader error.
+func (r *KmsgReader) Errors() <-chan error {
+	return r.errors
+}
+
+// Stop terminates the reader and closes its channels. It is safe to call multiple times.
+func (r *KmsgReader) Stop() {
+	r.stopOnce.Do(func() {
+		close(r.stop)
+		_ = r.source.Close()
+		<-r.done
+	})
+}
+
+func (r *KmsgReader) run() {
+	defer close(r.done)
+	defer close(r.records)
+	defer close(r.errors)
+
+	buffer := make([]byte, maxKmsgRecordSize)
+
+	for {
+		n, err := r.source.Read(buffer)
+		if err != nil {
+			if r.stopping() {
+				return
+			}
+			if errors.Is(err, unix.EPIPE) {
+				r.telemetry.losses.Inc()
+				// EPIPE means that /dev/kmsg's ring buffer discarded unread records.
+				continue
+			}
+			r.telemetry.errors.Inc()
+			r.reportTerminalError(fmt.Errorf("read kmsg record: %w", err))
+			return
+		}
+		if n == 0 {
+			r.telemetry.errors.Inc()
+			r.reportTerminalError(errors.New("read kmsg record returned no data"))
+			return
+		}
+		r.telemetry.read.Inc()
+
+		record, err := parseKmsgRecord(buffer[:n])
+		if err != nil {
+			r.telemetry.errors.Inc()
+			continue
+		}
+
+		if r.filter != nil && !r.filter(record) {
+			continue
+		}
+
+		select {
+		case r.records <- record:
+			r.telemetry.delivered.Inc()
+		default:
+			r.telemetry.losses.Inc()
+			continue
+		}
+	}
+}
+
+func (r *KmsgReader) stopping() bool {
+	select {
+	case <-r.stop:
+		return true
+	default:
+		return false
+	}
+}
+
+func (r *KmsgReader) reportTerminalError(err error) {
+	select {
+	case r.errors <- err:
+	default:
+	}
+}
+
+func parseKmsgRecord(raw []byte) (KmsgRecord, error) {
+	line := strings.TrimSuffix(string(raw), "\n")
+	header, message, found := strings.Cut(line, ";")
+	if !found {
+		return KmsgRecord{}, errors.New("missing kmsg header separator")
+	}
+
+	fields := strings.Split(header, ",")
+	if len(fields) < 4 {
+		return KmsgRecord{}, fmt.Errorf("expected at least 4 kmsg header fields, got %d", len(fields))
+	}
+
+	pri, err := strconv.ParseUint(fields[0], 10, 8)
+	if err != nil {
+		return KmsgRecord{}, fmt.Errorf("parse kmsg priority: %w", err)
+	}
+	sequence, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return KmsgRecord{}, fmt.Errorf("parse kmsg sequence: %w", err)
+	}
+	timestamp, err := strconv.ParseUint(fields[2], 10, 64)
+	if err != nil {
+		return KmsgRecord{}, fmt.Errorf("parse kmsg timestamp: %w", err)
+	}
+
+	return KmsgRecord{
+		Facility:  uint8(pri >> 3),
+		Priority:  uint8(pri & 0x7),
+		Sequence:  sequence,
+		Timestamp: timestamp,
+		Flags:     fields[3],
+		Message:   message,
+	}, nil
+}
+
+// openKmsg creates a runtime-pollable /dev/kmsg source.
+//
+// O_CLOEXEC prevents the descriptor from leaking into child processes. O_NONBLOCK lets os.NewFile register the
+// descriptor with Go's runtime poller, so Read waits for records without blocking an OS thread and Close cancels an
+// in-progress Read. Do not call File.Fd on the returned file: on Unix, doing so disables its deadline and poller support.
+func openKmsg() (*os.File, error) {
+	fd, err := unix.Open(kmsgPath, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	file := os.NewFile(uintptr(fd), kmsgPath)
+	if file == nil {
+		_ = unix.Close(fd)
+		return nil, errors.New("create kmsg file")
+	}
+	return file, nil
+}
