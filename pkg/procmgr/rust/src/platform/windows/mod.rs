@@ -412,7 +412,9 @@ pub async fn shutdown_signal() {
 // Spawn token environment block (`CreateProcessAsUserW`)
 // ---------------------------------------------------------------------------
 
-/// Keys copied from the supervisor process when `CreateEnvironmentBlock` fails.
+/// Machine-wide keys copied from the supervisor when `CreateEnvironmentBlock` fails.
+/// Profile paths (`USERPROFILE`, `LOCALAPPDATA`, `APPDATA`) are derived from the
+/// child token instead so a LocalSystem supervisor does not leak systemprofile paths.
 const FALLBACK_ENV_KEYS: &[&str] = &[
     "SystemRoot",
     "WINDIR",
@@ -429,9 +431,6 @@ const FALLBACK_ENV_KEYS: &[&str] = &[
     "TMP",
     "Path",
     "PATHEXT",
-    "LOCALAPPDATA",
-    "APPDATA",
-    "USERPROFILE",
     "ComSpec",
 ];
 
@@ -445,7 +444,7 @@ pub(crate) fn baseline_env_vars_for_spawn(
             log::warn!(
                 "[{process_name}] CreateEnvironmentBlock failed ({e:#}); using allowlisted process-env fallback"
             );
-            fallback_process_env_vars()
+            fallback_env_vars_for_spawn(token)
         }
     }
 }
@@ -530,7 +529,7 @@ fn split_env_entry_wide(wide: &[u16]) -> Option<(std::ffi::OsString, std::ffi::O
     ))
 }
 
-fn fallback_process_env_vars() -> HashMap<String, String> {
+fn supervisor_machine_env_vars() -> HashMap<String, String> {
     let mut vars = HashMap::new();
     for &key in FALLBACK_ENV_KEYS {
         if let Ok(val) = std::env::var(key)
@@ -542,22 +541,146 @@ fn fallback_process_env_vars() -> HashMap<String, String> {
     vars
 }
 
+fn fallback_env_vars_for_spawn(token: HANDLE) -> HashMap<String, String> {
+    let mut vars = supervisor_machine_env_vars();
+    vars.extend(token_profile_env_vars(token));
+    vars
+}
+
+fn token_profile_env_vars(token: HANDLE) -> HashMap<String, String> {
+    let mut vars = HashMap::new();
+    if let Ok(Some(userprofile)) = user_profile_directory_for_token(token) {
+        vars.insert("USERPROFILE".to_string(), userprofile);
+    }
+    for (key, pattern) in [
+        ("LOCALAPPDATA", "%LOCALAPPDATA%"),
+        ("APPDATA", "%APPDATA%"),
+    ] {
+        if let Ok(Some(value)) = expand_environment_string_for_user(token, pattern)
+            && !value.is_empty()
+        {
+            vars.insert(key.to_string(), value);
+        }
+    }
+    vars
+}
+
+fn user_profile_directory_for_token(token: HANDLE) -> Result<Option<String>> {
+    if token.is_null() {
+        return Ok(None);
+    }
+
+    use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+    use windows_sys::Win32::UI::Shell::GetUserProfileDirectoryW;
+
+    unsafe {
+        let mut size = 260u32;
+        loop {
+            let mut buf = vec![0u16; size as usize];
+            let mut size_inout = size;
+            if GetUserProfileDirectoryW(token, buf.as_mut_ptr(), &mut size_inout) != 0 {
+                return Ok(Some(wide::from_ptr(buf.as_ptr())));
+            }
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() == Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                size = size_inout;
+                continue;
+            }
+            log::debug!("GetUserProfileDirectoryW failed: {err}");
+            return Ok(None);
+        }
+    }
+}
+
+fn expand_environment_string_for_user(token: HANDLE, src: &str) -> Result<Option<String>> {
+    if token.is_null() {
+        return Ok(None);
+    }
+
+    use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+    use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsForUserW;
+
+    let src_w = wide::null_terminated(src);
+    unsafe {
+        let mut size = 256u32;
+        loop {
+            let mut buf = vec![0u16; size as usize];
+            if ExpandEnvironmentStringsForUserW(token, src_w.as_ptr(), buf.as_mut_ptr(), size) != 0
+            {
+                let value = wide::from_ptr(buf.as_ptr());
+                return Ok(if value.is_empty() { None } else { Some(value) });
+            }
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() == Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                size = size.saturating_mul(2).max(size + 64);
+                continue;
+            }
+            log::debug!("ExpandEnvironmentStringsForUserW({src}) failed: {err}");
+            return Ok(None);
+        }
+    }
+}
+
 #[cfg(test)]
 mod env_override_tests {
     use super::*;
     use std::collections::HashMap;
+    use windows_sys::Win32::Security::TOKEN_QUERY;
+
+    use super::token_identity::open_current_process_token;
 
     #[test]
-    fn fallback_process_env_vars_only_includes_allowlisted_keys() {
-        let vars = fallback_process_env_vars();
+    fn supervisor_machine_env_vars_only_includes_allowlisted_keys() {
+        let vars = supervisor_machine_env_vars();
         for key in vars.keys() {
             assert!(
                 FALLBACK_ENV_KEYS
                     .iter()
                     .any(|allowed| allowed.eq_ignore_ascii_case(key)),
-                "unexpected fallback env key: {key}"
+                "unexpected machine fallback env key: {key}"
             );
         }
+        for key in ["LOCALAPPDATA", "APPDATA", "USERPROFILE"] {
+            assert!(
+                !vars.contains_key(key),
+                "machine fallback must not copy supervisor profile env: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn token_profile_env_vars_match_token_directory() {
+        let token = open_current_process_token(TOKEN_QUERY)
+            .expect("OpenProcessToken on current process should succeed");
+        let profile_dir = user_profile_directory_for_token(token.as_handle())
+            .expect("GetUserProfileDirectoryW should not error")
+            .expect("current process token should have a profile directory");
+        let vars = token_profile_env_vars(token.as_handle());
+        assert_eq!(vars.get("USERPROFILE").expect("USERPROFILE"), &profile_dir);
+        assert!(
+            vars.get("LOCALAPPDATA")
+                .is_some_and(|path| !path.is_empty()),
+            "LOCALAPPDATA should expand for current user token"
+        );
+        assert!(
+            vars.get("APPDATA").is_some_and(|path| !path.is_empty()),
+            "APPDATA should expand for current user token"
+        );
+    }
+
+    #[test]
+    fn fallback_env_vars_for_spawn_merges_machine_and_token_profile_vars() {
+        let token = open_current_process_token(TOKEN_QUERY)
+            .expect("OpenProcessToken on current process should succeed");
+        let vars = fallback_env_vars_for_spawn(token.as_handle());
+        let machine = supervisor_machine_env_vars();
+        for (key, value) in &machine {
+            assert_eq!(vars.get(key).expect("machine fallback key"), value);
+        }
+        let profile_dir = user_profile_directory_for_token(token.as_handle())
+            .expect("GetUserProfileDirectoryW should not error")
+            .expect("current process token should have a profile directory");
+        assert_eq!(vars.get("USERPROFILE").expect("USERPROFILE"), &profile_dir);
     }
 
     #[test]
