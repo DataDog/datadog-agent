@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    CWS activity dumps and workload profiles now record the answers of DNS
+    responses. Each DNS question in a dump carries the resolved IP addresses
+    and the CNAME targets, making it possible to correlate the domains a
+    workload queried with the network flows it opened. Both accumulate as
+    bounded sets across every response observed for that question. Newly
+    resolved addresses for an already-known domain are treated as enrichment
+    rather than profile drift, so they do not generate anomaly detections.
+    This requires ``dns_resolution.enabled``, which is enabled by default.
