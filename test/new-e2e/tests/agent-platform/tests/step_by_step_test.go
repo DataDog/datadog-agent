@@ -20,6 +20,7 @@ import (
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -33,6 +34,32 @@ type stepByStepSuite struct {
 	osVersion    float64
 	osDesc       e2eos.Descriptor
 	cwsSupported bool
+}
+
+func (is *stepByStepSuite) SetupSuite() {
+	is.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer is.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer is.CleanupOnSetupFailure()
+
+	// host.New() always probes systemd (setSystemdVersion) on Linux, which fatals on CentOS 6:
+	// that descriptor runs Upstart, not systemd (see the initctl branch below and in
+	// ConfigureAndRunAgentService). Mirror hardening is only needed for CentOS 7 anyway
+	// (ConfigureYumMirrors no-ops on any other version), so skip host construction entirely here.
+	// Compare the raw descriptor version ("610" for --osdescriptors=centos/x86_64/610) rather
+	// than is.osVersion: the hyphen-splitting parser in TestStepByStepScript never produces the
+	// 6.10 float for this single-segment version string, so it would always be 0 here.
+	if is.osDesc.Flavor == e2eos.CentOS && is.osDesc.Version == "610" {
+		return
+	}
+
+	// Harden apt/yum against package-mirror outages before the install steps run. On CentOS 7
+	// this repoints the EOL base/updates/extras repos away from the now-403ing vault.centos.org
+	// /centos/7/ path (incident 58780); on Ubuntu/Debian it bounds apt's timeout/retries and adds
+	// mirror fallbacks. Each call is a no-op on the other's package manager. Same helper already
+	// used by the installer and ddot install suites.
+	h := host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	h.ConfigureYumMirrors()
+	h.ConfigureAptMirrors()
 }
 
 func TestStepByStepScript(t *testing.T) {

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const eksProcTable = `
@@ -677,6 +678,76 @@ users:
 	},
 }
 
+// OpenShift starts the kubelet with a rendered KubeletConfiguration and leaves
+// the security settings to it. See the machine-config-operator templates in
+// templates/worker/01-worker-kubelet/_base.
+const openshiftProcTable = `
+kubelet \
+	--config=/etc/kubernetes/kubelet.conf \
+	--config-dir=/etc/openshift/kubelet.conf.d \
+	--bootstrap-kubeconfig=/etc/kubernetes/kubeconfig \
+	--kubeconfig=/var/lib/kubelet/kubeconfig \
+	--container-runtime-endpoint=/var/run/crio/crio.sock \
+	--runtime-cgroups=/system.slice/crio.service \
+	--node-labels=node-role.kubernetes.io/worker,node.openshift.io/os_id=rhcos \
+	--node-ip=10.0.128.4 \
+	--minimum-container-ttl-duration=6m0s \
+	--volume-plugin-dir=/etc/kubernetes/kubelet-plugins/volume/exec \
+	--v=2
+`
+
+var openshiftFs = []*mockFile{
+	{
+		name: "/etc/kubernetes/kubelet.conf",
+		mode: 0644,
+		content: `kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+authentication:
+  x509:
+    clientCAFile: /etc/kubernetes/kubelet-ca.crt
+  anonymous:
+    enabled: false
+cgroupDriver: systemd
+cgroupRoot: /
+clusterDNS:
+  - 172.30.0.10
+clusterDomain: cluster.local
+containerLogMaxSize: 50Mi
+maxPods: 250
+podPidsLimit: 4096
+protectKernelDefaults: true
+rotateCertificates: true
+serializeImagePulls: false
+staticPodPath: /etc/kubernetes/manifests
+systemCgroups: /system.slice
+serverTLSBootstrap: true
+tlsMinVersion: VersionTLS12
+tlsCipherSuites:
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`,
+	},
+	{
+		name: "/var/lib/kubelet/kubeconfig",
+		mode: 0600,
+		content: `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://api-int.example.eastus.aroapp.io:6443
+  name: cluster
+contexts:
+- context:
+    cluster: cluster
+    user: kubelet
+  name: kubelet
+current-context: kubelet
+users:
+- name: kubelet
+  user:
+    client-certificate: /var/lib/kubelet/pki/kubelet-client-current.pem
+    client-key: /var/lib/kubelet/pki/kubelet-client-current.pem`,
+	},
+}
+
 func procTable(str string) []proc {
 	var table []proc
 	str = strings.ReplaceAll(str, "\\\n", "")
@@ -743,7 +814,9 @@ func TestKubEksConfigLoader(t *testing.T) {
 	}
 
 	{
-		v := int(10255)
+		// The kubelet reads its configuration from --config and that file
+		// leaves readOnlyPort out, so the read-only port is disabled.
+		v := int(0)
 		assert.NotNil(t, conf.Components.Kubelet.ReadOnlyPort)
 		assert.Equal(t, &v, conf.Components.Kubelet.ReadOnlyPort)
 		assert.Nil(t, kubeletConfig["readOnlyPort"])
@@ -925,6 +998,157 @@ func TestBottleRocketConfigLoader(t *testing.T) {
 	tlsCipherSuites := conf.Components.Kubelet.Config.Content.(map[string]interface{})["tlsCipherSuites"]
 	expectedTLSCipherSuites := []interface{}{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}
 	assert.Equal(t, expectedTLSCipherSuites, tlsCipherSuites)
+}
+
+// A kubelet configured through --config falls back to the KubeletConfiguration
+// defaults. Kubernetes keeps the legacy command line defaults for a kubelet
+// started on flags alone.
+func TestKubOpenshiftConfigLoader(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, f := range openshiftFs {
+		f.create(t, tmpDir)
+	}
+	conf := loadTestConfiguration(t, tmpDir, openshiftProcTable)
+	assert.Empty(t, conf.Errors)
+
+	// The loader knows EKS, GKE and AKS, so an OpenShift node is evaluated
+	// against the CIS Kubernetes benchmark.
+	assert.Nil(t, conf.ManagedEnvironment)
+
+	require.NotNil(t, conf.Components.Kubelet)
+	require.NotNil(t, conf.Components.Kubelet.Config)
+
+	readOnlyPort := 0
+	assert.Equal(t, &readOnlyPort, conf.Components.Kubelet.ReadOnlyPort)
+
+	authorizationMode := "Webhook"
+	assert.Equal(t, &authorizationMode, conf.Components.Kubelet.AuthorizationMode)
+
+	// The configuration file disables anonymous authentication itself, so the
+	// loader reports it from there rather than from a default.
+	assert.Nil(t, conf.Components.Kubelet.AnonymousAuth)
+	content, ok := conf.Components.Kubelet.Config.Content.(map[string]interface{})
+	require.True(t, ok)
+	authentication, ok := content["authentication"].(map[string]interface{})
+	require.True(t, ok)
+	anonymous, ok := authentication["anonymous"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, false, anonymous["enabled"])
+}
+
+// A kubelet started on flags alone keeps the legacy command line defaults.
+func TestKubeletLegacyDefaults(t *testing.T) {
+	conf := loadTestConfiguration(t, t.TempDir(), "kubelet --kubeconfig=/var/lib/kubelet/kubeconfig\n")
+	require.NotNil(t, conf.Components.Kubelet)
+
+	readOnlyPort := 10255
+	assert.Equal(t, &readOnlyPort, conf.Components.Kubelet.ReadOnlyPort)
+
+	authorizationMode := "AlwaysAllow"
+	assert.Equal(t, &authorizationMode, conf.Components.Kubelet.AuthorizationMode)
+
+	anonymousAuth := true
+	assert.Equal(t, &anonymousAuth, conf.Components.Kubelet.AnonymousAuth)
+}
+
+// A drop-in that turns the read-only port on wins over the file given to
+// --config, which leaves readOnlyPort out.
+func TestKubeletConfigDropinEnablesReadOnlyPort(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, f := range openshiftFs {
+		f.create(t, tmpDir)
+	}
+	dropin := &mockFile{
+		name: "/etc/openshift/kubelet.conf.d/10-read-only-port.conf",
+		mode: 0644,
+		content: `kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+readOnlyPort: 10255`,
+	}
+	dropin.create(t, tmpDir)
+
+	conf := loadTestConfiguration(t, tmpDir, openshiftProcTable)
+	assert.Empty(t, conf.Errors)
+
+	require.NotNil(t, conf.Components.Kubelet)
+	require.NotNil(t, conf.Components.Kubelet.Config)
+	content, ok := conf.Components.Kubelet.Config.Content.(map[string]interface{})
+	require.True(t, ok)
+
+	// The merged configuration carries the setting, so the loader reports it
+	// from there instead of assuming a default.
+	assert.Nil(t, conf.Components.Kubelet.ReadOnlyPort)
+	assert.Equal(t, float64(10255), content["readOnlyPort"])
+}
+
+// The kubelet folds drop-ins in lexical order with the JSON merge patch rules,
+// so a later file overrides an earlier one, an object merges into an object and
+// a null drops the setting.
+func TestKubeletConfigDropinMerge(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, f := range openshiftFs {
+		f.create(t, tmpDir)
+	}
+	for _, f := range []*mockFile{
+		{
+			name: "/etc/openshift/kubelet.conf.d/10-first.conf",
+			mode: 0644,
+			content: `kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+readOnlyPort: 10255
+authorization:
+  mode: AlwaysAllow
+authentication:
+  anonymous:
+    enabled: true`,
+		},
+		{
+			name: "/etc/openshift/kubelet.conf.d/20-second.conf",
+			mode: 0644,
+			content: `kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+readOnlyPort: null
+maxPods: 300`,
+		},
+		{
+			name:    "/etc/openshift/kubelet.conf.d/README",
+			mode:    0644,
+			content: "files without the .conf suffix are left alone",
+		},
+	} {
+		f.create(t, tmpDir)
+	}
+
+	conf := loadTestConfiguration(t, tmpDir, openshiftProcTable)
+	assert.Empty(t, conf.Errors)
+
+	require.NotNil(t, conf.Components.Kubelet)
+	require.NotNil(t, conf.Components.Kubelet.Config)
+	content, ok := conf.Components.Kubelet.Config.Content.(map[string]interface{})
+	require.True(t, ok)
+
+	// The second drop-in drops readOnlyPort, so the configuration file default
+	// applies again.
+	readOnlyPort := 0
+	assert.Equal(t, &readOnlyPort, conf.Components.Kubelet.ReadOnlyPort)
+
+	// The first drop-in sets the two settings the base file leaves to a
+	// default, and the last value of maxPods wins.
+	authorization, ok := content["authorization"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "AlwaysAllow", authorization["mode"])
+	assert.Equal(t, float64(300), content["maxPods"])
+
+	// authentication merges rather than replaces, so the clientCAFile of the
+	// base file survives next to the anonymous access of the drop-in.
+	authentication, ok := content["authentication"].(map[string]interface{})
+	require.True(t, ok)
+	anonymous, ok := authentication["anonymous"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, true, anonymous["enabled"])
+	x509, ok := authentication["x509"].(map[string]interface{})
+	require.True(t, ok)
+	assert.NotNil(t, x509["clientCAFile"])
 }
 
 func loadTestConfiguration(t *testing.T, hostroot string, table string) *K8sNodeConfig {

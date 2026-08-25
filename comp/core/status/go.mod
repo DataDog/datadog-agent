@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/status
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
