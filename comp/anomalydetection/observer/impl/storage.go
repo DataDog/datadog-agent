@@ -1008,18 +1008,6 @@ func fnv64aString(s string) uint64 {
 	return h
 }
 
-// fnv64aMix folds an additional string into an existing FNV-1a hash, separated
-// by '|'. Useful for hashing multiple fields without concatenating them first.
-func fnv64aMix(h uint64, s string) uint64 {
-	h ^= uint64('|')
-	h *= fnvPrime64
-	for i := 0; i < len(s); i++ {
-		h ^= uint64(s[i])
-		h *= fnvPrime64
-	}
-	return h
-}
-
 // DumpToFile writes all series to a JSON file for debugging.
 func (s *timeSeriesStorage) DumpToFile(path string) error {
 	s.mu.RLock()
