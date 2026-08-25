@@ -233,7 +233,10 @@ func (g *gkeGatewayInjectionPattern) newGCPTrafficExtension(namespace string, ga
 								"name":  g.config.Processor.ServiceName,
 								"port":  int64(g.config.Processor.Port),
 							},
-							// cluster.local is GKE's fixed cluster DNS domain; GKE does not support custom cluster domains.
+							// authority is the gRPC :authority header Envoy sends on the callout; GKE
+							// requires it when backendRef is set with kind Service. It does not resolve
+							// the backend, so we default it to the Service FQDN under cluster.local, the
+							// default cluster DNS domain.
 							"authority":       fmt.Sprintf("%s.%s.svc.cluster.local", g.config.Processor.ServiceName, namespace),
 							"failOpen":        true,
 							"supportedEvents": []any{"RequestHeaders", "ResponseHeaders"},
