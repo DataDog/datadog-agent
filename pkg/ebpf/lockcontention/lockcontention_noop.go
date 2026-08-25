@@ -5,7 +5,9 @@
 
 //go:build !linux || !bpf
 
-package ebpf
+// Package lockcontention provides a prometheus collector for eBPF lock
+// contention metrics.
+package lockcontention
 
 import (
 	"github.com/prometheus/client_golang/prometheus"

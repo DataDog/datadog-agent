@@ -441,6 +441,11 @@ profiles:
         preserve_tags:
           - owner_kind
           - status
+      - name: instrumentation_controller.resources
+      - name: instrumentation_controller.reconciliations
+        preserve_tags:
+          - section
+          - status
       - name: workloadmeta.stored_entities
         preserve_tags:
           - kind

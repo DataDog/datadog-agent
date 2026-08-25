@@ -2936,6 +2936,29 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	}
 }
 
+func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
+	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, candidate := range cfg.Profiles {
+		if candidate.Name == "cluster-agent" {
+			profile = candidate
+			break
+		}
+	}
+	require.NotNil(t, profile)
+	require.NotNil(t, profile.Metric)
+
+	metrics := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, metric := range profile.Metric.Metrics {
+		metrics[metric.Name] = metric.PreserveTags
+	}
+
+	assert.Contains(t, metrics, "instrumentation_controller.resources")
+	assert.ElementsMatch(t, []string{"section", "status"}, metrics["instrumentation_controller.reconciliations"])
+}
+
 // TestDataPlanePreflightModeProfile guards the Agent Data Plane preflight mode metrics.
 //
 // The pre-flight in comp/dataplane/preflightmode reports its outcome purely through these

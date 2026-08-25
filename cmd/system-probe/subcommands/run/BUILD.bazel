@@ -66,7 +66,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/settings",
         "//pkg/config/utils",
-        "//pkg/ebpf",
+        "//pkg/ebpf/lockcontention",
         "//pkg/ebpf/telemetry",
         "//pkg/runtime",
         "//pkg/system-probe/api/module",

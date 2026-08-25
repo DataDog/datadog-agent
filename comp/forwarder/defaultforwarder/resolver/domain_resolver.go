@@ -50,14 +50,18 @@ type domainResolver struct {
 	// configName is the url as it was configured by the user.
 	configName string
 	// domain is the url base to be used for network requests, it is modified by the forwarder.
-	domain          string
-	apiKeys         []utils.APIKeys
-	keyVersion      int
-	dedupedAPIKeys  []string
-	mu              sync.Mutex
-	healthChecker   ForwarderHealth
-	destinationType DestinationType
-	authToken       string
+	domain         string
+	apiKeys        []utils.APIKeys
+	keyVersion     int
+	dedupedAPIKeys []string
+	// hasPendingDelegatedAuth mirrors HasPendingDelegatedAuth across apiKeys: true when the domain
+	// has no real API key yet but is waiting on one from the delegatedauth component. Kept in sync
+	// with apiKeys by hasPendingDelegatedAuthKeys() wherever apiKeys is replaced.
+	hasPendingDelegatedAuth bool
+	mu                      sync.Mutex
+	healthChecker           ForwarderHealth
+	destinationType         DestinationType
+	authToken               string
 
 	overrides           map[string]destination
 	alternateDomainList []string
@@ -174,9 +178,24 @@ func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolv
 		apiKeys:        descriptor.APIKeySet,
 		keyVersion:     0,
 		dedupedAPIKeys: deduped,
-		mu:             sync.Mutex{},
-		isMRF:          descriptor.IsMRF,
+		// Derived from APIKeySet directly rather than trusting descriptor.HasPendingDelegatedAuth,
+		// so this is correct even for a descriptor built without going through
+		// utils.newEndpointDescriptor's aggregation (e.g. constructed directly in a test).
+		hasPendingDelegatedAuth: hasPendingDelegatedAuthKeys(descriptor.APIKeySet),
+		mu:                      sync.Mutex{},
+		isMRF:                   descriptor.IsMRF,
 	}, nil
+}
+
+// hasPendingDelegatedAuthKeys reports whether any of the given APIKeys is still waiting on a
+// delegated-auth key. Mirrors the aggregation in utils.newEndpointDescriptor.
+func hasPendingDelegatedAuthKeys(apiKeys []utils.APIKeys) bool {
+	for _, keys := range apiKeys {
+		if keys.HasPendingDelegatedAuth {
+			return true
+		}
+	}
+	return false
 }
 
 // NewSingleDomainResolvers converts a map of domain/api keys into a map of DomainResolver
@@ -265,6 +284,7 @@ func (r *domainResolver) UpdateAPIKeys(configPath string, newKeys []utils.APIKey
 
 	r.apiKeys = append(newAPIKeys, newKeys...)
 	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
+	r.hasPendingDelegatedAuth = hasPendingDelegatedAuthKeys(r.apiKeys)
 	r.keyVersion++
 }
 
@@ -327,14 +347,15 @@ func NewMultiDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResol
 	deduped := utils.DedupAPIKeys(apiKeys)
 
 	return &domainResolver{
-		configName:          domain,
-		domain:              domain,
-		apiKeys:             apiKeys,
-		keyVersion:          0,
-		dedupedAPIKeys:      deduped,
-		overrides:           make(map[string]destination),
-		alternateDomainList: []string{},
-		mu:                  sync.Mutex{},
+		configName:              domain,
+		domain:                  domain,
+		apiKeys:                 apiKeys,
+		keyVersion:              0,
+		dedupedAPIKeys:          deduped,
+		hasPendingDelegatedAuth: hasPendingDelegatedAuthKeys(apiKeys),
+		overrides:               make(map[string]destination),
+		alternateDomainList:     []string{},
+		mu:                      sync.Mutex{},
 	}, nil
 }
 
@@ -393,9 +414,12 @@ func NewLocalDomainResolver(domain string, authToken string) DomainResolver {
 	}
 }
 
-// IsUsable returns true if the resolver has valid configuration.
+// IsUsable returns true if the resolver has valid configuration. A domain with no real API keys
+// yet, but with a delegated-auth directive still resolving, is kept usable so it stays registered
+// and can pick up the real key once delegatedauth writes it back into config - otherwise the
+// domain would be dropped at startup and the resolved key would have nowhere to go.
 func (r *domainResolver) IsUsable() bool {
-	return r.IsLocal() || len(r.dedupedAPIKeys) > 0
+	return r.IsLocal() || len(r.dedupedAPIKeys) > 0 || r.hasPendingDelegatedAuth
 }
 
 // IsLocal returns true if the domain corresponds to another agent.

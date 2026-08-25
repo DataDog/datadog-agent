@@ -8,6 +8,7 @@
 package listener
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,6 +16,21 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+func TestLinuxGetListenerSocketPermissions(t *testing.T) {
+	dir := t.TempDir()
+	socketPath := filepath.Join(dir, "agent_ipc.socket")
+
+	res, err := GetListener(socketPath)
+	require.NoError(t, err)
+	defer res.Close()
+
+	info, err := os.Stat(socketPath)
+	require.NoError(t, err)
+	// Socket must be restricted to owner+group only so unrelated non-root
+	// users cannot connect (connecting requires write permission).
+	require.Equal(t, os.FileMode(0770|os.ModeSocket), info.Mode())
+}
 
 func TestLinuxGetIPCServerPath(t *testing.T) {
 	t.Run("default unix socket", func(t *testing.T) {

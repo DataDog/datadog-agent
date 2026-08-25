@@ -24,9 +24,6 @@ type cfg struct {
 	model.Config
 
 	syscfg *sysconfigtypes.Config
-
-	// warnings are the warnings generated during setup
-	warnings *model.Warnings
 }
 
 // Requires defines the dependencies of the sysprobeconfig component.
@@ -65,10 +62,6 @@ func newConfig(deps Requires) (sysprobeconfigdef.Component, error) {
 	}
 
 	return &cfg{Config: pkgconfigsetup.SystemProbe(), syscfg: syscfg}, nil
-}
-
-func (c *cfg) Warnings() *model.Warnings {
-	return c.warnings
 }
 
 func (c *cfg) Object() model.Reader {

@@ -34,8 +34,9 @@ type cfg struct {
 	// and uses globals in that package.
 	pkgconfigmodel.Config
 
-	// warnings are the warnings generated during setup
-	warnings *pkgconfigmodel.Warnings
+	// loadError saves the error silenced at loading time when 'WithIgnoreErrors' is used. This option is and should
+	// only be used for flares
+	loadError string
 }
 
 type dependencies struct {
@@ -83,24 +84,26 @@ func newComponent(deps dependencies) (provides, error) {
 
 func newConfig(deps dependencies) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
-	warnings := &pkgconfigmodel.Warnings{}
+	loadError := ""
 
 	if deps.Cfgstream != nil && deps.Cfgstream.IsActive() {
 		// Snapshot already in the global builder; skip disk load to avoid
 		// clobbering streamed values via same-source last-write-wins.
+
 		// Feature detection still needs to run here since LoadDatadog (which
 		// normally triggers it) is skipped on this path.
 		pkgconfigenv.DetectFeatures(config)
-		return &cfg{Config: config, warnings: warnings}, nil
+
+		return &cfg{Config: config}, nil
 	}
 
 	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
-			warnings.Errors = []error{e}
+			loadError = e.Error()
 			e = nil
 		}
-		return &cfg{Config: config, warnings: warnings}, e
+		return &cfg{Config: config, loadError: loadError}, e
 	}
 
 	if err != nil {
@@ -113,11 +116,7 @@ func newConfig(deps dependencies) (*cfg, error) {
 		}
 	}
 
-	return &cfg{Config: config, warnings: warnings}, nil
-}
-
-func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
-	return c.warnings
+	return &cfg{Config: config}, nil
 }
 
 func (c *cfg) StartTime() time.Time {
@@ -142,6 +141,10 @@ func (c *cfg) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 		// use best effort to include application_monitoring.yaml to the flare
 		// application_monitoring.yaml is a file that lets customers configure Datadog SDKs at the level of the host
 		fb.CopyFileTo(filepath.Join(confDir, "application_monitoring.yaml"), filepath.Join("etc", "application_monitoring.yaml")) //nolint:errcheck
+	}
+
+	if c.loadError != "" {
+		fb.Logf("Error loading the configuration: %s", c.loadError) // nolint:errcheck
 	}
 
 	for _, path := range c.ExtraConfigFilesUsed() {

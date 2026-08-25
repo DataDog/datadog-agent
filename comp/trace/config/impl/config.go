@@ -64,9 +64,6 @@ type cfg struct {
 	// coreConfig relates to the main agent config component
 	coreConfig coreconfig.Component
 
-	// warnings are the warnings generated during setup
-	warnings *model.Warnings
-
 	// UpdateAPIKeyFn is the callback func for API Key updates
 	updateAPIKeyFn func(oldKey, newKey string)
 
@@ -132,10 +129,6 @@ func (c *cfg) OnUpdateAPIKey(callback func(oldKey, newKey string)) {
 		log.Error("OnUpdateAPIKey has already been configured. Only 1 callback can be used at a time.")
 	}
 	c.updateAPIKeyFn = callback
-}
-
-func (c *cfg) Warnings() *model.Warnings {
-	return c.warnings
 }
 
 func (c *cfg) Object() *pkgtraceconfig.AgentConfig {
