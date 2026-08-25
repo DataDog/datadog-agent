@@ -322,7 +322,7 @@ func (e *engine) sourceTagForIngest(source string) string {
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 	if m.storageKey == 0 {
-		m.storageKey = testStorageKey(source, m.name, m.tags)
+		m.storageKey = storageKeyForMetadata(source, m.name, m.tags)
 	}
 	e.storage.AddWithKey(source, m.storageKey, m.name, m.value, m.timestamp, m.tags)
 	// Track points that arrive after their timestamp was already analyzed.

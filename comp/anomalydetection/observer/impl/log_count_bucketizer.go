@@ -95,7 +95,7 @@ func (b *materializedLogCountBucketizer) observe(
 	timestamp int64,
 	tags []string,
 ) bool {
-	return b.observeWithKey(namespace, 0, metric, timestamp, tags)
+	return b.observeWithKey(namespace, storageKeyForMetadata(namespace, metric.Name, tags), metric, timestamp, tags)
 }
 
 // observeWithKey adds one extractor output to its pending bucket. False

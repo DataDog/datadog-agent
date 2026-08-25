@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -100,6 +102,9 @@ type timeSeriesStorage struct {
 	cfg    StorageConfig
 	mu     sync.RWMutex
 	series map[uint64]*seriesStats // keyed by the carried storage key
+	// collisions holds only additional series sharing a storage key. The primary
+	// map remains the O(1) fast path.
+	collisions map[uint64][]*seriesStats
 
 	// observationTimestamps tracks all timestamps where observations occurred,
 	// even if no metric series was written for that timestamp.
@@ -294,6 +299,7 @@ func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 	return &timeSeriesStorage{
 		cfg:                   cfg,
 		series:                make(map[uint64]*seriesStats),
+		collisions:            make(map[uint64][]*seriesStats),
 		seriesIDStats:         make(map[observer.SeriesRef]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
@@ -318,24 +324,13 @@ type AddResult struct {
 // Add is a test helper for storage-only callers that do not participate in the
 // metrics pipeline. Production ingestion must use AddWithKey.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
-	key := testStorageKey(namespace, name, tags)
-	s.mu.RLock()
-	for _, stats := range s.seriesIDStats {
-		if stats != nil && stats.Namespace == namespace && stats.Name == name && tagsEqual(stats.Tags, canonicalizeTags(tags)) {
-			key = stats.storageKey
-			break
-		}
-	}
-	s.mu.RUnlock()
-	return s.AddWithKey(namespace, key, name, value, timestamp, tags)
+	return s.AddWithKey(namespace, storageKeyForMetadata(namespace, name, tags), name, value, timestamp, tags)
 }
 
-func testStorageKey(namespace, name string, tags []string) uint64 {
-	key := fnv64aMix(fnv64aString(namespace), name)
-	for _, tag := range canonicalizeTags(tags) {
-		key = fnv64aMix(key, tag)
-	}
-	return fmix64(key)
+func storageKeyForMetadata(namespace, name string, tags []string) uint64 {
+	acc := tagset.NewHashingTagsAccumulatorWithTags(tags)
+	contextKey := ckey.NewKeyGenerator().Generate(name, "", acc)
+	return namespacedContextKey(newNamespaceSeed(namespace), uint64(contextKey))
 }
 
 // AddWithKey inserts a point using the key calculated by the metrics pipeline.
@@ -371,7 +366,7 @@ func (s *timeSeriesStorage) AddWithKey(namespace string, key uint64, name string
 		logging.Warnf("metric storage key collision h=%d: incumbent={%s,%s} new={%s,%s}",
 			key, stats.Namespace, stats.Name, namespace, name)
 		exists = false
-		for _, st := range s.seriesIDStats {
+		for _, st := range s.collisions[key] {
 			if st != nil && st.Namespace == namespace && st.Name == name && tagsEqual(st.Tags, canonTags) {
 				stats = st
 				exists = true
@@ -397,6 +392,8 @@ func (s *timeSeriesStorage) AddWithKey(namespace string, key uint64, name string
 		// collision-displaced series.
 		if _, occupied := s.series[key]; !occupied {
 			s.series[key] = stats
+		} else {
+			s.collisions[key] = append(s.collisions[key], stats)
 		}
 		s.seriesIDStats[id] = stats
 		if namespace != observer.TelemetryNamespace {
@@ -520,29 +517,25 @@ func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64,
 	return s.droppedNonFinite, s.droppedExtreme, byMetric
 }
 
-// GetSeries returns the series using the specified aggregation.
-// If tags is nil, finds the first series matching namespace and name (ignoring tags).
+// GetSeries returns the series using the metadata-derived test key. Production
+// callers must retain the storage key and use GetSeriesByKey.
 func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg Aggregate) *observer.Series {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	if tags != nil {
-		// Exact match with tags.
-		for _, stats := range s.seriesIDStats {
-			if stats != nil && stats.Namespace == namespace && stats.Name == name && tagsEqual(stats.Tags, canonicalizeTags(tags)) {
-				series := stats.toSeries(agg)
-				return &series
-			}
-		}
-		return nil
+	stats := s.series[storageKeyForMetadata(namespace, name, tags)]
+	if stats != nil && stats.Namespace == namespace && stats.Name == name && tagsEqual(stats.Tags, canonicalizeTags(tags)) {
+		series := stats.toSeries(agg)
+		return &series
 	}
+	return nil
+}
 
-	// tags is nil: find first series matching namespace and name (ignoring tags).
-	for _, stats := range s.seriesIDStats {
-		if stats != nil && stats.Namespace == namespace && stats.Name == name {
-			series := stats.toSeries(agg)
-			return &series
-		}
+func (s *timeSeriesStorage) GetSeriesByKey(key uint64, agg Aggregate) *observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if stats := s.series[key]; stats != nil {
+		series := stats.toSeries(agg)
+		return &series
 	}
 	return nil
 }
@@ -553,12 +546,9 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var stats *seriesStats
-	for _, candidate := range s.seriesIDStats {
-		if candidate != nil && candidate.Namespace == namespace && candidate.Name == name && tagsEqual(candidate.Tags, canonicalizeTags(tags)) {
-			stats = candidate
-			break
-		}
+	stats := s.series[storageKeyForMetadata(namespace, name, tags)]
+	if stats != nil && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonicalizeTags(tags))) {
+		stats = nil
 	}
 	if stats == nil {
 		return nil
@@ -1155,7 +1145,28 @@ func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
 	}
 	s.releaseTagIntern(stats.tagsHash)
 	if s.series[stats.storageKey] == stats {
-		delete(s.series, stats.storageKey)
+		bucket := s.collisions[stats.storageKey]
+		if len(bucket) == 0 {
+			delete(s.series, stats.storageKey)
+		} else {
+			s.series[stats.storageKey] = bucket[0]
+			if len(bucket) == 1 {
+				delete(s.collisions, stats.storageKey)
+			} else {
+				s.collisions[stats.storageKey] = bucket[1:]
+			}
+		}
+	} else {
+		bucket := s.collisions[stats.storageKey]
+		for i, candidate := range bucket {
+			if candidate == stats {
+				s.collisions[stats.storageKey] = append(bucket[:i], bucket[i+1:]...)
+				if len(s.collisions[stats.storageKey]) == 0 {
+					delete(s.collisions, stats.storageKey)
+				}
+				break
+			}
+		}
 	}
 	delete(s.seriesIDStats, stats.ref)
 	if stats.Namespace != observer.TelemetryNamespace {
@@ -1371,12 +1382,9 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 		aggStr = nameWithAgg[idx+1:]
 	}
 
-	var stats *seriesStats
-	for _, candidate := range s.seriesIDStats {
-		if candidate != nil && candidate.Namespace == namespace && candidate.Name == baseName && tagsEqual(candidate.Tags, canonicalizeTags(tags)) {
-			stats = candidate
-			break
-		}
+	stats := s.series[storageKeyForMetadata(namespace, baseName, tags)]
+	if stats != nil && (stats.Namespace != namespace || stats.Name != baseName || !tagsEqual(stats.Tags, canonicalizeTags(tags))) {
+		stats = nil
 	}
 	if stats == nil {
 		return fullKey

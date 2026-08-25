@@ -205,7 +205,7 @@ func (f *metricsFilterRules) precheck(name, source string) metricFilterPrecheck 
 // isAllowed returns true if the metric should be ingested.
 // tags must be sorted for the tag-aware rule match.
 func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
-	return f.isAllowedWithKey(name, source, testStorageKey(source, name, tags), tags)
+	return f.isAllowedWithKey(name, source, storageKeyForMetadata(source, name, tags), tags)
 }
 
 func (f *metricsFilterRules) isAllowedWithKey(name, source string, key uint64, tags []string) bool {

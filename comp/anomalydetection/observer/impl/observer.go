@@ -1000,7 +1000,8 @@ func (o *observerImpl) ExtractorCount() int {
 
 // AddTelemetry writes a data point into the telemetry namespace. Implements DebugView.
 func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64, tags []string) {
-	_ = o.engine.storage.Add(observerdef.TelemetryNamespace, name, value, timestamp, tags)
+	key := storageKeyForMetadata(observerdef.TelemetryNamespace, name, tags)
+	_ = o.engine.storage.AddWithKey(observerdef.TelemetryNamespace, key, name, value, timestamp, tags)
 }
 
 // ReplayStoredData resets analysis state (preserving extractor context) then
