@@ -29,6 +29,7 @@ from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import generate_dummy_package
+from tasks.schema.generate import schema_codegen
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -292,6 +293,9 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             if mod.independent:
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
 
+        # TODO: remove once Bazel is used to build the Agent
+        schema_codegen(ctx)
+
         with ctx.cd(dummy_folder):
             ctx.run("go mod tidy")
             res = ctx.run("go build main.go", warn=True)
@@ -345,17 +349,17 @@ def _go_only_tidy(ctx, verbose: bool):
 
 def _bazel_tidy(ctx, verbose: bool):
     # 1. deps/go.MODULE.bazel ↺ (prune stale use_repo declarations to not hinder next `bazel` commands)
-    bazel(ctx, "mod", "--ui_event_filters=-DEBUG", "tidy")  # inhibit `No sum for … found` (go_mod_tidy_all will fix it)
+    bazel("mod", "--ui_event_filters=-DEBUG", "tidy")  # inhibit `No sum for … found` (go_mod_tidy_all will fix it)
     # 2. go.work + **/go.mod -> **/go.mod (sync each workspace module's deps to the workspace build list)
-    bazel(ctx, "run", "//:go", "work", "sync")
+    bazel("run", "//:go", "work", "sync")
     # 3. **/*.go + **/go.mod -> **/go.mod, **/go.sum (reconcile each module's requirements with its actual imports)
-    bazel(ctx, "run", "//:go_mod_tidy_all", *(("--", "-x") if verbose else ()))
+    bazel("run", "//:go_mod_tidy_all", *(("--", "-x") if verbose else ()))
     # 4. go.work + **/go.mod -> deps/go.MODULE.bazel (update use_repo declarations)
-    bazel(ctx, "mod", "tidy")
+    bazel("mod", "tidy")
     # 5. deps/go.MODULE.bazel + /BUILD.bazel + **/*.go + **/go.mod -> **/BUILD.bazel (infer build rules from Go source)
-    bazel(ctx, "run", "//:gazelle")
+    bazel("run", "//:gazelle")
     # 6. regenerate agent payload version file from go.mod
-    bazel(ctx, "run", "//tasks:write_agent_payload_version")
+    bazel("run", "//tasks:write_agent_payload_version")
 
 
 @task(autoprint=True)
@@ -366,7 +370,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.5 linux/amd64"
+    # result is like "go version go1.26.6 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

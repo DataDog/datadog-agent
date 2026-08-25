@@ -1,8 +1,11 @@
+import contextlib
 import getpass
 import json
 import os
 import pathlib
 import platform
+import subprocess
+import tempfile
 from io import StringIO
 from typing import Any
 
@@ -32,6 +35,64 @@ if is_windows():
         print(
             "colorama is not up to date, terminal colors may not work properly. Please run 'dda self dep sync' to fix this."
         )
+
+
+def restrict_file_to_owner(path: str | pathlib.Path) -> None:
+    """
+    Restrict a file holding secrets so that only its owner can read it.
+
+    On Windows os.chmod only toggles the read-only attribute, so the ACL has to be replaced
+    outright. Sandboxing and management tools grant themselves an ACE on the user profile,
+    and a single inherited ACE of that kind leaves the file readable by another principal,
+    which is enough for OpenSSH to reject a private key.
+    """
+    if not is_windows():
+        os.chmod(path, 0o600)
+        return
+    user = os.environ.get("USERNAME") or getpass.getuser()
+    # SYSTEM (S-1-5-18) and Administrators (S-1-5-32-544) are named by SID because their
+    # names are localized, and granting them full control matches what ssh-keygen writes.
+    subprocess.run(
+        [
+            "icacls",
+            str(path),
+            "/inheritance:r",
+            "/grant:r",
+            f"{user}:(F)",
+            "*S-1-5-18:(F)",
+            "*S-1-5-32-544:(F)",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
+def write_secret_file(path: str | pathlib.Path, content: str) -> None:
+    """
+    Write text to a file that only its owner can read.
+
+    The content is staged in a file that is locked down while still empty, then moved into
+    place. Writing to the target directly would expose the secret for the duration of the
+    write, and truncating it would destroy the previous contents should the permission
+    change then fail. These files hold the only copy of the Pulumi and SSH key passphrases.
+    """
+    path = pathlib.Path(path)
+    # mkstemp creates the file with O_EXCL under an unpredictable name, so a symlink planted
+    # at a guessable staging path cannot redirect the write and concurrent saves cannot land
+    # on the same file. It shares a directory with the target because os.replace is only
+    # atomic within a single filesystem.
+    fd, staging = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        # mkstemp applies mode 0600, which suffices on POSIX. Windows ignores it, so the ACL
+        # is rewritten separately before any content is written.
+        with os.fdopen(fd, "w") as f:
+            restrict_file_to_owner(staging)
+            f.write(content)
+        os.replace(staging, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.remove(staging)
+        raise
 
 
 def ask(question: str, color: str = "blue") -> str:
@@ -93,6 +154,42 @@ def get_stack_name_prefix() -> str:
     return user_name.replace(".", "-").replace(" ", "-")
 
 
+CI_PULUMI_BACKEND_URL = "s3://dd-pulumi-state"
+CI_PULUMI_PASSPHRASE_SSM_PARAM = "ci.datadog-agent.pulumi_password"
+
+
+@contextlib.contextmanager
+def use_ci_pulumi_backend(ctx: Context):
+    """
+    Temporarily point the local Pulumi CLI at CI's S3 state backend and export
+    the CI Pulumi secrets passphrase (read from SSM), so a CI-created stack
+    (absent from the local file backend) can be queried. Always restores the
+    local backend on exit, even if an error occurs.
+
+    Must be run with AWS credentials that can read CI_PULUMI_BACKEND_URL and
+    decrypt CI_PULUMI_PASSPHRASE_SSM_PARAM, e.g.:
+        aws-vault exec sso-agent-qa-read-only -- dda inv aws.rdp-vm --stack-name=<ci-stack-name> --ci
+    """
+    import boto3
+
+    previous_passphrase = os.environ.get("PULUMI_CONFIG_PASSPHRASE")
+    ctx.run(f"pulumi login {CI_PULUMI_BACKEND_URL}", hide=True)
+    try:
+        ssm = boto3.client("ssm", region_name="us-east-1")
+        passphrase = ssm.get_parameter(Name=CI_PULUMI_PASSPHRASE_SSM_PARAM, WithDecryption=True)["Parameter"]["Value"]
+        os.environ["PULUMI_CONFIG_PASSPHRASE"] = passphrase
+        yield
+    finally:
+        # Always restore the local backend and passphrase env var, even if login, the
+        # SSM lookup, or the wrapped call failed, so a CI lookup never leaves the dev
+        # environment pointed at CI's S3 state or holding the CI passphrase.
+        if previous_passphrase is None:
+            os.environ.pop("PULUMI_CONFIG_PASSPHRASE", None)
+        else:
+            os.environ["PULUMI_CONFIG_PASSPHRASE"] = previous_passphrase
+        ctx.run("pulumi login --local", hide=True)
+
+
 def get_stack_json_outputs(ctx: Context, full_stack_name: str) -> Any:
     buffer = StringIO()
 
@@ -111,17 +208,6 @@ def get_stack_json_outputs(ctx: Context, full_stack_name: str) -> Any:
         out_stream=buffer,
     )
     return json.loads(buffer.getvalue())
-
-
-def get_stack_json_resources(ctx: Context, full_stack_name: str) -> Any:
-    buffer = StringIO()
-    with ctx.cd(_get_root_path()):
-        ctx.run(
-            f"pulumi stack export -s {full_stack_name}",
-            out_stream=buffer,
-        )
-    out = json.loads(buffer.getvalue())
-    return out['deployment']['resources']
 
 
 def get_aws_wrapper(
@@ -152,21 +238,6 @@ def is_linux():
 
 def is_wsl():
     return "microsoft" in platform.uname().release.lower()
-
-
-def get_aws_instance_password_data(
-    ctx: Context, vm_id: str, key_path: str, aws_account: str | None = None, use_aws_vault: bool | None = True
-) -> str:
-    buffer = StringIO()
-    with ctx.cd(_get_root_path()):
-        cmd = f'aws ec2 get-password-data --instance-id "{vm_id}" --priv-launch-key "{key_path}"'
-        if use_aws_vault:
-            if aws_account is None:
-                raise Exit("AWS account is required when using aws-vault.")
-            cmd = get_aws_wrapper(aws_account) + cmd
-        ctx.run(cmd, out_stream=buffer)
-    out = json.loads(buffer.getvalue())
-    return out["PasswordData"]
 
 
 def get_image_description(ctx: Context, ami_id: str) -> Any:

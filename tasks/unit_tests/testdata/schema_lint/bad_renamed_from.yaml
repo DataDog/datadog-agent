@@ -1,0 +1,67 @@
+properties:
+  not_a_mapping:
+    node_type: setting
+    type: string
+    default: hello
+    renamed_from:
+    - old_name
+  empty_mapping:
+    node_type: setting
+    type: string
+    default: hello
+    renamed_from: {}
+  blank_name:
+    node_type: setting
+    type: string
+    default: hello
+    renamed_from:
+      '   ': "7.71.0"
+  unquoted_version:
+    node_type: setting
+    type: string
+    default: hello
+    renamed_from:
+      old_unquoted: 7.71
+  partial_version:
+    node_type: setting
+    type: string
+    default: hello
+    renamed_from:
+      old_partial: "7.71"
+  malformed_version:
+    node_type: setting
+    type: string
+    default: hello
+    renamed_from:
+      old_malformed: "7.71.x"
+  duplicate_version:
+    node_type: setting
+    type: string
+    default: hello
+    renamed_from:
+      old_one: "7.71.0"
+      old_two: "7.71.0"
+      old_three: "7.60.0"
+  section_with_renamed_from:
+    node_type: section
+    renamed_from:
+      old_section_name: "7.71.0"
+    properties:
+      child:
+        node_type: setting
+        type: string
+        default: hello
+  valid_setting:
+    node_type: setting
+    type: string
+    default: hello
+    renamed_from:
+      oldest_name: "7.60.0"
+      old_name: "7.71.1"
+  valid_section:
+    node_type: section
+    properties:
+      nested:
+        node_type: setting
+        type: string
+        default: hello

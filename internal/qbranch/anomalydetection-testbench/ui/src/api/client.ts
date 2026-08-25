@@ -53,10 +53,25 @@ export interface StatusResponse {
     enabled: boolean;
     durationSec: number;
     muteNoisyMetrics: boolean;
+    started: boolean;
+    startSec?: number;
+    analyzedThroughSec?: number;
+    allComplete: boolean;
+    mutedCount: number;
     active: boolean;
     windowEndSec?: number;
     mutedSeries?: string[];
+    detectors?: BaselineDetectorStatus[];
   };
+}
+
+export interface BaselineDetectorStatus {
+  name: string;
+  ready: boolean;
+  warmupEndSec?: number;
+  baselineEndSec?: number;
+  completed: boolean;
+  mutedCount: number;
 }
 
 export interface ScenarioInfo {
@@ -118,10 +133,8 @@ export interface AnomalyDebugInfo {
   baselineStddev?: number;
   baselineMAD?: number;
   threshold: number;
-  slackParam?: number;
   currentValue: number;
   deviationSigma: number;
-  cusumValues?: number[];
 }
 
 export interface Anomaly {
@@ -302,10 +315,20 @@ export interface SeverityEvent {
   to_level: number;
 }
 
+/** Contributor report captured when the scorer opens an episode. */
+export interface ScorerReport {
+  timestamp: number;
+  contributors: Array<{
+    name: string;
+    share: number;
+  }>;
+}
+
 /** Full snapshot of the scorer's state — what /api/scores returns. */
 export interface ScoreState {
   buckets: ScoreBucket[];
   events: SeverityEvent[];
+  reports?: ScorerReport[];
   config: ScorerConfig;
 }
 

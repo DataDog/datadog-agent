@@ -91,7 +91,7 @@ func (c *Check) CustomQueries() error {
 		if !c.connectedToPdb {
 			pdb = q.Pdb
 			if pdb == "" {
-				pdb = "cdb$root"
+				pdb = "CDB$ROOT"
 			}
 			_, err := c.dbCustomQueries.Exec(fmt.Sprintf(`alter session set container = "%s"`, strings.ReplaceAll(pdb, `"`, `""`)))
 			if err != nil {

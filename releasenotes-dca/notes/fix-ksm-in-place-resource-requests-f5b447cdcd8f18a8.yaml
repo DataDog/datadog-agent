@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix ``kubernetes_state.container.cpu_requested`` and
+    ``kubernetes_state.container.memory_requested`` to use the effective
+    requests reported by Kubernetes after an in-place vertical resize. Pod
+    spec requests remain the fallback when status resources are unavailable.

@@ -49,7 +49,7 @@ func newAnomalyProfileSampler(profiles [severityeventsdef.NumSeverityLevels]Samp
 		SmartSeverityProfilesEnabled: true,
 		Profiles:                     profiles,
 		SeverityProvider:             provider,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 }
 
 func TestAdaptiveSampler_SmartSeverityProfilesDisabled_IgnoresPublishedLevel(t *testing.T) {
@@ -77,6 +77,30 @@ func TestAdaptiveSampler_NewSamplerPicksUpActiveLevelOnFirstMessage(t *testing.T
 	require.NotNil(t, s.Process(testMsg(), patternA))
 	assert.Equal(t, 10.0, s.config.RateLimit)
 	assert.Equal(t, 100.0, s.config.BurstSize)
+}
+
+func TestAdaptiveSampler_SmartSeverityOutcomesRecordAppliedProfileDecisions(t *testing.T) {
+	provider, emit := activateSeverity()
+	s := newAnomalyProfileSampler(testProfiles(), provider)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	lowKeptBefore := tlmAdaptiveSamplerOutcomes.WithValues("low", "kept").Get()
+	lowDroppedBefore := tlmAdaptiveSamplerOutcomes.WithValues("low", "dropped").Get()
+
+	// No severity reader result means the base configuration is in use, not an
+	// AAD-derived profile, so it is deliberately absent from collaboration telemetry.
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	assert.Equal(t, lowKeptBefore, tlmAdaptiveSamplerOutcomes.WithValues("low", "kept").Get())
+
+	emit(severityeventsdef.SeverityLow)
+	for i := 0; i < 4; i++ {
+		require.NotNilf(t, s.Process(testMsg(), patternA), "message %d should fit in the Low burst", i)
+	}
+	require.Nil(t, s.Process(testMsg(), patternA), "the next message should be dropped after the Low burst")
+
+	assert.Equal(t, lowKeptBefore+4, tlmAdaptiveSamplerOutcomes.WithValues("low", "kept").Get())
+	assert.Equal(t, lowDroppedBefore+1, tlmAdaptiveSamplerOutcomes.WithValues("low", "dropped").Get())
 }
 
 func TestAdaptiveSampler_EscalationGrantsFreshBurstImmediately(t *testing.T) {
@@ -231,4 +255,33 @@ func TestAdaptiveSampler_NewPatternAfterSeverityChangeUsesActiveProfile(t *testi
 	assert.Equal(t, 100.0, s.config.BurstSize)
 	assert.InDelta(t, 100.0, s.entries[0].credits, 0.0001, "existing pattern is reset on escalation before the new pattern is tracked")
 	assert.InDelta(t, 99.0, s.entries[1].credits, 0.0001, "new pattern seeds High BurstSize-1 credits after the severity change")
+}
+
+func TestAdaptiveSampler_DeescalationFromPassThroughSeedsEveryTrackedPatternWithMaxCredits(t *testing.T) {
+	provider, emit := activateSeverity()
+	profiles := testProfiles()
+	profiles[severityeventsdef.SeverityHigh].PassThrough = true
+	emit(severityeventsdef.SeverityHigh)
+
+	s := newAnomalyProfileSampler(profiles, provider)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	require.NotNil(t, s.Process(testMsg(), patternB))
+	require.Len(t, s.entries, 2)
+	s.entries[0].sampled = 3
+	s.entries[1].sampled = 4
+
+	emit(severityeventsdef.SeverityLow)
+
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	require.Len(t, s.entries, 2)
+	assert.False(t, s.config.PassThrough)
+	assert.Equal(t, 1.0, s.config.RateLimit)
+	assert.Equal(t, 5.0, s.config.BurstSize)
+	assert.InDelta(t, 4.0, s.entries[0].credits, 0.0001, "matched pattern should be reset to the new burst size, then spend one credit")
+	assert.InDelta(t, 5.0, s.entries[1].credits, 0.0001, "unmatched patterns should still be reseeded to the new burst size")
+	assert.Zero(t, s.entries[0].sampled, "matched pattern stale sampled count should be cleared when pass-through ends")
+	assert.Zero(t, s.entries[1].sampled, "unmatched pattern stale sampled count should be cleared when pass-through ends")
 }

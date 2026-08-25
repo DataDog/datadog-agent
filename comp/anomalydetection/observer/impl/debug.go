@@ -92,8 +92,8 @@ type StateView interface {
 	LatestDataTime() int64
 	MaxTimestamp() int64
 
-	// Storage stats (excluding a given namespace, typically TelemetryNamespace)
-	TotalSeriesCount(excludeNamespace string) int
+	// Storage stats
+	TotalSeriesCount() int
 	TotalSampleCount(excludeNamespace string) int64
 
 	// GetSeriesAll returns all points for a series.

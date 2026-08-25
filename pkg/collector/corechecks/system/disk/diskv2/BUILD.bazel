@@ -83,6 +83,7 @@ dd_agent_go_test(
     srcs = [
         "disk_nix_test.go",
         "disk_test.go",
+        "disk_windows_internal_test.go",
         "disk_windows_test.go",
         "with_test.go",
     ],

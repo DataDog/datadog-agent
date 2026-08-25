@@ -90,6 +90,7 @@ func errorTrackingAgentOptions(agentConfig string) []agentparams.Option {
 // every binary sharing the errortracking pipeline emits a deterministic
 // error, covering all of them with a single VM instead of one per binary.
 func TestAgentTelemetryErrorTrackingSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &errorTrackingSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(

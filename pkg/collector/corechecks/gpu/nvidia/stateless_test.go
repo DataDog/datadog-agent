@@ -9,8 +9,10 @@ package nvidia
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -30,8 +32,11 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 			device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
 				return nvml.EccSramErrorStatus{
 					AggregateCor:            11,
+					VolatileCor:             12,
 					AggregateUncParity:      13,
+					VolatileUncParity:       14,
 					AggregateUncSecDed:      17,
+					VolatileUncSecDed:       18,
 					AggregateUncBucketL2:    19,
 					AggregateUncBucketSm:    23,
 					AggregateUncBucketPcie:  29,
@@ -45,7 +50,7 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 
 	metricsOut, _, err := sramEccErrorStatusSample(mockDevice)
 	require.NoError(t, err)
-	require.Len(t, metricsOut, 9)
+	require.Len(t, metricsOut, 12)
 
 	assertMetric := func(name string, value float64, tags ...string) {
 		t.Helper()
@@ -60,8 +65,11 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 	}
 
 	assertMetric("errors.ecc.corrected.total", 11, "memory_location:sram")
+	assertMetric("errors.ecc.corrected.volatile", 12, "memory_location:sram")
 	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 13, "memory_location:sram", "error_subtype:parity")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.volatile", 14, "memory_location:sram", "error_subtype:parity")
 	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 17, "memory_location:sram", "error_subtype:secded")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.volatile", 18, "memory_location:sram", "error_subtype:secded")
 	assertMetric("errors.ecc.uncorrected.total", 19, "memory_location:l2_cache")
 	assertMetric("errors.ecc.uncorrected.total", 23, "memory_location:sm")
 	assertMetric("errors.ecc.uncorrected.total", 29, "memory_location:pcie")
@@ -82,16 +90,149 @@ func TestSramEccErrorStatusSampleArchitectureSupport(t *testing.T) {
 func TestLegacyEccMetricOverlapRules(t *testing.T) {
 	ampereDevice := setupMockDevice(t, testutil.WithArchitecture("ampere"))
 
-	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
-	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM))
-	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
-	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
-	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_DEVICE_MEMORY))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.AGGREGATE_ECC))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.AGGREGATE_ECC))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.AGGREGATE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.AGGREGATE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_DEVICE_MEMORY, nvml.AGGREGATE_ECC))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.VOLATILE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.VOLATILE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.VOLATILE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.VOLATILE_ECC))
 
 	preAmpereDevice := setupMockDevice(t, testutil.WithArchitecture("turing"))
 
-	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
-	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.AGGREGATE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.VOLATILE_ECC))
+}
+
+func TestAllECCAPIHandlers(t *testing.T) {
+	sramStatus := nvml.EccSramErrorStatus{
+		AggregateCor:            101,
+		VolatileCor:             102,
+		AggregateUncParity:      103,
+		VolatileUncParity:       104,
+		AggregateUncSecDed:      105,
+		VolatileUncSecDed:       106,
+		AggregateUncBucketL2:    107,
+		AggregateUncBucketSm:    108,
+		AggregateUncBucketPcie:  109,
+		AggregateUncBucketMcu:   110,
+		AggregateUncBucketOther: 111,
+		BThresholdExceeded:      112,
+	}
+	sramExpectedMetrics := []Metric{
+		{Name: "errors.ecc.corrected.total", Value: 101, Type: metrics.GaugeType, Tags: []string{"memory_location:sram"}},
+		{Name: "errors.ecc.corrected.volatile", Value: 102, Type: metrics.GaugeType, Tags: []string{"memory_location:sram"}},
+		{Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 103, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:parity"}},
+		{Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 104, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:parity"}},
+		{Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 105, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:secded"}},
+		{Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 106, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:secded"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 107, Type: metrics.GaugeType, Tags: []string{"memory_location:l2_cache"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 108, Type: metrics.GaugeType, Tags: []string{"memory_location:sm"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 109, Type: metrics.GaugeType, Tags: []string{"memory_location:pcie"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 110, Type: metrics.GaugeType, Tags: []string{"memory_location:microcontroller"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 111, Type: metrics.GaugeType, Tags: []string{"memory_location:other"}},
+		{Name: "errors.ecc.sram.threshold_exceeded", Value: 1, Type: metrics.GaugeType},
+	}
+
+	legacyCounterValue := func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) uint64 {
+		return uint64(errorType)*100 + uint64(counterType)*10 + uint64(memoryLocation) + 1
+	}
+	legacyMetric := func(errorType, counterType, memoryLocation string, value uint64) Metric {
+		return Metric{
+			Name:  fmt.Sprintf("errors.ecc.%s.%s", errorType, counterType),
+			Value: float64(value),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:" + memoryLocation},
+		}
+	}
+
+	legacyMetrics := make([]Metric, 0, 32)
+	for errorType, errorTypeName := range eccErrorTypeToName {
+		for memoryLocation, memoryLocationName := range memoryLocationToName {
+			for counterType, counterTypeName := range eccCounterTypeToName {
+				legacyMetrics = append(legacyMetrics, legacyMetric(
+					errorTypeName,
+					counterTypeName,
+					memoryLocationName,
+					legacyCounterValue(errorType, counterType, memoryLocation),
+				))
+			}
+		}
+	}
+	ampereExpectedMetrics := append(slices.Clone(sramExpectedMetrics),
+		legacyMetric("corrected", "volatile", "l1_cache", 1),
+		legacyMetric("corrected", "volatile", "l2_cache", 2),
+		legacyMetric("corrected", "volatile", "device_memory", 3),
+		legacyMetric("corrected", "volatile", "register_file", 4),
+		legacyMetric("corrected", "volatile", "texture_memory", 5),
+		legacyMetric("corrected", "volatile", "texture_shm", 6),
+		legacyMetric("corrected", "volatile", "cbu", 7),
+		legacyMetric("corrected", "total", "l1_cache", 11),
+		legacyMetric("corrected", "total", "l2_cache", 12),
+		legacyMetric("corrected", "total", "device_memory", 13),
+		legacyMetric("corrected", "total", "register_file", 14),
+		legacyMetric("corrected", "total", "texture_memory", 15),
+		legacyMetric("corrected", "total", "texture_shm", 16),
+		legacyMetric("corrected", "total", "cbu", 17),
+		legacyMetric("uncorrected", "volatile", "l1_cache", 101),
+		legacyMetric("uncorrected", "volatile", "l2_cache", 102),
+		legacyMetric("uncorrected", "volatile", "device_memory", 103),
+		legacyMetric("uncorrected", "volatile", "register_file", 104),
+		legacyMetric("uncorrected", "volatile", "texture_memory", 105),
+		legacyMetric("uncorrected", "volatile", "texture_shm", 106),
+		legacyMetric("uncorrected", "volatile", "cbu", 107),
+		legacyMetric("uncorrected", "volatile", "sram", 108),
+		legacyMetric("uncorrected", "total", "l1_cache", 111),
+		legacyMetric("uncorrected", "total", "device_memory", 113),
+		legacyMetric("uncorrected", "total", "register_file", 114),
+		legacyMetric("uncorrected", "total", "texture_memory", 115),
+		legacyMetric("uncorrected", "total", "texture_shm", 116),
+		legacyMetric("uncorrected", "total", "cbu", 117),
+	)
+	configureEccAPIs := func(device *mock.Device) {
+		device.GetMemoryErrorCounterFunc = func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, nvml.Return) {
+			return legacyCounterValue(errorType, counterType, memoryLocation), nvml.SUCCESS
+		}
+		device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
+			return sramStatus, nvml.SUCCESS
+		}
+	}
+
+	for _, tt := range []struct {
+		name         string
+		architecture string
+		expected     []Metric
+	}{
+		{name: "turing", architecture: "turing", expected: legacyMetrics},
+		{name: "ampere", architecture: "ampere", expected: ampereExpectedMetrics},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			device := setupMockDevice(t,
+				testutil.WithArchitecture(tt.architecture),
+				testutil.WithCustomHook(configureEccAPIs),
+			)
+
+			apis := createStatelessAPIs(&CollectorDependencies{})
+			var metricsOut []Metric
+			for _, api := range apis {
+				if api.Name != "sram_ecc_error_status" && !strings.HasPrefix(api.Name, "ecc_errors.") {
+					continue
+				}
+
+				metrics, _, err := api.Handler(device, 0)
+				if err != nil {
+					require.Empty(t, metrics)
+					require.True(t, safenvml.IsUnsupported(err))
+					continue
+				}
+				metricsOut = append(metricsOut, metrics...)
+			}
+
+			require.ElementsMatch(t, tt.expected, metricsOut)
+		})
+	}
 }
 
 // TestNewStatelessCollector tests stateless collector-specific initialization with dynamic API creation
@@ -112,6 +253,46 @@ func TestNewStatelessCollector(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 	require.NotEmpty(t, metrics) // Should have some metrics
+}
+
+func TestStatelessCollectorSkipsMaxClockInfoForVGPU(t *testing.T) {
+	var maxClockInfoCalls, virtualizationModeCalls int
+	device := setupMockDevice(t,
+		testutil.WithDeviceFeatureMode(testutil.DeviceFeatureVGPU),
+		testutil.WithMockAllFunctions(),
+		testutil.WithCustomHook(func(device *mock.Device) {
+			device.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+				virtualizationModeCalls++
+				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
+			}
+			device.GetMaxClockInfoFunc = func(nvml.ClockType) (uint32, nvml.Return) {
+				maxClockInfoCalls++
+				return 0, nvml.ERROR_UNKNOWN
+			}
+		}),
+	)
+	require.Equal(t, 1, virtualizationModeCalls, "virtualization mode should be cached during device initialization")
+	require.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_VGPU, device.GetDeviceInfo().VirtualizationMode)
+
+	collector, err := newStatelessCollector(device, &CollectorDependencies{})
+	require.NoError(t, err)
+	require.Zero(t, maxClockInfoCalls, "vGPU collector should not probe max clock info")
+
+	baseCollector := collector.(*baseCollector)
+	for _, apiName := range []string{
+		"max_clock_speed_sm",
+		"max_clock_speed_memory",
+		"max_clock_speed_graphics",
+		"max_clock_speed_video",
+	} {
+		for _, api := range baseCollector.supportedAPIs {
+			require.NotEqual(t, apiName, api.Name, "vGPU collector should not include %s", apiName)
+		}
+	}
+
+	_, err = collector.Collect()
+	require.NoError(t, err)
+	require.Zero(t, maxClockInfoCalls, "vGPU collector should not collect max clock info")
 }
 
 // TestCollectProcessMemory tests the process memory collection with different process scenarios
@@ -855,6 +1036,96 @@ func TestPCIELinkMetrics(t *testing.T) {
 	}
 }
 
+func TestClockThrottleReasonMetrics(t *testing.T) {
+	tests := map[string]struct {
+		reasons                      uint64
+		expectedReason               string
+		expectedThrottledWhileActive float64
+	}{
+		"none": {
+			reasons:                      nvml.ClocksEventReasonNone,
+			expectedReason:               "none",
+			expectedThrottledWhileActive: 0,
+		},
+		"gpu idle": {
+			reasons:                      nvml.ClocksEventReasonGpuIdle,
+			expectedReason:               "gpu_idle",
+			expectedThrottledWhileActive: 0,
+		},
+		"applications clocks setting": {
+			reasons:                      nvml.ClocksEventReasonApplicationsClocksSetting,
+			expectedReason:               "applications_clocks_setting",
+			expectedThrottledWhileActive: 1,
+		},
+		"sw power cap": {
+			reasons:                      nvml.ClocksEventReasonSwPowerCap,
+			expectedReason:               "sw_power_cap",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwSlowdown,
+			expectedReason:               "hw_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"sync boost": {
+			reasons:                      nvml.ClocksEventReasonSyncBoost,
+			expectedReason:               "sync_boost",
+			expectedThrottledWhileActive: 1,
+		},
+		"sw thermal slowdown": {
+			reasons:                      nvml.ClocksEventReasonSwThermalSlowdown,
+			expectedReason:               "sw_thermal_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw thermal slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwThermalSlowdown,
+			expectedReason:               "hw_thermal_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw power brake slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwPowerBrakeSlowdown,
+			expectedReason:               "hw_power_brake_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"display clock setting": {
+			reasons:                      nvml.ClocksEventReasonDisplayClockSetting,
+			expectedReason:               "display_clock_setting",
+			expectedThrottledWhileActive: 1,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			metricsOut := clockThrottleReasonMetrics(test.reasons)
+
+			for _, metric := range metricsOut {
+				if strings.HasPrefix(metric.Name, "clock.throttle_reasons.") {
+					metricReason := strings.TrimPrefix(metric.Name, "clock.throttle_reasons.")
+
+					if metricReason == test.expectedReason {
+						require.Equal(t, 1.0, metric.Value, "expected metric %s to be 1.0", metric.Name)
+					} else {
+						require.Equal(t, 0.0, metric.Value, "expected metric %s to be 0.0", metric.Name)
+					}
+
+				} else if metric.Name == "clock.throttled_while_active" {
+					require.Equal(t, test.expectedThrottledWhileActive, metric.Value, "expected metric %s to be %f", metric.Name, test.expectedThrottledWhileActive)
+
+					expectedTag := throttleReasonTag + ":" + notThrottledReason
+					if test.expectedThrottledWhileActive > 0 {
+						expectedTag = throttleReasonTag + ":" + test.expectedReason
+					}
+
+					require.Len(t, metric.Tags, 1)
+					require.Equal(t, expectedTag, metric.Tags[0], "expected metric %s to have tag %s", metric.Name, expectedTag)
+				} else {
+					require.Failf(t, "unexpected metric", "received unknown metric %s", metric.Name)
+				}
+			}
+		})
+	}
+}
+
 func TestNeedsRecoverySample(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -885,6 +1156,7 @@ func TestNeedsRecoverySample(t *testing.T) {
 			require.Equal(t, metrics.GaugeType, metric.Type)
 			require.Equal(t, tt.expectedValue, metric.Value)
 			require.Equal(t, []string{tt.expectedTag}, metric.Tags)
+
 		})
 	}
 }

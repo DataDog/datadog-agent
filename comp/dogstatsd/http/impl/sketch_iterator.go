@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // sketchData holds one sketch point's reader-provided columns and summary.
@@ -49,12 +50,13 @@ type sketchIterator struct {
 	buffer dogstatsdSketchSeries
 }
 
-func newSketchIterator(payload *pb.Payload, origin origin, hostname string) (*sketchIterator, error) {
+func newSketchIterator(payload *pb.Payload, origin origin, hostname string, filterList utilstrings.Matcher) (*sketchIterator, error) {
 	it := &sketchIterator{
 		iteratorCommon: iteratorCommon{
-			reader:   reader.NewMetricDataReader(payload.MetricData),
-			origin:   origin,
-			hostname: hostname,
+			reader:     reader.NewMetricDataReader(payload.MetricData),
+			origin:     origin,
+			hostname:   hostname,
+			filterList: filterList,
 		},
 	}
 	return it, it.reader.Initialize()
@@ -62,16 +64,7 @@ func newSketchIterator(payload *pb.Payload, origin origin, hostname string) (*sk
 
 // MoveNext reads one entire sketch metric record from the dogstatsd payload into the internal buffer.
 func (it *sketchIterator) MoveNext() bool {
-	if it.err != nil {
-		return false
-	}
-
-	if !it.reader.HaveMoreMetrics() {
-		return false
-	}
-
-	it.err = it.reader.NextMetric()
-	if it.err != nil {
+	if !it.nextUnfilteredMetric() {
 		return false
 	}
 
@@ -119,6 +112,9 @@ func (it *sketchIterator) MoveNext() bool {
 				avg: avg,
 			})
 	}
+
+	it.stats.metrics++
+	it.stats.points += uint64(len(b.Points))
 
 	return true
 }

@@ -23,11 +23,9 @@ package anomalydetection
 //     OnSeverityTransition fired — which is robust and consistent with the rest of
 //     this test suite (scorerHelperEscalationMarker, scorerHelperRegisteredMarker).
 //
-//   - CUSUM is used (consistent with TestAnomalyDetectionMetricsTriggered): it fires
-//     deterministically after 5 baseline points and re-emits on every analysis cycle
-//     while the spike is active. This gives continuous EWMA input, unlike BOCPD
-//     (fires once, requires 120-point warmup by default, and suffers Gaussian PDF
-//     underflow on extreme spikes) or HoltResidual (requires 84 baseline points).
+//   - BOCPD uses a short test-only warmup and emits one onset anomaly per series.
+//     The 20 simultaneous series provide enough input for a deterministic scorer
+//     transition without relying on repeated detector emission.
 //
 //   - Thresholds are set very low (low=0.005, high=0.010) and 20 concurrent series
 //     are used so that EWMA(1s) ≈ 0.29 with alpha=0.3, >> both thresholds even if
@@ -57,11 +55,9 @@ type scorerHelperSuite struct {
 }
 
 // TestAnomalyDetectionScorerHelper provisions a Linux VM with the anomaly scorer
-// and CUSUM detector enabled. The scorer's output.logs=true so that severity
-// transitions are logged. CUSUM re-emits on every analysis cycle so the scorer EWMA
-// rises continuously as long as the spike is active. Thresholds are set deliberately
-// low so that even a single anomalous series crosses low_threshold within a couple of
-// seconds, making the test robust against SSH latency and dropped ticks.
+// and BOCPD detector enabled. The scorer's output.logs=true so that severity
+// transitions are logged. Thresholds are set deliberately low so the simultaneous
+// anomaly onsets cross low_threshold despite SSH latency and dropped ticks.
 func TestAnomalyDetectionScorerHelper(t *testing.T) {
 	t.Parallel()
 	// language=yaml
@@ -82,9 +78,10 @@ anomaly_detection:
   logs:
     enabled: false
   detectors:
-    cusum:
-      enabled: true
     bocpd:
+      enabled: true
+      warmup_points: 5
+    rrcf:
       enabled: false
     holt_residual:
       enabled: false
@@ -99,9 +96,8 @@ anomaly_detection:
 }
 
 // TestScorerHelperEmitsSeverityTransitionOnMultiSeriesSpike sends a stable baseline
-// on 20 metric series then spikes all 20 simultaneously. CUSUM fires on every analysis
-// cycle while the spike is active (continuous re-emission), so the scorer EWMA rises
-// steadily and crosses low_threshold=0.005 within 1–2 seconds of the first spike tick.
+// on 20 metric series then spikes all 20 simultaneously. BOCPD emits one anomaly
+// onset per series, so the scorer crosses low_threshold=0.005 on the first spike.
 // With alpha=0.3 and 20 series: EWMA(1 s) ≈ 0.3 × 0.98 ≈ 0.29, >> low_threshold.
 //
 // The test is self-contained: it does not require fakeintake or a real Datadog backend.
@@ -112,8 +108,8 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 	const (
 		seriesCount    = 20
 		metricPrefix   = "e2e.anomalydetection.scorer.s"
-		baseline       = 1.0
-		spike          = 5000.0
+		baseline       = 100.0
+		spike          = 140.0
 		baselinePoints = 15 // matches TestMetricsTriggeredEmitsOnDSDSpike
 		spikePoints    = 10 // matches TestMetricsTriggeredEmitsOnDSDSpike
 	)
@@ -179,7 +175,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 	}()
 
 	// Poll the journal for the scorer watcher's severity-escalation log line.
-	// The watcher emits: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
+	// The watcher emits: "[anomalydetection] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
 	s.T().Log("polling journal for scorer severity escalation marker...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")

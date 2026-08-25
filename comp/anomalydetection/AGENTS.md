@@ -97,7 +97,7 @@ its behavior or cost.
 - Test live defaults, disabled mode, high-cardinality eviction and cleanup,
   non-blocking drops, replay parity, and both `python`/`!python` builds. Benchmark
   changes on ingestion or per-second advance paths.
-- Register config keys in `pkg/config/setup/common_settings.go` and update
+- Declare config keys in the config schema (`pkg/config/schema/yaml/`) and update
   `BUILD.bazel` files when sources or dependencies change.
 
 ## Data Ingress (Handle Sources)
@@ -116,6 +116,12 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
 Both paths share filtering primitives from `internal/logsfilter/`.
+
+### Logging convention
+
+Use `internal/logging` for every production log. Its
+`[anomalydetection] ` marker prevents self-ingestion; label only non-main
+subsystems such as `logssource`, `reporter`, or `logsfilter` in messages.
 
 Metrics with the `datadog.*` prefix are normalized as internal agent telemetry.
 Only observer telemetry under `datadog.agent.observer.*` is dropped before it
@@ -167,8 +173,8 @@ lives inside each correlator via the shared `correlationEmitter` helper
   after `defaultMaxRetryAttempts` consecutive failures.
 
 `ReportOutput.CorrelatorEvents` carries three event kinds:
-- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster`, `CrossSignal`,
-  `Passthrough` at first-seen (and again after a pattern goes inactive and recurs)
+- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster` at first-seen
+  (and again after a pattern goes inactive and recurs)
 - `CorrelatorEventEpisodeStarted` — emitted by `anomaly_scorer` when severity enters
   the configured correlation threshold (`medium` or `high`)
 - `CorrelatorEventEpisodeEnded` — emitted by `anomaly_scorer` when severity exits
@@ -191,7 +197,7 @@ See `reporter/reporter.allium` for the payload contract.
   When migrating legacy switches, define compatibility and precedence, then test
   no consumer, each consumer alone, multiple consumers, and explicit overrides.
 
-Keys are registered in `pkg/config/setup/common_settings.go`.
+Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 
 | Key | Default | Purpose |
 |-----|---------|---------|
@@ -203,13 +209,19 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 | `anomaly_detection.recording.enabled` | `false` | Reserved for Parquet recording; production currently wires a no-op recorder |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
 | `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
+| `anomaly_detection.logs.time_buckets.enabled` | `false` | Materialize fixed-width count buckets for log-derived `.count` series |
+| `anomaly_detection.logs.time_buckets.bucket_width` | `5s` | Width of each materialized log-count bucket |
+| `anomaly_detection.logs.time_buckets.idle_ttl` | `5m` | Continue emitting empty buckets after the last matching log |
+| `anomaly_detection.logs.time_buckets.retention` | `10m` | Per-series retention for materialized log-count buckets; native metric retention is unchanged |
 | `anomaly_detection.logs.containers.enabled` | `true` | Workloadmeta container logs |
 | `anomaly_detection.logs.kubelet.enabled` | `true` | Kubelet journald source |
 | `anomaly_detection.logs.internal.enabled` | `true` | Agent-internal log tap |
 | `anomaly_detection.detectors.<name>.enabled` | varies | Per detector/correlator/extractor |
 | `anomaly_detection.storage.max_series` | `50000` | Storage series cap |
 | `anomaly_detection.storage.eviction_floor_ratio` | `0.5` | Fraction below the cap to drain during series eviction |
-| `anomaly_detection.storage.point_retention` | `120s` | Per-series point retention |
+| `anomaly_detection.storage.point_retention` | derived | Per-series retention; `0s` derives it from enabled detector windows |
+| `anomaly_detection.storage.inactive_series_ttl` | `5m` | Evict non-telemetry series inactive for this long; `0` disables inactivity eviction |
+| `anomaly_detection.storage.inactive_series_check_interval` | `5m` | Advance-time interval between inactivity scans; `0` disables inactivity eviction |
 
 Per-source log rate limits and min severity live under
 `anomaly_detection.logs.{internal,kubelet,containers}.*`.
