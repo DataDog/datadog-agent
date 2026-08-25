@@ -46,24 +46,10 @@ HOOK_SYSCALL_ENTRY2(memfd_create, const char *, uname, unsigned int, flags) {
         return 0;
     }
 
-    char name[MEMFD_TRACER_PREFIX_LEN + TRACER_MEMFD_SUFFIX_LEN] = {0};
-
-    long ret = bpf_probe_read_user(&name, sizeof(name), (void *)uname);
-    if (ret < 0) {
-        return 0;
-    }
-
-    if (!matches_tracer_prefix(name)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_TRACER_MEMFD_CREATE,
     };
-#pragma unroll
-    for (int i = 0; i < TRACER_MEMFD_SUFFIX_LEN; i++) {
-        syscall.tracer_memfd_create.suffix[i] = name[MEMFD_TRACER_PREFIX_LEN + i];
-    }
+    syscall.tracer_memfd_create.name = uname;
     cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
@@ -79,6 +65,17 @@ HOOK_SYSCALL_EXIT(memfd_create) {
         return 0;
     }
 
+    char name[MEMFD_TRACER_PREFIX_LEN + TRACER_MEMFD_SUFFIX_LEN] = {0};
+
+    long ret = bpf_probe_read_user(&name, sizeof(name), (void *)syscall->tracer_memfd_create.name);
+    if (ret < 0) {
+        return 0;
+    }
+
+    if (!matches_tracer_prefix(name)) {
+        return 0;
+    }
+
     // Create tracking entry with PID and suffix as key, fd as value
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
@@ -89,7 +86,7 @@ HOOK_SYSCALL_EXIT(memfd_create) {
 
 #pragma unroll
     for (int i = 0; i < TRACER_MEMFD_SUFFIX_LEN; i++) {
-        key.suffix[i] = syscall->tracer_memfd_create.suffix[i];
+        key.suffix[i] = name[MEMFD_TRACER_PREFIX_LEN + i];
     }
 
     u32 fd = (u32)retval;
