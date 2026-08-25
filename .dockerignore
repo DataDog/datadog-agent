@@ -1,0 +1,6 @@
+.git
+.idea
+.vscode
+__pycache__
+*.pyc
+bin

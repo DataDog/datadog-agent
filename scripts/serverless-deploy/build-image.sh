@@ -44,11 +44,13 @@ gcloud artifacts repositories create serverless-test \
 # ---------------------------------------------------------------------------
 GIT_COMMIT="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 AGENT_VERSION="$(python3 -c "import json; d=json.load(open('${REPO_ROOT}/release.json')); print(d['current_milestone'])" 2>/dev/null || echo dev)-dev"
+SERVERLESS_INIT_VERSION="${SERVERLESS_INIT_VERSION:-${AGENT_VERSION}}"
 log "Building serverless-init image from branch source (commit=${GIT_COMMIT}, agent=${AGENT_VERSION})..."
 docker build \
   --platform linux/amd64 \
   --build-arg GIT_COMMIT="${GIT_COMMIT}" \
   --build-arg AGENT_VERSION="${AGENT_VERSION}" \
+  --build-arg SERVERLESS_INIT_VERSION="${SERVERLESS_INIT_VERSION}" \
   -f "${SCRIPT_DIR}/Dockerfile.serverless-init" \
   -t "${REGISTRY}/serverless-init:${IMAGE_TAG}" \
   "${REPO_ROOT}"
