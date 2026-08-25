@@ -285,9 +285,6 @@ func callAgentsForService[PbType any, StructuredType any](
 		}()
 	}
 
-	// Release the registry lock before waiting on the RPCs. The goroutines
-	// use the snapshotted registeredAgent and the remoteAgent pointer
-	// (for gRPC calls only), neither of which races with RefreshRemoteAgent.
 	registry.agentMapMu.Unlock()
 
 	wg.Wait()
