@@ -25,15 +25,22 @@ type Writer interface {
 	Flush() error
 }
 
-// BestSpeed is the fastest zstd compression level.
-const BestSpeed = 1
+// Level is a zstd compression level. It uses the standard zstd integer level
+// space (1 = fastest, higher = more compression), which both backends accept.
+// Callers should prefer the named constants below over raw literals.
+type Level int
 
-// BestCompression is the highest zstd compression level supported by the
-// native libzstd backend.
-const BestCompression = 20
+const (
+	// BestSpeed is the fastest zstd compression level.
+	BestSpeed Level = 1
 
-// DefaultCompression is the default zstd compression level.
-const DefaultCompression = 5
+	// BestCompression is the highest zstd compression level supported by the
+	// native libzstd backend.
+	BestCompression Level = 20
+
+	// DefaultCompression is the default zstd compression level.
+	DefaultCompression Level = 5
+)
 
 // CompressBound returns the worst-case size needed to compress srcSize bytes.
 // It mirrors ZSTD_COMPRESSBOUND from the zstd specification and is a valid

@@ -14,8 +14,8 @@ import (
 )
 
 // CompressLevel compresses src at the given level using the native libzstd.
-func CompressLevel(dst, src []byte, level int) ([]byte, error) {
-	return ddzstd.CompressLevel(dst, src, level)
+func CompressLevel(dst, src []byte, level Level) ([]byte, error) {
+	return ddzstd.CompressLevel(dst, src, int(level))
 }
 
 // Decompress decompresses src. If dst is large enough it is reused, otherwise
@@ -30,8 +30,8 @@ func NewWriter(w io.Writer) (Writer, error) {
 }
 
 // NewWriterLevel returns a streaming zstd writer at the given level.
-func NewWriterLevel(w io.Writer, level int) (Writer, error) {
-	return ddzstd.NewWriterLevel(w, level), nil
+func NewWriterLevel(w io.Writer, level Level) (Writer, error) {
+	return ddzstd.NewWriterLevel(w, int(level)), nil
 }
 
 // NewReader returns a streaming zstd reader.

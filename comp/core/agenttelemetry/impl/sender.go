@@ -495,7 +495,7 @@ func (s *senderImpl) sendPayloadBytes(ctx context.Context, reqBodyRaw []byte, re
 	reqBody := reqBodyRaw
 	compressed := false
 	if s.compress {
-		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
+		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, zstd.Level(s.compressionLevel))
 		if errTemp == nil {
 			compressed = true
 			reqBody = reqBodyCompressed

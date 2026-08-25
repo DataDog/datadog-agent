@@ -32,7 +32,7 @@ func New(reqs Requires) compression.Compressor {
 
 // Compress will compress the data with zstd
 func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
-	return zstd.CompressLevel(nil, src, s.level)
+	return zstd.CompressLevel(nil, src, zstd.Level(s.level))
 }
 
 // Decompress will decompress the data with zstd
@@ -52,7 +52,7 @@ func (s *ZstdStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	w, err := zstd.NewWriterLevel(output, s.level)
+	w, err := zstd.NewWriterLevel(output, zstd.Level(s.level))
 	if err != nil {
 		// zstd.NewWriterLevel only returns an error for invalid options, which
 		// we do not pass. A non-nil error here is unexpected; return a writer

@@ -19,7 +19,7 @@ import (
 // level. The ZSTD_NOCGO_CONCURRENCY and ZSTD_NOCGO_WINDOW environment
 // variables can be used to tune concurrency and the window size; missing or
 // invalid values fall back to sensible defaults.
-func nocgoEncoderOptions(level int) []kzstd.EOption {
+func nocgoEncoderOptions(level Level) []kzstd.EOption {
 	conc, err := strconv.Atoi(os.Getenv("ZSTD_NOCGO_CONCURRENCY"))
 	if err != nil {
 		conc = 1
@@ -29,7 +29,7 @@ func nocgoEncoderOptions(level int) []kzstd.EOption {
 		window = 1 << 15
 	}
 	return []kzstd.EOption{
-		kzstd.WithEncoderLevel(kzstd.EncoderLevelFromZstd(level)),
+		kzstd.WithEncoderLevel(kzstd.EncoderLevelFromZstd(int(level))),
 		kzstd.WithEncoderConcurrency(conc),
 		kzstd.WithLowerEncoderMem(true),
 		kzstd.WithWindowSize(window),
@@ -41,7 +41,7 @@ func nocgoEncoderOptions(level int) []kzstd.EOption {
 }
 
 // CompressLevel compresses src at the given level using the pure-Go backend.
-func CompressLevel(dst, src []byte, level int) ([]byte, error) {
+func CompressLevel(dst, src []byte, level Level) ([]byte, error) {
 	enc, err := kzstd.NewWriter(nil, nocgoEncoderOptions(level)...)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func NewWriter(w io.Writer) (Writer, error) {
 }
 
 // NewWriterLevel returns a streaming zstd writer at the given level.
-func NewWriterLevel(w io.Writer, level int) (Writer, error) {
+func NewWriterLevel(w io.Writer, level Level) (Writer, error) {
 	return kzstd.NewWriter(w, nocgoEncoderOptions(level)...)
 }
 
