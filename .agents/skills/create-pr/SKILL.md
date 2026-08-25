@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Create a pull request for the current branch with proper labels and description
+description: Create a pull request for the current branch with proper labels and description. Any agent opening a PR in this repo (via `gh pr create` or otherwise), whether invoked directly as /create-pr or as part of a larger task, MUST follow this skill's process rather than improvising.
 disable-model-invocation: true
 allowed-tools: Bash, Read, Glob
 argument-hint: "[--real] [additional labels...]"
@@ -9,11 +9,15 @@ model: sonnet
 
 Create a pull request for the current branch following the Datadog Agent contributing guidelines.
 
+**This is the canonical process for opening PRs in this repo.** Whenever you (or another agent/skill working in this repo) are about to run `gh pr create` for any reason — not just when the user explicitly types `/create-pr` — stop and follow the steps below instead of assembling a title/body/labels ad hoc.
+
 ## Instructions
 
-1. **Check the current branch**. If the current branch is `main` (or the default branch):
-   - Check for uncommitted or staged changes (`git status`). If there are changes, create a new feature branch from the default branch (`git checkout -b <branch-name>`), stage the changes, commit, and push.
-   - If there are no changes at all, stop and inform the user there is nothing to open a PR for.
+1. **Check the current branch**.
+   - If the current branch is `main` (or the default branch):
+     - Check for uncommitted or staged changes (`git status`). If there are changes, create a new feature branch from the default branch (`git checkout -b <branch-name>`), stage the changes, commit, and push.
+     - If there are no changes at all, stop and inform the user there is nothing to open a PR for.
+   - If the current branch is a feature branch that already has an open PR (`gh pr list --head <branch> --state open`), check whether the uncommitted/staged changes and unpushed commits are actually related to that PR's existing work. If they are a distinct, unrelated change, don't pile them onto the existing PR/branch — create a new feature branch from the default branch (`git checkout main && git pull && git checkout -b <branch-name>`), then cherry-pick/move the relevant changes onto it, commit, and push, so the unrelated change gets its own PR. If genuinely unsure whether the changes are related, ask the user.
 2. **Get the commits** on this branch compared to `main` using `git log main..HEAD`
 3. **Get the diff** using `git diff main..HEAD` to understand all changes
 4. **Read the PR template** from `.github/PULL_REQUEST_TEMPLATE.md`
@@ -29,17 +33,19 @@ Create a pull request for the current branch following the Datadog Agent contrib
    - `fix(e2e): Fix flaky diagnose test`
    - `feat(logs): Add new log pipeline`
    - `refactor(config): Simplify endpoint resolution`
-9. **Labels**: Choose appropriate labels (plus any additional labels passed as $ARGUMENTS):
+9. **Draft a concise PR description** from the commits and diff, then show it to the user for confirmation before opening the PR. See "PR Description Guidelines" below — keep the draft short and plain, like a human wrote it in two minutes, not AI-generated prose. Present the draft body (What does this PR do? / Motivation, at minimum) directly in your reply and ask the user to either confirm it as-is or give corrections/missing context (e.g. the real motivation, an issue link, a tradeoff worth mentioning) — don't ask an open-ended "what does this PR do?" question that puts the writing burden back on them. Fold any corrections in before proceeding.
+10. **Check for a needed backport** (see "Backport Detection" below) and add the matching `backport/<branch>` label(s) if applicable.
+11. **Labels**: Choose appropriate labels (plus any additional labels passed as $ARGUMENTS):
    - If the PR only changes tests, docs, CI config, or developer tooling (no Agent binary code changes), use `changelog/no-changelog` and `qa/no-code-change`
    - If the PR changes Agent binary code and QA was done, use `qa/done`
    - If the PR changes Agent binary code, a reno release note is expected (remind the user)
-   - Add `backport/<branch-name>` if the user asks for a backport
-10. **PR body**: Fill in the PR template sections:
-   - **What does this PR do?**: A clear description of what is changed. Must be readable independently, tying back to the changed code.
+   - Add any `backport/<branch-name>` labels identified in step 10, or if the user explicitly asks for a specific backport
+12. **PR body**: Fill in the PR template sections:
+   - **What does this PR do?**: A clear description of what is changed, based on the user's concise description from step 9. Must be readable independently, tying back to the changed code.
    - **Motivation**: A reason why the change is made. Point to an issue if applicable. Include drawbacks or tradeoffs if any.
    - **Describe how you validated your changes**: How you validated the change (tests added/run, benchmarks, manual testing). Only needed when testing included work not covered by test suites.
    - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier. **Only include this section if there is genuinely useful context to add** — omit it entirely rather than filling it with filler.
-11. Once the PR is pushed, ask the user if they want to follow CI status for this PR. If yes, invoke the `/follow-pr` skill.
+13. Once the PR is pushed, ask the user if they want to follow CI status for this PR. If yes, invoke the `/follow-pr` skill.
 
 ## PR Description Guidelines (from CONTRIBUTING.md)
 
@@ -51,6 +57,21 @@ The PR description should incorporate everything reviewers and future maintainer
 - Additional notes that make code understanding easier
 - If part of a chain of PRs, point to the predecessors
 - If there are drawbacks or tradeoffs, raise them
+
+**Avoid AI slop.** Reviewers can tell when a PR description was auto-generated from a diff — padded, generic, restating the code instead of explaining intent. To avoid this:
+- Draft the description yourself (step 9), but always show it to the user and let them correct or add context before it's final — don't ship your first draft unchecked, and don't outsource the writing to the user either.
+- Keep it short. A few sentences beat a bulleted essay. Don't restate every changed file — the diff already shows that.
+- Don't pad sections with filler when there's nothing to say (e.g. an empty-but-present "Additional Notes" section, or a "Describe how you validated" filled with "N/A" — omit instead).
+- Write plainly, the way the user would describe it in Slack to a teammate, not like a press release ("This PR introduces a robust, comprehensive solution to...").
+
+## Backport Detection
+
+Before finalizing labels, determine whether this change likely needs to be backported to a release branch:
+
+1. **List "living" release branch labels**: run `gh label list --search backport` (or `gh api repos/{owner}/{repo}/labels --paginate --jq '.[] | select(.name | startswith("backport/")) | .name + " | " + (.description // "")'`). Only labels whose description mentions automatic backport-PR creation (e.g. "Automatically create a backport PR to ... once the PR is merged") correspond to *active* release branches — the repo keeps many old `<version>.x` branches around that are no longer maintained, so branch existence alone (`git ls-remote --heads origin`) is not a reliable signal.
+2. **Compare against the base branch's target milestone**: read `release.json`'s `base_branch` / `current_milestone` to see what's currently in development on `main`. A change merged to `main` is typically only backported if the same fix is needed in a still-supported release (e.g. a bug also present in the currently-shipping minor version).
+3. **Decide relevance**: this is a judgment call, not automatic — a new feature usually does not need a backport; a bug fix, security fix, or CI/build resilience fix often does, if the affected release branch(es) still exist and are active. If genuinely unsure, ask the user.
+4. **If a backport is warranted**, propose the specific `backport/<version>.x` label(s) to the user for confirmation before adding them — don't silently add backport labels.
 
 ## Example
 
@@ -87,5 +108,5 @@ EOF
 
 ## Output
 
-If you are not following the PR status (step 11): Return the PR URL when done.
+If you are not following the PR status (step 13): Return the PR URL when done.
 Otherwise, defer to `/follow-pr`.
