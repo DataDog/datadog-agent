@@ -133,8 +133,15 @@ fn parse_yaml_v2_prefixed_int(plain: &str) -> Option<Value> {
         return None;
     }
     if negative {
-        let n = i64::from_str_radix(digits, base).ok()?;
-        return Some(Value::Number(n.checked_neg()?.into()));
+        if let Ok(n) = i64::from_str_radix(digits, base) {
+            return Some(Value::Number(n.checked_neg()?.into()));
+        }
+        // Magnitude 2^63 (e.g. 0x8000000000000000) exceeds i64::MAX but negates to i64::MIN.
+        let magnitude = u64::from_str_radix(digits, base).ok()?;
+        if magnitude == i64::MIN.unsigned_abs() {
+            return Some(Value::Number(i64::MIN.into()));
+        }
+        return None;
     }
     if let Ok(n) = i64::from_str_radix(digits, base) {
         return Some(Value::Number(n.into()));
@@ -449,6 +456,20 @@ mod tests {
                 .get("enabled")
                 .and_then(Value::as_i64),
             Some(-1)
+        );
+        assert_eq!(
+            load("enabled: -0x8000000000000000\n")
+                .unwrap()
+                .get("enabled")
+                .and_then(Value::as_i64),
+            Some(i64::MIN)
+        );
+        assert_eq!(
+            load("enabled: -0b1000000000000000000000000000000000000000000000000000000000000000\n")
+                .unwrap()
+                .get("enabled")
+                .and_then(Value::as_i64),
+            Some(i64::MIN)
         );
     }
 
