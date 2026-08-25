@@ -1047,7 +1047,7 @@ new-e2e-anomalydetection:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/anomalydetection
-    TEAM: q-branch
+    TEAM: agent-anomaly-detection
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
