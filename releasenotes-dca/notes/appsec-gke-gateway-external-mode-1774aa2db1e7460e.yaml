@@ -14,4 +14,6 @@ features:
     The GatewayClass allowlist is configurable via ``appsec.proxy.gke.gateway_classes``.
     Multi-cluster GatewayClasses (names ending in ``-mc``) are always skipped, including
     when added to that allowlist, because they require a ``net.gke.io`` ``ServiceImport``
-    callout backend that the Cluster Agent does not create.
+    callout backend that the Cluster Agent does not create. Each
+    ``GCPTrafficExtension`` is owned by its Gateway via an owner reference, so Kubernetes
+    garbage-collects it even if the Cluster Agent misses the Gateway deletion event.
