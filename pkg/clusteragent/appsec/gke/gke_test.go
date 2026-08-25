@@ -403,6 +403,39 @@ func TestIsInjectionPossible_returnsNil_whenConfigurationAndCRDAreValid(t *testi
 	require.NoError(t, err)
 }
 
+func TestIsInjectionPossible_returnsNotApplicable_whenModeIsSidecar(t *testing.T) {
+	// Given a cluster configured for SIDECAR mode, where gke-gateway was auto-detected
+	// from the GCPTrafficExtension CRD and Processor.ServiceName is legitimately unset.
+	config := defaultGKEConfig()
+	config.Mode = appsecconfig.InjectionModeSidecar
+	config.Processor.ServiceName = ""
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), newTestCRD())
+	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), config)
+
+	// When
+	err := pattern.IsInjectionPossible(context.Background())
+
+	// Then
+	require.Error(t, err)
+	require.ErrorIs(t, err, appsecconfig.ErrInjectionNotApplicable)
+}
+
+func TestIsInjectionPossible_doesNotReturnNotApplicable_whenExternalModeIsMisconfigured(t *testing.T) {
+	// Given EXTERNAL mode with a genuinely missing processor service name
+	config := defaultGKEConfig()
+	config.Mode = appsecconfig.InjectionModeExternal
+	config.Processor.ServiceName = ""
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), newTestCRD())
+	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), config)
+
+	// When
+	err := pattern.IsInjectionPossible(context.Background())
+
+	// Then a genuine misconfiguration stays a reportable failure, not a quiet skip
+	require.Error(t, err)
+	require.NotErrorIs(t, err, appsecconfig.ErrInjectionNotApplicable)
+}
+
 func TestExtensionName_isDeterministicAndDNSLabelSafe(t *testing.T) {
 	// Given
 	maxPassthroughGatewayName := strings.Repeat("a", 63-len(extensionNamePrefix))

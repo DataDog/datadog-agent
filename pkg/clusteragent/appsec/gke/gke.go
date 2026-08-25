@@ -60,6 +60,14 @@ func (g *gkeGatewayInjectionPattern) Namespace() string {
 }
 
 func (g *gkeGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) error {
+	// Managed GKE Gateway runs its Envoy data plane outside the cluster, so there is no proxy
+	// pod to host a sidecar processor and gke-gateway only applies in external mode. Detection
+	// registers this proxy type on any cluster carrying the GCPTrafficExtension CRD, including
+	// clusters the operator configured for sidecar mode, where nothing was requested and
+	// nothing is broken: report it as not applicable so it is skipped quietly.
+	if g.config.Mode == appsecconfig.InjectionModeSidecar {
+		return fmt.Errorf("%w: gke-gateway supports external mode only because managed GKE Gateway has no in-cluster Envoy data plane to host a sidecar processor", appsecconfig.ErrInjectionNotApplicable)
+	}
 	if g.config.Processor.ServiceName == "" {
 		return stdErrors.New("processor service name is required for gke-gateway proxy type but is not configured")
 	}
