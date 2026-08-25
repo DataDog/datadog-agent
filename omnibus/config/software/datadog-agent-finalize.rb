@@ -114,6 +114,11 @@ build do
             # cleanup clutter
             delete "#{install_dir}/etc"
 
+            # Build toolchains need these files while assembling the Agent, but the shipped
+            # Linux runtime and wheel-only integration installer do not.
+            command "bazel run #{omnibazel_flags} -- //packages/agent/linux:cleanup_build_artifacts --install-dir=#{install_dir}",
+                :live_stream => Omnibus.logger.live_stream(:info)
+
             # The prerm and preinst scripts of the package will use this list to detect which files
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
             # which have not been created by the package.
