@@ -1008,10 +1008,16 @@ func TestOTelSpan(t *testing.T) {
 		t.Helper()
 		test.validateSpanSchema(t, event)
 
-		assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
-		assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+		// The reader's own verdict on an empty span context, without which a
+		// failure here is a bare zero: it tells a process no reader was set up
+		// for (no error at all) apart from a thread pointer, a TLS slot or a
+		// record the kernel could not read.
+		reader := fmt.Sprintf("span context reader: %s", event.SpanContext.Error)
 
-		assert.NotNil(t, event.SpanContext.Attributes, "attributes should be non-nil")
+		assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10), reader)
+		assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String(), reader)
+
+		assert.NotNil(t, event.SpanContext.Attributes, "attributes should be non-nil, %s", reader)
 		assert.Equal(t, "GET", event.SpanContext.Attributes["http.method"],
 			"http.method attribute should be GET")
 		assert.Equal(t, "/test", event.SpanContext.Attributes["http.target"],

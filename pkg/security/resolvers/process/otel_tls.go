@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/remotememory"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -134,14 +135,19 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 
 	target, err := openOTelTargetProcess(pid)
 	if err != nil {
+		seclog.Warnf("XXX otel_tls pid=%d openTarget: %s", pid, err)
 		return otelTLSResolution{}, err
 	}
 
 	module, sym, err := target.findOTelTLSModule()
 	if err != nil {
+		seclog.Warnf("XXX otel_tls pid=%d exe=%s findModule: %s (reason=%d)",
+			pid, target.exePath, err, spanTrackingReasonOf(err))
 		return otelTLSResolution{}, err
 	}
 	defer module.file.Close()
+	seclog.Warnf("XXX otel_tls pid=%d module=%s bias=%#x symValue=%#x symSize=%d symSection=%d",
+		pid, module.path, module.loadBias, sym.Value, sym.Size, sym.Section)
 
 	if sym.Size != otelTLSExportSize {
 		return otelTLSResolution{}, spanTrackingErrorf(spanTrackingReasonBadSymbol, "TLS export has wrong size %d", sym.Size)
@@ -158,14 +164,20 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 		Size:    sym.Size,
 	})
 	if err != nil {
+		seclog.Warnf("XXX otel_tls pid=%d resolveTLSAccess: %s", pid, err)
 		return otelTLSResolution{}, spanTrackingWrap(spanTrackingReasonTLSAccess, err)
 	}
+	seclog.Warnf("XXX otel_tls pid=%d access=%v elfAddr=%#x offset=%#x -> live slot %#x",
+		pid, access.access, access.elfAddr, access.offset, module.loadBias+uint64(access.elfAddr))
 
 	res, err := attachOTelTLS(target, module.loadBias, access)
 	if err != nil {
+		seclog.Warnf("XXX otel_tls pid=%d attach(%v): %s", pid, access.access, err)
 		return otelTLSResolution{}, spanTrackingWrap(spanTrackingReasonTLSAttach, err)
 	}
 	res.runtimeLang = runtimeLang
+	seclog.Warnf("XXX otel_tls pid=%d RESOLVED moduleID=%d tlsOffset=%d dtv{offset=%d multiplier=%d}",
+		pid, res.moduleID, res.tlsOffset, res.dtvInfo.offset, res.dtvInfo.multiplier)
 	return res, nil
 }
 
@@ -274,11 +286,15 @@ func (p *otelTargetProcess) findOTelTLSModule() (*otelTLSModule, *safeelf.Symbol
 
 		elfFile, err := pfelf.Open(fsPath)
 		if err != nil {
+			seclog.Warnf("XXX otel_tls pid=%d %s exports the symbol but pfelf.Open failed: %s",
+				p.pid, path, err)
 			continue
 		}
 
 		loadBias, err := elfLoadBias(elfFile, grouped[path])
 		if err != nil {
+			seclog.Warnf("XXX otel_tls pid=%d %s exports the symbol but elfLoadBias failed: %s (maps: %v)",
+				p.pid, path, err, grouped[path])
 			elfFile.Close()
 			continue
 		}
