@@ -344,18 +344,16 @@ func (s *timeSeriesStorage) AddWithKey(namespace string, key uint64, name string
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return AddResult{Ref: -1}
 	}
-	// Skip the alloc when tags are already sorted. Both ingest paths (real metrics
-	// via prepareMetricIngest and virtual metrics via IngestLog) canonicalize before
-	// calling Add, so this fast path is hit on every normal call.
-	var canonTags []string
-	if tagsSorted(tags) {
-		canonTags = tags
-	} else {
-		canonTags = canonicalizeTags(tags)
-	}
-
 	stats, exists := s.series[key]
 	if !exists {
+		// Tags are retained only for a new series. Existing storage keys reuse
+		// their established metadata, matching ContextKey collision semantics.
+		var canonTags []string
+		if tagsSorted(tags) {
+			canonTags = tags
+		} else {
+			canonTags = canonicalizeTags(tags)
+		}
 		// Only intern on new series creation so the ref count tracks exactly
 		// the number of live series holding the canonical slice.
 		canonical, th := s.internTags(canonTags)
@@ -765,8 +763,8 @@ func hashTags(tags []string) uint64 {
 	return h
 }
 
-// internTags sorts tags (if needed), hashes, and either returns the canonical
-// []string from the pool (incrementing its ref count) or inserts a new entry.
+// internTags hashes canonical tags and either returns the canonical []string
+// from the pool (incrementing its ref count) or inserts a new entry.
 // Returns the canonical slice and its hash. Hash 0 means not interned (cap or
 // collision). Must be called with s.mu write-locked.
 func (s *timeSeriesStorage) internTags(tags []string) ([]string, uint64) {
@@ -775,9 +773,6 @@ func (s *timeSeriesStorage) internTags(tags []string) ([]string, uint64) {
 	}
 	sorted := make([]string, len(tags))
 	copy(sorted, tags)
-	if len(sorted) > 1 && !tagsSorted(sorted) {
-		sort.Strings(sorted)
-	}
 	th := hashTags(sorted)
 	if entry, ok := s.tagIntern[th]; ok {
 		if tagsEqual(entry.tags, sorted) {

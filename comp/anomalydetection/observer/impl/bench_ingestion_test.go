@@ -41,9 +41,10 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 			obs := make([]*metricObs, numSeries)
 			for s := 0; s < numSeries; s++ {
 				obs[s] = &metricObs{
-					name:      fmt.Sprintf("metric_%d", s),
-					value:     100.0 + rng.Float64()*10,
-					timestamp: 0,
+					name:       fmt.Sprintf("metric_%d", s),
+					value:      100.0 + rng.Float64()*10,
+					timestamp:  0,
+					storageKey: uint64(s + 1),
 				}
 			}
 
