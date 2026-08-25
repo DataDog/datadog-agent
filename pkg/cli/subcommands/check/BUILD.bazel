@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "check",
@@ -92,11 +93,10 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "check_test",
     srcs = ["command_test.go"],
     embed = [":check"],
-    gotags = ["test"],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/integration",
@@ -106,7 +106,6 @@ go_test(
         "//comp/core/secrets/mock",
         "//comp/core/tagger/fx-mock",
         "//comp/core/workloadfilter/fx-mock",
-        "//comp/core/workloadmeta/collectors/catalog-core",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//pkg/util/fxutil",

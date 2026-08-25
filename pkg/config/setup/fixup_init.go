@@ -8,7 +8,9 @@ package setup
 
 import (
 	"os"
+	"path"
 	"runtime"
+	"strings"
 
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -115,6 +117,20 @@ func fixupInitFullAgentOnlyComponents(_ pkgconfigmodel.Config) {
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 }
 
-// called only for system-probe, after declaring settings
-func fixupInitSystemProbe(_ pkgconfigmodel.Config) {
+// postProcessSystemProbe rewrites system-probe repo dir defaults to live under HOST_ETC.
+// Called from LoadDatadog, after the config is ready and HOST_ETC has been determined.
+func postProcessSystemProbe(config pkgconfigmodel.Config) {
+	if value, _ := os.LookupEnv("HOST_ETC"); value != "" {
+		for _, name := range []string{
+			"system_probe_config.apt_config_dir",
+			"system_probe_config.yum_repos_dir",
+			"system_probe_config.zypper_repos_dir",
+		} {
+			if config.GetSource(name) == pkgconfigmodel.SourceDefault {
+				oldVal := config.GetString(name)
+				newVal := path.Join(value, strings.TrimPrefix(oldVal, "/etc"))
+				config.Set(name, newVal, pkgconfigmodel.SourceDefault)
+			}
+		}
+	}
 }

@@ -270,7 +270,7 @@ type BufferedAggregator struct {
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
 	flushChan              chan flushTrigger
 
-	stopChan  chan struct{}
+	stopChan  chan chan struct{}
 	health    *health.Handle
 	agentName string // Name of the agent for telemetry metrics
 
@@ -352,7 +352,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
 		flushChan:                   make(chan flushTrigger),
-		stopChan:                    make(chan struct{}),
+		stopChan:                    make(chan chan struct{}),
 		health:                      health.RegisterLiveness("aggregator"),
 		agentName:                   agentName,
 		tlmContainerTagsEnabled:     pkgconfigsetup.Datadog().GetBool("basic_telemetry_add_container_tags"),
@@ -787,9 +787,11 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.updateChecksTelemetry()
 }
 
-// Stop stops the aggregator.
+// Stop stops the aggregator, blocking until the run() goroutine exits.
 func (agg *BufferedAggregator) Stop() {
-	agg.stopChan <- struct{}{}
+	stop := make(chan struct{})
+	agg.stopChan <- stop
+	<-stop
 }
 
 func (agg *BufferedAggregator) run() {
@@ -798,8 +800,10 @@ func (agg *BufferedAggregator) run() {
 
 	for {
 		select {
-		case <-agg.stopChan:
+		case stop := <-agg.stopChan:
 			log.Info("Stopping aggregator")
+			agg.health.Deregister() //nolint:errcheck
+			close(stop)
 			return
 		case trigger := <-agg.flushChan:
 			agg.Flush(trigger)

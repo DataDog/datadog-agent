@@ -13,8 +13,9 @@ const (
 	OTLPTracesInfraAttrEnabled               = OTLPSection + ".traces.infra_attributes.enabled"
 	OTLPTracesInfraAttrContainerTagPromotion = OTLPSection + ".traces.infra_attributes.container_tag_promotion"
 
-	OTLPLogs        = OTLPSection + ".logs"
-	OTLPLogsEnabled = OTLPLogs + ".enabled"
+	OTLPLogs                      = OTLPSection + ".logs"
+	OTLPLogsEnabled               = OTLPLogs + ".enabled"
+	OTLPLogsInfraAttrTagsAsDDTags = OTLPLogs + ".infra_attributes.tags_as_ddtags"
 
 	OTLPReceiverSubSectionKey = "receiver"
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
@@ -29,6 +30,8 @@ const (
 	DataPlaneEnabled     = DataPlaneSection + ".enabled"
 	DataPlaneOTLPSection = DataPlaneSection + ".otlp"
 	DataPlaneOTLPEnabled = DataPlaneOTLPSection + ".enabled"
+
+	DataPlanePreflightMode = DataPlaneSection + ".preflight_mode"
 
 	DataPlaneOTLPProxySection = DataPlaneOTLPSection + ".proxy"
 	DataPlaneOTLPProxyEnabled = DataPlaneOTLPProxySection + ".enabled"

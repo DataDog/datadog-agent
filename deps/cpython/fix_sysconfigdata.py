@@ -37,6 +37,11 @@ FLAGS_TO_CLEAR = frozenset(
     ]
 )
 
+# CPython's own stdlib extension-module build metadata is not useful after
+# installation and can contain Bazel staging paths that do not match the
+# installed layout.
+MODULE_FLAGS_TO_CLEAR_SUFFIXES = ("_CFLAGS", "_LDFLAGS", "_DEPS")
+
 # Subdirectory suffixes we can confidently map to the same suffix under the install prefix.
 _KNOWN_SUFFIXES = frozenset(["lib", "lib64", "include"])
 
@@ -66,7 +71,7 @@ def _fix_bazel_out_path(segment, install_prefix):
 
 
 def _fix_value(key, value, install_prefix, sandbox_prefix):
-    if key in FLAGS_TO_CLEAR:
+    if key in FLAGS_TO_CLEAR or (key.startswith("MODULE_") and key.endswith(MODULE_FLAGS_TO_CLEAR_SUFFIXES)):
         return ""
     if isinstance(value, str):
         # Fix tool paths to only refer to base names.

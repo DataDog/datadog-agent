@@ -9,7 +9,7 @@ go_library(
         "//comp/core/config",
         "//comp/def",
         "//comp/process/profiler/def",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/util/log",
         "//pkg/util/profiling",
         "//pkg/version",

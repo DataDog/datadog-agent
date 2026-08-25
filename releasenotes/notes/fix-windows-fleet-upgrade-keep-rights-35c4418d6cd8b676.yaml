@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Windows: Fixed an issue where the ``DDAGENTUSER_KEEP_RIGHTS`` opt-out was
+    not preserved when the Agent was upgraded through Fleet Automation.
+    Fleet-triggered upgrades uninstall and reinstall the Agent MSI as two
+    separate steps, which cleared the stored opt-out before the reinstall
+    could read it back, causing the ``SeDeny*LogonRight`` assignments on the
+    Agent service account to be reapplied even when the customer had
+    previously opted out with ``DDAGENTUSER_KEEP_RIGHTS=1``. In-place MSI
+    upgrades were not affected.

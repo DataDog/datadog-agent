@@ -24,8 +24,10 @@ import (
 )
 
 const (
-	composeVersion = "v2.27.0"
-	defaultTimeout = 300
+	composeVersion                      = "v2.27.0"
+	redHatFamilyDockerCEInstallVersion  = "3:29.6.2-1.el9"
+	redHatFamilyDockerCLIInstallVersion = "1:29.6.2-1.el9"
+	defaultTimeout                      = 300
 )
 
 type ManagerOutput struct {
@@ -193,12 +195,13 @@ func (d *Manager) install() (command.Command, error) {
 	// Red Hat family flavors have no distro "docker" package, so install Docker CE
 	// from Docker's repo first; the generic Ensure below then no-ops (command -v
 	// docker succeeds). The el9 repo is reused because RHEL 10 ($releasever=10) is
-	// not served by Docker yet.
+	// not served by Docker yet. Keep the engine version pinned while this runtime
+	// install exists, as upstream Docker CE releases can break provisioning.
 	switch d.Host.OS.Descriptor().Flavor {
 	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux:
 		dockerCEInstall, err := d.Host.OS.Runner().Command(d.namer.ResourceName("docker-ce-install"), &command.Args{
 			Sudo: true,
-			Create: pulumi.String(`bash <<'EOF'
+			Create: pulumi.String(fmt.Sprintf(`bash <<'EOF'
 set -euxo pipefail
 # Single-node e2e box: relax SELinux and firewalld (mirrors the kubeadm box) so
 # the agent container can read host bind mounts without extra rules.
@@ -207,7 +210,7 @@ sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config || true
 systemctl disable --now firewalld || true
 curl -fsSL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
 sed -i 's/\$releasever/9/g' /etc/yum.repos.d/docker-ce.repo
-dnf install -y docker-ce docker-ce-cli containerd.io
+dnf install -y docker-ce-%[1]s docker-ce-cli-%[2]s containerd.io
 # RHEL 10 dropped the legacy iptables kernel module, so docker 29 must use its
 # nftables firewall backend or the daemon cannot program bridge NAT. Set it
 # before the first start (the full daemon.json follows); surface logs on failure.
@@ -215,7 +218,7 @@ mkdir -p /etc/docker && printf '{"firewall-backend": "nftables", "storage-driver
 # docker needs IPv4 forwarding to create its default bridge network.
 echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-docker.conf && sysctl -w net.ipv4.ip_forward=1
 systemctl enable --now docker || { journalctl -xeu docker.service --no-pager | tail -80; exit 1; }
-EOF`),
+EOF`, redHatFamilyDockerCEInstallVersion, redHatFamilyDockerCLIInstallVersion)),
 		}, opts...)
 		if err != nil {
 			return nil, err

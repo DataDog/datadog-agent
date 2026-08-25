@@ -80,6 +80,63 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			},
 		},
 		{
+			// the capture pattern is what distinguishes an action storing part of a
+			// field from one storing the whole of it, so it has to be reported
+			name: "rule with a capture set action",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Set: &rules.SetDefinition{
+											Name:    "artifact",
+											Field:   "process.file.path", // use field available for both Linux and Windows
+											Capture: "/orchestration/([^/]+)/",
+											Scope:   "process",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Actions: []RuleAction{
+								{
+									Set: &RuleSetAction{
+										Name:    "artifact",
+										Field:   "process.file.path",
+										Capture: "/orchestration/([^/]+)/",
+										Scope:   "process",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "rule with no expression",
 			policies: []*testPolicy{
 				{

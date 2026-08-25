@@ -36,7 +36,6 @@ enum Request {
         tool: String,
         #[serde(default)]
         provider: Option<String>,
-        user_id: String,
         #[serde(default)]
         approved: bool,
     },
@@ -107,11 +106,10 @@ fn handle_message(dd_client: &DatadogClient, request: Request) -> Response {
         Request::SendUsageEvent {
             tool,
             provider,
-            user_id,
             approved,
         } => {
             let resolved_host = resolve_hostname();
-            let mut event = AiUsageEvent::new("observed", tool, user_id, resolved_host, approved);
+            let mut event = AiUsageEvent::new("observed", tool, resolved_host, approved);
             let prov = provider
                 .as_deref()
                 .filter(|s| !s.is_empty())

@@ -34,10 +34,14 @@ type engineEvent struct {
 	baselineCompleted  *baselineCompletedEvent
 }
 
-// baselineCompletedEvent carries the muted hash set produced at window end.
+// baselineCompletedEvent carries an immutable mute-union snapshot when the
+// completion changed it. Event consumers must not mutate mutedHashes.
 type baselineCompletedEvent struct {
-	mutedHashes map[uint64]struct{}
-	mutedRefs   []observerdef.SeriesRef
+	detectorName    string
+	mutedHashes     map[uint64]struct{}
+	snapshotChanged bool
+	mutedRefs       []observerdef.SeriesRef
+	allComplete     bool
 }
 
 // advanceCompletedEvent is emitted after the engine finishes an Advance call.

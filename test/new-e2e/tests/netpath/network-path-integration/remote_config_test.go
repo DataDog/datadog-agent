@@ -41,11 +41,14 @@ const (
 	networkPathRCDynamicConfigID = "test-config-dynamic-sentinel"
 	networkPathRCConfigName      = "config"
 	networkPathTestConfigID      = "aaa-bbb-ccc"
+	networkPathTestConfigName    = "E2E network paths"
 )
 
 var linuxScheduledNetworkPathRCConfig = []byte(`{
   "type": "scheduled",
   "test_config_id": "aaa-bbb-ccc",
+  "test_config_name": "E2E network paths",
+  "tags": ["team:netpath", "env:e2e"],
   "config": {
     "tests": [
       {
@@ -54,7 +57,8 @@ var linuxScheduledNetworkPathRCConfig = []byte(`{
         "interval_sec": 10,
         "max_ttl": 10,
         "traceroute_queries": 1,
-        "e2e_queries": 1
+        "e2e_queries": 1,
+        "tags": ["service:udp", "env:e2e"]
       },
       {
         "hostname": "198.51.100.2",
@@ -63,7 +67,8 @@ var linuxScheduledNetworkPathRCConfig = []byte(`{
         "interval_sec": 10,
         "max_ttl": 10,
         "traceroute_queries": 1,
-        "e2e_queries": 1
+        "e2e_queries": 1,
+        "tags": ["service:tcp", "env:e2e"]
       }
     ]
   }
@@ -72,6 +77,8 @@ var linuxScheduledNetworkPathRCConfig = []byte(`{
 var crossPlatformScheduledNetworkPathRCConfig = []byte(`{
   "type": "scheduled",
   "test_config_id": "aaa-bbb-ccc",
+  "test_config_name": "E2E network paths",
+  "tags": ["team:netpath", "env:e2e"],
   "config": {
     "tests": [
       {
@@ -81,7 +88,8 @@ var crossPlatformScheduledNetworkPathRCConfig = []byte(`{
         "interval_sec": 10,
         "max_ttl": 10,
         "traceroute_queries": 1,
-        "e2e_queries": 1
+        "e2e_queries": 1,
+        "tags": ["service:api", "env:e2e"]
       }
     ]
   }
@@ -90,6 +98,7 @@ var crossPlatformScheduledNetworkPathRCConfig = []byte(`{
 var dynamicNetworkPathRCConfig = []byte(`{
   "type": "dynamic",
   "test_config_id": "dynamic-sentinel",
+  "test_config_name": "Dynamic sentinel",
   "config": {
     "filters": [
       {
@@ -121,6 +130,7 @@ type remoteConfigPathExpectation struct {
 	protocol         payload.Protocol
 	port             uint16
 	configSubstrings []string
+	tags             []string
 }
 
 type configCheckEntry struct {
@@ -302,6 +312,8 @@ func assertRemoteConfigPath(c *assert.CollectT, np *aggregator.Netpath, agentHos
 	assert.Equal(c, expected.protocol, np.Protocol)
 	assert.Equal(c, expected.port, np.Destination.Port)
 	assert.Equal(c, networkPathTestConfigID, np.TestConfigID)
+	assert.Equal(c, networkPathTestConfigName, np.TestConfigName)
+	assert.Equal(c, expected.tags, np.Tags)
 
 	require.Len(c, np.Traceroute.Runs, 1)
 	run := np.Traceroute.Runs[0]

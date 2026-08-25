@@ -71,6 +71,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetFanSpeed_v2"),
 		toNativeName("GetFieldValues"),
 		"nvmlDeviceReadWritePRM_v1",
+		toNativeName("GetGpuFabricInfoV"),
 		toNativeName("GetGpuInstanceId"),
 		toNativeName("GetGpuInstanceProfileInfo"),
 		toNativeName("GetMaxClockInfo"),
@@ -80,6 +81,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetMigDeviceHandleByIndex"),
 		toNativeName("GetMigMode"),
 		toNativeName("GetNvLinkState"),
+		toNativeName("GetNvLinkVersion"),
 		toNativeName("GetNumFans"),
 		toNativeName("GetPciInfo"),
 		toNativeName("GetPcieThroughput"),
@@ -107,16 +109,31 @@ func getNonCriticalAPIs() []string {
 	}
 }
 
-// symbolLookup is an internal interface for checking symbol availability
-type symbolLookup interface {
+// nvmlSafety is an internal interface with methods to ensure safe operations
+// with NVML
+type nvmlSafety interface {
+	// lookup checks if the given symbol is available in the NVML library
 	lookup(string) error
+	// gpmLock locks the GPM mutex. Despite NVIDIA documentation, the GPM API is not thread safe.
+	// We need to lock the mutex to ensure that only one thread can access the GPM API at a time, specifically GpmSampleGet
+	gpmLock()
+	// gpmUnlock unlocks the GPM mutex. Despite NVIDIA documentation, the GPM API is not thread safe.
+	// We need to unlock the mutex to allow other threads to access the GPM API.
+	gpmUnlock()
+
+	// fieldValuesLock locks the field values mutex. Similarly to GPM, the field values API is not thread safe
+	// despite docs saying that NVML is thread safe.
+	fieldValuesLock()
+	// fieldValuesUnlock unlocks the field values mutex. Similarly to GPM, the field values API is not thread safe
+	// despite docs saying that NVML is thread safe.
+	fieldValuesUnlock()
 }
 
 // SafeNVML represents a safe wrapper around NVML library operations.
 // It ensures that operations are only performed when the corresponding
 // symbols are available in the loaded library.
 type SafeNVML interface {
-	symbolLookup
+	nvmlSafety
 	// Shutdown shuts down the NVML library
 	Shutdown() error
 	// DeviceGetCount returns the number of NVIDIA devices in the system
@@ -140,9 +157,11 @@ type SafeNVML interface {
 }
 
 type safeNvml struct {
-	lib          nvml.Interface
-	mu           sync.Mutex
-	capabilities map[string]struct{}
+	lib              nvml.Interface
+	mu               sync.Mutex
+	gpmMutex         sync.Mutex
+	fieldValuesMutex sync.Mutex
+	capabilities     map[string]struct{}
 }
 
 func toNativeName(symbol string) string {
@@ -155,6 +174,22 @@ func (s *safeNvml) lookup(symbol string) error {
 	}
 
 	return nil
+}
+
+func (s *safeNvml) gpmLock() {
+	s.gpmMutex.Lock()
+}
+
+func (s *safeNvml) gpmUnlock() {
+	s.gpmMutex.Unlock()
+}
+
+func (s *safeNvml) fieldValuesLock() {
+	s.fieldValuesMutex.Lock()
+}
+
+func (s *safeNvml) fieldValuesUnlock() {
+	s.fieldValuesMutex.Unlock()
 }
 
 // SystemGetDriverVersion returns the Nvidia driver version
@@ -418,8 +453,10 @@ func GetSafeNvmlLib() (SafeNVML, error) {
 // is imported by nearly every binary in the repo.
 func generateDefaultNvmlPaths() []string {
 	systemPaths := []string{
-		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
-		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                    // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",  // nvidia-gpu-operator install
+		"/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",                   // default system install on ARM64
+		"/run/nvidia/driver/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install on ARM64
 	}
 
 	hostRoot := os.Getenv("HOST_ROOT")

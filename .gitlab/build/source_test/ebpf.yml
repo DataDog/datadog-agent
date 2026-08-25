@@ -27,7 +27,7 @@
     # the test programs to try to prevent skew between concurrent changes.
     - dda inv -- -e system-probe.build-dyninst-test-programs --ci
     - dda inv -- -e system-probe.test --packages='pkg/dyninst/irgen pkg/dyninst/symdb' --extra-arguments=--short --skip-object-files
-    - dda inv -- -e linter.go --targets=./pkg/security/tests --cpus $KUBERNETES_CPU_REQUEST --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata"
+    - dda inv -- -e linter.go --targets=./pkg/security/tests --cpus $KUBERNETES_CPU_REQUEST --build-tags="functionaltests,stresstests,trivy,containerd,bpf,ebpf_bindata"
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
@@ -102,6 +102,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     KUBERNETES_CPU_REQUEST: 4
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "12Gi"
+    GIT_DEPTH: 0  # Full history: kmt.prepare embeds git merge-base in the testsuite binary
   artifacts:
     when: always
     paths:

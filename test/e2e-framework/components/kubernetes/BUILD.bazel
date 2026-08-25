@@ -27,6 +27,7 @@ go_library(
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/components/remote",
         "@com_github_masterminds_semver_v3//:semver",
+        "@com_github_pulumi_pulumi_eks_sdk_v4//go/eks",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],

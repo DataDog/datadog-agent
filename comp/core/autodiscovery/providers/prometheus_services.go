@@ -20,6 +20,7 @@ import (
 	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -67,7 +68,7 @@ type PrometheusServicesConfigProvider struct {
 }
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-func NewPrometheusServicesConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (providerTypes.ConfigProvider, error) {
+func NewPrometheusServicesConfigProvider(*constants.ConfigurationProviders, *telemetry.Store) (providerTypes.ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -146,6 +147,11 @@ func (p *PrometheusServicesConfigProvider) Collect(_ context.Context) ([]integra
 	var configs []integration.Config
 	for _, svc := range services {
 		for _, check := range p.checks {
+			if check.AD != nil && check.AD.HasContainerNamesFilter() {
+				log.Tracef("Skipping check with kubernetes_container_names for service %s/%s", svc.Namespace, svc.Name)
+				continue
+			}
+
 			if !check.IsIncluded(svc.Annotations) {
 				log.Tracef("Service %s/%s does not have matching annotations, skipping", svc.Namespace, svc.Name)
 				continue

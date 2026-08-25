@@ -1,0 +1,17 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue where the Docker container collector could not inspect a
+    container whose image declares a port *range* in its exposed ports (for
+    example ``EXPOSE 1061-1070``). Such containers were skipped entirely with an
+    ``invalid port '1061-1070': invalid syntax`` error. Older Docker daemons
+    return these ranges verbatim, which the container inspect decoder rejected.
+    The Agent now expands port-range entries into individual ports so the
+    container is collected normally.

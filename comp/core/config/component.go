@@ -21,14 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-configuration
+// team: fleet-automation
 
 // Component is the component type.
 type Component interface {
 	pkgconfigmodel.ReaderWriter
-
-	// Warnings returns config warnings collected during setup.
-	Warnings() *pkgconfigmodel.Warnings
 
 	// StartTime returns the time at which the agent process started.
 	StartTime() time.Time

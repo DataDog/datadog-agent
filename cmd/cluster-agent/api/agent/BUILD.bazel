@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "agent",
@@ -20,6 +21,7 @@ go_library(
         "//pkg/api/coverage",
         "//pkg/clusteragent/autoscaling/workload",
         "//pkg/clusteragent/autoscaling/workload/loadstore",
+        "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/flare/clusteragent",
         "//pkg/status/health",
@@ -28,5 +30,18 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/version",
+    ],
+)
+
+dd_agent_go_test(
+    name = "agent_test",
+    srcs = ["agent_test.go"],
+    embed = [":agent"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/defaultpaths",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

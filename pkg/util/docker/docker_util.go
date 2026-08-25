@@ -372,7 +372,19 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 		return container, dderrors.NewNotFound("docker container " + id)
 	}
 	if err != nil {
-		return container, err
+		// A port key the strict decoder rejects fails the entire inspect, so try
+		// to recover it rather than dropping the container. recoverInspect
+		// confirms the payload was really at fault; anything else falls through
+		// to the original error. See CONS-8441.
+		if !isInvalidPortKeyError(err) {
+			return container, err
+		}
+		if c, ok := d.recoverInspect(ctx, id, withSize); ok {
+			log.Debugf("recovered inspect for container %s after decode error: %s", id, err)
+			container = c
+		} else {
+			return container, err
+		}
 	}
 
 	// Check for empty inspect data

@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -23,6 +24,24 @@ import (
 func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 	require.NoError(t, defaultCatalog().validateDetectorTeardownContract(),
 		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
+}
+
+func TestTestbenchCatalogAndSettingsIncludePassthrough(t *testing.T) {
+	found := false
+	for _, entry := range TestbenchCatalogEntries() {
+		if entry.Name == TestbenchPassthroughComponentName {
+			found = true
+			require.Equal(t, "correlator", entry.Kind)
+			require.False(t, entry.DefaultEnabled)
+		}
+	}
+	require.True(t, found)
+
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		TestbenchPassthroughComponentName: json.RawMessage(`{"enabled":true}`),
+	})
+	require.NoError(t, err)
+	require.True(t, settings.Enabled[TestbenchPassthroughComponentName])
 }
 
 // TestValidateDetectorTeardownContract_FlagsBareDetector confirms the
@@ -66,12 +85,52 @@ func TestValidateDetectorTeardownContract_AllowlistEscape(t *testing.T) {
 	require.NoError(t, cat.validateDetectorTeardownContract())
 }
 
+func TestApplyTestbenchDefaults(t *testing.T) {
+	settings := ApplyTestbenchDefaults(ComponentSettings{})
+
+	require.Equal(t, 40, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	holt := settings.configs["holt_residual"].(HoltResidualConfig)
+	require.Equal(t, 15, holt.WarmupPoints)
+	require.Equal(t, 25, holt.ResidualWindow)
+	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
+	require.Equal(t, 40, tukey.WindowSize)
+	require.Equal(t, 40, tukey.MinPoints)
+	require.True(t, settings.Enabled["anomaly_scorer"])
+	require.NotContains(t, settings.Enabled, "time_cluster")
+	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	require.True(t, scorer.CorrelationEvents)
+	require.Zero(t, scorer.CooldownSecs)
+}
+
+func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		"bocpd":          json.RawMessage(`{"warmup_points": 42}`),
+		"scanmw":         json.RawMessage(`{"min_points": 42, "max_points": 84}`),
+		"scanwelch":      json.RawMessage(`{"min_points": 42, "max_points": 84}`),
+		"anomaly_scorer": json.RawMessage(`{"enabled":false}`),
+		"time_cluster":   json.RawMessage(`{"enabled":true}`),
+	})
+	require.NoError(t, err)
+
+	settings = ApplyTestbenchDefaults(settings)
+	require.Equal(t, 42, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	scanMW := settings.configs["scanmw"].(*ScanMWDetector)
+	require.Equal(t, 42, scanMW.MinPoints)
+	require.Equal(t, 84, scanMW.MaxPoints)
+	scanWelch := settings.configs["scanwelch"].(*ScanWelchDetector)
+	require.Equal(t, 42, scanWelch.MinPoints)
+	require.Equal(t, 84, scanWelch.MaxPoints)
+	require.False(t, settings.Enabled["anomaly_scorer"])
+	require.True(t, settings.Enabled["time_cluster"])
+}
+
 // bareDetectorForValidator is a minimal observerdef.Detector that
 // intentionally does NOT implement SeriesRemover — used to drive the
 // negative cases of validateDetectorTeardownContract.
 type bareDetectorForValidator struct{}
 
 func (*bareDetectorForValidator) Name() string { return "bare-detector" }
+func (*bareDetectorForValidator) Ready() bool  { return true }
 func (*bareDetectorForValidator) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }

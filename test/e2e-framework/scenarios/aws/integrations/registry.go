@@ -10,8 +10,11 @@ package integrations
 
 import (
 	awsneuron "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations/aws_neuron"
+	dellpowerflex "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations/dell_powerflex"
 	awsetcd "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations/etcd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations/ibm_mq"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations/kafka"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations/lustre"
 	awspostgres "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations/postgres"
 	awsredisdb "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations/redisdb"
 
@@ -22,10 +25,13 @@ import (
 // "aws/integrations/<integration>".
 func Scenarios() map[string]pulumi.RunFunc {
 	return map[string]pulumi.RunFunc{
-		"aws/integrations/redisdb":    awsredisdb.VMRun,
-		"aws/integrations/postgres":   awspostgres.VMRun,
-		"aws/integrations/kafka":      kafka.VMRun,
-		"aws/integrations/etcd":       awsetcd.Run,
-		"aws/integrations/aws_neuron": awsneuron.Run,
+		"aws/integrations/redisdb":        awsredisdb.VMRun,
+		"aws/integrations/postgres":       awspostgres.VMRun,
+		"aws/integrations/kafka":          kafka.VMRun,
+		"aws/integrations/ibm_mq":         ibm_mq.VMRun,
+		"aws/integrations/etcd":           awsetcd.Run,
+		"aws/integrations/aws_neuron":     awsneuron.Run,
+		"aws/integrations/lustre":         lustre.VMRun,
+		"aws/integrations/dell_powerflex": dellpowerflex.VMRun,
 	}
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux && linux_bpf && nvml
+//go:build linux && bpf && nvml
 
 package modules
 
@@ -229,12 +229,17 @@ func hostRoot() string {
 
 var agentProcessRegexp = regexp.MustCompile("datadog-agent/.*/agent")
 
-func getAgentPID(procRoot string) (uint32, error) {
+// getAgentPIDs returns all matching Agent processes. In some configurations,
+// such as when the OTel host profiler is running, multiple datadog-agent
+// binaries can be present. Patch all of them until we have a reliable way to
+// identify the process that needs GPU device permissions.
+func getAgentPIDs(procRoot string) ([]uint32, error) {
 	pids, err := kernel.AllPidsProcs(procRoot)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get all pids: %w", err)
+		return nil, fmt.Errorf("failed to get all pids: %w", err)
 	}
 
+	var agentPIDs []uint32
 	for _, pid := range pids {
 		proc := uprobes.NewProcInfo(procRoot, uint32(pid))
 		exe, err := proc.Exe()
@@ -244,11 +249,15 @@ func getAgentPID(procRoot string) (uint32, error) {
 		}
 
 		if agentProcessRegexp.MatchString(exe) {
-			return uint32(pid), nil
+			agentPIDs = append(agentPIDs, uint32(pid))
 		}
 	}
 
-	return 0, errors.New("agent process not found")
+	if len(agentPIDs) == 0 {
+		return nil, errors.New("agent process not found")
+	}
+
+	return agentPIDs, nil
 }
 
 // configureCgroupPermissions configures the cgroup permissions to access NVIDIA
@@ -308,14 +317,16 @@ func doConfigureCgroupPermissions(root string) {
 	}
 
 	procRoot := filepath.Join(root, "proc")
-	agentPID, err := getAgentPID(procRoot)
+	agentPIDs, err := getAgentPIDs(procRoot)
 	if err != nil {
-		log.Warnf("Failed to get agent PID: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
+		log.Warnf("Failed to get agent PIDs: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
 		return
 	}
 
-	log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
-	if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
-		log.Warnf("Failed to configure cgroup permissions for agent process: %v. gpu-monitoring module might not work properly", err)
+	for _, agentPID := range agentPIDs {
+		log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
+		if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
+			log.Warnf("Failed to configure cgroup permissions for agent process with PID %d: %v. gpu-monitoring module might not work properly", agentPID, err)
+		}
 	}
 }

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    A panic in a Rust-based shared-library check no longer aborts the whole
+    Agent. The panic is now caught at the check boundary and surfaced as a
+    check error, keeping the rest of the Agent running.

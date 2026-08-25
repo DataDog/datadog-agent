@@ -36,10 +36,10 @@ func TestGetNodeAnnotations(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	mockStore.Set(&workloadmeta.KubernetesMetadata{
+	mockStore.Set(&workloadmeta.KubernetesNode{
 		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   "/nodes//" + testNode,
+			Kind: workloadmeta.KindKubernetesNode,
+			ID:   testNode,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Annotations: map[string]string{
@@ -132,10 +132,10 @@ func TestGetNodeUID(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	mockStore.Set(&workloadmeta.KubernetesMetadata{
+	mockStore.Set(&workloadmeta.KubernetesNode{
 		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   "/nodes//" + testNode,
+			Kind: workloadmeta.KindKubernetesNode,
+			ID:   testNode,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			UID: "uid-12345",
@@ -198,10 +198,10 @@ func TestGetNodeMetadata_SpanCreation(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	mockStore.Set(&workloadmeta.KubernetesMetadata{
+	mockStore.Set(&workloadmeta.KubernetesNode{
 		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   "/nodes//" + testNode,
+			Kind: workloadmeta.KindKubernetesNode,
+			ID:   testNode,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Labels: map[string]string{"label1": "value1"},
@@ -499,6 +499,6 @@ func TestGetNodeInfo_SpanCreation(t *testing.T) {
 	assert.Equal(t, "cluster_agent.metadata.node_info", span.OperationName())
 	assert.Equal(t, "nodeInfo", span.Tag("resource.name"))
 	assert.Equal(t, testNode, span.Tag("node_name"))
-	// Without a real apiserver, GetAPIClient fails, so the span should capture the error
+	// No node entity in the store, so the cache lookup fails and the span captures the error
 	assert.NotNil(t, span.Tag("error.message"))
 }
