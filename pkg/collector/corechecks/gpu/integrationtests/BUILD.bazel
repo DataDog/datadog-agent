@@ -9,10 +9,17 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/integrationtests",
     visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
@@ -39,7 +46,6 @@ dd_agent_go_test(
             "//pkg/process/util/containers/mocks",
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
             "@org_uber_go_mock//gomock",
@@ -57,7 +63,6 @@ dd_agent_go_test(
             "//pkg/process/util/containers/mocks",
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
             "@org_uber_go_mock//gomock",
