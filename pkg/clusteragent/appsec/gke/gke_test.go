@@ -276,6 +276,23 @@ func TestAdded_skipsGateway_whenClassIsEmptyOrUnsupported(t *testing.T) {
 	}
 }
 
+func TestAdded_skipsMultiClusterClass_evenWhenPresentInAllowlist(t *testing.T) {
+	// Given
+	ctx := context.Background()
+	config := defaultGKEConfig()
+	config.GKE.GatewayClasses = []string{testGatewayClass, "gke-l7-global-external-managed-mc"}
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
+	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), config)
+
+	// When
+	err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway", "gke-l7-global-external-managed-mc"))
+
+	// Then
+	require.NoError(t, err)
+	requireExtensionNotFound(t, client, "test-ns", "test-gateway")
+	requireNoEvents(t, recorder)
+}
+
 func TestDeleted_removesManagedExtension_andIsNotFoundSafe(t *testing.T) {
 	// Given
 	ctx := context.Background()

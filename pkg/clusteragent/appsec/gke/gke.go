@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -30,6 +31,9 @@ import (
 
 const (
 	extensionNamePrefix = "datadog-appsec-"
+	// multiClusterGatewayClassSuffix identifies the GKE multi-cluster GatewayClasses
+	// (gke-l7-global-external-managed-mc, gke-l7-rilb-mc, ...).
+	multiClusterGatewayClassSuffix = "-mc"
 )
 
 var _ appsecconfig.InjectionPattern = (*gkeGatewayInjectionPattern)(nil)
@@ -87,6 +91,13 @@ func (g *gkeGatewayInjectionPattern) Added(ctx context.Context, obj *unstructure
 	}
 	if gatewayClass == "" || !slices.Contains(g.config.Product.GKE.GatewayClasses, gatewayClass) {
 		g.logger.Debugf("Skipping GKE Gateway AppSec injection for gateway %s/%s: unsupported gatewayClassName %q", namespace, gatewayName, gatewayClass)
+		return nil
+	}
+	// Multi-cluster GatewayClasses (the "-mc" suffix) require the callout backendRef to be a
+	// net.gke.io ServiceImport; a core Service backendRef, which is all this reconciler emits,
+	// is not supported for them. Skip instead of creating a GCPTrafficExtension that cannot work.
+	if strings.HasSuffix(gatewayClass, multiClusterGatewayClassSuffix) {
+		g.logger.Warnf("Skipping GKE Gateway AppSec injection for gateway %s/%s: multi-cluster gatewayClassName %q requires a net.gke.io ServiceImport backendRef, which this injector does not emit", namespace, gatewayName, gatewayClass)
 		return nil
 	}
 
