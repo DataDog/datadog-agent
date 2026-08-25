@@ -3,15 +3,23 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "integrationtests",
-    srcs = ["doc.go"],
+    srcs = [
+        "doc.go",
+        "gpu_burner_helper.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/integrationtests",
     visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
 
 dd_agent_go_test(
     name = "integrationtests_test",
     srcs = [
         "check_test.go",
+        "gpu_burner_test.go",
         "nvml_test.go",
     ],
     embed = [":integrationtests"],
@@ -31,6 +39,7 @@ dd_agent_go_test(
             "//pkg/process/util/containers/mocks",
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
             "@org_uber_go_mock//gomock",
@@ -48,6 +57,7 @@ dd_agent_go_test(
             "//pkg/process/util/containers/mocks",
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
             "@org_uber_go_mock//gomock",
