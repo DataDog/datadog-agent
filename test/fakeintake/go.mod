@@ -11,6 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/google/uuid v1.6.0
@@ -29,7 +30,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.60.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

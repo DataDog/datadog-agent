@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/zstd"
+	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

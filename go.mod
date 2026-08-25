@@ -216,6 +216,7 @@ require (
 	github.com/DataDog/rshell v0.0.24
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
@@ -572,7 +573,6 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/DisposaBoy/JsonConfigReader v0.0.0-20201129172854-99cf318d67e7 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0 // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
