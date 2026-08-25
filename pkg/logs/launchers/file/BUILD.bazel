@@ -4,9 +4,11 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "file",
     srcs = [
+        "descriptor_verify.go",
         "handoff.go",
         "launcher.go",
         "position.go",
+        "probe_state.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/file",
     visibility = ["//visibility:public"],
@@ -30,12 +32,14 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/procfilestats",
         "//pkg/util/startstop",
+        "@com_github_spf13_afero//:afero",
     ],
 )
 
 dd_agent_go_test(
     name = "file_test",
     srcs = [
+        "descriptor_verify_test.go",
         "launcher_handoff_test.go",
         "launcher_privileged_logs_test.go",
         "launcher_test.go",

@@ -4,12 +4,19 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "file",
     srcs = [
+        "estale.go",
+        "estale_linux.go",
+        "estale_other.go",
+        "estale_testhook.go",
         "file.go",
         "fingerprint.go",
         "fingerprint_mock.go",
+        "fingerprint_result.go",
         "rotate.go",
         "rotate_nix.go",
         "rotate_windows.go",
+        "rotation_check.go",
+        "rotation_evidence.go",
         "sequential_drain.go",
         "tailer.go",
         "tailer_nix.go",
@@ -40,7 +47,9 @@ go_library(
 dd_agent_go_test(
     name = "file_test",
     srcs = [
+        "fingerprint_result_test.go",
         "fingerprint_test.go",
+        "rotation_check_test.go",
         "sequential_drain_test.go",
         "tailer_integration_test.go",
         "tailer_test.go",

@@ -35,6 +35,86 @@ func (f *Fingerprint) Equals(other *Fingerprint) bool {
 	return f.Value == other.Value
 }
 
+// FingerprintConfigsEquivalent reports whether two configs produce comparable fingerprints.
+func FingerprintConfigsEquivalent(a, b *FingerprintConfig) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.FingerprintStrategy == b.FingerprintStrategy &&
+		a.Count == b.Count &&
+		a.CountToSkip == b.CountToSkip &&
+		a.MaxBytes == b.MaxBytes
+}
+
+// FingerprintConfigsEqual reports whether two configs are identical for rotation handoff.
+func FingerprintConfigsEqual(a, b *FingerprintConfig) bool {
+	if !FingerprintConfigsEquivalent(a, b) {
+		return false
+	}
+	if a == nil || b == nil {
+		return a == b
+	}
+	return openFlagsEqual(a.OpenFlags, b.OpenFlags)
+}
+
+func openFlagsEqual(a, b []FileOpenFlag) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// CloneFingerprintConfig returns a deep copy of a fingerprint config.
+func CloneFingerprintConfig(c *FingerprintConfig) *FingerprintConfig {
+	if c == nil {
+		return nil
+	}
+	clone := *c
+	if len(c.OpenFlags) > 0 {
+		clone.OpenFlags = append([]FileOpenFlag(nil), c.OpenFlags...)
+	}
+	return &clone
+}
+
+// FingerprintsMatchUnderSameConfig compares CRC64 and effective fingerprint config.
+func FingerprintsMatchUnderSameConfig(a, b *Fingerprint) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if a.Value != b.Value {
+		return false
+	}
+	return FingerprintConfigsEquivalent(a.Config, b.Config)
+}
+
+// DirectConfigured reports whether open_flags includes direct.
+func DirectConfigured(config *FingerprintConfig) bool {
+	if config == nil {
+		return false
+	}
+	for _, flag := range config.OpenFlags {
+		if flag == FileOpenFlagDirect {
+			return true
+		}
+	}
+	return false
+}
+
+// AppliedFlagsIncludeDirect reports whether applied open flags include direct.
+func AppliedFlagsIncludeDirect(flags []FileOpenFlag) bool {
+	for _, flag := range flags {
+		if flag == FileOpenFlagDirect {
+			return true
+		}
+	}
+	return false
+}
+
 // ValidFingerprint returns true if the fingerprint is valid (non-zero value and non-nil config)
 func (f *Fingerprint) ValidFingerprint() bool {
 	return f.Value != InvalidFingerprintValue && f.Config != nil

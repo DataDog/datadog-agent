@@ -48,6 +48,14 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	return nil
 }
 
+// setupWithOpenFile is unused on Windows; sequential descriptor verify is Linux-only.
+func (t *Tailer) setupWithOpenFile(f afero.File, offset int64, whence int) error {
+	if f != nil {
+		f.Close()
+	}
+	return t.setup(offset, whence)
+}
+
 func (t *Tailer) readAvailable() (int, error) {
 	// If the file has already rotated, there is nothing to be done. Unlike on *nix,
 	// there is no open file handle from which remaining data might be read.

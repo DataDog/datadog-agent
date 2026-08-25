@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Sequential log rotation replacement on Linux now verifies that the buffered file
+    descriptor matches an authoritative O_DIRECT fingerprint candidate before starting
+    the replacement tailer when ``fingerprint_config.open_flags: ["direct"]`` is
+    configured **and** ``rotation_handoff_mode: sequential`` is enabled. Sustained
+    ESTALE or buffered-probe rejection stalls rather than activating stale content.
+    Parallel rotation handoff and sources without direct configured are unchanged.

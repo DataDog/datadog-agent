@@ -11,6 +11,8 @@ import (
 	"io"
 	"path/filepath"
 
+	"github.com/spf13/afero"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,10 +23,6 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	if err != nil {
 		return err
 	}
-	t.fullpath = fullpath
-
-	// adds metadata to enable users to filter logs by filename
-	t.tags = t.buildTailerTags()
 
 	log.Info("Opening", t.file.Path, "for tailer key", t.file.GetScanKey())
 
@@ -32,6 +30,17 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	if err != nil {
 		return err
 	}
+	return t.setupWithOpenFile(f, offset, whence)
+}
+
+// setupWithOpenFile initializes tailer state from an already-open file descriptor.
+func (t *Tailer) setupWithOpenFile(f afero.File, offset int64, whence int) error {
+	fullpath, err := filepath.Abs(t.file.Path)
+	if err != nil {
+		return err
+	}
+	t.fullpath = fullpath
+	t.tags = t.buildTailerTags()
 	t.osFile = f
 	ret, _ := f.Seek(offset, whence)
 	if info, statErr := f.Stat(); statErr == nil {
@@ -41,7 +50,6 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	}
 	t.lastReadOffset.Store(ret)
 	t.decodedOffset.Store(ret)
-
 	return nil
 }
 

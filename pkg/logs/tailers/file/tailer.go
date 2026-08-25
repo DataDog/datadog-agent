@@ -299,6 +299,23 @@ func (t *Tailer) Start(offset int64, whence int) error {
 		t.file.Source.Status().Error(err)
 		return err
 	}
+	return t.startAfterSetup()
+}
+
+// StartWithOpenFile starts the tailer using a pre-opened, verified file descriptor.
+func (t *Tailer) StartWithOpenFile(f afero.File, offset int64, whence int) error {
+	err := t.setupWithOpenFile(f, offset, whence)
+	if err != nil {
+		if f != nil {
+			f.Close()
+		}
+		t.file.Source.Status().Error(err)
+		return err
+	}
+	return t.startAfterSetup()
+}
+
+func (t *Tailer) startAfterSetup() error {
 	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
 	t.registry.SetTailed(t.Identifier(), true)

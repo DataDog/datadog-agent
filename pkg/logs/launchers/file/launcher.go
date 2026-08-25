@@ -75,6 +75,9 @@ type Launcher struct {
 	nonLinuxSequentialWarned      map[string]struct{}
 	nonLinuxSequentialWarnMu      sync.Mutex
 	forceSequentialHandoffForTest bool
+
+	activeProbeState map[string]*activeProbeState
+	activeProbeMu    sync.Mutex
 }
 
 const (
@@ -266,24 +269,38 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 		// If the file is currently being tailed, check for rotation and handle it appropriately.
 		if isTailed {
-			var didRotate bool
-			var err error
-
 			if s.fingerprinter.ShouldFileFingerprint(file) {
-				didRotate, err = tailered.DidRotateViaFingerprint(s.fingerprinter)
+				sequentialHandoff := s.sequentialHandoffEnabled(file)
+				check, err := tailered.CheckRotation(s.fingerprinter, tailer.RotationCheckOptions{
+					RequireAuthoritativeDirect: sequentialHandoff,
+				})
 				if err != nil {
-					didRotate = false
+					if sequentialHandoff && tailer.IsStaleFileHandle(err) {
+						s.noteActiveProbeEstale(scanKey)
+						filesTailed[scanKey] = true
+					} else {
+						log.Debugf("failed to detect log rotation via fingerprint: %v", err)
+					}
+					continue
 				}
-				if didRotate {
-					if s.sequentialHandoffEnabled(file) {
-						s.beginSequentialHandoff(tailered, file)
+				if check.BufferedProbeRejected {
+					s.noteActiveProbeBufferedProbeRejected(scanKey)
+					filesTailed[scanKey] = true
+					continue
+				}
+				if check.Rotated {
+					if sequentialHandoff {
+						s.beginSequentialHandoff(tailered, file, check.Evidence)
 					} else {
 						s.rotateTailerWithoutRestart(tailered, file)
 					}
 					continue
 				}
+				if sequentialHandoff {
+					s.clearActiveProbeState(scanKey)
+				}
 			} else {
-				didRotate, err = tailered.DidRotate()
+				didRotate, err := tailered.DidRotate()
 
 				if err != nil {
 					log.Debugf("failed to detect log rotation: %v", err)
@@ -291,7 +308,9 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 				}
 				if didRotate {
 					if s.sequentialHandoffEnabled(file) {
-						s.beginSequentialHandoff(tailered, file)
+						s.beginSequentialHandoff(tailered, file, tailer.RotationEvidence{
+							Method: tailer.RotationFilesystemFallback,
+						})
 						continue
 					}
 					// restart tailer because of file-rotation on file
@@ -337,13 +356,24 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 		// Check if we have stored info for this file from a previous rotation
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
+		var replacementIntent *replacementIntent
 		if intent := s.getReplacementIntent(scanKey, file.Path); intent != nil && intent.replacementRequested {
+			replacementIntent = intent
 			oldInfo = s.replacementIntentToOldInfo(intent)
 			hasOldInfo = true
 		}
 
 		if !s.mayOpenPathForTailing(file) {
 			if hasOldInfo {
+				s.oldInfoMap[scanKey] = oldInfo
+			}
+			continue
+		}
+
+		if hasOldInfo && replacementIntent != nil && s.sequentialHandoffEnabled(file) {
+			if s.tryStartVerifiedSequentialReplacement(file, oldInfo, replacementIntent) {
+				filesTailed[scanKey] = true
+			} else if hasOldInfo {
 				s.oldInfoMap[scanKey] = oldInfo
 			}
 			continue
@@ -624,6 +654,7 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 // stopTailer stops the tailer
 func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	s.fingerprinter.ForgetOpenFlagsUnsupported(tailer.GetID(), tailer.Path())
+	s.clearActiveProbeState(tailer.GetID())
 	go tailer.Stop()
 	s.tailers.Remove(tailer)
 }

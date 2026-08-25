@@ -26,6 +26,16 @@ type replacementIntent struct {
 	detectedAt           time.Time
 	replacementRequested bool
 	source               *sources.ReplaceableSource
+
+	evidence tailer.RotationEvidence
+
+	fingerprintConfigAtHandoff *types.FingerprintConfig
+
+	consecutiveEstale int
+	firstEstaleAt     time.Time
+	lastEstaleAt      time.Time
+	lastWarnAt        time.Time
+	probeStatus       probeStatus
 }
 
 type pathHandoff struct {
@@ -135,7 +145,7 @@ func (s *Launcher) mayOpenPathForTailing(file *tailer.File) bool {
 	return !s.pathBlockedBySequentialHandoff(normalizeHandoffPath(file.Path))
 }
 
-func (s *Launcher) beginSequentialHandoff(oldTailer *tailer.Tailer, file *tailer.File) {
+func (s *Launcher) beginSequentialHandoff(oldTailer *tailer.Tailer, file *tailer.File, evidence tailer.RotationEvidence) {
 	settings := s.resolveHandoffSettings(file)
 	oldTailer.BeginSequentialDrain(settings.QuietPeriod, settings.MaxDrain)
 	s.tailers.Remove(oldTailer)
@@ -144,15 +154,21 @@ func (s *Launcher) beginSequentialHandoff(oldTailer *tailer.Tailer, file *tailer
 	handoff := s.getOrCreatePathHandoff(file.Path)
 	s.pathHandoffsMu.Lock()
 	handoff.draining[oldTailer] = struct{}{}
-	handoff.replacements[file.GetScanKey()] = &replacementIntent{
+	intent := &replacementIntent{
 		scanKey:              file.GetScanKey(),
 		pattern:              oldTailer.GetDetectedPattern(),
 		info:                 oldTailer.GetInfo(),
 		detectedAt:           time.Now(),
 		replacementRequested: true,
 		source:               file.Source,
+		evidence:             evidence,
+		fingerprintConfigAtHandoff: types.CloneFingerprintConfig(
+			s.fingerprinter.GetEffectiveConfigForFile(file),
+		),
 	}
+	handoff.replacements[file.GetScanKey()] = intent
 	s.pathHandoffsMu.Unlock()
+	s.transferActiveProbeState(file.GetScanKey(), intent)
 }
 
 func (s *Launcher) getReplacementIntent(scanKey, path string) *replacementIntent {
@@ -179,15 +195,20 @@ func (s *Launcher) onSourceRemoved(source *sources.LogSource) {
 	if source == nil {
 		return
 	}
+	var clearedScanKeys []string
 	s.pathHandoffsMu.Lock()
-	defer s.pathHandoffsMu.Unlock()
 	for _, handoff := range s.pathHandoffs {
 		for scanKey, intent := range handoff.replacements {
 			if intent.source != nil && intent.source.UnderlyingSource() == source {
 				intent.replacementRequested = false
 				handoff.replacements[scanKey] = intent
+				clearedScanKeys = append(clearedScanKeys, scanKey)
 			}
 		}
+	}
+	s.pathHandoffsMu.Unlock()
+	for _, scanKey := range clearedScanKeys {
+		s.clearActiveProbeState(scanKey)
 	}
 }
 
