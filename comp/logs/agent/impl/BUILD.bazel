@@ -70,6 +70,7 @@ go_library(
         "//pkg/serverless/streamlogs",
         "//pkg/util/backoff",
         "//pkg/util/goroutinesdump",
+        "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/startstop",
         "@com_github_spf13_afero//:afero",
