@@ -96,12 +96,6 @@ type holtSeriesState struct {
 	consecutiveNeg      int
 	refractoryRemaining int
 
-	// captured series metadata (first non-empty observation suffices)
-	seriesMetaCaptured bool
-	seriesNamespace    string
-	seriesName         string
-	seriesTags         []string
-
 	// recentTimestamps is a small ring of the most recently ingested point
 	// timestamps; used by medianTimestampInterval to estimate the sampling
 	// cadence for downstream correlators. We don't need a full window —
@@ -356,17 +350,6 @@ func (d *HoltResidualDetector) ingestNewPoints(
 
 	storage.ForEachPoint(ref, startTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
 		pointsSeen = true
-		// Capture series metadata once.
-		if !state.seriesMetaCaptured {
-			state.seriesNamespace = s.Namespace
-			state.seriesName = s.Name
-			if len(s.Tags) > 0 {
-				tagsCopy := make([]string, len(s.Tags))
-				copy(tagsCopy, s.Tags)
-				state.seriesTags = tagsCopy
-			}
-			state.seriesMetaCaptured = true
-		}
 		state.lastSeenTimestamp = p.Timestamp
 		state.lastProcessedTime = p.Timestamp
 		state.lastProcessedValue = p.Value
@@ -391,7 +374,7 @@ func (d *HoltResidualDetector) ingestNewPoints(
 			return
 		}
 
-		anomaly, hasFire := d.processPoint(state, p, agg, allowFire)
+		anomaly, hasFire := d.processPoint(state, s, p, agg, allowFire)
 		if len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow {
 			d.ready = true
 		}
@@ -428,6 +411,7 @@ func holtCursorPointChanged(storage observer.StorageReader, ref observer.SeriesR
 // advance so the level/trend track new regimes through and after fires.
 func (d *HoltResidualDetector) processPoint(
 	state *holtSeriesState,
+	series *observer.Series,
 	p observer.Point,
 	agg observer.Aggregate,
 	allowFire bool,
@@ -511,13 +495,17 @@ func (d *HoltResidualDetector) processPoint(
 
 	// 7. Build the anomaly using the common metric-detector anomaly shape.
 	score := math.Abs(z)
-	seriesName := state.seriesName + ":" + aggSuffix(agg)
+	seriesName := series.Name + ":" + aggSuffix(agg)
+	var tags []string
+	if len(series.Tags) > 0 {
+		tags = append([]string(nil), series.Tags...)
+	}
 	anomaly := observer.Anomaly{
 		Type: observer.AnomalyTypeMetric,
 		Source: observer.SeriesDescriptor{
-			Namespace: state.seriesNamespace,
-			Name:      state.seriesName,
-			Tags:      state.seriesTags,
+			Namespace: series.Namespace,
+			Name:      series.Name,
+			Tags:      tags,
 			Aggregate: agg,
 		},
 		DetectorName: d.Name(),
