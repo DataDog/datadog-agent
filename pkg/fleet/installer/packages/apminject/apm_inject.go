@@ -18,6 +18,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"go.uber.org/multierr"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -46,7 +48,21 @@ const (
 	// systemd hosts, wiped on every boot) that points at the persistent
 	// injector payload under injectorPath.
 	defaultTmpfsInjectDir = "/run/datadog-apm-inject"
+
+	// minimumMultilibInjectorVersion is the first released injector package
+	// expected to contain the architecture-specific $LIB launcher layout.
+	minimumMultilibInjectorVersion = "0.71.0"
+	multilibDir                    = "$LIB"
 )
+
+var multilibLauncherPaths = []string{
+	"launcher.preload.i386.so",
+	"lib/launcher.preload.so",
+	"lib/i386-linux-gnu/launcher.preload.so",
+	"lib/x86_64-linux-gnu/launcher.preload.so",
+	"lib32/launcher.preload.so",
+	"lib64/launcher.preload.so",
+}
 
 // systemdServiceManager is the subset of *SystemdServiceManager that
 // setupSystemdPreloadUnit depends on. Declared as an interface so tests can
@@ -64,6 +80,7 @@ func NewInstaller() *InjectorInstaller {
 	a := &InjectorInstaller{
 		installPath:    injectorPath,
 		tmpfsInjectDir: defaultTmpfsInjectDir,
+		goArch:         runtime.GOARCH,
 		Env:            env.FromEnv(),
 	}
 	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
@@ -86,9 +103,12 @@ type InjectorInstaller struct {
 	// launcher in a reboot-safe way. Defaults to defaultTmpfsInjectDir;
 	// overridable in tests.
 	tmpfsInjectDir string
-	// launcherPath is the path written to /etc/ld.so.preload. Empty until
-	// resolved; ldPreloadEntry falls back to the persistent OCI path.
-	launcherPath string
+	// launcherDir is the directory used to build the path written to
+	// /etc/ld.so.preload. Empty until resolved; ldPreloadEntry falls back to the
+	// persistent OCI inject directory.
+	launcherDir string
+	// goArch defaults to runtime.GOARCH and is overridable in tests.
+	goArch string
 
 	rollbacks []func() error
 	cleanups  []func()
@@ -386,10 +406,57 @@ func (a *InjectorInstaller) setLDPreloadConfigContent(ctx context.Context, ldSoP
 // resolved (systemd-managed hosts), this is the tmpfs symlink path; otherwise
 // it falls back to the persistent launcher under installPath.
 func (a *InjectorInstaller) ldPreloadEntry() string {
-	if a.launcherPath != "" {
-		return a.launcherPath
+	launcherDir := path.Join(a.installPath, "inject")
+	if a.launcherDir != "" {
+		launcherDir = a.launcherDir
 	}
-	return path.Join(a.installPath, "inject", "launcher.preload.so")
+	if a.supportsMultilibLauncher() {
+		return path.Join(launcherDir, multilibDir, "launcher.preload.so")
+	}
+	return path.Join(launcherDir, "launcher.preload.so")
+}
+
+// supportsMultilibLauncher reports whether the installed amd64 package can use
+// a literal $LIB component in ld.so.preload. The version gate prevents an
+// incomplete or backported-looking payload in an older package from silently
+// changing activation semantics; checking every supported glibc layout keeps a
+// malformed 0.71+ OCI from breaking process startup on a specific distro.
+func (a *InjectorInstaller) supportsMultilibLauncher() bool {
+	goArch := a.goArch
+	if goArch == "" {
+		goArch = runtime.GOARCH
+	}
+	if goArch != "amd64" {
+		return false
+	}
+
+	versionPath := path.Join(a.installPath, "version")
+	versionData, err := os.ReadFile(versionPath)
+	if err != nil {
+		log.Debugf("APM injector multilib launcher disabled: could not read %s: %v", versionPath, err)
+		return false
+	}
+	packageVersion := strings.TrimSpace(string(versionData))
+	parsedVersion, err := version.New(packageVersion, "")
+	if err != nil {
+		log.Warnf("APM injector multilib launcher disabled: could not parse package version %q: %v", packageVersion, err)
+		return false
+	}
+	comparison, err := parsedVersion.CompareTo(minimumMultilibInjectorVersion)
+	if err != nil || comparison < 0 {
+		log.Debugf("APM injector package version %q predates multilib support in %s", packageVersion, minimumMultilibInjectorVersion)
+		return false
+	}
+
+	injectDir := path.Join(a.installPath, "inject")
+	for _, relativePath := range multilibLauncherPaths {
+		launcherPath := path.Join(injectDir, relativePath)
+		if _, err := os.Stat(launcherPath); err != nil {
+			log.Warnf("APM injector multilib launcher disabled: required OCI payload path %s is unavailable: %v", launcherPath, err)
+			return false
+		}
+	}
+	return true
 }
 
 // enableTmpfsLink (re)creates the tmpfs symlink pointing at the persistent
@@ -408,7 +475,7 @@ func (a *InjectorInstaller) enableTmpfsLink(ctx context.Context) (err error) {
 	if err := symlink.Set(a.tmpfsInjectDir, target); err != nil {
 		return fmt.Errorf("failed to create tmpfs injector symlink %s -> %s: %w", a.tmpfsInjectDir, target, err)
 	}
-	a.launcherPath = path.Join(a.tmpfsInjectDir, "launcher.preload.so")
+	a.launcherDir = a.tmpfsInjectDir
 	a.rollbacks = append(a.rollbacks, func() error {
 		return os.Remove(a.tmpfsInjectDir)
 	})
