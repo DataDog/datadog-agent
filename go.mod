@@ -225,7 +225,7 @@ require (
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/aptly-dev/aptly v1.6.3
-	github.com/aquasecurity/trivy v0.72.0
+	github.com/aquasecurity/trivy v0.74.0
 	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
 	github.com/aws/aws-sdk-go-v2 v1.43.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.36
