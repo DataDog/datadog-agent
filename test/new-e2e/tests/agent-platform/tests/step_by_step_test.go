@@ -45,7 +45,10 @@ func (is *stepByStepSuite) SetupSuite() {
 	// that descriptor runs Upstart, not systemd (see the initctl branch below and in
 	// ConfigureAndRunAgentService). Mirror hardening is only needed for CentOS 7 anyway
 	// (ConfigureYumMirrors no-ops on any other version), so skip host construction entirely here.
-	if is.osDesc.Flavor == e2eos.CentOS && is.osVersion == 6.10 {
+	// Compare the raw descriptor version ("610" for --osdescriptors=centos/x86_64/610) rather
+	// than is.osVersion: the hyphen-splitting parser in TestStepByStepScript never produces the
+	// 6.10 float for this single-segment version string, so it would always be 0 here.
+	if is.osDesc.Flavor == e2eos.CentOS && is.osDesc.Version == "610" {
 		return
 	}
 
