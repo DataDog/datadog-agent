@@ -15,6 +15,8 @@ from invoke.exceptions import Exit
 
 from tasks import core_checks, doc
 from tasks.build_tags import (
+    AGENT_TAGS,
+    COMMON_TAGS,
     compute_build_tags_for_flavor,
     get_default_build_tags,
 )
@@ -26,7 +28,7 @@ from tasks.gointegrationtest import (
 )
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
-from tasks.libs.common.go import go_build
+from tasks.libs.common.go import bazel_build_binary, go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     _resolve_target_platform,
@@ -73,6 +75,7 @@ def build(
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
     legacy_rtloader_cmake=False,
+    enable_bazel=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -81,6 +84,12 @@ def build(
     Bazel-backed rtloader install is used by default. Pass
     `--legacy-rtloader-cmake` to use the old CMake path instead (needed e.g.
     for a custom cmake_options override, see hacky_dev_image_build).
+
+    Pass `--enable-bazel` to compile the cmd/agent Go binary via
+    `bazel build //cmd/agent` instead of `go build`. This is for local
+    developer-desktop use only: it only supports the base flavor, no --race,
+    no --build-include/--build-exclude/--no-glibc, and is not supported when
+    targeting Windows.
 
     Example invokation:
         dda inv agent.build --build-exclude=systemd
@@ -113,6 +122,47 @@ def build(
 
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
+
+    if enable_bazel:
+        if exclude_rtloader:
+            raise Exit(
+                "--enable-bazel requires rtloader to be installed (it needs embedded_path to "
+                "patch the built binary's RPATH). Drop --enable-bazel or --exclude-rtloader.",
+                code=1,
+            )
+        if target_platform == "win32":
+            raise Exit(
+                "--enable-bazel is not supported when targeting Windows yet "
+                "(cmd/agent's Bazel PDB/resource-embedding path is unvalidated). "
+                "Drop --enable-bazel, or unset GOOS=windows, to use the legacy go-build path.",
+                code=1,
+            )
+        if flavor != AgentFlavor.base:
+            raise Exit(
+                f"--enable-bazel only supports the '{AgentFlavor.base.name}' flavor today "
+                f"(no cmd/agent Bazel consumer wired up for '{flavor.name}' in agent.build). "
+                "Drop --enable-bazel for this flavor.",
+                code=1,
+            )
+        if race:
+            raise Exit(
+                "--enable-bazel does not support --race yet (the //cmd/agent Bazel target "
+                "has no race-mode parameterization). Drop --enable-bazel or --race.",
+                code=1,
+            )
+        # //cmd/agent's Bazel target has a static gotags set (AGENT_TAGS | COMMON_TAGS,
+        # see cmd/agent/BUILD.bazel and bazel/rules/go/go_binary.bzl). This is exactly
+        # what build_tags computes above with no --build-include/--build-exclude/--no-glibc
+        # customization, so comparing the two catches any such customization without
+        # hand-duplicating a parallel "which flags are supported" list.
+        if set(build_tags) != AGENT_TAGS | COMMON_TAGS:
+            raise Exit(
+                "--enable-bazel requires the default agent build-tag set (no --build-include, "
+                "--build-exclude, or --no-glibc). Requested tags differ from //cmd/agent's "
+                f"static Bazel gotags by: {sorted(set(build_tags) ^ (AGENT_TAGS | COMMON_TAGS))}. "
+                "Drop --enable-bazel for this combination.",
+                code=1,
+            )
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -148,20 +198,23 @@ def build(
     schema_compress(ctx)
 
     with gitlab_section("Build agent", collapsed=True):
-        go_build(
-            ctx,
-            f"{REPO_PATH}/cmd/{flavor_cmd}",
-            mod=go_mod,
-            env=env,
-            bin_path=agent_bin,
-            race=race,
-            rebuild=rebuild,
-            gcflags=gcflags,
-            ldflags=ldflags,
-            build_tags=build_tags,
-            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-        )
+        if enable_bazel:
+            bazel_build_binary(ctx, target=f"//cmd/{flavor_cmd}", bin_path=agent_bin, embedded_path=embedded_path)
+        else:
+            go_build(
+                ctx,
+                f"{REPO_PATH}/cmd/{flavor_cmd}",
+                mod=go_mod,
+                env=env,
+                bin_path=agent_bin,
+                race=race,
+                rebuild=rebuild,
+                gcflags=gcflags,
+                ldflags=ldflags,
+                build_tags=build_tags,
+                check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+                coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+            )
 
     with gitlab_section("Generate configuration files", collapsed=True):
         generate_config_examples(
