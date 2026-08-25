@@ -219,13 +219,19 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 // Returns (anomaly, changeIndex, found).
 func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
+	minSeg := d.MinSegment
+	// A valid split requires MinSegment points on each side. MinPoints is
+	// independently configurable, so a newly activated series may legitimately
+	// reach this method before a candidate split exists.
+	if n < 2*minSeg {
+		return observer.Anomaly{}, 0, false
+	}
 
 	values := d.workspace.valuesFromPoints(points)
 
 	// Phase 1: Scan using Welch's t-statistic. Keep the total moments and
 	// advance the left-side moments as the split moves, instead of retaining a
 	// prefix array for every candidate split.
-	minSeg := d.MinSegment
 	var totalSum, totalSumSq float64
 	for _, v := range values {
 		totalSum += v
