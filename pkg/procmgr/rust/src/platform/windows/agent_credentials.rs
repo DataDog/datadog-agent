@@ -33,8 +33,6 @@ use super::wide;
 use super::{open_datadog_agent_key, registry_nonempty_string};
 
 #[cfg(not(test))]
-const AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
-#[cfg(not(test))]
 const SCM_SERVICE_PASSWORD_LSA_PREFIX: &str = "_SC_";
 #[cfg(not(test))]
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
@@ -136,48 +134,48 @@ fn resolve_domain_agent_account(domain: String, user: String, sid: &[u8]) -> Res
     info!("resolving domain agent account for {display}");
     let is_local =
         is_local_account(sid).with_context(|| format!("classify local account for {display}"))?;
-    let lsa_password = read_agent_password(&domain, &user)?;
-    let msa = if should_query_managed_service_account(&user, lsa_password.as_deref()) {
+    let agent_password = read_agent_password(&domain, &user)?;
+    let msa = if should_query_managed_service_account(&user, agent_password.as_deref()) {
         query_managed_service_account(&domain, &user)?
     } else {
         ManagedServiceAccountState::AssumeRegularDomainAccount
     };
     info!(
-        "domain agent account inputs for {display}: is_local={is_local}, lsa_password_present={}, msa={msa:?}",
-        lsa_password
+        "domain agent account inputs for {display}: is_local={is_local}, agent_password_present={}, msa={msa:?}",
+        agent_password
             .as_ref()
             .is_some_and(|password| !password.is_empty())
     );
-    agent_account_from_msa_and_lsa(domain, user, lsa_password.as_deref(), is_local, msa)
+    agent_account_from_msa_and_password(domain, user, agent_password.as_deref(), is_local, msa)
 }
 
 /// Whether NetQueryServiceAccount is needed to pick the spawn credential type.
 ///
 /// Skip the DC-dependent query when a regular domain account already has a stored password.
-fn should_query_managed_service_account(user: &str, lsa_password: Option<&str>) -> bool {
+fn should_query_managed_service_account(user: &str, agent_password: Option<&str>) -> bool {
     user.ends_with('$')
-        || lsa_password
+        || agent_password
             .filter(|password| !password.is_empty())
             .is_none()
 }
 
-/// Pick the spawn credential type from gMSA classification and optional LSA password.
+/// Pick the spawn credential type from gMSA classification and optional stored agent password.
 ///
-/// Installed gMSA wins over a stale LSA secret left behind when installer secret removal fails
+/// Installed gMSA wins over a stale password left behind when installer secret removal fails
 /// during a password-account to gMSA migration. When gMSA classification is unavailable, regular
 /// domain accounts fall back to the stored password instead of failing the DC query.
-fn agent_account_from_msa_and_lsa(
+fn agent_account_from_msa_and_password(
     domain: String,
     user: String,
-    lsa_password: Option<&str>,
+    agent_password: Option<&str>,
     is_local: bool,
     msa: ManagedServiceAccountState,
 ) -> Result<AgentAccount> {
     if matches!(msa, ManagedServiceAccountState::Installed) {
         return Ok(AgentAccount::ServiceAccountLogon { domain, user });
     }
-    if let Some(password) = lsa_password.filter(|password| !password.is_empty())
-        && should_use_lsa_password(&user, msa)
+    if let Some(password) = agent_password.filter(|password| !password.is_empty())
+        && should_use_agent_password(&user, msa)
     {
         return Ok(AgentAccount::PasswordLogon {
             domain,
@@ -186,13 +184,13 @@ fn agent_account_from_msa_and_lsa(
         });
     }
     info!(
-        "no usable LSA password for {}; attempting passwordless resolution with msa={msa:?}",
+        "no usable agent password for {}; attempting passwordless resolution with msa={msa:?}",
         AccountName::new(&domain, &user).display()
     );
     passwordless_agent_account(domain, user, is_local, msa)
 }
 
-fn should_use_lsa_password(user: &str, msa: ManagedServiceAccountState) -> bool {
+fn should_use_agent_password(user: &str, msa: ManagedServiceAccountState) -> bool {
     match msa {
         ManagedServiceAccountState::NotService
         | ManagedServiceAccountState::AssumeRegularDomainAccount => true,
@@ -337,15 +335,8 @@ fn agent_password_from_sources(
 
 #[cfg(not(test))]
 fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
-    let installer_lsa_password = read_lsa_private_data(AGENT_PASSWORD_LSA_KEY)?;
-    if installer_lsa_password
-        .as_ref()
-        .is_some_and(|password| !password.is_empty())
-    {
-        info!("using installer LSA password for {domain}\\{user}");
-        return Ok(installer_lsa_password);
-    }
-
+    // dd-procmgrd runs as LocalSystem. Installer L$ secrets are administrator-only, so use the
+    // SCM-stored datadogagent password (_SC_datadogagent) instead.
     let scm_service_matches_agent =
         service_runs_as_agent_user(DATADOG_AGENT_SERVICE, domain, user)?;
     let scm_password = if scm_service_matches_agent {
@@ -355,7 +346,7 @@ fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
         None
     };
     info!(
-        "agent password fallback for {domain}\\{user}: installer_lsa_present=false, scm_service_matches_agent={scm_service_matches_agent}, scm_password_present={}",
+        "agent SCM password for {domain}\\{user}: service_account_matches={scm_service_matches_agent}, password_present={}",
         scm_password
             .as_ref()
             .is_some_and(|password| !password.is_empty())
@@ -399,7 +390,7 @@ fn read_lsa_private_data(key: &str) -> Result<Option<String>> {
             return Ok(None);
         }
         if status != 0 {
-            bail!("LsaRetrievePrivateData: NTSTATUS {status:#010x}");
+            bail!("LsaRetrievePrivateData({key}): NTSTATUS {status:#010x}");
         }
         if secret.is_null() {
             return Ok(None);
@@ -498,15 +489,15 @@ mod tests {
     }
 
     #[test]
-    fn installed_gmsa_takes_precedence_over_stale_lsa_password() {
-        let account = agent_account_from_msa_and_lsa(
+    fn installed_gmsa_takes_precedence_over_stale_agent_password() {
+        let account = agent_account_from_msa_and_password(
             "CORP".to_string(),
             "gmsa$".to_string(),
             Some("stale-password-from-previous-ddagentuser"),
             false,
             ManagedServiceAccountState::Installed,
         )
-        .expect("installed gMSA should ignore stale LSA password");
+        .expect("installed gMSA should ignore stale agent password");
         assert_eq!(
             account,
             AgentAccount::ServiceAccountLogon {
@@ -517,15 +508,15 @@ mod tests {
     }
 
     #[test]
-    fn lsa_password_used_when_account_is_not_gmsa() {
-        let account = agent_account_from_msa_and_lsa(
+    fn agent_password_used_when_account_is_not_gmsa() {
+        let account = agent_account_from_msa_and_password(
             "CORP".to_string(),
             "ddagent".to_string(),
             Some("secret"),
             false,
             ManagedServiceAccountState::NotService,
         )
-        .expect("regular domain account should use LSA password");
+        .expect("regular domain account should use stored agent password");
         assert_eq!(
             account,
             AgentAccount::PasswordLogon {
@@ -537,8 +528,8 @@ mod tests {
     }
 
     #[test]
-    fn lsa_password_used_when_gmsa_classification_unavailable_for_regular_domain_account() {
-        let account = agent_account_from_msa_and_lsa(
+    fn agent_password_used_when_gmsa_classification_unavailable_for_regular_domain_account() {
+        let account = agent_account_from_msa_and_password(
             "CORP".to_string(),
             "ddagent".to_string(),
             Some("secret"),
@@ -558,14 +549,14 @@ mod tests {
 
     #[test]
     fn stale_lsa_ignored_when_gmsa_candidate_and_classification_unavailable() {
-        let account = agent_account_from_msa_and_lsa(
+        let account = agent_account_from_msa_and_password(
             "CORP".to_string(),
             "gmsa$".to_string(),
             Some("stale-password-from-previous-ddagentuser"),
             false,
             ManagedServiceAccountState::ClassificationUnavailable,
         )
-        .expect("gMSA candidate should not use stale LSA when DC is unavailable");
+        .expect("gMSA candidate should not use stale agent password when DC is unavailable");
         assert_eq!(
             account,
             AgentAccount::ServiceAccountLogon {
@@ -597,7 +588,7 @@ mod tests {
             true,
             ManagedServiceAccountState::NotService,
         )
-        .expect_err("local accounts without LSA password should fail");
+        .expect_err("local accounts without agent password should fail");
         assert!(
             err.to_string().contains("local account"),
             "unexpected error: {err:#}"
