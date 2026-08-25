@@ -498,7 +498,7 @@ func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	stats := s.series[storageKeyForMetadata(namespace, name, tags)]
-	if stats != nil && stats.Namespace == namespace && stats.Name == name && tagsEqual(stats.Tags, canonicalizeTags(tags)) {
+	if stats != nil {
 		series := stats.toSeries(agg)
 		return &series
 	}
@@ -522,9 +522,6 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 	defer s.mu.RUnlock()
 
 	stats := s.series[storageKeyForMetadata(namespace, name, tags)]
-	if stats != nil && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonicalizeTags(tags))) {
-		stats = nil
-	}
 	if stats == nil {
 		return nil
 	}
@@ -1325,9 +1322,6 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 	}
 
 	stats := s.series[storageKeyForMetadata(namespace, baseName, tags)]
-	if stats != nil && (stats.Namespace != namespace || stats.Name != baseName || !tagsEqual(stats.Tags, canonicalizeTags(tags))) {
-		stats = nil
-	}
 	if stats == nil {
 		return fullKey
 	}
