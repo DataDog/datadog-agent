@@ -64,8 +64,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{remote}
 }
 
+type providerDiscovery func(remote *cobra.Command, params *command.GlobalParams, args []string) error
+
 // Prepare discovers active command providers only when Cobra has resolved the static remote parent.
 func Prepare(root *cobra.Command, args []string) error {
+	return prepare(root, args, discoverProviders)
+}
+
+func prepare(root *cobra.Command, args []string, discover providerDiscovery) error {
 	remote, ok := remoteCommand(root, args)
 	if !ok {
 		return nil
@@ -74,7 +80,12 @@ func Prepare(root *cobra.Command, args []string) error {
 	if !ok {
 		return errors.New("remote command was not initialized")
 	}
-	applyRootFlags(args, globalParams.(*command.GlobalParams))
+	params := globalParams.(*command.GlobalParams)
+	applyRootFlags(args, params)
+	return discover(remote, params, args)
+}
+
+func discoverProviders(remote *cobra.Command, globalParams *command.GlobalParams, args []string) error {
 	return fxutil.OneShot(func(_ log.Component, _ config.Component, ipc ipc.Component) error {
 		grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
 		ctx := context.Background()
@@ -114,7 +125,7 @@ func Prepare(root *cobra.Command, args []string) error {
 				}
 			}
 		})
-	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams.(*command.GlobalParams))), core.Bundle(), ipcfx.ModuleReadOnly())
+	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams)), core.Bundle(), ipcfx.ModuleReadOnly())
 }
 
 func applyRootFlags(args []string, params *command.GlobalParams) {
