@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -276,6 +277,9 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 		nameBuilder.WriteString(model.QType(req.Question.Type).String())
 	}
 	nameBuilder.WriteString(")")
+	if resolved := dnsResolvedIPsLabel(n); resolved != "" {
+		nameBuilder.WriteString("\\n" + resolved)
+	}
 	name := nameBuilder.String()
 
 	dnsNode := &utils.Node{
@@ -293,6 +297,44 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 	}
 	data.Nodes[dnsNode.ID] = dnsNode
 	return dnsNode.ID, true
+}
+
+// maxGraphDNSIPs bounds how many resolved IPs are rendered on a DNS graph node. A question can
+// hold up to maxDNSResponseIPs answers, which would swamp the label.
+const maxGraphDNSIPs = 3
+
+// dnsResolvedIPsLabel renders a short, deduplicated summary of the IPs a domain resolved to,
+// across every question type on the node. Returns an empty string when nothing was resolved.
+func dnsResolvedIPsLabel(n *DNSNode) string {
+	var ips []string
+	truncated := false
+
+	for _, req := range n.Requests {
+		if req.Response == nil {
+			continue
+		}
+		for _, ip := range req.Response.IPs {
+			str := utils.GetIPStringFromIPNet(ip)
+			if str == "" || slices.Contains(ips, str) {
+				continue
+			}
+			if len(ips) >= maxGraphDNSIPs {
+				truncated = true
+				break
+			}
+			ips = append(ips, str)
+		}
+	}
+
+	if len(ips) == 0 {
+		return ""
+	}
+
+	label := strings.Join(ips, ", ")
+	if truncated {
+		label += ", ..."
+	}
+	return label
 }
 
 func (at *ActivityTree) prepareIMDSNode(n *IMDSNode, data *utils.Graph, processID utils.GraphID) (utils.GraphID, bool) {

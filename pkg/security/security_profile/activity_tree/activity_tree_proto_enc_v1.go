@@ -314,18 +314,42 @@ func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adprot
 	return pdn
 }
 
-func dnsEventToProto(ev *model.DNSEvent) *adproto.DNSInfo {
-	if ev == nil {
+func dnsEventToProto(req *DNSRequestNode) *adproto.DNSInfo {
+	if req == nil {
 		return nil
 	}
 
 	return &adproto.DNSInfo{
-		Name:  escape(ev.Question.Name),
-		Type:  uint32(ev.Question.Type),
-		Class: uint32(ev.Question.Class),
-		Size:  uint32(ev.Question.Size),
-		Count: uint32(ev.Question.Count),
+		Name:     escape(req.Question.Name),
+		Type:     uint32(req.Question.Type),
+		Class:    uint32(req.Question.Class),
+		Size:     uint32(req.Question.Size),
+		Count:    uint32(req.Question.Count),
+		Response: dnsResponseToProto(req.Response),
 	}
+}
+
+func dnsResponseToProto(resp *DNSResponseAggregate) *adproto.DNSResponseInfo {
+	if resp == nil {
+		return nil
+	}
+
+	presp := &adproto.DNSResponseInfo{
+		Ips:    make([]string, 0, len(resp.IPs)),
+		Cnames: make([]string, 0, len(resp.CNames)),
+	}
+
+	for _, ip := range resp.IPs {
+		if str := utils.GetIPStringFromIPNet(ip); str != "" {
+			presp.Ips = append(presp.Ips, str)
+		}
+	}
+
+	for _, cname := range resp.CNames {
+		presp.Cnames = append(presp.Cnames, escape(cname))
+	}
+
+	return presp
 }
 
 func imdsNodeToProto(in *IMDSNode, tagIDToImageTag func(id uint64) string) *adproto.IMDSNode {

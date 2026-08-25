@@ -349,14 +349,21 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 		dnsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 
 		// look for the DNS request type
-		for _, req := range dnsNode.Requests {
-			if req.Question.Type == evt.DNS.Question.Type {
+		for i := range dnsNode.Requests {
+			if dnsNode.Requests[i].Question.Type == evt.DNS.Question.Type {
+				// enrich the known question with the answers of this response, if any. This
+				// deliberately still reports "nothing new": see DNSNode.mergeDNSResponse.
+				if evt.DNS.Response != nil {
+					sizeBefore := dnsNode.size()
+					dnsNode.mergeDNSResponse(i, evt.DNS.Response)
+					stats.SizeBytes += dnsNode.size() - sizeBefore
+				}
 				return false
 			}
 		}
 
 		sizeBefore := dnsNode.size()
-		dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
+		dnsNode.Requests = append(dnsNode.Requests, newDNSRequestEntry(&evt.DNS))
 		stats.SizeBytes += dnsNode.size() - sizeBefore
 		return true
 	}

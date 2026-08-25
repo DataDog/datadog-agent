@@ -279,6 +279,53 @@ func TestActivityDumps(t *testing.T) {
 		}, nil)
 	})
 
+	t.Run("activity-dump-cgroup-dns-response", func(t *testing.T) {
+		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			// TODO: Oracle because we are missing offsets. See dns_test.go
+			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		})
+
+		dockerInstance, ad, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
+		_, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDump(ad.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// The resolved IPs come from the DNS response packet, which reaches the tree as a
+		// regular DNS event carrying DNS.Response (see FullDNSResponseEventType in probe_ebpf.go).
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("nslookup")
+			if nodes == nil {
+				t.Fatal("Node not found in activity dump")
+			}
+			for _, node := range nodes {
+				dnsNode, ok := node.DNSNames["one.one.one.one"]
+				if !ok {
+					continue
+				}
+				for _, req := range dnsNode.Requests {
+					if req.Response != nil && len(req.Response.IPs) > 0 {
+						return true
+					}
+				}
+			}
+			return false
+		}, nil)
+	})
+
 	t.Run("activity-dump-cgroup-file", func(t *testing.T) {
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
