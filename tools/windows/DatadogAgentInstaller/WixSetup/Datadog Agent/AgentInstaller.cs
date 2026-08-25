@@ -522,8 +522,9 @@ namespace WixSetup.Datadog_Agent
             return new Dir(new Id("DatadogAppRoot"), "%ProgramFiles%\\Datadog", datadogAgentFolder);
         }
 
-        // Service passwords are applied by ConfigureServices. Omitting Password from ServiceInstall
-        // keeps MSI from writing an empty password on upgrade, which would clear _SC_datadogagent.
+        // Service accounts and passwords are applied by ConfigureServices. Omitting Account and Password
+        // from ServiceInstall keeps MSI from rewriting service credentials on upgrade, which would
+        // clear _SC_datadogagent when DDAGENTUSER_PASSWORD is not provided.
         private static ServiceInstaller GenerateServiceInstaller(string name, string displayName, string description)
         {
             return new ServiceInstaller
@@ -546,7 +547,6 @@ namespace WixSetup.Datadog_Agent
                 RestartServiceDelayInSeconds = 60,
                 ResetPeriodInDays = 0,
                 PreShutdownDelay = 1000 * 60 * 3,
-                Account = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
             };
         }
 
@@ -555,7 +555,6 @@ namespace WixSetup.Datadog_Agent
             string name,
             string displayName,
             string description,
-            string account,
             string arguments = null)
         {
             return new ServiceInstaller
@@ -579,7 +578,6 @@ namespace WixSetup.Datadog_Agent
                 PreShutdownDelay = 1000 * 60 * 3,
                 Interactive = false,
                 Type = SvcType.ownProcess,
-                Account = account,
                 Arguments = arguments,
                 DependsOn = new[]
                 {
@@ -597,21 +595,18 @@ namespace WixSetup.Datadog_Agent
                 Constants.ProcessAgentServiceName,
                 "Datadog Process Agent",
                 "Send process metrics to Datadog",
-                "LocalSystem",
                 "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
             var traceAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagenttraceservice"),
                 Constants.TraceAgentServiceName,
                 "Datadog Trace Agent",
                 "Send tracing metrics to Datadog",
-                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
             var systemProbeService = GenerateDependentServiceInstaller(
                 new Id("ddagentsysprobeservice"),
                 Constants.SystemProbeServiceName,
                 "Datadog System Probe",
-                "Send network metrics to Datadog",
-                "LocalSystem");
+                "Send network metrics to Datadog");
 
             var agentBinDir = new Dir(new Id("AGENT"), "agent",
                     new Dir("dist",
@@ -651,8 +646,7 @@ namespace WixSetup.Datadog_Agent
                 new Id("ddagentsecurityservice"),
                 Constants.SecurityAgentServiceName,
                 "Datadog Security Agent",
-                "Send Security events to Datadog",
-                "[DDAGENTUSER_PROCESSED_FQ_NAME]");
+                "Send Security events to Datadog");
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.SecurityAgent, securityAgentService));
 
             agentBinDir.Add(new EventSource
@@ -669,8 +663,7 @@ namespace WixSetup.Datadog_Agent
                     new Id("ddagentprivaterunnerservice"),
                     Constants.PrivateActionRunnerServiceName,
                     "Datadog Private Action Runner",
-                    "Execute private actions for Datadog",
-                    "[DDAGENTUSER_PROCESSED_FQ_NAME]");
+                    "Execute private actions for Datadog");
                 agentBinDir.AddFile(new WixSharp.File(_agentBinaries.PrivateActionRunner, privateActionRunnerService));
                 agentBinDir.Add(new EventSource
                 {
@@ -684,8 +677,7 @@ namespace WixSetup.Datadog_Agent
                 new Id("ddagentprocmgrservice"),
                 Constants.ProcmgrServiceName,
                 "Datadog Process Manager",
-                "Manage Datadog agent processes",
-                "LocalSystem");
+                "Manage Datadog agent processes");
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {
