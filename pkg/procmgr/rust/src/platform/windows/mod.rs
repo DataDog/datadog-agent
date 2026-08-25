@@ -12,6 +12,7 @@ mod managed_service_account;
 mod pipe_caller;
 mod pipe_security;
 mod runtime_user;
+#[cfg(not(test))]
 mod scm_lsa_secret;
 mod scm_service;
 mod sid;
