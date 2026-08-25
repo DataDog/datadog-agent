@@ -41,6 +41,14 @@ func (is *stepByStepSuite) SetupSuite() {
 	// SetupSuite needs to defer is.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer is.CleanupOnSetupFailure()
 
+	// host.New() always probes systemd (setSystemdVersion) on Linux, which fatals on CentOS 6:
+	// that descriptor runs Upstart, not systemd (see the initctl branch below and in
+	// ConfigureAndRunAgentService). Mirror hardening is only needed for CentOS 7 anyway
+	// (ConfigureYumMirrors no-ops on any other version), so skip host construction entirely here.
+	if is.osDesc.Flavor == e2eos.CentOS && is.osVersion == 6.10 {
+		return
+	}
+
 	// Harden apt/yum against package-mirror outages before the install steps run. On CentOS 7
 	// this repoints the EOL base/updates/extras repos away from the now-403ing vault.centos.org
 	// /centos/7/ path (incident 58780); on Ubuntu/Debian it bounds apt's timeout/retries and adds
