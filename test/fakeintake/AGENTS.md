@@ -48,7 +48,7 @@ test/fakeintake/
 | `/api/v0.1/org` | (Remote Config) | — |
 | `/api/v0.1/status` | (Remote Config) | — |
 | `/api/unstable/on_prem_runners` | PAR enrollment | `GetPAREnrollmentCount()` |
-| `/api/v2/on-prem-management-service/workflow-tasks/dequeue` | PAR task queue | `EnqueuePARTask()` / `EnqueueSignedPARTask()` |
+| `/api/v2/on-prem-management-service/workflow-tasks/dequeue` | PAR task queue | `EnqueuePARTask()` |
 | `/api/v2/on-prem-management-service/workflow-tasks/publish-task-update` | PAR task results | `GetPARTaskResult()` |
 
 ## Client usage

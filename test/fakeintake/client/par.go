@@ -22,27 +22,11 @@ import (
 // taskID must be a unique identifier (e.g. uuid.New().String()).
 // actionFQN is the fully-qualified action name (e.g. "com.datadoghq.remoteaction.rshell.runCommand").
 func (c *Client) EnqueuePARTask(taskID, actionFQN string, inputs map[string]interface{}) error {
-	return c.enqueuePARTask(api.PAREnqueueTaskRequest{TaskID: taskID, ActionFQN: actionFQN, Inputs: inputs})
-}
-
-// EnqueueSignedPARTask enqueues a task with a real ED25519 signature envelope.
-func (c *Client) EnqueueSignedPARTask(taskID, actionFQN string, inputs map[string]interface{}, keyID string, privateKey ed25519.PrivateKey, orgID int64, runnerID string) error {
-	return c.enqueuePARTask(api.PAREnqueueTaskRequest{
-		TaskID:    taskID,
-		ActionFQN: actionFQN,
-		Inputs:    inputs,
-		Signing: &api.PARTaskSigning{
-			KeyID:        keyID,
-			PrivateKey:   append([]byte(nil), privateKey...),
-			OrgID:        orgID,
-			RunnerID:     runnerID,
-			ConnectionID: "connection:execgroup_ddagent:par-rshell-e2e",
-		},
+	body, err := json.Marshal(map[string]interface{}{
+		"task_id":    taskID,
+		"action_fqn": actionFQN,
+		"inputs":     inputs,
 	})
-}
-
-func (c *Client) enqueuePARTask(task api.PAREnqueueTaskRequest) error {
-	body, err := json.Marshal(task)
 	if err != nil {
 		return fmt.Errorf("marshal enqueue request: %w", err)
 	}
