@@ -319,7 +319,10 @@ func (ra *remoteAgentRegistry) start() {
 
 				agentsToRemove := make([]string, 0)
 				for sessionID, details := range ra.agentMap {
-					if time.Since(details.RegisteredAgent.LastSeen) > remoteAgentIdleTimeout || details.unhealthy.Load() {
+					details.unhealthyMu.Lock()
+					isUnhealthy := details.unhealthyReason != nil
+					details.unhealthyMu.Unlock()
+					if time.Since(details.RegisteredAgent.LastSeen) > remoteAgentIdleTimeout || isUnhealthy {
 						agentsToRemove = append(agentsToRemove, sessionID)
 					}
 				}
@@ -327,10 +330,10 @@ func (ra *remoteAgentRegistry) start() {
 				for _, sessionID := range agentsToRemove {
 					remoteAgentClient, ok := ra.agentMap[sessionID]
 					if ok {
-						if remoteAgentClient.unhealthy.Load() {
-							remoteAgentClient.unhealthyMu.Lock()
-							reason := remoteAgentClient.unhealthyReason
-							remoteAgentClient.unhealthyMu.Unlock()
+						remoteAgentClient.unhealthyMu.Lock()
+						reason := remoteAgentClient.unhealthyReason
+						remoteAgentClient.unhealthyMu.Unlock()
+						if reason != nil {
 							log.Warnf("Remote agent '%s' deregistered: %v", remoteAgentClient.RegisteredAgent.DisplayName, reason)
 						} else {
 							log.Infof("Remote agent '%s' deregistered after being idle for %s.", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)

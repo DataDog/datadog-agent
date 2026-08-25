@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/mdlayher/vsock"
@@ -47,9 +46,8 @@ type remoteAgentClient struct {
 	remoteagentregistry.RegisteredAgent
 
 	// health tracking
-	unhealthy       atomic.Bool // marks agent for removal during next cleanup cycle
-	unhealthyReason error       // stores the reason the agent was marked unhealthy (for logging)
-	unhealthyMu     sync.Mutex  // guards unhealthyReason
+	unhealthyReason error      // non-nil marks agent for removal during next cleanup cycle
+	unhealthyMu     sync.Mutex // guards unhealthyReason
 
 	// gRPC relative
 	pb.FlareProviderClient
@@ -274,7 +272,6 @@ func callAgentsForService[PbType any, StructuredType any](
 					registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, sessionIDMismatch)
 
 					// Mark agent as unhealthy for removal during next cleanup cycle
-					remoteAgent.unhealthy.Store(true)
 					remoteAgent.unhealthyMu.Lock()
 					remoteAgent.unhealthyReason = validationErr
 					remoteAgent.unhealthyMu.Unlock()
