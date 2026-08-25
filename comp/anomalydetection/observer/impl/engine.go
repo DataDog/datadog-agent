@@ -213,7 +213,7 @@ func newEngine(cfg engineConfig) *engine {
 func extractorNamespaceSeeds(extractors []observerdef.LogMetricsExtractor) map[string]uint64 {
 	seeds := make(map[string]uint64, len(extractors))
 	for _, extractor := range extractors {
-		seeds[extractor.Name()] = namespaceSeed(extractor.Name())
+		seeds[extractor.Name()] = newNamespaceSeed(extractor.Name())
 	}
 	return seeds
 }

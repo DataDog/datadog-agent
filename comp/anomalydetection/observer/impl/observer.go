@@ -75,6 +75,28 @@ type metricObs struct {
 	storageKey uint64
 }
 
+const (
+	dogstatsdNamespaceSeed uint64 = 0x4ec3d2a19f8576b0
+	checkNamespaceSeed     uint64 = 0x8a1c76e4d5b2093f
+	agentNamespaceSeed     uint64 = 0xd41f39a67c02be85
+)
+
+// newNamespaceSeed runs once when a source handle is created (or an extractor
+// is registered). The returned seed is then carried by that source; it is not
+// recomputed for every metric.
+func newNamespaceSeed(source string) uint64 {
+	switch source {
+	case "dogstatsd":
+		return dogstatsdNamespaceSeed
+	case "check":
+		return checkNamespaceSeed
+	case observerdef.AgentNamespace:
+		return agentNamespaceSeed
+	default:
+		return fmix64(fnv64aString(source))
+	}
+}
+
 // Ensure metricObs implements observerdef.MetricView
 var _ observerdef.MetricView = (*metricObs)(nil)
 
@@ -747,7 +769,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // metricDropHandle so external metrics are dropped at the edge, while
 // ObserveLog calls still pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, namespaceSeed: namespaceSeed(name), telemetry: o.telemetry, filter: o.metricFilter}
+	h := &handle{ch: o.obsCh, source: name, namespaceSeed: newNamespaceSeed(name), telemetry: o.telemetry, filter: o.metricFilter}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -1141,7 +1163,7 @@ func (o *observerImpl) IngestMetricSync(source string, args ...interface{}) {
 		contextKey = uint64Arg(args[0])
 		sample, _ = args[1].(observerdef.MetricView)
 	}
-	decision := prepareMetricIngest(source, namespaceSeed(source), contextKey, sample, o.metricFilter)
+	decision := prepareMetricIngest(source, newNamespaceSeed(source), contextKey, sample, o.metricFilter)
 	if decision.metric == nil {
 		if o.telemetry != nil && decision.source != "" {
 			o.telemetry.recordFilteredMetric(decision.source)

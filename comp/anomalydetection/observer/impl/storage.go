@@ -856,25 +856,6 @@ func (s *timeSeriesStorage) TagInternedCount() int {
 	return len(s.tagIntern)
 }
 
-const (
-	dogstatsdNamespaceSeed uint64 = 0x4ec3d2a19f8576b0
-	checkNamespaceSeed     uint64 = 0x8a1c76e4d5b2093f
-	agentNamespaceSeed     uint64 = 0xd41f39a67c02be85
-)
-
-func namespaceSeed(namespace string) uint64 {
-	switch namespace {
-	case "dogstatsd":
-		return dogstatsdNamespaceSeed
-	case "check":
-		return checkNamespaceSeed
-	case observer.AgentNamespace:
-		return agentNamespaceSeed
-	default:
-		return fmix64(fnv64aString(namespace))
-	}
-}
-
 // namespacedContextKey derives the storage key from a precomputed namespace
 // seed and an aggregator ContextKey.
 func namespacedContextKey(namespaceSeed, contextKey uint64) uint64 {
