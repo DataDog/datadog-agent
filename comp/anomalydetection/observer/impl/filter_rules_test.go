@@ -501,7 +501,7 @@ func TestIngestMetricSyncAppliesMetricFilterBySource(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.IngestMetricSync("dogstatsd", uint64(1), &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
@@ -708,13 +708,13 @@ func TestTagBasedFilterCountsOnlyFullyMatchingSamples(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.IngestMetricSync("dogstatsd", uint64(2), &metricObs{
 		name:      "system.cpu.user",
 		value:     1,
 		tags:      []string{"env:dev", "service:web"},
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.IngestMetricSync("dogstatsd", uint64(3), &metricObs{
 		name:      "system.cpu.user",
 		value:     2,
 		tags:      []string{"env:dev"},

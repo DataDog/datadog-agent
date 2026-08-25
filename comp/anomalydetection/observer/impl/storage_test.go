@@ -804,14 +804,18 @@ func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	require.ElementsMatch(t, []observer.SeriesRef{resA.Ref, resB.Ref}, refs)
 }
 
-func TestTimeSeriesStorage_AddWithKeyCollisionGuard(t *testing.T) {
+func TestTimeSeriesStorage_AddWithKeyMergesSameKey(t *testing.T) {
 	s := newTimeSeriesStorage()
 	sharedHash := uint64(42)
 	first := s.AddWithKey("check", sharedHash, "metric", 1, 1, nil)
 	second := s.AddWithKey("dogstatsd", sharedHash, "metric", 2, 1, nil)
 
-	assert.NotEqual(t, first.Ref, second.Ref)
-	assert.Len(t, s.ListSeries(observer.SeriesFilter{}), 2)
+	assert.Equal(t, first.Ref, second.Ref)
+	assert.Len(t, s.ListSeries(observer.SeriesFilter{}), 1)
+	series := s.GetSeriesByKey(sharedHash, observer.AggregateAverage)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	assert.Equal(t, 1.5, series.Points[0].Value)
 }
 
 func TestNamespacedContextKey(t *testing.T) {

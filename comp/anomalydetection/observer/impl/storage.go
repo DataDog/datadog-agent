@@ -102,9 +102,6 @@ type timeSeriesStorage struct {
 	cfg    StorageConfig
 	mu     sync.RWMutex
 	series map[uint64]*seriesStats // keyed by the carried storage key
-	// collisions holds only additional series sharing a storage key. The primary
-	// map remains the O(1) fast path.
-	collisions map[uint64][]*seriesStats
 
 	// observationTimestamps tracks all timestamps where observations occurred,
 	// even if no metric series was written for that timestamp.
@@ -299,7 +296,6 @@ func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 	return &timeSeriesStorage{
 		cfg:                   cfg,
 		series:                make(map[uint64]*seriesStats),
-		collisions:            make(map[uint64][]*seriesStats),
 		seriesIDStats:         make(map[observer.SeriesRef]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
@@ -359,25 +355,10 @@ func (s *timeSeriesStorage) AddWithKey(namespace string, key uint64, name string
 	}
 
 	stats, exists := s.series[key]
-	// Collision guard: verify full identity (namespace + name + sorted tags).
-	if exists && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonTags)) {
-		// A collision in the 64-bit storage-key domain. Keep the metadata guard:
-		// it makes a collision unable to merge two distinct series.
-		logging.Warnf("metric storage key collision h=%d: incumbent={%s,%s} new={%s,%s}",
-			key, stats.Namespace, stats.Name, namespace, name)
-		exists = false
-		for _, st := range s.collisions[key] {
-			if st != nil && st.Namespace == namespace && st.Name == name && tagsEqual(st.Tags, canonTags) {
-				stats = st
-				exists = true
-				break
-			}
-		}
-	}
 	if !exists {
 		// Only intern on new series creation so the ref count tracks exactly
 		// the number of live series holding the canonical slice.
-		canonical, th := s.internTags(tags)
+		canonical, th := s.internTags(canonTags)
 		id := s.nextSeriesRef
 		s.nextSeriesRef++
 		stats = &seriesStats{
@@ -388,13 +369,7 @@ func (s *timeSeriesStorage) AddWithKey(namespace string, key uint64, name string
 			tagsHash:   th,
 			ref:        id,
 		}
-		// Only claim the hash slot when empty to avoid displacing an existing
-		// collision-displaced series.
-		if _, occupied := s.series[key]; !occupied {
-			s.series[key] = stats
-		} else {
-			s.collisions[key] = append(s.collisions[key], stats)
-		}
+		s.series[key] = stats
 		s.seriesIDStats[id] = stats
 		if namespace != observer.TelemetryNamespace {
 			s.liveSeriesCount++
@@ -1133,28 +1108,7 @@ func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
 	}
 	s.releaseTagIntern(stats.tagsHash)
 	if s.series[stats.storageKey] == stats {
-		bucket := s.collisions[stats.storageKey]
-		if len(bucket) == 0 {
-			delete(s.series, stats.storageKey)
-		} else {
-			s.series[stats.storageKey] = bucket[0]
-			if len(bucket) == 1 {
-				delete(s.collisions, stats.storageKey)
-			} else {
-				s.collisions[stats.storageKey] = bucket[1:]
-			}
-		}
-	} else {
-		bucket := s.collisions[stats.storageKey]
-		for i, candidate := range bucket {
-			if candidate == stats {
-				s.collisions[stats.storageKey] = append(bucket[:i], bucket[i+1:]...)
-				if len(s.collisions[stats.storageKey]) == 0 {
-					delete(s.collisions, stats.storageKey)
-				}
-				break
-			}
-		}
+		delete(s.series, stats.storageKey)
 	}
 	delete(s.seriesIDStats, stats.ref)
 	if stats.Namespace != observer.TelemetryNamespace {
