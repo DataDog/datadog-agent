@@ -8,6 +8,7 @@ package filterlistimpl
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -195,9 +196,9 @@ func (fl *FilterList) GetHistoFilterList() utilstrings.Matcher {
 	return fl.histoFilterList
 }
 
-// create a list based on all `metricNames` but only containing metric names
-// with histogram aggregates suffixes.
-func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string {
+// create a list based on all `metricNames` but only containing entries that can
+// match a metric name with a histogram aggregate suffix.
+func (fl *FilterList) createHistogramsFilterList(metricNames []string, matchPrefix bool) []string {
 	aggrs := fl.config.GetStringSlice("histogram_aggregates")
 
 	percentiles := metrics.ParsePercentiles(fl.config.GetStringSlice("histogram_percentiles"))
@@ -208,17 +209,25 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 
 	var histoMetricNames []string
 	for _, metricName := range metricNames {
-		// metric names ending with a histogram aggregates
-		for _, aggr := range aggrs {
-			if strings.HasSuffix(metricName, "."+aggr) {
-				histoMetricNames = append(histoMetricNames, metricName)
-			}
+		// A prefix entry can match any name starting with it, including the
+		// aggregates derived from a histogram, so it always has to be kept.
+		if matchPrefix || strings.HasSuffix(metricName, utilstrings.PrefixSuffix) {
+			histoMetricNames = append(histoMetricNames, metricName)
+			continue
+		}
+
+		// metric names ending with a histogram aggregate
+		if slices.ContainsFunc(aggrs, func(aggr string) bool {
+			return strings.HasSuffix(metricName, "."+aggr)
+		}) {
+			histoMetricNames = append(histoMetricNames, metricName)
+			continue
 		}
 		// metric names ending with a percentile
-		for _, percentileAggr := range percentileAggrs {
-			if strings.HasSuffix(metricName, "."+percentileAggr) {
-				histoMetricNames = append(histoMetricNames, metricName)
-			}
+		if slices.ContainsFunc(percentileAggrs, func(percentileAggr string) bool {
+			return strings.HasSuffix(metricName, "."+percentileAggr)
+		}) {
+			histoMetricNames = append(histoMetricNames, metricName)
 		}
 	}
 
@@ -251,15 +260,25 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 }
 
 // SetMetricFilterList updates the metric names filter on all running worker.
+// A metric name ending with `*` is a prefix, matching every name starting with
+// the rest of the entry. `matchPrefix` turns every entry into a prefix.
 func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool) {
 	fl.log.Debugf("SetMetricFilterList with %d metrics", len(metricNames))
+
+	// A lone `*`, or any empty entry in prefix mode, is a prefix matching every
+	// metric name: worth a warning since it silently drops all metrics.
+	if slices.ContainsFunc(metricNames, func(name string) bool {
+		return name == utilstrings.PrefixSuffix || (matchPrefix && name == "")
+	}) {
+		fl.log.Warn("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
+	}
 
 	// we will use two different filterlists:
 	// - one with all the metrics names, with all values from `metricNames`
 	// - one with only the metric names ending with histogram aggregates suffixes
 
 	// only histogram metric names (including their aggregates suffixes)
-	histoMetricNames := fl.createHistogramsFilterList(metricNames)
+	histoMetricNames := fl.createHistogramsFilterList(metricNames, matchPrefix)
 	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
 	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
 

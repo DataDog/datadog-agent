@@ -140,7 +140,8 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 }
 
 // buildMetricFilterListConfig builds the metrics to be used for the metric filterlist,
-// Metric names are deduped.
+// Metric names are deduped. They are passed through as-is, so a name ending with
+// `*` is a prefix pattern, exactly like one coming from the configuration file.
 func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []string {
 	metrics := make(map[string]struct{})
 	for _, update := range metricFilterListUpdates {
