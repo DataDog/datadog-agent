@@ -8,10 +8,15 @@
 package configstreamconsumerimpl
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -92,4 +97,22 @@ func TestApplySnapshotAfterStreamReset(t *testing.T) {
 		require.NoError(t, c.applySnapshot(snapshot(4)))
 		require.Equal(t, int32(10), c.lastSeqID.Load())
 	})
+}
+
+func TestSessionRejected(t *testing.T) {
+	tests := []struct {
+		err  error
+		want bool
+	}{
+		{status.Error(codes.NotFound, "no remote agent found with session ID"), true},
+		{status.Error(codes.PermissionDenied, "session_id not found"), true},
+		{status.Error(codes.Unauthenticated, "session_id required"), true},
+		{fmt.Errorf("wrapped: %w", status.Error(codes.NotFound, "gone")), true},
+		{status.Error(codes.Unavailable, "connection refused"), false},
+		{status.Error(codes.DeadlineExceeded, "context deadline exceeded"), false},
+		{errors.New("dial tcp: connect: connection refused"), false},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, sessionRejected(tt.err), tt.err.Error())
+	}
 }

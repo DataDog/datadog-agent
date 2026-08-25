@@ -227,11 +227,43 @@ func (c *consumer) invalidateSession(reason string) {
 	c.sessionMu.Unlock()
 
 	if dropped {
+		// The open stream still carries the dead session_id and the server refreshes it for
+		// as long as it holds the stream, so leaving it up would keep a second registration
+		// alive alongside the replacement. Drop it and let streamLoop redial.
+		c.resetStream()
 		select {
 		case c.sessionKick <- struct{}{}:
 		default:
 		}
 	}
+}
+
+// resetStream tears down the active stream so streamLoop reconnects with a fresh session.
+func (c *consumer) resetStream() {
+	c.streamLock.Lock()
+	defer c.streamLock.Unlock()
+	if c.stream != nil {
+		_ = c.stream.CloseSend()
+		c.stream = nil
+	}
+	if c.conn != nil {
+		_ = c.conn.Close()
+		c.conn = nil
+	}
+}
+
+// sessionRejected distinguishes RAR authoritatively refusing the session from a transport
+// hiccup, which says nothing about whether the session is still registered.
+func sessionRejected(err error) bool {
+	st, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	switch st.Code() {
+	case codes.NotFound, codes.PermissionDenied, codes.Unauthenticated:
+		return true
+	}
+	return false
 }
 
 func (c *consumer) currentRefreshInterval() time.Duration {
@@ -357,7 +389,11 @@ func (c *consumer) sessionLoop() {
 			c.sessionRefreshFailure.Inc()
 			// The connection may itself be the problem, so redial on the next tick.
 			dropConn()
-			c.invalidateSession(fmt.Sprintf("refresh failed: %v", err))
+			if sessionRejected(err) {
+				c.invalidateSession(fmt.Sprintf("refresh rejected: %v", err))
+			} else {
+				c.log.Warnf("configstreamconsumer[%s]: session refresh failed (%v); retrying", c.params.ClientName, err)
+			}
 			ticker.Reset(bo.NextBackOff())
 			continue
 		}
@@ -421,11 +457,8 @@ func (c *consumer) streamLoop() {
 				return
 			}
 			// A rejected session_id stays rejected until a new one is minted.
-			if st, ok := status.FromError(err); ok {
-				switch st.Code() {
-				case codes.PermissionDenied, codes.Unauthenticated:
-					c.invalidateSession(st.Message())
-				}
+			if sessionRejected(err) {
+				c.invalidateSession(err.Error())
 			}
 			c.log.Warnf("Config stream error: %v, reconnecting...", err)
 			c.streamReconnectCount.Inc()

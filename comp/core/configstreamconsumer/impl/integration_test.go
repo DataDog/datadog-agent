@@ -61,6 +61,8 @@ type mockCoreAgent struct {
 	refreshCount        int
 	// evicted holds session IDs the RAR reaper has already dropped.
 	evicted map[string]bool
+	// refreshErrs are transport-level errors returned by the next refreshes, in order.
+	refreshErrs []codes.Code
 }
 
 func (m *mockCoreAgent) currentSessionID() string {
@@ -101,8 +103,14 @@ func (m *mockCoreAgent) RefreshRemoteAgent(_ context.Context, req *pb.RefreshRem
 	defer m.mu.Unlock()
 
 	m.refreshCount++
+	if len(m.refreshErrs) > 0 {
+		code := m.refreshErrs[0]
+		m.refreshErrs = m.refreshErrs[1:]
+		return nil, status.Errorf(code, "injected transport failure")
+	}
+	// Matches the real registry, which reports an unknown session as NotFound.
 	if req.SessionId != m.sessionID || m.evicted[req.SessionId] {
-		return nil, status.Errorf(codes.PermissionDenied, "session_id %q not found", req.SessionId)
+		return nil, status.Errorf(codes.NotFound, "session_id %q not found", req.SessionId)
 	}
 	return &pb.RefreshRemoteAgentResponse{}, nil
 }
@@ -401,4 +409,37 @@ func TestConsumerRefreshesSession(t *testing.T) {
 
 	registers, _ := mock.counts()
 	require.Equal(t, 1, registers, "a refreshed session should never need re-registration")
+}
+
+// A refresh failing on its own connection says nothing about the session, which the core agent
+// keeps alive through the stream. Dropping it there would strand the old registration in RAR
+// while the replacement takes over, accumulating a duplicate agent per transient failure.
+func TestConsumerKeepsSessionAfterTransientRefreshFailure(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	mock.refreshIntervalSecs = 1
+	mock.refreshErrs = []codes.Code{codes.Unavailable, codes.DeadlineExceeded}
+
+	queueSnapshot(t, mock, 1)
+	done := startConsumer(t, dir, addr, 30*time.Second, func() error {
+		require.Eventually(t, func() bool {
+			_, refreshes := mock.counts()
+			return refreshes >= 4
+		}, 30*time.Second, 100*time.Millisecond, "refreshes did not resume after the transient failures")
+		return nil
+	})
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(60 * time.Second):
+		t.Fatal("consumer did not finish")
+	}
+
+	registers, _ := mock.counts()
+	require.Equal(t, 1, registers, "a transient refresh error must not re-register the session")
+	require.Equal(t, "test-session-id", mock.currentSessionID(), "the original session must survive")
 }
