@@ -790,13 +790,13 @@ func TestTimeSeriesStorage_EvictToCapacityBreaksActivityTiesByRef(t *testing.T) 
 func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	s := newTimeSeriesStorage()
 
-	resA := s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
-	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
-	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
+	resA := s.AddWithKey("ns", 1, "a", 1.0, 1000, []string{"k:1"})
+	resB := s.AddWithKey("ns", 2, "b", 2.0, 1000, []string{"k:2"})
+	s.AddWithKey("ns", 3, "c", 3.0, 1000, []string{"k:3"})
 
-	hA := seriesKeyHash("ns", "a", []string{"k:1"})
-	hB := seriesKeyHash("ns", "b", []string{"k:2"})
-	hMissing := seriesKeyHash("ns", "ghost", nil)
+	hA := uint64(1)
+	hB := uint64(2)
+	hMissing := uint64(4)
 
 	refs := s.FindRefsByHashes(map[uint64]struct{}{hA: {}, hB: {}, hMissing: {}})
 
@@ -804,11 +804,11 @@ func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	require.ElementsMatch(t, []observer.SeriesRef{resA.Ref, resB.Ref}, refs)
 }
 
-func TestTimeSeriesStorage_AddWithSeriesKeyHashCollisionGuard(t *testing.T) {
+func TestTimeSeriesStorage_AddWithKeyCollisionGuard(t *testing.T) {
 	s := newTimeSeriesStorage()
 	sharedHash := uint64(42)
-	first := s.AddWithSeriesKeyHash("check", sharedHash, "metric", 1, 1, nil)
-	second := s.AddWithSeriesKeyHash("dogstatsd", sharedHash, "metric", 2, 1, nil)
+	first := s.AddWithKey("check", sharedHash, "metric", 1, 1, nil)
+	second := s.AddWithKey("dogstatsd", sharedHash, "metric", 2, 1, nil)
 
 	assert.NotEqual(t, first.Ref, second.Ref)
 	assert.Len(t, s.ListSeries(observer.SeriesFilter{}), 2)

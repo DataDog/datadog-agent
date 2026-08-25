@@ -43,12 +43,12 @@ type logCountBucketInterval struct {
 }
 
 type logCountBucketSeries struct {
-	namespace     string
-	seriesKeyHash uint64
-	name          string
-	tags          []string
-	context       *observerdef.MetricContext
-	anchor        int64
+	namespace  string
+	storageKey uint64
+	name       string
+	tags       []string
+	context    *observerdef.MetricContext
+	anchor     int64
 	// lastObserved is the latest real log timestamp. Synthetic zero buckets do
 	// not advance it, so storage can evict genuinely idle series first.
 	lastObserved int64
@@ -95,13 +95,13 @@ func (b *materializedLogCountBucketizer) observe(
 	timestamp int64,
 	tags []string,
 ) bool {
-	return b.observeWithSeriesKeyHash(namespace, seriesKeyHash(namespace, metric.Name, tags), metric, timestamp, tags)
+	return b.observeWithKey(namespace, 0, metric, timestamp, tags)
 }
 
-// observeWithSeriesKeyHash adds one extractor output to its pending bucket. False
+// observeWithKey adds one extractor output to its pending bucket. False
 // means the late observation cannot be incorporated without rewriting or
 // re-anchoring history.
-func (b *materializedLogCountBucketizer) observeWithSeriesKeyHash(
+func (b *materializedLogCountBucketizer) observeWithKey(
 	namespace string,
 	key uint64,
 	metric observerdef.MetricOutput,
@@ -123,15 +123,15 @@ func (b *materializedLogCountBucketizer) observeWithSeriesKeyHash(
 
 	if state == nil {
 		state = &logCountBucketSeries{
-			namespace:     namespace,
-			seriesKeyHash: key,
-			name:          metric.Name,
-			tags:          append([]string(nil), tags...),
-			context:       metric.Context,
-			anchor:        timestamp,
-			lastObserved:  timestamp,
-			storageRef:    -1,
-			values:        make(map[int64]float64),
+			namespace:    namespace,
+			storageKey:   key,
+			name:         metric.Name,
+			tags:         append([]string(nil), tags...),
+			context:      metric.Context,
+			anchor:       timestamp,
+			lastObserved: timestamp,
+			storageRef:   -1,
+			values:       make(map[int64]float64),
 		}
 		b.series[key] = state
 	} else {
@@ -166,9 +166,9 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
 			for nextEnd <= interval.lastEnd && nextEnd <= upTo {
-				result := storage.AddWithSeriesKeyHash(
+				result := storage.AddWithKey(
 					state.namespace,
-					state.seriesKeyHash,
+					state.storageKey,
 					state.name,
 					state.values[nextEnd],
 					nextEnd,

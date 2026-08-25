@@ -90,10 +90,10 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	tags := []string{"env:prod"}
-	h := seriesKeyHash("check", "system.cpu.user", tags)
+	h := namespacedContextKey(checkNamespaceSeed, 1)
 	filter.publishMutedSnapshot(map[uint64]struct{}{h: {}})
 
-	assert.False(t, filter.isAllowed("system.cpu.user", "check", tags))
+	assert.False(t, filter.isAllowedWithKey("system.cpu.user", "check", h, tags))
 	assert.True(t, filter.isAllowed("system.mem.used", "check", tags))
 	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", tags))
 	// LogMetricsExtractorName bypasses the mute check entirely
@@ -272,15 +272,15 @@ func TestPrepareMetricIngestDropsMatchingMetrics(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	dropped := prepareMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", tags: []string{"env:dev"}}, filter)
+	dropped := prepareMetricIngest("dogstatsd", dogstatsdNamespaceSeed, 1, &metricObs{name: "system.cpu.user", tags: []string{"env:dev"}}, filter)
 	assert.Nil(t, dropped.metric)
 
-	kept := prepareMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", value: 1, tags: []string{"env:prod"}}, filter)
+	kept := prepareMetricIngest("dogstatsd", dogstatsdNamespaceSeed, 2, &metricObs{name: "system.cpu.user", value: 1, tags: []string{"env:prod"}}, filter)
 	require.NotNil(t, kept.metric)
 	assert.Equal(t, "dogstatsd", kept.source)
 	assert.Equal(t, "system.cpu.user", kept.metric.name)
-	assert.NotZero(t, kept.metric.seriesKeyHash)
-	assert.Equal(t, seriesKeyHash("dogstatsd", "system.cpu.user", []string{"env:prod"}), kept.metric.seriesKeyHash)
+	assert.NotZero(t, kept.metric.storageKey)
+	assert.Equal(t, namespacedContextKey(dogstatsdNamespaceSeed, 2), kept.metric.storageKey)
 }
 
 func TestPrepareMetricIngestRejectsNameAndSourceMatchWithoutReadingTags(t *testing.T) {
@@ -351,16 +351,15 @@ func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	tags := []string{"env:prod", "service:web"}
 	filter.publishMutedSnapshot(map[uint64]struct{}{
-		seriesKeyHash("dogstatsd", "system.cpu.user", tags): {},
+		namespacedContextKey(dogstatsdNamespaceSeed, 1): {},
 	})
 	sample := &rawTagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:prod"},
 	}
 
-	decision := prepareMetricIngest("dogstatsd", sample, filter)
+	decision := prepareMetricIngest("dogstatsd", dogstatsdNamespaceSeed, 1, sample, filter)
 	assert.Nil(t, decision.metric)
 	assert.Equal(t, 1, sample.rawTagsRead)
 }
