@@ -1,0 +1,46 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.yaml.schema.json
+title: Schema with renamed settings for unit test
+properties:
+  plain_setting:
+    node_type: setting
+    type: string
+    default: abc
+    visibility: public
+    description: setting that was never renamed
+  renamed_setting:
+    node_type: setting
+    type: string
+    default: abc
+    visibility: public
+    description: setting renamed once, with an env var
+    env_vars:
+    - DD_RENAMED_SETTING
+    renamed_from:
+      old_setting: "7.71.0"
+  full_agent_renamed_setting:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: renamed setting only bound by the full agent
+    tags:
+    - full-agent-only:true
+    renamed_from:
+      old_full_agent_setting: "7.71.0"
+  my_section:
+    node_type: section
+    type: object
+    visibility: public
+    description: section holding a renamed setting
+    properties:
+      renamed_twice:
+        node_type: setting
+        type: number
+        default: 10
+        visibility: public
+        description: setting renamed twice, former names are fully qualified
+        # Declared newest first on purpose: codegen must emit them oldest deprecation first.
+        renamed_from:
+          my_section.old_name: "7.71.1"
+          oldest_section.oldest_name: "7.60.0"
