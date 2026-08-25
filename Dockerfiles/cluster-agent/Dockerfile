@@ -55,6 +55,12 @@ RUN if [ "$CI" = "true" ]; then \
 ENV PATH="/opt/datadog-agent/bin/:$PATH" \
     DOCKER_DD_AGENT="true"
 
+# Install key tools
+#  Some are needed for Agent install and operation, others are for TSE support.  Those have to be
+#  available in the image so we can mount it readonly.  We install them both categories at the
+#  same time for speed.
+# For agent install and operation: ca-certificates, tzdata, adduser
+# For TSE operations: curl
 RUN apt-get update \
     && apt full-upgrade -y \
     && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\

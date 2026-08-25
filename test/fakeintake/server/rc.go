@@ -33,12 +33,13 @@ import (
 type rcServerState struct {
 	mu sync.Mutex
 
-	enabled  bool
-	orgUUID  string
-	configs  map[string]rcstore.Config
-	version  uint64
-	polls    uint64
-	lastPoll time.Time
+	enabled     bool
+	orgUUID     string
+	configs     map[string]rcstore.Config
+	version     uint64
+	polls       uint64
+	lastPoll    time.Time
+	applyStates []api.RCApplyState
 
 	signing  ed25519.PrivateKey
 	keyID    string
@@ -73,36 +74,38 @@ func (s *rcServerState) deleteConfig(key string) bool {
 }
 
 func (s *rcServerState) snapshot() []rcstore.Config {
+	cfgs, _ := s.versionedSnapshot()
+	return cfgs
+}
+
+func (s *rcServerState) versionedSnapshot() ([]rcstore.Config, uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]rcstore.Config, 0, len(s.configs))
 	for _, c := range s.configs {
 		out = append(out, c)
 	}
-	return out
+	return out, s.version
 }
 
-func (s *rcServerState) configsForProducts(products []string) []rcstore.Config {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	wanted := make(map[string]struct{}, len(products))
-	for _, p := range products {
-		wanted[p] = struct{}{}
-	}
-	out := make([]rcstore.Config, 0, len(s.configs))
-	for _, c := range s.configs {
-		if _, ok := wanted[c.Product]; ok {
-			out = append(out, c)
-		}
-	}
-	return out
-}
-
-func (s *rcServerState) recordPoll(now time.Time) {
+func (s *rcServerState) recordPoll(now time.Time, clients []*core.Client) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.polls++
 	s.lastPoll = now
+	s.applyStates = nil
+	for _, client := range clients {
+		for _, configState := range client.GetState().GetConfigStates() {
+			s.applyStates = append(s.applyStates, api.RCApplyState{
+				ClientID:   client.GetId(),
+				ConfigID:   configState.GetId(),
+				Product:    configState.GetProduct(),
+				Version:    configState.GetVersion(),
+				ApplyState: configState.GetApplyState(),
+				ApplyError: configState.GetApplyError(),
+			})
+		}
+	}
 }
 
 // --- Options ---
@@ -290,19 +293,14 @@ func (fi *Server) handleRCConfigurations(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "decode request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	rc.recordPoll(fi.clock.Now().UTC())
+	rc.recordPoll(fi.clock.Now().UTC(), req.GetActiveClients())
 
-	products := append(req.GetProducts(), req.GetNewProducts()...)
-	cfgs := rc.configsForProducts(products)
+	// Serve the complete repository.
+	cfgs, version := rc.versionedSnapshot()
 	if len(cfgs) == 0 {
-		log.Printf("Remote Config: no configs for products %v", products)
-		http.Error(w, "no configurations available", http.StatusNotFound)
-		return
+		log.Printf("Remote Config: serving empty response for products %v",
+			append(req.GetProducts(), req.GetNewProducts()...))
 	}
-
-	rc.mu.Lock()
-	version := rc.version
-	rc.mu.Unlock()
 
 	metas, err := rcstore.GenerateTUFMetas(cfgs, rc.signing, rc.keyID, rc.rootJSON, version)
 	if err != nil {
@@ -482,6 +480,7 @@ func (fi *Server) handleRCStats(w http.ResponseWriter, r *http.Request) {
 		LastPoll:     fi.rc.lastPoll,
 		Version:      fi.rc.version,
 		ConfigsCount: len(fi.rc.configs),
+		ApplyStates:  append([]api.RCApplyState(nil), fi.rc.applyStates...),
 		KeyID:        fi.rc.keyID,
 		PublicKey:    rcstore.PublicKeyHex(fi.rc.signing),
 		RootJSON:     string(fi.rc.rootJSON),

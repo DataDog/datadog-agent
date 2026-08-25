@@ -39,7 +39,10 @@ py_binary(
     ],
     main = "codegen_settings_main.py",
     visibility = ["//pkg/config/setup:__pkg__"],
-    deps = ["@py_dev_requirements//pyyaml"],
+    deps = [
+        "//tasks/libs/types:version",
+        "@py_dev_requirements//pyyaml",
+    ],
 )
 
 # Used by //pkg/config/schema:template.bzl (schema_template_config) to

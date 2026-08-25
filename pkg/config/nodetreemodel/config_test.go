@@ -7,10 +7,10 @@ package nodetreemodel
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -137,8 +137,6 @@ func TestNewConfig(t *testing.T) {
 	assert.NotNil(t, c.remoteConfig)
 	assert.NotNil(t, c.fleetPolicies)
 	assert.NotNil(t, c.cli)
-
-	// TODO: test SetTypeByDefaultValue and SetEnvKeyReplacer once implemented
 }
 
 // TODO: expand testing coverage once we have environment and Set() implemented
@@ -492,7 +490,6 @@ logs_config:
 
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
-	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -1554,10 +1551,6 @@ func TestPanicAfterBuildSchema(t *testing.T) {
 
 	assert.Equal(t, 1, cfg.Get("a"))
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
-
-	assert.PanicsWithValue(t, "cannot SetEnvKeyReplacer() once the config has been marked as ready for use", func() {
-		cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	})
 }
 
 func TestEnvVarTransformers(t *testing.T) {
@@ -1666,7 +1659,7 @@ func TestWarningLogged(t *testing.T) {
 	defer func() { splitKeyFunc = original }()
 	cfg.BuildSchema()
 	// Check that the warning was logged
-	assert.Equal(t, &model.Warnings{Errors: []error{errors.New("empty key given to Set")}}, cfg.Warnings())
+	assert.Equal(t, []string{"empty key given to Set"}, cfg.Warnings())
 }
 
 func TestSequenceID(t *testing.T) {
@@ -2067,4 +2060,316 @@ func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		cfg.Get("key")
 	}
+}
+
+func TestDeprecation(t *testing.T) {
+	testCases := []struct {
+		caseName     string
+		config       string
+		expectValue  int
+		expectSource model.Source
+		warnings     []string
+		envVars      map[string]string
+	}{
+		{
+			caseName:     "file_new_value_only",
+			config:       `a: 123`,
+			expectValue:  123,
+			expectSource: model.SourceFile,
+		},
+		{
+			caseName:     "file_deprecated_only",
+			config:       `b: 123`,
+			expectValue:  123,
+			expectSource: model.SourceFile,
+			warnings:     []string{"setting 'b' is deprecated, use 'a' instead"},
+		},
+		{
+			caseName: "file_newer_deprecated_only",
+			config: `
+d:
+  e:
+    f: 123`,
+			expectValue:  123,
+			expectSource: model.SourceFile,
+			warnings:     []string{"setting 'd.e.f' is deprecated, use 'a' instead"},
+		},
+		{
+			caseName: "file_multi_deprecated",
+			config: `b: 123
+d:
+  e:
+    f: 456`,
+			expectValue:  123,
+			expectSource: model.SourceFile,
+			warnings: []string{
+				"setting 'b' is deprecated, use 'a' instead",
+				"setting 'd.e.f' is deprecated, use 'a' instead (value ignored in favor of 'b')",
+			},
+		},
+		{
+			caseName: "file_deprecated_all_known_name",
+			config: `a: 21
+b: 123
+d:
+  e:
+    f: 456`,
+			expectValue:  123,
+			expectSource: model.SourceFile,
+			warnings: []string{
+				"setting 'b' is deprecated, use 'a' instead",
+				"setting 'd.e.f' is deprecated, use 'a' instead (value ignored in favor of 'b')",
+			},
+		},
+		{
+			caseName:     "env_new_value_only",
+			envVars:      map[string]string{"TEST_A": "123"},
+			expectValue:  123,
+			expectSource: model.SourceEnvVar,
+		},
+		{
+			caseName:     "env_deprecated_only",
+			envVars:      map[string]string{"TEST_B": "123"},
+			expectValue:  123,
+			expectSource: model.SourceEnvVar,
+			warnings:     []string{"env var 'TEST_B' is deprecated, use 'TEST_A' instead"},
+		},
+		{
+			caseName:     "env_newer_deprecated_only",
+			envVars:      map[string]string{"TEST_D_E_F": "123"},
+			expectValue:  123,
+			expectSource: model.SourceEnvVar,
+			warnings:     []string{"env var 'TEST_D_E_F' is deprecated, use 'TEST_A' instead"},
+		},
+		{
+			caseName:     "env_multi_deprecated",
+			envVars:      map[string]string{"TEST_B": "123", "TEST_D_E_F": "456"},
+			expectValue:  123,
+			expectSource: model.SourceEnvVar,
+			// only the env var actually used is reported: lookup stops at the highest precedence one
+			warnings: []string{"env var 'TEST_B' is deprecated, use 'TEST_A' instead"},
+		},
+		{
+			caseName:     "env_deprecated_all_known_name",
+			envVars:      map[string]string{"TEST_A": "21", "TEST_B": "123", "TEST_D_E_F": "456"},
+			expectValue:  123,
+			expectSource: model.SourceEnvVar,
+			warnings:     []string{"env var 'TEST_B' is deprecated, use 'TEST_A' instead"},
+		},
+		{
+			caseName:     "env_and_config_new_in_env",
+			envVars:      map[string]string{"TEST_A": "123"},
+			config:       `b: 456`,
+			warnings:     []string{"setting 'b' is deprecated, use 'a' instead"},
+			expectValue:  123,
+			expectSource: model.SourceEnvVar,
+		},
+		{
+			caseName:     "env_and_config_old_in_env",
+			envVars:      map[string]string{"TEST_B": "123"},
+			config:       `a: 456`,
+			expectValue:  123,
+			expectSource: model.SourceEnvVar,
+			warnings:     []string{"env var 'TEST_B' is deprecated, use 'TEST_A' instead"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.caseName, func(t *testing.T) {
+			for name, val := range tc.envVars {
+				t.Setenv(name, val)
+			}
+
+			cfg := NewNodeTreeConfig("test", "TEST", nil)
+			cfg.BindEnvAndSetDefaultWithDeprecation("a", 1, []string{"b", "d.e.f"})
+			cfg.BuildSchema()
+
+			// the env vars bound for 'a' are the deprecated ones plus the official one, and nothing else
+			assert.Equal(t, []string{"TEST_A", "TEST_B", "TEST_D_E_F"}, cfg.GetEnvVars())
+
+			if tc.config != "" {
+				err := cfg.ReadConfig(strings.NewReader(tc.config))
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tc.expectValue, cfg.GetInt("a"))
+			assert.Equal(t, tc.expectSource, cfg.GetSource("a"))
+			assert.True(t, cfg.IsConfigured("a"))
+			assert.False(t, cfg.IsConfigured("b"))
+			assert.False(t, cfg.IsConfigured("d.e.f"))
+
+			assert.Equal(t, tc.warnings, cfg.Warnings())
+
+			assert.Equal(t,
+				map[string]interface{}{
+					"a": tc.expectValue,
+				},
+				cfg.AllSettings())
+			assert.Equal(t,
+				map[string]interface{}{
+					"a": tc.expectValue,
+				},
+				cfg.AllSettingsWithoutDefault())
+
+			assert.Equal(t,
+				[]string{"a"},
+				cfg.AllKeysLowercased())
+
+			flattened, _ := cfg.AllFlattenedSettingsWithSequenceID()
+			assert.Equal(t,
+				map[string]interface{}{"a": tc.expectValue},
+				flattened)
+		})
+	}
+}
+
+func TestDeprecationNestedMap(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefaultWithDeprecation("section.obj", map[string]string{}, []string{"old_obj"})
+	cfg.BuildSchema()
+
+	yamlConf := `
+old_obj:
+  a: test1
+  b: test2
+`
+	err := cfg.ReadConfig(strings.NewReader(yamlConf))
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]string{"a": "test1", "b": "test2"}, cfg.GetStringMapString("section.obj"))
+	assert.Equal(t, model.SourceFile, cfg.GetSource("section.obj"))
+	assert.True(t, cfg.IsConfigured("section.obj"))
+	assert.False(t, cfg.IsConfigured("old_obj"))
+
+	assert.Equal(t, []string{"setting 'old_obj' is deprecated, use 'section.obj' instead"}, cfg.Warnings())
+
+	assert.Equal(t,
+		map[string]interface{}{
+			"section": map[string]interface{}{
+				"obj": map[interface{}]interface{}{
+					"a": "test1",
+					"b": "test2",
+				},
+			},
+		},
+		cfg.AllSettings())
+	assert.Equal(t,
+		map[string]interface{}{
+			"section": map[string]interface{}{
+				"obj": map[interface{}]interface{}{
+					"a": "test1",
+					"b": "test2",
+				},
+			},
+		},
+		cfg.AllSettingsWithoutDefault())
+
+	assert.Equal(t,
+		[]string{"section.obj"},
+		cfg.AllKeysLowercased())
+
+	flattened, _ := cfg.AllFlattenedSettingsWithSequenceID()
+	assert.Equal(t,
+		map[string]interface{}{"section.obj": map[interface{}]interface{}{"a": "test1", "b": "test2"}},
+		flattened)
+}
+
+func TestDeprecationWithEnvVar(t *testing.T) {
+	t.Setenv("A", "a b c")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefaultWithDeprecation("section.obj", []string{}, []string{"old_obj"}, "A", "B")
+	cfg.BuildSchema()
+
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("section.obj"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("section.obj"))
+	assert.True(t, cfg.IsConfigured("section.obj"))
+	assert.False(t, cfg.IsConfigured("old_obj"))
+
+	assert.Equal(t, []string(nil), cfg.Warnings())
+
+	assert.Equal(t,
+		map[string]interface{}{
+			"section": map[string]interface{}{
+				"obj": []string{
+					"a",
+					"b",
+					"c",
+				},
+			},
+		},
+		cfg.AllSettings())
+
+	assert.Equal(t,
+		map[string]interface{}{
+			"section": map[string]interface{}{
+				"obj": []string{
+					"a",
+					"b",
+					"c",
+				},
+			},
+		},
+		cfg.AllSettingsWithoutDefault())
+
+	assert.Equal(t,
+		[]string{"section.obj"},
+		cfg.AllKeysLowercased())
+
+	flattened, _ := cfg.AllFlattenedSettingsWithSequenceID()
+	assert.Equal(t,
+		map[string]interface{}{"section.obj": []string{"a", "b", "c"}},
+		flattened)
+}
+
+func TestUnknownKeysWarning(t *testing.T) {
+	yaml := `
+a: 21
+aa: 21
+b:
+  c:
+    d: "test"
+`
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BuildSchema()
+	require.NoError(t, cfg.ReadConfig(strings.NewReader(yaml)))
+
+	res := cfg.Warnings()
+	slices.Sort(res)
+	assert.Equal(t,
+		[]string{
+			"unknown key from YAML: a",
+			"unknown key from YAML: aa",
+			"unknown key from YAML: b.c.d",
+		},
+		res)
+
+	cfg = NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.BuildSchema()
+	require.NoError(t, cfg.ReadConfig(strings.NewReader(yaml)))
+
+	res = cfg.Warnings()
+	slices.Sort(res)
+	assert.Equal(t,
+		[]string{
+			"unknown key from YAML: aa",
+			"unknown key from YAML: b.c.d",
+		},
+		res)
+
+	// testing that nested value are correctly detected
+	cfg = NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b.c", map[string]string{})
+	cfg.BuildSchema()
+	require.NoError(t, cfg.ReadConfig(strings.NewReader(yaml)))
+
+	res = cfg.Warnings()
+	slices.Sort(res)
+	assert.Equal(t,
+		[]string{
+			"unknown key from YAML: aa",
+		},
+		res)
 }
