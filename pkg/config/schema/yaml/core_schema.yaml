@@ -5522,11 +5522,12 @@ properties:
                 items:
                   type: string
                 comment: |-
-                  GKE AppSec callouts default to external-managed single-cluster GatewayClasses only.
-                  Internal (gke-l7-rilb / *-internal-managed) and classic (gke-l7-gxlb) classes are
-                  excluded because they do not support GCPTrafficExtension callouts.
-                  Multi-cluster -mc classes are excluded because they require a net.gke.io
-                  ServiceImport backendRef, which this reconciler does not emit. Override via this key.
+                  The default is the set of external-managed single-cluster GatewayClasses Datadog
+                  has tested, not the full set GKE supports: gke-l7-rilb also supports
+                  GCPTrafficExtension callouts, whereas classic gke-l7-gxlb does not.
+                  Multi-cluster classes (names ending in -mc) are always skipped, even when added
+                  here, because they require a net.gke.io ServiceImport backendRef which this
+                  reconciler does not emit. Override via this key to widen the tested set.
           processor:
             node_type: section
             type: object
