@@ -71,10 +71,96 @@ type fingerprinterImpl struct {
 	// ComputeFingerprint keys by scan key so distinct tailers on the same path
 	// (e.g. container rotation) do not share state. ComputeFingerprintFromConfig
 	// keys by path because the registry identifier has no container suffix. Those
-	// two keys differ for container sources, so the file launcher must forget both
-	// when it stops a tailer; otherwise the path key would outlive every tailer
-	// and the map would grow with container churn.
-	openFlagsUnsupported sync.Map
+	// two keys differ for container sources, so the file launcher forgets both
+	// when it stops a tailer. The bounded cache also covers candidate files that
+	// disappear or fail before the launcher can create and later stop a tailer.
+	openFlagsUnsupported openFlagsUnsupportedCache
+}
+
+const maxOpenFlagsUnsupportedEntries = 1024
+
+// openFlagsUnsupportedCache bounds fallback memoization so short-lived files
+// that never produce a tailer cannot grow the Agent's memory for its lifetime.
+// Entries are kept in insertion order; lifecycle cleanup removes active files,
+// and the oldest orphan is evicted if the cache reaches its limit.
+type openFlagsUnsupportedCache struct {
+	mu         sync.Mutex
+	maxEntries int
+	entries    map[string]struct{}
+	order      []string
+}
+
+func newOpenFlagsUnsupportedCache(maxEntries int) openFlagsUnsupportedCache {
+	if maxEntries <= 0 {
+		maxEntries = maxOpenFlagsUnsupportedEntries
+	}
+	return openFlagsUnsupportedCache{
+		maxEntries: maxEntries,
+		entries:    make(map[string]struct{}, maxEntries),
+		order:      make([]string, 0, maxEntries),
+	}
+}
+
+func (c *openFlagsUnsupportedCache) initializeLocked() {
+	if c.maxEntries <= 0 {
+		c.maxEntries = maxOpenFlagsUnsupportedEntries
+	}
+	if c.entries == nil {
+		c.entries = make(map[string]struct{}, c.maxEntries)
+	}
+}
+
+func (c *openFlagsUnsupportedCache) contains(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, found := c.entries[key]
+	return found
+}
+
+// add records key and reports whether it was newly added.
+func (c *openFlagsUnsupportedCache) add(key string) bool {
+	if key == "" {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.initializeLocked()
+	if _, found := c.entries[key]; found {
+		return false
+	}
+	if len(c.entries) >= c.maxEntries {
+		oldest := c.order[0]
+		c.order[0] = ""
+		c.order = c.order[1:]
+		delete(c.entries, oldest)
+	}
+	c.entries[key] = struct{}{}
+	c.order = append(c.order, key)
+	return true
+}
+
+func (c *openFlagsUnsupportedCache) delete(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, found := c.entries[key]; !found {
+		return
+	}
+	delete(c.entries, key)
+	for i, cachedKey := range c.order {
+		if cachedKey != key {
+			continue
+		}
+		copy(c.order[i:], c.order[i+1:])
+		c.order[len(c.order)-1] = ""
+		c.order = c.order[:len(c.order)-1]
+		return
+	}
+}
+
+func (c *openFlagsUnsupportedCache) len() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.entries)
 }
 
 // FingerprintConfigInfo holds fingerprint configuration for status display
@@ -85,8 +171,9 @@ type FingerprintConfigInfo struct {
 // NewFingerprinter creates a new Fingerprinter with the given configuration
 func NewFingerprinter(fingerprintConfig types.FingerprintConfig, opener opener.FileOpener) Fingerprinter {
 	return &fingerprinterImpl{
-		globalConfig: fingerprintConfig,
-		fileOpener:   opener,
+		globalConfig:         fingerprintConfig,
+		fileOpener:           opener,
+		openFlagsUnsupported: newOpenFlagsUnsupportedCache(maxOpenFlagsUnsupportedEntries),
 	}
 }
 
@@ -221,7 +308,7 @@ func (f *fingerprinterImpl) computeFingerprintWithMemoKey(memoKey, openPath stri
 	openFlags := fingerprintConfig.OpenFlags
 	useOpenFlags := fingerprintOpenFlagsActive(openFlags)
 	if useOpenFlags {
-		if _, unsupported := f.openFlagsUnsupported.Load(memoKey); unsupported {
+		if f.openFlagsUnsupported.contains(memoKey) {
 			// The configured open_flags already proved unusable for this tailer; skip
 			// the doomed flagged open and read buffered.
 			useOpenFlags = false
@@ -238,7 +325,7 @@ func (f *fingerprinterImpl) computeFingerprintWithMemoKey(memoKey, openPath stri
 		return fingerprint, err
 	}
 
-	if _, loaded := f.openFlagsUnsupported.LoadOrStore(memoKey, struct{}{}); !loaded {
+	if f.openFlagsUnsupported.add(memoKey) {
 		// Applies when a filesystem rejects the flags or the Agent cannot open the
 		// file directly with them; keep the wording about the cause neutral.
 		log.Warnf(
@@ -347,7 +434,9 @@ func computeFingerPrintByLines(fpFile afero.File, filePath string, fingerprintCo
 					log.Warnf("Error %s occurred while trying to reset file offset", err)
 					return newInvalidFingerprint(fingerprintConfig), err
 				}
-				return computeFingerPrintByBytes(fpFile, filePath, defaultBytesConfig, appliedOpenFlags)
+				fallbackConfig := *defaultBytesConfig
+				fallbackConfig.OpenFlags = append([]types.FileOpenFlag(nil), fingerprintConfig.OpenFlags...)
+				return computeFingerPrintByBytes(fpFile, filePath, &fallbackConfig, appliedOpenFlags)
 			}
 			// Handle scanner errors
 			if err := scanner.Err(); err != nil {
@@ -384,7 +473,7 @@ func (f *fingerprinterImpl) ForgetOpenFlagsUnsupported(memoKeys ...string) {
 		if memoKey == "" {
 			continue
 		}
-		f.openFlagsUnsupported.Delete(memoKey)
+		f.openFlagsUnsupported.delete(memoKey)
 	}
 }
 

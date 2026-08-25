@@ -1627,6 +1627,50 @@ func TestFingerprintOpenFlagsAreForwarded(t *testing.T) {
 	require.Equal(t, openFlags, fingerprint.Config.OpenFlags)
 }
 
+func TestLineFingerprintByteFallbackPreservesOpenFlags(t *testing.T) {
+	const path = "/logs/application.log"
+	requestedFlags := []types.FileOpenFlag{types.FileOpenFlagDirect}
+
+	// A line longer than MaxBytes forces line_checksum to fall back to the
+	// default byte strategy. The fallback fingerprint is stored in the registry,
+	// so it must retain the requested flags for position recovery after restart.
+	content := []byte(strings.Repeat("x", 2048))
+	mockOpener := opener.NewMockFileOpener()
+	// The mock advances by read call rather than honoring Seek, so provide the
+	// same bytes again for the byte fallback after it rewinds the descriptor.
+	mockOpener.AddMockFile(opener.NewMockFile(path, [][]byte{content, content}))
+	fingerprinter := NewFingerprinter(types.FingerprintConfig{FingerprintStrategy: types.FingerprintStrategyDisabled}, mockOpener)
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type: config.FileType,
+		Path: path,
+		FingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+			Count:               2,
+			MaxBytes:            1024,
+			OpenFlags:           requestedFlags,
+		},
+	})
+
+	fingerprint, err := fingerprinter.ComputeFingerprint(NewFile(path, source, false))
+	require.NoError(t, err)
+	require.True(t, fingerprint.ValidFingerprint())
+	require.Equal(t, types.FingerprintStrategyByteChecksum, fingerprint.Config.FingerprintStrategy)
+	require.Equal(t, requestedFlags, fingerprint.Config.OpenFlags)
+
+	// Position recovery fingerprints by the config stored with the prior
+	// fingerprint. Prove that the fallback config still requests a direct open.
+	recoveryOpener := opener.NewMockFileOpener()
+	recoveryOpener.AddMockFile(opener.NewMockFile(path, [][]byte{content[:types.DefaultBytesCount]}))
+	recoveryFingerprinter := NewFingerprinter(types.FingerprintConfig{FingerprintStrategy: types.FingerprintStrategyDisabled}, recoveryOpener)
+	_, err = recoveryFingerprinter.ComputeFingerprintFromConfig(path, fingerprint.Config)
+	require.NoError(t, err)
+	if runtime.GOOS == "linux" {
+		require.Equal(t, [][]types.FileOpenFlag{requestedFlags}, recoveryOpener.OpenCalls)
+	} else {
+		require.Equal(t, [][]types.FileOpenFlag{nil}, recoveryOpener.OpenCalls, "non-Linux must use OpenLogFile")
+	}
+}
+
 func TestFingerprintUsesBufferedOpenOutsideLinux(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		t.Skip("test covers non-Linux portable open_flags config")
@@ -1894,6 +1938,26 @@ func TestForgetOpenFlagsUnsupportedScopedToScanKey(t *testing.T) {
 		nil,
 	}, mockOpener.OpenCalls,
 		"forgetting one scan key must not clear memoization for another tailer on the same path")
+}
+
+func TestOpenFlagsUnsupportedCacheIsBounded(t *testing.T) {
+	cache := newOpenFlagsUnsupportedCache(2)
+
+	require.True(t, cache.add("first"))
+	require.True(t, cache.add("second"))
+	require.False(t, cache.add("second"), "adding an existing key should keep the original entry")
+	require.True(t, cache.contains("first"))
+	require.Equal(t, 2, cache.len())
+
+	require.True(t, cache.add("third"))
+	require.False(t, cache.contains("first"), "the oldest entry should be evicted at capacity")
+	require.True(t, cache.contains("second"))
+	require.True(t, cache.contains("third"))
+	require.Equal(t, 2, cache.len())
+
+	cache.delete("second")
+	require.False(t, cache.contains("second"))
+	require.Equal(t, 1, cache.len())
 }
 
 // TestDefaultConfigsHaveSource tests that default fallback configs have Source set
