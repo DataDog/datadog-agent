@@ -552,10 +552,7 @@ fn token_profile_env_vars(token: HANDLE) -> HashMap<String, String> {
     if let Ok(Some(userprofile)) = user_profile_directory_for_token(token) {
         vars.insert("USERPROFILE".to_string(), userprofile);
     }
-    for (key, pattern) in [
-        ("LOCALAPPDATA", "%LOCALAPPDATA%"),
-        ("APPDATA", "%APPDATA%"),
-    ] {
+    for (key, pattern) in [("LOCALAPPDATA", "%LOCALAPPDATA%"), ("APPDATA", "%APPDATA%")] {
         if let Ok(Some(value)) = expand_environment_string_for_user(token, pattern)
             && !value.is_empty()
         {
