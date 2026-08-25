@@ -78,7 +78,7 @@ func BenchmarkMetricFilterV1Rules(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				decision := prepareMetricIngest("check", sample, filter)
+				decision := prepareMetricIngest("check", checkNamespaceSeed, 1, sample, filter)
 				if gotRejected := decision.metric == nil; gotRejected != tc.wantRejected {
 					b.Fatalf("rejected=%t, want %t", gotRejected, tc.wantRejected)
 				}
@@ -98,7 +98,7 @@ func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
 		telemetry: newObserverTelemetry(telemetryComp),
 	}
 	sample := highLoadMetric("kubernetes.pod.count")
-	if h.ObserveMetricAndReportDrop(sample) {
+	if h.ObserveMetricAndReportDrop(sample, 1) {
 		b.Fatal("expected metric to be rejected by processing rules")
 	}
 
@@ -107,7 +107,7 @@ func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if h.ObserveMetricAndReportDrop(sample) {
+			if h.ObserveMetricAndReportDrop(sample, 1) {
 				panic("expected metric to be rejected by processing rules")
 			}
 		}

@@ -22,7 +22,7 @@ import (
 type Handle interface {
 	// ObserveMetric observes a DogStatsD metric sample.
 	// contextKey is the fully resolved aggregator ContextKey for this sample.
-	ObserveMetric(sample MetricView, contextKey ...uint64)
+	ObserveMetric(sample MetricView, contextKey uint64)
 
 	// ObserveLog observes a log message.
 	ObserveLog(msg LogView)

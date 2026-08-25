@@ -70,13 +70,13 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
-	}), "ObserveMetricAndReportDrop should report true when dropped by configuration (signals recorder to write Dropped=true)")
+	}, 1), "ObserveMetricAndReportDrop should report true when dropped by configuration (signals recorder to write Dropped=true)")
 
 	drop.ObserveMetric(&metricObs{
 		name:      "system.mem.used",
 		value:     1024,
 		timestamp: 1000,
-	})
+	}, 1)
 
 	drop.ObserveLog(&logObs{
 		content:     "Request failed with unexpected error",
@@ -135,17 +135,17 @@ func TestInternalAgentMetricsAreIngestedAndObserverTelemetryIsDropped(t *testing
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
-	})
+	}, 1)
 	h.ObserveMetric(&metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
-	})
+	}, 2)
 	h.ObserveMetric(&metricObs{
 		name:      observerTelemetryMetricPrefix + "metrics.filtered",
 		value:     1,
 		timestamp: 1000,
-	})
+	}, 3)
 
 	stopFn()
 
@@ -171,17 +171,17 @@ func TestIngestMetricSyncAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *
 		metricFilter: defaultFilter,
 	}
 
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.IngestMetricSync("dogstatsd", 1, &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.IngestMetricSync("dogstatsd", 2, &metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.IngestMetricSync("dogstatsd", 3, &metricObs{
 		name:      observerTelemetryMetricPrefix + "metrics.filtered",
 		value:     1,
 		timestamp: 1000,
@@ -201,10 +201,10 @@ func TestMetricDropHandle(t *testing.T) {
 	inner := &countingHandle{}
 	wrap := &metricDropHandle{inner: inner}
 
-	wrap.ObserveMetric(&sampleNoSource{name: "any.metric"})
+	wrap.ObserveMetric(&sampleNoSource{name: "any.metric"}, 1)
 	assert.Equal(t, 0, inner.received,
 		"metricDropHandle: inner.received = %d, want 0 (ObserveMetric/Trace/TraceStats must be dropped)", inner.received)
-	assert.True(t, wrap.ObserveMetricAndReportDrop(&sampleNoSource{name: "any.metric"}),
+	assert.True(t, wrap.ObserveMetricAndReportDrop(&sampleNoSource{name: "any.metric"}, 1),
 		"ObserveMetricAndReportDrop reports true (config drop) so recordingHandle writes Dropped=true")
 
 	wrap.ObserveLog(&logObs{content: "hi", timestampMs: 1})

@@ -787,8 +787,8 @@ type metricDropHandle struct{ inner observerdef.Handle }
 
 var _ observerdef.Handle = (*metricDropHandle)(nil)
 
-func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView, _ ...uint64) {}
-func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ ...uint64) bool {
+func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
+func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ uint64) bool {
 	return true
 }
 func (m *metricDropHandle) ObserveLog(msg observerdef.LogView) { m.inner.ObserveLog(msg) }
@@ -802,8 +802,8 @@ func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
 // noopObserveHandle discards all observations.
 type noopObserveHandle struct{}
 
-func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView, _ ...uint64) {}
-func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ ...uint64) bool {
+func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
+func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ uint64) bool {
 	return false
 }
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
@@ -1093,19 +1093,7 @@ type metricIngestDecision struct {
 	metric *metricObs
 }
 
-func prepareMetricIngest(source string, args ...interface{}) metricIngestDecision {
-	var namespaceSeed, contextKey uint64
-	var sample observerdef.MetricView
-	var filter *metricsFilterRules
-	if len(args) == 2 {
-		sample, _ = args[0].(observerdef.MetricView)
-		filter, _ = args[1].(*metricsFilterRules)
-	} else {
-		namespaceSeed = uint64Arg(args[0])
-		contextKey = uint64Arg(args[1])
-		sample, _ = args[2].(observerdef.MetricView)
-		filter, _ = args[3].(*metricsFilterRules)
-	}
+func prepareMetricIngest(source string, namespaceSeed, contextKey uint64, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
 	normalizedSource := normalizeMetricSource(name, source)
 	precheck := filter.precheck(name, normalizedSource)
@@ -1141,29 +1129,10 @@ func prepareMetricIngest(source string, args ...interface{}) metricIngestDecisio
 	}
 }
 
-func uint64Arg(value interface{}) uint64 {
-	switch value := value.(type) {
-	case uint64:
-		return value
-	case int:
-		return uint64(value)
-	default:
-		return 0
-	}
-}
-
 // IngestMetricSync feeds a metric directly into the engine, bypassing the
 // dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
 // the non-blocking channel send. Implements DebugView.
-func (o *observerImpl) IngestMetricSync(source string, args ...interface{}) {
-	var contextKey uint64
-	var sample observerdef.MetricView
-	if len(args) == 1 {
-		sample, _ = args[0].(observerdef.MetricView)
-	} else {
-		contextKey = uint64Arg(args[0])
-		sample, _ = args[1].(observerdef.MetricView)
-	}
+func (o *observerImpl) IngestMetricSync(source string, contextKey uint64, sample observerdef.MetricView) {
 	decision := prepareMetricIngest(source, newNamespaceSeed(source), contextKey, sample, o.metricFilter)
 	if decision.metric == nil {
 		if o.telemetry != nil && decision.source != "" {
@@ -1206,19 +1175,15 @@ type handle struct {
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
-func (h *handle) ObserveMetric(sample observerdef.MetricView, contextKeys ...uint64) {
-	_ = h.ObserveMetricAndReportDrop(sample, contextKeys...)
+func (h *handle) ObserveMetric(sample observerdef.MetricView, contextKey uint64) {
+	_ = h.ObserveMetricAndReportDrop(sample, contextKey)
 }
 
 // ObserveMetricAndReportDrop observes a metric and reports whether this
 // specific call was dropped by observer backpressure (channel full).
 // Metrics rejected by processing rules are counted via telemetry but do not
 // report a channel drop.
-func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView, contextKeys ...uint64) bool {
-	var contextKey uint64
-	if len(contextKeys) > 0 {
-		contextKey = contextKeys[0]
-	}
+func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView, contextKey uint64) bool {
 	decision := prepareMetricIngest(h.source, h.namespaceSeed, contextKey, sample, h.filter)
 	if decision.metric == nil {
 		if h.telemetry != nil && decision.source != "" {
