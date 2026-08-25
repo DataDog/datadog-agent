@@ -5,11 +5,21 @@
 #include "helpers/approvers.h"
 #include "helpers/process.h"
 #include "helpers/span_fill.h"
+#include "helpers/span_otel.h"
 #include "helpers/syscalls.h"
 #include "helpers/strings.h"
 #include <linux/prctl.h>
 
-long __attribute__((always_inline)) trace__sys_prctl(void *ctx, u8 async, int option, void * arg2) {
+long __attribute__((always_inline)) trace__sys_prctl(void *ctx, u8 async, int option, void *arg2, const char *arg5) {
+    // Unrelated to the prctl event, and ahead of everything it needs: a process
+    // naming an anonymous mapping OTEL_CTX is publishing its OTel process context.
+    handle_otel_process_ctx_naming(ctx, option, (unsigned long)arg2, arg5);
+
+    // Early return if the probe was attach for the process context notification.
+    if (!is_event_enabled(EVENT_PRCTL)) {
+        return 0;
+    }
+
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -74,8 +84,9 @@ int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
     return sys_prctl_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
-HOOK_SYSCALL_ENTRY2(prctl, int, option, void *, arg2) {
-    return trace__sys_prctl(ctx, SYNC_SYSCALL, option, arg2);
+// arg5 is the name of the mapping
+HOOK_SYSCALL_ENTRY5(prctl, int, option, void *, arg2, unsigned long, arg3, unsigned long, arg4, const char *, arg5) {
+    return trace__sys_prctl(ctx, SYNC_SYSCALL, option, arg2, arg5);
 }
 
 HOOK_SYSCALL_EXIT(prctl) {

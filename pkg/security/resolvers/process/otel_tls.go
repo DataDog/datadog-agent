@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
 
+	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
@@ -38,25 +39,18 @@ const (
 	// Rust, Java/JNI, ...).
 	otelRuntimeNative uint32 = 0
 
-	// otelRuntimeGolang is the Go runtime, which carries thread-level context
-	// in pprof labels instead.
+	// otelRuntimeGolang is the Go runtime, which carries thread-level context in
+	// pprof labels instead. Never registered: a Go process publishes a process
+	// context like any other, but exports no thread-local for this to read, so it
+	// resolves to nothing and the pprof label reader has it. Kept as the mirror of
+	// OTEL_RUNTIME_GOLANG in pkg/security/ebpf/c/include/constants/enums.h.
+	//nolint:unused
 	otelRuntimeGolang uint32 = 1
 )
 
 // otelTLSValueSize is the serialized size of struct otel_tls_t in
 // pkg/security/ebpf/c/include/structs/span_context.h.
 const otelTLSValueSize = 32
-
-// mapTracerLanguageToRuntime maps a TracerMetadata language to the
-// otel_runtime_language enum.
-func mapTracerLanguageToRuntime(tracerLanguage string) uint32 {
-	switch tracerLanguage {
-	case "go":
-		return otelRuntimeGolang
-	default:
-		return otelRuntimeNative
-	}
-}
 
 // otelDTVInfo describes how to walk the Dynamic Thread Vector (DTV) for a
 // process's libc. The signed fields here and in otelTLSResolution must stay
@@ -82,6 +76,9 @@ type otelTLSResolution struct {
 	tlsOffset int64
 	// dtvInfo locates the DTV for dynamic TLS (unused when moduleID == 0).
 	dtvInfo otelDTVInfo
+	// attributeKeys is used to name the attribute in the thread context record.
+	// This is used to fill Tracer.Metadata.ThreadlocalAttributeKeys
+	attributeKeys []string
 }
 
 // serializeOTelTLSValue serializes res as struct otel_tls_t.
@@ -118,6 +115,8 @@ type otelTargetProcess struct {
 	mapsOrder   []string
 	mapsErr     error
 	mapsDone    bool
+	// procCtxAddr is the address of the OTel process context header
+	procCtxAddr uint64
 }
 
 // resolveOTelTLS prepares the OTel TLS lookup metadata for a process: classify
@@ -126,16 +125,19 @@ type otelTargetProcess struct {
 // live process (attachOTelTLS). Mirrors the loader/attach split of DataDog's
 // opentelemetry-ebpf-profiler fork (PR #1229), collapsed into one call since
 // the target here is always already running.
-func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error) {
-	runtimeLang := mapTracerLanguageToRuntime(tracerLanguage)
-	if runtimeLang == otelRuntimeGolang {
-		return otelTLSResolution{runtimeLang: runtimeLang}, nil
-	}
-
+func resolveOTelTLS(pid uint32) (otelTLSResolution, error) {
 	target, err := openOTelTargetProcess(pid)
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
+
+	// What a process publishes about itself is what makes it worth resolving,
+	// and where the names of its records' attribute indexes come from.
+	procCtx, err := target.processContext()
+	if err != nil {
+		return otelTLSResolution{}, err
+	}
+	attributeKeys, _ := procCtx.Attributes.StringSlice(otelprocessctx.KeyAttributeKeyMap)
 
 	module, sym, err := target.findOTelTLSModule()
 	if err != nil {
@@ -165,8 +167,32 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
-	res.runtimeLang = runtimeLang
+	res.runtimeLang = otelRuntimeNative
+	res.attributeKeys = attributeKeys
 	return res, nil
+}
+
+// processContext reads the OTel process context of the target, which the maps
+// parse the module lookup does anyway has already located.
+func (p *otelTargetProcess) processContext() (otelprocessctx.ProcessContext, error) {
+	if _, _, err := p.groupedReadableFileMaps(); err != nil {
+		return otelprocessctx.ProcessContext{}, err
+	}
+	if p.procCtxAddr == 0 {
+		return otelprocessctx.ProcessContext{}, fmt.Errorf("process %d publishes no OTel process context", p.pid)
+	}
+
+	mem, err := procfs.OpenMem(p.pid)
+	if err != nil {
+		return otelprocessctx.ProcessContext{}, err
+	}
+	defer mem.Close()
+
+	procCtx, err := otelprocessctx.Read(mem, p.procCtxAddr)
+	if err != nil {
+		return otelprocessctx.ProcessContext{}, err
+	}
+	return procCtx, nil
 }
 
 func openOTelTargetProcess(pid uint32) (*otelTargetProcess, error) {
@@ -228,6 +254,11 @@ func (p *otelTargetProcess) computeGroupedReadableFileMaps() (map[string][]procf
 	var order []string
 	seen := make(map[string]struct{})
 	for _, entry := range entries {
+		// Since we're already parsing the maps here, set the procCtxAddr
+		if p.procCtxAddr == 0 && otelprocessctx.IsMappingName(entry.Pathname) {
+			p.procCtxAddr = entry.StartAddr
+		}
+
 		path, ok := otelReadableFileMappingPath(entry)
 		if !ok {
 			continue

@@ -1122,7 +1122,7 @@ func TestOTelSpan(t *testing.T) {
 						switch event.Open.File.PathnameStr {
 						case readyFile:
 							validateProcessContext(t, event)
-							ebpfProbe.Resolvers.ProcessResolver.SnapshotTracer(event.PIDContext.Pid)
+							ebpfProbe.Resolvers.ProcessResolver.ResolveOTelProcessContext(event.PIDContext.Pid)
 							releaseCommand()
 							return errSkipEvent
 						case testFile:

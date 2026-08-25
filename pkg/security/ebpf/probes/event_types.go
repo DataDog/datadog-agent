@@ -761,6 +761,10 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		"prctl": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, EntryAndExit)},
 		},
+		// Process context also uses the prctl syscall to notify userspace that we should try to resolve the given PID
+		"otel_process_ctx": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, Entry)},
+		},
 		"tracer_memfd_seal": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "memfd_create", hasFentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
