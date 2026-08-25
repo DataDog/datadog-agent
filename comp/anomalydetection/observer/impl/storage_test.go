@@ -804,6 +804,26 @@ func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	require.ElementsMatch(t, []observer.SeriesRef{resA.Ref, resB.Ref}, refs)
 }
 
+func TestTimeSeriesStorage_AddWithSeriesKeyHashCollisionGuard(t *testing.T) {
+	s := newTimeSeriesStorage()
+	sharedHash := uint64(42)
+	first := s.AddWithSeriesKeyHash("check", sharedHash, "metric", 1, 1, nil)
+	second := s.AddWithSeriesKeyHash("dogstatsd", sharedHash, "metric", 2, 1, nil)
+
+	assert.NotEqual(t, first.Ref, second.Ref)
+	assert.Len(t, s.ListSeries(observer.SeriesFilter{}), 2)
+}
+
+func TestNamespacedContextKey(t *testing.T) {
+	const contextKey = uint64(0x123456789abcdef0)
+	const checkNamespace = uint64(0x1111111111111111)
+	const dogstatsdNamespace = uint64(0x2222222222222222)
+
+	assert.Equal(t, namespacedContextKey(checkNamespace, contextKey), namespacedContextKey(checkNamespace, contextKey))
+	assert.NotEqual(t, namespacedContextKey(checkNamespace, contextKey), namespacedContextKey(dogstatsdNamespace, contextKey))
+	assert.NotEqual(t, namespacedContextKey(checkNamespace, contextKey), namespacedContextKey(checkNamespace, contextKey+1))
+}
+
 func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	s := newTimeSeriesStorage()
 	s.Add("ns", "a", 1.0, 1000, nil)
