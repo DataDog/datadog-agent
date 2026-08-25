@@ -49,6 +49,23 @@ type APIFakeIntakeRouteStatsGETResponse struct {
 	Routes map[string]RouteStat `json:"routes"`
 }
 
+// PAREnqueueTaskRequest describes a task queued by the PAR test control API.
+type PAREnqueueTaskRequest struct {
+	TaskID    string                 `json:"task_id"`
+	ActionFQN string                 `json:"action_fqn"`
+	Inputs    map[string]interface{} `json:"inputs"`
+	Signing   *PARTaskSigning        `json:"signing,omitempty"`
+}
+
+// PARTaskSigning configures a real signed task envelope for deployed verification tests.
+type PARTaskSigning struct {
+	KeyID        string `json:"key_id"`
+	PrivateKey   []byte `json:"private_key"`
+	OrgID        int64  `json:"org_id"`
+	RunnerID     string `json:"runner_id"`
+	ConnectionID string `json:"connection_id"`
+}
+
 // PARTaskResult captures what the Private Action Runner published for a completed task.
 type PARTaskResult struct {
 	TaskID       string                 `json:"task_id"`
@@ -94,6 +111,11 @@ type RCApplyState struct {
 	Version    uint64 `json:"version"`
 	ApplyState uint64 `json:"apply_state"`
 	ApplyError string `json:"apply_error"`
+}
+
+// RCSetExpirationRequest controls the expiry of generated non-root TUF metadata.
+type RCSetExpirationRequest struct {
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // RCStats is returned by GET /fakeintake/rc/stats.
