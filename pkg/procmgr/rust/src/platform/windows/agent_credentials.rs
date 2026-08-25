@@ -6,13 +6,6 @@
 use anyhow::{Context, Result, bail};
 #[cfg(not(test))]
 use log::info;
-#[cfg(not(test))]
-use std::ptr;
-#[cfg(not(test))]
-use windows_sys::Win32::Security::Authentication::Identity::{
-    LSA_HANDLE, LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LsaClose, LsaFreeMemory, LsaOpenPolicy,
-    LsaRetrievePrivateData, POLICY_GET_PRIVATE_INFORMATION,
-};
 use windows_sys::Win32::Security::{
     IsWellKnownSid, WinLocalServiceSid, WinLocalSystemSid, WinNetworkServiceSid,
 };
@@ -26,16 +19,12 @@ use super::local_account::is_local_account;
 use super::managed_service_account::ManagedServiceAccountState;
 #[cfg(not(test))]
 use super::managed_service_account::query_managed_service_account;
-use super::sid::lookup_account_sid;
 #[cfg(not(test))]
-use super::wide;
+use super::scm_lsa_secret::read_scm_service_password;
+use super::sid::lookup_account_sid;
 #[cfg(not(test))]
 use super::{open_datadog_agent_key, registry_nonempty_string};
 
-#[cfg(not(test))]
-const SCM_SERVICE_PASSWORD_LSA_PREFIX: &str = "_SC_";
-#[cfg(not(test))]
-const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 const NT_AUTHORITY: &str = "NT AUTHORITY";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -335,13 +324,13 @@ fn agent_password_from_sources(
 
 #[cfg(not(test))]
 fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
-    // dd-procmgrd runs as LocalSystem. Installer L$ secrets are administrator-only, so use the
-    // SCM-stored datadogagent password (_SC_datadogagent) instead.
+    // dd-procmgrd runs as LocalSystem. Read the SCM-stored datadogagent password via a
+    // temporary LSA secret copy: direct LsaRetrievePrivateData on _SC_* names returns
+    // STATUS_ACCESS_DENIED even for SYSTEM.
     let scm_service_matches_agent =
         service_runs_as_agent_user(DATADOG_AGENT_SERVICE, domain, user)?;
     let scm_password = if scm_service_matches_agent {
-        let scm_key = format!("{SCM_SERVICE_PASSWORD_LSA_PREFIX}{DATADOG_AGENT_SERVICE}");
-        read_lsa_private_data(&scm_key)?
+        read_scm_service_password(DATADOG_AGENT_SERVICE)?
     } else {
         None
     };
@@ -356,72 +345,6 @@ fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
         scm_password.as_deref(),
         scm_service_matches_agent,
     ))
-}
-
-#[cfg(not(test))]
-fn read_lsa_private_data(key: &str) -> Result<Option<String>> {
-    let mut key_w = wide::null_terminated(key);
-    let key_len = key_w.len().saturating_sub(1);
-    let key_name = LSA_UNICODE_STRING {
-        Length: (key_len * 2) as u16,
-        MaximumLength: (key_w.len() * 2) as u16,
-        Buffer: key_w.as_mut_ptr(),
-    };
-
-    unsafe {
-        let object_attributes: LSA_OBJECT_ATTRIBUTES = std::mem::zeroed();
-        let mut policy_handle: LSA_HANDLE = 0;
-
-        let status = LsaOpenPolicy(
-            ptr::null(),
-            &object_attributes,
-            POLICY_GET_PRIVATE_INFORMATION as u32,
-            &mut policy_handle,
-        );
-        if status != 0 {
-            bail!("LsaOpenPolicy: NTSTATUS {status:#010x}");
-        }
-
-        let policy = PolicyHandle(policy_handle);
-        let mut secret: *mut LSA_UNICODE_STRING = ptr::null_mut();
-        let status = LsaRetrievePrivateData(policy.0, &key_name, &mut secret);
-
-        if status == STATUS_OBJECT_NAME_NOT_FOUND {
-            return Ok(None);
-        }
-        if status != 0 {
-            bail!("LsaRetrievePrivateData({key}): NTSTATUS {status:#010x}");
-        }
-        if secret.is_null() {
-            return Ok(None);
-        }
-
-        let secret_ref = &*secret;
-        let char_count = secret_ref.Length as usize / 2;
-        let password = if char_count == 0 {
-            String::new()
-        } else {
-            let slice = std::slice::from_raw_parts(secret_ref.Buffer, char_count);
-            String::from_utf16_lossy(slice)
-        };
-
-        LsaFreeMemory(secret as _);
-        Ok(Some(password))
-    }
-}
-
-#[cfg(not(test))]
-struct PolicyHandle(LSA_HANDLE);
-
-#[cfg(not(test))]
-impl Drop for PolicyHandle {
-    fn drop(&mut self) {
-        if self.0 != 0 {
-            unsafe {
-                LsaClose(self.0);
-            }
-        }
-    }
 }
 
 #[cfg(test)]
