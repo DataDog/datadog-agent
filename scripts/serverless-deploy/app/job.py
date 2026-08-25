@@ -2,6 +2,7 @@
 Minimal Cloud Run Job workload.
 Prints a JSON status line and exits so serverless-init can flush telemetry cleanly.
 """
+
 import json
 import os
 import sys

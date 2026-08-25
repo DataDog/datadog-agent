@@ -231,7 +231,7 @@ func parentResourceIDFromTags(origin string, tags map[string]string) string {
 // report. resource_id is the canonical revision CCRID for revision-capable
 // workloads; deployment_id keeps the provider's short revision name available
 // for display and diagnostics.
-func deploymentIDFromOriginAndTags(origin string, tags map[string]string) string {
+func deploymentIDFromOriginAndTags(origin string, _ map[string]string) string {
 	switch origin {
 	case cloudservice.CloudRunOrigin:
 		return firstEnv("K_REVISION")
