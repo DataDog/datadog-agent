@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"sort"
 	"sync"
 	"time"
 
@@ -417,6 +418,9 @@ func (ra *remoteAgentRegistry) ListCommands(ctx context.Context) []*pb.CommandPr
 	for _, target := range active {
 		providers = append(providers, target.provider)
 	}
+	sort.Slice(providers, func(i, j int) bool {
+		return providers[i].GetName() < providers[j].GetName()
+	})
 	return providers
 }
 
