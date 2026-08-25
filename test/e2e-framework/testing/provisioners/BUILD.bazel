@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "provisioners",
@@ -16,4 +17,11 @@ go_library(
         "//test/e2e-framework/testing/utils/infra",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
+)
+
+dd_agent_go_test(
+    name = "provisioners_test",
+    srcs = ["pulumi_provisioner_test.go"],
+    embed = [":provisioners"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

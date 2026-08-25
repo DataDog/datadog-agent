@@ -30,7 +30,15 @@ load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("@dd_release_json//:release_json.bzl", "release_json")
 load("@rules_go//go:def.bzl", "go_binary")
 load("//tasks:agent_payload_version.bzl", "AGENT_PAYLOAD_VERSION")
-load("//tasks:build_tags.bzl", "COMMON_TAGS", "DARWIN_EXCLUDED_TAGS", "FIPS_TAGS", "LINUX_ONLY_TAGS", "WINDOWS_EXCLUDED_TAGS")
+load(
+    "//tasks:build_tags.bzl",
+    "COMMON_TAGS",
+    "DARWIN_EXCLUDED_TAGS",
+    "FIPS_TAGS",
+    "LINUX_ONLY_TAGS",
+    "WINDOWS_EXCLUDED_TAGS",
+    "WINDOWS_INCLUDED_TAGS",
+)
 
 _REPO = "github.com/DataDog/datadog-agent"
 _VERSION_PKG = _REPO + "/pkg/version"
@@ -149,8 +157,8 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
         kwargs["gotags"] = select({
             "@platforms//os:macos": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
             "//packages/agent:linux_fips": sorted(COMMON_TAGS | gotags | FIPS_TAGS),
-            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
-            "//:windows_x86_64": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//:windows_x86_64": sorted((COMMON_TAGS | gotags | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
             "//conditions:default": sorted(COMMON_TAGS | gotags),
         })
 

@@ -146,26 +146,6 @@ func TestGetEnvVarsBindings(t *testing.T) {
 		assert.Contains(t, conf.GetEnvVars(), "MYAPP_PORT", "should apply EnvPrefix")
 	})
 
-	t.Run("With EnvKeyReplacer", func(t *testing.T) {
-		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnvAndSetDefault("log.level", "")
-		})
-
-		// Default prefix is "DD" when initializing the config
-		assert.Contains(t, conf.GetEnvVars(), "DD_LOG_LEVEL", "should apply EnvKeyReplacer")
-	})
-
-	t.Run("With EnvPrefix and EnvKeyReplacer", func(t *testing.T) {
-		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetEnvPrefix("MYAPP")
-			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnvAndSetDefault("db.connection.url", "")
-		})
-
-		assert.Contains(t, conf.GetEnvVars(), "MYAPP_DB_CONNECTION_URL", "should apply prefix and replacer")
-	})
-
 	t.Run("Adding an unknown setting in the yaml", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetDefault("HOST", "localhost")

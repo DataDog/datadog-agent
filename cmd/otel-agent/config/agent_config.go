@@ -105,7 +105,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
-	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	pkgconfig.BindEnvAndSetDefault("log_level", "info")
 
 	pkgconfigsetup.InitConfig(pkgconfig)
