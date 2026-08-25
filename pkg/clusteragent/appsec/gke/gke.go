@@ -58,8 +58,8 @@ func (g *gkeGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) er
 	if g.config.Processor.ServiceName == "" {
 		return stdErrors.New("processor service name is required for gke-gateway proxy type but is not configured")
 	}
-	if g.config.Processor.Port <= 0 {
-		return fmt.Errorf("processor port must be positive for gke-gateway proxy type, got: %d", g.config.Processor.Port)
+	if g.config.Processor.Port <= 0 || g.config.Processor.Port > 65535 {
+		return fmt.Errorf("processor port must be between 1 and 65535, got: %d", g.config.Processor.Port)
 	}
 
 	_, err := g.client.Resource(crdGVR).Get(ctx, gcpTrafficExtensionCRDName, metav1.GetOptions{})

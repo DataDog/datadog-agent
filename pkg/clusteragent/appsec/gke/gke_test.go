@@ -319,11 +319,15 @@ func TestIsInjectionPossible_returnsError_whenConfigurationOrCRDIsInvalid(t *tes
 		{name: "zero processor port", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.Port = 0; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
 			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
 			require.NoError(t, err)
-		}, wantErrSub: "processor port must be positive"},
+		}, wantErrSub: "processor port must be between 1 and 65535"},
 		{name: "negative processor port", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.Port = -1; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
 			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
 			require.NoError(t, err)
-		}, wantErrSub: "processor port must be positive"},
+		}, wantErrSub: "processor port must be between 1 and 65535"},
+		{name: "port exceeds upper bound", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.Port = 65536; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
+			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
+			require.NoError(t, err)
+		}, wantErrSub: "processor port must be between 1 and 65535"},
 		{name: "CRD absent", config: defaultGKEConfig(), wantErrSub: "GCPTrafficExtension CRD not found"},
 		{name: "CRD API error", config: defaultGKEConfig(), setup: func(_ *testing.T, client *dynamicfake.FakeDynamicClient) {
 			client.PrependReactor("get", "customresourcedefinitions", func(k8stesting.Action) (bool, runtime.Object, error) {
