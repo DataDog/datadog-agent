@@ -294,15 +294,11 @@ func TestDecoderWithSinglelineKubernetes(t *testing.T) {
 	assert.Equal(t, "", output.ParsingExtra.Timestamp)
 }
 
-func TestDecoderWithInterleavedPartialKubernetesStreams(t *testing.T) {
-	d := InitializeDecoderForTest(sources.NewLogSource("", &config.LogsConfig{}), kubernetes.New())
-	d.Start()
+func decodeLinesForTest(t *testing.T, parser parsers.Parser, lines []string, outputCount int) []*message.Message {
+	t.Helper()
 
-	lines := []string{
-		"2024-01-01T00:00:00.000000000Z stderr P long log line chunk 1...\n",
-		"2024-01-01T00:00:00.000000001Z stdout F short log line\n",
-		"2024-01-01T00:00:00.000000002Z stderr F long log line chunk 2...\n",
-	}
+	d := InitializeDecoderForTest(sources.NewLogSource("", &config.LogsConfig{}), parser)
+	d.Start()
 
 	inputDone := make(chan struct{})
 	go func() {
@@ -312,20 +308,90 @@ func TestDecoderWithInterleavedPartialKubernetesStreams(t *testing.T) {
 		}
 	}()
 
-	outputs := []*message.Message{
-		<-d.OutputChan(),
-		<-d.OutputChan(),
+	outputs := make([]*message.Message, 0, outputCount)
+	for range outputCount {
+		outputs = append(outputs, <-d.OutputChan())
 	}
 	<-inputDone
 
 	d.Stop()
-	for range d.OutputChan() {
+	for output := range d.OutputChan() {
+		t.Fatalf("unexpected decoder output after stop: %q", output.GetContent())
 	}
 
-	require.Equal(t, "short log line", string(outputs[0].GetContent()))
-	require.Equal(t, message.StatusInfo, outputs[0].Status)
-	require.Equal(t, "long log line chunk 1...long log line chunk 2...", string(outputs[1].GetContent()))
-	require.Equal(t, message.StatusError, outputs[1].Status)
+	return outputs
+}
+
+func TestDecoderWithInterleavedPartialStreams(t *testing.T) {
+	tests := []struct {
+		name            string
+		parser          parsers.Parser
+		lines           []string
+		expectedContent []string
+		expectedStatus  []string
+		expectedTime    []string
+	}{
+		{
+			name:   "CRI stderr partial interrupted by stdout",
+			parser: kubernetes.New(),
+			lines: []string{
+				"2024-01-01T00:00:00.000000000Z stderr P stderr part 1\n",
+				"2024-01-01T00:00:00.000000001Z stdout F stdout full\n",
+				"2024-01-01T00:00:00.000000002Z stderr F stderr part 2\n",
+			},
+			expectedContent: []string{"stdout full", "stderr part 1stderr part 2"},
+			expectedStatus:  []string{message.StatusInfo, message.StatusError},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000001Z", "2024-01-01T00:00:00.000000002Z"},
+		},
+		{
+			name:   "CRI stdout partial interrupted by stderr",
+			parser: kubernetes.New(),
+			lines: []string{
+				"2024-01-01T00:00:00.000000000Z stdout P stdout part 1\n",
+				"2024-01-01T00:00:00.000000001Z stderr F stderr full\n",
+				"2024-01-01T00:00:00.000000002Z stdout F stdout part 2\n",
+			},
+			expectedContent: []string{"stderr full", "stdout part 1stdout part 2"},
+			expectedStatus:  []string{message.StatusError, message.StatusInfo},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000001Z", "2024-01-01T00:00:00.000000002Z"},
+		},
+		{
+			name:   "both CRI streams partial",
+			parser: kubernetes.New(),
+			lines: []string{
+				"2024-01-01T00:00:00.000000000Z stderr P stderr part 1\n",
+				"2024-01-01T00:00:00.000000001Z stdout P stdout part 1\n",
+				"2024-01-01T00:00:00.000000002Z stderr F stderr part 2\n",
+				"2024-01-01T00:00:00.000000003Z stdout F stdout part 2\n",
+			},
+			expectedContent: []string{"stderr part 1stderr part 2", "stdout part 1stdout part 2"},
+			expectedStatus:  []string{message.StatusError, message.StatusInfo},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000002Z", "2024-01-01T00:00:00.000000003Z"},
+		},
+		{
+			name:   "Docker JSON stderr partial interrupted by stdout",
+			parser: dockerfile.New(),
+			lines: []string{
+				`{"log":"stderr part 1","stream":"stderr","time":"2024-01-01T00:00:00.000000000Z"}` + "\n",
+				`{"log":"stdout full\n","stream":"stdout","time":"2024-01-01T00:00:00.000000001Z"}` + "\n",
+				`{"log":"stderr part 2\n","stream":"stderr","time":"2024-01-01T00:00:00.000000002Z"}` + "\n",
+			},
+			expectedContent: []string{"stdout full", "stderr part 1stderr part 2"},
+			expectedStatus:  []string{message.StatusInfo, message.StatusError},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000001Z", "2024-01-01T00:00:00.000000002Z"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			outputs := decodeLinesForTest(t, test.parser, test.lines, len(test.expectedContent))
+			for i := range outputs {
+				require.Equal(t, test.expectedContent[i], string(outputs[i].GetContent()))
+				require.Equal(t, test.expectedStatus[i], outputs[i].Status)
+				require.Equal(t, test.expectedTime[i], outputs[i].ParsingExtra.Timestamp)
+			}
+		})
+	}
 }
 
 func TestDecoderWithMultilineKubernetes(t *testing.T) {
