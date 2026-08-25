@@ -13,31 +13,46 @@
 use std::ptr;
 
 use anyhow::{Context, Result, bail};
+use log::warn;
 use uuid::Uuid;
-use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+use windows_sys::Win32::Foundation::{ERROR_NO_MORE_ITEMS, ERROR_SUCCESS};
 use windows_sys::Win32::Security::Authentication::Identity::{
     LSA_HANDLE, LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LsaClose, LsaFreeMemory, LsaOpenPolicy,
     LsaRetrievePrivateData, POLICY_GET_PRIVATE_INFORMATION,
 };
-use windows_sys::Win32::System::Registry::{
-    HKEY, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WRITE, REG_OPTION_NON_VOLATILE, RegCloseKey,
-    RegCopyTreeW, RegCreateKeyExW, RegDeleteTreeW, RegOpenKeyExW,
+use windows_sys::Win32::Security::{
+    AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED,
+    TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
+use windows_sys::Win32::System::Registry::{
+    HKEY, HKEY_LOCAL_MACHINE, KEY_ALL_ACCESS, REG_OPTION_NON_VOLATILE, RegCloseKey, RegCopyTreeW,
+    RegCreateKeyExW, RegDeleteTreeW, RegEnumKeyExW, RegOpenKeyExW,
+};
+use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 use super::wide;
 
 const LSA_SECRETS_KEY: &str = r"SECURITY\Policy\Secrets";
 const SCM_SECRET_PREFIX: &str = "_SC_";
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
+const SE_BACKUP_PRIVILEGE: &str = "SeBackupPrivilege";
+const SE_RESTORE_PRIVILEGE: &str = "SeRestorePrivilege";
 
 struct RegistryKey(HKEY);
 
 impl RegistryKey {
-    fn open(local_machine: HKEY, subkey: &str, access: u32) -> Result<Self> {
+    fn open(local_machine: HKEY, subkey: &str) -> Result<Self> {
         let subkey_w = wide::null_terminated(subkey);
         let mut handle = ptr::null_mut();
-        let status =
-            unsafe { RegOpenKeyExW(local_machine, subkey_w.as_ptr(), 0, access, &mut handle) };
+        let status = unsafe {
+            RegOpenKeyExW(
+                local_machine,
+                subkey_w.as_ptr(),
+                0,
+                KEY_ALL_ACCESS,
+                &mut handle,
+            )
+        };
         if status != ERROR_SUCCESS {
             bail!("RegOpenKeyExW({subkey}): win32 {status}");
         }
@@ -55,7 +70,7 @@ impl RegistryKey {
                 0,
                 ptr::null(),
                 REG_OPTION_NON_VOLATILE,
-                KEY_WRITE,
+                KEY_ALL_ACCESS,
                 ptr::null(),
                 &mut handle,
                 &mut disposition,
@@ -63,6 +78,40 @@ impl RegistryKey {
         };
         if status != ERROR_SUCCESS {
             bail!("RegCreateKeyExW({subkey}): win32 {status}");
+        }
+        Ok(Self(handle))
+    }
+
+    fn open_child(&self, name: &str) -> Result<Self> {
+        let name_w = wide::null_terminated(name);
+        let mut handle = ptr::null_mut();
+        let status =
+            unsafe { RegOpenKeyExW(self.0, name_w.as_ptr(), 0, KEY_ALL_ACCESS, &mut handle) };
+        if status != ERROR_SUCCESS {
+            bail!("RegOpenKeyExW({name}): win32 {status}");
+        }
+        Ok(Self(handle))
+    }
+
+    fn create_child(&self, name: &str) -> Result<Self> {
+        let name_w = wide::null_terminated(name);
+        let mut handle = ptr::null_mut();
+        let mut disposition = 0u32;
+        let status = unsafe {
+            RegCreateKeyExW(
+                self.0,
+                name_w.as_ptr(),
+                0,
+                ptr::null(),
+                REG_OPTION_NON_VOLATILE,
+                KEY_ALL_ACCESS,
+                ptr::null(),
+                &mut handle,
+                &mut disposition,
+            )
+        };
+        if status != ERROR_SUCCESS {
+            bail!("RegCreateKeyExW({name}): win32 {status}");
         }
         Ok(Self(handle))
     }
@@ -102,7 +151,7 @@ struct TempLsaSecret {
 impl TempLsaSecret {
     fn remove(&self) {
         if let Err(err) = RegistryKey::delete_tree(HKEY_LOCAL_MACHINE, &self.registry_subkey) {
-            log::warn!(
+            warn!(
                 "failed to delete temporary LSA secret {}: {err:#}",
                 self.registry_subkey
             );
@@ -113,6 +162,88 @@ impl TempLsaSecret {
 impl Drop for TempLsaSecret {
     fn drop(&mut self) {
         self.remove();
+    }
+}
+
+struct RegistryPrivilegeGuard;
+
+impl RegistryPrivilegeGuard {
+    fn enable_for_lsa_secret_copy() -> Self {
+        for privilege in [SE_BACKUP_PRIVILEGE, SE_RESTORE_PRIVILEGE] {
+            if let Err(err) = enable_privilege(privilege) {
+                warn!("could not enable {privilege} for LSA secret copy: {err:#}");
+            }
+        }
+        Self
+    }
+}
+
+fn enable_privilege(name: &str) -> Result<()> {
+    let mut token = ptr::null_mut();
+    let ok = unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+            &mut token,
+        )
+    };
+    if ok == 0 {
+        bail!("OpenProcessToken: {}", std::io::Error::last_os_error());
+    }
+    let _token = TokenHandle(token);
+
+    let mut luid = windows_sys::Win32::Foundation::LUID {
+        LowPart: 0,
+        HighPart: 0,
+    };
+    let name_w = wide::null_terminated(name);
+    let ok = unsafe { LookupPrivilegeValueW(ptr::null(), name_w.as_ptr(), &mut luid) };
+    if ok == 0 {
+        bail!(
+            "LookupPrivilegeValueW({name}): {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    let mut privileges = TOKEN_PRIVILEGES {
+        PrivilegeCount: 1,
+        Privileges: [LUID_AND_ATTRIBUTES {
+            Luid: luid,
+            Attributes: SE_PRIVILEGE_ENABLED,
+        }],
+    };
+    let ok = unsafe {
+        AdjustTokenPrivileges(
+            token,
+            0,
+            &mut privileges,
+            0,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "AdjustTokenPrivileges({name}): {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let err = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+    if err == windows_sys::Win32::Foundation::ERROR_NOT_ALL_ASSIGNED {
+        bail!("AdjustTokenPrivileges({name}): privilege not held by token");
+    }
+    Ok(())
+}
+
+struct TokenHandle(windows_sys::Win32::Foundation::HANDLE);
+
+impl Drop for TokenHandle {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe {
+                windows_sys::Win32::Foundation::CloseHandle(self.0);
+            }
+        }
     }
 }
 
@@ -133,10 +264,60 @@ fn temp_secret_lsa_name(registry_subkey: &str) -> Result<String> {
         .context("temporary LSA secret name")
 }
 
+/// Copy `CurrVal`, `SecDesc`, and related subkeys without touching the parent default value.
+///
+/// `_SC_*` secret keys carry an invalid default value; copying the parent tree fails on
+/// some hosts. Child-by-child copy matches the approach used by service-credential tooling.
+fn copy_lsa_secret_children(source: &RegistryKey, destination: &RegistryKey) -> Result<()> {
+    let mut index = 0u32;
+    loop {
+        let mut name = vec![0u16; 256];
+        let mut name_len = (name.len() - 1) as u32;
+        let status = unsafe {
+            RegEnumKeyExW(
+                source.0,
+                index,
+                name.as_mut_ptr(),
+                &mut name_len,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        };
+        if status == ERROR_NO_MORE_ITEMS {
+            break;
+        }
+        if status != ERROR_SUCCESS {
+            bail!("RegEnumKeyExW: win32 {status}");
+        }
+
+        let child_name = wide::from_ptr(name.as_ptr());
+        if child_name.is_empty() {
+            index += 1;
+            continue;
+        }
+
+        let source_child = source
+            .open_child(&child_name)
+            .with_context(|| format!("open SCM LSA secret child {child_name}"))?;
+        let dest_child = destination
+            .create_child(&child_name)
+            .with_context(|| format!("create temporary LSA secret child {child_name}"))?;
+        source_child
+            .copy_tree(&dest_child)
+            .with_context(|| format!("copy SCM LSA secret child {child_name}"))?;
+        index += 1;
+    }
+    Ok(())
+}
+
 /// Read the SCM-stored password for `service_name`, if present.
 pub(crate) fn read_scm_service_password(service_name: &str) -> Result<Option<String>> {
+    let _privileges = RegistryPrivilegeGuard::enable_for_lsa_secret_copy();
+
     let source_subkey = scm_secret_registry_subkey(service_name);
-    let source = match RegistryKey::open(HKEY_LOCAL_MACHINE, &source_subkey, KEY_READ) {
+    let source = match RegistryKey::open(HKEY_LOCAL_MACHINE, &source_subkey) {
         Ok(key) => key,
         Err(_) => return Ok(None),
     };
@@ -148,8 +329,7 @@ pub(crate) fn read_scm_service_password(service_name: &str) -> Result<Option<Str
     };
 
     let destination = RegistryKey::create(HKEY_LOCAL_MACHINE, &temp_subkey)?;
-    source
-        .copy_tree(&destination)
+    copy_lsa_secret_children(&source, &destination)
         .with_context(|| format!("copy SCM LSA secret for {service_name}"))?;
 
     let password = read_lsa_private_data(&temp_lsa_name)?;
