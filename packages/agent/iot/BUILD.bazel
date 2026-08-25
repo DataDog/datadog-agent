@@ -12,6 +12,7 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
+load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
 
 package(default_visibility = ["//packages/agent/iot:__subpackages__"])
@@ -37,6 +38,41 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":dirs",
+    ] + select({
+        # When we can build the iot-agent binary with bazel, replace that
+        # target with this.
+        "@platforms//os:linux": [
+            "@systemd//:all_files",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# This is an intermediate node so that have a place to collect all
+# the dependencies so we can walk the aspect to gather the OSS
+# licenses.  This is close to "everything except for licenses"
+# Do not include things that vary per build, like symlinks using
+# the pipeline name.
+pkg_filegroup(
+    name = "everything",
+    srcs = [
+        ":all_files",
+    ],
+)
+
+# Gather licenses for all the pieces of the distribuion
+package_licenses(
+    name = "license_files",
+    src = ":everything",
+)
+
+# Blend the dependencies, the license files and things that vary
+# at build time into the distribution.
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [
+        ":everything",
+        ":license_files",
     ],
 )
 
@@ -58,7 +94,7 @@ pkg_filegroup(
 # extra_package_file for packaging.
 pkg_install(
     name = "install",
-    srcs = [":all_files"],
+    srcs = [":whole_distro"],
     destdir_flag = "//:install_dir",
 )
 

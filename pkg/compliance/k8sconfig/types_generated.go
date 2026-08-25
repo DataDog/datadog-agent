@@ -648,7 +648,7 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 	var res K8sKubeletConfig
 	if v, ok := flags["--config"]; ok {
 		delete(flags, "--config")
-		res.Config = l.loadKubeletConfigFileMeta(v)
+		res.Config = l.loadKubeletConfigFileMeta(v, flags["--config-dir"])
 	}
 	if v, ok := flags["--address"]; ok {
 		delete(flags, "--address")
@@ -664,7 +664,7 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 		res.AnonymousAuth = l.parseBool(v)
 
 	} else if !l.configFileMetaHasField(res.Config, "authentication.anonymous.enabled") {
-		res.AnonymousAuth = l.parseBool("true")
+		res.AnonymousAuth = l.parseBool(flagDefault(res.Config, "true", "false"))
 	}
 	if v, ok := flags["--authorization-mode"]; ok {
 		delete(flags, "--authorization-mode")
@@ -672,7 +672,7 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 		res.AuthorizationMode = &v
 
 	} else if !l.configFileMetaHasField(res.Config, "authorization.mode") {
-		v := "AlwaysAllow"
+		v := flagDefault(res.Config, "AlwaysAllow", "Webhook")
 		res.AuthorizationMode = &v
 	}
 	if v, ok := flags["--client-ca-file"]; ok {
@@ -745,7 +745,7 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 		res.ReadOnlyPort = l.parseInt(v)
 
 	} else if !l.configFileMetaHasField(res.Config, "readOnlyPort") {
-		res.ReadOnlyPort = l.parseInt("10255")
+		res.ReadOnlyPort = l.parseInt(flagDefault(res.Config, "10255", "0"))
 	}
 	if v, ok := flags["--rotate-certificates"]; ok {
 		delete(flags, "--rotate-certificates")

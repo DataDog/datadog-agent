@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +32,19 @@ var launcherPreloadPath = filepath.Join(injectOCIPath, "stable", "inject", "laun
 const crashyConstructorUnconditionalSrc = `#include <unistd.h>
 __attribute__((constructor)) static void crash(void) { _exit(1); }
 `
+
+const (
+	// agentMinorVersionBeforeAPMTmpfsSupport is passed to the public install
+	// script through DD_AGENT_MINOR_VERSION to exercise a real installation of
+	// an older Agent. This version supports the systemd service commands but
+	// predates their tmpfs preload lifecycle.
+	agentMinorVersionBeforeAPMTmpfsSupport = "80.4"
+
+	// agentVersionBeforeAPMTmpfsSupport is the resulting installer repository
+	// version (the Debian package's -1 revision is not part of this directory
+	// name).
+	agentVersionBeforeAPMTmpfsSupport = "7." + agentMinorVersionBeforeAPMTmpfsSupport
+)
 
 // captureBootID returns the current kernel boot id. Used as the source of
 // truth for "has this host actually rebooted?" — reboot-command exit status is
@@ -144,6 +158,79 @@ func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(strconv.FormatUint(traceID, 10))
 	s.assertTraceReceived(traceID)
+}
+
+// TestOlderAgentAPMInjectService verifies that installing SSI with an Agent
+// predating tmpfs support keeps the systemd service without using tmpfs:
+//
+//  1. Install host SSI with Agent 7.80.4 on a clean host.
+//  2. Verify the service uses the persistent injector path.
+//  3. Reboot and verify host injection still uses a valid preload entry without
+//     producing loader errors.
+//
+// The selected Agent installer supports the service commands but predates the
+// tmpfs preload lifecycle. The injector post-install hook therefore keeps the
+// service while selecting the persistent injector path it understands.
+//
+// This is intentionally limited to one representative host. The contract is
+// the installer/package/systemd lifecycle, not distro- or architecture-specific
+// behavior.
+func (s *packageApmInjectSuite) TestOlderAgentAPMInjectService() {
+	isUbuntu2404 := s.os.Flavor == e2eos.Ubuntu2404.Flavor && s.os.Version == e2eos.Ubuntu2404.Version
+	if s.installMethod != InstallMethodInstallScript || !isUbuntu2404 || s.arch != e2eos.AMD64Arch {
+		s.T().Skip("older Agent installation is covered on Ubuntu 24.04 amd64 with the install script")
+	}
+	s.requireSystemd()
+
+	host := s.Env().RemoteHost
+	// Purge uses the older Agent installer, which predates the current APM
+	// cleanup commands. Always remove the preload entry last so a same-host retry
+	// does not start with a dangling /run launcher after the reboot.
+	defer host.Execute("sudo rm -f /etc/ld.so.preload") //nolint:errcheck
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		"TESTING_APT_URL=",
+		"TESTING_APT_REPO_VERSION=",
+		"TESTING_YUM_URL=",
+		"TESTING_YUM_VERSION_PATH=",
+		"DD_REPO_URL=datadoghq.com",
+		"DD_AGENT_MAJOR_VERSION=7",
+		"DD_AGENT_MINOR_VERSION="+agentMinorVersionBeforeAPMTmpfsSupport,
+	)
+	defer s.Purge()
+	require.Equal(s.T(), agentVersionBeforeAPMTmpfsSupport, s.host.AgentStableVersion())
+
+	// An older selected installer must keep the service but make the hook use the
+	// persistent path understood by its pre-tmpfs implementation.
+	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
+	preload, err := s.host.ReadFile("/etc/ld.so.preload")
+	require.NoError(s.T(), err)
+	require.Contains(s.T(), string(preload), launcherPreloadPath)
+	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+
+	oldInstallerPath := "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer"
+	help, err := host.Execute("sudo " + oldInstallerPath + " apm --help")
+	require.NoError(s.T(), err, "could not inspect the older embedded installer")
+	require.Contains(s.T(), help, "instrument-start", "test precondition: 7.80.4 must support the systemd service commands")
+	require.Contains(s.T(), help, "instrument-stop", "test precondition: 7.80.4 must support the systemd service commands")
+
+	s.reboot()
+	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
+
+	preload, err = s.host.ReadFile("/etc/ld.so.preload")
+	require.NoError(s.T(), err)
+	require.Contains(s.T(), string(preload), launcherPreloadPath)
+	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	_, err = host.Execute("test -e " + launcherPreloadPath)
+	require.NoError(s.T(), err, "ld.so.preload entry is dangling")
+	_, err = host.Execute("test -e /etc/systemd/system/datadog-apm-inject.service")
+	require.NoError(s.T(), err, "apm-inject service was not preserved")
+	s.assertDockerdNotInstrumented()
+
+	stderr, err := host.Execute(`i=0; while [ "$i" -lt 10 ]; do /bin/true; i=$((i + 1)); done 2>&1`)
+	require.NoError(s.T(), err)
+	require.NotContains(s.T(), stderr, "cannot be preloaded")
 }
 
 // TestSystemdServiceRebootBrokenInjector verifies the safety property the

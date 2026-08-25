@@ -48,6 +48,7 @@ type CLIParams struct {
 	Output     string // path for observer JSON output
 	Verbose    bool   // include full detail in JSON output (headless mode only)
 	MemProfile string // path to write heap profile after headless run (empty = disabled)
+	CPUProfile string // path to write CPU profile during headless run (empty = disabled)
 
 	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation
 	SendAnomalyEvent string // scenario name to run (empty = disabled)
@@ -75,6 +76,7 @@ func main() {
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
 	memProfile := flag.String("memprofile", "", "Write heap profile to this file after headless run (headless mode only)")
+	cpuProfile := flag.String("cpuprofile", "", "Write CPU profile during headless run (headless mode only)")
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
@@ -205,6 +207,7 @@ func main() {
 			Output:             *output,
 			Verbose:            *verbose,
 			MemProfile:         *memProfile,
+			CPUProfile:         *cpuProfile,
 			SendAnomalyEvent:   *sendAnomalyEvent,
 			SkipDroppedMetrics: *skipDropped,
 			LogsOnly:           *logsOnly,
@@ -257,8 +260,33 @@ func run(
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)
 	if params.Headless != "" {
+		var stopCPUProfile func()
+		if params.CPUProfile != "" {
+			f, err := os.Create(params.CPUProfile)
+			if err != nil {
+				return fmt.Errorf("could not create CPU profile: %w", err)
+			}
+			if err := pprof.StartCPUProfile(f); err != nil {
+				_ = f.Close()
+				return fmt.Errorf("could not start CPU profile: %w", err)
+			}
+			stopCPUProfile = func() {
+				pprof.StopCPUProfile()
+				_ = f.Close()
+				fmt.Printf("CPU profile written to %s\n", params.CPUProfile)
+			}
+			defer func() {
+				if stopCPUProfile != nil {
+					stopCPUProfile()
+				}
+			}()
+		}
 		if err := tb.RunHeadless(params.Headless, params.Output, params.Verbose); err != nil {
 			return err
+		}
+		if stopCPUProfile != nil {
+			stopCPUProfile()
+			stopCPUProfile = nil
 		}
 		if params.MemProfile != "" {
 			f, err := os.Create(params.MemProfile)

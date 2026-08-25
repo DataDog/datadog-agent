@@ -173,6 +173,18 @@ var (
 
 		"kube-proxy.bind-address": "",
 	}
+
+	// Kubernetes keeps historical defaults for these three kubelet flags to
+	// preserve the command line API (applyLegacyDefaults in
+	// cmd/kubelet/app/options/options.go) and drops them once --config is used,
+	// where the KubeletConfiguration defaults apply instead. The two disagree,
+	// and the configuration file value is the secure one.
+	// reference: https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/apis/config/v1beta1/defaults.go
+	confDefaults = map[string]string{
+		"kubelet.anonymous-auth":     "false",
+		"kubelet.authorization-mode": "Webhook",
+		"kubelet.read-only-port":     "0",
+	}
 )
 
 const preamble = `// Unless explicitly stated otherwise all files in this repository are licensed
@@ -451,7 +463,9 @@ func printKomponentCode(komp *komponent) string {
 			return fmt.Sprintf("res.%s = l.loadTokenFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sConfigFileMeta":
 			if komp.name == "kubelet" && c.flagName == "config" {
-				return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
+				// The kubelet also reads the drop-ins of --config-dir, which
+				// override the file given to --config.
+				return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s, flags[\"--config-dir\"])", toGoField(c.flagName), v)
 			}
 			return fmt.Sprintf("res.%s, _ = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sKubeletConfigFileMeta":
@@ -514,7 +528,11 @@ func printKomponentCode(komp *komponent) string {
 			} else {
 				sb.WriteString("\n} else {\n")
 			}
-			sb.WriteString(printAssignment(c, fmt.Sprintf("%q", c.flagDefault)))
+			def := fmt.Sprintf("%q", c.flagDefault)
+			if confDefault, ok := confDefaults[komp.name+"."+c.flagName]; ok {
+				def = fmt.Sprintf("flagDefault(res.Config, %q, %q)", c.flagDefault, confDefault)
+			}
+			sb.WriteString(printAssignment(c, def))
 		}
 		sb.WriteString("}\n")
 	}
