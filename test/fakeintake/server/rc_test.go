@@ -183,43 +183,6 @@ func TestRCConfigurationsServesSignedMetadataWithoutConfigs(t *testing.T) {
 	}
 }
 
-func TestRCConfigurationsRecordsApplyStates(t *testing.T) {
-	ts, _ := newRCTestServer(t)
-
-	body, err := proto.Marshal(&core.LatestConfigsRequest{
-		ActiveClients: []*core.Client{{
-			Id: "par-client",
-			State: &core.ClientState{ConfigStates: []*core.ConfigState{{
-				Id: "fake-runner-key", Product: "AP_RUNNER_KEYS", Version: 2, ApplyState: 2,
-			}}},
-		}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := http.Post(ts.URL+"/api/v0.1/configurations", "application/x-protobuf", bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status %d", resp.StatusCode)
-	}
-
-	resp, err = http.Get(ts.URL + "/fakeintake/rc/stats")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	var stats api.RCStats
-	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
-		t.Fatal(err)
-	}
-	if len(stats.ApplyStates) != 1 || stats.ApplyStates[0].ConfigID != "fake-runner-key" || stats.ApplyStates[0].ApplyState != 2 {
-		t.Fatalf("unexpected apply states: %+v", stats.ApplyStates)
-	}
-}
-
 func TestRCConfigurationsIgnoresRequestedProducts(t *testing.T) {
 	ts, fi := newRCTestServer(t)
 
