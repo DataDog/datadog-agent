@@ -8,7 +8,6 @@ package db
 import (
 	"context"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
