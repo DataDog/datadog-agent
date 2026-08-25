@@ -20,19 +20,19 @@ type Requires struct {
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
-	level int
+	level zstd.Level
 }
 
 // New returns a new ZstdStrategy
 func New(reqs Requires) compression.Compressor {
 	return &ZstdStrategy{
-		level: int(reqs.Level),
+		level: zstd.LevelFromInt(int(reqs.Level)),
 	}
 }
 
 // Compress will compress the data with zstd
 func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
-	return zstd.CompressLevel(nil, src, zstd.Level(s.level))
+	return zstd.CompressLevel(nil, src, s.level)
 }
 
 // Decompress will decompress the data with zstd
@@ -52,7 +52,7 @@ func (s *ZstdStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	w, err := zstd.NewWriterLevel(output, zstd.Level(s.level))
+	w, err := zstd.NewWriterLevel(output, s.level)
 	if err != nil {
 		// zstd.NewWriterLevel only returns an error for invalid options, which
 		// we do not pass. A non-nil error here is unexpected; return a writer

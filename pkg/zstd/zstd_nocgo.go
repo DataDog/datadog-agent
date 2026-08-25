@@ -15,6 +15,27 @@ import (
 	kzstd "github.com/klauspost/compress/zstd"
 )
 
+// Level is a zstd compression level. For the pure-Go backend it is an alias of
+// klauspost's EncoderLevel enum, so we reuse that library's exported level
+// values rather than hardcoding integer literals (klauspost documents that the
+// enum's integer mapping may change between versions).
+type Level = kzstd.EncoderLevel
+
+// Compression-level constants. These re-export klauspost's exported levels,
+// which are the values klauspost itself documents as stable for callers.
+const (
+	BestSpeed          Level = kzstd.SpeedFastest
+	BestCompression    Level = kzstd.SpeedBestCompression
+	DefaultCompression Level = kzstd.SpeedDefault
+)
+
+// LevelFromInt converts a standard zstd integer level (as found in Agent
+// configuration, e.g. 1..22) to a Level using the mapping klauspost
+// documents (EncoderLevelFromZstd). Use this for levels coming from
+// configuration as a raw int; prefer the named constants above when the level
+// is known at compile time.
+func LevelFromInt(i int) Level { return kzstd.EncoderLevelFromZstd(i) }
+
 // nocgoEncoderOptions returns the klauspost encoder options for the given
 // level. The ZSTD_NOCGO_CONCURRENCY and ZSTD_NOCGO_WINDOW environment
 // variables can be used to tune concurrency and the window size; missing or
@@ -29,7 +50,7 @@ func nocgoEncoderOptions(level Level) []kzstd.EOption {
 		window = 1 << 15
 	}
 	return []kzstd.EOption{
-		kzstd.WithEncoderLevel(kzstd.EncoderLevelFromZstd(int(level))),
+		kzstd.WithEncoderLevel(level),
 		kzstd.WithEncoderConcurrency(conc),
 		kzstd.WithLowerEncoderMem(true),
 		kzstd.WithWindowSize(window),

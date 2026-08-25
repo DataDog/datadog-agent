@@ -25,23 +25,6 @@ type Writer interface {
 	Flush() error
 }
 
-// Level is a zstd compression level. It uses the standard zstd integer level
-// space (1 = fastest, higher = more compression), which both backends accept.
-// Callers should prefer the named constants below over raw literals.
-type Level int
-
-const (
-	// BestSpeed is the fastest zstd compression level.
-	BestSpeed Level = 1
-
-	// BestCompression is the highest zstd compression level supported by the
-	// native libzstd backend.
-	BestCompression Level = 20
-
-	// DefaultCompression is the default zstd compression level.
-	DefaultCompression Level = 5
-)
-
 // CompressBound returns the worst-case size needed to compress srcSize bytes.
 // It mirrors ZSTD_COMPRESSBOUND from the zstd specification and is a valid
 // upper bound for the output of either backend.
@@ -56,6 +39,10 @@ func CompressBound(srcSize int) int {
 
 // Compress compresses src at DefaultCompression. If dst is large enough it is
 // reused, otherwise a new buffer is allocated.
+//
+// Level, the compression-level constants and CompressLevel are defined in the
+// build-tagged files (zstd_cgo.go / zstd_nocgo.go), since the level type is an
+// alias of the active backend's native level type.
 func Compress(dst, src []byte) ([]byte, error) {
 	return CompressLevel(dst, src, DefaultCompression)
 }

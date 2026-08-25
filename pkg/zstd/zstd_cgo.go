@@ -13,9 +13,26 @@ import (
 	ddzstd "github.com/DataDog/zstd"
 )
 
+// Level is a zstd compression level. For the CGO backend it is the native
+// libzstd integer level (1 = fastest, higher = more compression).
+type Level = int
+
+// Compression-level constants. These re-export the native libzstd values so
+// we never hardcode level literals ourselves.
+const (
+	BestSpeed          Level = ddzstd.BestSpeed
+	BestCompression    Level = ddzstd.BestCompression
+	DefaultCompression Level = ddzstd.DefaultCompression
+)
+
+// LevelFromInt converts a standard zstd integer level (as found in Agent
+// configuration) to a Level. For the CGO backend Level is int, so this is an
+// identity conversion.
+func LevelFromInt(i int) Level { return Level(i) }
+
 // CompressLevel compresses src at the given level using the native libzstd.
 func CompressLevel(dst, src []byte, level Level) ([]byte, error) {
-	return ddzstd.CompressLevel(dst, src, int(level))
+	return ddzstd.CompressLevel(dst, src, level)
 }
 
 // Decompress decompresses src. If dst is large enough it is reused, otherwise
@@ -31,7 +48,7 @@ func NewWriter(w io.Writer) (Writer, error) {
 
 // NewWriterLevel returns a streaming zstd writer at the given level.
 func NewWriterLevel(w io.Writer, level Level) (Writer, error) {
-	return ddzstd.NewWriterLevel(w, int(level)), nil
+	return ddzstd.NewWriterLevel(w, level), nil
 }
 
 // NewReader returns a streaming zstd reader.
