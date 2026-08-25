@@ -1,0 +1,35 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "powershell-check_test",
+    srcs = ["powershell_check_test.go"],
+    data = [
+        "fixtures/allowlist.yaml",
+        "fixtures/cmdlet_injection.yaml",
+        "fixtures/parameter_injection.yaml",
+        "fixtures/valid.yaml",
+        "fixtures/where_injection.yaml",
+    ],
+    embedsrcs = [
+        "fixtures/allowlist.yaml",
+        "fixtures/cmdlet_injection.yaml",
+        "fixtures/parameter_injection.yaml",
+        "fixtures/valid.yaml",
+        "fixtures/where_injection.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/agentparams/filepermissions",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
