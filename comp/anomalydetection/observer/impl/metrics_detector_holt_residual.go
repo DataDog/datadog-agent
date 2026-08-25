@@ -682,21 +682,6 @@ func pushTimestamp(state *holtSeriesState, ts int64) {
 	state.recentTimestamps[len(state.recentTimestamps)-1] = ts
 }
 
-// medianOfTail returns the median of the last n entries of buf. If buf has
-// fewer than n entries, uses everything available. Returns 0 on an empty
-// buf — the caller (post-fire path) will then push a zero residual, which
-// is a sane neutral value: it does not bias the threshold up or down.
-func medianOfTail(buf []float64, n int) float64 {
-	if len(buf) == 0 {
-		return 0
-	}
-	if n > len(buf) {
-		n = len(buf)
-	}
-	tail := buf[len(buf)-n:]
-	return detectorMedian(tail)
-}
-
 // ensureDefaults fills zero-valued config fields with sensible defaults so the
 // detector behaves sanely when constructed via reflective paths that bypass
 // NewHoltResidualDetector.
