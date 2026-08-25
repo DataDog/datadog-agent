@@ -18,15 +18,6 @@ from tasks.schema.codegen_init_settings import run_codegen, run_constant_codegen
 from tasks.schema.merge_schema import resolve_schema
 
 
-def _filter(expect, filename):
-    """Return a predicate that accepts (expect=True) or rejects (expect=False) filename."""
-
-    def comparator(othername):
-        return (filename == othername) == expect
-
-    return comparator
-
-
 def main():
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <output_dir>", file=sys.stderr)
@@ -39,10 +30,8 @@ def main():
     core_schema = resolve_schema("pkg/config/schema/yaml/core_schema.yaml")
     system_probe_schema = resolve_schema("pkg/config/schema/yaml/system-probe_schema.yaml")
 
-    # Core agent settings: every file except system_probe_settings.go
-    run_codegen(core_schema, _filter(False, "system_probe_settings.go"), output_dir)
-    # System-probe settings: only system_probe_settings.go
-    run_codegen(system_probe_schema, _filter(True, "system_probe_settings.go"), output_dir)
+    run_codegen(core_schema, output_dir)
+    run_codegen(system_probe_schema, output_dir, sysprobe=True)
     run_constant_codegen(core_schema, system_probe_schema, output_dir)
 
 
