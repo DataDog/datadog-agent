@@ -109,12 +109,12 @@ func NewTimestampDetector(matchThreshold float64) *TimestampDetector {
 
 // ProcessAndContinue checks if a message is likely to be a timestamp.
 func (t *TimestampDetector) ProcessAndContinue(context *messageContext) bool {
-	if context.tokens == nil {
+	if context.tokens.Empty() {
 		log.Error("Tokens are required to detect timestamps")
 		return true
 	}
 
-	if t.tokenGraph.MatchProbability(context.tokens).probability > t.matchThreshold {
+	if t.tokenGraph.MatchProbability(context.tokens.Borrow()).probability > t.matchThreshold {
 		context.label = startGroup
 		context.labelAssignedBy = "timestamp_detector"
 	}

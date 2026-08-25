@@ -154,6 +154,8 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		// Standard Helm labels
 		"label_helm_sh_chart",
 	}
+	defaultPodLabels := append([]string{}, defaultStandardLabels...)
+	defaultPodLabels = append(defaultPodLabels, argoRolloutLabelName)
 
 	return map[string]*JoinsConfigWithoutLabelsMapping{
 		"kube_pod_status_phase": {
@@ -174,7 +176,7 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		},
 		"kube_pod_labels": {
 			LabelsToMatch: getLabelToMatchForKind("pod"),
-			LabelsToGet:   defaultStandardLabels,
+			LabelsToGet:   defaultPodLabels,
 		},
 		"kube_pod_status_reason": {
 			LabelsToMatch: getLabelToMatchForKind("pod"),

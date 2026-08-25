@@ -13,6 +13,7 @@ go_library(
         "insert_many.go",
         "insert_one.go",
         "replace_one.go",
+        "test_connection.go",
         "update_many.go",
         "update_one.go",
     ],

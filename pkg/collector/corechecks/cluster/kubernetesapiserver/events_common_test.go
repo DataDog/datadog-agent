@@ -62,6 +62,7 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "default/my-deployment-2"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "default"))), "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("api-group", "resourcetypes", "default", "generic-resource"))), "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesNode, "my-node-1"), "workloadmeta-kubernetes_node", []string{"node_tag:my-node-1"}, nil, nil, nil)
 
 	client := fakeclientset.NewClientset()
 	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
@@ -159,6 +160,20 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 			},
 		},
 		{
+			name: "get node basic tags",
+			involvedObject: v1.ObjectReference{
+				Kind: "Node",
+				Name: "my-node-1",
+			},
+			tags: []string{
+				"kube_kind:Node",
+				"kube_name:my-node-1",
+				"kubernetes_kind:Node",
+				"name:my-node-1",
+				"node_tag:my-node-1",
+			},
+		},
+		{
 			name: "get tags for any metadata resource",
 			involvedObject: v1.ObjectReference{
 				Kind:       "ResourceType",
@@ -175,6 +190,43 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"namespace:default",
 				"team:container-int", // this tag is coming from the namespace
 				"generic_tag:generic-resource",
+			},
+		},
+		{
+			name: "get tags for a cronjob-owned job",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Job",
+				Name:      "my-cronjob-1234567",
+				Namespace: "default",
+			},
+			tags: []string{
+				"kube_kind:Job",
+				"kube_name:my-cronjob-1234567",
+				"kubernetes_kind:Job",
+				"name:my-cronjob-1234567",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"kube_job:my-cronjob-1234567",
+				"kube_cronjob:my-cronjob",
+			},
+		},
+		{
+			name: "get tags for a standalone job",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Job",
+				Name:      "my-standalone-job",
+				Namespace: "default",
+			},
+			tags: []string{
+				"kube_kind:Job",
+				"kube_name:my-standalone-job",
+				"kubernetes_kind:Job",
+				"name:my-standalone-job",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"kube_job:my-standalone-job",
 			},
 		},
 	}

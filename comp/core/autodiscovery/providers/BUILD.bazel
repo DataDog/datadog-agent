@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "providers",
     srcs = [
@@ -151,6 +149,32 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":providers"],
+    gotags_sets = [
+        [
+            "cel",
+            "clusterchecks",
+            "containerd",
+            "docker",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        [
+            "cel",
+            "clusterchecks",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        [
+            "cel",
+            "docker",
+            "kubelet",
+        ],
+        ["consul"],
+        ["etcd"],
+        ["zk"],
+    ],
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/integration",

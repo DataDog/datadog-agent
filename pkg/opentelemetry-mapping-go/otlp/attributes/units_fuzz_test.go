@@ -74,7 +74,7 @@ func FuzzUnitMapperMap(f *testing.F) {
 		"%", "Cel", "Hz", "MHz", "W", "V", "J",
 		"By/s", "GiBy/h", "{cpu}", "{connection}", "kBy", "EiBy",
 		"dBy", "ps", "dW", "dCel", "furlong", "By/furlong",
-		"{}", "By//s", "By/s/s", "W.h", "By{transmitted}", "{pod}",
+		"{}", "By//s", "By/s/s", "W.h", "By{transmitted}", "{pod}", "{datapoint}",
 	}
 	for _, seed := range seeds {
 		f.Add(seed)

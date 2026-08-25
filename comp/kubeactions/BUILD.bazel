@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kubeactions",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/kubeactions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/kubeactions/helmactions/fx",
+        "//comp/kubeactions/kubeactions/fx",
+        "//pkg/util/fxutil",
+    ],
+)

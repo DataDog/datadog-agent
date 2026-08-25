@@ -42,6 +42,11 @@ var memoryLocationToName = map[nvml.MemoryLocation]string{
 	nvml.MEMORY_LOCATION_SRAM:           "sram",
 }
 
+var eccCounterTypeToName = map[nvml.EccCounterType]string{
+	nvml.AGGREGATE_ECC: "total",
+	nvml.VOLATILE_ECC:  "volatile",
+}
+
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
 	if val {
@@ -89,9 +94,10 @@ func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCall
 	for _, apiCall := range apiCalls {
 		// Test API support by calling the handler with timestamp=0 and ignoring results
 		_, _, err := apiCall.Handler(device, 0)
-		if err == nil || !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
-			supportedAPIs = append(supportedAPIs, apiCall)
+		if err != nil && (ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice)) {
+			continue
 		}
+		supportedAPIs = append(supportedAPIs, apiCall)
 	}
 
 	return supportedAPIs
@@ -235,11 +241,6 @@ func fieldValueForField(device ddnvml.Device, fieldID uint32, fieldName string) 
 	return value, nil
 }
 
-// GetNVLinkCount returns the number of NVLink ports on the device.
-func GetNVLinkCount(device ddnvml.Device) (int, error) {
-	return fieldValueForField(device, nvml.FI_DEV_NVLINK_LINK_COUNT, "FI_DEV_NVLINK_LINK_COUNT")
-}
-
 // GetC2CLinkCount returns the number of C2C links on the device.
 func GetC2CLinkCount(device ddnvml.Device) (int, error) {
 	return fieldValueForField(device, nvml.FI_DEV_C2C_LINK_COUNT, "FI_DEV_C2C_LINK_COUNT")
@@ -255,14 +256,7 @@ func portIsAlwaysSupported(_ int) ([]*Metric, error) {
 }
 
 func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]*Metric, error)) ([]int, error) {
-	totalPorts, err := GetNVLinkCount(device)
-	if err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice) {
-			return nil, fmt.Errorf("%w: get NVLink link count: %w", errUnsupportedDevice, err)
-		}
-		return nil, fmt.Errorf("get NVLink link count: %w", err)
-	}
-
+	totalPorts := device.GetDeviceInfo().NVLinkLinkCount
 	if totalPorts <= 0 {
 		return nil, fmt.Errorf("%w: no NVLink ports found", errUnsupportedDevice)
 	}

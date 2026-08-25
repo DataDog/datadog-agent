@@ -84,7 +84,11 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 }
 
 // resourcesWithRequiredMetadataCollection returns the list of resources that we
-// need to collect metadata from in order to make other enabled features work
+// need to collect metadata from in order to make other enabled features work.
+// Pods, Deployments and Nodes are excluded here because they have their own
+// dedicated stores and informers in workloadmeta, and tag extraction for
+// labels/annotations-as-tags reads directly from those (e.g. KindKubernetesNode)
+// instead of the generic metadata store.
 func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 	// resources that we need to collect metadata from in order to make other enabled features work
 	var res []string
@@ -93,7 +97,7 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 
 	for groupResource, labelsAsTags := range metadataAsTags.GetResourcesLabelsAsTags() {
 
-		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || len(labelsAsTags) == 0 {
+		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || groupResource == "nodes" || len(labelsAsTags) == 0 {
 			continue
 		}
 		requestedResource := groupResourceToGVRString(groupResource)
@@ -103,7 +107,7 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 	}
 
 	for groupResource, annotationsAsTags := range metadataAsTags.GetResourcesAnnotationsAsTags() {
-		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || len(annotationsAsTags) == 0 {
+		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || groupResource == "nodes" || len(annotationsAsTags) == 0 {
 			continue
 		}
 		requestedResource := groupResourceToGVRString(groupResource)

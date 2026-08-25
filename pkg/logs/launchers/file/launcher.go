@@ -398,7 +398,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	}
 	files, err := s.fileProvider.CollectFiles(source)
 	if err != nil {
-		source.Status.Error(err)
+		source.Status().Error(err)
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
@@ -416,7 +416,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		}
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {
 			// new source inherits the old source's status
-			source.Status = tailer.Source().Status
+			source.SetStatus(tailer.Source().Status())
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward
 			tailer.ReplaceSource(source)
@@ -440,10 +440,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			}
 		}
 
-		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
+		mode, isSet := config.TailingModeFromString(source.GetTailingMode())
 		if !isSet && source.Config.Identifier != "" {
 			mode = config.Beginning
-			source.Config.TailingMode = mode.String()
+			source.SetTailingMode(mode.String())
 		}
 
 		newTailerStarted := s.startNewTailer(file, mode, fingerprint)

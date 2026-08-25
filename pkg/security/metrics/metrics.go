@@ -402,6 +402,11 @@ var (
 	// lonely network namespaces.
 	// Tags: -
 	MetricNamespaceResolverLonelyNetworkNamespace = newRuntimeMetric(".namespace_resolver.lonely_netns")
+	// MetricNamespaceResolverError is the name of the metric used to report the count of errors hit by the
+	// NamespaceResolver, mostly while attaching TC classifiers to network devices.
+	// Tags: error_type ('link_not_found', 'no_such_device', 'classifier_exists', 'queue_full', 'netlink_socket',
+	// 'link_list', 'unknown')
+	MetricNamespaceResolverError = newRuntimeMetric(".namespace_resolver.error")
 
 	// Policies
 
@@ -598,6 +603,10 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+
+	// MetricSamplingPressureLevel is the name of the metric used to report the current sampling pressure level
+	// Tags: -
+	MetricSamplingPressureLevel = newRuntimeMetric(".event_sample.pressure_level")
 
 	// MetricRawPacketDropped is the name of the metric used to count packets dropped by network_filter actions
 	// Tags: rule_id
