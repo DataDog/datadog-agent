@@ -33,13 +33,12 @@ import (
 type rcServerState struct {
 	mu sync.Mutex
 
-	enabled     bool
-	orgUUID     string
-	configs     map[string]rcstore.Config
-	version     uint64
-	polls       uint64
-	lastPoll    time.Time
-	applyStates []api.RCApplyState
+	enabled  bool
+	orgUUID  string
+	configs  map[string]rcstore.Config
+	version  uint64
+	polls    uint64
+	lastPoll time.Time
 
 	signing   ed25519.PrivateKey
 	keyID     string
@@ -89,24 +88,11 @@ func (s *rcServerState) versionedSnapshot() ([]rcstore.Config, uint64, string) {
 	return out, s.version, s.tufExpiry
 }
 
-func (s *rcServerState) recordPoll(now time.Time, clients []*core.Client) {
+func (s *rcServerState) recordPoll(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.polls++
 	s.lastPoll = now
-	s.applyStates = nil
-	for _, client := range clients {
-		for _, configState := range client.GetState().GetConfigStates() {
-			s.applyStates = append(s.applyStates, api.RCApplyState{
-				ClientID:   client.GetId(),
-				ConfigID:   configState.GetId(),
-				Product:    configState.GetProduct(),
-				Version:    configState.GetVersion(),
-				ApplyState: configState.GetApplyState(),
-				ApplyError: configState.GetApplyError(),
-			})
-		}
-	}
 }
 
 // --- Options ---
@@ -295,7 +281,7 @@ func (fi *Server) handleRCConfigurations(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "decode request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	rc.recordPoll(fi.clock.Now().UTC(), req.GetActiveClients())
+	rc.recordPoll(fi.clock.Now().UTC())
 
 	// Serve the complete repository.
 	cfgs, version, expires := rc.versionedSnapshot()
@@ -503,7 +489,6 @@ func (fi *Server) handleRCStats(w http.ResponseWriter, r *http.Request) {
 		LastPoll:     fi.rc.lastPoll,
 		Version:      fi.rc.version,
 		ConfigsCount: len(fi.rc.configs),
-		ApplyStates:  append([]api.RCApplyState(nil), fi.rc.applyStates...),
 		KeyID:        fi.rc.keyID,
 		PublicKey:    rcstore.PublicKeyHex(fi.rc.signing),
 		RootJSON:     string(fi.rc.rootJSON),
