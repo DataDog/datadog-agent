@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/zstd"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // defaultNetworkPcapIntakeHostPrefix is prepended to the configured Datadog
@@ -69,6 +71,7 @@ type networkPcapEvent struct {
 	DDSource  string `json:"ddsource"`
 	CaptureID string `json:"capture_id"`
 	Timestamp int64  `json:"timestamp"`
+	Hostname  string `json:"hostname"`
 }
 
 func writeNetworkPcapEvent(w *multipart.Writer, event networkPcapEvent) error {
@@ -117,10 +120,21 @@ func writeNetworkPcapAttachment(w *multipart.Writer, pcapBytes []byte) error {
 // large and retrying the same bytes cannot succeed. A pcap capture is not
 // re-derivable, so failures are surfaced rather than silently dropped.
 func (u *networkPcapUploader) Upload(ctx context.Context, pcapBytes []byte, captureID string) error {
+	// The capture always runs on this same machine (run_capture_socket.go
+	// talks to system-probe over a local unix socket), so the runner's own
+	// hostname is the capture's hostname. A resolution failure is not fatal:
+	// the worker falls back to treating the event as host-less rather than
+	// dropping it, and a pcap capture cannot be re-fetched.
+	hostnameValue, err := hostname.Get(ctx)
+	if err != nil {
+		log.Warnf("networkpcap upload: failed to resolve hostname for capture_id=%s: %s", captureID, err)
+	}
+
 	event := networkPcapEvent{
 		DDSource:  "networkpcap",
 		CaptureID: captureID,
 		Timestamp: time.Now().UnixMilli(),
+		Hostname:  hostnameValue,
 	}
 
 	boundary := multipart.NewWriter(io.Discard).Boundary()

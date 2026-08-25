@@ -16,6 +16,8 @@ go_library(
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
         "@com_github_datadog_zstd//:zstd",
         "@com_github_google_uuid//:uuid",
     ] + select({
