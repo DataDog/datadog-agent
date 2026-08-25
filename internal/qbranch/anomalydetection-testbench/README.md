@@ -15,7 +15,7 @@ dda inv -- anomalydetection.launch-testbench
 dda inv -- anomalydetection.launch-testbench --scenarios-dir /path/to/scenarios
 ```
 
-Then open http://localhost:5173 in your browser.
+Then open `http://localhost:5173` in your browser.
 
 The `--build` flag rebuilds the binary before launching. Omit it after the first run to skip the build step.
 
