@@ -41,7 +41,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.37.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.7.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.33.0
-	github.com/pulumi/pulumi/sdk/v3 v3.253.0
+	github.com/pulumi/pulumi/sdk/v3 v3.258.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -58,6 +58,12 @@ require (
 	k8s.io/api v0.35.5
 	k8s.io/apimachinery v0.35.6
 	k8s.io/client-go v0.35.5
+)
+
+require (
+	github.com/danieljoos/wincred v1.2.3 // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
+	github.com/zalando/go-keyring v0.2.8 // indirect
 )
 
 require (
@@ -115,7 +121,6 @@ require (
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/antithesishq/antithesis-sdk-go v0.7.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.18 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.36 // indirect
