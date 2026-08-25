@@ -8,6 +8,7 @@ package constants
 const (
 	// InternalSkipTaskVerificationEnvVar is an internal-only env var for e2e tests.
 	// When set to "true", PAR skips signed-envelope validation and allows HTTP connections.
+	// The rshell command actions are disabled while this override is active.
 	// NOT intended for customer use.
 	InternalSkipTaskVerificationEnvVar = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"
 

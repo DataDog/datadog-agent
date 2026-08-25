@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -273,6 +274,10 @@ func (h *RunCommandHandler) Run(
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
+	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" {
+		return nil, errors.New("rshell commands are disabled when task verification is disabled")
+	}
+
 	inputs, err := types.ExtractInputs[RunCommandInputs](task)
 	if err != nil {
 		return nil, err

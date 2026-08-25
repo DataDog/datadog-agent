@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -624,6 +625,29 @@ func TestRunCommandEmptyCommandReturnsError(t *testing.T) {
 	_, err := handler.Run(context.Background(), makeTask("", nil), nil)
 
 	assert.ErrorContains(t, err, "command is required")
+}
+
+func TestRunCommandsDisabledWhenTaskVerificationIsSkipped(t *testing.T) {
+	t.Setenv(app.InternalSkipTaskVerificationEnvVar, "true")
+
+	for _, testCase := range []struct {
+		name    string
+		handler *RunCommandHandler
+	}{
+		{name: "runCommand", handler: newDefaultRunCommandHandler()},
+		{name: "runRemediationCommand", handler: newDefaultRunRemediationCommandHandler()},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			output, err := testCase.handler.Run(
+				context.Background(),
+				makeTask("echo should-not-run", []string{"rshell:echo"}),
+				nil,
+			)
+
+			assert.Nil(t, output)
+			assert.ErrorContains(t, err, "rshell commands are disabled when task verification is disabled")
+		})
+	}
 }
 
 func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
