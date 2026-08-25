@@ -66,7 +66,7 @@
     - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
     - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
   variables:
-    GIT_DEPTH: 0  # Full history: --impacted tests use git merge-base
+    GIT_DEPTH: 0 # Full history: --impacted tests use git merge-base
     GIT_STRATEGY: "clone" # Needed because we use git merge-base
     DYNAMIC_TESTS_FLAG: "--impacted"
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
@@ -293,7 +293,7 @@ new-e2e-containers-k8s-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.3@sha256:a16e7786dbb06083ddd49e59a17f9cb36e75e85491b192d6977a674d5364b720"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
 
 new-e2e-containers-k8s-rc-latest:
   extends:
@@ -306,7 +306,7 @@ new-e2e-containers-k8s-rc-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.37.0-rc.0@sha256:a11b5b8063555e8ef8a5e1100459cad9e100543f61e37cb7fd722ec576c9be89"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.37.0-rc.1@sha256:adc3f1a9ef8b768d311c0592f727c30e274a870c8f0f7713e949558d0275f8f1"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
@@ -952,6 +952,12 @@ new-e2e-installer:
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestPackages/agent_"
+      - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
+      - EXTRA_PARAMS: --run "TestPackages/ddot_"
+      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -976,6 +982,11 @@ new-e2e-installer-ansible:
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestPackages/agent_"
+      - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
+      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
