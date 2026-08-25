@@ -1,6 +1,6 @@
 # Custom checks developer guide
 
-For more informations about what a Custom check is and whether they are a good
+For more information about what a Custom check is and whether they are a good
 fit for your use case, please [refer to the official documentation][custom-checks].
 
 ## JMX-based checks
