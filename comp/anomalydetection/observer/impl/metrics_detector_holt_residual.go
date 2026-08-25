@@ -145,10 +145,10 @@ type HoltResidualDetector struct {
 	// per-series state keyed by ref+agg
 	series map[holtStateKey]*holtSeriesState
 
-	// cache the discovered series list across Detect calls (mirrors the
-	// scanwelch / scanmw / bocpd pattern).
-	cachedSeries []observer.SeriesMeta
-	cachedGen    uint64
+	// Cache compact refs across Detect calls. Keeping only refs avoids retaining
+	// every series' metadata and tag slice for Holt's lifetime.
+	cachedRefs []observer.SeriesRef
+	cachedGen  uint64
 }
 
 // HoltResidualConfig holds catalog/testbench tunables for HoltResidualDetector.
@@ -222,7 +222,7 @@ func (d *HoltResidualDetector) DetectorPointWindow() observer.DetectorPointWindo
 // Reset clears all per-series state for replay/reanalysis.
 func (d *HoltResidualDetector) Reset() {
 	d.series = make(map[holtStateKey]*holtSeriesState)
-	d.cachedSeries = nil
+	d.cachedRefs = nil
 	d.cachedGen = 0
 	d.ready = false
 }
@@ -240,7 +240,7 @@ func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 			delete(d.series, holtStateKey{ref: ref, agg: agg})
 		}
 	}
-	d.cachedSeries = nil
+	d.cachedRefs = nil
 	d.cachedGen = 0
 }
 
@@ -250,27 +250,23 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 	d.ensureDefaults()
 
 	gen := storage.SeriesGeneration()
-	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
+	if d.cachedRefs == nil || gen != d.cachedGen {
+		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
 		d.cachedGen = gen
 	}
 
-	refs := make([]observer.SeriesRef, len(d.cachedSeries))
-	for i, meta := range d.cachedSeries {
-		refs[i] = meta.Ref
-	}
-	bulkStatus := bulkSeriesStatus(storage, refs, dataTime)
+	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
 
 	var allAnomalies []observer.Anomaly
 
-	for i, meta := range d.cachedSeries {
+	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
-			if !supportsSeriesAggregate(storage, meta.Ref, agg) {
+			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
-			sk := holtStateKey{ref: meta.Ref, agg: agg}
+			sk := holtStateKey{ref: ref, agg: agg}
 			state, exists := d.series[sk]
 			if !exists && status.pointCount < d.WarmupPoints {
 				continue
@@ -286,23 +282,23 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 			}
 			startTime := state.lastProcessedTime
 			countIncreased := status.pointCount > state.lastProcessedCount
-			prefixCount := storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
+			prefixCount := storage.PointCountUpTo(ref, state.lastProcessedTime)
 			// A full point window can evict an old bucket while appending a new
 			// one. That changes the generation without changing the total count;
 			// the smaller prefix shows the lost bucket was before our cursor.
 			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen &&
 				prefixCount >= state.lastProcessedCount
 			cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
-				prefixCount == state.lastProcessedCount && holtCursorPointChanged(storage, meta.Ref, agg, state)
+				prefixCount == state.lastProcessedCount && holtCursorPointChanged(storage, ref, agg, state)
 			if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
 				state = d.newState()
 				d.series[sk] = state
 				startTime = 0
 			}
 
-			anomalies, pointsSeen := d.ingestNewPoints(storage, meta.Ref, agg, state, startTime, dataTime, status.pointCount >= d.WarmupPoints)
+			anomalies, pointsSeen := d.ingestNewPoints(storage, ref, agg, state, startTime, dataTime, status.pointCount >= d.WarmupPoints)
 			for j := range anomalies {
-				anomalies[j].SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
+				anomalies[j].SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 			}
 			allAnomalies = append(allAnomalies, anomalies...)
 
