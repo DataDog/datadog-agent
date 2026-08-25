@@ -18,7 +18,6 @@ import (
 	"time"
 
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -270,48 +269,4 @@ func TestPARSetSigningKeyRejectsInvalidPrivateKeySize(t *testing.T) {
 	fi.handlePARSetSigningKey(rec, req)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
-}
-
-func TestPARDequeueSignsTaskEnvelope(t *testing.T) {
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
-	require.NoError(t, err)
-
-	fi := NewServer()
-	fi.par.queue = []parQueuedTask{{
-		TaskID:    "signed-task",
-		ActionFQN: "com.datadoghq.remoteaction.rshell.runCommand",
-		Inputs:    map[string]interface{}{"command": "echo signed"},
-		Signing: &api.PARTaskSigning{
-			KeyID:      "runner-key",
-			PrivateKey: privateKey,
-			OrgID:      123456,
-			RunnerID:   "test-runner-e2e",
-		},
-	}}
-
-	recorder := httptest.NewRecorder()
-	fi.handlePARDequeue(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil))
-	require.Equal(t, http.StatusOK, recorder.Code)
-
-	var response struct {
-		Data struct {
-			Attributes struct {
-				SignedEnvelope *privateactionspb.RemoteConfigSignatureEnvelope `json:"signed_envelope"`
-			} `json:"attributes"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-	envelope := response.Data.Attributes.SignedEnvelope
-	require.NotNil(t, envelope)
-	require.Equal(t, privateactionspb.HashType_SHA256, envelope.HashType)
-	require.Len(t, envelope.Signatures, 1)
-
-	digest := sha256.Sum256(envelope.Data)
-	assert.True(t, ed25519.Verify(publicKey, digest[:], envelope.Signatures[0].Signature))
-
-	var task privateactionspb.PrivateActionTask
-	require.NoError(t, proto.Unmarshal(envelope.Data, &task))
-	assert.Equal(t, int64(123456), task.OrgId)
-	assert.Equal(t, "test-runner-e2e", task.GetConnectionInfo().GetRunnerId())
-	assert.True(t, task.GetExpirationTime().IsValid())
 }

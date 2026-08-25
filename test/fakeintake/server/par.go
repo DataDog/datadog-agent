@@ -46,7 +46,11 @@ type parServerState struct {
 	connectionID string
 }
 
-type parQueuedTask = api.PAREnqueueTaskRequest
+type parQueuedTask struct {
+	TaskID    string                 `json:"task_id"`
+	ActionFQN string                 `json:"action_fqn"`
+	Inputs    map[string]interface{} `json:"inputs"`
+}
 
 // --- PAR-facing handlers (called by the agent) ---
 
@@ -118,25 +122,19 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expiresAt := fi.clock.Now().Add(parTaskTTL)
-	keyID, signingKey := fi.par.signingKeyID, fi.par.signingKey
-	orgID, runnerID, connectionID := fi.par.orgID, fi.par.runnerID, fi.par.connectionID
-	if task.Signing != nil {
-		keyID, signingKey = task.Signing.KeyID, ed25519.PrivateKey(task.Signing.PrivateKey)
-		orgID, runnerID, connectionID = task.Signing.OrgID, task.Signing.RunnerID, task.Signing.ConnectionID
-	}
 	pbTask := &privateactionspb.PrivateActionTask{
 		ActionName:     actionName,
 		BundleId:       bundleID,
-		OrgId:          orgID,
+		OrgId:          fi.par.orgID,
 		TaskId:         task.TaskID,
 		Inputs:         inputs,
 		ExpirationTime: timestamppb.New(expiresAt),
 	}
-	if runnerID != "" {
+	if fi.par.runnerID != "" {
 		pbTask.ConnectionInfo = &privateactionspb.ConnectionInfo{
-			ConnectionId:    connectionID,
+			ConnectionId:    fi.par.connectionID,
 			CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
-			RunnerId:        runnerID,
+			RunnerId:        fi.par.runnerID,
 		}
 	}
 	if remoteAction != nil {
@@ -154,15 +152,15 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	envelope := map[string]interface{}{"data": signedTaskData}
-	if signingKey != nil {
+	if fi.par.signingKey != nil {
 		hashedPayload := sha256.Sum256(signedTaskData)
 		envelope["hash_type"] = int32(privateactionspb.HashType_SHA256)
 		envelope["expiration_time"] = timestamppb.New(expiresAt)
 		envelope["signatures"] = []map[string]interface{}{
 			{
 				"key_type":  int32(privateactionspb.KeyType_ED25519),
-				"key_id":    keyID,
-				"signature": ed25519.Sign(signingKey, hashedPayload[:]),
+				"key_id":    fi.par.signingKeyID,
+				"signature": ed25519.Sign(fi.par.signingKey, hashedPayload[:]),
 			},
 		}
 	}
@@ -375,10 +373,6 @@ func (fi *Server) handlePAREnqueue(w http.ResponseWriter, r *http.Request) {
 	var task parQueuedTask
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
-		return
-	}
-	if task.Signing != nil && (task.Signing.KeyID == "" || task.Signing.RunnerID == "" || len(task.Signing.PrivateKey) != ed25519.PrivateKeySize) {
-		http.Error(w, "invalid task signing configuration", http.StatusBadRequest)
 		return
 	}
 
