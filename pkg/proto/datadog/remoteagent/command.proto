@@ -4,7 +4,7 @@ package datadog.remoteagent.command.v1;
 
 import "google/protobuf/struct.proto";
 
-option go_package = "pkg/proto/pbgo/core"; // golang
+option go_package = "pkg/proto/pbgo/core";
 
 service RemoteCommandProvider {
   rpc ListCommands(ListCommandsRequest) returns (ListCommandsResponse);
