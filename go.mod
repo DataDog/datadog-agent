@@ -200,6 +200,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/version v0.81.0
+	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-api-client-go/v2 v2.62.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
@@ -215,7 +216,6 @@ require (
 	github.com/DataDog/rshell v0.0.24
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
-	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
@@ -572,6 +572,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/DisposaBoy/JsonConfigReader v0.0.0-20201129172854-99cf318d67e7 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0 // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
@@ -1396,6 +1397,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ./pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ./pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ./test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ./test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e

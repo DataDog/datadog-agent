@@ -19,7 +19,7 @@ go_library(
         "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/fxutil",
-        "@com_github_datadog_zstd//:zstd",
+        "//pkg/zstd",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
     ],

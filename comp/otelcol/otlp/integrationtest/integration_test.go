@@ -38,7 +38,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	zstd "github.com/DataDog/zstd"
+
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
@@ -253,7 +254,7 @@ func TestIntegration(t *testing.T) {
 		select {
 		case tracesBytes := <-tracesRec.ReqChan:
 			// Traces are compressed with zstd (DDOT wires comp/trace/compression/fx-zstd).
-			zr := getZstdReader(tracesBytes)
+			zr := getZstdReader(t, tracesBytes)
 			slurp, err := io.ReadAll(zr)
 			require.NoError(t, err)
 			// Close immediately (not via defer): this runs once per loop iteration and
@@ -384,10 +385,13 @@ func getGzipReader(t *testing.T, reqBytes []byte) io.Reader {
 // zstd (comp/trace/compression/fx-zstd), so trace payloads must be read with this
 // reader rather than getGzipReader. APM stats remain gzip-compressed.
 //
-// The returned io.ReadCloser is cgo-backed (a ZSTD_DStream* plus a buffer borrowed
-// from a package-level sync.Pool); callers MUST Close() it once done reading, or
-// each call leaks the C allocation and permanently drains a pooled buffer (the GC
-// does not see the C memory, and the finalizer fallback does not return the buffer).
-func getZstdReader(reqBytes []byte) io.ReadCloser {
-	return zstd.NewReader(bytes.NewBuffer(reqBytes))
+// The returned io.ReadCloser is backed by the active zstd backend (cgo-backed when
+// CGO is enabled — a ZSTD_DStream* plus a buffer borrowed from a package-level
+// sync.Pool); callers MUST Close() it once done reading, or each call leaks the C
+// allocation and permanently drains a pooled buffer (the GC does not see the C
+// memory, and the finalizer fallback does not return the buffer).
+func getZstdReader(t *testing.T, reqBytes []byte) io.ReadCloser {
+	reader, err := zstd.NewReader(bytes.NewBuffer(reqBytes))
+	require.NoError(t, err)
+	return reader
 }

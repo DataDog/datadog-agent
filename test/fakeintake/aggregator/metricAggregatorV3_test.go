@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protowire"

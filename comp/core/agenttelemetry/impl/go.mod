@@ -23,7 +23,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.77.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0
-	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
+	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000
 	github.com/prometheus/client_model v0.6.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.11.1
@@ -63,6 +63,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -74,6 +75,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itchyny/gojq v0.12.19 // indirect
 	github.com/itchyny/timefmt-go v0.1.8 // indirect
+	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/mdlayher/socket v0.6.1 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
@@ -284,6 +286,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../test/new-e2e

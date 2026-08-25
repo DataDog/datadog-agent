@@ -11,6 +11,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//pkg/util/http",
-        "@com_github_datadog_zstd//:zstd",
+        "//pkg/zstd",
     ],
 )

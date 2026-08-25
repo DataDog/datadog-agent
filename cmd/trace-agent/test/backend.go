@@ -22,7 +22,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/tinylib/msgp/msgp"
 	"google.golang.org/protobuf/proto"
 )
@@ -158,7 +158,7 @@ func readCloserFromRequest(req *http.Request) (io.ReadCloser, error) {
 	encoding := strings.ToLower(req.Header.Get("Content-Encoding"))
 	switch encoding {
 	case "zstd":
-		return zstd.NewReader(req.Body), nil
+		return zstd.NewReader(req.Body)
 	case "gzip":
 		reader, err := gzip.NewReader(req.Body)
 		if err != nil {

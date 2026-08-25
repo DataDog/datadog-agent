@@ -25,8 +25,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/DataDog/jsonapi"
-	"github.com/DataDog/zstd"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -185,7 +185,9 @@ func checkRequest(t *testing.T, req *http.Request, expectedSymbolSource symbol.S
 
 	var reader io.ReadCloser
 	if req.Header.Get("Content-Encoding") == "zstd" {
-		reader = zstd.NewReader(req.Body)
+		var err error
+		reader, err = zstd.NewReader(req.Body)
+		require.NoError(t, err)
 		defer reader.Close()
 	} else {
 		reader = req.Body

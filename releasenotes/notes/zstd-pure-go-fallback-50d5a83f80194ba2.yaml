@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The Agent's zstd compression is now provided by a single internal package
+    (``pkg/zstd``) that uses the native libzstd via CGO when CGO is enabled and
+    automatically falls back to a pure-Go zstd implementation when CGO is
+    disabled. This allows more components (including the serializer, the trace
+    agent compression, and the dogstatsd traffic capture) to build and run in
+    CGO-disabled environments without changing compression behavior.

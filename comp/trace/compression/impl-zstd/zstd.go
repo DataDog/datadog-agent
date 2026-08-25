@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2024-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package zstdimpl implements the compression component interface
 package zstdimpl
@@ -11,7 +11,7 @@ import (
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 const encoding = "zstd"
@@ -24,11 +24,11 @@ func NewComponent() compression.Component {
 }
 
 func (c *compressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
-	return zstd.NewWriterLevel(w, zstd.BestSpeed), nil
+	return zstd.NewWriterLevel(w, zstd.BestSpeed)
 }
 
 func (c *compressor) NewReader(w io.Reader) (io.ReadCloser, error) {
-	return zstd.NewReader(w), nil
+	return zstd.NewReader(w)
 }
 
 func (c *compressor) Encoding() string {
