@@ -22,6 +22,9 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 )
 
+// defaultKeepaliveInterval must stay well under remote_agent.registry.idle_timeout (30s).
+const defaultKeepaliveInterval = 10 * time.Second
+
 // Server implements the transport-specific logic for the configstream component.
 type Server struct {
 	cfg      config.Component
@@ -72,10 +75,24 @@ func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.Agent
 
 	interval := s.cfg.GetDuration("remote_agent.configstream.sleep_interval")
 
+	// An open stream is invisible to the RAR reaper, so treat streaming as liveness rather
+	// than let a mid-stream client be evicted.
+	keepaliveInterval := s.cfg.GetDuration("remote_agent.registry.recommended_refresh_interval")
+	if keepaliveInterval <= 0 {
+		keepaliveInterval = defaultKeepaliveInterval
+	}
+	keepalive := time.NewTicker(keepaliveInterval)
+	defer keepalive.Stop()
+
 	for {
 		select {
 		case <-stream.Context().Done():
 			return stream.Context().Err()
+		case <-keepalive.C:
+			if !s.registry.RefreshRemoteAgent(sessionID) {
+				log.Infof("Closing config stream for '%s': session_id %s is no longer registered", req.Name, sessionID)
+				return status.Errorf(codes.PermissionDenied, "session_id '%s' no longer registered", sessionID)
+			}
 		case event, ok := <-eventsCh:
 			if !ok {
 				return nil

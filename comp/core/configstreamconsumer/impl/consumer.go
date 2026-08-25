@@ -7,6 +7,7 @@
 //
 // When enabled, NewComponent dials core, registers with the RAR, fetches the initial
 // snapshot, and seeds the global config builder before any other component reads config.
+// A background session loop keeps the RAR session alive and re-registers when it is lost.
 // Global-builder writes are delegated to pkg/configstreambootstrap because the
 // pkgconfigusage depguard blocks pkg/config/setup imports from comp/.
 package configstreamconsumerimpl
@@ -25,7 +26,9 @@ import (
 
 	"github.com/cenkalti/backoff/v7"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -42,6 +45,15 @@ import (
 
 // queryTimeout caps RegisterRemoteAgent and stream open; stream Recv uses ctx.
 const queryTimeout = 30 * time.Second
+
+// defaultRefreshInterval must stay well under remote_agent.registry.idle_timeout (30s).
+const defaultRefreshInterval = 10 * time.Second
+
+// noSessionPollInterval is how often streamLoop re-checks for a session being re-minted.
+const noSessionPollInterval = time.Second
+
+// seqIDUnset marks "nothing applied on this stream yet" so sequence ID 0 is still accepted.
+const seqIDUnset = -1
 
 // Requires defines the dependencies for the configstreamconsumer component
 type Requires struct {
@@ -69,7 +81,13 @@ type consumer struct {
 	vsockAddr string
 	authToken string
 	clientTLS *tls.Config
-	sessionID string
+
+	// sessionID is re-minted whenever RAR drops the session, so every access takes sessionMu.
+	sessionID       string
+	refreshInterval time.Duration
+	sessionMu       sync.RWMutex
+	// sessionKick replaces an invalidated session now rather than at the next refresh tick.
+	sessionKick chan struct{}
 
 	conn       *grpc.ClientConn
 	client     pb.AgentSecureClient
@@ -87,10 +105,12 @@ type consumer struct {
 	wg        sync.WaitGroup
 	startTime time.Time
 
-	timeToFirstSnapshot  telemetry.Gauge
-	streamReconnectCount telemetry.Counter
-	lastSeqIDMetric      telemetry.Gauge
-	droppedStaleUpdates  telemetry.Counter
+	timeToFirstSnapshot   telemetry.Gauge
+	streamReconnectCount  telemetry.Counter
+	lastSeqIDMetric       telemetry.Gauge
+	droppedStaleUpdates   telemetry.Counter
+	sessionRegistrations  telemetry.Counter
+	sessionRefreshFailure telemetry.Counter
 }
 
 func (c *consumer) IsActive() bool { return c.ready.Load() }
@@ -141,6 +161,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		authToken: authToken,
 		clientTLS: clientTLS,
 		readyCh:   make(chan struct{}),
+
+		sessionKick: make(chan struct{}, 1),
 	}
 	c.initMetrics()
 
@@ -160,7 +182,8 @@ func (c *consumer) start(_ context.Context) error {
 		return err
 	}
 
-	c.wg.Add(1)
+	c.wg.Add(2)
+	go c.sessionLoop()
 	go c.streamLoop()
 
 	timeout := c.params.ReadyTimeout
@@ -179,43 +202,175 @@ func (c *consumer) start(_ context.Context) error {
 	return nil
 }
 
-// registerWithBackoff retries forever until ctx is canceled, with no fallback.
-func (c *consumer) registerWithBackoff() error {
-	// Sentinel URI: the consumer registers no services, so core never dials back.
-	apiEndpointURI := "https://configstream-consumer/" + c.params.ClientName
+// session returns the current RAR session ID, or "" while re-registration is pending.
+func (c *consumer) session() string {
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
+	return c.sessionID
+}
 
+func (c *consumer) setSession(sessionID string, refreshInterval time.Duration) {
+	c.sessionMu.Lock()
+	c.sessionID = sessionID
+	c.refreshInterval = refreshInterval
+	c.sessionMu.Unlock()
+}
+
+// invalidateSession makes sessionLoop mint a new session on its next tick.
+func (c *consumer) invalidateSession(reason string) {
+	c.sessionMu.Lock()
+	dropped := c.sessionID != ""
+	if dropped {
+		c.log.Warnf("configstreamconsumer[%s]: dropping session %s: %s", c.params.ClientName, c.sessionID, reason)
+		c.sessionID = ""
+	}
+	c.sessionMu.Unlock()
+
+	if dropped {
+		select {
+		case c.sessionKick <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (c *consumer) currentRefreshInterval() time.Duration {
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
+	if c.refreshInterval <= 0 {
+		return defaultRefreshInterval
+	}
+	return c.refreshInterval
+}
+
+func newRegistrationBackoff() *backoff.ExponentialBackOff {
 	bo := backoff.NewExponentialBackOff()
 	bo.InitialInterval = 500 * time.Millisecond
 	bo.MaxInterval = time.Minute
 	bo.Reset()
+	return bo
+}
+
+// registerOnce mints a new session over a short-lived connection.
+func (c *consumer) registerOnce() error {
+	client, conn, err := helper.NewAgentSecureClient(c.addr, c.authToken, c.clientTLS, c.vsockAddr, c.log)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	sessionID, refreshInterval, err := helper.RegisterRemoteAgent(c.ctx, client, helper.RegistrationRequest{
+		Flavor:      flavor.GetFlavor(),
+		DisplayName: c.params.ClientName,
+		// Sentinel URI: the consumer registers no services, so core never dials back.
+		APIEndpointURI: "https://configstream-consumer/" + c.params.ClientName,
+	}, queryTimeout, defaultRefreshInterval, c.log)
+	if err != nil {
+		return err
+	}
+	c.setSession(sessionID, refreshInterval)
+	c.sessionRegistrations.Inc()
+	return nil
+}
+
+// registerWithBackoff retries forever until ctx is canceled, with no fallback.
+func (c *consumer) registerWithBackoff() error {
+	bo := newRegistrationBackoff()
 	for attempt := 1; ; attempt++ {
-		client, conn, dialErr := helper.NewAgentSecureClient(c.addr, c.authToken, c.clientTLS, c.vsockAddr, c.log)
-		if dialErr == nil {
-			sessionID, _, regErr := helper.RegisterRemoteAgent(c.ctx, client, helper.RegistrationRequest{
-				Flavor:         flavor.GetFlavor(),
-				DisplayName:    c.params.ClientName,
-				APIEndpointURI: apiEndpointURI,
-			}, queryTimeout, 0, c.log)
-			if regErr == nil {
-				c.sessionID = sessionID
-				_ = conn.Close()
-				return nil
-			}
-			_ = conn.Close()
-			dialErr = regErr
+		err := c.registerOnce()
+		if err == nil {
+			return nil
 		}
 		if c.ctx.Err() != nil {
 			return c.ctx.Err()
 		}
 		// NextBackOff never returns backoff.Stop when MaxElapsedTime is 0 (the default).
 		next := bo.NextBackOff()
-		c.log.Warnf("configstreamconsumer[%s]: register attempt %d failed (%v); retrying in %s", c.params.ClientName, attempt, dialErr, next)
+		c.log.Warnf("configstreamconsumer[%s]: register attempt %d failed (%v); retrying in %s", c.params.ClientName, attempt, err, next)
 		select {
 		case <-c.ctx.Done():
 			return c.ctx.Err()
 		case <-time.After(next):
 		}
 	}
+}
+
+// sessionLoop keeps the RAR session alive. An open config stream does not count as activity,
+// so without a periodic refresh the reaper evicts the session and every later reconnect is
+// rejected with PermissionDenied. Falls back to re-registering once the session is gone.
+func (c *consumer) sessionLoop() {
+	defer c.wg.Done()
+
+	var (
+		client pb.AgentSecureClient
+		conn   *grpc.ClientConn
+	)
+	defer func() {
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
+	dropConn := func() {
+		if conn != nil {
+			_ = conn.Close()
+		}
+		client, conn = nil, nil
+	}
+
+	bo := newRegistrationBackoff()
+	ticker := time.NewTicker(c.currentRefreshInterval())
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+		case <-c.sessionKick:
+		}
+
+		if c.session() == "" {
+			if err := c.registerOnce(); err != nil {
+				next := bo.NextBackOff()
+				c.log.Warnf("configstreamconsumer[%s]: re-registration failed (%v); retrying in %s", c.params.ClientName, err, next)
+				ticker.Reset(next)
+				continue
+			}
+			c.log.Infof("configstreamconsumer[%s]: re-registered with RAR (session_id=%s)", c.params.ClientName, c.session())
+			bo.Reset()
+			ticker.Reset(c.currentRefreshInterval())
+			continue
+		}
+
+		if client == nil {
+			var err error
+			if client, conn, err = helper.NewAgentSecureClient(c.addr, c.authToken, c.clientTLS, c.vsockAddr, c.log); err != nil {
+				client, conn = nil, nil
+				next := bo.NextBackOff()
+				c.log.Warnf("configstreamconsumer[%s]: failed to connect for session refresh (%v); retrying in %s", c.params.ClientName, err, next)
+				ticker.Reset(next)
+				continue
+			}
+		}
+
+		if err := c.refreshSession(client); err != nil {
+			c.sessionRefreshFailure.Inc()
+			// The connection may itself be the problem, so redial on the next tick.
+			dropConn()
+			c.invalidateSession(fmt.Sprintf("refresh failed: %v", err))
+			ticker.Reset(bo.NextBackOff())
+			continue
+		}
+		bo.Reset()
+		ticker.Reset(c.currentRefreshInterval())
+	}
+}
+
+func (c *consumer) refreshSession(client pb.AgentSecureClient) error {
+	ctx, cancel := context.WithTimeout(c.ctx, queryTimeout)
+	defer cancel()
+	_, err := client.RefreshRemoteAgent(ctx, &pb.RefreshRemoteAgentRequest{SessionId: c.session()})
+	return err
 }
 
 func (c *consumer) stop(_ context.Context) error {
@@ -251,9 +406,26 @@ func (c *consumer) streamLoop() {
 		default:
 		}
 
+		// sessionLoop is re-registering; dialing now would only earn another rejection.
+		if c.session() == "" {
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-time.After(noSessionPollInterval):
+			}
+			continue
+		}
+
 		if err := c.connectAndStream(); err != nil {
 			if err == context.Canceled || c.ctx.Err() != nil {
 				return
+			}
+			// A rejected session_id stays rejected until a new one is minted.
+			if st, ok := status.FromError(err); ok {
+				switch st.Code() {
+				case codes.PermissionDenied, codes.Unauthenticated:
+					c.invalidateSession(st.Message())
+				}
 			}
 			c.log.Warnf("Config stream error: %v, reconnecting...", err)
 			c.streamReconnectCount.Inc()
@@ -280,8 +452,12 @@ func (c *consumer) connectAndStream() error {
 	c.client = client
 	c.streamLock.Unlock()
 
-	md := metadata.New(map[string]string{"session_id": c.sessionID})
+	md := metadata.New(map[string]string{"session_id": c.session()})
 	ctxWithMetadata := metadata.NewOutgoingContext(c.ctx, md)
+
+	// Sequence IDs are per core-agent process, so they carry no meaning across a reconnect.
+	// The leading snapshot of a new subscription is authoritative whatever its sequence ID.
+	c.lastSeqID.Store(seqIDUnset)
 
 	stream, err := c.client.StreamConfigEvents(ctxWithMetadata, &pb.ConfigStreamRequest{Name: c.params.ClientName})
 	if err != nil {
@@ -323,8 +499,7 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
 
 func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	if snapshot.SequenceId <= c.lastSeqID.Load() {
-		c.log.Errorf("Received snapshot with seq_id %d <= current %d; the core agent may have restarted. "+
-			"This sub-process must be restarted to accept a new configuration.", snapshot.SequenceId, c.lastSeqID.Load())
+		c.log.Warnf("Ignoring stale snapshot (seq_id: %d <= %d)", snapshot.SequenceId, c.lastSeqID.Load())
 		c.droppedStaleUpdates.Inc()
 		return nil
 	}
@@ -392,5 +567,17 @@ func (c *consumer) initMetrics() {
 		"dropped_stale_updates",
 		[]string{},
 		"Number of stale config updates dropped",
+	)
+	c.sessionRegistrations = c.telemetry.NewCounter(
+		"configstream_consumer",
+		"session_registrations",
+		[]string{},
+		"Number of Remote Agent Registry registrations, including re-registrations after a lost session",
+	)
+	c.sessionRefreshFailure = c.telemetry.NewCounter(
+		"configstream_consumer",
+		"session_refresh_failures",
+		[]string{},
+		"Number of failed Remote Agent Registry session refreshes",
 	)
 }
