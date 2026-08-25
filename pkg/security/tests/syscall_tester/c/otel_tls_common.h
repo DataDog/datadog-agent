@@ -83,7 +83,11 @@ static inline int otel_create_tracer_memfd(void) {
         "\xab" "http.target"
         "\xa9" "http.user";
 
-    int fd = syscall(SYS_memfd_create, "datadog-tracer-info-oteltest", MFD_ALLOW_SEALING);
+    // On the stack, as a tracer building a per-process suffix would have it: a
+    // literal sits in rodata this object may not have touched yet.
+    const char memfd_name[] = "datadog-tracer-info-oteltest";
+
+    int fd = syscall(SYS_memfd_create, memfd_name, MFD_ALLOW_SEALING);
     if (fd < 0) {
         perror("memfd_create");
         return -1;
