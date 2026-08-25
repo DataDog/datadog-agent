@@ -279,6 +279,8 @@ func TestPrepareMetricIngestDropsMatchingMetrics(t *testing.T) {
 	require.NotNil(t, kept.metric)
 	assert.Equal(t, "dogstatsd", kept.source)
 	assert.Equal(t, "system.cpu.user", kept.metric.name)
+	assert.NotZero(t, kept.metric.seriesKeyHash)
+	assert.Equal(t, seriesKeyHash("dogstatsd", "system.cpu.user", []string{"env:prod"}), kept.metric.seriesKeyHash)
 }
 
 func TestPrepareMetricIngestRejectsNameAndSourceMatchWithoutReadingTags(t *testing.T) {

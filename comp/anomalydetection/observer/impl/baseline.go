@@ -130,13 +130,13 @@ func (b *baselineController) isAnalyzingAt(name string, dataSec int64) bool {
 	return dataSec < state.baselineEndSec
 }
 
-func (b *baselineController) mark(name string, h uint64) {
+func (b *baselineController) mark(name string, hash uint64) {
 	state := b.detectors[name]
 	if state == nil || state.completed || !state.ready {
 		return
 	}
 	state.windowAnomalyCount++
-	state.pendingHashes[h] = struct{}{}
+	state.pendingHashes[hash] = struct{}{}
 }
 
 func (b *baselineController) due(dataSec int64) []string {

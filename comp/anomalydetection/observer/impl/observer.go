@@ -68,10 +68,11 @@ type observation struct {
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
 type metricObs struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp int64
+	name          string
+	value         float64
+	tags          []string
+	timestamp     int64
+	seriesKeyHash uint64
 }
 
 // Ensure metricObs implements observerdef.MetricView
@@ -1080,7 +1081,8 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
 	// storage, and downstream Add calls hit the tagsSorted fast path.
 	tags := canonicalizeTags(sample.GetRawTags())
-	if filter.isMuted(name, normalizedSource, tags) ||
+	key := seriesKeyHash(normalizedSource, name, tags)
+	if filter.isMutedHash(key) ||
 		(precheck.needsTags && !filter.isAllowedByRulesFrom(name, normalizedSource, tags, precheck.firstCandidate)) {
 		return metricIngestDecision{source: normalizedSource}
 	}
@@ -1092,10 +1094,11 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 	return metricIngestDecision{
 		source: normalizedSource,
 		metric: &metricObs{
-			name:      name,
-			value:     sample.GetValue(),
-			tags:      tags,
-			timestamp: timestamp,
+			name:          name,
+			value:         sample.GetValue(),
+			tags:          tags,
+			timestamp:     timestamp,
+			seriesKeyHash: key,
 		},
 	}
 }

@@ -221,12 +221,19 @@ func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool 
 }
 
 func (f *metricsFilterRules) isMuted(name, source string, tags []string) bool {
-	if f == nil || source == LogMetricsExtractorName {
+	if source == LogMetricsExtractorName {
+		return false
+	}
+	return f.isMutedHash(seriesKeyHash(source, name, tags))
+}
+
+func (f *metricsFilterRules) isMutedHash(key uint64) bool {
+	if f == nil {
 		return false
 	}
 
 	if m := f.muted.Load(); m != nil {
-		if _, ok := (*m)[seriesKeyHash(source, name, tags)]; ok {
+		if _, ok := (*m)[key]; ok {
 			return true
 		}
 	}
