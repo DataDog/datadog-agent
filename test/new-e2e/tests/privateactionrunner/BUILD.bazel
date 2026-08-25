@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "identity.go",
         "provisioner.go",
+        "rc_helpers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/privateactionrunner",
     visibility = ["//visibility:public"],
@@ -22,6 +23,7 @@ go_library(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "//test/fakeintake/client",
         "@com_github_go_jose_go_jose_v4//:go-jose",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
@@ -51,6 +53,7 @@ dd_agent_go_test(
         "@com_github_google_uuid//:uuid",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )

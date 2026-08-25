@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -13,8 +13,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.44.1-0.20260622141720-fbe3d073ba93
 	go.opentelemetry.io/otel/sdk/metric v1.44.1-0.20260622141720-fbe3d073ba93
 )
-
-require go.yaml.in/yaml/v3 v3.0.5 // indirect
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -34,6 +32,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
