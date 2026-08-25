@@ -53,6 +53,7 @@ const (
 // inject a fake and exercise the fallback branches without real systemd.
 type systemdServiceManager interface {
 	InstallerPath() string
+	TmpfsCompatible() bool
 	ServiceFileExists() bool
 	Setup(ctx context.Context) error
 	Uninstall(ctx context.Context) error
@@ -238,14 +239,13 @@ func (a *InjectorInstaller) instrumentHost(ctx context.Context) (err error) {
 // unit left by a previous install is removed so a doomed ExecStart is not left
 // enabled.
 //
-// It returns true only when the unit was set up AND started successfully, so the
-// caller may reference the launcher through the reboot-safe tmpfs symlink in its
-// own direct ld.so.preload write. A false return — no supported installer, setup
-// error, or the immediate start failed — means the caller must use the persistent
-// path. On start failure the unit is removed: keeping a unit that cannot start
-// enabled would be misleading and would not help, since the tmpfs symlink it
-// creates is needed immediately (not only on next boot).
-func (a *InjectorInstaller) setupSystemdPreloadUnit(ctx context.Context, mgr systemdServiceManager) (serviceRunning bool) {
+// It returns true only when the unit was set up and its selected installer
+// contains the tmpfs preload lifecycle. With an older installer, the service
+// remains enabled but the caller uses the persistent preload path it understands
+// instead of introducing a tmpfs path it cannot recreate on boot. Setup and start
+// failures still remove the unit and fall back to direct persistent
+// ld.so.preload management.
+func (a *InjectorInstaller) setupSystemdPreloadUnit(ctx context.Context, mgr systemdServiceManager) (useTmpfs bool) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_systemd_preload_unit")
 	defer func() { span.Finish(nil) }()
 
@@ -286,7 +286,12 @@ func (a *InjectorInstaller) setupSystemdPreloadUnit(ctx context.Context, mgr sys
 	a.rollbacks = append(a.rollbacks, func() error {
 		return mgr.Uninstall(ctx)
 	})
-	return true
+	tmpfsCompatible := mgr.TmpfsCompatible()
+	span.SetTag("tmpfs_compatible", tmpfsCompatible)
+	if !tmpfsCompatible {
+		log.Infof("APM inject service installer predates tmpfs support; using persistent ld.so.preload path")
+	}
+	return tmpfsCompatible
 }
 
 // Uninstrument uninstruments the APM injector

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build !windows
+
 package authoredscripts
 
 import (
@@ -39,7 +41,7 @@ func writeManifest(t *testing.T, contents string) string {
 func TestLoadManifest_Valid(t *testing.T) {
 	artifactDirectory := writeManifest(t, validManifest)
 
-	manifest, err := LoadManifest(artifactDirectory)
+	manifest, err := loadManifest(artifactDirectory)
 
 	require.NoError(t, err)
 	assert.Equal(t, "v1", manifest.SchemaVersion)
@@ -48,23 +50,17 @@ func TestLoadManifest_Valid(t *testing.T) {
 	assert.Equal(t, []string{"HOME"}, manifest.Config.AllowedEnvVars)
 }
 
-func TestLoadManifest_WithGlobalAndSessionEnvVars(t *testing.T) {
+func TestLoadManifest_WithSessionEnvVars(t *testing.T) {
 	artifactDirectory := writeManifest(t, validManifest+`
-  setGlobalEnvVars:
-    - name: EXAMPLE_FILE
-      value: path/to/file
-      kind: file
   setSessionEnvVars:
     - name: SESSION_EXAMPLE_VALUE
       value: example-session-value
       kind: value
 `)
 
-	manifest, err := LoadManifest(artifactDirectory)
+	manifest, err := loadManifest(artifactDirectory)
 
 	require.NoError(t, err)
-	require.Len(t, manifest.Config.SetGlobalEnvVars, 1)
-	assert.Equal(t, environmentKindFile, manifest.Config.SetGlobalEnvVars[0].Kind)
 	require.Len(t, manifest.Config.SetSessionEnvVars, 1)
 	assert.Equal(t, environmentKindValue, manifest.Config.SetSessionEnvVars[0].Kind)
 }
@@ -72,7 +68,7 @@ func TestLoadManifest_WithGlobalAndSessionEnvVars(t *testing.T) {
 func TestLoadManifest_MissingManifestFile(t *testing.T) {
 	artifactDirectory := t.TempDir()
 
-	_, err := LoadManifest(artifactDirectory)
+	_, err := loadManifest(artifactDirectory)
 
 	require.Error(t, err)
 }
@@ -80,7 +76,7 @@ func TestLoadManifest_MissingManifestFile(t *testing.T) {
 func TestLoadManifest_RejectsUnknownField(t *testing.T) {
 	artifactDirectory := writeManifest(t, validManifest+"\nunexpectedField: true\n")
 
-	_, err := LoadManifest(artifactDirectory)
+	_, err := loadManifest(artifactDirectory)
 
 	require.Error(t, err)
 }
@@ -88,7 +84,7 @@ func TestLoadManifest_RejectsUnknownField(t *testing.T) {
 func TestLoadManifest_RejectsMultipleDocuments(t *testing.T) {
 	artifactDirectory := writeManifest(t, validManifest+"\n---\nschema-version: v1\n")
 
-	_, err := LoadManifest(artifactDirectory)
+	_, err := loadManifest(artifactDirectory)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exactly one YAML document")
@@ -98,7 +94,7 @@ func TestLoadManifest_RejectsOversizedManifest(t *testing.T) {
 	padding := strings.Repeat("a", maxManifestSize+1)
 	artifactDirectory := writeManifest(t, validManifest+"\n# "+padding+"\n")
 
-	_, err := LoadManifest(artifactDirectory)
+	_, err := loadManifest(artifactDirectory)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "byte limit")
@@ -175,18 +171,18 @@ func TestValidateManifest(t *testing.T) {
 			expectError: "command is required",
 		},
 		{
-			name: "unsupported global env var kind",
+			name: "unsupported session env var kind",
 			manifest: &Manifest{
 				SchemaVersion: manifestSchemaVersion,
 				Package:       "dd-par-scripts-echo",
 				Version:       "0.0.1",
 				FQN:           "com.datadoghq.authoredscripts.echo",
 				Config: ScriptConfig{
-					Command:          validCommand,
-					SetGlobalEnvVars: []EnvironmentVariable{{Name: "X", Value: "y", Kind: "socket"}},
+					Command:           validCommand,
+					SetSessionEnvVars: []EnvironmentVariable{{Name: "X", Value: "y", Kind: "socket"}},
 				},
 			},
-			expectError: "global environment variable",
+			expectError: "session environment variable",
 		},
 		{
 			name: "incomplete session env var",

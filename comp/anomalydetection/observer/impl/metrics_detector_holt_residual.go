@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -96,12 +97,6 @@ type holtSeriesState struct {
 	consecutiveNeg      int
 	refractoryRemaining int
 
-	// captured series metadata (first non-empty observation suffices)
-	seriesMetaCaptured bool
-	seriesNamespace    string
-	seriesName         string
-	seriesTags         []string
-
 	// recentTimestamps is a small ring of the most recently ingested point
 	// timestamps; used by medianTimestampInterval to estimate the sampling
 	// cadence for downstream correlators. We don't need a full window —
@@ -145,10 +140,14 @@ type HoltResidualDetector struct {
 	// per-series state keyed by ref+agg
 	series map[holtStateKey]*holtSeriesState
 
-	// cache the discovered series list across Detect calls (mirrors the
-	// scanwelch / scanmw / bocpd pattern).
-	cachedSeries []observer.SeriesMeta
-	cachedGen    uint64
+	// Cache compact refs across Detect calls. Keeping only refs avoids retaining
+	// every series' metadata and tag slice for Holt's lifetime.
+	cachedRefs []observer.SeriesRef
+	cachedGen  uint64
+
+	// scratch is reused by the single-threaded detection loop for median/MAD
+	// calculations. It never aliases series state windows.
+	scratch []float64
 }
 
 // HoltResidualConfig holds catalog/testbench tunables for HoltResidualDetector.
@@ -222,8 +221,9 @@ func (d *HoltResidualDetector) DetectorPointWindow() observer.DetectorPointWindo
 // Reset clears all per-series state for replay/reanalysis.
 func (d *HoltResidualDetector) Reset() {
 	d.series = make(map[holtStateKey]*holtSeriesState)
-	d.cachedSeries = nil
+	d.cachedRefs = nil
 	d.cachedGen = 0
+	d.scratch = d.scratch[:0]
 	d.ready = false
 }
 
@@ -240,7 +240,7 @@ func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 			delete(d.series, holtStateKey{ref: ref, agg: agg})
 		}
 	}
-	d.cachedSeries = nil
+	d.cachedRefs = nil
 	d.cachedGen = 0
 }
 
@@ -250,27 +250,23 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 	d.ensureDefaults()
 
 	gen := storage.SeriesGeneration()
-	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
+	if d.cachedRefs == nil || gen != d.cachedGen {
+		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
 		d.cachedGen = gen
 	}
 
-	refs := make([]observer.SeriesRef, len(d.cachedSeries))
-	for i, meta := range d.cachedSeries {
-		refs[i] = meta.Ref
-	}
-	bulkStatus := bulkSeriesStatus(storage, refs, dataTime)
+	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
 
 	var allAnomalies []observer.Anomaly
 
-	for i, meta := range d.cachedSeries {
+	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
-			if !supportsSeriesAggregate(storage, meta.Ref, agg) {
+			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
-			sk := holtStateKey{ref: meta.Ref, agg: agg}
+			sk := holtStateKey{ref: ref, agg: agg}
 			state, exists := d.series[sk]
 			if !exists && status.pointCount < d.WarmupPoints {
 				continue
@@ -286,23 +282,23 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 			}
 			startTime := state.lastProcessedTime
 			countIncreased := status.pointCount > state.lastProcessedCount
-			prefixCount := storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
+			prefixCount := storage.PointCountUpTo(ref, state.lastProcessedTime)
 			// A full point window can evict an old bucket while appending a new
 			// one. That changes the generation without changing the total count;
 			// the smaller prefix shows the lost bucket was before our cursor.
 			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen &&
 				prefixCount >= state.lastProcessedCount
 			cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
-				prefixCount == state.lastProcessedCount && holtCursorPointChanged(storage, meta.Ref, agg, state)
+				prefixCount == state.lastProcessedCount && holtCursorPointChanged(storage, ref, agg, state)
 			if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
 				state = d.newState()
 				d.series[sk] = state
 				startTime = 0
 			}
 
-			anomalies, pointsSeen := d.ingestNewPoints(storage, meta.Ref, agg, state, startTime, dataTime, status.pointCount >= d.WarmupPoints)
+			anomalies, pointsSeen := d.ingestNewPoints(storage, ref, agg, state, startTime, dataTime, status.pointCount >= d.WarmupPoints)
 			for j := range anomalies {
-				anomalies[j].SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
+				anomalies[j].SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 			}
 			allAnomalies = append(allAnomalies, anomalies...)
 
@@ -360,17 +356,6 @@ func (d *HoltResidualDetector) ingestNewPoints(
 
 	storage.ForEachPoint(ref, startTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
 		pointsSeen = true
-		// Capture series metadata once.
-		if !state.seriesMetaCaptured {
-			state.seriesNamespace = s.Namespace
-			state.seriesName = s.Name
-			if len(s.Tags) > 0 {
-				tagsCopy := make([]string, len(s.Tags))
-				copy(tagsCopy, s.Tags)
-				state.seriesTags = tagsCopy
-			}
-			state.seriesMetaCaptured = true
-		}
 		state.lastSeenTimestamp = p.Timestamp
 		state.lastProcessedTime = p.Timestamp
 		state.lastProcessedValue = p.Value
@@ -395,7 +380,7 @@ func (d *HoltResidualDetector) ingestNewPoints(
 			return
 		}
 
-		anomaly, hasFire := d.processPoint(state, p, agg, allowFire)
+		anomaly, hasFire := d.processPoint(state, s, p, agg, allowFire)
 		if len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow {
 			d.ready = true
 		}
@@ -432,6 +417,7 @@ func holtCursorPointChanged(storage observer.StorageReader, ref observer.SeriesR
 // advance so the level/trend track new regimes through and after fires.
 func (d *HoltResidualDetector) processPoint(
 	state *holtSeriesState,
+	series *observer.Series,
 	p observer.Point,
 	agg observer.Aggregate,
 	allowFire bool,
@@ -452,16 +438,14 @@ func (d *HoltResidualDetector) processPoint(
 	// post-refractory fires once the smoother is mid-adaptation. Using
 	// 5% of the observed value range as a noise floor keeps the threshold
 	// proportional to the data's natural scale.
-	medianResidual := detectorMedian(state.resWin)
-	sigmaResidual := detectorMAD(state.resWin, medianResidual, true)
+	medianResidual, sigmaResidual := d.medianMAD(state.resWin)
 	sigmaResidual = floorSigma(sigmaResidual, state.resWin)
 	z := (residual - medianResidual) / sigmaResidual
 
 	// σ_value gate denominator: rolling MAD over raw values. Same window
 	// size, same scaleToSigma=true → MAD ≈ σ. Uses the same range-based
 	// floor for the same bimodal-distribution reason.
-	medianValue := detectorMedian(state.valWin)
-	sigmaValue := detectorMAD(state.valWin, medianValue, true)
+	_, sigmaValue := d.medianMAD(state.valWin)
 	sigmaValue = floorSigma(sigmaValue, state.valWin)
 	devMAD := math.Abs(p.Value-state.level) / sigmaValue
 
@@ -504,7 +488,7 @@ func (d *HoltResidualDetector) processPoint(
 	// blinding us to subsequent shifts.
 	residualForWindow := residual
 	if fire {
-		residualForWindow = medianOfTail(state.resWin, holtPostFireSampleN)
+		residualForWindow = d.medianOfTail(state.resWin, holtPostFireSampleN)
 	}
 	pushFIFO(&state.resWin, d.ResidualWindow, residualForWindow)
 	pushFIFO(&state.valWin, d.ResidualWindow, p.Value)
@@ -515,13 +499,17 @@ func (d *HoltResidualDetector) processPoint(
 
 	// 7. Build the anomaly using the common metric-detector anomaly shape.
 	score := math.Abs(z)
-	seriesName := state.seriesName + ":" + aggSuffix(agg)
+	seriesName := series.Name + ":" + aggSuffix(agg)
+	var tags []string
+	if len(series.Tags) > 0 {
+		tags = append([]string(nil), series.Tags...)
+	}
 	anomaly := observer.Anomaly{
 		Type: observer.AnomalyTypeMetric,
 		Source: observer.SeriesDescriptor{
-			Namespace: state.seriesNamespace,
-			Name:      state.seriesName,
-			Tags:      state.seriesTags,
+			Namespace: series.Namespace,
+			Name:      series.Name,
+			Tags:      tags,
 			Aggregate: agg,
 		},
 		DetectorName: d.Name(),
@@ -548,6 +536,56 @@ func (d *HoltResidualDetector) processPoint(
 	state.refractoryRemaining = d.Refractory
 
 	return anomaly, true
+}
+
+// medianMAD returns the median and normal-sigma-scaled MAD without allocating.
+// Detect is single-writer, so one detector-owned scratch buffer is sufficient.
+func (d *HoltResidualDetector) medianMAD(vals []float64) (float64, float64) {
+	if len(vals) == 0 {
+		return 0, 0
+	}
+	if cap(d.scratch) < len(vals) {
+		d.scratch = make([]float64, len(vals))
+	} else {
+		d.scratch = d.scratch[:len(vals)]
+	}
+	copy(d.scratch, vals)
+	sort.Float64s(d.scratch)
+	n := len(d.scratch)
+	median := d.scratch[n/2]
+	if n%2 == 0 {
+		median = (d.scratch[n/2-1] + median) / 2
+	}
+	for i, v := range vals {
+		d.scratch[i] = math.Abs(v - median)
+	}
+	sort.Float64s(d.scratch)
+	mad := d.scratch[n/2]
+	if n%2 == 0 {
+		mad = (d.scratch[n/2-1] + mad) / 2
+	}
+	return median, mad * 1.4826
+}
+
+func (d *HoltResidualDetector) medianOfTail(buf []float64, n int) float64 {
+	if len(buf) == 0 {
+		return 0
+	}
+	if n > len(buf) {
+		n = len(buf)
+	}
+	tail := buf[len(buf)-n:]
+	if cap(d.scratch) < n {
+		d.scratch = make([]float64, n)
+	} else {
+		d.scratch = d.scratch[:n]
+	}
+	copy(d.scratch, tail)
+	sort.Float64s(d.scratch)
+	if n%2 == 0 {
+		return (d.scratch[n/2-1] + d.scratch[n/2]) / 2
+	}
+	return d.scratch[n/2]
 }
 
 // seedLevelTrend bootstraps the smoother from warmup aggregates using the
@@ -642,21 +680,6 @@ func pushTimestamp(state *holtSeriesState, ts int64) {
 	}
 	copy(state.recentTimestamps, state.recentTimestamps[1:])
 	state.recentTimestamps[len(state.recentTimestamps)-1] = ts
-}
-
-// medianOfTail returns the median of the last n entries of buf. If buf has
-// fewer than n entries, uses everything available. Returns 0 on an empty
-// buf — the caller (post-fire path) will then push a zero residual, which
-// is a sane neutral value: it does not bias the threshold up or down.
-func medianOfTail(buf []float64, n int) float64 {
-	if len(buf) == 0 {
-		return 0
-	}
-	if n > len(buf) {
-		n = len(buf)
-	}
-	tail := buf[len(buf)-n:]
-	return detectorMedian(tail)
 }
 
 // ensureDefaults fills zero-valued config fields with sensible defaults so the

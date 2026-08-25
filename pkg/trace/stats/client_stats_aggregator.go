@@ -220,7 +220,7 @@ func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStat
 	if p.ContainerID != "" {
 		cTags, err := a.conf.ContainerTags(p.ContainerID)
 		if err != nil {
-			log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
+			log.Errorf("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
 		} else {
 			gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(cTags)
 			// Only override if the payload's original values were empty strings.
