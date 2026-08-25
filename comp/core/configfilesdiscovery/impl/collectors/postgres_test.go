@@ -26,6 +26,10 @@ func TestIncludePostgresEnvVar(t *testing.T) {
 		{name: "user", envName: "POSTGRES_USER", want: true},
 		{name: "host auth method may embed credentials", envName: "POSTGRES_HOST_AUTH_METHOD"},
 		{name: "initdb waldir", envName: "POSTGRES_INITDB_WALDIR", want: true},
+		{name: "bitnami data directory", envName: "POSTGRESQL_DATA_DIR", want: true},
+		{name: "bitnami database name", envName: "POSTGRESQL_DATABASE", want: true},
+		{name: "bitnami user", envName: "POSTGRESQL_USERNAME", want: true},
+		{name: "bitnami initdb waldir", envName: "POSTGRESQL_INITDB_WAL_DIR", want: true},
 		{name: "unrelated", envName: "UNREQUESTED"},
 		{name: "lowercase", envName: "postgres_db"},
 		{name: "password", envName: "POSTGRES_PASSWORD"},
@@ -42,6 +46,11 @@ func TestIncludePostgresEnvVar(t *testing.T) {
 		{name: "libpq require ssl", envName: "PGREQUIRESSL"},
 		{name: "database url", envName: "DATABASE_URL"},
 		{name: "postgres url", envName: "POSTGRES_URL"},
+		{name: "bitnami password", envName: "POSTGRESQL_PASSWORD"},
+		{name: "bitnami password file", envName: "POSTGRESQL_PASSWORD_FILE"},
+		{name: "bitnami extra flags", envName: "POSTGRESQL_EXTRA_FLAGS"},
+		{name: "bitnami ldap url", envName: "POSTGRESQL_LDAP_URL"},
+		{name: "bitnami tls key file", envName: "POSTGRESQL_TLS_KEY_FILE"},
 		{name: "secret-shaped unrelated name", envName: "PGDATA_TOKEN"},
 	}
 
@@ -55,10 +64,14 @@ func TestIncludePostgresEnvVar(t *testing.T) {
 func TestPostgresCollectorCollectsEnvVars(t *testing.T) {
 	reader := &postgresCollectorTestReader{
 		env: map[string]string{
-			"POSTGRES_USER": "app",
-			"PGDATA":        "/var/lib/postgresql/data",
-			"POSTGRES_DB":   "app",
-			"UNREQUESTED":   "value",
+			"POSTGRES_USER":             "app",
+			"PGDATA":                    "/var/lib/postgresql/data",
+			"POSTGRES_DB":               "app",
+			"POSTGRESQL_DATA_DIR":       "/bitnami/postgresql/data",
+			"POSTGRESQL_DATABASE":       "bitnami-app",
+			"POSTGRESQL_USERNAME":       "bitnami-app",
+			"POSTGRESQL_INITDB_WAL_DIR": "/bitnami/postgresql/wal",
+			"UNREQUESTED":               "value",
 		},
 	}
 	collector := NewPostgres()
@@ -68,6 +81,10 @@ func TestPostgresCollectorCollectsEnvVars(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
 		{Name: "PGDATA", Value: "/var/lib/postgresql/data"},
+		{Name: "POSTGRESQL_DATABASE", Value: "bitnami-app"},
+		{Name: "POSTGRESQL_DATA_DIR", Value: "/bitnami/postgresql/data"},
+		{Name: "POSTGRESQL_INITDB_WAL_DIR", Value: "/bitnami/postgresql/wal"},
+		{Name: "POSTGRESQL_USERNAME", Value: "bitnami-app"},
 		{Name: "POSTGRES_DB", Value: "app"},
 		{Name: "POSTGRES_USER", Value: "app"},
 	}, collected.EnvVars)

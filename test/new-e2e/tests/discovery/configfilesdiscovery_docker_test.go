@@ -383,7 +383,12 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresEnvVarsDiscovered() {
 			assert.Equal(c, "/var/lib/postgresql/data/configfilesdiscovery", envVars["PGDATA"])
 			assert.Equal(c, postgresDBName, envVars["POSTGRES_DB"])
 			assert.Equal(c, postgresUser, envVars["POSTGRES_USER"])
+			assert.Equal(c, "/bitnami/postgresql/data/configfilesdiscovery", envVars["POSTGRESQL_DATA_DIR"])
+			assert.Equal(c, "configfilesdiscovery-bitnami", envVars["POSTGRESQL_DATABASE"])
+			assert.Equal(c, "configfilesdiscovery-bitnami", envVars["POSTGRESQL_USERNAME"])
+			assert.Equal(c, "/bitnami/postgresql/wal", envVars["POSTGRESQL_INITDB_WAL_DIR"])
 			assert.NotContains(c, envVars, "POSTGRES_PASSWORD")
+			assert.NotContains(c, envVars, "POSTGRESQL_PASSWORD")
 			for name := range envVars {
 				assert.NotContains(c, strings.ToUpper(name), "PASSWORD")
 			}

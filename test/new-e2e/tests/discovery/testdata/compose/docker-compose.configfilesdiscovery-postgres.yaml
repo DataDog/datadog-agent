@@ -9,6 +9,13 @@ services:
       POSTGRES_DB: configfilesdiscovery
       POSTGRES_USER: configfilesdiscovery
       POSTGRES_PASSWORD: must-not-be-forwarded
+      # Canonical Bitnami names are included to exercise the supported image
+      # convention. The official image safely ignores these unknown settings.
+      POSTGRESQL_DATA_DIR: /bitnami/postgresql/data/configfilesdiscovery
+      POSTGRESQL_DATABASE: configfilesdiscovery-bitnami
+      POSTGRESQL_USERNAME: configfilesdiscovery-bitnami
+      POSTGRESQL_INITDB_WAL_DIR: /bitnami/postgresql/wal
+      POSTGRESQL_PASSWORD: must-not-be-forwarded
     labels:
       com.datadoghq.ad.checks: |
         {

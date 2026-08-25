@@ -18,13 +18,18 @@ const PostgresIntegrationName = "postgres"
 type postgresConfigCollector struct{}
 
 // postgresEnvAllow lists the only environment variables this collector ever
-// forwards. PGDATA and other PG*/POSTGRES* variables otherwise carry
-// credentials, connection strings, or arbitrary argument bags.
+// forwards. It covers the official image plus the equivalent canonical Bitnami
+// names. Other PG*/POSTGRES* variables can carry credentials, connection
+// strings, or arbitrary argument bags.
 var postgresEnvAllow = map[string]struct{}{
-	"PGDATA":                 {},
-	"POSTGRES_DB":            {},
-	"POSTGRES_USER":          {},
-	"POSTGRES_INITDB_WALDIR": {},
+	"PGDATA":                    {},
+	"POSTGRES_DB":               {},
+	"POSTGRES_USER":             {},
+	"POSTGRES_INITDB_WALDIR":    {},
+	"POSTGRESQL_DATA_DIR":       {},
+	"POSTGRESQL_DATABASE":       {},
+	"POSTGRESQL_USERNAME":       {},
+	"POSTGRESQL_INITDB_WAL_DIR": {},
 }
 
 // postgresEnvDeny is defense in depth and documentation: the allow-list above
