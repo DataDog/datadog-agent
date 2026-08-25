@@ -6,7 +6,7 @@
 package com_datadoghq_remoteaction_pcap
 
 import (
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -16,10 +16,10 @@ type PcapBundle struct {
 }
 
 // NewPcap constructs a PcapBundle and registers the runCapture action.
-func NewPcap(eventPlatform eventplatform.Component) types.Bundle {
+func NewPcap(cfg *config.Config) types.Bundle {
 	return &PcapBundle{
 		actions: map[string]types.Action{
-			"runCapture": NewRunCaptureHandler(eventPlatform),
+			"runCapture": NewRunCaptureHandler(cfg),
 		},
 	}
 }

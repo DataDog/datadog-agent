@@ -8,18 +8,40 @@ package com_datadoghq_remoteaction_pcap
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// stubEventPlatform is a no-op eventplatform.Component for unit tests.
-type stubEventPlatform struct{}
+// testConfig returns a minimal *config.Config for unit tests.
+func testConfig() *config.Config {
+	return &config.Config{
+		DatadogSite: "datadoghq.com",
+		OrgId:       1,
+		APIKey:      "test-api-key",
+	}
+}
 
-func (s *stubEventPlatform) Get() (eventplatform.Forwarder, bool) { return nil, false }
+// noopCaptureTrigger is a captureTrigger stand-in for unit tests so that
+// Run() can be exercised end-to-end without a real system-probe socket.
+type noopCaptureTrigger struct{}
+
+func (n *noopCaptureTrigger) Capture(_ context.Context, _ RunCaptureInputs) (int, int64, time.Duration, string, error) {
+	return 0, 0, 0, "", nil
+}
+
+// newTestHandler builds a RunCaptureHandler wired to noopCaptureTrigger,
+// bypassing the platform-specific captureTrigger (which requires a live
+// system-probe socket on unix).
+func newTestHandler() *RunCaptureHandler {
+	handler := NewRunCaptureHandler(testConfig())
+	handler.capture = &noopCaptureTrigger{}
+	return handler
+}
 
 // newTask builds a minimal *types.Task with the given inputs map.
 func newTask(inputs map[string]interface{}) *types.Task {
@@ -39,7 +61,7 @@ func validInputs() map[string]interface{} {
 }
 
 func TestRunCaptureValidation_MissingBPFFilter(t *testing.T) {
-	handler := NewRunCaptureHandler(&stubEventPlatform{})
+	handler := newTestHandler()
 	task := newTask(map[string]interface{}{
 		"durationSecs": 10,
 	})
@@ -50,7 +72,7 @@ func TestRunCaptureValidation_MissingBPFFilter(t *testing.T) {
 }
 
 func TestRunCaptureValidation_DurationTooLow(t *testing.T) {
-	handler := NewRunCaptureHandler(&stubEventPlatform{})
+	handler := newTestHandler()
 	task := newTask(map[string]interface{}{
 		"bpfFilter":    "tcp port 80",
 		"durationSecs": 0,
@@ -62,7 +84,7 @@ func TestRunCaptureValidation_DurationTooLow(t *testing.T) {
 }
 
 func TestRunCaptureValidation_DurationTooHigh(t *testing.T) {
-	handler := NewRunCaptureHandler(&stubEventPlatform{})
+	handler := newTestHandler()
 	task := newTask(map[string]interface{}{
 		"bpfFilter":    "tcp port 80",
 		"durationSecs": 121,
@@ -74,7 +96,7 @@ func TestRunCaptureValidation_DurationTooHigh(t *testing.T) {
 }
 
 func TestRunCaptureValidation_ValidInputs(t *testing.T) {
-	handler := NewRunCaptureHandler(&stubEventPlatform{})
+	handler := newTestHandler()
 	task := newTask(validInputs())
 
 	output, err := handler.Run(context.Background(), task, nil)
@@ -94,7 +116,7 @@ func TestRunCaptureDefaults(t *testing.T) {
 	assert.Equal(t, defaultSnapLen, 256)
 	assert.Equal(t, defaultMaxPackets, 50000)
 
-	handler := NewRunCaptureHandler(&stubEventPlatform{})
+	handler := newTestHandler()
 
 	// SnapLen=0 and MaxPackets=0 are omitted; handler must apply defaults.
 	task := newTask(map[string]interface{}{
@@ -115,13 +137,13 @@ func TestRunCaptureDefaults(t *testing.T) {
 }
 
 func TestGetAction_RunCapture(t *testing.T) {
-	bundle := NewPcap(&stubEventPlatform{})
+	bundle := NewPcap(testConfig())
 	action := bundle.GetAction("runCapture")
 	assert.NotNil(t, action, "GetAction('runCapture') should return a non-nil Action")
 }
 
 func TestGetAction_Unknown(t *testing.T) {
-	bundle := NewPcap(&stubEventPlatform{})
+	bundle := NewPcap(testConfig())
 	action := bundle.GetAction("nonexistent")
 	assert.Nil(t, action, "GetAction('nonexistent') should return nil")
 }

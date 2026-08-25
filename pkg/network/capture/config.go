@@ -51,7 +51,17 @@ type CaptureConfig struct {
 	// MaxPackets is the maximum number of packets to capture. 0 means no limit.
 	MaxPackets uint64
 	// SnapLen is the maximum number of bytes to capture per packet. 0 defaults to 65535.
+	// When HeaderOnly is set, SnapLen instead acts as the safety cap on top of the
+	// dynamically computed per-packet header boundary (see HeaderOnly).
 	SnapLen uint32
+	// HeaderOnly enables dynamic header snap length: instead of truncating every
+	// packet to a fixed SnapLen, each packet is truncated at its own L3/L4 header
+	// boundary (computed in-kernel from the packet's own length fields — see
+	// Confluence NET "Dynamic Header Snap Length — Implementation", page
+	// 7027392746), capped by SnapLen as a safety ceiling. No application payload
+	// is ever captured. When false (default), every packet is truncated to a
+	// fixed SnapLen regardless of its own header boundary.
+	HeaderOnly bool
 	// RingBufferSize is the eBPF ring buffer size in bytes. 0 defaults to 8 MiB.
 	RingBufferSize int
 	// Direction controls which traffic direction is captured.

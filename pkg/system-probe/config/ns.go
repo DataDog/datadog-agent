@@ -96,3 +96,8 @@ func privilegedLogsNS(k ...string) string {
 func logonDurationNS(k ...string) string {
 	return NSkey("logon_duration", k...)
 }
+
+// pktcapNS adds `packet_capture` namespace to config key
+func pktcapNS(k ...string) string {
+	return NSkey("packet_capture", k...)
+}
