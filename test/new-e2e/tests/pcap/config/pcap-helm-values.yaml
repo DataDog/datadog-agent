@@ -1,0 +1,13 @@
+datadog:
+  kubelet:
+    tlsVerify: false
+  networkMonitoring:
+    enabled: true
+  systemProbe:
+    enableDefaultKernelHeadersPaths: true
+  privateActionRunner:
+    enabled: true
+    selfEnroll: true
+    actionsAllowlist:
+      - "com.datadoghq.remoteaction.pcap.runCapture"
+    taskTimeoutSeconds: 180
