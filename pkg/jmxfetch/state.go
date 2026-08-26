@@ -109,6 +109,8 @@ func GetIntegrations() (map[string]interface{}, error) {
 	configs := make(map[string]integration.JSONMap, len(scheduledConfigs))
 
 	for name, config := range scheduledConfigs {
+		log.Debugf("DISCOVERY DEBUG: GetIntegrations name=%s, config.InitConfig=%q (len=%d)", name, string(config.InitConfig), len(config.InitConfig))
+
 		var rawInitConfig integration.RawMap
 		if err := yaml.Unmarshal(config.InitConfig, &rawInitConfig); err != nil {
 			return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)

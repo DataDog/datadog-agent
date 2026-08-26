@@ -31,6 +31,7 @@ func newJmxScheduler() *JmxScheduler {
 // Schedule implements Scheduler#Schedule.
 func (s *JmxScheduler) Schedule(configs []integration.Config) {
 	for _, config := range configs {
+		log.Debugf("DISCOVERY DEBUG: JmxScheduler.Schedule name=%s, InitConfig=%q (len=%d), IsCheckConfig=%v", config.Name, string(config.InitConfig), len(config.InitConfig), config.IsCheckConfig())
 		if !config.IsCheckConfig() || config.HasFilter(workloadfilter.MetricsFilter) {
 			continue
 		}

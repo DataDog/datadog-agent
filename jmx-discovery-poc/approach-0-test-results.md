@@ -134,26 +134,38 @@ JMXFetch is stably collecting 28 metrics per cycle (default JVM metrics).
 - JVM cold start: ~1s per probe
 - No impact on running JMXFetch instances (subprocess is isolated)
 
-## Known Issue: init_config Not Preserved
+## init_config Preservation: Fixed
 
-The scheduled config shows `init_config: {}` instead of the template's
-`init_config` (which has `is_jmx: true`, `collect_default_metrics: true`,
-`new_gc_metrics: true`).
+**Root cause**: The JMXFetch subprocess outputs pretty-printed JSON with
+`init_config: {}`. The JSON parser in `parseDiscoveryResult()` preserves
+the whitespace, producing `"{\n\n  }"` instead of `"{}"`. The
+`isEmptyJSON()` check only compared against `"{}"` (no whitespace), so it
+returned `false` and the template's init_config was incorrectly replaced
+with the empty one.
 
-**Root cause**: `parseDiscoveryResult()` in `discovery_json.go` always sets
-`init_config` to `json.RawMessage("{}")` when the discovered config has
-no init_config. Our `isEmptyJSON()` check correctly identifies `"{}"` as
-empty and should preserve the template's init_config. However, the
-template's init_config appears to also be empty in the scheduled config,
-suggesting the merge or resolution step is stripping it.
+**Fix**: Updated `isEmptyJSON()` to strip all whitespace (newlines,
+spaces, tabs) before comparing, so `"{\n\n  }"` is correctly
+identified as empty.
 
-**Impact**: JMXFetch collects only 28 default JVM metrics instead of
-Kafka-specific metrics (350+ in the initial PoC). The `is_jmx: true` flag
-is missing, but JMXFetch still recognizes "kafka" as a JMX integration via
-`StandardJMXIntegrations`.
+**Verified**: Debug traces confirm the template's init_config
+(`is_jmx: true, collect_default_metrics: true, new_gc_metrics: true`)
+is now preserved through the entire pipeline:
 
-**Status**: Under investigation — debug prints being added to both agent
-and JMXFetch to trace the init_config through the full pipeline.
+```
+tpl.InitConfig="collect_default_metrics: true\nis_jmx: true\nnew_gc_metrics: true\n" (len=64)
+discovered.InitConfig="{\n\n  }" (len=6), isEmptyJSON=true
+after merge, merged.InitConfig="collect_default_metrics: true\nis_jmx: true\nnew_gc_metrics: true\n" (len=64)
+after Resolve, resolved.InitConfig="collect_default_metrics: true\nis_jmx: true\nnew_gc_metrics: true\n" (len=64)
+after decrypt, decrypted.InitConfig="collect_default_metrics: true\nis_jmx: true\nnew_gc_metrics: true\n" (len=64)
+JMXFetch received init_config={new_gc_metrics=true, collect_default_metrics=true, is_jmx=true}
+```
+
+**Note on metric count**: JMXFetch collects 28 metrics (default JVM
+metrics). Kafka-specific metrics (350+) require the integration's
+`metrics.yaml` to be present in the agent's `dist/conf.d/kafka.d/`
+directory. The `collect_default_metrics: true` flag tells JMXFetch to
+load it, but the file must exist in the agent image. This is an
+integration packaging concern, not a discovery issue.
 
 ## Files Changed
 

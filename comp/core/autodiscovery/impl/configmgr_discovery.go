@@ -104,7 +104,12 @@ func isEmptyJSON(data integration.Data) bool {
 		return true
 	}
 	s := strings.TrimSpace(string(data))
-	return s == "{}" || s == "null"
+	if s == "{}" || s == "null" {
+		return true
+	}
+	// Handle pretty-printed empty JSON like "{\n\n  }"
+	trimmed := strings.NewReplacer("\n", "", "\r", "", "\t", "", " ", "").Replace(s)
+	return trimmed == "{}"
 }
 
 func (cm *reconcilingConfigManager) start() {
@@ -200,6 +205,12 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 	}
 	discovered := configs[0]
 
+	// DEBUG: trace init_config through the merge
+	log.Debugf("DISCOVERY DEBUG: tpl.Name=%s, tpl.InitConfig=%q (len=%d), discovered.InitConfig=%q (len=%d), isEmptyJSON=%v",
+		tpl.Name, string(tpl.InitConfig), len(tpl.InitConfig),
+		string(discovered.InitConfig), len(discovered.InitConfig),
+		isEmptyJSON(discovered.InitConfig))
+
 	merged := tpl
 	merged.Discovery = nil // IMPORTANT: make sure resolveTemplateForService doesn't loop on the discovered/resolved result
 	// Only replace init_config/metric_config if the discovered config
@@ -215,6 +226,9 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 	if !isEmptyJSON(discovered.MetricConfig) {
 		merged.MetricConfig = discovered.MetricConfig
 	}
+
+	// DEBUG: trace merged init_config
+	log.Debugf("DISCOVERY DEBUG: after merge, merged.InitConfig=%q (len=%d)", string(merged.InitConfig), len(merged.InitConfig))
 	merged.LogsConfig = discovered.LogsConfig
 	merged.IgnoreAutodiscoveryTags = discovered.IgnoreAutodiscoveryTags
 	merged.CheckTagCardinality = discovered.CheckTagCardinality
@@ -230,6 +244,10 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 		return changes
 	}
 	resolved.Source = rewriteSource(resolved.Source, svcAndADIDs.svc)
+
+	// DEBUG: trace resolved init_config
+	log.Debugf("DISCOVERY DEBUG: after Resolve, resolved.InitConfig=%q (len=%d)", string(resolved.InitConfig), len(resolved.InitConfig))
+
 	for i := range resolved.Instances {
 		if err := resolved.Instances[i].MergeAdditionalTags([]string{configDiscoveryTag}); err != nil {
 			log.Errorf("error adding configuration-discovery tag to config %s for service %s: %v", resolved.Name, svcID, err)
@@ -241,6 +259,9 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 		errorStats.setResolveWarning(tpl.Name, err.Error())
 		return changes
 	}
+
+	// DEBUG: trace decrypted init_config
+	log.Debugf("DISCOVERY DEBUG: after decrypt, decrypted.InitConfig=%q (len=%d)", string(decrypted.InitConfig), len(decrypted.InitConfig))
 
 	existing, ok := cm.serviceResolutions[svcID]
 	if !ok {
