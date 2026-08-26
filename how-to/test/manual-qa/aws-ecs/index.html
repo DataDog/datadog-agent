@@ -4003,13 +4003,13 @@
   
 
 
-<h1 id="aws-ecs">AWS ECS<a class="headerlink" href="#aws-ecs" title="Permanent link">&para;</a></h1>
+<h1 id="aws-ecs">AWS ECS</h1>
 <p>Provisions an ECS cluster with the Datadog Agent running as a container task.
 Use this to test ECS-specific agent behavior or Fargate integrations.</p>
-<h2 id="create">Create<a class="headerlink" href="#create" title="Permanent link">&para;</a></h2>
+<h2 id="create">Create</h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-ecs
 </span></code></pre></div>
-<h3 id="key-options">Key options<a class="headerlink" href="#key-options" title="Permanent link">&para;</a></h3>
+<h3 id="key-options">Key options</h3>
 <table>
 <thead>
 <tr>
@@ -4076,7 +4076,7 @@ Use this to test ECS-specific agent behavior or Fargate integrations.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
+<h3 id="examples">Examples</h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Fargate-only cluster (default)</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-ecs
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
@@ -4086,15 +4086,15 @@ Use this to test ECS-specific agent behavior or Fargate integrations.</p>
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># ECS with a custom agent image</span>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-ecs<span class="w"> </span>--full-image-path<span class="o">=</span>my-registry/agent:my-tag
 </span></code></pre></div>
-<h2 id="connect">Connect<a class="headerlink" href="#connect" title="Permanent link">&para;</a></h2>
+<h2 id="connect">Connect</h2>
 <p>The agent runs as an ECS task. Use the ECS console or the AWS CLI to inspect
 task logs and container status:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>aws-vault<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>sso-agent-sandbox-account-admin-8h<span class="w"> </span>--<span class="w"> </span>aws<span class="w"> </span>ecs<span class="w"> </span>list-tasks<span class="w"> </span>--cluster<span class="w"> </span>&lt;cluster-name&gt;
 </span></code></pre></div>
-<h2 id="destroy">Destroy<a class="headerlink" href="#destroy" title="Permanent link">&para;</a></h2>
+<h2 id="destroy">Destroy</h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.destroy-ecs
 </span></code></pre></div>
-<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<h2 id="limitations">Limitations</h2>
 <ul>
 <li>The agent runs as a container task; host-agent behavior is not testable.</li>
 <li>FakeIntake is not supported for ECS.</li>
