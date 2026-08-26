@@ -12,7 +12,7 @@ use std::time::Duration;
 use tokio::net::windows::named_pipe::NamedPipeClient;
 use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_FLAG_OVERLAPPED, FILE_WRITE_DATA, GENERIC_READ,
+    CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_FLAG_OVERLAPPED, FILE_GENERIC_READ, FILE_WRITE_DATA,
     OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
 };
 
@@ -22,11 +22,10 @@ const PIPE_BUSY_RETRIES: u32 = 5;
 const PIPE_BUSY_BACKOFF_MS: u64 = 50;
 
 // Client-side pair of `AGENT_PIPE_CLIENT_ACCESS_MASK` in
-// `dd-procmgrd/src/platform/windows/pipe_security.rs` (server ACE). Server grants
-// FILE_GENERIC_READ | FILE_WRITE_DATA; clients must request GENERIC_READ |
-// FILE_WRITE_DATA. Do not use GENERIC_WRITE / FILE_GENERIC_WRITE (includes
+// `dd-procmgrd/src/platform/windows/pipe_security.rs` (server ACE). Match
+// FILE_GENERIC_READ | FILE_WRITE_DATA. Do not use FILE_GENERIC_WRITE (includes
 // FILE_CREATE_PIPE_INSTANCE on named pipes).
-const PIPE_CLIENT_DESIRED_ACCESS: u32 = GENERIC_READ | FILE_WRITE_DATA;
+const PIPE_CLIENT_DESIRED_ACCESS: u32 = FILE_GENERIC_READ | FILE_WRITE_DATA;
 const PIPE_CLIENT_FLAGS: u32 =
     FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION | FILE_ATTRIBUTE_NORMAL;
 
@@ -40,7 +39,8 @@ async fn open_with_retry(name: &OsStr) -> io::Result<IpcStream> {
         match open_pipe_client(name) {
             Ok(client) => return Ok(client),
             Err(error)
-                if error.raw_os_error() == Some(windows_sys::Win32::Foundation::ERROR_PIPE_BUSY as i32)
+                if error.raw_os_error()
+                    == Some(windows_sys::Win32::Foundation::ERROR_PIPE_BUSY as i32)
                     && attempt + 1 < PIPE_BUSY_RETRIES =>
             {
                 tokio::time::sleep(Duration::from_millis(backoff)).await;
@@ -79,9 +79,7 @@ fn null_terminated_wide(value: &OsStr) -> Vec<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use windows_sys::Win32::Storage::FileSystem::{
-        FILE_CREATE_PIPE_INSTANCE, FILE_GENERIC_WRITE,
-    };
+    use windows_sys::Win32::Storage::FileSystem::{FILE_CREATE_PIPE_INSTANCE, FILE_GENERIC_WRITE};
 
     #[test]
     fn pipe_client_desired_access_excludes_create_pipe_instance() {
