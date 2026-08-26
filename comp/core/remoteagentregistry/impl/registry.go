@@ -390,22 +390,47 @@ func (ra *remoteAgentRegistry) commandProviders(ctx context.Context) map[string]
 	}
 	ra.agentMapMu.Unlock()
 
-	providers := make(map[string]commandProviderTarget)
+	type discoveryResult struct {
+		client   *remoteAgentClient
+		response *pb.ListCommandsResponse
+		err      error
+	}
+
+	callCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
+	results := make(chan discoveryResult, len(clients))
+	var wg sync.WaitGroup
 	for _, client := range clients {
-		callCtx, cancel := context.WithTimeout(ctx, queryTimeout)
-		var header metadata.MD
-		response, err := client.ListCommands(callCtx, &pb.ListCommandsRequest{}, grpc.WaitForReady(true), grpc.Header(&header))
-		cancel()
-		if err != nil || client.validateSessionID(header) != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			var header metadata.MD
+			response, err := client.ListCommands(callCtx, &pb.ListCommandsRequest{}, grpc.WaitForReady(true), grpc.Header(&header))
+			if err == nil {
+				err = client.validateSessionID(header)
+			}
+			results <- discoveryResult{client: client, response: response, err: err}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	providers := make(map[string]commandProviderTarget)
+	for result := range results {
+		if result.err != nil {
 			continue
 		}
-		for _, provider := range response.GetProviders() {
+		for _, provider := range result.response.GetProviders() {
 			if provider == nil || provider.GetName() == "" {
 				continue
 			}
 			active, ok := providers[provider.GetName()]
-			if !ok || client.registrationOrder < active.client.registrationOrder {
-				providers[provider.GetName()] = commandProviderTarget{provider: provider, client: client}
+			if !ok || result.client.registrationOrder < active.client.registrationOrder {
+				providers[provider.GetName()] = commandProviderTarget{provider: provider, client: result.client}
 			}
 		}
 	}
