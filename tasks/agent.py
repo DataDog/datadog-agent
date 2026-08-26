@@ -199,7 +199,7 @@ def build(
 
     with gitlab_section("Build agent", collapsed=True):
         if enable_bazel:
-            bazel_build_binary(ctx, bin_path=agent_bin, embedded_path=embedded_path)
+            bazel_build_binary(bin_path=agent_bin, embedded_path=embedded_path)
         else:
             go_build(
                 ctx,

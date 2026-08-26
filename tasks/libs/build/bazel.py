@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 from typing import IO, NamedTuple
 
-from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
@@ -292,7 +291,7 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     return (*args[:index], *flags, *args[index:])
 
 
-def bazel_build_binary(ctx: Context, bin_path: str | Path, embedded_path: str) -> None:
+def bazel_build_binary(bin_path: str | Path, embedded_path: str) -> None:
     """
     Compile a dd_agent_go_binary Bazel target (e.g. "//cmd/agent") via
     `bazel build` and copy the resulting binary to bin_path, for local
