@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
+	checktest "github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -119,6 +120,13 @@ func (s *powershellCheckWindowsSuite) TestReportsServiceMetric() {
 	s.UpdateEnv(powerShellProvisioner(validCheckConfig))
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
+	output, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"powershell", "--json"}))
+	require.NoError(s.T(), err)
+	results := checktest.ParseJSONOutput(s.T(), []byte(output))
+	require.Len(s.T(), results, 1)
+	require.Equal(s.T(), 1, results[0].Runner.TotalRuns)
+	require.Zero(s.T(), results[0].Runner.TotalErrors)
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
 			metricName,
@@ -126,7 +134,7 @@ func (s *powershellCheckWindowsSuite) TestReportsServiceMetric() {
 				"service:Dnscache",
 				"e2e:powershell-check",
 			}),
-			fakeintakeclient.WithMetricValueInRange(1, 1),
+			fakeintakeclient.WithMetricValueInRange(0.5, 1.5),
 		)
 		require.NoError(c, err)
 		assert.NotEmpty(c, metrics, "no %s metric with the expected value and tags received yet", metricName)
@@ -145,8 +153,13 @@ func (s *powershellCheckWindowsSuite) TestRejectsCmdletInjection() {
 func (s *powershellCheckWindowsSuite) TestBindsParameterInjectionAsData() {
 	s.UpdateEnv(powerShellProvisioner(parameterInjectionConfig))
 
-	_, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"powershell", "--json"}))
-	require.Error(s.T(), err, "the hostile service name should be passed to Get-Service as one invalid value")
+	output, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"powershell", "--json"}))
+	require.NoError(s.T(), err)
+	results := checktest.ParseJSONOutput(s.T(), []byte(output))
+	require.Len(s.T(), results, 1)
+	assert.Equal(s.T(), 1, results[0].Runner.TotalRuns)
+	assert.Equal(s.T(), 1, results[0].Runner.TotalErrors,
+		"the hostile service name should be passed to Get-Service as one invalid value")
 	s.assertMarkerDoesNotExist(parameterInjectionMarker)
 }
 

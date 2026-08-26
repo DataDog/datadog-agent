@@ -25,6 +25,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/e2e-framework/testing/testcommon/check",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
