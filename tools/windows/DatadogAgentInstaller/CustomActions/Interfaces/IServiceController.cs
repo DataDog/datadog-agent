@@ -9,6 +9,7 @@ namespace Datadog.CustomActions.Interfaces
     public interface IServiceController
     {
         IReadOnlyList<IWindowsService> Services { get; }
+        bool ServiceExists(string serviceName);
         string GetServiceStartName(string serviceName);
         void SetCredentials(string serviceName, string username, string password);
         void SetStartType(string serviceName, ServiceStartMode startType);
