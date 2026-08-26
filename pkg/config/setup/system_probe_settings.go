@@ -416,6 +416,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.use_fentry", false, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_FENTRY")
 	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.use_kprobe_fallback", true, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK")
 	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.use_ring_buffer", true, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_RING_BUFFER", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_RING_BUFFER")
+	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.use_syscall_task_storage", true, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_SYSCALL_TASK_STORAGE", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_SYSCALL_TASK_STORAGE")
 	config.BindEnvAndSetDefault("event_monitoring_config.events_stats.polling_interval", 20, "DD_EVENT_MONITORING_CONFIG_EVENTS_STATS_POLLING_INTERVAL", "DD_RUNTIME_SECURITY_CONFIG_EVENTS_STATS_POLLING_INTERVAL")
 	config.BindEnvAndSetDefault("event_monitoring_config.events_stats.tags_cardinality", "high", "DD_EVENT_MONITORING_CONFIG_EVENTS_STATS_TAGS_CARDINALITY", "DD_RUNTIME_SECURITY_CONFIG_EVENTS_STATS_TAGS_CARDINALITY")
 	config.BindEnvAndSetDefault("event_monitoring_config.flush_discarder_window", 3, "DD_EVENT_MONITORING_CONFIG_FLUSH_DISCARDER_WINDOW", "DD_RUNTIME_SECURITY_CONFIG_FLUSH_DISCARDER_WINDOW")
