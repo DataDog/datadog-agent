@@ -391,7 +391,10 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 
 	c.log.Debugf("Applying config update (seq_id: %d, key: %s)", update.SequenceId, update.Setting.Key)
 
-	configstreambootstrap.ApplySetting(toDirectSetting(update.Setting))
+	setting := toDirectSetting(update.Setting)
+	// Updates never carry env-var-sourced settings, so Set's guardrail is not in the way and
+	// registered receivers still get notified.
+	configstreambootstrap.Config().Set(setting.Key, setting.Value, setting.Source)
 	c.lastSeqID.Store(update.SequenceId)
 	c.lastSeqIDMetric.Set(float64(update.SequenceId))
 
