@@ -73,6 +73,9 @@ const (
 	PulumiVerboseProgressStreams StoreKey = "pulumi_verbose_progress_streams"
 	// DevMode allows to keep the stack after the test completes
 	DevMode StoreKey = "dev_mode"
+	// RevertBeforeRun forces a local-owned macOS pool instance to revert to its
+	// golden baseline image before test execution starts, instead of on teardown.
+	RevertBeforeRun StoreKey = "revert_before_run"
 	// DevLocal uses local Kind cluster instead of AWS for faster development
 	DevLocal StoreKey = "dev_local"
 	// Provisioner specifies the Kubernetes provisioner to use (e.g., "kind", "kind-local", "eks").

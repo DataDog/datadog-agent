@@ -113,8 +113,8 @@ analysis to T-1. This ensures deterministic replay: same data → same anomalies
 
 ### Read-time aggregation
 
-Storage keeps full summary stats (sum/count/min/max) per 1-second bucket.
-Aggregation kind (avg, sum, count, min, max) is chosen when reading, not when
+Storage keeps sum/count summary stats per 1-second bucket.
+Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
 ### Non-blocking ingestion
