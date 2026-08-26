@@ -134,6 +134,7 @@ jobs:
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
+          base: ${{ github.ref_name }}
           branch: ${{ inputs.branch }}
           sign-commits: true
           title: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
