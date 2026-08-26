@@ -2992,6 +2992,9 @@ func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 }
 
 func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
+	// Disable the HTTP server to avoid colliding with a real agent on dev/CI machines.
+	c.ReceiverPort = 0
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	wg := sync.WaitGroup{}
 	defer wg.Wait()

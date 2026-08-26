@@ -98,5 +98,11 @@ def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
+    env = os.environ.copy()
+    env["DD_LOG_LEVEL"] = "info"
+
     with ctx.cd("./pkg/trace"):
-        ctx.run(f"go test -tags=test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}")
+        ctx.run(
+            f"go test -tags=test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}",
+            env=env,
+        )
