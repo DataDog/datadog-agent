@@ -68,5 +68,5 @@ func (v *vmSuite) TestAgentReportsMetrics() {
 ```
 
 /// warning
-Do not install anything from the public internet in a test body — no `apt-get install`, no `curl https://…`. It is the single largest source of E2E flakiness, and CI is losing outbound internet access. See [Test dependencies](dependencies.md).
+Avoid downloading or depending on anything from the public internet in a test body — no `apt-get install`, no `curl https://…`. It is the single largest source of E2E flakiness, and CI is losing outbound internet access. See [Test dependencies](dependencies.md).
 ///

@@ -3,10 +3,10 @@ These guidelines are in rough "importance" order, but follow _all_ of them.
 
 ## Making tests reliable
 ### Avoiding external dependencies
+<!-- --8<-- [start:avoiding-external-deps] -->
 A major source of flaky / unrelated failures is reliance on _external dependencies_: anything outside the AWS/GCP/Azure account the test runs in and internal DD systems.
 
 We will soon block _all_ internet access from CI for security reasons, so prepare now.
-> This section is the checklist, and it is normative. For _how_ to do each alternative — commands, code idioms, the gotchas behind each — see [Test dependencies](../../docs/public/how-to/test/e2e/dependencies.md).
 
 #### Spotting a runtime dependency
 | Smell | Example |
@@ -16,9 +16,7 @@ We will soon block _all_ internet access from CI for security reasons, so prepar
 | An image reference with no registry | `docker run busybox`, `FROM ubuntu:22.04`, `image: redis` |
 | A language package manager | `pip install`, `npm i`, `gem install`, `cargo install` |
 | A remotely-hosted manifest | `kubectl apply -f https://…`, a Helm `repository:` URL, a remote kustomize base |
-| A conditional "just in case" installer | code that checks whether a tool exists and installs it if not |
-
-The last one is the one reviewers miss. It looks harmless because it usually no-ops — it only runs on the hosts where it is most likely to fail, and it fails intermittently.
+<!-- --8<-- [end:avoiding-external-deps] -->
 
 #### Docker image pulls
 It is easy to "accidentally" pull images from `docker.io` / DockerHub, a major source of flakiness due to its restrictive rate limiting.
@@ -37,7 +35,7 @@ Use the ECR pull-through cache set up in the `datadog-agent-qa` account (`669783
 | Quay | `669783387624.dkr.ecr.us-east-1.amazonaws.com/quay/…` |
 
 - DockerHub official images keep their `library/` path: `busybox:1.37.0` becomes `…/dockerhub/library/busybox:1.37.0`.
-- Only those three upstreams are supported. **GHCR is not** — if your image is only on GHCR, use an equivalent from a supported upstream.
+- Only those three upstreams are supported. **GHCR is not** — if your image is only on GHCR, use an equivalent from a supported upstream if possible, otherwise leave unproxied.
 - Pulling from `public.ecr.aws/…` or `mirror.gcr.io` **directly is not an approved alternative**, even though neither is rate limited today. Route it through the prefixes above. Existing code that does otherwise is debt, not precedent.
 - There is no pull-through cache in GCP or Azure. For a test that only ever runs on GCP, the provider's registry or `mirror.gcr.io` is acceptable — do not import that habit into an AWS test. Ask #agent-devx-help before relying on any other public mirror.
 <!-- --8<-- [end:registries] -->
@@ -52,8 +50,6 @@ If your test requires a package unavailable on a bare VM, in order of preference
 - Store your package installer on an internal package repository. See [Other dependencies](#other-dependencies)
 
 Running package managers on the VM exposes you to rate limiting from upstream mirrors and to _changes_ in their packages - removed, renamed, or incompatible versions. Also see [Pin your dependencies](#pin-your-dependencies).
-
-If a matrix genuinely cannot be prebaked yet, quarantine the installs in one obviously-named file with a header stating why and what will replace it, as `tests/gpu/runtime_installs.go` does. Do not scatter them across a provisioner.
 
 #### Language package installs (pip, npm, gem, cargo, ...)
 These pull from their own public registries and are subject to the same rate limiting and drift risks as system package installs. The same alternatives apply.

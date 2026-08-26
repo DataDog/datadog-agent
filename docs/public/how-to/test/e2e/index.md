@@ -14,33 +14,43 @@ End-to-End (E2E) tests validate complete user workflows in production-like envir
 /// admonition | Datadog Employees Only
     type: warning
 
-E2E testing requires access to Datadog's internal cloud infrastructure and is currently limited to Datadog employees. This limitation is temporary and may be expanded in the future.
+E2E testing requires access to Datadog's internal cloud infrastructure and is currently limited to Datadog employees.
 ///
-
 
 ### Software Requirements
 
-Before running E2E tests, ensure you have the following installed:
+The simplest path is to run E2E tests from a [developer environment](../../../tutorials/dev/env.md) — it already has everything below installed.
+
+/// details | Setting up outside a developer environment
+    type: info
+    open: false
 
 - **Go 1.22 or later**
 - **Python 3.9+**
 - **dda tooling** - Install by following the [development requirements](../../../setup/required.md)
+///
 
-### Cloud Provider Setup
+### Cloud Provider Access
 
-You need access to the `account-admin-8h` role on the `agent-sandbox` AWS account, with the SSO profile (`sso-agent-sandbox-account-admin-8h`) already in your `~/.aws/config` and an active aws-vault session. AWS authentication is handled outside of `e2e.setup` — typically by your org's onboarding tooling, or manually with `aws-vault login`.
+You need access to the `account-admin-8h` role on the `agent-sandbox` AWS account. If `dda inv e2e.setup` (below) reports it can't reach that account, you don't have access yet — ask #agent-devx-help for it; the request process is documented internally on Confluence.
 
 For Azure / GCP tests, pass `--with-azure` / `--with-gcp` when running the setup task (see below).
 
 ### One-time setup
 
-Run the setup task once on a fresh machine. The default path is AWS-only and asks at most one question (your GitHub team, used to tag resources). It auto-creates the EC2 keypair (using your existing aws-vault session) and generates a Pulumi passphrase.
+Run the setup task once on a fresh machine:
 
 ```bash
 dda inv e2e.setup
 ```
 
-For Azure or GCP support:
+On the default (AWS-only) path, it:
+
+- Checks for the AWS CLI, installing/updating Pulumi if needed, and configures a local Pulumi backend (`pulumi login --local`).
+- Adds the `agent-sandbox` SSO profile to `~/.aws/config` if it isn't there yet, and creates an EC2 keypair via `aws-vault` (which may prompt you to authenticate).
+- Asks one question — your GitHub team, used to tag AWS resources for cost attribution — and generates a Pulumi passphrase.
+
+For Azure or GCP support (each requires that provider's CLI — `az` / `gcloud` — already installed):
 
 ```bash
 dda inv e2e.setup --with-azure --with-gcp
