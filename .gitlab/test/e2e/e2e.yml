@@ -11,7 +11,6 @@
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
     - !reference [.retrieve_linux_pulumi_plugins]
-    - !reference [.retrieve_linux_go_tools_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - |
@@ -153,7 +152,6 @@
   - go_e2e_deps
   - job: go_e2e_test_binaries
     artifacts: false
-  - go_tools_deps
   - job: new-e2e-base-coverage
     optional: true
   - !reference [.needs_fakeintake_publish]
@@ -164,7 +162,6 @@ new-e2e-base-coverage:
     - go_e2e_deps
     - job: go_e2e_test_binaries
       artifacts: false
-    - go_tools_deps
     - agent_deb-x64-a7
   rules:
     - !reference [.except_mergequeue]
@@ -178,7 +175,6 @@ new-e2e-base:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - job: go_e2e_test_binaries
       artifacts: false
     - agent_deb-x64-a7
@@ -313,7 +309,6 @@ new-e2e-containers-eks-init:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_container_or_e2e_changes]
@@ -351,7 +346,6 @@ new-e2e-containers-openshift-init:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_e2e_main_release_or_rc]
@@ -555,7 +549,6 @@ new-e2e-npm-eks-init:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_npm_or_e2e_changes]
@@ -1073,7 +1066,6 @@ new-e2e-otel-eks-init:
     - !reference [.manual]
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - !reference [.needs_fakeintake_publish]
   variables:
     TARGETS: ./tests/otel
@@ -1140,7 +1132,6 @@ new-e2e-otel:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_e2e_main_release_or_rc]
