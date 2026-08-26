@@ -1,4 +1,3 @@
-import getpass
 import json
 import os
 import secrets
@@ -18,6 +17,7 @@ from tasks.e2e_framework.tool import (
     ask_yesno,
     error,
     get_aws_cmd,
+    get_e2e_username,
     info,
     warn,
     write_secret_file,
@@ -48,7 +48,7 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
         config.configParams.aws = Config.Params.Aws(keyPairName=None, publicKeyPath=None, account=None, teamTag=None)
 
     aws = config.configParams.aws
-    user = getpass.getuser()
+    user = get_e2e_username()
 
     # Account
     if account:
@@ -401,7 +401,7 @@ def aws_resolve_keypair_opts(
     if awsConf.keyPairName:
         default_keypair_name = awsConf.keyPairName
     else:
-        default_keypair_name = getpass.getuser()
+        default_keypair_name = get_e2e_username()
     if awsConf.privateKeyPath:
         default_private_key_path = awsConf.privateKeyPath
     else:

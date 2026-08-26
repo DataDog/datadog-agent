@@ -149,9 +149,28 @@ def get_stack_name(stack_name: str | None, scenario_name: str) -> str:
 
 
 def get_stack_name_prefix() -> str:
-    user_name = f"{getpass.getuser()}-"
+    user_name = f"{get_e2e_username()}-"
     # EKS doesn't support '.' and spaces in the user name could be problematic on Windows
     return user_name.replace(".", "-").replace(" ", "-")
+
+
+def get_e2e_username() -> str:
+    """
+    Return the identifier used to key per-user e2e resources (SSH keys, AWS keypairs,
+    Pulumi stack names) so different developers running setup don't collide.
+
+    In a Datadog workspace, USER/getpass.getuser() can be a generic name shared by every
+    workspace, while REAL_USER holds the actual developer's username. Two workspaces
+    started by the same real user would then compute the same key, so WORKSPACE_NAME is
+    appended in that case to keep them distinct.
+    """
+    real_user = os.environ.get("REAL_USER")
+    if not real_user:
+        return getpass.getuser()
+    workspace_name = os.environ.get("WORKSPACE_NAME")
+    if not workspace_name:
+        return real_user
+    return f"{real_user}-{workspace_name}"
 
 
 CI_PULUMI_BACKEND_URL = "s3://dd-pulumi-state"
