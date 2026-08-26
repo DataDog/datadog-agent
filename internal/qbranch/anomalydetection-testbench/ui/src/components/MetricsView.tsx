@@ -32,11 +32,12 @@ function getDetectorComponent(anomaly: { detectorName: string; detectorComponent
   return anomaly.detectorComponent ?? anomaly.detectorName;
 }
 
-function effectiveSeriesTags(tags: string[], host?: string): string[] {
-	return host ? [`host:${host}`, ...tags] : tags;
+function effectiveSeriesTags(tags: string[] | null | undefined, host?: string): string[] {
+	const baseTags = tags ?? [];
+	return host ? [`host:${host}`, ...baseTags] : baseTags;
 }
 
-function formatSeriesLabel(tags: string[], host?: string): string {
+function formatSeriesLabel(tags: string[] | null | undefined, host?: string): string {
 	const displayTags = effectiveSeriesTags(tags, host);
 	if (displayTags.length === 0) return 'untagged';
 	return displayTags.join(', ');
