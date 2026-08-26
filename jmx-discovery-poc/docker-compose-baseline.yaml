@@ -1,0 +1,68 @@
+---
+# Baseline test: Kafka with JMX + Datadog Agent with manual JMX integration config
+# This proves the existing Agent <-> JMXFetch interface works with Kafka.
+version: "3.9"
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: kafka-baseline
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9999
+      KAFKA_JMX_HOSTNAME: kafka
+      KAFKA_JMX_OPTS: >-
+        -Dcom.sun.management.jmxremote
+        -Dcom.sun.management.jmxremote.port=9999
+        -Dcom.sun.management.jmxremote.rmi.port=9999
+        -Dcom.sun.management.jmxremote.authenticate=false
+        -Dcom.sun.management.jmxremote.ssl=false
+        -Djava.rmi.server.hostname=kafka
+    ports:
+      - "9999:9999"
+    depends_on:
+      - zookeeper
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "kafka": {
+            "init_config": {
+              "is_jmx": true,
+              "collect_default_metrics": true,
+              "new_gc_metrics": true
+            },
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": "9999"
+              }
+            ]
+          }
+        }
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.0
+    container_name: zookeeper-baseline
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  datadog:
+    image: datadog/agent-dev:nightly-main-py3-jmx
+    container_name: dd-agent-baseline
+    pid: host
+    environment:
+      DD_API_KEY: "000000000000000001"
+      DD_JMX_TELEMETRY_ENABLED: "true"
+      DD_LOG_LEVEL: "debug"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+      DD_DOGSTATSD_ORIGIN_DETECTION: "true"
+      DD_DOGSTATSD_TAG_CARDINALITY: "high"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup:/host/sys/fs/cgroup:ro

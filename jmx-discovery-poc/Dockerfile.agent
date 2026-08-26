@@ -1,0 +1,3 @@
+FROM datadog/agent-dev:nightly-main-py3-jmx
+COPY agent-jmx-discovery /opt/datadog-agent/bin/agent/agent
+RUN chmod +x /opt/datadog-agent/bin/agent/agent

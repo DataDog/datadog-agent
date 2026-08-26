@@ -1,0 +1,10 @@
+FROM datadog/agent-dev:nightly-main-py3-jmx AS builder
+
+# Install Go and build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    golang-go git make gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# We can't easily build the full agent inside the container due to complex build deps.
+# Instead, let's use a different approach: use the stock agent binary and only replace jmxfetch.
+# The discovery conf.d template will work with the stock agent if we structure it correctly.

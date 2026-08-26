@@ -1,0 +1,12 @@
+ad_identifiers:
+  - cp-kafka
+
+init_config:
+  is_jmx: true
+  collect_default_metrics: true
+  new_gc_metrics: true
+
+instances:
+  - host: "%%host%%"
+    port: 9999
+    discovery: true

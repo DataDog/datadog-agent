@@ -1,0 +1,2 @@
+FROM datadog/agent-dev:nightly-main-py3-jmx
+COPY jmxfetch-0.52.2-SNAPSHOT-jar-with-dependencies.jar /opt/datadog-agent/bin/agent/dist/jmx/jmxfetch.jar
