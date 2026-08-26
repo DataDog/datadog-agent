@@ -9,10 +9,6 @@
 package configstreambootstrap
 
 import (
-	"math"
-
-	"google.golang.org/protobuf/types/known/structpb"
-
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -92,16 +88,9 @@ func IPCCertFilepath() string {
 	return pkgconfigsetup.Datadog().GetString("ipc_cert_file_path")
 }
 
-// StreamedSetting is one setting carried by a config stream event.
-type StreamedSetting struct {
-	Key    string
-	Value  *structpb.Value
-	Source string
-}
-
 // ApplyStreamedSettings writes a whole streamed snapshot to the global config in one pass. Unlike
 // ApplySetting it accepts env-var-sourced settings, so the result mirrors the core agent exactly.
-func ApplyStreamedSettings(settings []StreamedSetting) {
+func ApplyStreamedSettings(settings []pkgconfigmodel.DirectSetting) {
 	b := pkgconfigsetup.Datadog()
 	type bulkSetter interface {
 		DirectBulkSet(settings []pkgconfigmodel.DirectSetting)
@@ -110,40 +99,15 @@ func ApplyStreamedSettings(settings []StreamedSetting) {
 	if !ok {
 		pkglog.Warnf("config implementation %T has no DirectBulkSet; falling back to Set, which rejects env-var-sourced settings", b)
 		for _, setting := range settings {
-			ApplySetting(setting.Key, setting.Value, setting.Source)
+			ApplySetting(setting)
 		}
 		return
 	}
-
-	direct := make([]pkgconfigmodel.DirectSetting, 0, len(settings))
-	for _, setting := range settings {
-		direct = append(direct, pkgconfigmodel.DirectSetting{
-			Key:    setting.Key,
-			Value:  pbValueToGo(setting.Value),
-			Source: pkgconfigmodel.Source(setting.Source),
-		})
-	}
-	setter.DirectBulkSet(direct)
+	setter.DirectBulkSet(settings)
 }
 
 // ApplySetting writes one streamed setting to the global config, preserving the source. Goes
 // through Set so change notifications still reach registered receivers.
-func ApplySetting(key string, value *structpb.Value, source string) {
-	pkgconfigsetup.Datadog().Set(key, pbValueToGo(value), pkgconfigmodel.Source(source))
-}
-
-// pbValueToGo converts a protobuf Value to a Go value. It preserves integer types that structpb widens to float64.
-// Bounded to |x| <= 2^53 — beyond that float64 loses integer precision.
-func pbValueToGo(v *structpb.Value) any {
-	if v == nil {
-		return nil
-	}
-	result := v.AsInterface()
-	if f, ok := result.(float64); ok {
-		const maxExactInt = 1 << 53
-		if !math.IsNaN(f) && !math.IsInf(f, 0) && f >= -maxExactInt && f <= maxExactInt && f == math.Trunc(f) {
-			return int64(f)
-		}
-	}
-	return result
+func ApplySetting(setting pkgconfigmodel.DirectSetting) {
+	pkgconfigsetup.Datadog().Set(setting.Key, setting.Value, setting.Source)
 }
