@@ -653,7 +653,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 
 	suite.config.SetInTest("site", "mydomain.com")
 	suite.config.SetInTest("compliance_config.endpoints_batch_wait", "mydomain.com")
-	suite.config.SetInTest("compliance_config.endpoints.batch_wait", "10")
+	suite.config.SetInTest("compliance_config.endpoints.batch_wait", 10.0)
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.logs.", "test-track", "test-proto", "test-source")

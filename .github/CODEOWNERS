@@ -37,6 +37,7 @@
 /.agents/skills/create-subcommand/SKILL.md      @DataDog/fleet-remediation
 /.agents/skills/locate-config-setting/SKILL.md  @DataDog/fleet-automation
 /.agents/skills/create-runtime-setting/SKILL.md @DataDog/agent-runtimes @DataDog/fleet-automation
+/.agents/skills/cws-btfhub-sync                 @DataDog/agent-security
 /.agents/skills/cws-iouring-coverage/           @DataDog/agent-security
 /.agents/skills/explain-lading-config           @DataDog/single-machine-performance
 /.agents/skills/injector-dev                    @Datadog/container-platform
@@ -398,7 +399,7 @@
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/kubernetes-experiences
-/comp/logs/severityprovider @DataDog/agent-log-pipelines @DataDog/q-branch
+/comp/logs/severityprovider @DataDog/agent-log-pipelines @DataDog/agent-anomaly-detection
 /comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/network-device-monitoring-core
@@ -410,10 +411,10 @@
 /comp/trace-telemetry @DataDog/agent-runtimes
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
-/comp/anomalydetection/logssource @DataDog/q-branch
-/comp/anomalydetection/observer @DataDog/q-branch
-/comp/anomalydetection/recorder @DataDog/q-branch
-/comp/anomalydetection/reporter @DataDog/q-branch
+/comp/anomalydetection/logssource @DataDog/agent-anomaly-detection
+/comp/anomalydetection/observer @DataDog/agent-anomaly-detection
+/comp/anomalydetection/recorder @DataDog/agent-anomaly-detection
+/comp/anomalydetection/reporter @DataDog/agent-anomaly-detection
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability
@@ -803,6 +804,8 @@
 /comp/core/workloadmeta/collectors/internal/nvml                      @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
 /comp/core/workloadmeta/collectors/internal/podman                    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences @DataDog/container-platform
+/comp/core/workloadmeta/collectors/internal/remote/sbomcollector      @DataDog/agent-security
+/comp/core/workloadmeta/collectors/sbomutil                           @DataDog/agent-security
 /comp/core/tagger/collectors                                          @DataDog/container-platform @DataDog/container-integrations
 /comp/core/tagger/types/entity_id.go                                  @DataDog/container-platform @DataDog/agent-data-plane
 /pkg/sbom/                                                            @DataDog/agent-security @DataDog/container-integrations
@@ -824,8 +827,8 @@
 /tasks/bazel.py                                                 @DataDog/agent-build
 /tasks/build_tags.py                                            @DataDog/agent-build
 /tasks/build_tags.bzl                                           @DataDog/agent-build
-/tasks/anomalydetection.py                                      @DataDog/q-branch
-/tasks/unit_tests/anomalydetection*.py                          @DataDog/q-branch
+/tasks/anomalydetection.py                                      @DataDog/agent-anomaly-detection
+/tasks/unit_tests/anomalydetection*.py                          @DataDog/agent-anomaly-detection
 /tasks/loader.py                                                @DataDog/agent-runtimes
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
 /tasks/gotest.py                                                @DataDog/agent-devx @DataDog/agent-build
@@ -858,7 +861,7 @@
 /tasks/secret_generic_connector.py                              @DataDog/fleet-automation
 /tasks/security_agent.py                                        @DataDog/agent-security
 /tasks/sbomgen.py                                               @DataDog/agent-security
-/tasks/libs/anomalydetection/                                   @DataDog/q-branch
+/tasks/libs/anomalydetection/                                   @DataDog/agent-anomaly-detection
 /tasks/libs/build/                                              @DataDog/agent-build
 /tasks/libs/cws/                                                @DataDog/agent-security
 /tasks/libs/gpu/                                                @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
@@ -924,7 +927,7 @@
 /test/new-e2e/system-probe                                      @DataDog/ebpf-platform
 /test/new-e2e/system-probe/config/vmconfig-security-agent.json  @DataDog/ebpf-platform @DataDog/agent-security
 /test/new-e2e/scenarios/system-probe                            @DataDog/ebpf-platform
-/test/new-e2e/tests/anomalydetection                            @DataDog/q-branch
+/test/new-e2e/tests/anomalydetection                            @DataDog/agent-anomaly-detection
 /test/new-e2e/tests/agent-platform                              @DataDog/agent-devx
 /test/new-e2e/tests/agent-platform/common/agent_integration.go  @DataDog/agent-integrations
 /test/new-e2e/tests/agent-platform/tests/macos*                 @DataDog/windows-products
@@ -1017,7 +1020,9 @@
 
 /q_branch/              @DataDog/q-branch
 /internal/qbranch/      @DataDog/q-branch
-/comp/anomalydetection/ @DataDog/q-branch # Useful for AGENTS.md files etc. at the root of all AD components
+/internal/qbranch/anomalydetection-scorer/    @DataDog/agent-anomaly-detection
+/internal/qbranch/anomalydetection-testbench/ @DataDog/agent-anomaly-detection
+/comp/anomalydetection/ @DataDog/agent-anomaly-detection # Useful for AGENTS.md files etc. at the root of all AD components
 
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
 # Which bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
