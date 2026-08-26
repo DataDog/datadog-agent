@@ -437,11 +437,16 @@ impl ManagedProcess {
                         }
                     }
                 };
-                let _ = exit_tx.try_send(ProcessExit {
-                    name: name.clone(),
-                    pid,
-                    status,
-                });
+                if let Err(e) = exit_tx
+                    .send(ProcessExit {
+                        name: name.clone(),
+                        pid,
+                        status,
+                    })
+                    .await
+                {
+                    warn!("[{name}] failed to deliver exit event (pid={pid}): {e}");
+                }
                 Some(status)
             });
             self.set_watcher_handle(watcher_handle);
