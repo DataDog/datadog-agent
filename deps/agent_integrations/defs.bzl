@@ -43,7 +43,6 @@ def _install_wheels_impl(ctx):
     args.add("--python-version", ctx.attr.python_version)
     args.add("--interpreter", script_interpreter)
     args.add("--platform", platform)
-    args.add_all(ctx.attr.exclude, before_each = "--exclude")
     args.add_all(ctx.files.srcs)
     args.use_param_file("@%s", use_always = True)
     args.set_param_file_format("multiline")
@@ -101,9 +100,6 @@ install_wheels = rule(
         "srcs": attr.label_list(allow_files = [".whl"]),
         "output": attr.string(
             doc = "Name of the output directory. Defaults to the rule name.",
-        ),
-        "exclude": attr.string_list(
-            doc = "Exact wheel-relative paths to omit while installing.",
         ),
         "entrypoints_dirname": attr.string(
             mandatory = True,

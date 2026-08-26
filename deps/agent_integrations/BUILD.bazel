@@ -2,7 +2,6 @@ load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
-load("@rules_python//python:py_test.bzl", "py_test")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/agent:defs.bzl", "CONF_DIR_SELECTOR")
 load(":defs.bzl", "install_wheels")
@@ -14,18 +13,6 @@ py_binary(
     name = "install_wheels_tool",
     srcs = ["install_wheels.py"],
     main = "install_wheels.py",
-    deps = [requirement("installer")],
-)
-
-py_test(
-    name = "install_wheels_test",
-    size = "small",
-    srcs = [
-        "install_wheels.py",
-        "install_wheels_test.py",
-    ],
-    imports = ["."],
-    main = "install_wheels_test.py",
     deps = [requirement("installer")],
 )
 
@@ -64,10 +51,6 @@ install_wheels(
         no_match_error = "No integration dependency lockfile repo is configured for this target platform.",
     ),
     entrypoints_dirname = entrypoints_dirname,
-    exclude = [
-        "psycopg_c/_psycopg.c",
-        "psycopg_c/pq.c",
-    ],
     script_interpreter_relative_path = embedded_dir + select({
         "@platforms//os:windows": "/python.exe",
         "//conditions:default": "/bin/python3",
