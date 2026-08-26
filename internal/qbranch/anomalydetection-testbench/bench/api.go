@@ -492,12 +492,12 @@ func (api *BenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	namespace, nameWithAgg, tags, ok := parseSeriesKey(seriesID)
+	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(seriesID)
 	if !ok {
 		api.writeError(w, http.StatusBadRequest, "invalid series id")
 		return
 	}
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, seriesID)
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, host, tags, seriesID)
 }
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
@@ -539,6 +539,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 	sd := observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
 		Name:      series.Name,
+		Host:      meta.Host,
 		Tags:      series.Tags,
 		Aggregate: agg,
 	}
@@ -613,10 +614,10 @@ func (api *BenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request) {
 
 	namespace := parts[0]
 	nameWithAgg := parts[1]
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, nil, "")
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, "", nil, "")
 }
 
-func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
+func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg, host string, tags []string, requestedID string) {
 	seriesID := requestedID
 
 	name := nameWithAgg
@@ -655,7 +656,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		if m.Name != name {
 			continue
 		}
-		if tags == nil || tagsMatch(m.Tags, tags) {
+		if (requestedID == "" || m.Host == host) && (tags == nil || tagsMatch(m.Tags, tags)) {
 			foundMeta = m
 			break
 		}
@@ -688,6 +689,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 	sd := observerdef.SeriesDescriptor{
 		Namespace: namespace,
 		Name:      name,
+		Host:      foundMeta.Host,
 		Tags:      foundMeta.Tags,
 		Aggregate: agg,
 	}
@@ -780,7 +782,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 		if sv != nil && a.DetectorName != "" && a.Source.Name != "" {
 			storage := &stateViewStorage{sv: sv}
 			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			key := seriesKey("telemetry", telemetryName+":avg", nil)
+			key := seriesKey("telemetry", telemetryName+":avg", "", nil)
 			if compactID := storage.compactSeriesID(key); compactID != key {
 				return compactID
 			}
