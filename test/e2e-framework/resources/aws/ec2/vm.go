@@ -31,6 +31,7 @@ type InstanceArgs struct {
 	UserData              string
 	HTTPTokensRequired    bool
 	HostID                pulumi.StringInput // For dedicated host tenancy
+	SubnetID              pulumi.StringInput // Pins the subnet instead of picking one at random
 	VolumeThroughput      int                // GP3 volume throughput in MiB/s (125-1000)
 	WithoutInternetAccess bool               // Replaces the account's default security groups with groups resolved from e.NoInternetSecurityGroupNames()
 }
@@ -45,6 +46,10 @@ func NewInstance(e aws.Environment, name string, args InstanceArgs, opts ...pulu
 		// Only GP3 volumes support throughput
 		rootBlockDevice.VolumeType = pulumi.String("gp3")
 		rootBlockDevice.Throughput = pulumi.Int(args.VolumeThroughput)
+	}
+	subnetID := pulumi.StringInput(e.RandomSubnets().Index(pulumi.Int(0)))
+	if args.SubnetID != nil {
+		subnetID = args.SubnetID
 	}
 	var securityGroups []string
 	if args.WithoutInternetAccess {
@@ -67,7 +72,7 @@ func NewInstance(e aws.Environment, name string, args InstanceArgs, opts ...pulu
 	}
 	instanceArgs := &ec2.InstanceArgs{
 		Ami:                     pulumi.StringPtr(args.AMI),
-		SubnetId:                e.RandomSubnets().Index(pulumi.Int(0)),
+		SubnetId:                subnetID,
 		IamInstanceProfile:      pulumi.StringPtr(args.InstanceProfile),
 		InstanceType:            pulumi.StringPtr(args.InstanceType),
 		VpcSecurityGroupIds:     pulumi.ToStringArray(securityGroups),

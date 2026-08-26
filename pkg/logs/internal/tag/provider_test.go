@@ -36,7 +36,7 @@ func TestProviderExpectedTags(t *testing.T) {
 	m.SetInTest("tags", tags)
 	defer m.SetInTest("tags", nil)
 
-	m.SetInTest("logs_config.tagger_warmup_duration", "2")
+	m.SetInTest("logs_config.tagger_warmup_duration", 2)
 
 	expectedTagsDuration := 5 * time.Second
 	m.SetInTest("logs_config.expected_tags_duration", "5s")

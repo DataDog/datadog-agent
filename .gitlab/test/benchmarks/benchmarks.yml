@@ -3,7 +3,10 @@ benchmark:
   # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/benchmarking-platform
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:trace-agent_microbenchmarks
   timeout: 1h
-  rules: !reference [.on_trace_agent_changes_or_manual]
+  # TODO(andrew.glaude): temporarily disabled, causing flaky failures. Re-enable by
+  # restoring `rules: !reference [.on_trace_agent_changes_or_manual]`.
+  rules:
+    - when: never
   interruptible: true
   needs: ["setup_agent_version"]
   retry: !reference [.retry_only_infra_failure, retry]

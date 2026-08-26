@@ -92,6 +92,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
 		metrics.MetricSourceCiscoSdwan,
+		metrics.MetricSourceCiscoCatalystCenter,
 		metrics.MetricSourceVersa,
 		metrics.MetricSourceWlan,
 		metrics.MetricSourceWindowsCertificateStore,
@@ -1164,6 +1165,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 526
 	case metrics.MetricSourceThermal:
 		return 527
+	case metrics.MetricSourceCiscoCatalystCenter:
+		return 528
 	default:
 		return 0
 	}

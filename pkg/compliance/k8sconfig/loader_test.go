@@ -1151,6 +1151,61 @@ maxPods: 300`,
 	assert.NotNil(t, x509["clientCAFile"])
 }
 
+// A file the Agent may not read is reported with its content left out. Turning
+// it into an empty configuration made the managed environment detection
+// conclude that a managed node was unmanaged.
+func TestKubeletUnreadableConfiguration(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("test must run as non-root to be denied reading the configuration")
+	}
+
+	tmpDir := t.TempDir()
+	for _, f := range openshiftFs {
+		f.create(t, tmpDir)
+		if err := os.Chmod(filepath.Join(tmpDir, f.name), 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	conf := loadTestConfiguration(t, tmpDir, openshiftProcTable)
+	assert.Len(t, conf.Errors, 2)
+	assert.Contains(t, strings.Join(conf.Errors, "\n"), "/etc/kubernetes/kubelet.conf")
+	assert.Contains(t, strings.Join(conf.Errors, "\n"), "/var/lib/kubelet/kubeconfig")
+
+	require.NotNil(t, conf.Components.Kubelet)
+	require.NotNil(t, conf.Components.Kubelet.Config)
+	assert.Nil(t, conf.Components.Kubelet.Config.Content)
+
+	require.NotNil(t, conf.Components.Kubelet.Kubeconfig)
+	assert.Nil(t, conf.Components.Kubelet.Kubeconfig.Kubeconfig)
+
+	// The kubelet was started with --config, so the configuration file
+	// defaults apply whatever the file turns out to hold.
+	readOnlyPort := 0
+	assert.Equal(t, &readOnlyPort, conf.Components.Kubelet.ReadOnlyPort)
+}
+
+// The ownership and permissions of a configuration file are reported even when
+// its content is out of reach, so the benchmarks checking them see the real
+// mode.
+func TestKubeletConfigLargerThanReadLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	large := &mockFile{
+		name:    "/etc/kubernetes/kubelet.conf",
+		mode:    0644,
+		content: strings.Repeat("# padding\n", 64*1024),
+	}
+	large.create(t, tmpDir)
+
+	conf := loadTestConfiguration(t, tmpDir, openshiftProcTable)
+	require.NotNil(t, conf.Components.Kubelet)
+	config := conf.Components.Kubelet.Config
+	require.NotNil(t, config)
+	assert.Nil(t, config.Content)
+	assert.Equal(t, uint32(0644), config.Mode)
+	assert.NotEmpty(t, config.User)
+}
+
 func loadTestConfiguration(t *testing.T, hostroot string, table string) *K8sNodeConfig {
 	l := &loader{hostroot: hostroot}
 	_, data := l.load(context.Background(), func(_ context.Context) []proc {
@@ -1172,16 +1227,22 @@ type mockFile struct {
 }
 
 func (f *mockFile) create(t *testing.T, root string) {
+	path := filepath.Join(root, f.name)
 	if f.isDir {
-		if err := os.MkdirAll(filepath.Join(root, f.name), fs.FileMode(f.mode)); err != nil {
+		if err := os.MkdirAll(path, fs.FileMode(f.mode)); err != nil {
 			t.Fatal(err)
 		}
 	} else {
-		if err := os.MkdirAll(filepath.Join(root, filepath.Dir(f.name)), fs.FileMode(0750)); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), fs.FileMode(0750)); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(root, f.name), []byte(f.content), os.FileMode(f.mode)); err != nil {
+		if err := os.WriteFile(path, []byte(f.content), os.FileMode(f.mode)); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// Force the declared mode past the umask: several benchmarks look at the
+	// permissions of these files.
+	if err := os.Chmod(path, fs.FileMode(f.mode)); err != nil {
+		t.Fatal(err)
 	}
 }
