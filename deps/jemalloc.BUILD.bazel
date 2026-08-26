@@ -1,0 +1,51 @@
+"""BUILD file for jemalloc."""
+
+load("@@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-2-Clause"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(["**"]),
+)
+
+configure_make(
+    name = "jemalloc",
+    autoconf = True,
+    configure_in_place = True,
+    configure_options = [
+        "--disable-debug",
+        "--disable-stats",
+        "--disable-fill",
+        "--disable-prof",
+        "--disable-static",
+    ],
+    lib_source = ":all_srcs",
+    out_shared_libs = ["libjemalloc.so"],
+)
+
+foreign_cc_shared_wrapper(
+    name = "jemalloc_shared",
+    input = ":jemalloc",
+    lib_filter = "libjemalloc",
+)
+
+dd_cc_packaged(
+    name = "jemalloc_pkg",
+    input = ":jemalloc_shared",
+    libname = "libjemalloc",
+    version = "2",
+)
