@@ -96,21 +96,22 @@ func expectedApplyModeMetricsCount(internal *model.PodAutoscalerInternal) int {
 }
 
 func expectedControlledResourcesMetricsCount(internal *model.PodAutoscalerInternal) int {
-	if internal == nil || internal.Spec() == nil || internal.Spec().Constraints == nil {
+	if internal == nil || internal.Spec() == nil || !internal.IsVerticalScalingEnabled() {
 		return 0
 	}
 
+	containers := []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{{Name: "*"}}
+	if internal.Spec().Constraints != nil && len(internal.Spec().Constraints.Containers) > 0 {
+		containers = internal.Spec().Constraints.Containers
+	}
+
 	count := 0
-	for _, container := range internal.Spec().Constraints.Containers {
+	for _, container := range containers {
 		if container.Enabled != nil && !*container.Enabled {
 			continue
 		}
-		resources := container.ControlledResources
-		if resources == nil {
-			resources = []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
-		}
 		seenResources := make(map[corev1.ResourceName]struct{})
-		for _, resource := range resources {
+		for _, resource := range controlledResourcesForMetrics(container.ControlledResources) {
 			if _, seen := seenResources[resource]; seen {
 				continue
 			}
@@ -129,6 +130,24 @@ func tagValue(tags []string, key string) string {
 		}
 	}
 	return ""
+}
+
+func assertControlledResourcesMetrics(t *testing.T, metrics metricsstore.StructuredMetrics, expected map[string]float64) {
+	t.Helper()
+
+	actual := map[string]float64{}
+	for _, m := range metrics {
+		if m.Name != metricPrefix+".vertical_scaling.controlled_resources" {
+			continue
+		}
+		assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
+		assert.Contains(t, m.Tags, dpaDimensionTagKey+":"+dpaDimensionVertical)
+		container := tagValue(m.Tags, "kube_container_name")
+		resourceName := tagValue(m.Tags, resourceNameTagKey)
+		actual[container+"/"+resourceName] = m.Value
+	}
+
+	assert.Equal(t, expected, actual)
 }
 
 func TestGeneratePodAutoscalerMetrics(t *testing.T) {
@@ -666,6 +685,51 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			},
 		},
 		{
+			name: "vertical controlled resources default without constraints",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 13, // baseline only; controlled_resources count is added by expectedAdditionalMetricsCount
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				assertControlledResourcesMetrics(t, metrics, map[string]float64{
+					"all/cpu":    1.0,
+					"all/memory": 1.0,
+				})
+			},
+		},
+		{
+			name: "vertical controlled resources default with empty container constraints",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 13, // baseline only; controlled_resources count is added by expectedAdditionalMetricsCount
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				assertControlledResourcesMetrics(t, metrics, map[string]float64{
+					"all/cpu":    1.0,
+					"all/memory": 1.0,
+				})
+			},
+		},
+		{
 			name: "apply mode preview omits disabled vertical dimension",
 			setupFunc: func() *model.PodAutoscalerInternal {
 				internal := model.FakePodAutoscalerInternal{
@@ -863,22 +927,11 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			},
 			expectedCount: 13, // baseline only; controlled_resources count is added by expectedAdditionalMetricsCount
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
-				actual := map[string]float64{}
-				for _, m := range metrics {
-					if m.Name != metricPrefix+".vertical_scaling.controlled_resources" {
-						continue
-					}
-					assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
-					assert.Contains(t, m.Tags, "dpa_dimension:vertical")
-					container := tagValue(m.Tags, "kube_container_name")
-					resourceName := tagValue(m.Tags, "resource_name")
-					actual[container+"/"+resourceName] = m.Value
-				}
-				assert.Equal(t, map[string]float64{
+				assertControlledResourcesMetrics(t, metrics, map[string]float64{
 					"app/cpu":    1.0,
 					"all/cpu":    1.0,
 					"all/memory": 1.0,
-				}, actual)
+				})
 			},
 		},
 		{
