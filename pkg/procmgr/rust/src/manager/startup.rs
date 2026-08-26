@@ -121,9 +121,8 @@ async fn join_in_flight_spawn(
     handle: tokio::task::JoinHandle<anyhow::Result<super::spawn::SpawnProcessOutcome>>,
 ) {
     #[cfg(windows)]
-    if let Some(signal_time) = platform::service_stop_signal_time() {
-        let budget = shutdown::ShutdownBudget::service_stop(signal_time);
-        let cap = budget.remaining_cap(Duration::from_secs(180));
+    if let Some(cap) = shutdown::ShutdownBudget::remaining_service_stop_cap(Duration::from_secs(180))
+    {
         if cap.is_zero() {
             warn!(
                 "startup: SCM shutdown budget exhausted; deferring in-flight auto-start to supervisor teardown"

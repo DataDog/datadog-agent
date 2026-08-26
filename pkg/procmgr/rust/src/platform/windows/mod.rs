@@ -426,7 +426,7 @@ pub async fn shutdown_signal() {
 #[cfg(test)]
 pub(crate) fn signal_shutdown_for_test() {
     SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
-    shutdown_notify().notify_one();
+    shutdown_notify().notify_waiters();
 }
 
 #[cfg(test)]

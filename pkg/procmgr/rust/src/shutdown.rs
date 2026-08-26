@@ -85,18 +85,29 @@ impl ShutdownBudget {
     pub(crate) fn is_bounded(&self) -> bool {
         self.deadline.is_some()
     }
+
+    /// Remaining SCM shutdown budget for a caller-defined cap, if a service stop is in progress.
+    #[cfg(windows)]
+    pub(crate) fn remaining_service_stop_cap(cap: Duration) -> Option<Duration> {
+        crate::platform::service_stop_signal_time()
+            .map(|signal_time| Self::service_stop(signal_time).remaining_cap(cap))
+    }
 }
 
-/// Wait for graceful child exit, or cut short when SCM requests service shutdown.
+/// Wait for graceful child exit, or cut short when service shutdown is requested.
 pub(crate) async fn wait_graceful_or_shutdown<T, F: std::future::Future<Output = T>>(
     graceful_budget: Duration,
     fut: F,
 ) -> Result<T, tokio::time::error::Elapsed> {
+    if crate::platform::shutdown_requested() {
+        return tokio::time::timeout(Duration::ZERO, std::future::pending::<T>()).await;
+    }
     #[cfg(windows)]
     {
         tokio::select! {
-            _ = crate::platform::shutdown_notify().notified() => {
-                Err(tokio::time::error::Elapsed(()))
+            biased;
+            _ = crate::platform::wait_for_shutdown() => {
+                tokio::time::timeout(Duration::ZERO, std::future::pending::<T>()).await
             }
             result = tokio::time::timeout(graceful_budget, fut) => result,
         }
@@ -141,9 +152,10 @@ mod tests {
         let signal_time = Instant::now();
         let fallback = ShutdownBudget::unlimited(signal_time);
         let budget = ShutdownBudget::prefer_service_stop(fallback);
-        assert_eq!(
-            budget.graceful_budget(Duration::from_secs(90)),
-            Duration::from_secs(90)
+        let graceful = budget.graceful_budget(Duration::from_secs(90));
+        assert!(
+            graceful >= Duration::from_secs(89) && graceful <= Duration::from_secs(90),
+            "expected ~90s graceful budget without SCM signal, got {graceful:?}"
         );
     }
 

@@ -135,7 +135,7 @@ pub async fn shutdown_signal() {
 #[cfg(test)]
 pub(crate) fn signal_shutdown_for_test() {
     mark_shutdown_requested();
-    shutdown_notify().notify_one();
+    shutdown_notify().notify_waiters();
 }
 
 #[cfg(test)]
