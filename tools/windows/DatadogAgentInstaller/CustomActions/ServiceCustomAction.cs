@@ -16,6 +16,13 @@ namespace Datadog.CustomActions
 {
     public class ServiceCustomAction
     {
+        private static readonly string[] NonCoreAgentUserServices =
+        {
+            Constants.TraceAgentServiceName,
+            Constants.PrivateActionRunnerServiceName,
+            Constants.SecurityAgentServiceName,
+        };
+
         private readonly ISession _session;
         private readonly INativeMethods _nativeMethods;
         private readonly IRegistryServices _registryServices;
@@ -180,6 +187,9 @@ namespace Datadog.CustomActions
                 // Skip agent-user SCM updates: even a reformatted account name with a null password
                 // clears the SCM LSA secret (_SC_datadogagent), which procmgr needs for spawn.
                 _session.Log("Password not provided, will not change service user account or password");
+                // Non-core agent-user services may still be LocalSystem when first added on upgrade;
+                // configure them from the SCM-stored datadogagent password without touching the core Agent.
+                ConfigureNonCoreAgentUserServicesWhenPasswordNotProvided(ddAgentUserName);
             }
             else
             {
@@ -238,16 +248,91 @@ namespace Datadog.CustomActions
             return null;
         }
 
+        private IEnumerable<string> NonCoreAgentUserServiceNames()
+        {
+            foreach (var serviceName in NonCoreAgentUserServices)
+            {
+                if (_serviceController.ServiceExists(serviceName))
+                {
+                    yield return serviceName;
+                }
+            }
+        }
+
         private void ConfigureAgentUserServiceCredentials(string username, string password)
         {
             _serviceController.SetCredentials(Constants.AgentServiceName, username, password);
-            _serviceController.SetCredentials(Constants.TraceAgentServiceName, username, password);
-            if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
+            foreach (var serviceName in NonCoreAgentUserServiceNames())
             {
-                _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, username, password);
+                _serviceController.SetCredentials(serviceName, username, password);
+            }
+        }
+
+        private void ConfigureNonCoreAgentUserServicesWhenPasswordNotProvided(string ddAgentUserName)
+        {
+            if (!TryFetchAgentScmPassword(out var scmPassword))
+            {
+                return;
             }
 
-            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, username, password);
+            foreach (var serviceName in NonCoreAgentUserServiceNames())
+            {
+                ConfigureAgentUserServiceIfLocalSystem(serviceName, ddAgentUserName, scmPassword);
+            }
+        }
+
+        private bool TryFetchAgentScmPassword(out string scmPassword)
+        {
+            try
+            {
+                scmPassword = _nativeMethods.FetchScmServicePassword(Constants.AgentServiceName);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Could not read SCM password for {Constants.AgentServiceName}: {e}");
+                scmPassword = null;
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(scmPassword))
+            {
+                _session.Log(
+                    $"SCM password for {Constants.AgentServiceName} is unavailable; " +
+                    "leaving non-core agent-user service credentials unchanged");
+                return false;
+            }
+
+            return true;
+        }
+
+        private void ConfigureAgentUserServiceIfLocalSystem(
+            string serviceName,
+            string ddAgentUserName,
+            string scmPassword)
+        {
+            if (!IsLocalSystemAccount(_serviceController.GetServiceStartName(serviceName)))
+            {
+                return;
+            }
+
+            try
+            {
+                _session.Log(
+                    $"Configuring {serviceName} to run as {ddAgentUserName} " +
+                    $"using SCM-stored {Constants.AgentServiceName} password");
+                _serviceController.SetCredentials(serviceName, ddAgentUserName, scmPassword);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Could not configure {serviceName} credentials: {e}");
+            }
+        }
+
+        private static bool IsLocalSystemAccount(string accountName)
+        {
+            return accountName != null &&
+                   (accountName.Equals("LocalSystem", StringComparison.OrdinalIgnoreCase) ||
+                    accountName.Equals(@"NT AUTHORITY\SYSTEM", StringComparison.OrdinalIgnoreCase));
         }
 
         private void ConfigureLocalSystemServiceCredentials()
