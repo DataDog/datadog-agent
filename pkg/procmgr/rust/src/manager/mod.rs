@@ -98,6 +98,7 @@ mod tests {
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, UuidGenerator, V4UuidGenerator};
     use std::sync::Arc;
+    use std::time::Duration;
     use tokio::sync::mpsc;
 
     fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
@@ -114,6 +115,12 @@ mod tests {
         mpsc::Receiver<PendingRestart>,
     ) {
         RuntimeHandles::new()
+    }
+
+    async fn auto_start_for_test(mgr: &ProcessManager, handles: &RuntimeHandles) {
+        let pending = std::future::pending::<()>();
+        tokio::pin!(pending);
+        mgr.auto_start_all(handles, pending.as_mut()).await;
     }
 
     fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
@@ -155,7 +162,7 @@ mod tests {
         );
         let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
 
-        mgr.auto_start_all(&handles).await;
+        auto_start_for_test(&mgr, &handles).await;
 
         assert!(!mgr.processes().await[0].is_running());
         let expected_uuid = mgr.processes().await[0].uuid().to_owned();
@@ -166,6 +173,63 @@ mod tests {
             pending.as_ref().map(|p| p.uuid.as_str()),
             Some(expected_uuid.as_str())
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(
+            loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
+            uuid_gen(),
+        );
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+        let mgr_task = mgr.clone();
+        let handles_task = handles.clone();
+        let auto_start_task = tokio::spawn(async move {
+            let shutdown = async {
+                let _ = shutdown_rx.await;
+            };
+            tokio::pin!(shutdown);
+            mgr_task
+                .auto_start_all(&handles_task, shutdown.as_mut())
+                .await;
+        });
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let procs = mgr.processes().await;
+                if procs
+                    .iter()
+                    .any(|p| p.name() == "first-child" && p.is_running())
+                {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("timed out waiting for first auto-start child");
+
+        assert!(shutdown_tx.send(()).is_ok());
+        auto_start_task.await?;
+
+        let procs = mgr.processes().await;
+        let first = procs
+            .iter()
+            .find(|p| p.name() == "first-child")
+            .expect("first-child");
+        let second = procs
+            .iter()
+            .find(|p| p.name() == "second-child")
+            .expect("second-child");
+        assert!(first.is_running());
+        assert!(
+            !second.is_running(),
+            "second-child should not auto-start after shutdown is signaled"
+        );
+
         Ok(())
     }
 

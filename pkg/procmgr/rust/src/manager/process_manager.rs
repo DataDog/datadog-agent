@@ -10,6 +10,8 @@ use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::Status;
@@ -37,11 +39,39 @@ impl ProcessManager {
         Supervisor::new(self)
     }
 
-    pub(in crate::manager) async fn auto_start_all(&self, handles: &RuntimeHandles) {
-        let order = self.startup_order.read().await;
-        let mut procs = self.processes.write().await;
-        for &idx in order.iter() {
-            try_auto_start(&mut procs[idx], handles);
+    pub(in crate::manager) async fn auto_start_all(
+        &self,
+        handles: &RuntimeHandles,
+        mut shutdown: Pin<&mut (impl Future<Output = ()> + ?Sized)>,
+    ) {
+        let order = self.startup_order.read().await.clone();
+        for idx in order {
+            tokio::select! {
+                biased;
+                _ = shutdown.as_mut() => {
+                    info!("skipping remaining auto-starts: service shutting down");
+                    return;
+                }
+                _ = self.auto_start_at(idx, handles) => {}
+            }
+        }
+    }
+
+    async fn auto_start_at(&self, idx: usize, handles: &RuntimeHandles) {
+        let processes = Arc::clone(&self.processes);
+        let handles = handles.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut procs = processes.write().await;
+                let Some(proc) = procs.get_mut(idx) else {
+                    return;
+                };
+                try_auto_start(proc, &handles);
+            });
+        })
+        .await;
+        if let Err(e) = result {
+            warn!("auto-start worker task failed: {e:#}");
         }
     }
 
