@@ -205,7 +205,7 @@ func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretReso
 func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker) *AutoConfig {
 	staticConfigIndex := listeners.NewStaticConfigIndex()
 	telStore := acTelemetry.NewStore(telemetryComp)
-	cfgMgr := newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, discovererPkg.NewPythonBridge(), telStore)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, discovererPkg.NewCompositeDiscoverer(discovererPkg.NewPythonBridge(), discovererPkg.NewJmxBridge()), telStore)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
