@@ -120,10 +120,12 @@ def launch_testbench(
     build: bool = False,
     headless_scenario: str = "",
     headless_output: str = "",
-    profile: bool = False,
+    mem_profile: bool = False,
+    cpu_profile: bool = False,
     open_pprof: bool = False,
     verbose: bool = False,
-    profile_path: str = "",
+    mem_profile_path: str = "",
+    cpu_profile_path: str = "",
     config: str = "",
     enable: str = "",
     disable: str = "",
@@ -137,10 +139,12 @@ def launch_testbench(
     Args:
         scenarios_dir: Directory containing the scenarios to load.
         build: Whether to build the binary before launching.
-        profile: Whether to capture a heap profile (headless mode only).
-        open_pprof: Open pprof UI after headless run (requires --profile).
+        mem_profile: Whether to capture a heap profile (headless mode only).
+        cpu_profile: Whether to capture a CPU profile (headless mode only).
+        open_pprof: Open pprof UI after headless run (requires exactly one profile type).
         verbose: Pass --verbose to the testbench.
-        profile_path: Override the default heap-profile output path.
+        mem_profile_path: Override the default heap-profile output path.
+        cpu_profile_path: Override the default CPU-profile output path.
         config: JSON params file; overrides --enable/--disable when set.
         enable: Comma-separated components to enable (passed as --enable).
         disable: Comma-separated components to disable (passed as --disable).
@@ -151,6 +155,11 @@ def launch_testbench(
     if build:
         print("Building anomalydetection-testbench...")
         build_testbench(ctx)
+
+    if open_pprof and not (mem_profile or cpu_profile):
+        raise Exit("--open-pprof requires --mem-profile or --cpu-profile")
+    if open_pprof and mem_profile and cpu_profile:
+        raise Exit("--open-pprof supports one profile type at a time; choose --mem-profile or --cpu-profile")
 
     flags = ""
     if verbose:
@@ -170,10 +179,14 @@ def launch_testbench(
     if headless_scenario:
         if not headless_output:
             headless_output = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.json"
-        if profile:
-            if not profile_path:
-                profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.prof"
-            flags += f" --memprofile {profile_path}"
+        if mem_profile:
+            if not mem_profile_path:
+                mem_profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.mem.prof"
+            flags += f" --memprofile {shlex.quote(mem_profile_path)}"
+        if cpu_profile:
+            if not cpu_profile_path:
+                cpu_profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.cpu.prof"
+            flags += f" --cpuprofile {shlex.quote(cpu_profile_path)}"
         print(
             f"Launching anomalydetection-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
         )
@@ -187,12 +200,13 @@ def launch_testbench(
                 print(color_message(f"testbench timed out after {timeout}s", Color.ORANGE))
             else:
                 raise
-        if profile:
+        selected_profile_path = mem_profile_path if mem_profile else cpu_profile_path
+        if selected_profile_path:
             if open_pprof:
                 print("Running pprof...")
-                ctx.run(f"go tool pprof -http=:8081 {profile_path}")
+                ctx.run(f"go tool pprof -http=:8081 {shlex.quote(selected_profile_path)}")
             else:
-                print(f"To profile, run: go tool pprof -http=:8081 {profile_path}")
+                print(f"To profile, run: go tool pprof -http=:8081 {selected_profile_path}")
     else:
         if not config and not enable and not disable:
             flags += " --only scanmw,scanwelch,bocpd"
