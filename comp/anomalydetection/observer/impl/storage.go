@@ -536,6 +536,7 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 	return &observer.Series{
 		Namespace: stats.Namespace,
 		Name:      stats.Name,
+		Host:      stats.Host,
 		Tags:      stats.Tags,
 		Points:    points,
 	}
@@ -1583,6 +1584,7 @@ func (s *timeSeriesStorage) GetSeriesRange(ref observer.SeriesRef, start, end in
 	return &observer.Series{
 		Namespace: stats.Namespace,
 		Name:      stats.Name,
+		Host:      stats.Host,
 		Tags:      stats.Tags,
 		Points:    points,
 	}
@@ -1647,7 +1649,7 @@ func (s *timeSeriesStorage) ForEachLastPoints(
 	}
 	endIndex := searchAfter(stats.timestamps, end)
 	startIndex := max(0, endIndex-n)
-	series := observer.Series{Namespace: stats.Namespace, Name: stats.Name, Tags: stats.Tags}
+	series := observer.Series{Namespace: stats.Namespace, Name: stats.Name, Host: stats.Host, Tags: stats.Tags}
 	buf = snapshotPoints(stats, startIndex, endIndex, agg, buf)
 	s.mu.RUnlock()
 
@@ -1719,6 +1721,7 @@ func (s *timeSeriesStorage) snapshotRange(
 	return observer.Series{
 		Namespace: stats.Namespace,
 		Name:      stats.Name,
+		Host:      stats.Host,
 		Tags:      stats.Tags,
 	}, buf, true
 }
