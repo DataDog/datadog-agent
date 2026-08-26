@@ -181,8 +181,8 @@ func TestStripAggSuffix(t *testing.T) {
 	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:avg"))
 	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:count"))
 	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:sum"))
-	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:min"))
-	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:max"))
+	assert.Equal(t, "cpu.user:min", stripAggSuffix("cpu.user:min"))
+	assert.Equal(t, "cpu.user:max", stripAggSuffix("cpu.user:max"))
 	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user"))
 	assert.Equal(t, "cpu.user:p99", stripAggSuffix("cpu.user:p99"))
 }

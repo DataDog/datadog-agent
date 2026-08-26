@@ -115,6 +115,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		InstallName: linuxInstallName,
 		Namespace:   args.Namespace,
 		ValuesYAML:  valuesYAML,
+		Devel:       pulumi.BoolPtr(true),
 	}, opts...)
 	if err != nil {
 		return nil, err
