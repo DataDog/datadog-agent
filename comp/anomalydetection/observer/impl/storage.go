@@ -119,6 +119,12 @@ type timeSeriesStorage struct {
 	// series key is created, not on every write to an existing series.
 	seriesGen uint64
 
+	// namespacePolicies stores the retention and aggregation policy shared by
+	// every series produced by a namespace. The map stays nil unless a producer
+	// registers a non-default policy; log count extractors are the only current
+	// user and contribute only a small, bounded number of entries.
+	namespacePolicies map[string]namespacePolicy
+
 	// tagIntern maps a fnv64a hash of a series' sorted tag set to the canonical
 	// []string slice shared by all series with that tag combination, plus a
 	// reference count. When the count drops to zero on eviction the entry is
@@ -156,6 +162,13 @@ type bucketCounts struct {
 	values []int64
 }
 
+// namespacePolicy contains storage behavior shared by every series in an
+// extractor namespace. Zero values preserve the storage defaults.
+type namespacePolicy struct {
+	retentionOverrideSecs int64
+	supportedAggregations uint8
+}
+
 // seriesStats contains accumulated statistics for a time series (internal).
 // Buckets are stored in timestamp order, enabling binary search for range queries.
 type seriesStats struct {
@@ -165,13 +178,6 @@ type seriesStats struct {
 	tagsHash  uint64                  // fnv64a hash of Tags; 0 means not interned
 	ref       observer.SeriesRef      // compact numeric ID assigned on creation
 	context   *observer.MetricContext // optional; set by extractors for anomaly enrichment
-	// supportedAggregations is a bit mask. Zero means all aggregations are
-	// supported; materialized log count buckets set only Average because each
-	// stored point is already one aggregated window count.
-	supportedAggregations uint8
-	// retentionOverrideSecs, when positive, replaces the storage-wide point
-	// retention for this series. Zero uses the storage default.
-	retentionOverrideSecs int64
 	// lastActivityTimestamp drives capacity eviction. It normally follows the
 	// latest stored timestamp, but producers of synthetic points may override it
 	// so generated data does not make an otherwise-idle series look active.
@@ -427,8 +433,8 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.insertCount(idx)
 
 	retentionSecs := s.cfg.PointRetentionSecs
-	if stats.retentionOverrideSecs > 0 {
-		retentionSecs = stats.retentionOverrideSecs
+	if policy, ok := s.namespacePolicies[namespace]; ok && policy.retentionOverrideSecs > 0 {
+		retentionSecs = policy.retentionOverrideSecs
 	}
 	if retentionSecs > 0 {
 		// Trim points outside the retention window. Use the series' latest
@@ -1145,20 +1151,30 @@ func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricC
 	return nil
 }
 
-// SetSupportedAggregations limits which interpretations detectors should use
-// for a series. An empty list restores the default of supporting all.
-func (s *timeSeriesStorage) SetSupportedAggregations(ref observer.SeriesRef, aggregations ...observer.Aggregate) {
+// SetNamespacePolicy configures storage behavior shared by every series in a
+// namespace. Zero retention and an empty aggregation list restore defaults.
+func (s *timeSeriesStorage) SetNamespacePolicy(namespace string, retentionSecs int64, aggregations ...observer.Aggregate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	stats := s.resolveByID(ref)
-	if stats == nil {
-		return
-	}
 	var mask uint8
 	for _, agg := range aggregations {
 		mask |= aggregateMask(agg)
 	}
-	stats.supportedAggregations = mask
+	policy := namespacePolicy{
+		retentionOverrideSecs: max(retentionSecs, 0),
+		supportedAggregations: mask,
+	}
+	if policy == (namespacePolicy{}) {
+		delete(s.namespacePolicies, namespace)
+		if len(s.namespacePolicies) == 0 {
+			s.namespacePolicies = nil
+		}
+		return
+	}
+	if s.namespacePolicies == nil {
+		s.namespacePolicies = make(map[string]namespacePolicy)
+	}
+	s.namespacePolicies[namespace] = policy
 }
 
 // SupportsAggregate implements the optional detector aggregate policy.
@@ -1166,20 +1182,14 @@ func (s *timeSeriesStorage) SupportsAggregate(ref observer.SeriesRef, agg observ
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	stats := s.resolveByID(ref)
-	if stats == nil || stats.supportedAggregations == 0 {
+	if stats == nil {
 		return true
 	}
-	return stats.supportedAggregations&aggregateMask(agg) != 0
-}
-
-// SetSeriesRetention overrides point retention for one series. Zero restores
-// the storage-wide default.
-func (s *timeSeriesStorage) SetSeriesRetention(ref observer.SeriesRef, retentionSecs int64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if stats := s.resolveByID(ref); stats != nil {
-		stats.retentionOverrideSecs = max(retentionSecs, 0)
+	policy, ok := s.namespacePolicies[stats.Namespace]
+	if !ok || policy.supportedAggregations == 0 {
+		return true
 	}
+	return policy.supportedAggregations&aggregateMask(agg) != 0
 }
 
 // SetSeriesActivityTimestamp overrides the timestamp used to rank a series for
