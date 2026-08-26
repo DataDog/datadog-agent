@@ -160,21 +160,18 @@ after decrypt, decrypted.InitConfig="collect_default_metrics: true\nis_jmx: true
 JMXFetch received init_config={new_gc_metrics=true, collect_default_metrics=true, is_jmx=true}
 ```
 
-**Note on metric count**: JMXFetch collects 28 metrics (default JVM
-metrics). Kafka-specific metrics (350+) require the integration's
-`metrics.yaml` to be loaded into the config's `MetricConfig` field.
-This normally happens in `processNewConfig` via
-`check.CollectDefaultMetrics()`, but that function calls
-`check.IsJMXConfig()` which iterates over `config.Instances` — and
-the discovery template has `instances: []`, so `IsJMXConfig` returns
-false and `metrics.yaml` is never loaded.
+**Note on metric count**: JMXFetch collects 74 metrics per cycle —
+Kafka-specific metrics from the integration's `metrics.yaml` plus default
+JVM metrics. This is the correct count for a single-broker Kafka with no
+active producers/consumers. (The initial PoC reported 350 because it
+used broad domain includes that matched every MBean attribute, not the
+real `metrics.yaml` with specific bean/attribute filters.)
 
-This is the same `IsJMXConfig` misclassification issue identified in
-the design critique (point 8). The fix requires either:
-- Making `CollectDefaultMetrics` check `init_config` for `is_jmx: true`
-  instead of relying on `IsJMXConfig` (which needs instances), or
-- Loading `metrics.yaml` in `applyDiscoveredConfigsLocked` after the
-  discovered instances are merged into the template
+The `metrics.yaml` is loaded by `processNewConfig` via
+`check.CollectDefaultMetrics()`. Discovery templates have `instances: []`,
+which causes `IsJMXConfig` to return false. Fixed by adding a fallback
+in `CollectDefaultMetrics` that checks `init_config` for `is_jmx: true`
+when `config.IsDiscovery()` is true, limited to discovery configs only.
 
 ## Files Changed
 

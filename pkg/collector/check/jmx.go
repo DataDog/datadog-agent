@@ -96,7 +96,14 @@ func IsJMXInstance(name string, instance integration.Data, initConfig integratio
 
 // CollectDefaultMetrics returns if the config is for a JMX check which has collect_default_metrics: true
 func CollectDefaultMetrics(c integration.Config) bool {
-	if !IsJMXConfig(c) {
+	// For discovery configs, the template may have empty instances, causing
+	// IsJMXConfig to return false. In that case, fall back to checking
+	// init_config for is_jmx: true directly.
+	isJMX := IsJMXConfig(c)
+	if !isJMX && c.IsDiscovery() {
+		isJMX = isJMXInitConfig(c.InitConfig)
+	}
+	if !isJMX {
 		return false
 	}
 
@@ -117,4 +124,27 @@ func CollectDefaultMetrics(c integration.Config) bool {
 	}
 
 	return true
+}
+
+// isJMXInitConfig checks if init_config has is_jmx: true or loader: jmx.
+// This is used as a fallback for discovery configs that have empty instances.
+func isJMXInitConfig(initConfig integration.Data) bool {
+	rawInitConfig := integration.RawMap{}
+	if err := yaml.Unmarshal(initConfig, &rawInitConfig); err != nil {
+		return false
+	}
+
+	if x, ok := rawInitConfig["is_jmx"]; ok {
+		if isJMX, ok := x.(bool); ok && isJMX {
+			return true
+		}
+	}
+
+	if x, ok := rawInitConfig["loader"]; ok {
+		if loaderName, ok := x.(string); ok && loaderName == "jmx" {
+			return true
+		}
+	}
+
+	return false
 }
