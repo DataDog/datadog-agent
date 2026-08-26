@@ -5,21 +5,29 @@ go_library(
     name = "impl",
     srcs = [
         "chunks.go",
+        "credentials.go",
         "rcconfig.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/ndmdiscovery/impl",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/networkdevices/connectivity"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/structure",
+        "//pkg/networkdevices/connectivity",
+    ],
 )
 
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "chunks_test.go",
+        "credentials_test.go",
         "rcconfig_test.go",
     ],
     embed = [":impl"],
     deps = [
+        "//pkg/config/mock",
+        "//pkg/networkdevices/connectivity",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
