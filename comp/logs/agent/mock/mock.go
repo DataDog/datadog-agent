@@ -110,3 +110,7 @@ func (a *mockLogsAgent) Flush(ctx context.Context) {
 func (a *mockLogsAgent) GetPipelineProvider() pipeline.Provider {
 	return nil
 }
+
+// DrainTailers is a no-op for the mock: there are no real tailers to drain.
+func (a *mockLogsAgent) DrainTailers(_ context.Context) {
+}
