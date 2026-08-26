@@ -162,10 +162,32 @@ fn run_service_inner() -> Result<()> {
         .unwrap_or_else(|| ShutdownBudget::unlimited(Instant::now()));
     runtime.block_on(join_deferred_spawn_tasks(shutdown_budget));
 
-    let runtime_shutdown_cap = shutdown_budget.remaining_cap(Duration::from_secs(30));
-    runtime.shutdown_timeout(runtime_shutdown_cap);
-
+    shutdown_runtime_after_supervisor(runtime);
     result
+}
+
+/// Tear down the service Tokio runtime without blocking past the SCM stop budget.
+///
+/// After `block_on` returns, outstanding `spawn_blocking` work (for example a
+/// stuck Windows auto-start spawn) would otherwise keep `Runtime` drop waiting
+/// indefinitely and delay reporting `SERVICE_STOPPED`.
+fn shutdown_runtime_after_supervisor(runtime: tokio::runtime::Runtime) {
+    let signal_time = super::service_stop_signal_time();
+    let timeout = signal_time
+        .map(|signal| service_shutdown_deadline(signal).saturating_duration_since(Instant::now()))
+        .unwrap_or(Duration::from_secs(60));
+
+    if signal_time.is_some() {
+        if timeout.is_zero() {
+            warn!(
+                "SCM shutdown budget exhausted before runtime teardown; not waiting for outstanding tasks"
+            );
+        } else {
+            info!("waiting up to {timeout:?} for runtime teardown (SCM budget)");
+        }
+    }
+
+    runtime.shutdown_timeout(timeout);
 }
 
 pub fn run_as_service() -> Result<()> {
