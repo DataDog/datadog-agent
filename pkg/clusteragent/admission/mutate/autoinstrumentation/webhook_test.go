@@ -125,7 +125,43 @@ func TestWebhookLabelSelectors(t *testing.T) {
 		expectedSelector          *metav1.LabelSelector
 		expectedNamespaceSelector *metav1.LabelSelector
 	}{
-		"default on-demand config with namespace selector enabled only uses namespace selector": {
+		"default config with namespace selector enabled only uses namespace selector": {
+			useNamespaceSelector: true,
+			expectedSelector:     nil,
+			expectedNamespaceSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      admissioncommon.NamespaceLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   common.DefaultDisabledNamespaces(),
+					},
+				},
+			},
+		},
+		"default config with namespace selector disabled uses both selectors": {
+			useNamespaceSelector: false,
+			expectedSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			},
+			expectedNamespaceSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      admissioncommon.NamespaceLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   common.DefaultDisabledNamespaces(),
+					},
+				},
+			},
+		},
+		"on-demand config with namespace selector enabled only uses namespace selector": {
+			config: map[string]any{
+				"apm_config.instrumentation.on_demand": true,
+			},
 			useNamespaceSelector: true,
 			expectedSelector:     nil,
 			expectedNamespaceSelector: &metav1.LabelSelector{
@@ -143,7 +179,10 @@ func TestWebhookLabelSelectors(t *testing.T) {
 				},
 			},
 		},
-		"default on-demand config with namespace selector disabled uses both selectors": {
+		"on-demand config with namespace selector disabled uses both selectors": {
+			config: map[string]any{
+				"apm_config.instrumentation.on_demand": true,
+			},
 			useNamespaceSelector: false,
 			expectedSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{

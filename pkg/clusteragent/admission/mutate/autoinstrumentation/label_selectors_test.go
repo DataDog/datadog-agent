@@ -36,7 +36,7 @@ func TestLabelSelectorsConfig(t *testing.T) {
 		"default values match expected": {
 			expected: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:            false,
-				OnDemand:           true,
+				OnDemand:           false,
 				MutateUnlabelled:   false,
 				AddAksSelectors:    false,
 				DisabledNamespaces: []string{},
@@ -45,14 +45,14 @@ func TestLabelSelectorsConfig(t *testing.T) {
 		"overridden values match expected": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled":             true,
-				"apm_config.instrumentation.on_demand":           false,
+				"apm_config.instrumentation.on_demand":           true,
 				"admission_controller.mutate_unlabelled":         true,
 				"admission_controller.add_aks_selectors":         true,
 				"apm_config.instrumentation.disabled_namespaces": []string{"foo"},
 			},
 			expected: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:            true,
-				OnDemand:           false,
+				OnDemand:           true,
 				MutateUnlabelled:   true,
 				AddAksSelectors:    true,
 				DisabledNamespaces: []string{"foo"},

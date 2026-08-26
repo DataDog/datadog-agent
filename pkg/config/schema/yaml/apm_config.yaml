@@ -947,7 +947,7 @@ properties:
       on_demand:
         node_type: setting
         type: boolean
-        default: true
+        default: false
         env_vars:
         - DD_APM_INSTRUMENTATION_ON_DEMAND
       targets:
