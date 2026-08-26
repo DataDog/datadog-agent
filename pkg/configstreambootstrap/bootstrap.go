@@ -102,9 +102,20 @@ type StreamedSetting struct {
 // ApplyStreamedSettings writes a whole streamed snapshot to the global config in one pass. Unlike
 // ApplySetting it accepts env-var-sourced settings, so the result mirrors the core agent exactly.
 func ApplyStreamedSettings(settings []StreamedSetting) {
+	applyStreamedSettings(settings, false)
+}
+
+// ApplyStreamedSettingsAndNotify is ApplyStreamedSettings for a snapshot that replaces a config the
+// process has already been running on, so changed settings are broadcast to notification receivers.
+func ApplyStreamedSettingsAndNotify(settings []StreamedSetting) {
+	applyStreamedSettings(settings, true)
+}
+
+func applyStreamedSettings(settings []StreamedSetting, notify bool) {
 	b := pkgconfigsetup.Datadog()
 	type bulkSetter interface {
 		DirectBulkSet(settings []pkgconfigmodel.DirectSetting)
+		DirectBulkSetAndNotify(settings []pkgconfigmodel.DirectSetting)
 	}
 	setter, ok := b.(bulkSetter)
 	if !ok {
@@ -122,6 +133,10 @@ func ApplyStreamedSettings(settings []StreamedSetting) {
 			Value:  pbValueToGo(setting.Value),
 			Source: pkgconfigmodel.Source(setting.Source),
 		})
+	}
+	if notify {
+		setter.DirectBulkSetAndNotify(direct)
+		return
 	}
 	setter.DirectBulkSet(direct)
 }

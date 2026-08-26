@@ -547,7 +547,13 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 			Source: setting.Source,
 		})
 	}
-	configstreambootstrap.ApplyStreamedSettings(settings)
+	// The first snapshot seeds a config nothing has read yet; a later one replaces a config the
+	// process is already running on, so its changes have to be broadcast.
+	if c.ready.Load() {
+		configstreambootstrap.ApplyStreamedSettingsAndNotify(settings)
+	} else {
+		configstreambootstrap.ApplyStreamedSettings(settings)
+	}
 	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 

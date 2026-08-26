@@ -318,10 +318,28 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 // DirectBulkSet seeds a config wholesale from an already-resolved one. Unlike Set it accepts
 // SourceEnvVar and skips notifications, so it is unfit for applying a live change.
 func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
+	c.directBulkSet(settings, false)
+}
+
+// DirectBulkSetAndNotify applies a snapshot like DirectBulkSet, but notifies receivers for each
+// setting whose resolved value changed. A snapshot replayed on a reconnected stream can carry
+// changes the client never saw as incremental updates, so those must reach receivers.
+func (c *ntmConfig) DirectBulkSetAndNotify(settings []model.DirectSetting) {
+	c.directBulkSet(settings, true)
+}
+
+func (c *ntmConfig) directBulkSet(settings []model.DirectSetting, notify bool) {
 	c.maybeRebuild()
 
 	c.Lock()
-	defer c.Unlock()
+
+	// Previous values are read before any merge, so they all reflect the pre-snapshot state.
+	type change struct {
+		key      string
+		source   model.Source
+		previous interface{}
+	}
+	var changes []change
 
 	// Merge ranks conflicting leaves by source, so merging each layer once at the end is
 	// equivalent to Set's merge-per-write.
@@ -346,6 +364,10 @@ func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
 			}
 		}
 
+		if notify {
+			changes = append(changes, change{key: key, source: setting.Source, previous: c.leafAtPathFromNode(key, c.root).Get()})
+		}
+
 		tree, err := c.insertValueIntoTree(key, value, setting.Source)
 		if err != nil {
 			log.Errorf("could not insert value for '%s': %s", key, err)
@@ -358,6 +380,34 @@ func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
 
 	for _, tree := range touched {
 		c.root, _ = c.root.Merge(tree)
+	}
+
+	if !notify {
+		c.Unlock()
+		return
+	}
+
+	receivers := slices.Clone(c.notificationReceivers)
+	type notification struct {
+		change
+		newValue   interface{}
+		sequenceID uint64
+	}
+	pending := make([]notification, 0, len(changes))
+	for _, ch := range changes {
+		newValue := c.leafAtPathFromNode(ch.key, c.root).Get()
+		if reflect.DeepEqual(ch.previous, newValue) {
+			continue
+		}
+		c.sequenceID++
+		pending = append(pending, notification{change: ch, newValue: newValue, sequenceID: c.sequenceID})
+	}
+	c.Unlock()
+
+	for _, n := range pending {
+		for _, receiver := range receivers {
+			receiver(n.key, n.source, n.previous, n.newValue, n.sequenceID)
+		}
 	}
 }
 
