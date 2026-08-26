@@ -254,14 +254,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 
 	e.startSendHeartbeatEvents(ctx)
 
-	// Connect the SBOM resolver to the bundled policy provider
-	// This allows SBOM-generated policies to be automatically loaded
-	// This is disabled by default for now as it may generate high CPU pressure
-	// when the number of filters to monitor makes it impossible to have approvers
-	// for all files, causin all open events to be forwarded to user-space
-	if e.config.SBOMResolverGeneratePolicies {
-		e.ConnectSBOMResolver()
-	}
+	e.ConnectSBOMResolver()
 
 	return nil
 }
@@ -393,6 +386,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	e.policyLoader.SetProviders(providers)
 
 	rs := e.probe.NewRuleSet(e.getEventTypeEnabled())
+	rs.SetUnavailableFieldPrefixes(e.unavailableFieldPrefixes())
 
 	filteredRules, loadErrs := rs.LoadPolicies(e.policyLoader, e.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "server",
+    srcs = ["server.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/sbom/usage/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/sbom/usage/def",
+        "//pkg/proto/pbgo/core",
+        "//pkg/sbom/usage",
+    ],
+)
+
+dd_agent_go_test(
+    name = "server_test",
+    srcs = ["server_test.go"],
+    embed = [":server"],
+    deps = [
+        "//pkg/proto/pbgo/core",
+        "//pkg/sbom/usage",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)

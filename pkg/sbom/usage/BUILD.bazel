@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "usage",
+    srcs = [
+        "index.go",
+        "proto.go",
+        "stamp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/usage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/core",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+dd_agent_go_test(
+    name = "usage_test",
+    srcs = [
+        "proto_test.go",
+        "stamp_test.go",
+    ],
+    embed = [":usage"],
+    deps = [
+        "//pkg/proto/pbgo/core",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@com_github_google_go_cmp//cmp",
+    ],
+)

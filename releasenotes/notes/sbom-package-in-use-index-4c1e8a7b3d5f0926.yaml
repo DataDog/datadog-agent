@@ -1,0 +1,49 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The SBOM runtime usage enrichment ("package in use") now covers language
+    packages as well as OS packages. The Agent publishes the file-to-component
+    table of each scan it performs and system-probe attributes the file accesses
+    it observes against that table, so any component Trivy tied to a file is
+    reported, whatever ecosystem it came from. A component the scan could tie to
+    no file carries no usage property at all, which distinguishes a package that
+    is installed and idle from one whose usage cannot be measured.
+fixes:
+  - |
+    Fixed language components of an enriched container image SBOM being reported
+    with ``LastSeenRunning`` of ``0``, which claimed the package was idle when
+    its usage had never been measured.
+  - |
+    Fixed a component being dropped from an enriched container image SBOM when
+    another component shared its name and version, which removed one of the two
+    entries of a multiarch ``dpkg`` install.
+  - |
+    Fixed a language component of an enriched container image SBOM taking the
+    ``LastSeenRunning``, ``HasSetSuidBit`` and ``RunningAsRoot`` of an OS package
+    that shared its name and version, which reported one package as running on
+    another package's evidence.
+  - |
+    A container that writes its package database is now scanned again where
+    ``sbom.container.enabled`` is set, so the packages it installed since it
+    started are reported. Elsewhere the usage observed against the image is reset,
+    since it can no longer be trusted.
+upgrade:
+  - |
+    The runtime usage enrichment ("package in use") now requires the Agent to
+    scan the workloads system-probe watches, which ``sbom.container_image.enabled``
+    or ``sbom.host.enabled`` turns on. Where no scan source runs, the enrichment
+    reports nothing and a CWS rule reading a ``package.*`` field is reported as
+    unusable instead of loading and never matching.
+    ``runtime_security_config.sbom.forward_interval``,
+    ``runtime_security_config.sbom.workloads_cache_size`` and
+    ``runtime_security_config.sbom.host.enabled`` are removed: the Agent owns the
+    scan, so its own SBOM settings decide what is indexed.
+    ``runtime_security_config.sbom.generate_policies`` is removed with the
+    SBOM-generated CWS policies it gated, which were unused.

@@ -94,6 +94,16 @@ var (
 		commonOpts,
 	)
 
+	// SBOMUsagePathHashCollisions counts ambiguous file hashes removed from
+	// runtime-usage indexes. One collision is one hash shared by distinct paths.
+	SBOMUsagePathHashCollisions = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		Subsystem,
+		"usage_path_hash_collisions_total",
+		[]string{},
+		"Number of runtime-usage index hashes dropped because distinct paths collided",
+		commonOpts,
+	)
+
 	// QueueMetricsProvider is the metrics provider for the sbom scanner retry queue
 	QueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 )

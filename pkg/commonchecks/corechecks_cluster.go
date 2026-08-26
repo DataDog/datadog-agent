@@ -19,6 +19,7 @@ import (
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	sbomusage "github.com/DataDog/datadog-agent/comp/sbom/usage/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
@@ -30,7 +31,8 @@ import (
 
 // RegisterChecks registers the checks that can run in the Cluster Agent
 func RegisterChecks(store workloadmeta.Component, _ workloadfilter.Component, tagger tagger.Component, cfg config.Component,
-	_ telemetry.Component, _ rcclient.Component, _ flare.Component, _ snmpscanmanager.Component, _ traceroute.Component, _ option.Option[networkconfigmanagement.Component]) {
+	_ telemetry.Component, _ rcclient.Component, _ flare.Component, _ snmpscanmanager.Component, _ traceroute.Component, _ option.Option[networkconfigmanagement.Component],
+	_ option.Option[sbomusage.Component]) {
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())

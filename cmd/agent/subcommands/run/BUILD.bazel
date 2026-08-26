@@ -159,6 +159,8 @@ go_library(
         "//comp/remote-config/rcservice/fx",
         "//comp/remote-config/rcservicemrf/fx",
         "//comp/remote-config/rctelemetryreporter/fx",
+        "//comp/sbom/usage/def",
+        "//comp/sbom/usage/fx",
         "//comp/serializer/metricscompression/fx",
         "//comp/snmpscan/fx",
         "//comp/snmpscanmanager/def",

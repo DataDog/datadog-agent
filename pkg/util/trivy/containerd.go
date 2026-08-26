@@ -38,6 +38,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -355,7 +356,7 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	report, err := c.ScanFilesystem(ctx, imagePath, scanOptions, false)
+	report, err := c.ScanFilesystem(ctx, imagePath, scanOptions, false, usage.ImageScan(imgMeta.ID))
 	if err != nil {
 		return nil, fmt.Errorf("unable to scan image %s, err: %w", imgMeta.ID, err)
 	}

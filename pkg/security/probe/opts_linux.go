@@ -11,6 +11,7 @@ package probe
 import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -39,6 +40,9 @@ type Opts struct {
 	WorkloadMeta workloadmeta.Component
 	// FilterStore is the workload filter component
 	FilterStore workloadfilter.Component
+	// SBOMIndexSource supplies the file indexes the SBOM resolver attributes
+	// accesses against
+	SBOMIndexSource sbom.IndexSource
 }
 
 func (o *Opts) normalize() {

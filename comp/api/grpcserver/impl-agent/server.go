@@ -19,7 +19,7 @@ import (
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
+	sbomusageServer "github.com/DataDog/datadog-agent/comp/sbom/usage/server"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,6 +62,7 @@ type serverSecure struct {
 	autodiscovery        autodiscovery.Component
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
+	sbomUsageServer      *sbomusageServer.Server
 	healthPlatformStore  healthplatformstore.Component
 }
 
@@ -217,6 +219,24 @@ func (s *serverSecure) ResetConfigState(_ context.Context, _ *emptypb.Empty) (*p
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter
 func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
 	return s.workloadmetaServer.StreamEntities(in, out)
+}
+
+// SBOMStreamIndex streams the file-to-component table of every scanned workload
+// to a runtime observer.
+func (s *serverSecure) SBOMStreamIndex(in *pb.IndexRequest, out pb.AgentSecure_SBOMStreamIndexServer) error {
+	if s.sbomUsageServer == nil {
+		return status.Error(codes.Unimplemented, "sbom usage enrichment is not enabled")
+	}
+	return s.sbomUsageServer.StreamIndex(in, out)
+}
+
+// SBOMReportUsage receives the runtime usage a consumer observed against the
+// indexes it was given.
+func (s *serverSecure) SBOMReportUsage(stream pb.AgentSecure_SBOMReportUsageServer) error {
+	if s.sbomUsageServer == nil {
+		return status.Error(codes.Unimplemented, "sbom usage enrichment is not enabled")
+	}
+	return s.sbomUsageServer.ReportUsage(stream)
 }
 
 // RegisterRemoteAgent is the AgentSecure copy of the remote agent registration RPC.

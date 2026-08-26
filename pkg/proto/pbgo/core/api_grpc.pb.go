@@ -149,6 +149,8 @@ const (
 	AgentSecure_StreamKubeMetadata_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamKubeMetadata"
 	AgentSecure_ReportHealthIssue_FullMethodName                       = "/datadog.api.v1.AgentSecure/ReportHealthIssue"
 	AgentSecure_ResolveHealthIssue_FullMethodName                      = "/datadog.api.v1.AgentSecure/ResolveHealthIssue"
+	AgentSecure_SBOMStreamIndex_FullMethodName                         = "/datadog.api.v1.AgentSecure/SBOMStreamIndex"
+	AgentSecure_SBOMReportUsage_FullMethodName                         = "/datadog.api.v1.AgentSecure/SBOMReportUsage"
 )
 
 // AgentSecureClient is the client API for AgentSecure service.
@@ -200,6 +202,13 @@ type AgentSecureClient interface {
 	// Registered remote agents MUST supply remote_agent_session_id (same rules as
 	// ReportHealthIssue).
 	ResolveHealthIssue(ctx context.Context, in *ResolveHealthIssueRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Streams the file-to-component table of every workload the core agent has
+	// scanned, so a runtime observer can attribute the file accesses it sees to
+	// the components of the SBOM the core agent owns.
+	SBOMStreamIndex(ctx context.Context, in *IndexRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[IndexUpdate], error)
+	// Receives the runtime usage a consumer observed against the indexes it was
+	// given, and its requests to rescan a workload whose packages changed.
+	SBOMReportUsage(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[UsageMessage, UsageAck], error)
 }
 
 type agentSecureClient struct {
@@ -468,6 +477,38 @@ func (c *agentSecureClient) ResolveHealthIssue(ctx context.Context, in *ResolveH
 	return out, nil
 }
 
+func (c *agentSecureClient) SBOMStreamIndex(ctx context.Context, in *IndexRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[IndexUpdate], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentSecure_ServiceDesc.Streams[6], AgentSecure_SBOMStreamIndex_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[IndexRequest, IndexUpdate]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentSecure_SBOMStreamIndexClient = grpc.ServerStreamingClient[IndexUpdate]
+
+func (c *agentSecureClient) SBOMReportUsage(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[UsageMessage, UsageAck], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentSecure_ServiceDesc.Streams[7], AgentSecure_SBOMReportUsage_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[UsageMessage, UsageAck]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentSecure_SBOMReportUsageClient = grpc.BidiStreamingClient[UsageMessage, UsageAck]
+
 // AgentSecureServer is the server API for AgentSecure service.
 // All implementations must embed UnimplementedAgentSecureServer
 // for forward compatibility.
@@ -517,6 +558,13 @@ type AgentSecureServer interface {
 	// Registered remote agents MUST supply remote_agent_session_id (same rules as
 	// ReportHealthIssue).
 	ResolveHealthIssue(context.Context, *ResolveHealthIssueRequest) (*emptypb.Empty, error)
+	// Streams the file-to-component table of every workload the core agent has
+	// scanned, so a runtime observer can attribute the file accesses it sees to
+	// the components of the SBOM the core agent owns.
+	SBOMStreamIndex(*IndexRequest, grpc.ServerStreamingServer[IndexUpdate]) error
+	// Receives the runtime usage a consumer observed against the indexes it was
+	// given, and its requests to rescan a workload whose packages changed.
+	SBOMReportUsage(grpc.BidiStreamingServer[UsageMessage, UsageAck]) error
 	mustEmbedUnimplementedAgentSecureServer()
 }
 
@@ -589,6 +637,12 @@ func (UnimplementedAgentSecureServer) ReportHealthIssue(context.Context, *Report
 }
 func (UnimplementedAgentSecureServer) ResolveHealthIssue(context.Context, *ResolveHealthIssueRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveHealthIssue not implemented")
+}
+func (UnimplementedAgentSecureServer) SBOMStreamIndex(*IndexRequest, grpc.ServerStreamingServer[IndexUpdate]) error {
+	return status.Error(codes.Unimplemented, "method SBOMStreamIndex not implemented")
+}
+func (UnimplementedAgentSecureServer) SBOMReportUsage(grpc.BidiStreamingServer[UsageMessage, UsageAck]) error {
+	return status.Error(codes.Unimplemented, "method SBOMReportUsage not implemented")
 }
 func (UnimplementedAgentSecureServer) mustEmbedUnimplementedAgentSecureServer() {}
 func (UnimplementedAgentSecureServer) testEmbeddedByValue()                     {}
@@ -943,6 +997,24 @@ func _AgentSecure_ResolveHealthIssue_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentSecure_SBOMStreamIndex_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(IndexRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentSecureServer).SBOMStreamIndex(m, &grpc.GenericServerStream[IndexRequest, IndexUpdate]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentSecure_SBOMStreamIndexServer = grpc.ServerStreamingServer[IndexUpdate]
+
+func _AgentSecure_SBOMReportUsage_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AgentSecureServer).SBOMReportUsage(&grpc.GenericServerStream[UsageMessage, UsageAck]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentSecure_SBOMReportUsageServer = grpc.BidiStreamingServer[UsageMessage, UsageAck]
+
 // AgentSecure_ServiceDesc is the grpc.ServiceDesc for AgentSecure service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1042,6 +1114,17 @@ var AgentSecure_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "StreamKubeMetadata",
 			Handler:       _AgentSecure_StreamKubeMetadata_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "SBOMStreamIndex",
+			Handler:       _AgentSecure_SBOMStreamIndex_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "SBOMReportUsage",
+			Handler:       _AgentSecure_SBOMReportUsage_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "datadog/api/v1/api.proto",

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
@@ -54,7 +55,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 		}
 	}
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, scanPath, c.opts, true)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, scanPath, c.opts, true, usage.ContainerScan(request.ID()))
 	return sbom.ScanResult{
 		RequestID:        request.ID(),
 		Error:            err,

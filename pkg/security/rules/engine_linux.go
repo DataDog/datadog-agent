@@ -13,9 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -97,28 +95,41 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 	return seclVariables
 }
 
-// ConnectSBOMResolver connects the SBOM resolver to the bundled policy provider
-// so that SBOM-generated policies are automatically loaded when SBOMs are computed
+// ConnectSBOMResolver arranges for the rule set to be reloaded once the core
+// agent has said which workloads it scans.
+//
+// A rule reading a package field is admitted while the answer is outstanding,
+// since rejecting it on a guess would break a valid rule with no way back.
+// Reloading when the answer arrives settles the status either way.
 func (e *RuleEngine) ConnectSBOMResolver() {
-	if e.bundledProvider == nil {
-		return
-	}
-
-	// Get the eBPF probe to access resolvers
 	ebpfProbe, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok || ebpfProbe.Resolvers == nil || ebpfProbe.Resolvers.SBOMResolver == nil {
 		return
 	}
 
-	ebpfProbe.Resolvers.SBOMResolver.SetPolicyGeneratorCallback(func(workloadKey string, containerID containerutils.ContainerID, policyDef *rules.PolicyDef) {
-		// Set the SBOM-generated policy definition on the bundled provider
-		// This will trigger a silent reload (no heartbeat event)
-		if policyDef != nil {
-			seclog.Infof("Setting SBOM-generated policy for workload %s (container %s) with %d macros and %d rules",
-				workloadKey, containerID, len(policyDef.Macros), len(policyDef.Rules))
-			e.bundledProvider.SetSBOMPolicyDef(workloadKey, policyDef)
+	ebpfProbe.Resolvers.SBOMResolver.SetCapabilitiesCallback(func() {
+		if err := e.ReloadPolicies(false); err != nil {
+			seclog.Warnf("could not reload policies after the SBOM capabilities arrived: %v", err)
 		}
 	})
+}
 
-	seclog.Infof("SBOM resolver connected to bundled policy provider")
+// unavailableFieldPrefixes names the field prefixes whose source is not running.
+// The package fields are read from the file index the core agent publishes for
+// each workload it scans, so where it scans nothing there is nothing to read
+// them from, and a rule naming one is better rejected than left to match
+// nothing in silence.
+//
+// An unanswered handshake is not an answer: until the core agent replies the
+// fields are treated as available, and the reply triggers the reload that
+// settles the status.
+func (e *RuleEngine) unavailableFieldPrefixes() []string {
+	ebpfProbe, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok || ebpfProbe.Resolvers == nil || ebpfProbe.Resolvers.SBOMResolver == nil {
+		return nil
+	}
+	if ebpfProbe.Resolvers.SBOMResolver.LacksWorkloadIndexes() {
+		return []string{".package."}
+	}
+	return nil
 }

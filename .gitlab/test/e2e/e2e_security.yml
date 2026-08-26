@@ -6,9 +6,10 @@
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - comp/core/workloadmeta/collectors/internal/remote/sbomcollector/**/*
+        - comp/sbom/**/*
         - pkg/sbom/**/*
         - pkg/security/resolvers/sbom/**/*
+        - pkg/util/trivy/**/*
         - test/new-e2e/tests/sbom/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success

@@ -38,6 +38,17 @@ type Opts struct {
 	Logger                     log.Logger
 	ruleActionPerformedCb      RuleActionPerformedCb
 	RuleCacheEnabled           bool
+	// UnavailableFieldPrefixes lists the field prefixes whose source is not
+	// running, so a rule reading one can never match. A rule that names one
+	// fails to load with a reason the product shows, rather than loading cleanly
+	// and silently never firing.
+	UnavailableFieldPrefixes []string
+}
+
+// WithUnavailableFieldPrefixes sets the field prefixes whose source is absent
+func (o *Opts) WithUnavailableFieldPrefixes(prefixes []string) *Opts {
+	o.UnavailableFieldPrefixes = prefixes
+	return o
 }
 
 // WithSupportedDiscarders set supported discarders

@@ -3529,6 +3529,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		UseRingBuffer:            p.useRingBuffers,
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 		WorkloadMeta:             opts.WorkloadMeta,
+		SBOMIndexSource:          opts.SBOMIndexSource,
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager.Get(), probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)

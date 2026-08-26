@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/ddtrivy"
@@ -50,6 +51,10 @@ const (
 	TypeImageConfigSecret = "image-config-secret" // TypeImageConfigSecret defines a history-dockerfile analyzer
 )
 
+// usageIndexQueueSize bounds the tables waiting to be served. Scans of distinct
+// workloads complete far apart, so a consumer that is up has no queue at all.
+const usageIndexQueueSize = 16
+
 // collectorConfig allows to pass configuration
 type collectorConfig struct {
 	cacheDir            string
@@ -57,6 +62,7 @@ type collectorConfig struct {
 	maxCacheSize        int
 	computeDependencies bool
 	simplifyBomRefs     bool
+	usageEnabled        bool
 }
 
 // Collector uses trivy to generate a SBOM
@@ -73,6 +79,14 @@ type Collector struct {
 	osScanner   ospkg.Scanner
 	langScanner langpkg.Scanner
 	vulnClient  vulnerability.Client
+
+	// usageIndexes carries the file-to-component table of each completed scan to
+	// whoever serves it to a runtime observer. Publishing is best effort: a full
+	// channel drops the table rather than delaying the scan, and the next scan of
+	// the same workload supersedes it anyway.
+	usageIndexes    chan *usage.Index
+	usageGenLock    sync.Mutex
+	usageGeneration map[usage.ScanID]uint64
 }
 
 var globalCollector *Collector
@@ -153,6 +167,7 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 			maxCacheSize:        cfg.GetInt("sbom.cache.max_disk_size"),
 			computeDependencies: cfg.GetBool("sbom.compute_dependencies"),
 			simplifyBomRefs:     cfg.GetBool("sbom.simplify_bom_refs"),
+			usageEnabled:        cfg.GetBool("sbom.enrichment.usage.enabled"),
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 		wmeta:     wmeta,
@@ -160,12 +175,16 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 		osScanner:   ospkg.NewScanner(),
 		langScanner: langpkg.NewScanner(),
 		vulnClient:  vulnerability.NewClient(db.Config{}),
+
+		usageIndexes:    make(chan *usage.Index, usageIndexQueueSize),
+		usageGeneration: make(map[usage.ScanID]uint64),
 	}, nil
 }
 
 // NewCollectorForCLI returns a new collector, should be used only for sbomgen CLI
 func NewCollectorForCLI() *Collector {
 	return &Collector{
+		usageGeneration: map[usage.ScanID]uint64{},
 		config: collectorConfig{
 			maxCacheSize:        math.MaxInt,
 			computeDependencies: true,
@@ -251,7 +270,9 @@ func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOpti
 }
 
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*Report, error) {
+// scan names the workload the directory holds, and may be empty for a caller
+// that takes no part in the runtime usage enrichment.
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool, scan usage.ScanID) (*Report, error) {
 	trivyReport, err := c.ScanFSTrivyReport(ctx, path, scanOptions, removeLayers)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
@@ -264,7 +285,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	}
 
 	hash := "sha256:" + base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-	return c.buildReport(trivyReport, hash)
+	return c.buildReport(trivyReport, hash, scan, path)
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {
@@ -284,7 +305,11 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 	return &trivyReport, nil
 }
 
-func (c *Collector) buildReport(trivyReport *types.Report, id string) (*Report, error) {
+// buildReport marshals a Trivy report into the agent's SBOM representation and,
+// when the runtime usage enrichment is on, publishes the file-to-component table
+// of the same scan. scan names the workload the report describes and root is the
+// filesystem it was read from, or "" for a scan of an image.
+func (c *Collector) buildReport(trivyReport *types.Report, id string, scan usage.ScanID, root string) (*Report, error) {
 	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
 	pkgCount := 0
 	for _, results := range trivyReport.Results {
@@ -292,8 +317,48 @@ func (c *Collector) buildReport(trivyReport *types.Report, id string) (*Report, 
 	}
 	log.Debugf("Found %d packages", pkgCount)
 
-	return newReport(id, trivyReport, c.marshaler, reportOptions{
+	report, err := newReport(id, trivyReport, c.marshaler, reportOptions{
 		dependencies:    c.config.computeDependencies,
 		simplifyBomRefs: c.config.simplifyBomRefs,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	c.publishUsageIndex(trivyReport, report, scan, root)
+	return report, nil
+}
+
+// UsageIndexes returns the channel on which the collector publishes the
+// file-to-component table of every scan it completes.
+func (c *Collector) UsageIndexes() <-chan *usage.Index {
+	return c.usageIndexes
+}
+
+// publishUsageIndex builds the index of a completed scan and offers it to the
+// consumer, under an identity that supersedes whatever the previous scan of the
+// same workload published.
+func (c *Collector) publishUsageIndex(trivyReport *types.Report, report *Report, scan usage.ScanID, root string) {
+	if !c.config.usageEnabled || scan == "" {
+		return
+	}
+	if report.indexID == "" {
+		log.Warnf("not publishing SBOM usage index for %s: final BOM has no serial number", scan)
+		return
+	}
+
+	c.usageGenLock.Lock()
+	c.usageGeneration[scan]++
+	generation := c.usageGeneration[scan]
+	c.usageGenLock.Unlock()
+
+	index := BuildUsageIndex(trivyReport, report.componentRefs, report.indexID, scan, generation, root)
+	if index.UnmappedComponents > 0 {
+		log.Warnf("SBOM usage index for %s has %d components without a unique final BOM ref", scan, index.UnmappedComponents)
+	}
+	select {
+	case c.usageIndexes <- index:
+	default:
+		log.Warnf("dropping SBOM usage index for %s: consumer is not keeping up", scan)
+	}
 }

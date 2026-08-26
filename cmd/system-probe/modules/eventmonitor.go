@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -45,6 +44,11 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	opts.ProbeOpts.FilterStore = deps.FilterStore
 	secmoduleOpts := secmodule.Opts{}
 
+	// The SBOM resolver reads the file index the core agent publishes for each
+	// workload it scans. Its client is built here, where the IPC component is in
+	// scope, and passed down so the resolver itself stays free of transport.
+	startSBOMUsage := wireSBOMUsage(&opts, secconfig, deps.Ipc)
+
 	secmodule.UpdateEventMonitorOpts(&opts, secconfig)
 
 	hostname, err := deps.Hostname.Get(context.Background())
@@ -63,35 +67,21 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		return nil, module.ErrNotEnabled
 	}
 
-	cwsEnabled := secconfig.RuntimeSecurity.IsRuntimeEnabled()
-	runtimeUsageEnabled := pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled")
+	startSBOMUsage(context.Background())
 
-	if cwsEnabled || runtimeUsageEnabled {
-		stopChan := make(chan struct{})
-
+	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
 		cmdServer, err := secmodule.NewCommandServer(secconfig.RuntimeSecurity)
 		if err != nil {
 			return nil, err
 		}
 
-		if cwsEnabled {
-			cws, err := secmodule.NewCWSConsumer(cmdServer, evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname, deps.Secrets)
-			if err != nil {
-				return nil, err
-			}
-			evm.RegisterEventConsumer(cws)
-			evm.SetCWSStatusProvider(cws)
-			log.Info("event monitoring cws consumer initialized")
+		cws, err := secmodule.NewCWSConsumer(cmdServer, evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname, deps.Secrets)
+		if err != nil {
+			return nil, err
 		}
-
-		if runtimeUsageEnabled {
-			usage, err := secmodule.NewUsageConsumer(cmdServer, evm, secconfig.RuntimeSecurity, stopChan)
-			if err != nil {
-				return nil, err
-			}
-			evm.RegisterEventConsumer(usage)
-			log.Info("event monitoring usage consumer initialized")
-		}
+		evm.RegisterEventConsumer(cws)
+		evm.SetCWSStatusProvider(cws)
+		log.Info("event monitoring cws consumer initialized")
 	}
 
 	ncfg := netconfig.New()
