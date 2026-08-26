@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/ssi/testutils
 go 1.26.0
 
 require (
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	k8s.io/api v0.35.5
 	k8s.io/apimachinery v0.35.6
 )
