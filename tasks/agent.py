@@ -184,7 +184,7 @@ _PLATFORM_TO_OS_TARGET = {
 def generate_config_examples(ctx, flavor, skip_assets, build_tags, development, windows_sysprobe):
     os_target = _PLATFORM_TO_OS_TARGET[sys.platform]
 
-    build_type = "iot-agent" if flavor.is_iot() else "agent-py3"
+    build_type = "iot-agent" if flavor.is_iot() else "datadog-agent"
     generate_template(CORE_SCHEMA_FILE, "./cmd/agent/dist/datadog.yaml", build_type, os_target)
 
     if sys.platform != 'win32' or windows_sysprobe:
@@ -468,7 +468,7 @@ def hacky_dev_image_build(
         # of truth: ENABLED_CHECKS in the rustchecks BUILD.bazel). The `:install`
         # target lays each cdylib into <destdir>/checks.d with 0500 perms.
         checks_d_staging = "bin/agent/dist/checks.d"
-        bazel(ctx, "run", "//pkg/collector/sharedlibrary/rustchecks:install", "--", "--destdir=bin/agent/dist")
+        bazel("run", "//pkg/collector/sharedlibrary/rustchecks:install", "--", "--destdir=bin/agent/dist")
         if os.path.isdir(checks_d_staging) and any(
             f.startswith("libdatadog-agent-") for f in os.listdir(checks_d_staging)
         ):

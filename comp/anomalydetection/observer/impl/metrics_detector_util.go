@@ -12,6 +12,18 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
+const scanMaxPoints = 120
+
+// appendPointWindow retains the newest maxPoints points in buf.
+func appendPointWindow(buf []observer.Point, maxPoints int, point observer.Point) []observer.Point {
+	if len(buf) < maxPoints {
+		return append(buf, point)
+	}
+	copy(buf, buf[1:])
+	buf[len(buf)-1] = point
+	return buf
+}
+
 func parseAggregateConfig(names []string) []observer.Aggregate {
 	if len(names) == 0 {
 		return nil
@@ -23,6 +35,19 @@ func parseAggregateConfig(names []string) []observer.Aggregate {
 		}
 	}
 	return aggregations
+}
+
+func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
+	switch s {
+	case "avg":
+		return observer.AggregateAverage, true
+	case "sum":
+		return observer.AggregateSum, true
+	case "count":
+		return observer.AggregateCount, true
+	default:
+		return 0, false
+	}
 }
 
 // seriesStatus holds point count and write generation for a single series.
@@ -49,6 +74,40 @@ type seriesRefLister interface {
 // representation gives only some aggregations useful semantics.
 type seriesAggregateSupport interface {
 	SupportsAggregate(ref observer.SeriesRef, agg observer.Aggregate) bool
+}
+
+// tailPointReader is implemented by storage that can snapshot a bounded tail
+// without first materializing the whole retained range.
+type tailPointReader interface {
+	ForEachLastPoints(observer.SeriesRef, int64, int, observer.Aggregate, func(*observer.Series, observer.Point)) bool
+}
+
+// collectLastPoints appends the newest maxPoints visible points to dst and
+// returns their series metadata. Production storage uses its bounded tail
+// primitive; the fallback keeps StorageReader test doubles compatible.
+func collectLastPoints(storage observer.StorageReader, ref observer.SeriesRef, end int64, maxPoints int, agg observer.Aggregate, dst []observer.Point) (*observer.Series, []observer.Point) {
+	dst = dst[:0]
+	var meta *observer.Series
+	appendPoint := func(series *observer.Series, p observer.Point) {
+		if meta == nil {
+			copy := *series
+			meta = &copy
+		}
+		dst = append(dst, p)
+	}
+	if reader, ok := storage.(tailPointReader); ok {
+		reader.ForEachLastPoints(ref, end, maxPoints, agg, appendPoint)
+		return meta, dst
+	}
+	storage.ForEachPoint(ref, 0, end, agg, func(series *observer.Series, p observer.Point) {
+		if len(dst) == maxPoints {
+			copy(dst, dst[1:])
+			dst[len(dst)-1] = p
+			return
+		}
+		appendPoint(series, p)
+	})
+	return meta, dst
 }
 
 func supportsSeriesAggregate(storage observer.StorageReader, ref observer.SeriesRef, agg observer.Aggregate) bool {

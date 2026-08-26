@@ -4058,6 +4058,7 @@ func TestHandleGPU(t *testing.T) {
 				PCIBusID:          "0000:00:1e.0",
 				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
 				FabricCliqueID:    7,
+				NVLinkVersion:     "3.0",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -4073,6 +4074,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:3.0",
+						"gpu_nvlink_capable:true",
 						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
 						"gpu_fabric_clique_id:7",
 					},
@@ -4090,10 +4093,11 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "GPU-1234",
 				},
-				Vendor:   "Nvidia",
-				Device:   "Tesla v100",
-				GPUType:  "V100",
-				PCIBusID: "0000:00:1E.0",
+				Vendor:        "Nvidia",
+				Device:        "Tesla v100",
+				GPUType:       "V100",
+				PCIBusID:      "0000:00:1E.0",
+				NVLinkVersion: "not_nvlink_capable",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -4109,6 +4113,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
 					},
 					StandardTags: []string{},
 				},
@@ -4133,6 +4139,7 @@ func TestHandleGPU(t *testing.T) {
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
 				PCIBusID:           "0000:00:1e.0",
+				NVLinkVersion:      "not_nvlink_capable",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -4149,6 +4156,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:a100",
 						"gpu_uuid:mig-432",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
 					},
@@ -4176,6 +4185,7 @@ func TestHandleGPU(t *testing.T) {
 				Architecture:       "ampere",
 				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
 				PCIBusID:           "0000:00:1e.0",
+				NVLinkVersion:      "not_nvlink_capable",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -4192,6 +4202,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
 					},
@@ -5236,6 +5248,7 @@ func TestHandleProcess(t *testing.T) {
 				LowCardTags: []string{
 					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
 					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_nvlink_capable:false",
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
@@ -5277,6 +5290,7 @@ func TestHandleProcess(t *testing.T) {
 					"env:" + envFromDD,
 					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
 					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_nvlink_capable:false",
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
