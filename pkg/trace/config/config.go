@@ -32,9 +32,27 @@ const ServiceName = "datadog-trace-agent"
 var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
 
 // Endpoint specifies an endpoint that the trace agent will write data (traces, stats & services) to.
+// CredentialProvider supplies the credential for one destination. It mirrors
+// comp/core/delegatedauth's Provider; see CredentialProviderFn for why it is redeclared here.
+type CredentialProvider interface {
+	// Authorize stamps the credential onto h and reports whether it did. A false return means
+	// no credential is available yet and the caller must not send.
+	Authorize(h http.Header) bool
+}
+
 type Endpoint struct {
 	APIKey string `json:"-"` // never marshal this
 	Host   string
+
+	// CredentialDirective is the DELA(...) text this endpoint was built from, empty for an
+	// endpoint with a plain API key. With ConfigSettingPath and Host it identifies which
+	// credential is this endpoint's, where the host alone would be ambiguous across orgs.
+	CredentialDirective string `mapstructure:"-" json:"-"`
+
+	// ConfigSettingPath is the config setting this endpoint was built from, e.g.
+	// "apm_config.additional_endpoints". With Host it identifies the endpoint to
+	// AgentConfig.CredentialProviderFn.
+	ConfigSettingPath string `mapstructure:"-" json:"-"`
 
 	// NoProxy will be set to true when the proxy setting for the trace API endpoint
 	// needs to be ignored (e.g. it is part of the "no_proxy" list in the yaml settings).
@@ -627,6 +645,12 @@ type AgentConfig struct {
 	// the OPM background fetch. Derived from dd_url / site via utils.GetMainEndpoint.
 	// Empty when EnableOPMFetch is false.
 	OPMValidateURL string
+
+	// CredentialProviderFn resolves the delegated-auth credential provider for an endpoint,
+	// returning nil when that endpoint uses a plain API key. Declared as a func field, like
+	// SecretsRefreshFn below, so pkg/trace stays free of a dependency on comp/core/delegatedauth:
+	// this module is vendored by the OTel Collector distribution and has to stay lean.
+	CredentialProviderFn func(configSettingPath, host, directive string) CredentialProvider `json:"-"`
 
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It blocks until the refresh

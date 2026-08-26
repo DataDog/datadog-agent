@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
@@ -938,7 +940,7 @@ func TestCreateTransactionsWithLocal(t *testing.T) {
 	mockConfig.SetInTest("cluster_agent.url", "https://cluster.agent.svc")
 	mockConfig.SetInTest("cluster_agent.auth_token", "01234567890123456789012345678901")
 
-	opts, err := createOptions(defaultforwarderdef.NewParams(), mockConfig, log, secrets)
+	opts, err := createOptions(defaultforwarderdef.NewParams(), mockConfig, log, secrets, nil)
 	require.NoError(t, err)
 	f := NewDefaultForwarder(mockConfig, log, opts)
 
@@ -973,4 +975,48 @@ func TestCreateTransactionsWithLocal(t *testing.T) {
 
 	require.Len(t, txn, 1)
 	assert.Equal(t, "https://example.test", txn[0].Domain)
+}
+
+// Credential providers must be attached whichever way the options are built. Only the cluster
+// agents pass WithResolvers; the core Agent, dogstatsd, serverless-init and otel-agent all take
+// the NewOptionsWithOPW path, which builds its own resolver set. Attaching in only one branch left
+// a delegated-auth endpoint in those binaries with no static key and no provider, so the forwarder
+// created zero transactions for it and shipped nothing - silently, with no error.
+func TestCredentialProvidersAreAttachedOnBothOptionPaths(t *testing.T) {
+	const domain = "https://pending-org.datadoghq.com"
+
+	for _, tc := range []struct {
+		name   string
+		params defaultforwarderdef.Params
+	}{
+		{"without WithResolvers", defaultforwarderdef.NewParams()},
+		{"with WithResolvers", defaultforwarderdef.NewParams(defaultforwarderdef.WithResolvers())},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mock.New(t)
+			cfg.SetInTest("api_key", "primary-key")
+			cfg.SetInTest("additional_endpoints", map[string][]string{
+				domain: {"DELA(org-uuid-1, aws)"},
+			})
+
+			auth := &delegatedauthmock.Mock{}
+			_, err := auth.AddInstance(context.Background(), delegatedauth.InstanceParams{
+				ConfigKey:   "additional_endpoints",
+				Destination: domain,
+				Directive:   "DELA(org-uuid-1, aws)",
+			})
+			require.NoError(t, err)
+
+			options, err := createOptions(tc.params, cfg, logmock.New(t), secretsmock.New(t), auth)
+			require.NoError(t, err)
+
+			r, ok := options.DomainResolvers[domain]
+			require.True(t, ok, "the delegated-auth domain must survive into the resolvers")
+			require.Len(t, r.GetCredentialProviders(), 1,
+				"the provider must be attached, or this endpoint gets no transactions at all")
+
+			// The slot is what makes a transaction get created for this endpoint.
+			assert.Len(t, r.GetAuthorizers(), 1)
+		})
+	}
 }

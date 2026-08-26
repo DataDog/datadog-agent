@@ -44,7 +44,7 @@ func newTestOTelSyncForwarder(t *testing.T, client *http.Client, extraSetup ...f
 			APIKeySet: []utils.APIKeys{utils.NewAPIKeys("api_key", "testapikey0000000000000000000000000")},
 		},
 	}
-	f, err := NewOTelSyncForwarder(cfg, log, sec, eds, client)
+	f, err := NewOTelSyncForwarder(cfg, log, sec, eds, client, nil)
 	require.NoError(t, err)
 	return f
 }
@@ -275,7 +275,7 @@ func newTestOTelSyncForwarderWithMRF(t *testing.T, client *http.Client, mrfEnabl
 			IsMRF:     true,
 		},
 	}
-	f, err := NewOTelSyncForwarder(cfg, log, sec, eds, client)
+	f, err := NewOTelSyncForwarder(cfg, log, sec, eds, client, nil)
 	require.NoError(t, err)
 	return f
 }

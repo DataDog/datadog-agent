@@ -18,6 +18,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/config",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/delegatedauth/def",
         "//comp/logs-library/utils/tls",
         "//pkg/config/model",
         "//pkg/config/setup/constants",
@@ -36,6 +37,7 @@ dd_agent_go_test(
     srcs = [
         "config_keys_test.go",
         "config_test.go",
+        "credential_provider_test.go",
         "endpoints_test.go",
         "integration_config_test.go",
         "messages_test.go",
@@ -45,6 +47,7 @@ dd_agent_go_test(
     embed = [":config"],
     deps = [
         "//comp/core/config",
+        "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/setup/constants",
         "//pkg/config/utils",

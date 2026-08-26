@@ -7,10 +7,13 @@ package config
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"go.uber.org/atomic"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -66,6 +69,13 @@ type Endpoint struct {
 	// the index of this endpoint config within "additional_endpoints" settings. This is needed to not
 	// wrongly update an endpoint when an API key is linked to multuple endpoints.
 	additionalEndpointsIdx int
+
+	// credentialProvider, when set, supplies this endpoint's credential instead of apiKey. It may
+	// have no credential yet, in which case the destination waits rather than sending.
+	credentialProvider CredentialProvider
+	// credentialDirective is the DELA(...) text this endpoint was configured with, if any. It
+	// identifies which credential is this endpoint's when several share a host.
+	credentialDirective string
 
 	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
@@ -184,6 +194,15 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
+		// Delegated auth is HTTP-only. The TCP framing prefixes every log line with the API key
+		// verbatim, so a directive here would be written to the wire in cleartext - including any
+		// fallback=<key> it carries - and would authenticate nothing. There is no Authorize gate on
+		// this path to hold the payload instead, so the endpoint is dropped rather than built.
+		if isDelaDirective(e.APIKey) {
+			log.Warnf("Additional endpoint %q at %q uses delegated auth, which is not supported over TCP; this endpoint is disabled. Set logs_config.force_use_http to use it.", e.Host, configKeyUsed)
+			continue
+		}
+
 		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, EmptyPathPrefix, false)
 
 		newE.isAdditionalEndpoint = true
@@ -229,7 +248,19 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
-		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, e.PathPrefix, false)
+		apiKey := e.APIKey
+		var directive string
+		if isDelaDirective(apiKey) {
+			// The directive is a placeholder, not a key. The endpoint is still built so a provider
+			// has somewhere to deliver; until one is attached it simply cannot authorize.
+			directive, apiKey = apiKey, ""
+		}
+
+		newE := NewEndpoint(apiKey, configKeyUsed, e.Host, e.Port, e.PathPrefix, false)
+		newE.credentialDirective = directive
+		if directive != "" && l.credentialProviders != nil {
+			newE.credentialProvider = l.credentialProviders(configKeyUsed, e.Host, directive)
+		}
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
@@ -279,6 +310,45 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 // GetAPIKey returns the latest API Key for the Endpoint, including when the configuration gets updated at runtime
 func (e *Endpoint) GetAPIKey() string {
 	return e.apiKey.Load()
+}
+
+// isDelaDirective reports whether a configured api_key is a delegated-auth placeholder rather than
+// a real key. Uses the shared prefix constant from pkg/config/model so this check cannot drift
+// from the canonical one in pkg/config/utils.
+func isDelaDirective(value string) bool {
+	return strings.HasPrefix(strings.TrimSpace(value), model.DelaDirectivePrefix)
+}
+
+// CredentialProvider supplies the credential for one destination. It is an alias for
+// delegatedauth.Provider so consumers that import this package get the canonical interface
+// without a separate import.
+type CredentialProvider = delegatedauth.Provider
+
+// SetCredentialProvider makes this endpoint take its credential from p rather than from a
+// configured API key. Call it during endpoint construction, before any destination uses it.
+func (e *Endpoint) SetCredentialProvider(p CredentialProvider) {
+	e.credentialProvider = p
+}
+
+// Authorize stamps this endpoint's credential onto h and reports whether it did.
+//
+// It returns false only when the endpoint is backed by a delegated-auth provider that has no
+// credential yet; the caller must then retry rather than send. An endpoint with an ordinary API
+// key always authorizes, so nothing about the existing path changes.
+func (e *Endpoint) Authorize(h http.Header) bool {
+	if e.credentialProvider != nil {
+		return e.credentialProvider.Authorize(h)
+	}
+	if e.credentialDirective != "" {
+		// Built from a directive that never produced an instance - an unsupported cloud provider,
+		// say. There is no credential to send, and whatever apiKey holds is not one: the config
+		// still contains the directive text, so a config update can put it back into apiKey (see
+		// onConfigUpdateAdditionalEndpoints). Refuse on the directive rather than on the key being
+		// empty, so that cannot turn into stamping the directive as a credential.
+		return false
+	}
+	h.Set("DD-API-KEY", e.GetAPIKey())
+	return true
 }
 
 // UseSSL returns the useSSL config setting
@@ -379,6 +449,12 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 		}
 
 		newAPIKey := newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey
+		if isDelaDirective(newAPIKey) {
+			// SkipConfigWriteback leaves the directive in the config tree permanently, so every
+			// update re-reads it here. Storing it would put the directive text back into apiKey,
+			// where it would be stamped onto requests as if it were a credential.
+			return
+		}
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,

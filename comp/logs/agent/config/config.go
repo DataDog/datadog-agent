@@ -121,6 +121,14 @@ func BuildEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, httpConn
 	return BuildEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
+// BuildEndpointsWithVectorOverrideAndProviders is BuildEndpointsWithVectorOverride with a
+// delegated-auth lookup attached, so additional endpoints configured with a DELA(...) directive
+// take their credential from a provider instead of a configured API key.
+func BuildEndpointsWithVectorOverrideAndProviders(coreConfig pkgconfigmodel.Reader, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, lookup CredentialProviderLookup) (*Endpoints, error) {
+	keys := defaultLogsConfigKeysWithVectorOverride(coreConfig).WithCredentialProviders(lookup)
+	return BuildEndpointsWithConfig(coreConfig, keys, httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+}
+
 // BuildEndpointsWithConfig returns the endpoints to send logs.
 func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	if logsConfig.devModeNoSSL() {

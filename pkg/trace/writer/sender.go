@@ -62,6 +62,9 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			throttleInterval: cfg.APIKeyRefreshThrottleInterval,
 			isFromSecret:     cfg.APIKeyIsFromSecretFn,
 		}
+		if cfg.CredentialProviderFn != nil {
+			apiKeyManager.provider = cfg.CredentialProviderFn(endpoint.ConfigSettingPath, endpoint.Host, endpoint.CredentialDirective)
+		}
 
 		senders[i] = newSender(scfg, apiKeyManager, statsd)
 	}
@@ -186,12 +189,42 @@ type apiKeyManager struct {
 
 	// lastRefresh tracks when the last refresh occurred
 	lastRefresh time.Time
+
+	// provider, when set, supplies this endpoint's credential instead of apiKey. It may have no
+	// credential yet, in which case the payload waits rather than being sent unauthenticated.
+	provider config.CredentialProvider
+}
+
+// Authorize stamps this endpoint's credential onto h and reports whether it did. It returns false
+// only for a delegated-auth endpoint whose credential has not arrived yet.
+func (m *apiKeyManager) Authorize(h http.Header) bool {
+	if m.provider != nil {
+		return m.provider.Authorize(h)
+	}
+	// No provider and no key means the endpoint was built from a directive that never produced
+	// an instance - an unsupported provider, or a consumer with no provider wiring. Stamping the
+	// empty key would send the payload to that org's intake unauthenticated, so refuse instead.
+	key := m.Get()
+	if key == "" {
+		return false
+	}
+	h.Set(headerAPIKey, key)
+	return true
 }
 
 func (m *apiKeyManager) Get() string {
 	m.RLock()
 	defer m.RUnlock()
 	return m.apiKey
+}
+
+// hasProvider reports whether this sender's credential comes from a delegated-auth Provider
+// rather than a static API key. Push uses it to decide whether an Authorize failure means
+// "buffer until the credential arrives" (provider) or "back-pressure" (static key).
+func (m *apiKeyManager) hasProvider() bool {
+	m.RLock()
+	defer m.RUnlock()
+	return m.provider != nil
 }
 
 func (m *apiKeyManager) Update(newKey string) {
@@ -245,6 +278,10 @@ type sender struct {
 	closed  bool         // closed reports if the loop is stopped
 	statsd  statsd.ClientInterface
 	enabled *atomic.Bool // false on inactive MRF senders. True otherwise
+
+	// awaitingCredential is true while this sender's delegated-auth credential has not arrived.
+	// Push consults it so one unprovisioned endpoint cannot stall delivery to the others.
+	awaitingCredential atomic.Bool
 }
 
 // newSender returns a new sender based on the given config cfg.
@@ -319,6 +356,14 @@ func (s *sender) Push(p *payload) {
 	select {
 	case s.queue <- p:
 	default:
+		// sendPayloads pushes to each sender in turn and the queue is shallow, so a blocking send
+		// here stalls every sender after this one. A sender whose credential has not arrived can
+		// stay full indefinitely, which would stop delivery to the primary org outright, so drop
+		// for that endpoint alone rather than blocking the others.
+		if s.awaitingCredential.Load() {
+			_ = s.statsd.Count("datadog.trace_agent.sender.payload_dropped_awaiting_credential", 1, nil, 1)
+			return
+		}
 		_ = s.statsd.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
 		s.queue <- p
 	}
@@ -357,6 +402,17 @@ func (s *sender) sendOnce(p *payload) bool {
 		log.Tracef("Error submitting payload: %v\n", err)
 	}
 	switch err.(type) {
+	case *credentialNotReadyError:
+		// Hold the payload without consuming a retry, so it is still here when the credential
+		// lands. Dropping on sender shutdown matches the retriable path.
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		if s.closed {
+			s.releasePayload(p, eventTypeDropped, stats)
+			return true
+		}
+		s.recordEvent(eventTypeRetry, stats)
+		return false
 	case *retriableError:
 		// request failed again, but can be retried
 		s.mu.RLock()
@@ -446,6 +502,17 @@ func (s *sender) isEnabled() bool {
 	return false
 }
 
+// credentialNotReadyError means the endpoint's delegated-auth credential has not arrived yet, so
+// nothing was sent. It is deliberately not a retriableError: waiting on a credential is not a
+// failed delivery attempt, and counting it as one would exhaust maxRetries and drop the payload
+// during the very startup window the wait exists to cover.
+type credentialNotReadyError struct{}
+
+// Error implements error.
+func (credentialNotReadyError) Error() string {
+	return "no delegated-auth credential available yet for this endpoint"
+}
+
 // retriableError is an error returned by the server which may be retried at a later time.
 type retriableError struct{ err error }
 
@@ -458,7 +525,22 @@ const (
 )
 
 func (s *sender) do(req *http.Request) error {
-	req.Header.Set(headerAPIKey, s.apiKeyManager.Get())
+	if !s.apiKeyManager.Authorize(req.Header) {
+		if s.apiKeyManager.hasProvider() {
+			// A provider-backed endpoint whose credential hasn't arrived yet. This is transient:
+			// latch so Push drops for this sender alone rather than blocking the shared flusher,
+			// and return a credentialNotReadyError so the payload is requeued without consuming
+			// a retry.
+			s.awaitingCredential.Store(true)
+			return &credentialNotReadyError{}
+		}
+		// No provider and no key: the endpoint was built from a directive that never produced
+		// an instance (malformed, unsupported provider, or noop component). This is a permanent
+		// failure, not a credential that may resolve. Return a fatal error so the payload is
+		// dropped rather than retried forever, which would fill the queue and block the flusher.
+		return errors.New("endpoint has no credential and no delegated-auth provider; it will not send")
+	}
+	s.awaitingCredential.Store(false)
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {

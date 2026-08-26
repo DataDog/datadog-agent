@@ -24,6 +24,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/def",
         "//comp/core/log/def",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl/types",
@@ -59,6 +60,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "blocked_endpoints_test.go",
+        "credential_backpressure_test.go",
         "default_forwarder_test.go",
         "domain_forwarder_test.go",
         "forwarder_health_test.go",
@@ -70,6 +72,8 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/def",
+        "//comp/core/delegatedauth/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/secrets/mock",
