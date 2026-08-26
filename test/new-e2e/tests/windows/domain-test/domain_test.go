@@ -39,7 +39,7 @@ const (
 	// password.
 	preLSASecretAgentVersion = "7.65.2-1"
 
-	procmgrServiceName = "dd-procmgr-service"
+	procmgrServiceName             = "dd-procmgr-service"
 	privateActionRunnerServiceName = "datadog-agent-action"
 )
 
