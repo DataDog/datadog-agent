@@ -61,6 +61,12 @@ func TestPrepareFxDependencies(t *testing.T) {
 	})
 }
 
+func TestExecuteProviderCommandFxDependencies(t *testing.T) {
+	fxutil.TestOneShot(t, func() {
+		require.NoError(t, executeProviderCommand(&command.GlobalParams{}, "fixture-agent", []string{"diagnostics", "inspect"}, &structpb.Struct{}, io.Discard, io.Discard))
+	})
+}
+
 func TestPrepareDiscoversRemoteProvidersBeforeCobraDispatch(t *testing.T) {
 	globalParams := &command.GlobalParams{}
 	root := &cobra.Command{Use: "agent"}
@@ -185,6 +191,46 @@ func TestAttachCommandProvidersForwardsInheritedPersistentFlag(t *testing.T) {
 	remote.SetArgs([]string{"fixture-agent", "diagnostics", "inspect", "--region", "us-east-1"})
 	require.NoError(t, remote.Execute())
 	require.Equal(t, "us-east-1", gotArguments["region"])
+}
+
+func TestAttachCommandProvidersDoesNotForwardNonPersistentParentParameters(t *testing.T) {
+	remote := Commands(&command.GlobalParams{})[0]
+	var gotArguments map[string]any
+	providers := []*pb.CommandProvider{{
+		Name: "fixture-agent",
+		Commands: []*pb.Command{{
+			Name:       "diagnostics",
+			Parameters: []*pb.CommandParameter{{Name: "parent-value", Type: pb.ParameterType_TYPE_STRING}},
+			Children: []*pb.Command{{
+				Name:       "inspect",
+				IsRunnable: true,
+				Parameters: []*pb.CommandParameter{{Name: "child-value", Type: pb.ParameterType_TYPE_STRING, Required: true}},
+			}},
+		}},
+	}}
+	require.NoError(t, AttachCommandProviders(remote, providers, func(_ string, _ []string, arguments *structpb.Struct, _, _ io.Writer) error {
+		gotArguments = arguments.AsMap()
+		return nil
+	}))
+
+	remote.SetArgs([]string{"fixture-agent", "diagnostics", "inspect", "child"})
+	require.NoError(t, remote.Execute())
+	require.Equal(t, map[string]any{"child-value": "child"}, gotArguments)
+}
+
+func TestArgumentsForCommandSupportsFinalPositionalSliceBeforeFlags(t *testing.T) {
+	cmd := &cobra.Command{}
+	parameters := []*pb.CommandParameter{
+		{Name: "items", Type: pb.ParameterType_TYPE_STRING_SLICE},
+		{Name: "verbose", Type: pb.ParameterType_TYPE_BOOL, IsFlag: true},
+	}
+	require.NoError(t, addFlag(cmd, parameters[1]))
+	require.NoError(t, cmd.ParseFlags([]string{"--verbose"}))
+
+	arguments, err := argumentsForCommand(cmd, []string{"one", "two"}, parameters)
+	require.NoError(t, err)
+	require.Equal(t, []any{"one", "two"}, arguments.GetFields()["items"].AsInterface())
+	require.Equal(t, true, arguments.GetFields()["verbose"].AsInterface())
 }
 
 func TestAttachCommandProvidersRendersResponseAndReturnsExitCode(t *testing.T) {
