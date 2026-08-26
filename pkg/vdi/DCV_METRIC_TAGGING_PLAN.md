@@ -226,6 +226,20 @@ dcv_client_os:<os>
 dcv_client_arch:amd64|arm64
 ```
 
+### Aggregate tag (`A`)
+
+```text
+vdi_aggregation:total
+```
+
+DCV multi-instance performance-counter objects can expose a synthetic `_Total`
+instance. That instance summarizes the object and is not a real process,
+session, connection, channel, or encoder. Its metrics receive `M + A` and no
+entity identity tags. In particular, do not encode `_Total` as a
+`vdi_session_id` or `vdi_connection_id`; doing so would create a fake backend
+entity. The explicit aggregate tag also distinguishes this intentional absence
+of identity from failed enrichment.
+
 ### Object-specific tags
 
 ```text
@@ -331,6 +345,8 @@ Source: `DCV Server Connections` PDH object.
 Tags: `M + S + C + U + CM`.
 
 `U` and `CM` are present only when the connection matches fresh DCV inventory.
+The synthetic `_Total` instance is the exception: it receives `M + A`, without
+session, connection, user, or client metadata tags.
 
 | Metric | Type |
 |---|---|
@@ -367,6 +383,18 @@ disconnected.
 
 Historical points retain the user and client metadata that were correct when
 those points were collected.
+
+To select only real connection series and exclude the aggregate:
+
+```text
+{!vdi_aggregation:total,vdi_connection_id:*}
+```
+
+To select only the aggregate series:
+
+```text
+{vdi_aggregation:total}
+```
 
 ## Channel metrics
 

@@ -48,6 +48,7 @@ func TestConnectionAndExtensionChannelTags(t *testing.T) {
 		"dcv_client_os:darwin",
 		"dcv_client_arch:arm64",
 	})
+	require.NotContains(t, connectionTags, "vdi_aggregation:total")
 
 	channelTags, _ := check.tagsForInstance("DCV Server Channels", "console:1:wsp::wadapter", connections, nil)
 	require.Contains(t, channelTags, "vdi_connection_user:test-user@corp.amazonworkspaces.com")
@@ -107,7 +108,7 @@ func TestInventoryStaleTTLCanBeImmediate(t *testing.T) {
 	require.Equal(t, servicecheck.ServiceCheckCritical, check.unavailableInventoryStatus(time.Unix(101, 0)))
 }
 
-func TestTotalHasNoIdentityTags(t *testing.T) {
+func TestTotalHasAggregationTagAndNoIdentityTags(t *testing.T) {
 	check := testCheck()
 	tags, key := check.tagsForInstance("DCV Server Connections", "_Total", map[connectionKey]vdimodel.Connection{}, nil)
 	require.Nil(t, key)
@@ -115,6 +116,7 @@ func TestTotalHasNoIdentityTags(t *testing.T) {
 		"vdi_provider:aws_workspaces",
 		"vdi_protocol:dcv",
 		"workspaces_product:personal",
+		"vdi_aggregation:total",
 	}, tags)
 }
 
