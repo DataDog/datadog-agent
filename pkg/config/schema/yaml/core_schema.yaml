@@ -9049,7 +9049,7 @@ properties:
           shadow_sample_rate:
             node_type: setting
             type: number
-            default: 0
+            default: 0.001
             tags:
             - golang_type:float64
           shadow_sites:
