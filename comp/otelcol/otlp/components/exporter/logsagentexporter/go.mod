@@ -18,7 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.80.2
 	github.com/DataDog/datadog-agent/pkg/version v0.80.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/config/configoptional v1.64.0
 	go.opentelemetry.io/collector/config/configretry v1.64.0

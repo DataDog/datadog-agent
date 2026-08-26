@@ -24,7 +24,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.80.2
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-go/v5 v5.9.1
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/config/confignet v1.64.0
 	go.opentelemetry.io/collector/config/configoptional v1.64.0

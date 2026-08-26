@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/api v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 )
 
 require (

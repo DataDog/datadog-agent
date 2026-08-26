@@ -16,7 +16,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.76.0-devel
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/fx v1.24.0
 )

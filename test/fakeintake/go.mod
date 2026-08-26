@@ -18,7 +18,7 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/tinylib/msgp v1.6.4
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1

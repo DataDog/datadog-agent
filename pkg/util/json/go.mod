@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/json-iterator/go v1.1.12
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 )
 
 require (

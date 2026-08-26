@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/trace/log
 go 1.26.0
 
 require (
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.uber.org/atomic v1.11.0
 )
 

@@ -20,7 +20,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.28.0
 )
