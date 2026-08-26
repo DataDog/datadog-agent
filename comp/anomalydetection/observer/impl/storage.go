@@ -156,22 +156,23 @@ type bucketCounts struct {
 	values []int64
 }
 
+// seriesExtras contains optional metadata for series that do not use the
+// storage defaults. Native metric series normally leave this nil; log-derived
+// series materialize it when they attach context or override storage policy.
+type seriesExtras struct {
+	context               *observer.MetricContext
+	retentionOverrideSecs int64
+	supportedAggregations uint8
+}
+
 // seriesStats contains accumulated statistics for a time series (internal).
 // Buckets are stored in timestamp order, enabling binary search for range queries.
 type seriesStats struct {
 	Namespace string
 	Name      string
 	Tags      []string
-	tagsHash  uint64                  // fnv64a hash of Tags; 0 means not interned
-	ref       observer.SeriesRef      // compact numeric ID assigned on creation
-	context   *observer.MetricContext // optional; set by extractors for anomaly enrichment
-	// supportedAggregations is a bit mask. Zero means all aggregations are
-	// supported; materialized log count buckets set only Average because each
-	// stored point is already one aggregated window count.
-	supportedAggregations uint8
-	// retentionOverrideSecs, when positive, replaces the storage-wide point
-	// retention for this series. Zero uses the storage default.
-	retentionOverrideSecs int64
+	tagsHash  uint64             // fnv64a hash of Tags; 0 means not interned
+	ref       observer.SeriesRef // compact numeric ID assigned on creation
 	// lastActivityTimestamp drives capacity eviction. It normally follows the
 	// latest stored timestamp, but producers of synthetic points may override it
 	// so generated data does not make an otherwise-idle series look active.
@@ -183,6 +184,22 @@ type seriesStats struct {
 
 	buckets []pointBucket
 	counts  *bucketCounts
+	extras  *seriesExtras
+}
+
+func (s *seriesStats) ensureExtras() *seriesExtras {
+	if s.extras == nil {
+		s.extras = &seriesExtras{}
+	}
+	return s.extras
+}
+
+// releaseExtrasIfDefault drops optional metadata after every field has been
+// restored to its default value.
+func (s *seriesStats) releaseExtrasIfDefault() {
+	if s.extras != nil && s.extras.context == nil && s.extras.retentionOverrideSecs == 0 && s.extras.supportedAggregations == 0 {
+		s.extras = nil
+	}
 }
 
 func aggregateMask(agg observer.Aggregate) uint8 {
@@ -427,8 +444,8 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.insertCount(idx)
 
 	retentionSecs := s.cfg.PointRetentionSecs
-	if stats.retentionOverrideSecs > 0 {
-		retentionSecs = stats.retentionOverrideSecs
+	if stats.extras != nil && stats.extras.retentionOverrideSecs > 0 {
+		retentionSecs = stats.extras.retentionOverrideSecs
 	}
 	if retentionSecs > 0 {
 		// Trim points outside the retention window. Use the series' latest
@@ -1128,9 +1145,18 @@ func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
 func (s *timeSeriesStorage) SetContext(ref observer.SeriesRef, ctx *observer.MetricContext) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if stats := s.resolveByID(ref); stats != nil {
-		stats.context = ctx
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return
 	}
+	if ctx == nil {
+		if stats.extras != nil {
+			stats.extras.context = nil
+			stats.releaseExtrasIfDefault()
+		}
+		return
+	}
+	stats.ensureExtras().context = ctx
 }
 
 // GetContext returns the MetricContext stored on the series identified by ref.
@@ -1139,8 +1165,8 @@ func (s *timeSeriesStorage) SetContext(ref observer.SeriesRef, ctx *observer.Met
 func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricContext {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if stats := s.resolveByID(ref); stats != nil {
-		return stats.context
+	if stats := s.resolveByID(ref); stats != nil && stats.extras != nil {
+		return stats.extras.context
 	}
 	return nil
 }
@@ -1158,7 +1184,14 @@ func (s *timeSeriesStorage) SetSupportedAggregations(ref observer.SeriesRef, agg
 	for _, agg := range aggregations {
 		mask |= aggregateMask(agg)
 	}
-	stats.supportedAggregations = mask
+	if mask == 0 {
+		if stats.extras != nil {
+			stats.extras.supportedAggregations = 0
+			stats.releaseExtrasIfDefault()
+		}
+		return
+	}
+	stats.ensureExtras().supportedAggregations = mask
 }
 
 // SupportsAggregate implements the optional detector aggregate policy.
@@ -1166,10 +1199,10 @@ func (s *timeSeriesStorage) SupportsAggregate(ref observer.SeriesRef, agg observ
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	stats := s.resolveByID(ref)
-	if stats == nil || stats.supportedAggregations == 0 {
+	if stats == nil || stats.extras == nil || stats.extras.supportedAggregations == 0 {
 		return true
 	}
-	return stats.supportedAggregations&aggregateMask(agg) != 0
+	return stats.extras.supportedAggregations&aggregateMask(agg) != 0
 }
 
 // SetSeriesRetention overrides point retention for one series. Zero restores
@@ -1177,9 +1210,19 @@ func (s *timeSeriesStorage) SupportsAggregate(ref observer.SeriesRef, agg observ
 func (s *timeSeriesStorage) SetSeriesRetention(ref observer.SeriesRef, retentionSecs int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if stats := s.resolveByID(ref); stats != nil {
-		stats.retentionOverrideSecs = max(retentionSecs, 0)
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return
 	}
+	retentionSecs = max(retentionSecs, 0)
+	if retentionSecs == 0 {
+		if stats.extras != nil {
+			stats.extras.retentionOverrideSecs = 0
+			stats.releaseExtrasIfDefault()
+		}
+		return
+	}
+	stats.ensureExtras().retentionOverrideSecs = retentionSecs
 }
 
 // SetSeriesActivityTimestamp overrides the timestamp used to rank a series for
