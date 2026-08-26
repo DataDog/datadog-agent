@@ -14,7 +14,7 @@ Writes generated *_settings.go files into <output_dir>.  The caller
 
 import sys
 
-from tasks.schema.codegen_init_settings import run_codegen, run_constant_codegen
+from tasks.schema.codegen_init_settings import run_codegen, run_core_constant_codegen
 from tasks.schema.merge_schema import resolve_schema
 
 
@@ -32,7 +32,7 @@ def main():
 
     run_codegen(core_schema, output_dir)
     run_codegen(system_probe_schema, output_dir, sysprobe=True)
-    run_constant_codegen(core_schema, system_probe_schema, output_dir)
+    run_core_constant_codegen(core_schema, system_probe_schema, output_dir)
 
 
 if __name__ == "__main__":
