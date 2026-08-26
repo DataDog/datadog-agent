@@ -51,7 +51,7 @@ require (
 	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.83.0
 	google.golang.org/protobuf v1.36.12
-	k8s.io/apimachinery v0.35.6
+	k8s.io/apimachinery v0.36.3
 )
 
 require (
