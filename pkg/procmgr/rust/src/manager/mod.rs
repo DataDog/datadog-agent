@@ -118,9 +118,7 @@ mod tests {
     }
 
     async fn auto_start_for_test(mgr: &ProcessManager, handles: &RuntimeHandles) {
-        let pending = std::future::pending::<()>();
-        tokio::pin!(pending);
-        mgr.auto_start_all(handles, pending.as_mut()).await;
+        mgr.auto_start_all(handles).await;
     }
 
     fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
@@ -178,24 +176,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow::Result<()> {
+        crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(
             loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
             uuid_gen(),
         );
         let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
         let mgr_task = mgr.clone();
         let handles_task = handles.clone();
-        let auto_start_task = tokio::spawn(async move {
-            let shutdown = async {
-                let _ = shutdown_rx.await;
-            };
-            tokio::pin!(shutdown);
-            mgr_task
-                .auto_start_all(&handles_task, shutdown.as_mut())
-                .await;
-        });
+        let auto_start_task =
+            tokio::spawn(async move { mgr_task.auto_start_all(&handles_task).await });
 
         tokio::time::timeout(Duration::from_secs(5), async {
             loop {
@@ -212,9 +203,10 @@ mod tests {
         .await
         .expect("timed out waiting for first auto-start child");
 
-        assert!(shutdown_tx.send(()).is_ok());
+        crate::platform::signal_shutdown_for_test();
         auto_start_task.await?;
 
+        assert!(crate::platform::shutdown_requested());
         let procs = mgr.processes().await;
         let first = procs
             .iter()
@@ -230,7 +222,57 @@ mod tests {
             "second-child should not auto-start after shutdown is signaled"
         );
 
+        crate::platform::reset_shutdown_state_for_test();
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_requested_during_auto_start() {
+        crate::platform::reset_shutdown_state_for_test();
+        let mgr = ProcessManager::new(
+            loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
+            uuid_gen(),
+        );
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
+
+        crate::platform::signal_shutdown_for_test();
+        mgr.auto_start_all(&handles).await;
+
+        assert!(crate::platform::shutdown_requested());
+        crate::platform::reset_shutdown_state_for_test();
+    }
+
+    #[tokio::test]
+    async fn test_event_loop_runs_when_shutdown_not_requested() {
+        use supervisor::run_manager_event_loop;
+        use tokio::sync::mpsc;
+
+        crate::platform::reset_shutdown_state_for_test();
+        let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        let (handles, mut exit_rx, mut restart_rx) = test_runtime_handles();
+        let (_cmd_tx, mut cmd_rx) = mpsc::channel(1);
+
+        mgr.auto_start_all(&handles).await;
+        assert!(!crate::platform::shutdown_requested());
+
+        let shutdown = crate::platform::shutdown_signal();
+        tokio::pin!(shutdown);
+        tokio::spawn(async {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            crate::platform::signal_shutdown_for_test();
+        });
+
+        run_manager_event_loop(
+            &mgr,
+            &handles,
+            &mut cmd_rx,
+            &mut exit_rx,
+            &mut restart_rx,
+            shutdown,
+        )
+        .await;
+
+        crate::platform::reset_shutdown_state_for_test();
     }
 
     #[tokio::test]

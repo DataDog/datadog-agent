@@ -36,6 +36,7 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 use tokio::sync::Notify;
@@ -56,6 +57,7 @@ use windows_sys::Win32::System::Threading::{
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
 static SERVICE_STOP_SIGNAL_TIME: OnceLock<Instant> = OnceLock::new();
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 static CONSOLE_LOCK: Mutex<()> = Mutex::new(());
 
@@ -392,16 +394,38 @@ fn default_stable_fleet_policies_dir() -> Option<PathBuf> {
     )
 }
 
-pub async fn shutdown_signal() {
+/// Whether a shutdown trigger (SCM stop or Ctrl+C) has been received.
+pub(crate) fn shutdown_requested() -> bool {
+    service_stop_signal_time().is_some() || SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
+}
+
+/// Wait until SCM stop or Ctrl+C is signaled. Safe to call from multiple tasks.
+pub(crate) async fn wait_for_shutdown() {
     tokio::select! {
         result = tokio::signal::ctrl_c() => {
             result.expect("failed to register Ctrl+C handler");
+            SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
             log::info!("received Ctrl+C");
         }
         _ = shutdown_notify().notified() => {
             log::info!("received service stop request");
         }
     }
+}
+
+pub async fn shutdown_signal() {
+    wait_for_shutdown().await;
+}
+
+#[cfg(test)]
+pub(crate) fn signal_shutdown_for_test() {
+    SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+    shutdown_notify().notify_one();
+}
+
+#[cfg(test)]
+pub(crate) fn reset_shutdown_state_for_test() {
+    SHUTDOWN_REQUESTED.store(false, Ordering::SeqCst);
 }
 
 // ---------------------------------------------------------------------------

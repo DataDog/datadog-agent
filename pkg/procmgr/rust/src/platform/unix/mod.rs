@@ -18,8 +18,20 @@ use tokio::process::Command;
 use log::warn;
 use nix::unistd::{User, geteuid};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::Notify;
 
 static SUPERVISOR_SPAWN_USER: OnceLock<String> = OnceLock::new();
+static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+fn shutdown_notify() -> &'static Notify {
+    SHUTDOWN_NOTIFY.get_or_init(Notify::new)
+}
+
+fn mark_shutdown_requested() {
+    SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+}
 
 fn resolve_supervisor_spawn_user() -> String {
     match User::from_uid(geteuid()) {
@@ -91,15 +103,45 @@ pub fn stderr_inheritable() -> bool {
     true
 }
 
-/// Wait for a shutdown trigger (SIGTERM or SIGINT).
-pub async fn shutdown_signal() {
+/// Whether a shutdown trigger (SIGTERM or SIGINT) has been received.
+pub(crate) fn shutdown_requested() -> bool {
+    SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
+}
+
+/// Wait until SIGTERM, SIGINT, or a test shutdown signal is received.
+pub(crate) async fn wait_for_shutdown() {
     use tokio::signal::unix::{SignalKind, signal};
     let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
     let mut sigint = signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
     tokio::select! {
-        _ = sigterm.recv() => { log::info!("received SIGTERM"); }
-        _ = sigint.recv() => { log::info!("received SIGINT"); }
+        _ = sigterm.recv() => {
+            mark_shutdown_requested();
+            log::info!("received SIGTERM");
+        }
+        _ = sigint.recv() => {
+            mark_shutdown_requested();
+            log::info!("received SIGINT");
+        }
+        _ = shutdown_notify().notified() => {
+            mark_shutdown_requested();
+        }
     }
+}
+
+/// Wait for a shutdown trigger (SIGTERM or SIGINT).
+pub async fn shutdown_signal() {
+    wait_for_shutdown().await;
+}
+
+#[cfg(test)]
+pub(crate) fn signal_shutdown_for_test() {
+    mark_shutdown_requested();
+    shutdown_notify().notify_one();
+}
+
+#[cfg(test)]
+pub(crate) fn reset_shutdown_state_for_test() {
+    SHUTDOWN_REQUESTED.store(false, Ordering::SeqCst);
 }
 
 pub(crate) fn service_stop_signal_time() -> Option<std::time::Instant> {

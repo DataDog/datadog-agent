@@ -5,13 +5,12 @@ use super::{
 use crate::command::{CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::ordering;
+use crate::platform;
 use crate::process::ManagedProcess;
 use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::Status;
@@ -39,16 +38,12 @@ impl ProcessManager {
         Supervisor::new(self)
     }
 
-    pub(in crate::manager) async fn auto_start_all(
-        &self,
-        handles: &RuntimeHandles,
-        mut shutdown: Pin<&mut (impl Future<Output = ()> + ?Sized)>,
-    ) {
+    pub(in crate::manager) async fn auto_start_all(&self, handles: &RuntimeHandles) {
         let order = self.startup_order.read().await.clone();
         for idx in order {
             tokio::select! {
                 biased;
-                _ = shutdown.as_mut() => {
+                _ = platform::wait_for_shutdown() => {
                     info!("skipping remaining auto-starts: service shutting down");
                     return;
                 }

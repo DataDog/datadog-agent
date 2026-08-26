@@ -57,7 +57,7 @@ async fn handle_command(manager: &ProcessManager, handles: &RuntimeHandles, cmd:
     }
 }
 
-pub(super) async fn run_manager_event_loop(
+pub(in crate::manager) async fn run_manager_event_loop(
     manager: &ProcessManager,
     handles: &RuntimeHandles,
     cmd_rx: &mut mpsc::Receiver<Command>,
@@ -104,23 +104,24 @@ impl Supervisor {
             tokio::spawn(grpc::server::run(manager.clone(), cmd_tx, grpc_shutdown_rx));
 
         let (handles, mut exit_rx, mut restart_rx) = RuntimeHandles::new();
-        let shutdown = platform::shutdown_signal();
-        tokio::pin!(shutdown);
         #[cfg(unix)]
         {
             let _ = platform::spawn_user_for_supervisor();
         }
-        manager.auto_start_all(&handles, shutdown.as_mut()).await;
-
-        run_manager_event_loop(
-            &manager,
-            &handles,
-            &mut cmd_rx,
-            &mut exit_rx,
-            &mut restart_rx,
-            shutdown,
-        )
-        .await;
+        manager.auto_start_all(&handles).await;
+        if !platform::shutdown_requested() {
+            let shutdown = platform::shutdown_signal();
+            tokio::pin!(shutdown);
+            run_manager_event_loop(
+                &manager,
+                &handles,
+                &mut cmd_rx,
+                &mut exit_rx,
+                &mut restart_rx,
+                shutdown,
+            )
+            .await;
+        }
 
         info!("dd-procmgrd shutting down");
 
