@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 // Package ebpf holds ebpf related files
 package ebpf
@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
 
-// Manager is a wrapper type for pkg/ebpf/manager.Manager used when the linux_bpf build tag is set
+// Manager is a wrapper type for pkg/ebpf/manager.Manager used when the bpf build tag is set
 type Manager struct {
 	*ddebpf.Manager
 }
