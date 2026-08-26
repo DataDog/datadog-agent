@@ -15,12 +15,23 @@ use windows_sys::Win32::Security::Authorization::{
     ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
 };
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
+use windows_sys::Win32::Storage::FileSystem::{FILE_GENERIC_READ, FILE_WRITE_DATA};
 
 use super::agent_service_sid;
 use super::wide;
 
-const NAMED_PIPE_SECURITY_DESCRIPTOR_TEMPLATE: &str =
-    "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;NP;FRFW;;;%s)";
+// Agent-profile pipe ACL (server side). Must stay paired with client open access in
+// `dd-procmgr-client/src/named_pipe.rs` (`PIPE_CLIENT_DESIRED_ACCESS`) and
+// `pkg/procmgr/coat/client_grpc_windows.go`.
+//
+// Server ACE: FILE_GENERIC_READ | FILE_WRITE_DATA (SDDL hex below).
+// Client CreateFile / DialPipe: GENERIC_READ | FILE_WRITE_DATA.
+//
+// Do not use FILE_GENERIC_WRITE / SDDL FW / FRFW: on named pipes it includes
+// FILE_CREATE_PIPE_INSTANCE, which would let a compromised agent-profile child
+// stand up a competing server instance. See
+// https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights
+const AGENT_PIPE_CLIENT_ACCESS_MASK: u32 = FILE_GENERIC_READ | FILE_WRITE_DATA;
 const NAMED_PIPE_DEFAULT_SECURITY_DESCRIPTOR: &str = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)";
 const EVERYONE_SID: &str = "S-1-1-0";
 
@@ -58,7 +69,10 @@ fn format_security_descriptor_with_sid(sid: &str) -> Result<String> {
     if !sid.starts_with("S-") {
         bail!("invalid SID {sid}");
     }
-    Ok(NAMED_PIPE_SECURITY_DESCRIPTOR_TEMPLATE.replace("%s", sid))
+    Ok(format!(
+        "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;NP;{:#x};;;{sid})",
+        AGENT_PIPE_CLIENT_ACCESS_MASK,
+    ))
 }
 
 fn with_security_attributes<F>(sddl: &str, f: F) -> io::Result<NamedPipeServer>
@@ -104,12 +118,37 @@ mod tests {
     }
 
     #[test]
-    fn format_security_descriptor_with_sid_uses_system_probe_template() {
+    fn format_security_descriptor_with_sid_includes_narrowed_agent_ace() {
         let sid = "S-1-5-21-0-0-0-1000";
         let sd = format_security_descriptor_with_sid(sid).unwrap();
         assert_eq!(
             sd,
-            "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;NP;FRFW;;;S-1-5-21-0-0-0-1000)"
+            format!(
+                "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;NP;{:#x};;;S-1-5-21-0-0-0-1000)",
+                AGENT_PIPE_CLIENT_ACCESS_MASK,
+            )
+        );
+        assert!(
+            !sd.contains("FRFW"),
+            "must not grant generic write to agent SID"
+        );
+    }
+
+    #[test]
+    fn agent_pipe_client_access_mask_excludes_create_pipe_instance() {
+        use windows_sys::Win32::Storage::FileSystem::{
+            FILE_CREATE_PIPE_INSTANCE, FILE_GENERIC_WRITE,
+        };
+
+        assert_eq!(
+            AGENT_PIPE_CLIENT_ACCESS_MASK & FILE_CREATE_PIPE_INSTANCE,
+            0,
+            "agent ACE must not allow creating pipe instances"
+        );
+        assert_ne!(
+            FILE_GENERIC_WRITE & FILE_CREATE_PIPE_INSTANCE,
+            0,
+            "sanity: generic write is what we are avoiding"
         );
     }
 }
