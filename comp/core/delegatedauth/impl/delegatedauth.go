@@ -8,12 +8,8 @@ package delegatedauthimpl
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"fmt"
-	"io"
-	"maps"
-	"reflect"
 	"sync"
 	"time"
 
@@ -28,11 +24,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
-
-//go:embed status_templates
-var templatesFS embed.FS
 
 const (
 	// maxBackoffInterval is the maximum time to wait between retries (1 hour)
@@ -89,6 +81,17 @@ type authInstance struct {
 	// consecutiveFailures tracks failures for status reporting
 	consecutiveFailures int
 
+	// credProvider is this instance's credential, read by consumers on the request path. Always
+	// non-nil. See instanceProvider for the resolving/resolved/fallback lifecycle.
+	// Distinct from provider above, which is the cloud auth-proof generator.
+	credProvider *instanceProvider
+	// fallbackAPIKey is the operator-supplied static key, applied only once an exchange has
+	// actually failed.
+	fallbackAPIKey string
+	// skipConfigWriteback suppresses writing the resolved key back into the config tree, for
+	// consumers that read the credential from provider instead.
+	skipConfigWriteback bool
+
 	// lastRefresh, nextRefresh, and lastError are for status reporting only.
 	lastRefresh time.Time
 	nextRefresh time.Time
@@ -116,10 +119,27 @@ type delegatedAuthComponent struct {
 	resolvedProvider string                   // Resolved provider name (e.g., "aws") - for status display
 	// disabledReason explains why no provider was resolved, for status display.
 	disabledReason string
+	// providers indexes each instance's credential provider so consumers built after discovery
+	// has run can find the one they need. Keyed by config setting + destination; a destination
+	// can carry more than one provider when several orgs dual-ship to it.
+	providers map[providerKey][]registeredProvider
 
 	// additionalEndpointsMu serializes read-modify-write access to additional_endpoints config
 	// values across concurrent instances. Separate from mu to avoid deadlocking with OnUpdate callbacks.
 	additionalEndpointsMu sync.Mutex
+}
+
+// providerKey identifies the credential(s) for one destination of one config setting.
+type providerKey struct {
+	configKey   string
+	destination string
+}
+
+// registeredProvider keeps the directive alongside its provider so a consumer that owns one
+// specific directive can find its own credential rather than whichever was registered first.
+type registeredProvider struct {
+	directive string
+	provider  delegatedauth.Provider
 }
 
 // Provides list the provided interfaces from the delegatedauth Component
@@ -132,6 +152,7 @@ type Provides struct {
 func NewComponent() Provides {
 	comp := &delegatedAuthComponent{
 		instances: make(map[string]*authInstance),
+		providers: make(map[providerKey][]registeredProvider),
 	}
 
 	return Provides{
@@ -236,35 +257,35 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 // AddInstance configures delegated auth for a specific API key.
 // On the first call, it detects the cloud provider and initializes the component.
 // The context is used for the initial API key fetch and cloud provider detection.
-func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegatedauth.InstanceParams) error {
+func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegatedauth.InstanceParams) (delegatedauth.Provider, error) {
 	// Validate required parameters first
 	if params.Config == nil {
-		return errors.New("config is required")
+		return nil, errors.New("config is required")
 	}
 	if params.OrgUUID == "" {
-		return errors.New("org_uuid is required")
+		return nil, errors.New("org_uuid is required")
 	}
 	if params.APIKeyConfigKey == "" {
-		return errors.New("api_key_config_key is required")
+		return nil, errors.New("api_key_config_key is required")
 	}
 	if params.AdditionalEndpointDomain != "" {
 		if params.AdditionalEndpointDirective == "" {
-			return errors.New("additional_endpoint_directive is required when additional_endpoint_domain is set")
+			return nil, errors.New("additional_endpoint_directive is required when additional_endpoint_domain is set")
 		}
 		if params.AdditionalEndpointsConfigKey == "" {
-			return errors.New("additional_endpoints_config_key is required when additional_endpoint_domain is set")
+			return nil, errors.New("additional_endpoints_config_key is required when additional_endpoint_domain is set")
 		}
 	}
 	if params.AdditionalEndpointsListConfigKey != "" && params.AdditionalEndpointDirective == "" {
-		return errors.New("additional_endpoint_directive is required when additional_endpoints_list_config_key is set")
+		return nil, errors.New("additional_endpoint_directive is required when additional_endpoints_list_config_key is set")
 	}
 	if params.AdditionalEndpointDomain != "" && params.AdditionalEndpointsListConfigKey != "" {
-		return errors.New("additional_endpoint_domain and additional_endpoints_list_config_key are mutually exclusive")
+		return nil, errors.New("additional_endpoint_domain and additional_endpoints_list_config_key are mutually exclusive")
 	}
 
 	// Check for context cancellation early
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Initialize on first call - this detects cloud provider without holding locks.
@@ -272,18 +293,23 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	// the process-wide detected/default configuration.
 	providerConfig, err := d.initializeIfNeeded(ctx, params)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	providerConfig = providerConfigForInstance(providerConfig, params.ProviderConfig)
 
-	// No provider: skip this instance and keep the statically configured key. Write the fallback
-	// now if set, so dual-shipping still works. No retry — detection only runs once.
+	// No provider: delegated auth cannot work on this host at all. That is a terminal failure to
+	// resolve - detection only runs once, there is no retry to wait for - so the fallback applies
+	// immediately. Without a fallback the provider keeps reporting "no credential" and consumers
+	// buffer rather than ship unauthenticated.
 	if providerConfig == nil {
 		log.Warnf("Delegated auth is not available on this host, so '%s' will keep its statically configured value", params.APIKeyConfigKey)
-		if params.FallbackAPIKey != "" {
+		credProvider := newInstanceProvider()
+		credProvider.setFallback(params.FallbackAPIKey)
+		if params.FallbackAPIKey != "" && !params.SkipConfigWriteback {
 			d.writeAPIKeyToTarget(fallbackTargetInstance(params), params.FallbackAPIKey, true)
 		}
-		return nil
+		d.registerProvider(params, credProvider)
+		return credProvider, nil
 	}
 
 	apiKeyConfigKey := params.APIKeyConfigKey
@@ -302,7 +328,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	case *cloudauthconfig.AWSProviderConfig:
 		tokenProvider = aws.NewAWSAuth(cfg)
 	default:
-		return fmt.Errorf("unsupported delegated auth provider config type: %T", providerConfig)
+		return nil, fmt.Errorf("unsupported delegated auth provider config type: %T", providerConfig)
 	}
 
 	authConfig := &common.AuthConfig{
@@ -327,6 +353,9 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		lastWrittenValue:                 params.AdditionalEndpointDirective,
 		originalDirective:                params.AdditionalEndpointDirective,
 		backoff:                          newBackoff(refreshInterval),
+		credProvider:                     newInstanceProvider(),
+		fallbackAPIKey:                   params.FallbackAPIKey,
+		skipConfigWriteback:              params.SkipConfigWriteback,
 		refreshCtx:                       refreshCtx,
 		refreshCancel:                    refreshCancel,
 		done:                             make(chan struct{}),
@@ -357,7 +386,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		case <-ctx.Done():
 			// Context was canceled while waiting - clean up and return error
 			refreshCancel()
-			return ctx.Err()
+			return nil, ctx.Err()
 		}
 	}
 
@@ -367,9 +396,11 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	apiKey, _, err := d.refreshAndGetAPIKey(ctx, instance, false)
 	if err != nil {
 		log.Errorf("Failed to get initial delegated API key for '%s': %v", apiKeyConfigKey, err)
-		// Write the fallback now so the target ships with a static key while retries continue.
-		if params.FallbackAPIKey != "" {
-			d.writeAPIKeyToTarget(instance, params.FallbackAPIKey, true)
+		// The exchange failed, so the fallback applies now and consumers can start shipping under
+		// it while retries continue. With no fallback the provider stays in its buffering state.
+		instance.credProvider.setFallback(instance.fallbackAPIKey)
+		if instance.fallbackAPIKey != "" && !instance.skipConfigWriteback {
+			d.writeAPIKeyToTarget(instance, instance.fallbackAPIKey, true)
 		}
 		// Record the failure so the status page shows it immediately.
 		d.mu.Lock()
@@ -377,8 +408,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		instance.lastError = err
 		d.mu.Unlock()
 	} else {
-		// Update the config with the initial API key
-		d.updateConfigWithAPIKey(instance, *apiKey)
+		d.deliverAPIKey(instance, *apiKey)
 		log.Infof("Successfully fetched and set initial delegated API key for '%s'", apiKeyConfigKey)
 	}
 
@@ -386,6 +416,61 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	// This ensures retries will happen with exponential backoff
 	d.startBackgroundRefresh(instance)
 
+	d.registerProvider(params, instance.credProvider)
+	return instance.credProvider, nil
+}
+
+// deliverAPIKey hands a freshly fetched key to this instance's consumers: always through the
+// provider, and additionally through the config tree unless the caller opted out.
+func (d *delegatedAuthComponent) deliverAPIKey(instance *authInstance, apiKey string) {
+	instance.credProvider.setResolved(apiKey)
+	if !instance.skipConfigWriteback {
+		d.updateConfigWithAPIKey(instance, apiKey)
+	}
+}
+
+// registerProvider indexes a provider so consumers constructed after discovery can find it.
+func (d *delegatedAuthComponent) registerProvider(params delegatedauth.InstanceParams, p delegatedauth.Provider) {
+	configKey, destination := params.ProviderKey()
+	key := providerKey{configKey: configKey, destination: destination}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.providers == nil {
+		// Tests construct the component struct directly rather than through NewComponent.
+		d.providers = make(map[providerKey][]registeredProvider)
+	}
+	d.providers[key] = append(d.providers[key], registeredProvider{directive: params.Directive, provider: p})
+}
+
+// ProvidersFor implements delegatedauth.Component.
+func (d *delegatedAuthComponent) ProvidersFor(configKey, destination string) []delegatedauth.Provider {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	found := d.providers[providerKey{configKey: configKey, destination: destination}]
+	if len(found) == 0 {
+		return nil
+	}
+	// Copy so callers cannot mutate the registry, and so a concurrent AddInstance appending to the
+	// same key cannot be observed mid-append.
+	out := make([]delegatedauth.Provider, len(found))
+	for i, r := range found {
+		out[i] = r.provider
+	}
+	return out
+}
+
+// ProviderForDirective implements delegatedauth.Component.
+func (d *delegatedAuthComponent) ProviderForDirective(configKey, destination, directive string) delegatedauth.Provider {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	for _, r := range d.providers[providerKey{configKey: configKey, destination: destination}] {
+		// Two identical directives under one destination name the same org with the same
+		// parameters, so they resolve to interchangeable credentials; the first is correct.
+		if r.directive == directive {
+			return r.provider
+		}
+	}
 	return nil
 }
 
@@ -508,10 +593,10 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 				}
 				d.mu.Unlock()
 
-				// Update the config OUTSIDE the lock to avoid potential deadlocks
-				// with config callbacks that might try to acquire locks
+				// Deliver OUTSIDE the lock to avoid potential deadlocks with config
+				// callbacks that might try to acquire locks
 				if shouldUpdateConfig {
-					d.updateConfigWithAPIKey(instance, apiKeyToUpdate)
+					d.deliverAPIKey(instance, apiKeyToUpdate)
 				}
 			}
 		}
@@ -533,344 +618,4 @@ func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *aut
 		return nil, fmt.Errorf("failed to exchange auth proof for API key: %w", err)
 	}
 	return key, nil
-}
-
-// resolveTargetSite returns TargetSite if set, else AdditionalEndpointDomain, else empty (use primary site).
-func resolveTargetSite(params delegatedauth.InstanceParams) string {
-	if params.TargetSite != "" {
-		return params.TargetSite
-	}
-	return params.AdditionalEndpointDomain
-}
-
-// fallbackTargetInstance builds a minimal authInstance for the no-cloud-provider case in AddInstance.
-func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
-	return &authInstance{
-		apiKeyConfigKey:                  params.APIKeyConfigKey,
-		targetSite:                       resolveTargetSite(params),
-		additionalEndpointDomain:         params.AdditionalEndpointDomain,
-		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
-		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
-		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
-		listEntryIndex:                   params.ListEntryIndex,
-		lastWrittenValue:                 params.AdditionalEndpointDirective,
-		originalDirective:                params.AdditionalEndpointDirective,
-	}
-}
-
-// updateConfigWithAPIKey updates the config with a newly-fetched, real (non-fallback) API key.
-func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, apiKey string) {
-	d.writeAPIKeyToTarget(instance, apiKey, false)
-}
-
-// writeAPIKeyToTarget writes apiKey to the configured target (list-shape, map-shape, or flat key).
-// isFallback only affects the log message.
-func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, apiKey string, isFallback bool) {
-	switch {
-	case instance.additionalEndpointsListConfigKey != "":
-		d.mergeIntoAdditionalEndpointsList(instance, apiKey, isFallback)
-	case instance.additionalEndpointDomain != "":
-		d.mergeIntoAdditionalEndpoints(instance, apiKey, isFallback)
-	default:
-		// Update the config value using the Writer interface
-		// This will trigger OnUpdate callbacks for any components listening to this config
-		d.config.Set(instance.apiKeyConfigKey, apiKey, pkgconfigmodel.SourceAgentRuntime)
-		if isFallback {
-			log.Infof("Using fallback API key for '%s' (delegated auth unavailable), ending with: %s", instance.apiKeyConfigKey, scrubber.HideKeyExceptLastChars(apiKey))
-		} else {
-			log.Infof("Updated config key '%s' with new delegated API key ending with: %s", instance.apiKeyConfigKey, scrubber.HideKeyExceptLastChars(apiKey))
-		}
-	}
-}
-
-// mergeIntoAdditionalEndpoints writes apiKey into the map-shape config at
-// additionalEndpointsConfigKey under additionalEndpointDomain, replacing the previous value.
-// Serialized via additionalEndpointsMu. Writes at SourceSecret (not SourceAgentRuntime) to avoid
-// permanently shadowing secret rotations; the retry loop mitigates concurrent writes.
-func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInstance, apiKey string, isFallback bool) {
-	d.additionalEndpointsMu.Lock()
-	defer d.additionalEndpointsMu.Unlock()
-
-	configKey := instance.additionalEndpointsConfigKey
-	domain := instance.additionalEndpointDomain
-
-	written := false
-	for attempt := 1; attempt <= maxAdditionalEndpointsWriteAttempts; attempt++ {
-		endpoints := d.config.GetStringMapStringSlice(configKey)
-		merged := make(map[string][]string, len(endpoints))
-		for k, v := range endpoints {
-			merged[k] = append([]string{}, v...)
-		}
-
-		keys := merged[domain]
-
-		// Prefer the recorded index; fall back to a value-only scan if the list was reordered or
-		// the index wasn't provided. Matching by value alone is ambiguous when another entry
-		// under the same domain (e.g. a static key equal to this instance's fallback value)
-		// happens to share the same string.
-		matchIndex := -1
-		if instance.additionalEndpointKeyIndex >= 0 && instance.additionalEndpointKeyIndex < len(keys) {
-			if v := keys[instance.additionalEndpointKeyIndex]; v == instance.lastWrittenValue || v == instance.originalDirective {
-				matchIndex = instance.additionalEndpointKeyIndex
-			}
-		}
-		if matchIndex == -1 {
-			for i, key := range keys {
-				// Also match originalDirective in case a racing write reverted the entry.
-				if key == instance.lastWrittenValue || key == instance.originalDirective {
-					matchIndex = i
-					break
-				}
-			}
-		}
-
-		replaced := matchIndex != -1
-		if replaced {
-			keys[matchIndex] = apiKey
-		}
-		lastAttempt := attempt == maxAdditionalEndpointsWriteAttempts
-		if !replaced {
-			if !lastAttempt {
-				// Expected value missing — concurrent writer may be mid-update. Retry.
-				continue
-			}
-			// Unlike the list-shape path, appending here would orphan whatever key this
-			// instance was tracking (it may be a live, unrelated key) rather than just
-			// dropping this instance's own update.
-			log.Warnf("Could not find previous delegated auth value for additional endpoint '%s' at '%s'; leaving domain's keys unchanged", domain, configKey)
-			return
-		}
-		merged[domain] = keys
-
-		// Re-check the whole value before writing to avoid discarding concurrent changes to other domains.
-		if beforeWrite := d.config.GetStringMapStringSlice(configKey); !reflect.DeepEqual(beforeWrite, endpoints) {
-			if !lastAttempt {
-				continue
-			}
-			log.Warnf("Possible concurrent update to '%s' detected while writing delegated auth key for additional endpoint '%s'; writing anyway after %d attempts", configKey, domain, maxAdditionalEndpointsWriteAttempts)
-		}
-
-		d.config.Set(configKey, merged, pkgconfigmodel.SourceSecret)
-
-		// Verify the write stuck.
-		if current := d.config.GetStringMapStringSlice(configKey); reflect.DeepEqual(current, merged) {
-			written = true
-			break
-		}
-		if lastAttempt {
-			log.Warnf("Possible concurrent update to '%s' while writing delegated auth key for additional endpoint '%s'; giving up after %d attempts, a later refresh will retry", configKey, domain, maxAdditionalEndpointsWriteAttempts)
-		}
-	}
-
-	// Only advance lastWrittenValue once the write is confirmed.
-	if written {
-		instance.lastWrittenValue = apiKey
-	}
-	if isFallback {
-		log.Infof("Using fallback API key for additional endpoint '%s' at '%s' (delegated auth unavailable), ending with: %s", domain, configKey, scrubber.HideKeyExceptLastChars(apiKey))
-	} else {
-		log.Infof("Updated additional endpoint '%s' with new delegated API key ending with: %s", domain, scrubber.HideKeyExceptLastChars(apiKey))
-	}
-}
-
-// mergeIntoAdditionalEndpointsList writes apiKey into the list-shape config at
-// additionalEndpointsListConfigKey, replacing the entry matching lastWrittenValue.
-// Locking, write source, and retry behavior mirror mergeIntoAdditionalEndpoints.
-func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *authInstance, apiKey string, isFallback bool) {
-	d.additionalEndpointsMu.Lock()
-	defer d.additionalEndpointsMu.Unlock()
-
-	configKey := instance.additionalEndpointsListConfigKey
-
-	for attempt := 1; attempt <= maxAdditionalEndpointsWriteAttempts; attempt++ {
-		entries, ok := common.NormalizeListShapeEntries(d.config.Get(configKey))
-		if !ok {
-			log.Warnf("Could not read list-shape additional endpoints at '%s' (unexpected type); skipping delegated auth update", configKey)
-			return
-		}
-
-		merged := make([]any, len(entries))
-		copy(merged, entries)
-
-		// Prefer the recorded index; fall back to a value-only scan if the list was reordered.
-		// Non-map entries (preserved as-is by NormalizeListShapeEntries) can never match and are
-		// skipped rather than causing a type-assertion panic.
-		matchIndex := -1
-		apiKeyField := ""
-		if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
-			if entryMap, ok := entries[instance.listEntryIndex].(map[string]any); ok {
-				if field, valStr, ok := common.CaseInsensitiveStringFieldWithKey(entryMap, "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
-					matchIndex = instance.listEntryIndex
-					apiKeyField = field
-				}
-			}
-		}
-		if matchIndex == -1 {
-			for i, entry := range entries {
-				entryMap, ok := entry.(map[string]any)
-				if !ok {
-					continue
-				}
-				// Also match originalDirective in case a racing write reverted the entry.
-				if field, valStr, ok := common.CaseInsensitiveStringFieldWithKey(entryMap, "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
-					matchIndex = i
-					apiKeyField = field
-					break
-				}
-			}
-		}
-
-		replaced := matchIndex != -1
-		if replaced {
-			matchedEntry := entries[matchIndex].(map[string]any)
-			newEntry := make(map[string]any, len(matchedEntry))
-			maps.Copy(newEntry, matchedEntry)
-			newEntry[apiKeyField] = apiKey
-			merged[matchIndex] = newEntry
-		}
-
-		lastAttempt := attempt == maxAdditionalEndpointsWriteAttempts
-		if !replaced {
-			if !lastAttempt {
-				// Expected value missing — concurrent writer may be mid-update. Retry.
-				continue
-			}
-			log.Warnf("Could not find previous delegated auth value in list-shape additional endpoints at '%s'; leaving list unchanged", configKey)
-			return
-		}
-
-		// Re-check the list before writing — see mergeIntoAdditionalEndpoints.
-		entriesNormalized, _ := common.NormalizeListShapeEntries(entries)
-		if beforeWrite, ok := common.NormalizeListShapeEntries(d.config.Get(configKey)); ok && !reflect.DeepEqual(beforeWrite, entriesNormalized) {
-			if !lastAttempt {
-				continue
-			}
-			log.Warnf("Possible concurrent update to '%s' detected while writing delegated auth key for additional endpoint entry; writing anyway after %d attempts", configKey, maxAdditionalEndpointsWriteAttempts)
-		}
-
-		d.config.Set(configKey, merged, pkgconfigmodel.SourceSecret)
-
-		// Verify the write stuck; normalize both sides since merged's element representation
-		// isn't necessarily identical to what a fresh read of the same data produces.
-		mergedNormalized, _ := common.NormalizeListShapeEntries(merged)
-		if current, ok := common.NormalizeListShapeEntries(d.config.Get(configKey)); ok && reflect.DeepEqual(current, mergedNormalized) {
-			instance.lastWrittenValue = apiKey
-			break
-		}
-		if lastAttempt {
-			log.Warnf("Possible concurrent update to '%s' while writing delegated auth key for additional endpoint entry; giving up after %d attempts, a later refresh will retry", configKey, maxAdditionalEndpointsWriteAttempts)
-		}
-	}
-
-	if isFallback {
-		log.Infof("Using fallback API key for additional endpoint entry at '%s' (delegated auth unavailable), ending with: %s", configKey, scrubber.HideKeyExceptLastChars(apiKey))
-	} else {
-		log.Infof("Updated additional endpoint entry at '%s' with new delegated API key ending with: %s", configKey, scrubber.HideKeyExceptLastChars(apiKey))
-	}
-}
-
-// Status Provider implementation for delegated auth
-
-// Name returns the name for status sorting
-func (d *delegatedAuthComponent) Name() string {
-	return "Delegated Auth"
-}
-
-// Section returns the section name for status grouping
-func (d *delegatedAuthComponent) Section() string {
-	return "delegatedauth"
-}
-
-// JSON populates the status stats map
-func (d *delegatedAuthComponent) JSON(_ bool, stats map[string]interface{}) error {
-	d.populateStatusInfo(stats)
-	return nil
-}
-
-// Text renders the text status output
-func (d *delegatedAuthComponent) Text(_ bool, buffer io.Writer) error {
-	stats := make(map[string]interface{})
-	d.populateStatusInfo(stats)
-	return status.RenderText(templatesFS, "delegatedauth.tmpl", buffer, stats)
-}
-
-// HTML renders the HTML status output
-func (d *delegatedAuthComponent) HTML(_ bool, buffer io.Writer) error {
-	stats := make(map[string]interface{})
-	d.populateStatusInfo(stats)
-	return status.RenderHTML(templatesFS, "delegatedauthHTML.tmpl", buffer, stats)
-}
-
-// populateStatusInfo gathers the current status information for delegated auth
-func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	// Check if delegated auth is enabled (has any configured instances)
-	stats["enabled"] = len(d.instances) > 0
-
-	if len(d.instances) == 0 {
-		// Distinguish "configured but could not start" from "never configured".
-		if d.disabledReason != "" {
-			stats["disabledReason"] = d.disabledReason
-		}
-		return
-	}
-
-	// Add resolved provider information
-	if d.initialized {
-		stats["provider"] = d.resolvedProvider
-		// Add provider-specific details
-		if awsConfig, ok := d.providerConfig.(*cloudauthconfig.AWSProviderConfig); ok && awsConfig.Region != "" {
-			stats["awsRegion"] = awsConfig.Region
-		}
-	}
-
-	// Add information about each configured instance
-	instances := make(map[string]map[string]interface{})
-	for key, instance := range d.instances {
-		instanceInfo := make(map[string]interface{})
-
-		// Status
-		if instance.apiKey != nil {
-			instanceInfo["Status"] = "Active"
-		} else {
-			instanceInfo["Status"] = "Pending"
-		}
-
-		// Refresh interval
-		instanceInfo["RefreshInterval"] = instance.refreshInterval.String()
-
-		// Refresh timestamps.
-		if !instance.lastRefresh.IsZero() {
-			instanceInfo["LastRefresh"] = instance.lastRefresh.Format(time.RFC3339)
-		}
-		if !instance.nextRefresh.IsZero() {
-			instanceInfo["NextRefresh"] = instance.nextRefresh.Format(time.RFC3339)
-		}
-
-		// Credential source, reported for failed attempts too.
-		if reporter, ok := instance.provider.(common.CredentialSourceReporter); ok {
-			if source := reporter.LastCredentialSource(); source != "" {
-				instanceInfo["CredentialSource"] = source
-			}
-		}
-
-		// Additional endpoint domain, if this instance manages a dual-shipping key
-		if instance.additionalEndpointDomain != "" {
-			instanceInfo["AdditionalEndpointDomain"] = instance.additionalEndpointDomain
-		}
-
-		// Error info for consecutive failures.
-		if instance.consecutiveFailures > 0 {
-			if instance.lastError != nil {
-				instanceInfo["Error"] = fmt.Sprintf("%d consecutive failures, last error: %v", instance.consecutiveFailures, instance.lastError)
-			} else {
-				instanceInfo["Error"] = fmt.Sprintf("%d consecutive failures", instance.consecutiveFailures)
-			}
-		}
-
-		instances[key] = instanceInfo
-	}
-	stats["instances"] = instances
 }

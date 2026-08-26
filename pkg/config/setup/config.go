@@ -426,7 +426,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	// Cloud provider detection happens automatically within the delegatedauth component
 	// Use a background context since LoadDatadog doesn't take a context parameter.
 	// The context is still useful for cancellation during cloud provider detection and initial API key fetch.
-	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp); err != nil {
+	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp, secretResolver); err != nil {
 		log.Errorf("Failed to configure delegated authentication: %v. Agent will continue without delegated auth.", err)
 	}
 
@@ -469,7 +469,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 // Delegated auth is automatically enabled when org_uuid is specified for a given prefix.
 // Cloud provider detection happens automatically within the delegatedauth component.
 // The context is used for cloud provider detection and initial API key fetch.
-func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
+func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, secretResolver secrets.Component) error {
 	// Use the list of registered delegated auth configs that were set up via bindDelegatedAuthConfig
 	// To add delegated auth support for a new config prefix, call bindDelegatedAuthConfig(config, prefix)
 	// during config initialization (see bindDelegatedAuthConfig for examples)
@@ -501,7 +501,8 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 
 		// Call AddInstance - the component auto-initializes on the first call
 		// Config and ProviderConfig are only used on the first call
-		err := delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
+		// This flat-key flow predates the Provider API and still delivers via config write-back.
+		_, err := delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
 			Config:          config,
 			ProviderConfig:  providerConfig,
 			OrgUUID:         orgUUID,
@@ -512,6 +513,11 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
 		}
 	}
+
+	// Directives embedded in additional_endpoints deliver through a Provider rather than a config
+	// write-back, so they are registered separately from the flat-key sections above.
+	configureAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig, secretResolver)
+	configureListShapeAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig, secretResolver)
 
 	return nil
 }

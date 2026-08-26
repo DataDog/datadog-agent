@@ -527,7 +527,7 @@ func TestAddInstanceRespectsContextCancellation(t *testing.T) {
 	mockConfig := mock.New(t)
 
 	// AddInstance should return context.Canceled error after validating params
-	err := comp.AddInstance(ctx, delegatedauth.InstanceParams{
+	_, err := comp.AddInstance(ctx, delegatedauth.InstanceParams{
 		Config:          mockConfig,
 		OrgUUID:         "test-org",
 		APIKeyConfigKey: "api_key",
@@ -1341,7 +1341,7 @@ func TestAddInstanceWritesFallbackWhenNoCloudProviderDetected(t *testing.T) {
 		config:      mockConfig,
 	}
 
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	_, err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
 		Config:                       mockConfig,
 		OrgUUID:                      "second-org-uuid",
 		APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
@@ -1372,7 +1372,7 @@ func TestAddInstanceWithoutFallbackSkipsSilentlyWhenNoCloudProviderDetected(t *t
 		config:      mockConfig,
 	}
 
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	_, err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
 		Config:                       mockConfig,
 		OrgUUID:                      "second-org-uuid",
 		APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
@@ -1403,7 +1403,7 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
 
 	apiKeyConfigKey := "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]"
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	_, err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
 		Config:                       mockConfig,
 		ProviderConfig:               &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
 		OrgUUID:                      "second-org-uuid",

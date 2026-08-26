@@ -649,3 +649,29 @@ func TestIsDatadogURL(t *testing.T) {
 		assert.Equal(t, tc.expected, IsDatadogURL(tc.url), "IsDatadogURL(%q)", tc.url)
 	}
 }
+
+// The forwarder looks a delegated-auth provider up by (APIKeys.ConfigSettingPath,
+// EndpointDescriptor.BaseURL), while discovery in pkg/config/setup registers it by (setting name,
+// additional_endpoints map key). Those are only the same pair because the descriptor carries the
+// domain through verbatim. Normalizing the URL here - adding a scheme, stripping a trailing slash -
+// would break the join silently: the provider is never found, and the endpoint buffers forever
+// without an error anywhere.
+func TestDelegatedAuthDomainSurvivesVerbatimIntoTheDescriptor(t *testing.T) {
+	const domain = "https://pending-org.datadoghq.com"
+	cfg := mock.New(t)
+	cfg.SetInTest("api_key", "primary-key")
+	cfg.SetInTest("additional_endpoints", map[string][]string{
+		domain: {"DELA(org-uuid-1, aws)"},
+	})
+
+	eds, err := GetMultipleEndpoints(cfg)
+	require.NoError(t, err)
+
+	ed, ok := eds[domain]
+	require.True(t, ok, "the domain must be reachable under the exact config map key")
+	assert.Equal(t, domain, ed.BaseURL)
+	require.Len(t, ed.APIKeySet, 1)
+	assert.Equal(t, "additional_endpoints", ed.APIKeySet[0].ConfigSettingPath)
+	assert.Empty(t, ed.APIKeySet[0].Keys, "the directive is not an API key")
+	assert.True(t, ed.APIKeySet[0].HasPendingDelegatedAuth)
+}
