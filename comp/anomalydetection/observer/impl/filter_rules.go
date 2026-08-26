@@ -228,10 +228,6 @@ func (f *metricsFilterRules) isAllowedWithHost(name, source, host string, tags [
 	return f.isAllowedByRulesFromWithHost(name, source, host, tags, 0)
 }
 
-func (f *metricsFilterRules) isMuted(name, source string, tags []string) bool {
-	return f.isMutedWithHost(name, source, "", tags)
-}
-
 func (f *metricsFilterRules) isMutedWithHost(name, source, host string, tags []string) bool {
 	if f == nil || source == LogMetricsExtractorName {
 		return false
@@ -243,10 +239,6 @@ func (f *metricsFilterRules) isMutedWithHost(name, source, host string, tags []s
 		}
 	}
 	return false
-}
-
-func (f *metricsFilterRules) isAllowedByRulesFrom(name, source string, tags []string, start int) bool {
-	return f.isAllowedByRulesFromWithHost(name, source, "", tags, start)
 }
 
 func (f *metricsFilterRules) isAllowedByRulesFromWithHost(name, source, host string, tags []string, start int) bool {
@@ -266,18 +258,8 @@ func (f *metricsFilterRules) publishMutedSnapshot(m map[uint64]struct{}) {
 	f.muted.Store(&m)
 }
 
-// matches reports whether the rule applies to the given metric.
-// tags must be sorted in ascending order (guaranteed by canonicalizeTags in prepareMetricIngest).
-func (r metricsCompiledRule) matches(name, source string, tags []string) bool {
-	return r.matchesWithHost(name, source, "", tags)
-}
-
 func (r metricsCompiledRule) matchesWithHost(name, source, host string, tags []string) bool {
 	return r.matchesNameSourceAndHost(name, source, host) && containsAllTagsSorted(tags, r.tags)
-}
-
-func (r metricsCompiledRule) matchesNameAndSource(name, source string) bool {
-	return r.matchesNameSourceAndHost(name, source, "")
 }
 
 func (r metricsCompiledRule) matchesNameSourceAndHost(name, source, host string) bool {
