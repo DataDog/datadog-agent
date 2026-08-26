@@ -861,10 +861,7 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 	}
 	p.rawPacketActionFilters = append(p.rawPacketActionFilters, actionFilter)
 
-	if err := p.applyRawPacketActionFilters(); err != nil {
-		return err
-	}
-	return nil
+	return p.applyRawPacketActionFilters()
 }
 
 func (p *EBPFProbe) rebuildDropActionRuleIDs() {
