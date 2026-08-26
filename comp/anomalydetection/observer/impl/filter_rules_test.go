@@ -68,21 +68,21 @@ func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source stri
 	}
 }
 
-type rawTagsTrackingMetric struct {
-	name        string
-	value       float64
-	tags        []string
-	timestamp   int64
-	rawTagsRead int
+type tagsTrackingMetric struct {
+	name      string
+	value     float64
+	tags      []string
+	timestamp int64
+	tagsRead  int
 }
 
-func (m *rawTagsTrackingMetric) GetName() string         { return m.name }
-func (m *rawTagsTrackingMetric) GetValue() float64       { return m.value }
-func (m *rawTagsTrackingMetric) GetHost() string         { return "" }
-func (m *rawTagsTrackingMetric) GetTimestampUnix() int64 { return m.timestamp }
-func (m *rawTagsTrackingMetric) GetSampleRate() float64  { return 1.0 }
-func (m *rawTagsTrackingMetric) GetRawTags() []string {
-	m.rawTagsRead++
+func (m *tagsTrackingMetric) GetName() string         { return m.name }
+func (m *tagsTrackingMetric) GetValue() float64       { return m.value }
+func (m *tagsTrackingMetric) GetHost() string         { return "" }
+func (m *tagsTrackingMetric) GetTimestampUnix() int64 { return m.timestamp }
+func (m *tagsTrackingMetric) GetSampleRate() float64  { return 1.0 }
+func (m *tagsTrackingMetric) GetTags() []string {
+	m.tagsRead++
 	return m.tags
 }
 
@@ -305,7 +305,7 @@ func TestPrepareMetricIngestRejectsNameAndSourceMatchWithoutReadingTags(t *testi
 	})
 	require.NoError(t, err)
 
-	sample := &rawTagsTrackingMetric{
+	sample := &tagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:prod"},
 	}
@@ -313,7 +313,7 @@ func TestPrepareMetricIngestRejectsNameAndSourceMatchWithoutReadingTags(t *testi
 	decision := prepareMetricIngest("dogstatsd", sample, filter)
 	assert.Nil(t, decision.metric)
 	assert.Equal(t, "dogstatsd", decision.source)
-	assert.Zero(t, sample.rawTagsRead)
+	assert.Zero(t, sample.tagsRead)
 }
 
 func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
@@ -334,7 +334,7 @@ func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	sample := &rawTagsTrackingMetric{
+	sample := &tagsTrackingMetric{
 		name:      "system.cpu.user",
 		value:     1,
 		tags:      []string{"service:web", "env:prod"},
@@ -344,15 +344,15 @@ func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
 	decision := prepareMetricIngest("dogstatsd", sample, filter)
 	require.NotNil(t, decision.metric)
 	assert.Equal(t, []string{"env:prod", "service:web"}, decision.metric.tags)
-	assert.Equal(t, 1, sample.rawTagsRead)
+	assert.Equal(t, 1, sample.tagsRead)
 
-	rejectedSample := &rawTagsTrackingMetric{
+	rejectedSample := &tagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:dev"},
 	}
 	decision = prepareMetricIngest("dogstatsd", rejectedSample, filter)
 	assert.Nil(t, decision.metric)
-	assert.Equal(t, 1, rejectedSample.rawTagsRead)
+	assert.Equal(t, 1, rejectedSample.tagsRead)
 }
 
 func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
@@ -367,14 +367,14 @@ func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
 	filter.publishMutedSnapshot(map[uint64]struct{}{
 		seriesKeyHash("dogstatsd", "system.cpu.user", "", tags): {},
 	})
-	sample := &rawTagsTrackingMetric{
+	sample := &tagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:prod"},
 	}
 
 	decision := prepareMetricIngest("dogstatsd", sample, filter)
 	assert.Nil(t, decision.metric)
-	assert.Equal(t, 1, sample.rawTagsRead)
+	assert.Equal(t, 1, sample.tagsRead)
 }
 
 func TestPrepareMetricIngestAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *testing.T) {
