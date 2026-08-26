@@ -8,8 +8,11 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//compliance:package_licenses.bzl", "package_licenses")
+load(":libpcap_packaging_test.bzl", "libpcap_packaging_test_suite")
 
 package(default_visibility = ["//packages:__subpackages__"])
+
+libpcap_packaging_test_suite(name = "_libpcap_packaging_tests")
 
 pkg_filegroup(
     name = "all_files",

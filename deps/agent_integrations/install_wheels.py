@@ -3,11 +3,47 @@
 
 import argparse
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
+from typing import BinaryIO
 
 from installer import install
 from installer.destinations import SchemeDictionaryDestination
-from installer.sources import WheelFile
+from installer.sources import WheelFile, WheelSource
+
+WheelContent = tuple[tuple[str, str, str], BinaryIO, bool]
+
+
+class ExcludingWheelSource(WheelSource):
+    """Expose all contents from a wheel source except exact excluded paths."""
+
+    def __init__(self, source: WheelSource, excluded_paths: list[str]) -> None:
+        super().__init__(distribution=source.distribution, version=source.version)
+        self._source = source
+        self._excluded_paths = frozenset(excluded_paths)
+
+    @property
+    def dist_info_dir(self) -> str:
+        return self._source.dist_info_dir
+
+    @property
+    def data_dir(self) -> str:
+        return self._source.data_dir
+
+    @property
+    def dist_info_filenames(self) -> list[str]:
+        return self._source.dist_info_filenames
+
+    def read_dist_info(self, filename: str) -> str:
+        return self._source.read_dist_info(filename)
+
+    def validate_record(self) -> None:
+        self._source.validate_record()
+
+    def get_contents(self) -> Iterator[WheelContent]:
+        for record, stream, is_executable in self._source.get_contents():
+            if record[0] not in self._excluded_paths:
+                yield record, stream, is_executable
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,6 +65,12 @@ def parse_args() -> argparse.Namespace:
         "--platform",
         choices=("posix", "windows"),
     )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help="Exact wheel-relative path to omit; may be repeated.",
+    )
     parser.add_argument("wheels", nargs="+", type=Path)
     return parser.parse_args()
 
@@ -43,6 +85,16 @@ def expand_wheels(paths: list[Path]) -> list[Path]:
         else:
             wheels.append(path)
     return sorted(wheels)
+
+
+def install_wheels(wheels: list[Path], destination: SchemeDictionaryDestination, excluded_paths: list[str]) -> None:
+    for wheel in expand_wheels(wheels):
+        with WheelFile.open(wheel) as source:
+            install(
+                source=ExcludingWheelSource(source, excluded_paths),
+                destination=destination,
+                additional_metadata={},
+            )
 
 
 def main():
@@ -77,13 +129,7 @@ def main():
         bytecode_optimization_levels=[],
     )
 
-    for wheel in expand_wheels(args.wheels):
-        with WheelFile.open(wheel) as source:
-            install(
-                source=source,
-                destination=destination,
-                additional_metadata={},
-            )
+    install_wheels(args.wheels, destination, args.exclude)
 
     # Move the scripts directory to the requested location
     if bin_path.exists():
