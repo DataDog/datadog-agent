@@ -85,7 +85,6 @@
     <Compile Include="Native\Registries.cs" />
     <Compile Include="Native\RegistryKey.cs" />
     <Compile Include="Native\RegistryServices.cs" />
-    <Compile Include="Native\ScmLsaSecret.cs" />
     <Compile Include="Native\ServiceController.cs" />
     <Compile Include="Native\ServiceControllerExtensions.cs" />
     <Compile Include="Native\WindowsService.cs" />

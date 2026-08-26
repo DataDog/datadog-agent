@@ -7,7 +7,6 @@ using System.ServiceProcess;
 using System.Threading;
 using System.Threading.Tasks;
 using Datadog.CustomActions.Interfaces;
-using Microsoft.Win32;
 
 namespace Datadog.CustomActions.Native
 {
@@ -48,15 +47,6 @@ namespace Datadog.CustomActions.Native
             return Services
                 .FirstOrDefault(svc => svc.ServiceName.Equals(serviceName, StringComparison.InvariantCultureIgnoreCase))
                 ?.Status;
-        }
-
-        public string GetServiceStartName(string serviceName)
-        {
-            using var key = Registry.LocalMachine.OpenSubKey(
-                $@"SYSTEM\CurrentControlSet\Services\{serviceName}",
-                RegistryKeyPermissionCheck.ReadSubTree,
-                RegistryRights.ReadKey);
-            return key?.GetValue("ObjectName") as string;
         }
 
         public void SetCredentials(string serviceName, string username, string password)

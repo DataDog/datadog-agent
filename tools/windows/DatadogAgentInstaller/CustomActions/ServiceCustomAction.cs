@@ -16,13 +16,6 @@ namespace Datadog.CustomActions
 {
     public class ServiceCustomAction
     {
-        private static readonly string[] NonCoreAgentUserServices =
-        {
-            Constants.TraceAgentServiceName,
-            Constants.PrivateActionRunnerServiceName,
-            Constants.SecurityAgentServiceName,
-        };
-
         private readonly ISession _session;
         private readonly INativeMethods _nativeMethods;
         private readonly IRegistryServices _registryServices;
@@ -173,176 +166,66 @@ namespace Datadog.CustomActions
 
         internal void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
-            ddAgentUserName = NormalizeWellKnownServiceAccountName(ddAgentUserName, ddAgentUserSID);
-
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
             var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
             // No password to give the services. Only reachable for domain accounts: local accounts
             // always get a generated password, and IsServiceAccount covers gMSA and the well known
             // accounts.
             var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
-
             if (passwordNotProvided)
             {
-                // Skip agent-user SCM updates: even a reformatted account name with a null password
-                // clears the SCM LSA secret (_SC_datadogagent), which procmgr needs for spawn.
-                _session.Log("Password not provided, will not change service user account or password");
-                // Non-core agent-user services may still be LocalSystem when first added on upgrade;
-                // configure them from the SCM-stored datadogagent password without touching the core Agent.
-                ConfigureNonCoreAgentUserServicesWhenPasswordNotProvided(ddAgentUserName);
+                _session.Log("Password not provided, will not change service user password");
+                // set to null so we don't modify the service config
+                ddAgentUserPassword = null;
             }
-            else
+            else if (isServiceAccount)
             {
-                _session.Log($"Configuring services with account {ddAgentUserName}");
-                ConfigureAgentUserServiceCredentials(
-                    ddAgentUserName,
-                    ResolveServicePassword(ddAgentUserSID, isServiceAccount, ddAgentUserPassword));
-            }
-
-            ConfigureLocalSystemServiceCredentials();
-        }
-
-        private static string NormalizeWellKnownServiceAccountName(
-            string ddAgentUserName,
-            SecurityIdentifier ddAgentUserSID)
-        {
-            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
-            {
-                return "LocalSystem";
-            }
-
-            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid))
-            {
-                return "LocalService";
-            }
-
-            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
-            {
-                return "NetworkService";
-            }
-
-            return ddAgentUserName;
-        }
-
-        private string ResolveServicePassword(
-            SecurityIdentifier ddAgentUserSID,
-            bool isServiceAccount,
-            string ddAgentUserPassword)
-        {
-            if (!isServiceAccount)
-            {
-                return ddAgentUserPassword;
-            }
-
-            _session.Log("Ignoring provided password because account is a service account");
-            // Follow rules for ChangeServiceConfig
-            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-                ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
-                ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
-            {
-                // Specify an empty string if the account has no password or if the service runs in the LocalService, NetworkService, or LocalSystem account.
-                return "";
-            }
-
-            // If the account name specified by the lpServiceStartName parameter is the name of a managed service account or virtual account name, the lpPassword parameter must be NULL.
-            return null;
-        }
-
-        private IEnumerable<string> NonCoreAgentUserServiceNames()
-        {
-            foreach (var serviceName in NonCoreAgentUserServices)
-            {
-                if (_serviceController.ServiceExists(serviceName))
+                _session.Log("Ignoring provided password because account is a service account");
+                // Follow rules for ChangeServiceConfig
+                if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                    ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                    ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
                 {
-                    yield return serviceName;
+                    // Specify an empty string if the account has no password or if the service runs in the LocalService, NetworkService, or LocalSystem account.
+                    ddAgentUserPassword = "";
+                }
+                else
+                {
+                    // If the account name specified by the lpServiceStartName parameter is the name of a managed service account or virtual account name, the lpPassword parameter must be NULL.
+                    ddAgentUserPassword = null;
                 }
             }
-        }
 
-        private void ConfigureAgentUserServiceCredentials(string username, string password)
-        {
-            _serviceController.SetCredentials(Constants.AgentServiceName, username, password);
-            foreach (var serviceName in NonCoreAgentUserServiceNames())
+            _session.Log($"Configuring services with account {ddAgentUserName}");
+
+            // ddagentuser
+            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
             {
-                _serviceController.SetCredentials(serviceName, username, password);
+                ddAgentUserName = "LocalSystem";
             }
-        }
-
-        private void ConfigureNonCoreAgentUserServicesWhenPasswordNotProvided(string ddAgentUserName)
-        {
-            if (!TryFetchAgentScmPassword(out var scmPassword))
+            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid))
             {
-                return;
+                ddAgentUserName = "LocalService";
             }
-
-            foreach (var serviceName in NonCoreAgentUserServiceNames())
+            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
             {
-                ConfigureAgentUserServiceIfLocalSystem(serviceName, ddAgentUserName, scmPassword);
+                ddAgentUserName = "NetworkService";
             }
-        }
-
-        private bool TryFetchAgentScmPassword(out string scmPassword)
-        {
-            try
+            _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
             {
-                scmPassword = _nativeMethods.FetchScmServicePassword(Constants.AgentServiceName);
+                _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
-            catch (Exception e)
-            {
-                _session.Log($"Could not read SCM password for {Constants.AgentServiceName}: {e}");
-                scmPassword = null;
-                return false;
-            }
-
-            if (string.IsNullOrEmpty(scmPassword))
-            {
-                _session.Log(
-                    $"SCM password for {Constants.AgentServiceName} is unavailable; " +
-                    "leaving non-core agent-user service credentials unchanged");
-                return false;
-            }
-
-            return true;
-        }
-
-        private void ConfigureAgentUserServiceIfLocalSystem(
-            string serviceName,
-            string ddAgentUserName,
-            string scmPassword)
-        {
-            if (!IsLocalSystemAccount(_serviceController.GetServiceStartName(serviceName)))
-            {
-                return;
-            }
-
-            try
-            {
-                _session.Log(
-                    $"Configuring {serviceName} to run as {ddAgentUserName} " +
-                    $"using SCM-stored {Constants.AgentServiceName} password");
-                _serviceController.SetCredentials(serviceName, ddAgentUserName, scmPassword);
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Could not configure {serviceName} credentials: {e}");
-            }
-        }
-
-        private static bool IsLocalSystemAccount(string accountName)
-        {
-            return accountName != null &&
-                   (accountName.Equals("LocalSystem", StringComparison.OrdinalIgnoreCase) ||
-                    accountName.Equals(@"NT AUTHORITY\SYSTEM", StringComparison.OrdinalIgnoreCase));
-        }
-
-        private void ConfigureLocalSystemServiceCredentials()
-        {
+            // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
             EnableProcmgrService();
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
+
+            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
         }
 
         private void EnableProcmgrService()
