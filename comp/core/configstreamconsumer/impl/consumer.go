@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"strconv"
 	"sync"
@@ -29,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -37,6 +39,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -539,13 +542,9 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 
 	c.log.Infof("Applying config snapshot (seq_id: %d, settings: %d)", snapshot.SequenceId, len(snapshot.Settings))
 
-	settings := make([]configstreambootstrap.StreamedSetting, 0, len(snapshot.Settings))
+	settings := make([]pkgconfigmodel.DirectSetting, 0, len(snapshot.Settings))
 	for _, setting := range snapshot.Settings {
-		settings = append(settings, configstreambootstrap.StreamedSetting{
-			Key:    setting.Key,
-			Value:  setting.Value,
-			Source: setting.Source,
-		})
+		settings = append(settings, toDirectSetting(setting))
 	}
 	// The first snapshot seeds a config nothing has read yet; a later one replaces a config the
 	// process is already running on, so its changes have to be broadcast.
@@ -568,6 +567,31 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	return nil
 }
 
+// toDirectSetting decodes a streamed setting into the form the config builder takes.
+func toDirectSetting(setting *pb.ConfigSetting) pkgconfigmodel.DirectSetting {
+	return pkgconfigmodel.DirectSetting{
+		Key:    setting.Key,
+		Value:  pbValueToGo(setting.Value),
+		Source: pkgconfigmodel.Source(setting.Source),
+	}
+}
+
+// pbValueToGo converts a protobuf Value to a Go value. It preserves integer types that structpb widens to float64.
+// Bounded to |x| <= 2^53 — beyond that float64 loses integer precision.
+func pbValueToGo(v *structpb.Value) any {
+	if v == nil {
+		return nil
+	}
+	result := v.AsInterface()
+	if f, ok := result.(float64); ok {
+		const maxExactInt = 1 << 53
+		if !math.IsNaN(f) && !math.IsInf(f, 0) && f >= -maxExactInt && f <= maxExactInt && f == math.Trunc(f) {
+			return int64(f)
+		}
+	}
+	return result
+}
+
 func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 	if update.SequenceId <= c.lastSeqID.Load() {
 		c.log.Warnf("Ignoring stale update (seq_id: %d <= %d)", update.SequenceId, c.lastSeqID.Load())
@@ -581,7 +605,10 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 
 	c.log.Debugf("Applying config update (seq_id: %d, key: %s)", update.SequenceId, update.Setting.Key)
 
-	configstreambootstrap.ApplySetting(update.Setting.Key, update.Setting.Value, update.Setting.Source)
+	setting := toDirectSetting(update.Setting)
+	// Updates never carry env-var-sourced settings, so Set's guardrail is not in the way and
+	// registered receivers still get notified.
+	configstreambootstrap.Config().Set(setting.Key, setting.Value, setting.Source)
 	c.lastSeqID.Store(update.SequenceId)
 	c.lastSeqIDMetric.Set(float64(update.SequenceId))
 

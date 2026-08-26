@@ -329,8 +329,6 @@ func (c *ntmConfig) DirectBulkSetAndNotify(settings []model.DirectSetting) {
 }
 
 func (c *ntmConfig) directBulkSet(settings []model.DirectSetting, notify bool) {
-	c.maybeRebuild()
-
 	c.Lock()
 
 	// Previous values are read before any merge, so they all reflect the pre-snapshot state.
@@ -341,9 +339,6 @@ func (c *ntmConfig) directBulkSet(settings []model.DirectSetting, notify bool) {
 	}
 	var changes []change
 
-	// Merge ranks conflicting leaves by source, so merging each layer once at the end is
-	// equivalent to Set's merge-per-write.
-	touched := make([]*nodeImpl, 0, len(model.Sources))
 	for _, setting := range settings {
 		key := strings.ToLower(setting.Key)
 		if !c.isKnownKey(key) && !c.allowDynamicSchema.Load() {
@@ -368,18 +363,15 @@ func (c *ntmConfig) directBulkSet(settings []model.DirectSetting, notify bool) {
 			changes = append(changes, change{key: key, source: setting.Source, previous: c.leafAtPathFromNode(key, c.root).Get()})
 		}
 
-		tree, err := c.insertValueIntoTree(key, value, setting.Source)
-		if err != nil {
+		if _, err := c.insertValueIntoTree(key, value, setting.Source); err != nil {
 			log.Errorf("could not insert value for '%s': %s", key, err)
-			continue
-		}
-		if tree != nil && !slices.Contains(touched, tree) {
-			touched = append(touched, tree)
 		}
 	}
 
-	for _, tree := range touched {
-		c.root, _ = c.root.Merge(tree)
+	// Set merges per write; rebuilding the root once at the end is equivalent because Merge
+	// ranks conflicting leaves by source, not by merge order.
+	if err := c.mergeAllLayers(); err != nil {
+		log.Errorf("could not merge config layers: %s", err)
 	}
 
 	if !notify {

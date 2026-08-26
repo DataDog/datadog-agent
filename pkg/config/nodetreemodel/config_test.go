@@ -2099,7 +2099,7 @@ func TestDirectBulkSet(t *testing.T) {
 	assert.Equal(t, 9, cfg.Get("outranked"))
 	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("outranked"))
 
-	assert.Zero(t, notified, "bulk ingest is a wholesale seed, not a change to broadcast")
+	assert.Zero(t, notified, "notifications should not fire")
 }
 
 func TestDeprecation(t *testing.T) {
