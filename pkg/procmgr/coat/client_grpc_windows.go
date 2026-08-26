@@ -23,10 +23,12 @@ func dialProcmgrGRPC(socketPath string) (*grpc.ClientConn, error) {
 		"passthrough:///procmgr",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			// Pair with AGENT_PIPE_CLIENT_ACCESS_MASK in pipe_security.rs: GENERIC_READ |
+			// FILE_WRITE_DATA, not GENERIC_WRITE (includes FILE_CREATE_PIPE_INSTANCE).
 			return winio.DialPipeAccessImpLevel(
 				ctx,
 				socketPath,
-				uint32(windows.GENERIC_READ|windows.GENERIC_WRITE),
+				uint32(windows.GENERIC_READ|windows.FILE_WRITE_DATA),
 				winio.PipeImpLevelIdentification,
 			)
 		}),
