@@ -254,7 +254,7 @@ fn enable_privilege(
         );
     }
 
-    let privileges = TOKEN_PRIVILEGES {
+    let new_state = TOKEN_PRIVILEGES {
         PrivilegeCount: 1,
         Privileges: [LUID_AND_ATTRIBUTES {
             Luid: luid,
@@ -262,15 +262,23 @@ fn enable_privilege(
         }],
     };
 
-    let mut previous_size = 0u32;
+    let mut previous = TOKEN_PRIVILEGES {
+        PrivilegeCount: 0,
+        Privileges: [LUID_AND_ATTRIBUTES {
+            Luid: luid,
+            Attributes: 0,
+        }],
+    };
+    let mut return_length = 0u32;
+    let buffer_length = std::mem::size_of::<TOKEN_PRIVILEGES>() as u32;
     let ok = unsafe {
         AdjustTokenPrivileges(
             token,
             0,
-            &privileges,
-            0,
-            ptr::null_mut(),
-            &mut previous_size,
+            &new_state,
+            buffer_length,
+            &mut previous,
+            &mut return_length,
         )
     };
     if ok == 0 {
@@ -283,29 +291,21 @@ fn enable_privilege(
     if err == windows_sys::Win32::Foundation::ERROR_NOT_ALL_ASSIGNED {
         return Ok(None);
     }
-    if previous_size == 0 {
+    if previous.PrivilegeCount == 0 {
         return Ok(None);
     }
 
-    let mut previous = vec![0u8; previous_size as usize];
-    let ok = unsafe {
-        AdjustTokenPrivileges(
-            token,
-            0,
-            &privileges,
-            previous_size,
-            previous.as_mut_ptr().cast(),
-            &mut previous_size,
+    Ok(Some(token_privileges_bytes(&previous)))
+}
+
+fn token_privileges_bytes(tp: &TOKEN_PRIVILEGES) -> Vec<u8> {
+    unsafe {
+        std::slice::from_raw_parts(
+            (tp as *const TOKEN_PRIVILEGES).cast::<u8>(),
+            std::mem::size_of::<TOKEN_PRIVILEGES>(),
         )
-    };
-    if ok == 0 {
-        bail!(
-            "AdjustTokenPrivileges({name}, previous): {}",
-            std::io::Error::last_os_error()
-        );
     }
-    previous.truncate(previous_size as usize);
-    Ok(Some(previous))
+    .to_vec()
 }
 
 fn scm_secret_registry_subkey(service_name: &str) -> String {
