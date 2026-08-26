@@ -343,7 +343,7 @@ func indexSessionIDs(provider vdimodel.ProviderInventory, fresh bool) map[string
 func (c *checkImpl) tagsForInstance(objectName, instance string, connections map[connectionKey]vdimodel.Connection, sessionIDs map[string]struct{}) ([]string, *connectionKey) {
 	tags := c.baseTags()
 	if strings.EqualFold(instance, "_Total") {
-		return tags, nil
+		return append(tags, "vdi_aggregation:total"), nil
 	}
 
 	switch objectName {
