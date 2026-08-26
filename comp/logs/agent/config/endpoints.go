@@ -312,9 +312,10 @@ func (e *Endpoint) GetAPIKey() string {
 }
 
 // isDelaDirective reports whether a configured api_key is a delegated-auth placeholder rather than
-// a real key. Mirrors pkg/config/utils.IsDelaDirective, duplicated to keep this module lean.
+// a real key. Uses the shared prefix constant from pkg/config/model so this check cannot drift
+// from the canonical one in pkg/config/utils.
 func isDelaDirective(value string) bool {
-	return strings.HasPrefix(strings.TrimSpace(value), "DELA(")
+	return strings.HasPrefix(strings.TrimSpace(value), model.DelaDirectivePrefix)
 }
 
 // CredentialProvider supplies the credential for one destination. It mirrors

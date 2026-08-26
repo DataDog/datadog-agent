@@ -126,6 +126,11 @@ func redactDelaDirectiveForLogging(value string) string {
 
 // providerConfigForDirective builds a ProviderConfig for a DELA(...) directive, falling back to
 // the process-wide default when the directive omits provider-specific overrides.
+//
+// Returns nil when neither the directive nor the default supplies provider-specific config (e.g.
+// an AWS directive with no region and no process-wide delegated_auth.aws.region). A nil config
+// tells the component to auto-detect, which is the right behavior for a directive that says only
+// "DELA(org, aws)" — the region should come from the runtime environment, not default to empty.
 func providerConfigForDirective(directive delaDirective, defaultProviderConfig common.ProviderConfig) (common.ProviderConfig, error) {
 	switch directive.provider {
 	case cloudauthconfig.ProviderAWS:
@@ -134,6 +139,10 @@ func providerConfigForDirective(directive delaDirective, defaultProviderConfig c
 			if awsConfig, ok := defaultProviderConfig.(*cloudauthconfig.AWSProviderConfig); ok {
 				region = awsConfig.Region
 			}
+		}
+		if region == "" {
+			// No explicit region: let the component auto-detect from the environment.
+			return nil, nil
 		}
 		return &cloudauthconfig.AWSProviderConfig{Region: region}, nil
 	default:
@@ -187,7 +196,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 			}
 
 			directive, ok := common.CaseInsensitiveStringField(entry, "api_key")
-			if !ok || !strings.HasPrefix(strings.TrimSpace(directive), "DELA(") {
+			if !ok || !strings.HasPrefix(strings.TrimSpace(directive), pkgconfigmodel.DelaDirectivePrefix) {
 				continue
 			}
 
@@ -219,9 +228,9 @@ func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgco
 	for _, configKey := range mapShapeDelegatedAuthEndpointKeys {
 		for domain, keys := range config.GetStringMapStringSlice(configKey) {
 			for index, key := range keys {
-				// Mirrors pkg/config/utils.IsDelaDirective's prefix check, duplicated to avoid a
-				// setup <-> utils import cycle.
-				if !strings.HasPrefix(strings.TrimSpace(key), "DELA(") {
+				// Uses the shared prefix constant from pkg/config/model to stay in sync with
+				// pkg/config/utils.IsDelaDirective without creating a setup <-> utils import cycle.
+				if !strings.HasPrefix(strings.TrimSpace(key), pkgconfigmodel.DelaDirectivePrefix) {
 					continue
 				}
 				addDelegatedAuthEndpointInstance(ctx, config, delegatedAuthComp, defaultProviderConfig, secretResolver, key,

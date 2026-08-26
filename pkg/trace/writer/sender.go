@@ -218,6 +218,15 @@ func (m *apiKeyManager) Get() string {
 	return m.apiKey
 }
 
+// hasProvider reports whether this sender's credential comes from a delegated-auth Provider
+// rather than a static API key. Push uses it to decide whether an Authorize failure means
+// "buffer until the credential arrives" (provider) or "back-pressure" (static key).
+func (m *apiKeyManager) hasProvider() bool {
+	m.RLock()
+	defer m.RUnlock()
+	return m.provider != nil
+}
+
 func (m *apiKeyManager) Update(newKey string) {
 	m.Lock()
 	defer m.Unlock()
@@ -517,7 +526,12 @@ const (
 
 func (s *sender) do(req *http.Request) error {
 	if !s.apiKeyManager.Authorize(req.Header) {
-		s.awaitingCredential.Store(true)
+		// Only latch for a provider-backed endpoint: a plain-key sender with an empty key is
+		// misconfigured, not waiting on a credential, and latching here would make Push drop
+		// its payloads silently instead of back-pressuring.
+		if s.apiKeyManager.hasProvider() {
+			s.awaitingCredential.Store(true)
+		}
 		return &credentialNotReadyError{}
 	}
 	s.awaitingCredential.Store(false)

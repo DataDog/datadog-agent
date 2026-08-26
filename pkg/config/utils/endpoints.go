@@ -80,16 +80,12 @@ func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, d
 	return prefix + constants.DefaultSite
 }
 
-// delaDirectivePrefix marks a value in an `additional_endpoints`-style config list as a
-// delegated-auth directive (e.g. "DELA(<org_uuid>, aws)") rather than a literal API key. Such
-// entries are resolved asynchronously by the delegatedauth component, which writes the real key
-// back into the same config slot once fetched; until then they must not be treated as real keys.
-const delaDirectivePrefix = "DELA("
-
 // IsDelaDirective reports whether a value is a delegated-auth directive rather than a literal
-// API key. Consumers must skip (not send) values where this returns true.
+// API key. Consumers must skip (not send) values where this returns true. The prefix is shared
+// via pkg/config/model.DelaDirectivePrefix so that every copy of this check references the same
+// constant.
 func IsDelaDirective(value string) bool {
-	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
+	return strings.HasPrefix(strings.TrimSpace(value), pkgconfigmodel.DelaDirectivePrefix)
 }
 
 // PartitionRealAndPendingKeys splits keys from an `additional_endpoints`-style config list into

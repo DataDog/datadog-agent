@@ -79,16 +79,18 @@ func TestAuthorizeSucceedsOnceCredentialArrives(t *testing.T) {
 }
 
 // Static keys and providers coexist on one domain: the static slots keep working regardless of
-// whether the provider has resolved.
+// whether the provider has resolved. Providers come first in the authorizer list, so the
+// provider is at index 0 and the static key at index 1.
 func TestStaticKeysUnaffectedByAPendingProvider(t *testing.T) {
 	r := resolverWithProvider(t, []string{"static-key"}, &stubProvider{ready: false})
 	log := logmock.New(t)
 
-	h := http.Header{}
-	require.NoError(t, r.Authorize(0, h, log), "the static slot must authorize independently")
-	assert.Equal(t, "static-key", h.Get("DD-Api-Key"))
+	require.ErrorIs(t, r.Authorize(0, http.Header{}, log), ErrCredentialNotReady,
+		"the provider slot (index 0) must refuse while pending")
 
-	require.ErrorIs(t, r.Authorize(1, http.Header{}, log), ErrCredentialNotReady)
+	h := http.Header{}
+	require.NoError(t, r.Authorize(1, h, log), "the static slot (index 1) must authorize independently")
+	assert.Equal(t, "static-key", h.Get("DD-Api-Key"))
 }
 
 // An out-of-range slot is an error rather than a silent unauthenticated send. On-disk transactions

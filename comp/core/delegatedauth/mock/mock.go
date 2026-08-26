@@ -22,6 +22,12 @@ type Mock struct {
 	// standing up the whole component.
 	ProvidersForFunc func(configKey, destination string) []delegatedauth.Provider
 
+	// ProviderForInstanceFunc, when set, is called by AddInstance to obtain the provider for
+	// each instance. When nil, AddInstance uses PendingProvider (the original behavior). This
+	// lets a test return distinct providers per directive so "two orgs" tests prove real
+	// separation rather than just bookkeeping.
+	ProviderForInstanceFunc func(params delegatedauth.InstanceParams) delegatedauth.Provider
+
 	providers  map[[2]string][]delegatedauth.Provider
 	directives map[[3]string]delegatedauth.Provider
 }
@@ -70,6 +76,9 @@ func (m *Mock) AddInstance(ctx context.Context, params delegatedauth.InstancePar
 	}
 
 	p := delegatedauth.Provider(PendingProvider{})
+	if m.ProviderForInstanceFunc != nil {
+		p = m.ProviderForInstanceFunc(params)
+	}
 	if m.providers == nil {
 		m.providers = map[[2]string][]delegatedauth.Provider{}
 	}

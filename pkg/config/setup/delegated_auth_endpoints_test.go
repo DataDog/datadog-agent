@@ -177,6 +177,18 @@ func TestDirectiveInheritsTheAgentRegionWhenItOmitsOne(t *testing.T) {
 	assert.Equal(t, "us-east-1", cfg.(*cloudauthconfig.AWSProviderConfig).Region)
 }
 
+// A directive with no region and no process-wide default must return nil so the component
+// auto-detects the region from the environment. A non-nil config with an empty region would
+// skip auto-detection and exchange the auth proof against the wrong (or no) region.
+func TestDirectiveWithNoRegionAndNoDefaultReturnsNilForAutoDetection(t *testing.T) {
+	directive, ok := parseDelaDirective("DELA(org-uuid-1, aws)")
+	require.True(t, ok)
+
+	cfg, err := providerConfigForDirective(directive, nil)
+	require.NoError(t, err)
+	assert.Nil(t, cfg, "no region from directive or default should yield nil for auto-detection")
+}
+
 // Every parameter spelling that parseDelaDirective accepts as a fallback must also be redacted for
 // logging. These two used to be able to disagree - the parser lower-cased nothing and the redaction
 // regex was case-insensitive - so a "Fallback=" spelling parsed as a real key and logged in clear.

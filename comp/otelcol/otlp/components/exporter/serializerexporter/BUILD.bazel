@@ -18,6 +18,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/def",
         "//comp/core/delegatedauth/fx-noop",
         "//comp/core/log/def",
         "//comp/core/secrets/def",

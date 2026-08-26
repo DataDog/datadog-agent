@@ -106,6 +106,11 @@ func NewStatsWriter(
 // UpdateAPIKey updates the API Key, if needed, on Stats Writer senders.
 func (w *DatadogStatsWriter) UpdateAPIKey(oldKey, newKey string) {
 	for _, s := range w.senders {
+		// A provider-backed sender has apiKey == ""; oldKey == "" would match it.
+		// See TraceWriter.UpdateAPIKey for the full rationale.
+		if s.apiKeyManager.hasProvider() {
+			continue
+		}
 		if oldKey == s.apiKeyManager.Get() {
 			s.apiKeyManager.Update(newKey)
 			log.Debugf("API Key updated for stats endpoint=%s", s.cfg.url)

@@ -154,6 +154,12 @@ func NewTraceWriter(
 // UpdateAPIKey updates the API Key, if needed, on Trace Writer senders.
 func (w *TraceWriter) UpdateAPIKey(oldKey, newKey string) {
 	for _, s := range w.senders {
+		// A provider-backed sender has apiKey == ""; oldKey == "" would match it and overwrite
+		// the (irrelevant) static key, but more importantly it signals that the sender's
+		// credential comes from a Provider, not from this rotation. Skip it.
+		if s.apiKeyManager.hasProvider() {
+			continue
+		}
 		if oldKey == s.apiKeyManager.Get() {
 			s.apiKeyManager.Update(newKey)
 			log.Debugf("API Key updated for traces endpoint=%s", s.cfg.url)

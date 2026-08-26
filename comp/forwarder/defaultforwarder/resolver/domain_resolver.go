@@ -482,9 +482,12 @@ func (a providerAuth) authorize(headers http.Header) bool {
 	return a.provider.Authorize(headers)
 }
 
-// GetAuthorizers returns one entry per authorization slot on this domain: the deduped static API
-// keys, then one per credential provider. Callers generally only need the count, which decides how
-// many transactions a payload fans out to.
+// GetAuthorizers returns one entry per authorization slot on this domain: one per credential
+// provider, then the deduped static API keys. Providers come first so their indices are stable
+// regardless of how many static keys are configured: a config update that adds or removes a
+// static key shifts only the static-key indices, not the provider indices. This matters because
+// on-disk transactions carry their APIKeyIndex, and a provider slot that shifted would either
+// be dropped (out of range) or, worse, authenticated under a different credential.
 func (r *domainResolver) GetAuthorizers() (res []credentialSource) {
 	if r.IsLocal() {
 		res = append(res, staticAuthHeader{
@@ -492,14 +495,14 @@ func (r *domainResolver) GetAuthorizers() (res []credentialSource) {
 			value: "Bearer " + r.authToken,
 		})
 	} else {
+		for _, p := range r.GetCredentialProviders() {
+			res = append(res, providerAuth{provider: p})
+		}
 		for _, key := range r.GetAPIKeys() {
 			res = append(res, staticAuthHeader{
 				key:   "DD-Api-Key",
 				value: key,
 			})
-		}
-		for _, p := range r.GetCredentialProviders() {
-			res = append(res, providerAuth{provider: p})
 		}
 	}
 	return
