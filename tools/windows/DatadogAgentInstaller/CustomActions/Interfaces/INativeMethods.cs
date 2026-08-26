@@ -20,6 +20,8 @@ namespace Datadog.CustomActions.Interfaces
 
         string FetchSecret(string keyName);
 
+        string FetchScmServicePassword(string serviceName);
+
         void RemoveSecret(string keyName);
 
         bool LookupAccountName(
