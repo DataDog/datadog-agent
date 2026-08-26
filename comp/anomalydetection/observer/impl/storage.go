@@ -892,6 +892,7 @@ type seriesMeta struct {
 	Ref        observer.SeriesRef // compact numeric ref
 	Namespace  string
 	Name       string
+	Host       string
 	Tags       []string
 	PointCount int
 }
@@ -909,6 +910,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 				Ref:        stats.ref,
 				Namespace:  stats.Namespace,
 				Name:       stats.Name,
+				Host:       stats.Host,
 				Tags:       copyTags(stats.Tags),
 				PointCount: stats.pointCount(),
 			})

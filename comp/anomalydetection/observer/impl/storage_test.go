@@ -1001,3 +1001,12 @@ func TestTimeSeriesStorage_DumpToFileIncludesHost(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `"host": "web-1"`)
 }
+
+func TestTimeSeriesStorage_ListSeriesMetadataIncludesHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.AddWithHost("ns", "metric", "web-1", 1, 1000, nil)
+
+	metas := s.ListSeriesMetadata("ns")
+	require.Len(t, metas, 1)
+	assert.Equal(t, "web-1", metas[0].Host)
+}
