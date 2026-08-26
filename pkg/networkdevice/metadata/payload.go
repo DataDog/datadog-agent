@@ -36,19 +36,58 @@ const (
 
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
-	Subnet           string                   `json:"subnet,omitempty"`
-	Namespace        string                   `json:"namespace"`
-	Integration      integrations.Integration `json:"integration"`
-	Devices          []DeviceMetadata         `json:"devices,omitempty"`
-	Interfaces       []InterfaceMetadata      `json:"interfaces,omitempty"`
-	IPAddresses      []IPAddressMetadata      `json:"ip_addresses,omitempty"`
-	Links            []TopologyLinkMetadata   `json:"links,omitempty"`
-	VPNTunnels       []VPNTunnelMetadata      `json:"vpn_tunnels,omitempty"`
-	NetflowExporters []NetflowExporter        `json:"netflow_exporters,omitempty"`
-	Diagnoses        []DiagnosisMetadata      `json:"diagnoses,omitempty"`
-	DeviceOIDs       []DeviceOID              `json:"device_oids,omitempty"`
-	DeviceScanStatus *ScanStatusMetadata      `json:"scan_status,omitempty"`
-	CollectTimestamp int64                    `json:"collect_timestamp"`
+	Subnet            string                     `json:"subnet,omitempty"`
+	Namespace         string                     `json:"namespace"`
+	Integration       integrations.Integration   `json:"integration"`
+	Devices           []DeviceMetadata           `json:"devices,omitempty"`
+	Interfaces        []InterfaceMetadata        `json:"interfaces,omitempty"`
+	IPAddresses       []IPAddressMetadata        `json:"ip_addresses,omitempty"`
+	Links             []TopologyLinkMetadata     `json:"links,omitempty"`
+	VPNTunnels        []VPNTunnelMetadata        `json:"vpn_tunnels,omitempty"`
+	NetflowExporters  []NetflowExporter          `json:"netflow_exporters,omitempty"`
+	Diagnoses         []DiagnosisMetadata        `json:"diagnoses,omitempty"`
+	DeviceOIDs        []DeviceOID                `json:"device_oids,omitempty"`
+	DiscoveredDevices []DiscoveredDeviceMetadata `json:"discovered_devices,omitempty"`
+	AutodiscoveryRuns []AutodiscoveryRunMetadata `json:"autodiscovery_runs,omitempty"`
+	DeviceScanStatus  *ScanStatusMetadata        `json:"scan_status,omitempty"`
+	CollectTimestamp  int64                      `json:"collect_timestamp"`
+}
+
+// AutodiscoveryRunStatus is the lifecycle status of a single autodiscovery sweep cycle.
+type AutodiscoveryRunStatus string
+
+// Autodiscovery run statuses. These strings are matched by the backend
+// autodiscovery_run.status CHECK constraint, which expects underscores.
+const (
+	AutodiscoveryRunInProgress AutodiscoveryRunStatus = "in_progress"
+	AutodiscoveryRunCompleted  AutodiscoveryRunStatus = "completed"
+	AutodiscoveryRunFailed     AutodiscoveryRunStatus = "failed"
+	AutodiscoveryRunBlocked    AutodiscoveryRunStatus = "blocked"
+)
+
+// DiscoveredDeviceMetadata is one address probed by an autodiscovery sweep.
+// It is reported whether or not the device answered, so the backend can show
+// the full picture of a scanned range.
+type DiscoveredDeviceMetadata struct {
+	AutodiscoveryID string `json:"autodiscovery_id"`
+	RunID           string `json:"run_id"`
+	IPAddress       string `json:"ip_address"`
+	Name            string `json:"name,omitempty"`
+	PingStatus      string `json:"ping_status,omitempty"`
+	SNMPStatus      string `json:"snmp_status,omitempty"`
+	SNMPCredID      string `json:"snmp_cred_id,omitempty"`
+}
+
+// AutodiscoveryRunMetadata is the lifecycle record of one autodiscovery sweep
+// cycle over one configured range.
+type AutodiscoveryRunMetadata struct {
+	AutodiscoveryID  string                 `json:"autodiscovery_id"`
+	RunID            string                 `json:"run_id"`
+	Status           AutodiscoveryRunStatus `json:"status"`
+	AddressesScanned int64                  `json:"addresses_scanned"`
+	Error            string                 `json:"error,omitempty"`
+	StartedAtMs      int64                  `json:"started_at_ms"`
+	FinishedAtMs     int64                  `json:"finished_at_ms,omitempty"`
 }
 
 // DeviceMetadata contains device metadata
