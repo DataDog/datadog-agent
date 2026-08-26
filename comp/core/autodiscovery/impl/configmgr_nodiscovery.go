@@ -18,9 +18,10 @@ type discoveryState struct{} //nolint:unused
 
 // initDiscoveryWorker is a no-op in non-Python builds. Keeping it empty means
 // the linker never sees a call to discoverer.NewWorker for dead-code elimination.
-func initDiscoveryWorker(_ *reconcilingConfigManager, _ discoverer.ConfigDiscoverer) {}
+func initDiscoveryWorker(_ *reconcilingConfigManager, _ discoverer.ConfigDiscoverer, _ discoverer.ConfigDiscoverer) {
+}
 
-func (cm *reconcilingConfigManager) scheduleDiscovery(_, _, _ string) {}
+func (cm *reconcilingConfigManager) scheduleDiscovery(_, _, _ string, _ integration.Config) {}
 
 func (cm *reconcilingConfigManager) start() {}
 func (cm *reconcilingConfigManager) stop()  {}

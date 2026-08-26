@@ -10,22 +10,28 @@ package autodiscoveryimpl
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // discoveryState holds the fields that are only present in python builds.
 type discoveryState struct {
-	// discoveryWorker is the workqueue-backed driver that probes integrations
-	// to fill in instance configs for Discovery templates.
-	discoveryWorker *discoverer.Worker
+	// pythonDiscoveryWorker is the workqueue-backed driver that probes
+	// Python integrations to fill in instance configs for Discovery templates.
+	pythonDiscoveryWorker *discoverer.Worker
 
-	// discoveredCh carries ConfigChanges produced by the discoveryWorker
+	// jmxDiscoveryWorker is the workqueue-backed driver that probes JMX
+	// integrations. It is nil when the agent is built without JMX support.
+	jmxDiscoveryWorker *discoverer.Worker
+
+	// discoveredCh carries ConfigChanges produced by the discovery workers
 	// back to AutoConfig.
 	discoveredCh chan integration.ConfigChanges
 }
@@ -52,22 +58,56 @@ const discoveredChangesBuffer = 128
 // dd_enable_check_intake (pkg/collector/worker/worker.go).
 const configDiscoveryTag = "dd_config_discovery:true"
 
-// initDiscoveryWorker wires the workqueue-backed discovery worker into cm.
-func initDiscoveryWorker(cm *reconcilingConfigManager, disco discoverer.ConfigDiscoverer) {
+// initDiscoveryWorker wires the workqueue-backed discovery workers into cm.
+// Two separate workers are created: one for Python probes and one for JMX
+// probes. This prevents long-running JMX probes (which block on a subprocess)
+// from delaying Python discovery.
+func initDiscoveryWorker(cm *reconcilingConfigManager, pythonDisco, jmxDisco discoverer.ConfigDiscoverer) {
 	cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
-	cm.discoveryWorker = discoverer.NewWorker(disco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{}, cm.telemetryStore)
+	cm.pythonDiscoveryWorker = discoverer.NewWorker(pythonDisco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{}, cm.telemetryStore)
+	if jmxDisco != nil {
+		cm.jmxDiscoveryWorker = discoverer.NewWorker(jmxDisco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{
+			MaxAttempts: 10,
+			RetryDelay:  15 * time.Second,
+			Workers:     2,
+		}, cm.telemetryStore)
+	}
 }
 
-func (cm *reconcilingConfigManager) scheduleDiscovery(svcID, tplDigest, integrationName string) {
-	cm.discoveryWorker.Enqueue(svcID, tplDigest, integrationName)
+func (cm *reconcilingConfigManager) scheduleDiscovery(svcID, tplDigest, integrationName string, tpl integration.Config) {
+	if isStandardJMXIntegration(integrationName) {
+		if cm.jmxDiscoveryWorker != nil {
+			cm.jmxDiscoveryWorker.Enqueue(svcID, tplDigest, integrationName)
+		} else {
+			log.Debugf("JMX discovery worker not available, skipping probe for %s", integrationName)
+		}
+	} else {
+		cm.pythonDiscoveryWorker.Enqueue(svcID, tplDigest, integrationName)
+	}
+}
+
+// isStandardJMXIntegration checks whether the integration name corresponds to
+// a known JMX integration. We check the name directly against
+// StandardJMXIntegrations rather than using check.IsJMXConfig because
+// discovery templates have empty Instances, which causes IsJMXConfig to
+// return false.
+func isStandardJMXIntegration(name string) bool {
+	_, ok := check.StandardJMXIntegrations[name]
+	return ok
 }
 
 func (cm *reconcilingConfigManager) start() {
-	cm.discoveryWorker.Start()
+	cm.pythonDiscoveryWorker.Start()
+	if cm.jmxDiscoveryWorker != nil {
+		cm.jmxDiscoveryWorker.Start()
+	}
 }
 
 func (cm *reconcilingConfigManager) stop() {
-	cm.discoveryWorker.Stop()
+	cm.pythonDiscoveryWorker.Stop()
+	if cm.jmxDiscoveryWorker != nil {
+		cm.jmxDiscoveryWorker.Stop()
+	}
 }
 
 func (cm *reconcilingConfigManager) discoveredChanges() <-chan integration.ConfigChanges {
@@ -151,9 +191,17 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 
 	merged := tpl
 	merged.Discovery = nil // IMPORTANT: make sure resolveTemplateForService doesn't loop on the discovered/resolved result
-	merged.InitConfig = discovered.InitConfig
+	// Only replace init_config/metric_config if the discovered config
+	// provides non-empty values. This preserves the template's init_config
+	// (which includes the integration's metrics.yaml bean filters and
+	// aliases) when the JMX bridge returns only connection info (host/port).
+	if len(discovered.InitConfig) > 0 {
+		merged.InitConfig = discovered.InitConfig
+	}
 	merged.Instances = discovered.Instances
-	merged.MetricConfig = discovered.MetricConfig
+	if len(discovered.MetricConfig) > 0 {
+		merged.MetricConfig = discovered.MetricConfig
+	}
 	merged.LogsConfig = discovered.LogsConfig
 	merged.IgnoreAutodiscoveryTags = discovered.IgnoreAutodiscoveryTags
 	merged.CheckTagCardinality = discovered.CheckTagCardinality

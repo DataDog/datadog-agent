@@ -8,6 +8,8 @@
 package jmxfetch
 
 import (
+	"fmt"
+
 	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -33,4 +35,9 @@ func GetIntegrations() (map[string]interface{}, error) {
 // GetScheduledConfigs returns an empty result when the agent does not ship jmx
 func GetScheduledConfigs() map[string]integration.Config {
 	return map[string]integration.Config{}
+}
+
+// RunDiscovery is a stub for builds that do not include jmx
+func RunDiscovery(_, _ string) (string, error) {
+	return "", fmt.Errorf("jmx discovery not available: agent built without JMX support")
 }

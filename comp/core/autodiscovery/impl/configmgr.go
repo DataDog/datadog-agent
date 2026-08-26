@@ -137,7 +137,7 @@ type reconcilingConfigManager struct {
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.ConfigDiscoverer, telStore *actelemetry.Store) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, pythonDisco, jmxDisco discoverer.ConfigDiscoverer, telStore *actelemetry.Store) configManager {
 	cm := &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -150,7 +150,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		healthPlatform:     healthPlatform,
 		telemetryStore:     telStore,
 	}
-	initDiscoveryWorker(cm, disco)
+	initDiscoveryWorker(cm, pythonDisco, jmxDisco)
 	return cm
 }
 
@@ -480,7 +480,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	// Do not resolve the template through the synchronous path.
 	// Instead enqueue a discovery probe for the template and service pair.
 	if tpl.Discovery != nil {
-		cm.scheduleDiscovery(svc.GetServiceID(), tpl.Digest(), tpl.Name)
+		cm.scheduleDiscovery(svc.GetServiceID(), tpl.Digest(), tpl.Name, tpl)
 		return tpl, false
 	}
 
