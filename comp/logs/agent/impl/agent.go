@@ -19,6 +19,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -80,6 +81,7 @@ type Requires struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	Secrets            secrets.Component
+	DelegatedAuth      delegatedauth.Component
 }
 
 type Provides struct {
@@ -119,6 +121,10 @@ type logAgent struct {
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
 
+	// credentialProviders resolves delegated-auth credentials for additional endpoints configured
+	// with a DELA(...) directive. Nil when the component is unavailable.
+	credentialProviders config.CredentialProviderLookup
+
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
 
@@ -144,22 +150,23 @@ func NewComponent(deps Requires) Provides {
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
 		logsAgent := &logAgent{
-			log:                deps.Log,
-			config:             deps.Config,
-			inventoryAgent:     deps.InventoryAgent,
-			hostname:           deps.Hostname,
-			started:            atomic.NewUint32(status.StatusNotStarted),
-			auditor:            deps.Auditor,
-			sources:            sources.NewLogSources(),
-			services:           service.NewServices(),
-			tracker:            tailers.NewTailerTracker(),
-			flarecontroller:    flareController.NewFlareController(),
-			wmeta:              deps.WMeta,
-			schedulerProviders: deps.SchedulerProviders,
-			integrationsLogs:   integrationsLogs,
-			tagger:             deps.Tagger,
-			compression:        deps.Compression,
-			secrets:            deps.Secrets,
+			log:                 deps.Log,
+			config:              deps.Config,
+			inventoryAgent:      deps.InventoryAgent,
+			hostname:            deps.Hostname,
+			started:             atomic.NewUint32(status.StatusNotStarted),
+			auditor:             deps.Auditor,
+			sources:             sources.NewLogSources(),
+			services:            service.NewServices(),
+			tracker:             tailers.NewTailerTracker(),
+			flarecontroller:     flareController.NewFlareController(),
+			wmeta:               deps.WMeta,
+			schedulerProviders:  deps.SchedulerProviders,
+			integrationsLogs:    integrationsLogs,
+			tagger:              deps.Tagger,
+			compression:         deps.Compression,
+			secrets:             deps.Secrets,
+			credentialProviders: credentialProviderLookup(deps.DelegatedAuth),
 		}
 		deps.Lc.Append(compdef.Hook{
 			OnStart: logsAgent.start,
@@ -193,7 +200,7 @@ func (a *logAgent) start(context.Context) error {
 	a.log.Info("Starting logs-agent...")
 
 	// setup the server config
-	endpoints, err := buildEndpoints(a.config)
+	endpoints, err := buildEndpoints(a.config, a.credentialProviders)
 
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
@@ -395,4 +402,20 @@ func streamLogsEvents(logsAgent agent.Component) func(w http.ResponseWriter, r *
 	return apiutils.GetStreamFunc(func() apiutils.MessageReceiver {
 		return logsAgent.GetMessageReceiver()
 	}, "logs", "logs agent")
+}
+
+// credentialProviderLookup adapts the delegatedauth component to the lookup the logs config
+// package expects. Matching on the directive rather than the host alone matters because two orgs
+// may dual-ship to the same host; picking either one's credential for both would ship one org's
+// logs twice and the other's not at all.
+func credentialProviderLookup(d delegatedauth.Component) config.CredentialProviderLookup {
+	if d == nil {
+		return nil
+	}
+	return func(configKey, host, directive string) config.CredentialProvider {
+		if p := d.ProviderForDirective(configKey, host, directive); p != nil {
+			return p
+		}
+		return nil
+	}
 }

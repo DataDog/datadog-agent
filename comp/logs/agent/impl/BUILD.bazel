@@ -24,6 +24,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/api/api/utils/stream",
         "//comp/core/config",
+        "//comp/core/delegatedauth/def",
         "//comp/core/flare/types",
         "//comp/core/hostname",
         "//comp/core/hostname/hostnameinterface/def",

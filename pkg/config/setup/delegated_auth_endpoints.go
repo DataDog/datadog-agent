@@ -160,6 +160,54 @@ var mapShapeDelegatedAuthEndpointKeys = []string{
 	"apm_config.additional_endpoints",
 }
 
+// listShapeDelegatedAuthEndpointKeys lists the list-shape additional_endpoints settings (a list of
+// entries each with api_key and host) whose consumers take their credential from a Provider.
+//
+// The same caveat as the map-shape list applies: a setting only belongs here once its consumer
+// both stops treating the directive as an API key and asks for the provider. Settings reached
+// through comp/logs/agent/config satisfy the first half already, and the second once the subsystem
+// passes a lookup via LogsConfigKeys.WithCredentialProviders.
+var listShapeDelegatedAuthEndpointKeys = []string{
+	// Read by comp/logs/agent/config and served by the logs HTTP destination.
+	"logs_config.additional_endpoints",
+}
+
+// configureListShapeAdditionalEndpointsDelegatedAuth scans the list-shape additional_endpoints
+// settings for DELA(...) directives in each entry's api_key and registers an instance per match.
+func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig, secretResolver secrets.Component) {
+	for _, configKey := range listShapeDelegatedAuthEndpointKeys {
+		entries, _ := common.NormalizeListShapeEntries(config.Get(configKey))
+
+		for index, rawEntry := range entries {
+			// NormalizeListShapeEntries keeps non-map elements as-is - a bare string, or nil from a
+			// blank YAML list item - so they round-trip unchanged. None can hold a directive.
+			entry, ok := rawEntry.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			directive, ok := common.CaseInsensitiveStringField(entry, "api_key")
+			if !ok || !strings.HasPrefix(strings.TrimSpace(directive), "DELA(") {
+				continue
+			}
+
+			// The entry's host is both the destination the consumer looks the provider up by and
+			// the site the auth proof is exchanged against. Without it the exchange would silently
+			// fall back to the agent's primary site and fail for a different org.
+			host, hasHost := common.CaseInsensitiveStringField(entry, "host")
+			if !hasHost {
+				log.Warnf("Additional endpoint entry %d at %q has a delegated auth directive but no host; it cannot be matched to a credential and will not send", index, configKey)
+				continue
+			}
+
+			addDelegatedAuthEndpointInstance(ctx, config, delegatedAuthComp, defaultProviderConfig, secretResolver, directive,
+				fmt.Sprintf("additional endpoint entry %d (%q) at %q", index, host, configKey),
+				fmt.Sprintf("%s[%d]", configKey, index),
+				configKey, host)
+		}
+	}
+}
+
 // configureAdditionalEndpointsDelegatedAuth scans the supported additional_endpoints settings for
 // DELA(...) directives and registers a delegated-auth instance for each one.
 //

@@ -208,3 +208,85 @@ func TestUnresolvedSecretHandleFallbackIsDropped(t *testing.T) {
 func TestPlainFallbackIsUsedAsIs(t *testing.T) {
 	assert.Equal(t, "a-real-key", resolveFallbackAPIKey(nil, "a-real-key", "additional_endpoints"))
 }
+
+func discoverListShape(t *testing.T, entries []map[string]any) *recordingComponent {
+	t.Helper()
+	var yaml strings.Builder
+	yaml.WriteString("logs_config:\n  additional_endpoints:\n")
+	for _, e := range entries {
+		first := true
+		for _, k := range []string{"host", "api_key"} {
+			v, ok := e[k]
+			if !ok {
+				continue
+			}
+			lead := "    - "
+			if !first {
+				lead = "      "
+			}
+			fmt.Fprintf(&yaml, "%s%s: %q\n", lead, k, v)
+			first = false
+		}
+	}
+
+	rec := newRecordingComponent()
+	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), confFromYAML(t, yaml.String()), rec, nil, nil)
+	return rec
+}
+
+// comp/logs/agent/config looks a provider up by (setting, entry host, directive). Discovery has to
+// register under exactly that triple, or the endpoint never finds its credential and silently
+// sends nothing.
+func TestListShapeDirectiveRegistersUnderTheKeyLogsLooksUp(t *testing.T) {
+	rec := discoverListShape(t, []map[string]any{
+		{"host": "org2.datadoghq.com", "api_key": "DELA(org-uuid-2, aws)"},
+	})
+
+	require.Len(t, rec.recorded, 1)
+	configKey, destination := rec.recorded[0].ProviderKey()
+	assert.Equal(t, "logs_config.additional_endpoints", configKey)
+	assert.Equal(t, "org2.datadoghq.com", destination)
+	assert.Equal(t, "DELA(org-uuid-2, aws)", rec.recorded[0].Directive)
+	assert.True(t, rec.recorded[0].SkipConfigWriteback)
+
+	assert.NotNil(t, rec.ProviderForDirective("logs_config.additional_endpoints", "org2.datadoghq.com", "DELA(org-uuid-2, aws)"))
+}
+
+// A plain api_key entry must not register an instance.
+func TestListShapePlainKeyRegistersNothing(t *testing.T) {
+	rec := discoverListShape(t, []map[string]any{
+		{"host": "other.datadoghq.com", "api_key": "a-real-key"},
+	})
+	assert.Empty(t, rec.recorded)
+}
+
+// Without a host there is nothing to key the provider on, and the auth proof would be exchanged
+// against the agent's own site rather than the entry's. Registering it anyway would produce a
+// credential for the wrong org, so the entry is skipped instead.
+func TestListShapeEntryWithoutAHostRegistersNothing(t *testing.T) {
+	rec := discoverListShape(t, []map[string]any{
+		{"api_key": "DELA(org-uuid-2, aws)"},
+	})
+	assert.Empty(t, rec.recorded)
+}
+
+// Two orgs shipping logs to the same host must each get their own instance, distinguishable by
+// directive - the logs endpoint lookup relies on that to avoid using one org's key for both.
+func TestListShapeTwoOrgsOnOneHostStayDistinct(t *testing.T) {
+	const host = "shared.datadoghq.com"
+	rec := discoverListShape(t, []map[string]any{
+		{"host": host, "api_key": "DELA(org-a, aws)"},
+		{"host": host, "api_key": "DELA(org-b, aws)"},
+	})
+
+	require.Len(t, rec.recorded, 2)
+	assert.NotEqual(t, rec.recorded[0].APIKeyConfigKey, rec.recorded[1].APIKeyConfigKey)
+
+	// Each directive resolves; the lookup is exact, so a directive that was never registered gets
+	// nothing rather than falling back to whichever org happens to share the host.
+	// That the two providers are genuinely different instances is covered by the delegatedauth
+	// impl test, which uses real providers rather than the mock's shared stand-in.
+	assert.NotNil(t, rec.ProviderForDirective("logs_config.additional_endpoints", host, "DELA(org-a, aws)"))
+	assert.NotNil(t, rec.ProviderForDirective("logs_config.additional_endpoints", host, "DELA(org-b, aws)"))
+	assert.Nil(t, rec.ProviderForDirective("logs_config.additional_endpoints", host, "DELA(org-c, aws)"))
+}

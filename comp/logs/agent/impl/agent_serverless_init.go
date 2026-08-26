@@ -88,7 +88,9 @@ func (a *logAgent) SetupPipeline(
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
+// The serverless build has no delegated auth, so the lookup is accepted and ignored to keep
+// this in step with the core implementation.
+func buildEndpoints(coreConfig model.Reader, _ config.CredentialProviderLookup) (*config.Endpoints, error) {
 	config, err := config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
 	if err != nil {
 		return nil, err

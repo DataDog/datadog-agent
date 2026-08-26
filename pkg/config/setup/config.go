@@ -517,6 +517,7 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	// Directives embedded in additional_endpoints deliver through a Provider rather than a config
 	// write-back, so they are registered separately from the flat-key sections above.
 	configureAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig, secretResolver)
+	configureListShapeAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig, secretResolver)
 
 	return nil
 }
