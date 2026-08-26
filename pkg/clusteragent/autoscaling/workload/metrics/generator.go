@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	taggerTags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -27,6 +28,10 @@ const (
 	metricPrefix = "datadog.cluster_agent.autoscaling.workload"
 
 	allContainersTagValue = "all"
+
+	dpaModeTagKey      = "dpa_mode"
+	dpaDimensionTagKey = "dpa_dimension"
+	resourceNameTagKey = "resource_name"
 
 	dpaDimensionHorizontal = "horizontal"
 	dpaDimensionVertical   = "vertical"
@@ -63,8 +68,8 @@ func baseAutoscalerTags(internal *model.PodAutoscalerInternal) []string {
 
 func resourceTags(containerName, resourceName string) []string {
 	return []string{
-		"resource_name:" + resourceName,
-		"kube_container_name:" + containerName,
+		resourceNameTagKey + ":" + resourceName,
+		taggerTags.KubeContainerName + ":" + containerName,
 	}
 }
 
@@ -74,14 +79,14 @@ func conditionTags(baseTags []string, conditionType string) []string {
 }
 
 func applyModeTags(baseTags []string, applyMode, dimension string) []string {
-	return append(baseTags, "dpa_mode:"+applyMode, "dpa_dimension:"+dimension)
+	return append(baseTags, dpaModeTagKey+":"+applyMode, dpaDimensionTagKey+":"+dimension)
 }
 
 func controlledResourceTags(baseTags []string, containerName string, resource corev1.ResourceName) []string {
 	if containerName == "*" {
 		containerName = allContainersTagValue
 	}
-	return append(baseTags, "kube_container_name:"+containerName, "resource_name:"+string(resource), "dpa_dimension:"+dpaDimensionVertical)
+	return append(baseTags, taggerTags.KubeContainerName+":"+containerName, resourceNameTagKey+":"+string(resource), dpaDimensionTagKey+":"+dpaDimensionVertical)
 }
 
 func applyModeTagValue(spec *datadoghq.DatadogPodAutoscalerSpec) string {
@@ -130,10 +135,10 @@ func appendApplyModeMetrics(metrics metricsstore.StructuredMetrics, internal *mo
 func objectiveTags(baseTags []string, objectiveType, valueType, resourceName, containerName string, index int) []string {
 	tags := append(baseTags, "objective_type:"+objectiveType, "value_type:"+valueType, "objective_index:"+strconv.Itoa(index))
 	if resourceName != "" {
-		tags = append(tags, "resource_name:"+resourceName)
+		tags = append(tags, resourceNameTagKey+":"+resourceName)
 	}
 	if containerName != "" {
-		tags = append(tags, "kube_container_name:"+containerName)
+		tags = append(tags, taggerTags.KubeContainerName+":"+containerName)
 	}
 	return tags
 }
@@ -426,7 +431,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		// Mirror the resolveMinMaxBounds fallback from controller_vertical_helpers.go:
 		// prefer top-level MinAllowed/MaxAllowed; fall back to deprecated Requests field.
 		for _, container := range spec.Constraints.Containers {
-			containerTags := append(baseTags, "kube_container_name:"+container.Name)
+			containerTags := append(baseTags, taggerTags.KubeContainerName+":"+container.Name)
 
 			if container.Enabled == nil || *container.Enabled {
 				seenResources := make(map[corev1.ResourceName]struct{})
@@ -547,7 +552,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		// 14b. Vertical desired resources from status (per container, CPU in millicores, memory in bytes)
 		if vertical := podAutoscaler.Status.Vertical; vertical != nil && vertical.Target != nil {
 			for _, container := range vertical.Target.DesiredResources {
-				containerTags := append(baseTags, "kube_container_name:"+container.Name)
+				containerTags := append(baseTags, taggerTags.KubeContainerName+":"+container.Name)
 				if cpuReq, ok := container.Requests[corev1.ResourceCPU]; ok {
 					metrics = append(metrics, metricsstore.StructuredMetric{
 						Name:  metricPrefix + ".status.vertical.desired.container.cpu.request",
