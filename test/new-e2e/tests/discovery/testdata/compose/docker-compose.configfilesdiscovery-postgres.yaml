@@ -22,6 +22,7 @@ services:
       POSTGRESQL_REPLICATION_MODE: master
       POSTGRESQL_LDAP_URL: ldap://user:password@ldap.example.test
       POSTGRESQL_PASSWORD: must-not-be-forwarded
+      POSTGRESQL_PASSWORD_FILE: /run/secrets/postgres-password
     labels:
       com.datadoghq.ad.checks: |
         {
