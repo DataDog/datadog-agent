@@ -66,7 +66,7 @@ properties:
     node_type: section
     type: object
     visibility: public
-    description: Privileged inventory configuration for Windows VDI integrations.
+    description: Privileged provider inventory configuration for Windows VDI integrations.
     tags:
     - platform_only:windows
     - template_section:Common
@@ -77,7 +77,7 @@ properties:
         default: false
         visibility: public
         description: |-
-          Start system-probe and enable its read-only Windows desktop-session inventory module.
+          Start system-probe and enable its read-only VDI provider inventory module.
           Configure metric collection separately in conf.d/vdi.d/conf.yaml.
   dd_url:
     node_type: setting

@@ -23,12 +23,14 @@ instances:
       product: auto
 
     ## @param collect_user_tags - boolean - optional - default: true
-    ## Attach the authenticated `vdi_user` to connection metrics and unambiguous session metrics.
+    ## Attach the authenticated `vdi_connection_user` to connection-scoped metrics.
+    ## This identifies the remote user of a specific connection, which is not necessarily
+    ## the Windows session user or the user a process runs as.
     #
     collect_user_tags: true
 
     ## @param collect_session_tags - boolean - optional - default: true
-    ## Attach DCV protocol session and connection identifiers to applicable metrics.
+    ## Attach provider-neutral VDI session and connection identifiers to applicable metrics.
     #
     collect_session_tags: true
 

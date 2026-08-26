@@ -242,7 +242,6 @@ go_library(
             "//pkg/util/winutil/messagestrings",
             "//pkg/vdi/model",
             "//pkg/vdi/provider/dcv",
-            "//pkg/vdi/session/windows",
             "//pkg/windowsdriver/ddinjector",
             "@com_github_datadog_datadog_traceroute//traceroute",
             "@com_github_prometheus_client_golang//prometheus",

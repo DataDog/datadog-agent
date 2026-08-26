@@ -54,6 +54,9 @@ func NewCollector(runner Runner) *Collector {
 	return &Collector{runner: runner, now: time.Now}
 }
 
+// Provider returns the inventory provider implemented by this collector.
+func (*Collector) Provider() string { return vdimodel.ProviderAWSWorkSpaces }
+
 // Collect returns fresh or briefly cached DCV inventory. Only one collection
 // can execute at a time.
 func (c *Collector) Collect(ctx context.Context) vdimodel.ProviderInventory {
@@ -73,7 +76,6 @@ func (c *Collector) Collect(ctx context.Context) vdimodel.ProviderInventory {
 
 func (c *Collector) collect(ctx context.Context) vdimodel.ProviderInventory {
 	result := vdimodel.ProviderInventory{
-		Provider: vdimodel.ProviderAWSWorkSpaces,
 		SourceStatus: vdimodel.SourceStatus{
 			Status: vdimodel.StatusOK,
 		},
@@ -107,11 +109,10 @@ func (c *Collector) collect(ctx context.Context) vdimodel.ProviderInventory {
 
 	var failures []string
 	for _, session := range sessions {
-		result.Sessions = append(result.Sessions, vdimodel.ProtocolSession{
-			Provider:          vdimodel.ProviderAWSWorkSpaces,
-			Protocol:          vdimodel.ProtocolDCV,
-			ProtocolSessionID: session.id,
-			Owner:             session.owner,
+		result.Sessions = append(result.Sessions, vdimodel.Session{
+			ID:       session.id,
+			Protocol: vdimodel.ProtocolDCV,
+			Owner:    session.owner,
 		})
 		resultSession := &result.Sessions[len(result.Sessions)-1]
 
@@ -193,7 +194,7 @@ type connectionJSON struct {
 	Transport           string      `json:"transport"`
 }
 
-func parseConnections(output []byte) ([]vdimodel.DesktopConnection, error) {
+func parseConnections(output []byte) ([]vdimodel.Connection, error) {
 	decoder := json.NewDecoder(bytes.NewReader(output))
 	decoder.UseNumber()
 	var raw []connectionJSON
@@ -207,7 +208,7 @@ func parseConnections(output []byte) ([]vdimodel.DesktopConnection, error) {
 		return nil, fmt.Errorf("decode connections: trailing data: %w", err)
 	}
 
-	connections := make([]vdimodel.DesktopConnection, 0, len(raw))
+	connections := make([]vdimodel.Connection, 0, len(raw))
 	for _, item := range raw {
 		id, err := parseConnectionID(item.ID)
 		if err != nil {
@@ -225,8 +226,8 @@ func parseConnections(output []byte) ([]vdimodel.DesktopConnection, error) {
 		if err != nil {
 			return nil, err
 		}
-		connections = append(connections, vdimodel.DesktopConnection{
-			ConnectionID:      id,
+		connections = append(connections, vdimodel.Connection{
+			ID:                id,
 			AuthenticatedUser: item.Username,
 			Transport:         strings.ToLower(item.Transport),
 			ClientMode:        strings.ToLower(item.ClientMode),

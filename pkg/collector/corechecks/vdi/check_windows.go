@@ -182,6 +182,7 @@ func (c *checkImpl) Run() error {
 		c.lastFreshAt = now
 	}
 	connections := indexConnections(providerInventory, freshInventory)
+	sessionIDs := indexSessionIDs(providerInventory, freshInventory)
 
 	pdhHealthy := true
 	usableSamples := 0
@@ -205,7 +206,7 @@ func (c *checkImpl) Run() error {
 					continue
 				}
 				for instance, value := range values {
-					tags, key := c.tagsForInstance(counter.object.object, instance, connections)
+					tags, key := c.tagsForInstance(counter.object.object, instance, connections, sessionIDs)
 					if key != nil {
 						discovered[*key] = struct{}{}
 					}
@@ -240,7 +241,7 @@ func (c *checkImpl) Run() error {
 	return nil
 }
 
-func (c *checkImpl) submitInventoryMetrics(s sender.Sender, now time.Time, provider vdimodel.ProviderInventory, inventoryErr error, fresh bool, connections map[connectionKey]vdimodel.DesktopConnection, discovered map[connectionKey]struct{}) {
+func (c *checkImpl) submitInventoryMetrics(s sender.Sender, now time.Time, provider vdimodel.ProviderInventory, inventoryErr error, fresh bool, connections map[connectionKey]vdimodel.Connection, discovered map[connectionKey]struct{}) {
 	tags := c.baseTags()
 	sessionCount := 0
 	if fresh {
@@ -264,7 +265,7 @@ func (c *checkImpl) submitInventoryMetrics(s sender.Sender, now time.Time, provi
 	if fresh {
 		for _, session := range provider.Sessions {
 			for _, connection := range session.Connections {
-				connectionTags := c.connectionTags(session.ProtocolSessionID, connection)
+				connectionTags := c.connectionTags(session.ID, connection)
 				s.Gauge("vdi.connection.connected", 1, "", connectionTags)
 				if connection.LastInteractionAt != nil {
 					idle := now.Sub(*connection.LastInteractionAt).Seconds()
@@ -315,20 +316,31 @@ func (c *checkImpl) unavailableInventoryStatus(now time.Time) servicecheck.Servi
 	return servicecheck.ServiceCheckWarning
 }
 
-func indexConnections(provider vdimodel.ProviderInventory, fresh bool) map[connectionKey]vdimodel.DesktopConnection {
-	connections := make(map[connectionKey]vdimodel.DesktopConnection)
+func indexConnections(provider vdimodel.ProviderInventory, fresh bool) map[connectionKey]vdimodel.Connection {
+	connections := make(map[connectionKey]vdimodel.Connection)
 	if !fresh {
 		return connections
 	}
 	for _, session := range provider.Sessions {
 		for _, connection := range session.Connections {
-			connections[connectionKey{sessionID: session.ProtocolSessionID, connectionID: connection.ConnectionID}] = connection
+			connections[connectionKey{sessionID: session.ID, connectionID: connection.ID}] = connection
 		}
 	}
 	return connections
 }
 
-func (c *checkImpl) tagsForInstance(objectName, instance string, connections map[connectionKey]vdimodel.DesktopConnection) ([]string, *connectionKey) {
+func indexSessionIDs(provider vdimodel.ProviderInventory, fresh bool) map[string]struct{} {
+	sessions := make(map[string]struct{})
+	if !fresh {
+		return sessions
+	}
+	for _, session := range provider.Sessions {
+		sessions[session.ID] = struct{}{}
+	}
+	return sessions
+}
+
+func (c *checkImpl) tagsForInstance(objectName, instance string, connections map[connectionKey]vdimodel.Connection, sessionIDs map[string]struct{}) ([]string, *connectionKey) {
 	tags := c.baseTags()
 	if strings.EqualFold(instance, "_Total") {
 		return tags, nil
@@ -345,7 +357,7 @@ func (c *checkImpl) tagsForInstance(objectName, instance string, connections map
 			}
 		}
 	case "DCV Server Sessions":
-		tags = c.sessionTags(tags, instance, connections)
+		tags = c.sessionTags(tags, instance)
 	case "DCV Server Connections":
 		match := connectionPattern.FindStringSubmatch(instance)
 		if match != nil {
@@ -361,8 +373,8 @@ func (c *checkImpl) tagsForInstance(objectName, instance string, connections map
 			tags = append(tags, "dcv_channel:"+match[3])
 		}
 	case "DCV Server Imaging":
-		sessionID, encoder := matchImagingInstance(instance, connections)
-		tags = c.sessionTags(tags, sessionID, connections)
+		sessionID, encoder := matchImagingInstance(instance, sessionIDs)
+		tags = c.sessionTags(tags, sessionID)
 		if encoder != "" {
 			tags = append(tags, "dcv_encoder:"+encoder)
 		}
@@ -370,33 +382,16 @@ func (c *checkImpl) tagsForInstance(objectName, instance string, connections map
 	return deduplicate(tags), nil
 }
 
-func (c *checkImpl) sessionTags(tags []string, sessionID string, connections map[connectionKey]vdimodel.DesktopConnection) []string {
+func (c *checkImpl) sessionTags(tags []string, sessionID string) []string {
 	if c.collectSessionTags() {
-		tags = append(tags, "dcv_session_id:"+sessionID)
-	}
-	users := make(map[string]struct{})
-	connectionCount := 0
-	for key, connection := range connections {
-		if key.sessionID != sessionID {
-			continue
-		}
-		connectionCount++
-		if connection.AuthenticatedUser == "" {
-			return tags
-		}
-		users[connection.AuthenticatedUser] = struct{}{}
-	}
-	if c.collectUserTags() && connectionCount > 0 && len(users) == 1 {
-		for user := range users {
-			tags = append(tags, "vdi_user:"+user)
-		}
+		tags = append(tags, "vdi_session_id:"+sessionID)
 	}
 	return tags
 }
 
-func (c *checkImpl) tagsForConnection(tags []string, key connectionKey, connections map[connectionKey]vdimodel.DesktopConnection) []string {
+func (c *checkImpl) tagsForConnection(tags []string, key connectionKey, connections map[connectionKey]vdimodel.Connection) []string {
 	if c.collectSessionTags() {
-		tags = append(tags, "dcv_session_id:"+key.sessionID, "dcv_connection_id:"+key.connectionID)
+		tags = append(tags, "vdi_session_id:"+key.sessionID, "vdi_connection_id:"+key.connectionID)
 	}
 	if connection, found := connections[key]; found {
 		tags = append(tags, c.connectionMetadataTags(connection)...)
@@ -404,18 +399,18 @@ func (c *checkImpl) tagsForConnection(tags []string, key connectionKey, connecti
 	return tags
 }
 
-func (c *checkImpl) connectionTags(sessionID string, connection vdimodel.DesktopConnection) []string {
+func (c *checkImpl) connectionTags(sessionID string, connection vdimodel.Connection) []string {
 	tags := c.baseTags()
 	if c.collectSessionTags() {
-		tags = append(tags, "dcv_session_id:"+sessionID, "dcv_connection_id:"+connection.ConnectionID)
+		tags = append(tags, "vdi_session_id:"+sessionID, "vdi_connection_id:"+connection.ID)
 	}
 	return deduplicate(append(tags, c.connectionMetadataTags(connection)...))
 }
 
-func (c *checkImpl) connectionMetadataTags(connection vdimodel.DesktopConnection) []string {
+func (c *checkImpl) connectionMetadataTags(connection vdimodel.Connection) []string {
 	var tags []string
 	if c.collectUserTags() && connection.AuthenticatedUser != "" {
-		tags = append(tags, "vdi_user:"+connection.AuthenticatedUser)
+		tags = append(tags, "vdi_connection_user:"+connection.AuthenticatedUser)
 	}
 	if connection.Transport != "" {
 		tags = append(tags, "dcv_transport:"+connection.Transport)
@@ -469,13 +464,9 @@ func (c *checkImpl) collectSessionTags() bool {
 	return c.config.CollectSessionTags == nil || *c.config.CollectSessionTags
 }
 
-func matchImagingInstance(instance string, connections map[connectionKey]vdimodel.DesktopConnection) (string, string) {
-	sessions := make(map[string]struct{})
-	for key := range connections {
-		sessions[key.sessionID] = struct{}{}
-	}
-	ordered := make([]string, 0, len(sessions))
-	for session := range sessions {
+func matchImagingInstance(instance string, sessionIDs map[string]struct{}) (string, string) {
+	ordered := make([]string, 0, len(sessionIDs))
+	for session := range sessionIDs {
 		ordered = append(ordered, session)
 	}
 	sort.Slice(ordered, func(i, j int) bool { return len(ordered[i]) > len(ordered[j]) })
