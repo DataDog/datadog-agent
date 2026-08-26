@@ -15,9 +15,11 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -32,17 +34,19 @@ type recordedCall struct {
 	name      string
 	value     float64
 	tags      []string
+	host      string
 	timestamp int64
 }
 
 func (h *recordingHandle) ObserveMetric(v observer.MetricView) {
 	// copy values — the MetricView contract forbids retaining the view itself
-	tagsCopy := make([]string, len(v.GetRawTags()))
-	copy(tagsCopy, v.GetRawTags())
+	tagsCopy := make([]string, len(v.GetTags()))
+	copy(tagsCopy, v.GetTags())
 	h.calls = append(h.calls, recordedCall{
 		name:      v.GetName(),
 		value:     v.GetValue(),
 		tags:      tagsCopy,
+		host:      v.GetHost(),
 		timestamp: v.GetTimestampUnix(),
 	})
 }
@@ -83,7 +87,7 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 	matcher := filterlist.NewNoopTagMatcher()
 
 	samples := []metrics.MetricSample{
-		{Name: "metric.a", Value: 1.0, Mtype: metrics.GaugeType, Tags: []string{"env:prod"}, SampleRate: 1, Timestamp: 1000},
+		{Name: "metric.a", Host: "host-a", Value: 1.0, Mtype: metrics.GaugeType, Tags: []string{"env:prod"}, SampleRate: 1, Timestamp: 1000},
 		{Name: "metric.b", Value: 2.5, Mtype: metrics.CountType, Tags: []string{"service:web"}, SampleRate: 0.5, Timestamp: 2000},
 	}
 
@@ -96,10 +100,35 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 	assert.Equal(t, "metric.a", handle.calls[0].name)
 	assert.Equal(t, 1.0, handle.calls[0].value)
 	assert.Equal(t, []string{"env:prod"}, handle.calls[0].tags)
+	assert.Equal(t, "host-a", handle.calls[0].host)
 	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
 
 	assert.Equal(t, "metric.b", handle.calls[1].name)
 	assert.Equal(t, 2.5, handle.calls[1].value)
+}
+
+func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	store := tags.NewStore(false, "test")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
+	handle := &recordingHandle{}
+	sampler.observerHandle = handle
+
+	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+		"metric.filtered": {Tags: []string{"env"}, Action: "exclude"},
+	}, logmock.New(t))
+	sampler.sample(&metrics.MetricSample{
+		Name:       "metric.filtered",
+		Host:       "host-a",
+		Value:      1,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:prod", "service:web"},
+		SampleRate: 1,
+	}, 1000, matcher)
+
+	require.Len(t, handle.calls, 1)
+	assert.Equal(t, "host-a", handle.calls[0].host)
+	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
 }
 
 // TestTimeSamplerObserverHandleNil verifies no panic when observerHandle is nil.

@@ -15,7 +15,7 @@
 //             tags: ["env:dev"]
 //
 //   code:
-//     if rules.isAllowedWithHost(sample.GetName(), source, sample.GetHost(), sample.GetRawTags()) { ... }
+//     if rules.isAllowedWithHost(sample.GetName(), source, sample.GetHost(), sample.GetTags()) { ... }
 
 package observerimpl
 

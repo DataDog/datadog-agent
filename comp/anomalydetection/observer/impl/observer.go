@@ -86,7 +86,7 @@ func (m *metricObs) GetValue() float64 {
 	return m.value
 }
 
-func (m *metricObs) GetRawTags() []string {
+func (m *metricObs) GetTags() []string {
 	return m.tags
 }
 
@@ -1084,7 +1084,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 
 	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
 	// storage, and downstream Add calls hit the tagsSorted fast path.
-	tags := canonicalizeTags(sample.GetRawTags())
+	tags := canonicalizeTags(sample.GetTags())
 	if filter.isMutedWithHost(name, normalizedSource, host, tags) ||
 		(precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, normalizedSource, host, tags, precheck.firstCandidate)) {
 		return metricIngestDecision{source: normalizedSource}

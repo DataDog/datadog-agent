@@ -38,7 +38,8 @@ type HandleFunc func(name string) Handle
 type MetricView interface {
 	GetName() string
 	GetValue() float64
-	GetRawTags() []string
+	// GetTags returns the final tags used by the metrics pipeline for this sample.
+	GetTags() []string
 	// GetHost returns the host dimension carried separately from metric tags.
 	GetHost() string
 	// GetTimestampUnix returns the sample timestamp in Unix seconds.
