@@ -1153,13 +1153,8 @@ workflow:
   - changes:
       paths:
         - cmd/agent/dist/conf.d/powershell.d/**/*
-        - cmd/agent/dist/BUILD.bazel
         - cmd/agent/dist/protected/**/*
-        - cmd/agent/dist/core_checks.bzl
-        - packages/windows/BUILD.bazel
         - pkg/collector/corechecks/system/powershell/**/*
-        - pkg/commonchecks/**/*
-        - tasks/core_checks.py
         - tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs
         - test/new-e2e/tests/windows/powershell-check/**/*
       compare_to: $COMPARE_TO_BRANCH
