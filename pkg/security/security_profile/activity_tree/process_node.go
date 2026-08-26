@@ -307,34 +307,42 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 
 // Matches return true if the process fields used to generate the dump are identical with the provided model.Process
 func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize bool) bool {
+	var entryArg0 string
+	if sprocess.IsBusybox(entry.FileEvent.PathnameStr) {
+		entryArg0, _ = sprocess.GetProcessArgv0(entry)
+	}
+	var entryArgs []string
+	if matchArgs {
+		entryArgs, _ = sprocess.GetProcessArgv(entry)
+	}
+	return pn.Process.matches(entry.FileEvent.PathnameStr, entryArg0, entryArgs, matchArgs, normalize)
+}
+
+// MatchesProcessInfo returns true if the process fields used to generate the dump are identical with the provided ProcessInfo.
+func (pn *ProcessNode) MatchesProcessInfo(entry *ProcessInfo, matchArgs bool, normalize bool) bool {
+	return pn.Process.Matches(entry, matchArgs, normalize)
+}
+
+// Matches returns true if the process fields used to generate the dump are identical with the provided ProcessInfo.
+func (pi *ProcessInfo) Matches(other *ProcessInfo, matchArgs bool, normalize bool) bool {
+	return pi.matches(other.FileEvent.PathnameStr, other.Argv0, other.Argv, matchArgs, normalize)
+}
+
+func (pi *ProcessInfo) matches(pathnameStr, argv0 string, argv []string, matchArgs, normalize bool) bool {
 	if normalize {
-		match := pathutils.PathPatternMatch(pn.Process.FileEvent.PathnameStr, entry.FileEvent.PathnameStr, pathutils.PathPatternMatchOpts{WildcardLimit: 3, PrefixNodeRequired: 1, SuffixNodeRequired: 1, NodeSizeLimit: 8})
+		match := pathutils.PathPatternMatch(pi.FileEvent.PathnameStr, pathnameStr, pathutils.PathPatternMatchOpts{WildcardLimit: 3, PrefixNodeRequired: 1, SuffixNodeRequired: 1, NodeSizeLimit: 8})
 		if !match {
 			return false
 		}
-	} else if pn.Process.FileEvent.PathnameStr != entry.FileEvent.PathnameStr {
+	} else if pi.FileEvent.PathnameStr != pathnameStr {
 		return false
 	}
 
-	if sprocess.IsBusybox(entry.FileEvent.PathnameStr) {
-		panArg0 := pn.Process.Argv0
-		entryArg0, _ := sprocess.GetProcessArgv0(entry)
-		if panArg0 != entryArg0 {
-			return false
-		}
+	if sprocess.IsBusybox(pathnameStr) && pi.Argv0 != argv0 {
+		return false
 	}
 	if matchArgs {
-		panArgs := pn.Process.Argv
-		entryArgs, _ := sprocess.GetProcessArgv(entry)
-		if len(panArgs) != len(entryArgs) {
-			return false
-		}
-		for i, arg := range panArgs {
-			if arg != entryArgs[i] {
-				return false
-			}
-		}
-		return true
+		return slices.Equal(pi.Argv, argv)
 	}
 	return true
 }
