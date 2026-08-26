@@ -3,21 +3,20 @@
 ## Summary
 
 Approach 0 (one-shot JMXFetch subprocess per discovery probe) was
-implemented and tested. The JMXFetch `discover` action works correctly:
-it connects to candidate JMX ports, inspects MBean domains, verifies
-the integration's expected domains are present, and outputs a config
-JSON on stdout. Error cases (no JMX, unknown integration, unreachable
-host) all return `[]` with exit 0 — no errors generated.
+implemented and tested both manually and end-to-end. The JMXFetch
+`discover` action works correctly: it connects to candidate JMX ports,
+inspects MBean domains, verifies the integration's expected domains are
+present, and outputs a config JSON on stdout. Error cases (no JMX,
+unknown integration, unreachable host) all return `[]` with exit 0 — no
+errors generated.
 
-The full Agent → JMXFetch discovery flow (via the discovery worker,
-JMX bridge, and one-shot subprocess) was not tested end-to-end because
-the locally-built agent binary was missing workloadmeta collector
-registrations (the `go build` command doesn't include all the
-init() registrations that the full build system wires up). The
-JMXFetch side was tested manually and works. The Agent-side Go code
-compiles cleanly with `jmx,python` build tags.
+The full Agent → JMXFetch discovery flow was tested end-to-end with a
+properly built agent binary (`dda inv agent.build`) running in Docker
+with Kafka. The flow works: AD discovers Kafka → discovery worker → JMX
+bridge → one-shot subprocess → config scheduled → JMXFetch collects
+metrics.
 
-## JMXFetch Discover Action Tests
+## JMXFetch Discover Action Manual Tests
 
 ### Test 1: Successful discovery (Kafka with JMX on port 9999)
 
@@ -54,106 +53,107 @@ docker exec dd-agent-approach0 java -classpath /opt/datadog-agent/bin/agent/dist
 
 ### Test 2: No JMX port available (only Kafka's plaintext port 9092)
 
-**Command:**
-```bash
-docker exec dd-agent-approach0 java -classpath ... discover \
-  --integration kafka \
-  --service_json '{"id":"docker://test","host":"kafka","ports":[{"number":9092,"name":""}]}'
-```
+**Output:** `[]`  **Exit code:** 0
 
-**Output:** `[]`
-**Exit code:** 0
-
-**What happened:** Port 9092 is not a JMX port. Connection attempt failed.
-No other ports to try. Output `[]`, exit 0. No errors.
+Port 9092 is not a JMX port. Connection attempt failed. No errors.
 
 ### Test 3: Unknown integration
 
-**Command:**
-```bash
-docker exec dd-agent-approach0 java -classpath ... discover \
-  --integration unknown \
-  --service_json '{"id":"docker://test","host":"kafka","ports":[{"number":9999,"name":"jmx"}]}'
-```
+**Output:** `[]`  **Exit code:** 0
 
-**Output:** `[]`
-**Exit code:** 0
-
-**What happened:** "unknown" is not in StandardJMXIntegrations. No
-signature to verify against. Output `[]`, exit 0.
+"unknown" is not in StandardJMXIntegrations. No signature to verify against.
 
 ### Test 4: Unreachable host
 
-**Command:**
-```bash
-docker exec dd-agent-approach0 java -classpath ... discover \
-  --integration kafka \
-  --service_json '{"id":"docker://test","host":"unreachable.invalid","ports":[{"number":9999,"name":"jmx"}]}'
+**Output:** `[]`  **Exit code:** 0
+
+Connection to unreachable.invalid:9999 failed. No errors.
+
+## Full E2E Test (with dda-built agent)
+
+### Setup
+
+- **Agent image**: `datadog/agent-dev:nightly-main-py3-jmx` base + agent
+  binary built with `dda inv agent.build --build-exclude=systemd` +
+  modified jmxfetch jar (with `discover` action)
+- **Kafka**: `confluentinc/cp-kafka:7.7.0` with JMX on port 9999
+- **Config template**: `conf.d/kafka.d/conf.yaml` with `discovery: {}` and
+  `ad_identifiers: [cp-kafka]`
+
+### Key Log Evidence
+
+**Discovery subprocess ran (two attempts):**
+
 ```
+12:41:42 | JMX discovery: running subprocess: java [...] discover --integration kafka --service_json {...}
+12:41:43 | JMX discovery: subprocess found no valid JMX config for integration kafka
+```
+First attempt failed — Kafka's JMX endpoint wasn't ready yet. Worker retried.
 
-**Output:** `[]`
-**Exit code:** 0
+```
+12:41:58 | JMX discovery: running subprocess: java [...] discover --integration kafka --service_json {...}
+12:41:58 | JMX discovery: subprocess succeeded for integration kafka, result length: 151
+```
+Second attempt succeeded — subprocess connected, verified kafka.server/kafka.controller
+MBean domains, returned 151-byte config JSON.
 
-**What happened:** Connection to unreachable.invalid:9999 failed.
-Output `[]`, exit 0. No errors.
+**Config scheduled with discovery tag:**
 
-## Full AD Flow Test (with stock agent)
-
-Since the locally-built agent binary was missing workloadmeta collector
-registrations, the full discovery worker flow was tested with the stock
-nightly agent image + modified jmxfetch jar, using a conf.d template
-with `ad_identifiers` (not `discovery: {}`).
-
-### Config template used:
-```yaml
-ad_identifiers:
-  - cp-kafka
-
-init_config:
-  is_jmx: true
-  collect_default_metrics: true
-  new_gc_metrics: true
-
-instances:
-  - host: "%%host%%"
+```
+12:41:58 | Scheduling jmxfetch config: kafka_3f4968170d1a4303:
+  check_name: kafka
+  init_config: {}
+  instances:
+  - collect_default_jvm_metrics: true
+    host: 172.17.130.4
     port: 9999
-    collect_default_jvm_metrics: true
+    tags:
+    - dd_config_discovery:true
+    - docker_image:confluentinc/cp-kafka:7.7.0
+    - short_image:cp-kafka
 ```
 
-### Result:
-- Agent discovered Kafka container via AD identifiers
-- JmxScheduler scheduled the config
-- JMXFetch collected **28 metrics** per cycle (default JVM metrics)
-- No errors
+The `dd_config_discovery:true` tag confirms the config went through the
+discovery worker path. The `config.provider` is `ad-container-discovery+file`.
 
-This confirms the JMXFetch jar with the `discover` action works
-correctly in the agent container. The `discover` action was also
-tested manually (above) and produces correct output.
+**JMXFetch collecting metrics:**
 
-## What's NOT Tested Yet
+```
+12:42:59 | Instance kafka-172.17.130.4-9999 is sending 28 metrics to the metrics reporter during collection #5
+12:43:14 | Instance kafka-172.17.130.4-9999 is sending 28 metrics to the metrics reporter during collection #6
+...
+```
 
-The full discovery worker flow (Agent → discovery worker → JMX bridge →
-one-shot subprocess → result → schedule config) requires a properly
-built agent binary with all workloadmeta collectors registered. The
-`go build` command used in this PoC doesn't include all the init()
-registrations that the full build system (omnibus/bazel) wires up.
+JMXFetch is stably collecting 28 metrics per cycle (default JVM metrics).
 
-To test the full flow:
-1. Build the agent using the full build system (omnibus or bazel)
-2. Create a Docker image with the properly built agent + modified jmxfetch jar
-3. Use a conf.d template with `discovery: {}` (triggers the discovery worker)
-4. Verify that the discovery worker calls the JMX bridge, which runs
-   the one-shot subprocess, which discovers Kafka and returns a config
-5. Verify that the config is scheduled and JMXFetch collects Kafka-specific metrics
+### Performance
 
-## Performance Notes
+- First probe (failed): ~1s (subprocess startup + connection attempt)
+- Second probe (succeeded): ~1s (subprocess startup + connect + inspect)
+- Total time from agent start to config scheduled: ~18s
+- JVM cold start: ~1s per probe
+- No impact on running JMXFetch instances (subprocess is isolated)
 
-- JVM cold start: ~1-2 seconds per probe
-- Probe time (connect + inspect + verify): ~1-3 seconds
-- Total per-probe: ~2-5 seconds
-- With bounded concurrency (1-2 JVMs) and per-service dedup, this is
-  acceptable for rare one-time discovery
-- The subprocess uses -Xmx200m -Xms50m (same as the regular JMXFetch)
+## Known Issue: init_config Not Preserved
+
+The scheduled config shows `init_config: {}` instead of the template's
+`init_config` (which has `is_jmx: true`, `collect_default_metrics: true`,
+`new_gc_metrics: true`).
+
+**Root cause**: `parseDiscoveryResult()` in `discovery_json.go` always sets
+`init_config` to `json.RawMessage("{}")` when the discovered config has
+no init_config. Our `isEmptyJSON()` check correctly identifies `"{}"` as
+empty and should preserve the template's init_config. However, the
+template's init_config appears to also be empty in the scheduled config,
+suggesting the merge or resolution step is stripping it.
+
+**Impact**: JMXFetch collects only 28 default JVM metrics instead of
+Kafka-specific metrics (350+ in the initial PoC). The `is_jmx: true` flag
+is missing, but JMXFetch still recognizes "kafka" as a JMX integration via
+`StandardJMXIntegrations`.
+
+**Status**: Under investigation — debug prints being added to both agent
+and JMXFetch to trace the init_config through the full pipeline.
 
 ## Files Changed
 
