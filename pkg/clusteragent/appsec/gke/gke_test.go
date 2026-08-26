@@ -550,7 +550,7 @@ func TestAdded_omitsProcessorAnnotation_onExtension(t *testing.T) {
 	config := defaultGKEConfig()
 	config.CommonAnnotations = map[string]string{
 		appsecconfig.AppsecProcessorResourceAnnotation: "appsec-processor.ignored-by-gke.svc:8080",
-		"managed-by":                                   "datadog",
+		"managed-by": "datadog",
 	}
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), config)

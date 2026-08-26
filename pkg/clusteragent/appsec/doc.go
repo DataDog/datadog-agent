@@ -428,11 +428,12 @@ networking.gke.io/gateway, so it could not discriminate between them anyway):
 
  1. Startup detection: Detect() checks only that the gcptrafficextensions.networking.gke.io CRD
     exists. Note this runs once, during the auto-detection phase at startup.
+
  2. Per-Gateway matching: Added() compares the Gateway's own spec.gatewayClassName against the
     allowlist in appsec.proxy.gke.gateway_classes, which defaults to:
 
-  - gke-l7-global-external-managed
-  - gke-l7-regional-external-managed
+    - gke-l7-global-external-managed
+    - gke-l7-regional-external-managed
 
 That default is the external-managed single-cluster set Datadog has tested, not the full set GKE
 supports: gke-l7-rilb also supports GCPTrafficExtension callouts, whereas the classic gke-l7-gxlb
