@@ -288,15 +288,15 @@
     id: 'C09FX078WH2'
 '@datadog/fleet':
   notification:
-    name: '#fleet-automation-monitoring'
-    id: 'C06TZ0APY6Q'
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
 '@datadog/fleet-automation':
   notification:
-    name: '#fleet-automation-monitoring'
-    id: 'C06TZ0APY6Q'
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'

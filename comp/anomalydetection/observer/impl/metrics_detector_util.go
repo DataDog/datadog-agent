@@ -160,10 +160,6 @@ func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
 		return observer.AggregateSum, true
 	case "count":
 		return observer.AggregateCount, true
-	case "min":
-		return observer.AggregateMin, true
-	case "max":
-		return observer.AggregateMax, true
 	default:
 		return 0, false
 	}
