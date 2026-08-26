@@ -2545,6 +2545,8 @@ github.com/DataDog/datadog-operator/api v0.0.0-20260807013103-1518bb55e423 h1:9c
 github.com/DataDog/datadog-operator/api v0.0.0-20260807013103-1518bb55e423/go.mod h1:1NbnIkICgL12lNUXlvrKRjBn14W5TErvd0HnMEJcp4U=
 github.com/DataDog/datadog-traceroute v1.0.19 h1:eVUuHWQ3gjAmeo4vG/xKM9atw85eSvIA0E1Ypl5UH2s=
 github.com/DataDog/datadog-traceroute v1.0.19/go.mod h1:gtDOEd1qCVGULNYdHULzFBbdDLJwpP+nJMKSXiuVi78=
+github.com/DataDog/datadog-traceroute v1.0.20 h1:GqDf+MmbFzCGhqIRCTrCZV1pOaVuG/3zFn/C8GXdLh0=
+github.com/DataDog/datadog-traceroute v1.0.20/go.mod h1:gtDOEd1qCVGULNYdHULzFBbdDLJwpP+nJMKSXiuVi78=
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d h1:W6b2wcIaW6NXauhcA/ZoH012oRVEiqu8dBEd0gAMsgU=
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d/go.mod h1:PaK5t+qpa/zU7wdM4SDjRhSlBNb6crYrXsEz2aHRqIY=
 github.com/DataDog/dd-trace-go/v2 v2.9.2 h1:JoYZ9lZLCyBeRE6sRvaBXSe8AGrGySfbnB/BMoHQwwA=
