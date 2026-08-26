@@ -472,10 +472,15 @@ def test_flavor(
         with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
             formatted_cmd = cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)
             if sys.platform == "aix":
-                # AIX has no Bazel yet
-                run_res = ctx.run(f'gotestsum {formatted_cmd}', env=env, warn=True, hide=False)
+                # AIX has no Bazel yet. ctx.run goes through a shell, so build the
+                # exact argv (the same shlex.split list the bazel path passes) and
+                # re-quote it with shlex.join — otherwise shell metacharacters in
+                # the command (e.g. `|` in a `-run TestA|TestB` regex) would be
+                # interpreted by the shell instead of passed literally to go test.
+                gotestsum_argv = ["gotestsum", *shlex.split(formatted_cmd)]
+                run_res = ctx.run(shlex.join(gotestsum_argv), env=env, warn=True, hide=False)
                 res = subprocess.CompletedProcess(
-                    args=shlex.split(formatted_cmd),
+                    args=gotestsum_argv,
                     returncode=run_res.return_code,
                     stdout=run_res.stdout,
                     stderr=run_res.stderr,
