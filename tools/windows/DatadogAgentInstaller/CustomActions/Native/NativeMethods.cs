@@ -771,6 +771,11 @@ namespace Datadog.CustomActions.Native
             return RetrievePrivateData(keyName);
         }
 
+        public string FetchScmServicePassword(string serviceName)
+        {
+            return ScmLsaSecret.ReadServicePassword(this, serviceName);
+        }
+
         /// <summary>
         /// Use LSA to store a secret
         /// </summary>

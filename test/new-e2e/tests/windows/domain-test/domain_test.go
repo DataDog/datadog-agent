@@ -40,6 +40,7 @@ const (
 	preLSASecretAgentVersion = "7.65.2-1"
 
 	procmgrServiceName = "dd-procmgr-service"
+	privateActionRunnerServiceName = "datadog-agent-action"
 )
 
 func TestInstallsOnDomainController(t *testing.T) {
@@ -204,6 +205,17 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordKe
 
 		suite.Assert().NoError(windowsCommon.StartService(host, procmgrServiceName),
 			"%s should start without the Agent user password once it runs as LocalSystem", procmgrServiceName)
+	})
+
+	suite.Run("private action runner uses domain agent account", func() {
+		account, err := windowsCommon.GetServiceAccountName(host, privateActionRunnerServiceName)
+		suite.Require().NoError(err)
+		suite.Assert().Equal(
+			windowsCommon.MakeDownLevelLogonName(TestDomain, TestUser),
+			account,
+			"%s must run as the domain Agent user after no-password upgrade",
+			privateActionRunnerServiceName,
+		)
 	})
 
 	suite.Run("agent-profile children spawn without installer LSA password", func() {
