@@ -88,6 +88,23 @@ spec:
               localhostProfile: host-profiler.json
 ```
 
+## SELinux
+
+The provided `DatadogAgent` manifest uses the `spc_t` SELinux type for the Host Profiler. If `spc_t` is not available in your environment, replace it in the `seLinuxOptions` block with an equivalent type supported by your distribution and security policy:
+
+```yaml
+spec:
+  override:
+    nodeAgent:
+      containers:
+        host-profiler:
+          securityContext:
+            seLinuxOptions:
+              type: <SELINUX_TYPE>
+```
+
+The replacement must provide the host and process access required by the Host Profiler.
+
 ## AppArmor (optional)
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.

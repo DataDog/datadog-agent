@@ -60,6 +60,12 @@ After you apply the values, Helm rolls out an OpenTelemetry Collector DaemonSet 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
+## SELinux
+
+The provided values use the `spc_t` SELinux type for the Host Profiler and its seccomp-installer init container. This type is commonly available on distributions that use SELinux and allows the host and process access required by the profiler.
+
+If `spc_t` is not available in your environment, replace both occurrences of `type: spc_t` in [`helm/collector-values.yaml`](helm/collector-values.yaml) with an equivalent type supported by your distribution and security policy. The replacement must provide the host and process access required by the Host Profiler.
+
 ## AppArmor (optional)
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.

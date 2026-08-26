@@ -112,7 +112,8 @@ The Host Profiler does not run as a privileged container.
 
 In Kubernetes, it runs as a host-level DaemonSet with `hostPID: true` so it can observe processes on the node. The deployment manifests add only the Linux capabilities required for eBPF-based host profiling.
 
-Seccomp and AppArmor provide additional hardening:
+The deployment examples configure SELinux compatibility, seccomp, and AppArmor as follows:
 
+- **SELinux** is configured with the `spc_t` super-privileged container type so that SELinux does not block the host and process access required by the Host Profiler. This type does not provide additional SELinux confinement. If `spc_t` is unavailable, replace it with an equivalent type supported by your distribution and security policy. See the SELinux section in the deployment guide for your deployment path.
 - **seccomp** restricts the syscalls the container can make beyond what those capabilities allow. The seccomp profile ships at `/etc/dd-host-profiler/seccomp.json` inside the image and is applied automatically in the Helm-based guides and the OpenTelemetry Operator guide. In the Datadog Operator preview path, seccomp is optional and must be provisioned manually if you want the extra hardening; a future Operator version is expected to configure it by default.
 - **AppArmor** is optional where available. The provided profile restricts which binaries the profiler can execute: only `objcopy`, used for symbol extraction, is permitted.
