@@ -1010,3 +1010,18 @@ func TestTimeSeriesStorage_ListSeriesMetadataIncludesHost(t *testing.T) {
 	require.Len(t, metas, 1)
 	assert.Equal(t, "web-1", metas[0].Host)
 }
+
+func TestSeriesKeyHashMatchesSeriesKey(t *testing.T) {
+	for _, tc := range []struct {
+		host string
+		tags []string
+	}{
+		{tags: []string{"env:prod", "service:api"}},
+		{host: "web-1", tags: []string{"env:prod", "service:api"}},
+	} {
+		assert.Equal(t,
+			fnv64aString(seriesKey("ns", "metric", tc.host, tc.tags)),
+			seriesKeyHash("ns", "metric", tc.host, tc.tags),
+		)
+	}
+}

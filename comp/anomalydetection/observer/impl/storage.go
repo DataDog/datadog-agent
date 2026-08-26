@@ -828,7 +828,9 @@ func seriesKeyHash(namespace, name, host string, tags []string) uint64 {
 	}
 	h := fnv64aString(namespace)
 	h = fnv64aMix(h, name)
-	h = fnv64aMix(h, host)
+	if host != "" {
+		h = fnv64aMix(h, host)
+	}
 	h ^= uint64('|')
 	h *= fnvPrime64
 	for i, t := range tags {
