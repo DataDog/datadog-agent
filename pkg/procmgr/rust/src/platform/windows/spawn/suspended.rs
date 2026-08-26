@@ -11,7 +11,7 @@ use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::System::Threading::ResumeThread;
 
 use crate::handle::ProcessHandle;
-use crate::process::ManagedChildSpawn;
+use crate::process::ManagedProcess;
 
 use super::super::JobObject;
 use super::super::win_handle::WinHandle;

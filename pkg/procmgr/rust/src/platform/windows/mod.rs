@@ -429,11 +429,12 @@ pub(crate) fn reset_shutdown_state_for_test() {
 }
 
 #[cfg(test)]
-pub(crate) fn test_shutdown_lock() -> std::sync::MutexGuard<'static, ()> {
-    static SHUTDOWN_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub(crate) async fn test_shutdown_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    static SHUTDOWN_TEST_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
     SHUTDOWN_TEST_LOCK
+        .get_or_init(|| tokio::sync::Mutex::new(()))
         .lock()
-        .expect("shutdown test lock poisoned")
+        .await
 }
 
 // ---------------------------------------------------------------------------

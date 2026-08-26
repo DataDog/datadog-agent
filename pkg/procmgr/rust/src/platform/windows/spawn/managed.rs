@@ -7,7 +7,6 @@ use anyhow::{Context, Result};
 use log::info;
 
 use crate::config::ProcessConfig;
-use crate::handle::ProcessHandle;
 use crate::process::ManagedChildSpawn;
 use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 

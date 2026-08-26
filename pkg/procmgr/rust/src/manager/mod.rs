@@ -174,7 +174,7 @@ mod tests {
     }
 
     async fn auto_start_for_test(mgr: &ProcessManager, handles: &RuntimeHandles) {
-        let _guard = crate::platform::test_shutdown_lock();
+        let _guard = crate::platform::test_shutdown_lock().await;
         crate::platform::reset_shutdown_state_for_test();
         mgr.auto_start_all(handles).await;
     }
@@ -234,7 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow::Result<()> {
-        let _guard = crate::platform::test_shutdown_lock();
+        let _guard = crate::platform::test_shutdown_lock().await;
         crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(
             loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
@@ -287,7 +287,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Result<()> {
-        let _guard = crate::platform::test_shutdown_lock();
+        let _guard = crate::platform::test_shutdown_lock().await;
         crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(
             loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
@@ -328,7 +328,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_requested_during_auto_start() {
-        let _guard = crate::platform::test_shutdown_lock();
+        let _guard = crate::platform::test_shutdown_lock().await;
         crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(
             loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
@@ -348,7 +348,7 @@ mod tests {
         use supervisor::run_manager_event_loop;
         use tokio::sync::mpsc;
 
-        let _guard = crate::platform::test_shutdown_lock();
+        let _guard = crate::platform::test_shutdown_lock().await;
         crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (handles, mut exit_rx, mut restart_rx) = test_runtime_handles();
