@@ -59,6 +59,7 @@
 .host_profiler_standalone_variables: &host_profiler_standalone_variables
   IMAGE_NAME: ddot-ebpf
   TMPL_SRC_REPO: ci/datadog-agent/ddot-ebpf
+  RELEASE_PROD_OVERRIDE: "true"
 
 # -- publish jobs --
 publish_internal_container_image-jmx:
