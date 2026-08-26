@@ -16,7 +16,7 @@ LABEL org.opencontainers.image.title "Datadog Dogstatsd Agent"
 # add mirror.clarkson.edu (closest to us-east-1, where we build) as a secondary,
 # so a degraded CDN fails over instead of stalling the build.
 
-RUN ALPINE_RELEASE=$(cat /etc/alpine-release | sed "s/^\(\d\+\.\d\+\).\+$/\1/") && \
+RUN ALPINE_RELEASE=$(cat /etc/alpine-release | sed "s/^\([0-9][0-9]*\.[0-9][0-9]*\).*$/\1/") && \
   printf 'http://dl-cdn.alpinelinux.org/alpine/v%s/main\nhttp://dl-cdn.alpinelinux.org/alpine/v%s/community\nhttp://mirror.clarkson.edu/alpine/v%s/main\nhttp://mirror.clarkson.edu/alpine/v%s/community\n' \
     "${ALPINE_RELEASE}" "${ALPINE_RELEASE}" "${ALPINE_RELEASE}" "${ALPINE_RELEASE}" > /etc/apk/repositories
 
