@@ -248,16 +248,6 @@ impl ManagedProcess {
     }
 
     #[cfg(windows)]
-    pub(crate) fn set_job_object(&mut self, job: platform::JobObject) {
-        self.job_object = Some(job);
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn set_user_profile_guard(&mut self, profile: platform::UserProfileGuard) {
-        self.user_profile = Some(profile);
-    }
-
-    #[cfg(windows)]
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
         self.user_profile = None;
