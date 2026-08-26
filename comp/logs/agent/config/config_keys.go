@@ -12,7 +12,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/credential"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +23,7 @@ type LogsConfigKeys struct {
 
 	// credentialProviders, when set, resolves delegated-auth credentials for additional endpoints
 	// built from these keys. Nil means no delegated auth is wired for this subsystem.
-	credentialProviders credential.Lookup
+	credentialProviders CredentialProviderLookup
 }
 
 // CompressionKind constants
@@ -45,9 +44,10 @@ func defaultLogsConfigKeysWithVectorOverride(config pkgconfigmodel.Reader) *Logs
 	return NewLogsConfigKeysWithVector("logs_config.", "logs.", config)
 }
 
-// CredentialProviderLookup is retained for backward compatibility. New code should use
-// credential.Lookup directly.
-type CredentialProviderLookup = credential.Lookup
+// CredentialProviderLookup resolves the delegated-auth credential provider for one additional
+// endpoint, identified by the setting it came from, its host, and its DELA(...) directive.
+// It returns nil when that endpoint has no delegated-auth instance.
+type CredentialProviderLookup func(configKey, host, directive string) CredentialProvider
 
 // WithCredentialProviders attaches a lookup so endpoints built from these keys can take their
 // credential from a provider instead of a configured API key. Returns l for chaining.
@@ -55,7 +55,7 @@ type CredentialProviderLookup = credential.Lookup
 // Without it, a DELA(...) directive in additional_endpoints produces an endpoint that can never
 // authorize, so nothing is sent there - deliberately, since the alternative is sending the
 // directive text to the intake as if it were an API key.
-func (l *LogsConfigKeys) WithCredentialProviders(lookup credential.Lookup) *LogsConfigKeys {
+func (l *LogsConfigKeys) WithCredentialProviders(lookup CredentialProviderLookup) *LogsConfigKeys {
 	l.credentialProviders = lookup
 	return l
 }

@@ -403,6 +403,13 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 		return err
 	}
 
+	// A missing credential is not a permanent failure: the endpoint is unprovisioned, not broken.
+	// Return the error even for non-retryable transactions so the worker can requeue instead of
+	// silently dropping the payload.
+	if errors.Is(err, ErrCredentialNotReady) {
+		return err
+	}
+
 	return nil
 }
 

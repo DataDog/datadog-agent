@@ -23,7 +23,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/credential"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -199,7 +198,18 @@ type apiKeyManager struct {
 // Authorize stamps this endpoint's credential onto h and reports whether it did. It returns false
 // only for a delegated-auth endpoint whose credential has not arrived yet.
 func (m *apiKeyManager) Authorize(h http.Header) bool {
-	return credential.StampAuth(h, m.provider, m.Get())
+	if m.provider != nil {
+		return m.provider.Authorize(h)
+	}
+	// No provider and no key means the endpoint was built from a directive that never produced
+	// an instance - an unsupported provider, or a consumer with no provider wiring. Stamping the
+	// empty key would send the payload to that org's intake unauthenticated, so refuse instead.
+	key := m.Get()
+	if key == "" {
+		return false
+	}
+	h.Set(headerAPIKey, key)
+	return true
 }
 
 func (m *apiKeyManager) Get() string {
@@ -352,11 +362,6 @@ func (s *sender) Push(p *payload) {
 		// for that endpoint alone rather than blocking the others.
 		if s.awaitingCredential.Load() {
 			_ = s.statsd.Count("datadog.trace_agent.sender.payload_dropped_awaiting_credential", 1, nil, 1)
-			// Return the payload to the pool and record the drop so the writer recorder reports
-			// the loss. Without this the buffer leaks (GC pressure) and telemetry underreports.
-			stats := &eventData{}
-			s.recordEvent(eventTypeDropped, stats)
-			ppool.Put(p)
 			return
 		}
 		_ = s.statsd.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
@@ -515,6 +520,7 @@ type retriableError struct{ err error }
 func (e retriableError) Error() string { return e.err.Error() }
 
 const (
+	headerAPIKey    = "DD-Api-Key"
 	headerUserAgent = "User-Agent"
 )
 
