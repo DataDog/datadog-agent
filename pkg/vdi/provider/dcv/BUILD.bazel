@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "dcv",
+    srcs = [
+        "dcv.go",
+        "runner_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/vdi/provider/dcv",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/vdi/model"],
+)
+
+dd_agent_go_test(
+    name = "dcv_test",
+    srcs = ["dcv_test.go"],
+    embed = [":dcv"],
+    deps = [
+        "//pkg/vdi/model",
+        "@com_github_stretchr_testify//require",
+    ],
+)
