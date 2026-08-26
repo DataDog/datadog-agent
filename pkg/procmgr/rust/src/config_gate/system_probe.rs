@@ -161,12 +161,8 @@ impl<'a> Cfg<'a> {
     }
 
     fn sp_get_bool_default(&mut self, key: &str, default: bool) -> anyhow::Result<bool> {
-        self.yaml.resolve_get_bool_with_default(
-            self.sysprobe,
-            key,
-            Some(SYSPROBE_FLEET),
-            default,
-        )
+        self.yaml
+            .resolve_get_bool_with_default(self.sysprobe, key, Some(SYSPROBE_FLEET), default)
     }
 
     fn agent_get_bool(&mut self, key: &str) -> anyhow::Result<bool> {
