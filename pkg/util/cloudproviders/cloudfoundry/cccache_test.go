@@ -10,40 +10,39 @@ package cloudfoundry
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/cloudfoundry-community/go-cfclient/v2"
+	"github.com/cloudfoundry/go-cfclient/v3/resource"
 	"github.com/stretchr/testify/assert"
 )
 
 // testCCClient implements CCClientI for testing
 type testCCClient struct{}
 
-func (t testCCClient) ListV3AppsByQuery(_ url.Values) ([]cfclient.V3App, error) {
-	return []cfclient.V3App{v3App1, v3App2}, nil
+func (t testCCClient) ListV3AppsByQuery(_ PerPage) ([]*resource.App, error) {
+	return []*resource.App{&v3App1, &v3App2}, nil
 }
 
-func (t testCCClient) ListV3OrganizationsByQuery(_ url.Values) ([]cfclient.V3Organization, error) {
-	return []cfclient.V3Organization{v3Org1, v3Org2}, nil
+func (t testCCClient) ListV3OrganizationsByQuery(_ PerPage) ([]*resource.Organization, error) {
+	return []*resource.Organization{&v3Org1, &v3Org2}, nil
 }
 
-func (t testCCClient) ListV3SpacesByQuery(_ url.Values) ([]cfclient.V3Space, error) {
-	return []cfclient.V3Space{v3Space1, v3Space2}, nil
+func (t testCCClient) ListV3SpacesByQuery(_ PerPage) ([]*resource.Space, error) {
+	return []*resource.Space{&v3Space1, &v3Space2}, nil
 }
 
-func (t testCCClient) ListAllProcessesByQuery(_ url.Values) ([]cfclient.Process, error) {
-	return []cfclient.Process{cfProcess1, cfProcess2}, nil
+func (t testCCClient) ListAllProcessesByQuery(_ PerPage) ([]*resource.Process, error) {
+	return []*resource.Process{&cfProcess1, &cfProcess2}, nil
 }
 
-func (t testCCClient) ListOrgQuotasByQuery(_ url.Values) ([]cfclient.OrgQuota, error) {
-	return []cfclient.OrgQuota{cfOrgQuota1, cfOrgQuota2}, nil
+func (t testCCClient) ListOrgQuotasByQuery(_ PerPage) ([]*resource.OrganizationQuota, error) {
+	return []*resource.OrganizationQuota{&cfOrgQuota1, &cfOrgQuota2}, nil
 }
 
-func (t testCCClient) ListSidecarsByApp(_ url.Values, guid string) ([]CFSidecar, error) {
+func (t testCCClient) ListSidecarsByApp(_ PerPage, guid string) ([]CFSidecar, error) {
 	if guid == "random_app_guid" {
 		return []CFSidecar{cfSidecar1}, nil
 	} else if guid == "guid2" {
@@ -52,8 +51,8 @@ func (t testCCClient) ListSidecarsByApp(_ url.Values, guid string) ([]CFSidecar,
 	return nil, nil
 }
 
-func (t testCCClient) ListIsolationSegmentsByQuery(_ url.Values) ([]cfclient.IsolationSegment, error) {
-	return []cfclient.IsolationSegment{cfIsolationSegment1, cfIsolationSegment2}, nil
+func (t testCCClient) ListIsolationSegmentsByQuery(_ PerPage) ([]*resource.IsolationSegment, error) {
+	return []*resource.IsolationSegment{&cfIsolationSegment1, &cfIsolationSegment2}, nil
 }
 
 func (t testCCClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
@@ -74,7 +73,7 @@ func (t testCCClient) GetIsolationSegmentOrganizationGUID(guid string) (string, 
 	return "", nil
 }
 
-func (t testCCClient) GetV3AppByGUID(guid string) (*cfclient.V3App, error) {
+func (t testCCClient) GetV3AppByGUID(guid string) (*resource.App, error) {
 	switch guid {
 	case v3App1.GUID:
 		return &v3App1, nil
@@ -84,7 +83,7 @@ func (t testCCClient) GetV3AppByGUID(guid string) (*cfclient.V3App, error) {
 	return nil, fmt.Errorf("could not find V3App with guid %s", guid)
 }
 
-func (t testCCClient) GetV3SpaceByGUID(guid string) (*cfclient.V3Space, error) {
+func (t testCCClient) GetV3SpaceByGUID(guid string) (*resource.Space, error) {
 	switch guid {
 	case v3Space1.GUID:
 		return &v3Space1, nil
@@ -94,7 +93,7 @@ func (t testCCClient) GetV3SpaceByGUID(guid string) (*cfclient.V3Space, error) {
 	return nil, fmt.Errorf("could not find V3Space with guid %s", guid)
 }
 
-func (t testCCClient) GetV3OrganizationByGUID(guid string) (*cfclient.V3Organization, error) {
+func (t testCCClient) GetV3OrganizationByGUID(guid string) (*resource.Organization, error) {
 	switch guid {
 	case v3Org1.GUID:
 		return &v3Org1, nil
@@ -104,10 +103,9 @@ func (t testCCClient) GetV3OrganizationByGUID(guid string) (*cfclient.V3Organiza
 	return nil, fmt.Errorf("could not find V3Organization with guid %s", guid)
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (t testCCClient) ListProcessByAppGUID(query url.Values, guid string) ([]cfclient.Process, error) {
+func (t testCCClient) ListProcessByAppGUID(_ PerPage, guid string) ([]*resource.Process, error) {
 	if guid == v3App1.GUID {
-		return []cfclient.Process{cfProcess1, cfProcess2}, nil
+		return []*resource.Process{&cfProcess1, &cfProcess2}, nil
 	}
 	return nil, fmt.Errorf("could not find processes for app with guid %s", guid)
 }
@@ -256,7 +254,7 @@ func TestCCCache_GetProcesses(t *testing.T) {
 	processes, err := cc.GetProcesses("random_app_guid")
 	assert.Nil(t, err)
 
-	expected := []cfclient.Process{cfProcess1, cfProcess2}
+	expected := []resource.Process{cfProcess1, cfProcess2}
 	// maps in go do not guarantee order
 	sort.Slice(expected, func(i, j int) bool {
 		return expected[i].GUID > expected[j].GUID
@@ -274,7 +272,7 @@ func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
 
 	// clear the processes cache to trigger cache misses
 	cc.Lock()
-	cc.processesByAppGUID = make(map[string][]*cfclient.Process)
+	cc.processesByAppGUID = make(map[string][]*resource.Process)
 	cc.Unlock()
 
 	// concurrent requests should all succeed
@@ -296,7 +294,7 @@ func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
 
 	// clear the apps cache to trigger cache misses
 	cc.Lock()
-	cc.appsByGUID = make(map[string]*cfclient.V3App)
+	cc.appsByGUID = make(map[string]*resource.App)
 	cc.Unlock()
 
 	// concurrent requests should all succeed
@@ -318,7 +316,7 @@ func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
 
 	// clear the spaces cache to trigger cache misses
 	cc.Lock()
-	cc.spacesByGUID = make(map[string]*cfclient.V3Space)
+	cc.spacesByGUID = make(map[string]*resource.Space)
 	cc.Unlock()
 
 	// concurrent requests should all succeed
@@ -340,7 +338,7 @@ func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
 
 	// clear the orgs cache to trigger cache misses
 	cc.Lock()
-	cc.orgsByGUID = make(map[string]*cfclient.V3Organization)
+	cc.orgsByGUID = make(map[string]*resource.Organization)
 	cc.Unlock()
 
 	// concurrent requests should all succeed
@@ -363,10 +361,10 @@ func TestCCCache_RefreshCacheOnMiss_GetCFApplication(t *testing.T) {
 	// clear multiple caches to trigger cache misses
 	cc.Lock()
 	cc.cfApplicationsByGUID = make(map[string]*CFApplication)
-	cc.appsByGUID = make(map[string]*cfclient.V3App)
-	cc.spacesByGUID = make(map[string]*cfclient.V3Space)
-	cc.orgsByGUID = make(map[string]*cfclient.V3Organization)
-	cc.processesByAppGUID = make(map[string][]*cfclient.Process)
+	cc.appsByGUID = make(map[string]*resource.App)
+	cc.spacesByGUID = make(map[string]*resource.Space)
+	cc.orgsByGUID = make(map[string]*resource.Organization)
+	cc.processesByAppGUID = make(map[string][]*resource.Process)
 	cc.Unlock()
 
 	// concurrent requests should all succeed
