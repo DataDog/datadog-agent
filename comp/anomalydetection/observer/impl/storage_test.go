@@ -113,22 +113,6 @@ func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
 	assert.Equal(t, 3.0, series.Points[0].Value)
 }
 
-func TestTimeSeriesStorage_AddSameBucket_MinMax(t *testing.T) {
-	s := newTimeSeriesStorage()
-
-	s.Add("test", "my.metric", 10.0, 1000, nil)
-	s.Add("test", "my.metric", 20.0, 1000, nil)
-	s.Add("test", "my.metric", 5.0, 1000, nil)
-
-	minSeries := s.GetSeries("test", "my.metric", nil, AggregateMin)
-	maxSeries := s.GetSeries("test", "my.metric", nil, AggregateMax)
-
-	require.NotNil(t, minSeries)
-	require.NotNil(t, maxSeries)
-	assert.Equal(t, 5.0, minSeries.Points[0].Value)
-	assert.Equal(t, 20.0, maxSeries.Points[0].Value)
-}
-
 func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 	s := newTimeSeriesStorage()
 
@@ -256,34 +240,26 @@ func TestSeriesStats_AggregateAt(t *testing.T) {
 		timestamps: []int64{1000},
 		sums:       []float64{100.0},
 		counts:     []int64{4},
-		mins:       []float64{10.0},
-		maxes:      []float64{40.0},
 	}
 
 	assert.Equal(t, 25.0, ss.aggregateAt(0, AggregateAverage))
 	assert.Equal(t, 100.0, ss.aggregateAt(0, AggregateSum))
 	assert.Equal(t, 4.0, ss.aggregateAt(0, AggregateCount))
-	assert.Equal(t, 10.0, ss.aggregateAt(0, AggregateMin))
-	assert.Equal(t, 40.0, ss.aggregateAt(0, AggregateMax))
 
 	// Zero count returns 0 for average
 	ss2 := &seriesStats{
 		timestamps: []int64{1000},
 		sums:       []float64{10.0},
 		counts:     []int64{0},
-		mins:       []float64{0},
-		maxes:      []float64{0},
 	}
 	assert.Equal(t, 0.0, ss2.aggregateAt(0, AggregateAverage))
 }
 
 func TestAggSuffix(t *testing.T) {
-	// Test all aggregation types return correct suffixes
+	// Test all aggregation types return correct suffixes.
 	assert.Equal(t, "avg", aggSuffix(AggregateAverage))
 	assert.Equal(t, "sum", aggSuffix(AggregateSum))
 	assert.Equal(t, "count", aggSuffix(AggregateCount))
-	assert.Equal(t, "min", aggSuffix(AggregateMin))
-	assert.Equal(t, "max", aggSuffix(AggregateMax))
 
 	// Unknown aggregation type
 	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
@@ -419,7 +395,7 @@ func TestGetSeriesRange_NoOverlap(t *testing.T) {
 
 func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	s := newTimeSeriesStorage()
-	// Two values in the same bucket: sum=30, count=2, min=10, max=20, avg=15
+	// Two values in the same bucket: sum=30, count=2, avg=15.
 	s.Add("ns", "m", 10.0, 100, nil)
 	s.Add("ns", "m", 20.0, 100, nil)
 
@@ -431,8 +407,6 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	}{
 		{AggregateSum, 30.0},
 		{AggregateCount, 2.0},
-		{AggregateMin, 10.0},
-		{AggregateMax, 20.0},
 		{AggregateAverage, 15.0},
 	} {
 		result := s.GetSeriesRange(id, 0, 200, tc.agg)

@@ -92,7 +92,42 @@ func IPCCertFilepath() string {
 	return pkgconfigsetup.Datadog().GetString("ipc_cert_file_path")
 }
 
-// ApplySetting writes one streamed setting to the global config, preserving the source.
+// StreamedSetting is one setting carried by a config stream event.
+type StreamedSetting struct {
+	Key    string
+	Value  *structpb.Value
+	Source string
+}
+
+// ApplyStreamedSettings writes a whole streamed snapshot to the global config in one pass. Unlike
+// ApplySetting it accepts env-var-sourced settings, so the result mirrors the core agent exactly.
+func ApplyStreamedSettings(settings []StreamedSetting) {
+	b := pkgconfigsetup.Datadog()
+	type bulkSetter interface {
+		DirectBulkSet(settings []pkgconfigmodel.DirectSetting)
+	}
+	setter, ok := b.(bulkSetter)
+	if !ok {
+		pkglog.Warnf("config implementation %T has no DirectBulkSet; falling back to Set, which rejects env-var-sourced settings", b)
+		for _, setting := range settings {
+			ApplySetting(setting.Key, setting.Value, setting.Source)
+		}
+		return
+	}
+
+	direct := make([]pkgconfigmodel.DirectSetting, 0, len(settings))
+	for _, setting := range settings {
+		direct = append(direct, pkgconfigmodel.DirectSetting{
+			Key:    setting.Key,
+			Value:  pbValueToGo(setting.Value),
+			Source: pkgconfigmodel.Source(setting.Source),
+		})
+	}
+	setter.DirectBulkSet(direct)
+}
+
+// ApplySetting writes one streamed setting to the global config, preserving the source. Goes
+// through Set so change notifications still reach registered receivers.
 func ApplySetting(key string, value *structpb.Value, source string) {
 	pkgconfigsetup.Datadog().Set(key, pbValueToGo(value), pkgconfigmodel.Source(source))
 }

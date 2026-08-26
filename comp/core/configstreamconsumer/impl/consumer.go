@@ -539,9 +539,15 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 
 	c.log.Infof("Applying config snapshot (seq_id: %d, settings: %d)", snapshot.SequenceId, len(snapshot.Settings))
 
+	settings := make([]configstreambootstrap.StreamedSetting, 0, len(snapshot.Settings))
 	for _, setting := range snapshot.Settings {
-		configstreambootstrap.ApplySetting(setting.Key, setting.Value, setting.Source)
+		settings = append(settings, configstreambootstrap.StreamedSetting{
+			Key:    setting.Key,
+			Value:  setting.Value,
+			Source: setting.Source,
+		})
 	}
+	configstreambootstrap.ApplyStreamedSettings(settings)
 	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 

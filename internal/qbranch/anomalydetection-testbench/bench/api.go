@@ -510,10 +510,6 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		agg = observerdef.AggregateCount
 	case "sum":
 		agg = observerdef.AggregateSum
-	case "min":
-		agg = observerdef.AggregateMin
-	case "max":
-		agg = observerdef.AggregateMax
 	default:
 		api.writeError(w, http.StatusBadRequest, "invalid aggregation suffix")
 		return
@@ -627,7 +623,6 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 	agg := observerdef.AggregateAverage
 	if idx := strings.LastIndex(nameWithAgg, ":"); idx != -1 {
 		suffix := nameWithAgg[idx+1:]
-		name = nameWithAgg[:idx]
 		switch suffix {
 		case "avg":
 			agg = observerdef.AggregateAverage
@@ -635,10 +630,13 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 			agg = observerdef.AggregateCount
 		case "sum":
 			agg = observerdef.AggregateSum
-		case "min":
-			agg = observerdef.AggregateMin
-		case "max":
-			agg = observerdef.AggregateMax
+		default:
+			// The colon may be part of the metric name rather than an aggregate
+			// suffix. Keep the full name and the default Average aggregate.
+			idx = -1
+		}
+		if idx != -1 {
+			name = nameWithAgg[:idx]
 		}
 	}
 

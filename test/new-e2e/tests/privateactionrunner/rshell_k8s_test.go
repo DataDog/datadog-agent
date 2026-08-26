@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -49,10 +50,29 @@ func TestPARRshellK8sSuite(t *testing.T) {
 	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64)))
 }
 
-// SetupSuite waits for PAR to be ready and actively polling fakeintake.
+// SetupSuite registers a signing identity with fakeintake, then waits for PAR to be
+// ready and actively polling.
 func (s *parK8sSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
+	selector := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
+	keyPushed := false
+	defer func() {
+		if !keyPushed {
+			s.logPARContainerLogs(selector, "signing key push failure")
+		}
+	}()
+
+	s.T().Log("Pushing the PAR signing key through fakeintake Remote Config")
+	func() {
+		started := time.Now()
+		defer func() {
+			s.T().Logf("PAR signing key push finished after %s", time.Since(started))
+		}()
+		SetupPARTaskSigning(s.T(), s.Env().FakeIntake.Client(), testRunnerOrgID, testRunnerRunnerID)
+	}()
+	keyPushed = true
+
 	s.waitForPARReady()
 }
 
@@ -327,9 +347,10 @@ func rshellExitCode(t *testing.T, result *api.PARTaskResult) int {
 }
 
 // waitForPARReady waits until the private-action-runner container is Ready
-// and fakeintake is reachable (confirming the ECS task is up).
+// and actively polling fakeintake.
 func (s *parK8sSuite) waitForPARReady() {
 	selector := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
+	started := time.Now()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		pods, err := s.Env().KubernetesCluster.Client().CoreV1().
 			Pods(agentNamespace).List(context.Background(), metav1.ListOptions{
@@ -345,12 +366,52 @@ func (s *parK8sSuite) waitForPARReady() {
 		}
 		assert.Fail(c, "private-action-runner container not ready")
 	}, 5*time.Minute, 10*time.Second, "PAR container should become ready")
+	s.T().Logf("PAR container became Ready after %s", time.Since(started))
 
 	// Confirm PAR is actively polling fakeintake by waiting for at least one dequeue call.
-	// This guards against a race where the container is Ready but the dequeue loop hasn't started.
+	// The workflow loop starts only after KeysManager receives its first Remote Config update.
+	pollingObserved := false
+	dequeueStarted := time.Now()
+	defer func() {
+		if !pollingObserved {
+			s.logPARContainerLogs(selector, "dequeue polling readiness failure")
+		}
+	}()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := s.Env().FakeIntake.Client().GetPARDequeueCount()
 		assert.NoError(c, err)
 		assert.Greater(c, count, 0, "PAR has not yet called the dequeue endpoint")
-	}, 2*time.Minute, 3*time.Second, "PAR should start polling fakeintake")
+	}, 5*time.Minute, 3*time.Second, "PAR should start polling fakeintake")
+	pollingObserved = true
+	s.T().Logf("PAR started polling fakeintake %s after its container became Ready", time.Since(dequeueStarted))
+}
+
+func (s *parK8sSuite) logPARContainerLogs(selector, reason string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().
+		Pods(agentNamespace).List(ctx, metav1.ListOptions{LabelSelector: "app=" + selector})
+	if err != nil {
+		s.T().Logf("Unable to list Agent pods while collecting PAR logs after %s: %v", reason, err)
+		return
+	}
+
+	for _, pod := range pods.Items {
+		for _, status := range pod.Status.ContainerStatuses {
+			if status.Name == parContainerName {
+				s.T().Logf("PAR container status after %s: pod=%s ready=%t restarts=%d state=%+v lastState=%+v",
+					reason, pod.Name, status.Ready, status.RestartCount, status.State, status.LastTerminationState)
+			}
+		}
+
+		logs, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agentNamespace).
+			GetLogs(pod.Name, &corev1.PodLogOptions{Container: parContainerName, Timestamps: true}).
+			DoRaw(ctx)
+		if err != nil {
+			s.T().Logf("Unable to collect PAR logs from pod %s after %s: %v", pod.Name, reason, err)
+			continue
+		}
+		s.T().Logf("PAR logs from pod %s after %s:\n%s", pod.Name, reason, logs)
+	}
 }
