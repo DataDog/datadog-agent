@@ -94,6 +94,7 @@ const (
 	OriginProductDetailNginxReceiver             OriginProductDetail = 234
 	OriginProductDetailNSXTReceiver              OriginProductDetail = 235
 	OriginProductDetailOracleDBReceiver          OriginProductDetail = 236
+	OriginProductDetailOTLPReceiver              OriginProductDetail = 529
 	OriginProductDetailPodmanReceiver            OriginProductDetail = 521
 	OriginProductDetailPostgreSQLReceiver        OriginProductDetail = 237
 	OriginProductDetailPrometheusReceiver        OriginProductDetail = 238

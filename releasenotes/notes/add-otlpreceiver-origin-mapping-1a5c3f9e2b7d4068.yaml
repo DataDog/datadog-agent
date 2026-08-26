@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Metrics received through Agent OTLP ingest that cannot be attributed to a specific
+    OpenTelemetry Collector receiver -- for example points reported directly by an OpenTelemetry
+    SDK -- are now classified with origin ``opentelemetry_collector_otlpreceiver`` instead of
+    ``opentelemetry_collector_unknown``, so OTLP ingest traffic can be accounted for separately.
