@@ -27,8 +27,7 @@ import (
 )
 
 // minConfigsPerDeviceFloor is the lowest allowed value for the min_configs_per_device
-// setting: at least the two most recent configs (last-known-good and current) must
-// always be retained per device.
+// maintain at least the current running and start up config
 const minConfigsPerDeviceFloor = 2
 
 // resolveConfigsPerDeviceLimits enforces the invariants EvictConfigs relies on: neither
