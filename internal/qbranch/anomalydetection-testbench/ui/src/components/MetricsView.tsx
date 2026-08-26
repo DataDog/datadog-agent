@@ -32,9 +32,14 @@ function getDetectorComponent(anomaly: { detectorName: string; detectorComponent
   return anomaly.detectorComponent ?? anomaly.detectorName;
 }
 
-function formatSeriesLabel(tags: string[]): string {
-  if (!tags || tags.length === 0) return 'untagged';
-  return tags.join(', ');
+function effectiveSeriesTags(tags: string[], host?: string): string[] {
+	return host ? [`host:${host}`, ...tags] : tags;
+}
+
+function formatSeriesLabel(tags: string[], host?: string): string {
+	const displayTags = effectiveSeriesTags(tags, host);
+	if (displayTags.length === 0) return 'untagged';
+	return displayTags.join(', ');
 }
 
 /** Prefix sum of per-bucket deltas (time-ordered) — total from scenario start. */
@@ -214,7 +219,7 @@ export function MetricsView({
   }, [allAnomalies]);
 
   const tagGroups = useMemo(() => {
-    const all = extractTagGroups(allSeries.map((s) => s.tags));
+	const all = extractTagGroups(allSeries.map((s) => effectiveSeriesTags(s.tags, s.host)));
     return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
   }, [allSeries]);
 
@@ -724,7 +729,7 @@ export function MetricsView({
                       const dataList = groupSeriesData.get(groupKey) ?? [];
                       if (dataList.length === 0) return null;
                       const tagFiltered = (tagFilter.include.size > 0 || tagFilter.exclude.size > 0)
-                        ? dataList.filter((d) => matchesTagFilter(d.tags ?? [], tagFilter))
+						? dataList.filter((d) => matchesTagFilter(effectiveSeriesTags(d.tags ?? [], d.host), tagFilter))
                         : dataList;
                       const chartSeries = showAnomalyOnlySeriesLines
                         ? tagFiltered.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
@@ -734,7 +739,7 @@ export function MetricsView({
                       const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
                       const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
                       const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                        label: formatSeriesLabel(d.tags),
+							label: formatSeriesLabel(d.tags, d.host),
                         points: d.points,
                         seriesId: d.id,
                       }));
@@ -797,7 +802,7 @@ export function MetricsView({
                             viewMode === 'rate-min' ? toRatePerMinSeries :
                             (pts: Point[]) => pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                            label: formatSeriesLabel(d.tags),
+								label: formatSeriesLabel(d.tags, d.host),
                             points: transformPoints(d.points),
                             seriesId: d.id,
                           }));
@@ -909,7 +914,7 @@ export function MetricsView({
                           const mapPoints = (pts: Point[]) =>
                             isCounterTelemetry ? cumulativeFromStart(pts) : pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                            label: formatSeriesLabel(d.tags),
+								label: formatSeriesLabel(d.tags, d.host),
                             points: mapPoints(d.points),
                             seriesId: d.id,
                           }));

@@ -419,6 +419,7 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 		ID         string   `json:"id"`
 		Namespace  string   `json:"namespace"`
 		Name       string   `json:"name"`
+		Host       string   `json:"host,omitempty"`
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
 		Virtual    bool     `json:"virtual"`
@@ -458,6 +459,7 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 					ID:         compactID,
 					Namespace:  m.Namespace,
 					Name:       nameWithAgg,
+					Host:       m.Host,
 					Tags:       m.Tags,
 					PointCount: pointCount,
 					Virtual:    virtual,
@@ -577,6 +579,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		ID        string          `json:"id"`
 		Namespace string          `json:"namespace"`
 		Name      string          `json:"name"`
+		Host      string          `json:"host,omitempty"`
 		Tags      []string        `json:"tags"`
 		Points    []pointOutput   `json:"points"`
 		Anomalies []anomalyMarker `json:"anomalies"`
@@ -586,6 +589,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		ID:        originalID,
 		Namespace: meta.Namespace,
 		Name:      nameWithAgg,
+		Host:      meta.Host,
 		Tags:      series.Tags,
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
@@ -719,6 +723,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		ID        string          `json:"id"`
 		Namespace string          `json:"namespace"`
 		Name      string          `json:"name"`
+		Host      string          `json:"host,omitempty"`
 		Tags      []string        `json:"tags"`
 		Points    []pointOutput   `json:"points"`
 		Anomalies []anomalyMarker `json:"anomalies"`
@@ -728,6 +733,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		ID:        seriesID,
 		Namespace: namespace,
 		Name:      nameWithAgg,
+		Host:      foundMeta.Host,
 		Tags:      foundMeta.Tags,
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
@@ -767,6 +773,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 		DetectorComponent string             `json:"detectorComponent"`
 		Title             string             `json:"title"`
 		Description       string             `json:"description"`
+		Host              string             `json:"host,omitempty"`
 		Tags              []string           `json:"tags"`
 		Timestamp         int64              `json:"timestamp"`
 		DebugInfo         *debugInfoResponse `json:"debugInfo,omitempty"`
@@ -798,6 +805,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			Title:             a.Title,
 			Description:       a.Description,
+			Host:              a.Source.Host,
 			Tags:              a.Source.Tags,
 			Timestamp:         a.Timestamp,
 		}
@@ -1366,27 +1374,41 @@ func scorerReportContributorName(meta *observerdef.SeriesMeta, context *observer
 		switch meta.Namespace {
 		case "log_metrics_extractor":
 			if example := strings.TrimSpace(context.Example); example != "" {
-				return logReportContributorName(example, meta.Tags)
+				return logReportContributorName(example, meta.Host, meta.Tags)
 			}
 			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
-				return logReportContributorName(pattern, meta.Tags)
+				return logReportContributorName(pattern, meta.Host, meta.Tags)
 			}
 		case "log_pattern_extractor":
 			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
-				return logReportContributorName(pattern, meta.Tags)
+				return logReportContributorName(pattern, meta.Host, meta.Tags)
 			}
 		}
 	}
 	return observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
 		Name:      meta.Name,
+		Host:      meta.Host,
 		Tags:      meta.Tags,
 		Aggregate: aggregate,
 	}.DisplayName()
 }
 
-func logReportContributorName(name string, tags []string) string {
+func logReportContributorName(name, host string, tags []string) string {
 	name = "log: " + name
+	if host != "" {
+		hostTag := "host:" + host
+		hasHost := false
+		for _, tag := range tags {
+			if tag == hostTag {
+				hasHost = true
+				break
+			}
+		}
+		if !hasHost {
+			tags = append([]string{hostTag}, tags...)
+		}
+	}
 	if len(tags) == 0 {
 		return name
 	}
