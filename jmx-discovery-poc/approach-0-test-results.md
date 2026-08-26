@@ -162,10 +162,19 @@ JMXFetch received init_config={new_gc_metrics=true, collect_default_metrics=true
 
 **Note on metric count**: JMXFetch collects 28 metrics (default JVM
 metrics). Kafka-specific metrics (350+) require the integration's
-`metrics.yaml` to be present in the agent's `dist/conf.d/kafka.d/`
-directory. The `collect_default_metrics: true` flag tells JMXFetch to
-load it, but the file must exist in the agent image. This is an
-integration packaging concern, not a discovery issue.
+`metrics.yaml` to be loaded into the config's `MetricConfig` field.
+This normally happens in `processNewConfig` via
+`check.CollectDefaultMetrics()`, but that function calls
+`check.IsJMXConfig()` which iterates over `config.Instances` — and
+the discovery template has `instances: []`, so `IsJMXConfig` returns
+false and `metrics.yaml` is never loaded.
+
+This is the same `IsJMXConfig` misclassification issue identified in
+the design critique (point 8). The fix requires either:
+- Making `CollectDefaultMetrics` check `init_config` for `is_jmx: true`
+  instead of relying on `IsJMXConfig` (which needs instances), or
+- Loading `metrics.yaml` in `applyDiscoveredConfigsLocked` after the
+  discovered instances are merged into the template
 
 ## Files Changed
 
