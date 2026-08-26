@@ -64,7 +64,7 @@ func configureCommand(cmd *exec.Cmd) {
 		if cmd.Process == nil {
 			return os.ErrProcessDone
 		}
-		if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+		if err := killProcessGroup(cmd.Process.Pid); err != nil {
 			if errors.Is(err, syscall.ESRCH) {
 				return os.ErrProcessDone
 			}
@@ -72,4 +72,18 @@ func configureCommand(cmd *exec.Cmd) {
 		}
 		return nil
 	}
+}
+
+func killProcessGroup(pid int) error {
+	return syscall.Kill(-pid, syscall.SIGKILL)
+}
+
+func terminateCommand(cmd *exec.Cmd) error {
+	if cmd.Process == nil {
+		return nil
+	}
+	if err := killProcessGroup(cmd.Process.Pid); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	return nil
 }
