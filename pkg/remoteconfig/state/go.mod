@@ -5,12 +5,13 @@ go 1.26.0
 require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2
 	github.com/secure-systems-lab/go-securesystemslib v0.11.0
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 )
 
 require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

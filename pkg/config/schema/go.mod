@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.yaml.in/yaml/v3 v3.0.5
 )
 

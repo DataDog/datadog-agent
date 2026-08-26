@@ -29,7 +29,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.75.4
 	github.com/benbjohnson/clock v1.3.5
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.11.0
 	golang.org/x/net v0.58.0
 )

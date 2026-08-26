@@ -18,7 +18,7 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	github.com/tinylib/msgp v1.6.4
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
@@ -45,6 +45,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.opentelemetry.io/otel/metric v1.45.0 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect

@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 )
 
 require (

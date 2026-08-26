@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum
 go 1.26.0
 
 require (
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/pdata v1.64.0
 	go.opentelemetry.io/otel v1.45.0
 	go.uber.org/zap v1.28.0

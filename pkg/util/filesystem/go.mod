@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1
 	github.com/gofrs/flock v0.13.0
 	github.com/shirou/gopsutil/v4 v4.26.7
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0
 )

@@ -20,7 +20,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
 	github.com/benbjohnson/clock v1.3.5
 	github.com/json-iterator/go v1.1.12
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/sys v0.47.0
 )

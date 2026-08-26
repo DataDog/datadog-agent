@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/confmaputils
 go 1.26.0
 
 require (
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/confmap/xconfmap v0.158.0
 )
 

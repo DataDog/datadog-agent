@@ -13,7 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.75.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.75.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.75.4
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.11.0
 	go.yaml.in/yaml/v3 v3.0.5
 )

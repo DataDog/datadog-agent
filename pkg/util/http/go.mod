@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	golang.org/x/net v0.58.0
 )
 

@@ -25,7 +25,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.158.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.158.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.158.0
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/component/componentstatus v0.158.0
 	go.opentelemetry.io/collector/component/componenttest v0.158.0

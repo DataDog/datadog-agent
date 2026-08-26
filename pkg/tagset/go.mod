@@ -4,12 +4,13 @@ go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	github.com/twmb/murmur3 v1.1.8
 )
 
 require (
 	github.com/kr/text v0.2.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

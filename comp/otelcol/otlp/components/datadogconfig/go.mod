@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-00010101000000-000000000000
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/component/componenttest v0.158.0
 	go.opentelemetry.io/collector/config/configauth v1.64.0

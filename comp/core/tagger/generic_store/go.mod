@@ -4,12 +4,13 @@ go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.60.0
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

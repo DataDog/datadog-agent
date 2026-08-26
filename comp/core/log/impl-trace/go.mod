@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 )
 
 require (

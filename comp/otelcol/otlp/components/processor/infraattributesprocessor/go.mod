@@ -18,7 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.5
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/component/componenttest v0.158.0
 	go.opentelemetry.io/collector/confmap v1.64.0

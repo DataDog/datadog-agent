@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/component/componenttest v0.158.0
 	go.opentelemetry.io/collector/pdata v1.64.0
