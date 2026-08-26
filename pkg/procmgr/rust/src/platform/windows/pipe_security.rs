@@ -25,7 +25,7 @@ use super::wide;
 // `pkg/procmgr/coat/client_grpc_windows.go`.
 //
 // Server ACE: FILE_GENERIC_READ | FILE_WRITE_DATA (SDDL hex below).
-// Client CreateFile / DialPipe: same mask (FILE_GENERIC_READ | FILE_WRITE_DATA).
+// Client CreateFile / DialPipe: GENERIC_READ | FILE_WRITE_DATA.
 //
 // Do not use FILE_GENERIC_WRITE / SDDL FW / FRFW: on named pipes it includes
 // FILE_CREATE_PIPE_INSTANCE, which would let a compromised agent-profile child
