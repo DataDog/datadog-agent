@@ -233,8 +233,20 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
 
 
 @task
-def print_job_trace(_, job_id, repo='DataDog/datadog-agent'):
+def print_job_trace(_, job_id, repo='DataDog/datadog-agent', force: bool = False):
     """Prints the trace (the log) of a Gitlab job."""
+    if not force:
+        different_repo = '' if repo == 'DataDog/datadog-agent' else f"cd {repo.split('/')[-1]} && "
+        text = (
+            "WARNING: This task has been deprecated, and will be removed on Oct 05 2026.\n"
+            + "Please use `ddgl` (https://github.com/DataDog/ddgl-cli) instead:\n"
+            + f"     {different_repo}ddgl logs --job {job_id}     \n"
+            + "If `ddgl` is not available, either install it manually or run it in a dev env\n"
+            + "by prefixing with `dda env dev run --`.\n"
+            + "Re-run with `--force` to force execution of this task."
+        )
+        print(color_message(text, Color.ORANGE))
+        return
 
     repo = get_gitlab_repo(repo)
     trace = str(repo.jobs.get(job_id, lazy=True).trace(), 'utf-8')
