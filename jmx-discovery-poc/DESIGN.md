@@ -102,10 +102,10 @@ Details: [approach-2-error-suppression.md](approach-2-error-suppression.md)
 | Pros | Cons |
 |---|---|
 | No new channels or endpoints | Higher latency (≤15s poll interval) |
-| No new HTTP server | Config is scheduled before verification (unlike Python) |
-| Minimal JMXFetch changes (error suppression only) | Error suppression must be carefully scoped |
-| Works within existing architecture | Agent doesn't know if discovery succeeded |
-| Easy to get accepted in review | |
+| No new HTTP server | **Config scheduled before verification** |
+| Minimal JMXFetch changes (error suppression only) | **Agent doesn't know if discovery succeeded** |
+| Works within existing architecture | **Discovery telemetry useless** |
+| Easy to get accepted in review | **Fleet Automation shows unverified config** |
 
 **Verdict:** Recommended. Minimal changes, works within existing
 architecture, preserves the key property (no error service checks on
@@ -114,19 +114,43 @@ is needed.
 
 ---
 
+## Approach 3: Dummy Config via Existing Channels (recommended)
+
+Reuse both existing IPC channels in a novel way: the agent includes a
+"dummy discovery config" (carrying the serialized service struct) in the
+`/configs` response; JMXFetch processes it, runs the probe (connect,
+inspect MBeans, collect one iteration), and posts the result via
+`/status`. `DiscoverConfig()` blocks until the result arrives (or times
+out), then proceeds exactly like the Python path.
+
+Details: [approach-3-dummy-config.md](approach-3-dummy-config.md)
+
+| Pros | Cons |
+|---|---|
+| No new channels or endpoints | Latency: ≤15s poll + 5s probe = ≤20s |
+| Config NOT scheduled before verification | Blocks a worker goroutine during wait |
+| Agent knows if discovery succeeded | Requires separate workqueue for JMX (production) |
+| Discovery telemetry works | Status struct needs new field |
+| No error service checks on failure | |
+| Fleet Automation status stays clean | |
+| Works within existing architecture | |
+
+**Verdict:** Recommended. Solves the problems with Approach 2 (config
+scheduled before verification, agent doesn't know result, telemetry useless)
+without the architecture change required by Approach 1.
+
+---
+
 ## Recommendation
 
-**Approach 2** for initial implementation. It requires:
+**Approach 3** for implementation. It requires:
 
-- **Agent**: JMX discovery bridge that generates candidate config from
-  service ports, composite discoverer to route JMX integrations
-- **JMXFetch**: `discovery: true` flag handling in Instance, MBean
-  inspection via `JmxDiscovery`, error suppression in `App.java` for
-  discovery instances
+- **Agent**: Discovery request registry, modified `/configs` and `/status`
+  handlers, JMX bridge that blocks on result channel
+- **JMXFetch**: Recognize `__jmx_discovery__` configs, run probe (connect,
+  inspect MBeans, collect one iteration), post result via `/status`
 
-No new endpoints, no new HTTP servers, no new command-line params. The
-only JMXFetch behavioral change is suppressing error service checks for
-instances with `discovery: true`.
+No new endpoints, no new HTTP servers, no new command-line params.
 
 ## Related Files
 
