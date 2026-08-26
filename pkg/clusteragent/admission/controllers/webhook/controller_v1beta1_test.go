@@ -390,6 +390,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetInTest("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetInTest("admission_controller.inject_tags.enabled", false)
 				mockConfig.SetInTest("admission_controller.auto_instrumentation.enabled", true)
+				mockConfig.SetInTest("apm_config.instrumentation.on_demand", true)
 				mockConfig.SetInTest("admission_controller.cws_instrumentation.enabled", false)
 			},
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(false, false, false, mockConfig) },

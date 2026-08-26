@@ -30,7 +30,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:            true,
-				OnDemand:           true,
+				OnDemand:           false,
 				EnabledNamespaces:  []string{"application"},
 				DisabledNamespaces: []string{},
 				LibVersions: map[string]string{
@@ -53,7 +53,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:            true,
-				OnDemand:           true,
+				OnDemand:           false,
 				EnabledNamespaces:  []string{},
 				DisabledNamespaces: []string{"default"},
 				LibVersions: map[string]string{
@@ -70,7 +70,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:           true,
-				OnDemand:          true,
+				OnDemand:          false,
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
@@ -119,7 +119,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:           true,
-				OnDemand:          true,
+				OnDemand:          false,
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
@@ -176,7 +176,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			configPath: "testdata/filter_service_env_var_from.yaml",
 			expected: &InstrumentationConfig{
 				Enabled:            true,
-				OnDemand:           true,
+				OnDemand:           false,
 				EnabledNamespaces:  []string{},
 				DisabledNamespaces: []string{},
 				InjectorImageTag:   "0",
