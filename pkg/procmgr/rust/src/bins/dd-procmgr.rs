@@ -59,7 +59,7 @@ enum Commands {
         #[arg(long)]
         command: String,
         /// Command arguments (repeatable). Use `--args=-Flag` for values starting with `-`.
-        #[arg(long, action = clap::ArgAction::Append)]
+        #[arg(long, action = clap::ArgAction::Append, num_args = 1..)]
         args: Vec<String>,
         /// Environment variable KEY=VALUE (repeatable)
         #[arg(long, value_name = "KEY=VALUE")]
@@ -748,6 +748,52 @@ mod tests {
         let err = parse_env_args(&args).unwrap_err();
         assert!(err.contains("INVALID"));
         assert!(err.contains("KEY=VALUE"));
+    }
+
+    #[test]
+    fn test_create_parses_multi_value_args() {
+        let cli = Cli::try_parse_from([
+            "dd-procmgr",
+            "create",
+            "--name",
+            "test",
+            "--command",
+            "/bin/sleep",
+            "--args",
+            "300",
+            "ignored",
+        ])
+        .unwrap();
+        let Commands::Create { args, .. } = cli.command else {
+            panic!("expected create subcommand");
+        };
+        assert_eq!(args, vec!["300".to_string(), "ignored".to_string()]);
+    }
+
+    #[test]
+    fn test_create_does_not_swallow_create_flags_after_args() {
+        let cli = Cli::try_parse_from([
+            "dd-procmgr",
+            "create",
+            "--name",
+            "test",
+            "--command",
+            "/bin/sleep",
+            "--args",
+            "300",
+            "--no-auto-start",
+        ])
+        .unwrap();
+        let Commands::Create {
+            args,
+            no_auto_start,
+            ..
+        } = cli.command
+        else {
+            panic!("expected create subcommand");
+        };
+        assert_eq!(args, vec!["300".to_string()]);
+        assert!(no_auto_start);
     }
 
     #[test]
