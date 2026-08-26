@@ -3,14 +3,21 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["chunks.go"],
+    srcs = [
+        "chunks.go",
+        "rcconfig.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/ndmdiscovery/impl",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/networkdevices/connectivity"],
 )
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["chunks_test.go"],
+    srcs = [
+        "chunks_test.go",
+        "rcconfig_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "@com_github_stretchr_testify//assert",
