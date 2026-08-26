@@ -619,5 +619,3 @@ func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *aut
 	}
 	return key, nil
 }
-
-

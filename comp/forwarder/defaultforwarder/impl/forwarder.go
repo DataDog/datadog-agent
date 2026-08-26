@@ -112,9 +112,7 @@ func attachCredentialProviders(resolvers map[string]resolver.DomainResolver, end
 		}
 		var providers []resolver.CredentialProvider
 		for _, keys := range ed.APIKeySet {
-			for _, p := range delegatedAuth.ProvidersFor(keys.ConfigSettingPath, ed.BaseURL) {
-				providers = append(providers, p)
-			}
+			providers = append(providers, delegatedAuth.ProvidersFor(keys.ConfigSettingPath, ed.BaseURL)...)
 		}
 		if len(providers) == 0 {
 			continue

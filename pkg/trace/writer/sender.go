@@ -538,7 +538,7 @@ func (s *sender) do(req *http.Request) error {
 		// an instance (malformed, unsupported provider, or noop component). This is a permanent
 		// failure, not a credential that may resolve. Return a fatal error so the payload is
 		// dropped rather than retried forever, which would fill the queue and block the flusher.
-		return fmt.Errorf("endpoint has no credential and no delegated-auth provider; it will not send")
+		return errors.New("endpoint has no credential and no delegated-auth provider; it will not send")
 	}
 	s.awaitingCredential.Store(false)
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
