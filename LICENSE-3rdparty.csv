@@ -428,6 +428,7 @@ core,github.com/ProtonMail/go-crypto/openpgp/x448,BSD-3-Clause,Copyright (c) 200
 core,github.com/Showmax/go-fqdn,Apache-2.0,Copyright since 2015 Showmax s.r.o
 core,github.com/VictoriaMetrics/easyproto,Apache-2.0,"Copyright 2023-2024 VictoriaMetrics, Inc"
 core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
+core,github.com/agnivade/levenshtein,MIT,Copyright (c) 2015 Agniva De Sarker
 core,github.com/alecthomas/participle,MIT,Copyright (C) 2017 Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Copyright (C) 2017 Alec Thomas
 core,github.com/alecthomas/participle/lexer/ebnf,MIT,Copyright (C) 2017 Alec Thomas
@@ -1056,6 +1057,7 @@ core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/linux,BSD-3-Clau
 core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/procfs,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
 core,github.com/cyphar/filepath-securejoin/pathrs-lite/procfs,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
 core,github.com/davecgh/go-spew/spew,ISC,Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
+core,github.com/decred/dcrd/dcrec/secp256k1/v4,ISC,Copyright (c) 2013-2017 The btcsuite developers | Copyright (c) 2015-2024 The Decred developers | Copyright (c) 2017 The Lightning Network Developers
 core,github.com/dennwc/varint,MIT,Copyright (c) 2019 Denys Smirnov
 core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gryski.com>
 core,github.com/dgryski/go-rendezvous,MIT,Copyright (c) 2017-2020 Damian Gryski <damian@gryski.com>
@@ -1574,6 +1576,44 @@ core,github.com/leodido/go-syslog/v4/rfc3164,MIT,"Copyright (c) 2018, Leonardo D
 core,github.com/leodido/go-syslog/v4/rfc5424,MIT,"Copyright (c) 2018, Leonardo Di Donato"
 core,github.com/leodido/ragel-machinery,MIT,Copyright (c) 2018 Leonardo Di Donato
 core,github.com/leodido/ragel-machinery/parser,MIT,Copyright (c) 2018 Leonardo Di Donato
+core,github.com/lestrrat-go/blackmagic,MIT,Copyright (c) 2021 lestrrat-go
+core,github.com/lestrrat-go/dsig,MIT,Copyright (c) 2025 lestrrat-go
+core,github.com/lestrrat-go/dsig-secp256k1,MIT,Copyright (c) 2025 lestrrat-go
+core,github.com/lestrrat-go/dsig/internal/ecutil,MIT,Copyright (c) 2025 lestrrat-go
+core,github.com/lestrrat-go/httpcc,MIT,Copyright (c) 2020 lestrrat-go
+core,github.com/lestrrat-go/httprc/v3,MIT,Copyright (c) 2022 lestrrat
+core,github.com/lestrrat-go/httprc/v3/errsink,MIT,Copyright (c) 2022 lestrrat
+core,github.com/lestrrat-go/httprc/v3/proxysink,MIT,Copyright (c) 2022 lestrrat
+core,github.com/lestrrat-go/httprc/v3/tracesink,MIT,Copyright (c) 2022 lestrrat
+core,github.com/lestrrat-go/jwx/v3,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/cert,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/internal/base64,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/internal/ecutil,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/internal/json,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/internal/keyconv,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/internal/pool,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/internal/tokens,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwa,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwe,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwe/internal/aescbc,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwe/internal/cipher,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwe/internal/concatkdf,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwe/internal/content_crypt,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwe/internal/keygen,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwe/jwebb,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwk,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwk/ecdsa,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwk/internal/registry,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwk/jwkbb,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jws,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jws/internal/keytype,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jws/jwsbb,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jws/legacy,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwt,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwt/internal/errors,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/jwt/internal/types,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/jwx/v3/transform,MIT,Copyright (c) 2015 lestrrat
+core,github.com/lestrrat-go/option/v2,MIT,Copyright (c) 2021 lestrrat-go
 core,github.com/libp2p/go-reuseport,ISC,Copyright (c) 2013 Conformal Systems LLC
 core,github.com/lightstep/go-expohisto/mapping,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/lightstep/go-expohisto/mapping/exponent,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1700,6 +1740,8 @@ core,github.com/open-policy-agent/opa/capabilities,Apache-2.0,Copyright 2016 The
 core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/cidr/merge,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/compiler,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/compiler/wasm,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/compiler/wasm/opa,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/debug,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/deepcopy,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/edittree,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -1709,33 +1751,40 @@ core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,Copyright 201
 core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/json/patch,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/jwx/jwa,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/jwx/jwk,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/jwx/jws,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/jwx/jws/sign,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/jwx/jws/verify,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/jsonv2,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/lcss,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/leb128,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/merge,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/methodlesstemplate,BSD-3-Clause,Copyright 2009 The Go Authors | Copyright 2016 The OPA Authors.  All rights reserved. | copyright headers are preserved
+core,github.com/open-policy-agent/opa/internal/methodlesstemplate/internal/fmtsort,BSD-3-Clause,Copyright 2009 The Go Authors | Copyright 2016 The OPA Authors.  All rights reserved. | copyright headers are preserved
 core,github.com/open-policy-agent/opa/internal/planner,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/providers/aws,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/providers/aws/crypto,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/providers/aws/v4,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/ref,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/rego/opa,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/semver,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/strings,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/uuid,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/version,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/wasm/constant,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/wasm/encoding,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/wasm/instruction,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/wasm/module,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/wasm/opcode,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/wasm/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/ast,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/ast/internal/scanner,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/ast/internal/tokens,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/ast/json,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/ast/location,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/bundle/v1pb,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/format,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/ir,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/ir/v1pb,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/keys,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/loader,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/loader/extension,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -1754,6 +1803,7 @@ core,github.com/open-policy-agent/opa/v1/topdown,Apache-2.0,Copyright 2016 The O
 core,github.com/open-policy-agent/opa/v1/topdown/builtins,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/topdown/cache,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/topdown/copypropagation,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/topdown/durationparser,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/topdown/print,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/tracing,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/types,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -2427,6 +2477,13 @@ core,github.com/scaleway/scaleway-sdk-go/parameter,Apache-2.0,Copyright 2019 Sca
 core,github.com/scaleway/scaleway-sdk-go/scw,Apache-2.0,Copyright 2019 Scaleway
 core,github.com/scaleway/scaleway-sdk-go/validation,Apache-2.0,Copyright 2019 Scaleway
 core,github.com/secure-systems-lab/go-securesystemslib/cjson,MIT,Copyright (c) 2021 NYU Secure Systems Lab
+core,github.com/segmentio/asm/base64,MIT-0,Copyright 2023 Segment
+core,github.com/segmentio/asm/cpu,MIT-0,Copyright 2023 Segment
+core,github.com/segmentio/asm/cpu/arm,MIT-0,Copyright 2023 Segment
+core,github.com/segmentio/asm/cpu/arm64,MIT-0,Copyright 2023 Segment
+core,github.com/segmentio/asm/cpu/cpuid,MIT-0,Copyright 2023 Segment
+core,github.com/segmentio/asm/cpu/x86,MIT-0,Copyright 2023 Segment
+core,github.com/segmentio/asm/internal/unsafebytes,MIT-0,Copyright 2023 Segment
 core,github.com/shirou/gopsutil/v3/common,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/cpu,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/internal/common,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
@@ -2533,6 +2590,13 @@ core,github.com/uptrace/bun/schema,BSD-2-Clause,Copyright (c) 2021 Vladimir Miha
 core,github.com/urfave/negroni/v3,MIT,Copyright (c) 2014 Jeremy Saenz
 core,github.com/valyala/fastjson,MIT,Copyright (c) 2018 Aliaksandr Valialkin
 core,github.com/valyala/fastjson/fastfloat,MIT,Copyright (c) 2018 Aliaksandr Valialkin
+core,github.com/vektah/gqlparser/v2/ast,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/gqlerror,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/lexer,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/parser,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/validator,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/validator/core,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/validator/rules,MIT,Copyright (c) 2018 Adam Scarr
 core,github.com/vibrantbyte/go-antpath/antpath,Apache-2.0,vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 core,github.com/vibrantbyte/go-antpath/extend,Apache-2.0,vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 core,github.com/vishvananda/netlink,Apache-2.0,"Copyright 2014 Docker, Inc | Copyright 2014 Vishvananda Ishaya"
