@@ -52,31 +52,15 @@ var postgresEnvAllow = map[string]struct{}{
 }
 
 // postgresBitnamiEnvAllow accepts Bitnami's configuration namespace. The
-// shared secret-name policy and postgresEnvDeny reject unsafe settings first.
+// shared secret-name policy and postgresBitnamiEnvDeny reject unsafe settings
+// first.
 var postgresBitnamiEnvAllow = regexp.MustCompile(`^POSTGRESQL_[A-Z0-9_]+$`)
 
-// postgresEnvDeny covers documented settings whose values can contain a secret
-// or an unbounded argument string. The common secret-name filter rejects the
-// password, key and certificate variants before this predicate is reached.
-var postgresEnvDeny = map[string]struct{}{
-	"PGOPTIONS":                            {},
-	"PGPASSFILE":                           {},
-	"PGSERVICE":                            {},
-	"PGSERVICEFILE":                        {},
-	"POSTGRES_HOST_AUTH_METHOD":            {},
-	"POSTGRES_INITDB_ARGS":                 {},
-	"POSTGRESQL_EXTRA_FLAGS":               {},
-	"POSTGRESQL_INITDB_ARGS":               {},
-	"POSTGRESQL_LDAP_BIND_PASSFILE_PATH":   {},
-	"POSTGRESQL_LDAP_URL":                  {},
-	"POSTGRESQL_PGHBA_AUTH_METHOD":         {},
-	"POSTGRESQL_REPLICATION_PASSFILE_PATH": {},
-	"POSTGRESQL_TLS_CA_FILE":               {},
-	"POSTGRESQL_TLS_CRL_FILE":              {},
-}
-
+// postgresBitnamiEnvDeny rejects settings whose values can contain a secret
+// or an unbounded argument string. Paths are configuration metadata; the
+// collector does not read their referenced files.
 var postgresBitnamiEnvDeny = regexp.MustCompile(
-	`^POSTGRESQL_(?:.*_)?(?:ARGS|AUTH_METHOD|CONNECTION_STRING|DSN|FLAGS|OPTS|PASSFILE(?:_PATH)?|URI|URL)$`,
+	`^POSTGRESQL_(?:.*_)?(?:ARGS|AUTH_METHOD|CONNECTION_STRING|DSN|FLAGS|OPTS|URI|URL)$`,
 )
 
 // NewPostgres returns a collector that reads selected, non-secret PostgreSQL
@@ -108,9 +92,6 @@ func (postgresConfigCollector) Collect(ctx context.Context, reader configfilesdi
 
 func includePostgresEnvVar(name string) bool {
 	if configfilesdiscoveryimpl.IsSecretEnvVarName(name) {
-		return false
-	}
-	if _, denied := postgresEnvDeny[name]; denied {
 		return false
 	}
 	if postgresBitnamiEnvDeny.MatchString(name) {
