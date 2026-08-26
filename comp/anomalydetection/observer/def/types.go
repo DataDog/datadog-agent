@@ -143,8 +143,7 @@ func (sd SeriesDescriptor) DisplayName() string {
 }
 
 // Key returns a stable string suitable for use as a map key.
-// Format: "namespace|name:agg|host|tag1,tag2,...". Hostless descriptors
-// retain the legacy three-part format for compatibility with existing output.
+// Format: "namespace|name:agg|host|tag1,tag2,...".
 func (sd SeriesDescriptor) Key() string {
 	aggStr := AggregateString(sd.Aggregate)
 	var tagStr string
@@ -153,9 +152,6 @@ func (sd SeriesDescriptor) Key() string {
 		copy(sorted, sd.Tags)
 		sort.Strings(sorted)
 		tagStr = strings.Join(sorted, ",")
-	}
-	if sd.Host == "" {
-		return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + tagStr
 	}
 	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + sd.Host + "|" + tagStr
 }

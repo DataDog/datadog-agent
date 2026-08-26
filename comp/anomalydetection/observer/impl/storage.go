@@ -637,7 +637,7 @@ func (s *timeSeriesStorage) MaxTimestamp() int64 {
 
 // seriesKey creates a unique key for a series.
 //
-// The result has the form "namespace|name|tag1,tag2,...". This function is on
+// The result has the form "namespace|name|host|tag1,tag2,...". This function is on
 // the hot path for log ingestion and detector loops, so we build the key with
 // a single growth via strings.Builder to avoid the chained `+` and intermediate
 // joinTags allocations that the naive form produces.
@@ -646,10 +646,7 @@ func seriesKey(namespace, name, host string, tags []string) string {
 		tags = canonicalizeTags(tags)
 	}
 	// Pre-compute exact length: namespace + '|' + name + '|' + host + '|' + joined(tags).
-	n := len(namespace) + 1 + len(name) + 1
-	if host != "" {
-		n += len(host) + 1
-	}
+	n := len(namespace) + 1 + len(name) + 1 + len(host) + 1
 	for i, t := range tags {
 		if i > 0 {
 			n++ // ',' separator
@@ -662,10 +659,8 @@ func seriesKey(namespace, name, host string, tags []string) string {
 	b.WriteByte('|')
 	b.WriteString(name)
 	b.WriteByte('|')
-	if host != "" {
-		b.WriteString(host)
-		b.WriteByte('|')
-	}
+	b.WriteString(host)
+	b.WriteByte('|')
 	for i, t := range tags {
 		if i > 0 {
 			b.WriteByte(',')
@@ -820,7 +815,7 @@ func (s *timeSeriesStorage) TagInternedCount() int {
 	return len(s.tagIntern)
 }
 
-// seriesKeyHash computes FNV-1a over namespace|name|tag1,tag2,... without
+// seriesKeyHash computes FNV-1a over namespace|name|host|tag1,tag2,... without
 // allocating a string. Produces the same value as fnv64aString(seriesKey(...)).
 func seriesKeyHash(namespace, name, host string, tags []string) uint64 {
 	if len(tags) > 1 && !tagsSorted(tags) {
@@ -828,9 +823,7 @@ func seriesKeyHash(namespace, name, host string, tags []string) uint64 {
 	}
 	h := fnv64aString(namespace)
 	h = fnv64aMix(h, name)
-	if host != "" {
-		h = fnv64aMix(h, host)
-	}
+	h = fnv64aMix(h, host)
 	h ^= uint64('|')
 	h *= fnvPrime64
 	for i, t := range tags {

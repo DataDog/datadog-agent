@@ -47,6 +47,7 @@ func TestTimeSeriesStorage_AddWithHostSeparatesIdenticalMetricAndTags(t *testing
 	assert.Equal(t, "host-a", firstMeta.Host)
 	assert.Equal(t, "host-b", secondMeta.Host)
 	assert.Equal(t, "test|my.metric:avg|host-a|env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Host: "host-a", Tags: []string{"env:prod"}, Aggregate: AggregateAverage}).Key())
+	assert.Equal(t, "test|my.metric:avg||env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Tags: []string{"env:prod"}, Aggregate: AggregateAverage}).Key())
 }
 
 func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
