@@ -18,12 +18,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -68,7 +67,7 @@ var adminOwnedAllowlist = perms.NewWindowsPermissions(
 )
 
 type powershellCheckWindowsSuite struct {
-	e2e.BaseSuite[environments.Host]
+	e2e.BaseSuite[environments.WindowsHost]
 }
 
 func TestPowerShellCheckWindows(t *testing.T) {
@@ -84,10 +83,9 @@ func powerShellProvisioner(checkConfig string) provisioners.Provisioner {
 		agentOptions = append(agentOptions, agentparams.WithIntegration("powershell.d", checkConfig))
 	}
 
-	return awshost.Provisioner(
-		awshost.WithRunOptions(
-			ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
-			ec2.WithAgentOptions(agentOptions...),
+	return winawshost.Provisioner(
+		winawshost.WithRunOptions(
+			scenwindows.WithAgentOptions(agentOptions...),
 		),
 	)
 }
