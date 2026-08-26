@@ -19,7 +19,8 @@ jobs:
       contents: read
       pull-requests: write
       checks: write
-    uses: DataDog/code-review-action/.github/workflows/code-review.yml@545e81e5f77ce98458b2bd14ef9718fe17aae485 # v1.2.0
+      id-token: write # for dd-sts
+    uses: DataDog/code-review-action/.github/workflows/code-review.yml@b4f43b4ac7a96b9ecc3484d77aa04ad41c07b420 # v1.3.0
     with:
       provider: codex
       # Review PRs when they are opened or transition out of draft. Use on_demand for issue_comments
@@ -28,6 +29,8 @@ jobs:
       # Sub-directory files apply only when the PR touches files under that prefix.
       prompt_file_pattern: "**/codereview_guideline.md"
       review_event: COMMENT_ONLY
+      telemetry_enabled: true
+      datadog_sts_policy: datadog-agent-code-review-telemetry
     secrets:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
       gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
