@@ -193,7 +193,7 @@ function EventRow({ window: w, filter, report, onHover }: {
         <div className="px-4 pb-3 ml-7">
           {report && (
             <div className="mb-3 bg-slate-900/40 rounded p-2">
-              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Top contributing metrics</div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Top contributions</div>
               {report.contributors.length === 0 ? (
                 <div className="text-xs text-slate-500">No storage-backed contributors</div>
               ) : (

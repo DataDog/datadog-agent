@@ -667,7 +667,9 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
 		client, _ := f.CreateClient(nil)
-		clients[f.Name()] = client
+		// Key by the group-aware GVR string (see CustomResourceClientKey) so
+		// that resources sharing a plural across API groups do not collide.
+		clients[kubestatemetrics.CustomResourceClientKey(f.Name(), f.ExpectedType())] = client
 	}
 
 	if k.instance.usesCustomResourceMetrics() {

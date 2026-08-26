@@ -198,8 +198,8 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	// in its select before shutting it down, unfortunately, there is no other
 	// way today than giving it some time to run
 	go func() {
-		time.Sleep(250 * time.Millisecond)
-		demux.aggregator.stopChan <- struct{}{}
+		assert.Eventually(t, demux.aggregator.IsInputQueueEmpty, time.Second, time.Millisecond)
+		demux.aggregator.Stop()
 	}()
 	demux.aggregator.run()
 

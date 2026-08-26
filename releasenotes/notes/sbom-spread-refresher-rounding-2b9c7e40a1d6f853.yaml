@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed ``sbom.container_image.use_spread_refresher`` never refreshing
+    container image SBOMs on hosts with fewer than ten images, and refreshing
+    them more slowly than ``periodic_refresh_seconds`` on other hosts.

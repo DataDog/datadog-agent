@@ -233,12 +233,12 @@ func compressNode(node *trieNode, prefix string, threshold float64) []MetricPatt
 	return patterns
 }
 
-// stripAggSuffix removes :avg, :count, etc. from metric names for grouping purposes.
+// stripAggSuffix removes :avg, :count, or :sum from metric names for grouping purposes.
 func stripAggSuffix(name string) string {
 	if idx := strings.LastIndex(name, ":"); idx != -1 {
 		suffix := name[idx+1:]
 		switch suffix {
-		case "avg", "count", "sum", "min", "max":
+		case "avg", "count", "sum":
 			return name[:idx]
 		}
 	}

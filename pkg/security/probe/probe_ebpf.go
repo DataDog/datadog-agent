@@ -2058,7 +2058,10 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 	if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
 		pce = newPlaceholderProcessCacheEntryPTraceMe()
 	} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
-		seclog.Errorf("ptrace event without any PID to resolve")
+		seclog.Errorf("ptrace event without any PID to resolve for process %s: request=%d retval=%d",
+			event.ProcessContext.Process.FileEvent.PathnameStr,
+			event.PTrace.Request,
+			event.PTrace.Retval)
 		return false
 	} else {
 		pidToResolve := event.PTrace.PID
@@ -2585,6 +2588,11 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 		case <-ticker.C:
 			// create the sysctl snapshot
 			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, p.config.RuntimeSecurity.SysCtlSnapshotKernelCompilationFlags)
+			if errors.Is(err, sysctl.ErrRequiredSysctlSnapshotFileNotFound) {
+				p.config.RuntimeSecurity.SysCtlSnapshotEnabled = false
+				seclog.Infof("disabling sysctl snapshots: %v", err)
+				return
+			}
 			if err != nil {
 				seclog.Warnf("sysctl snapshot failed: %v", err)
 				continue
@@ -3039,6 +3047,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_open_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_connect_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
 		},
@@ -3047,12 +3059,20 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_connect_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_bind_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingBindEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
 		},
 		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
@@ -3065,6 +3085,23 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "event_sampling_dns_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
+		},
+		manager.ConstantEditor{
+			Name:  "dynamic_sampling_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
+		},
+		manager.ConstantEditor{
+			Name: "ring_buffer_size",
+			Value: func() uint64 {
+				if p.config.Probe.EventStreamBufferSize != 0 {
+					return uint64(p.config.Probe.EventStreamBufferSize)
+				}
+				return uint64(probes.ComputeDefaultEventsRingBufferSize())
+			}(),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
@@ -3356,7 +3393,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 			}
 		}
 		return nil
-	}, p.Resolvers.CGroupResolver)
+	}, p.Resolvers.CGroupResolver, config.RuntimeSecurity.EnforcementCgroupKillEnabled)
 	processKiller, err := NewProcessKiller(config, pkos)
 	if err != nil {
 		return nil, err

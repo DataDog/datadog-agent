@@ -2936,6 +2936,29 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	}
 }
 
+func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
+	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, candidate := range cfg.Profiles {
+		if candidate.Name == "cluster-agent" {
+			profile = candidate
+			break
+		}
+	}
+	require.NotNil(t, profile)
+	require.NotNil(t, profile.Metric)
+
+	metrics := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, metric := range profile.Metric.Metrics {
+		metrics[metric.Name] = metric.PreserveTags
+	}
+
+	assert.Contains(t, metrics, "instrumentation_controller.resources")
+	assert.ElementsMatch(t, []string{"section", "status"}, metrics["instrumentation_controller.reconciliations"])
+}
+
 // TestDataPlanePreflightModeProfile guards the Agent Data Plane preflight mode metrics.
 //
 // The pre-flight in comp/dataplane/preflightmode reports its outcome purely through these
@@ -2979,8 +3002,9 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 	require.NotNil(t, profile.Schedule)
 
 	// The first flush must land after the run finishes, or it would report an empty run. The
-	// window is preflightModeDuration in comp/dataplane/preflightmode/impl (90s, deliberately not
-	// configurable); this asserts the schedule keeps clear of it with margin. Raising that
+	// shortest possible window is minPreflightModeDuration in comp/dataplane/preflightmode/impl
+	// (90s; data_plane.preflight_mode_duration can only extend it, which the recurring schedule
+	// below covers). This asserts the schedule keeps clear of the floor with margin. Raising that
 	// constant past this bound should fail here.
 	const preflightModeWindowSeconds = 90
 	assert.Greater(t, int(profile.Schedule.StartAfter), preflightModeWindowSeconds,
