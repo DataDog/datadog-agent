@@ -334,16 +334,16 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 			// Always canonicalize so the hash computed here matches storage's
 			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
 			tags = canonicalizeTags(tags)
-			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, "", tags)]; ok {
-					continue
-				}
-			}
-			timestamp := l.timestampMs / 1000
 			host := m.Host
 			if host == "" {
 				host = l.hostname
 			}
+			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
+				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, host, tags)]; ok {
+					continue
+				}
+			}
+			timestamp := l.timestampMs / 1000
 			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
 				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags) {
 					e.latePoints.Add(1)
