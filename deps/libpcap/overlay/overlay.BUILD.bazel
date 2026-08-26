@@ -3,7 +3,7 @@ load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
 
 package(default_package_metadata = [":package_metadata"])
 
@@ -147,38 +147,21 @@ cc_library(
 pkg_files(
     name = "lib_files",
     srcs = [":pcap"],
-    prefix = "lib",
+    prefix = "embedded/lib",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "include",
+    prefix = "embedded/include",
     strip_prefix = strip_prefix.from_pkg(),
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":hdr_files",
-    ],
-    prefix = "embedded",
     visibility = ["@@//packages:__subpackages__"],
-)
-
-pkg_filegroup(
-    name = "build_files",
-    srcs = [
-        ":hdr_files",
-        ":lib_files",
-    ],
-    prefix = "embedded",
-    visibility = ["//visibility:private"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":build_files",
+        ":hdr_files",
+        ":lib_files",
     ],
 )
