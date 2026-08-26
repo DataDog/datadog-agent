@@ -209,6 +209,9 @@ func waitForScorerEpisode(s observerTestSuite, expectedAnomalySource string) {
 			"journal should contain the scorer episode-started marker after anomalies")
 		assert.Contains(c, out, expectedAnomalySource,
 			"journal should contain an anomaly from the test input source")
+		tel := observerTelemetryOutput(s)
+		assert.True(c, containsMetricWithTags(tel, telemetryReportsEmitted, map[string]string{"kind": "episode_started"}),
+			"observer telemetry should count the scorer episode-started report")
 	}, 3*time.Minute, 5*time.Second)
 	s.T().Log("anomaly scorer episode detected")
 }
