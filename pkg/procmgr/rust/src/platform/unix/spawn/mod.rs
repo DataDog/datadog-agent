@@ -6,4 +6,4 @@
 mod managed;
 mod stdio;
 
-pub(crate) use managed::spawn_child_handle;
+pub(crate) use managed::spawn_managed_child;

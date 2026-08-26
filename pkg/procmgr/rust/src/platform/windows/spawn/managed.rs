@@ -6,8 +6,9 @@
 use anyhow::{Context, Result};
 use log::info;
 
+use crate::config::ProcessConfig;
 use crate::handle::ProcessHandle;
-use crate::process::ManagedProcess;
+use crate::process::ManagedChildSpawn;
 use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 
 use super::super::JobObject;
@@ -15,14 +16,16 @@ use super::credential::SpawnCredential;
 use super::primary_token::spawn_as_primary_token;
 use super::privileged;
 
-pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {
-    let profile = profile_for(process.name());
-    let request = SpawnRequest::from_config(process.name(), process.config(), profile)?;
+pub(crate) fn spawn_managed_child(
+    process_name: &str,
+    config: &ProcessConfig,
+) -> Result<ManagedChildSpawn> {
+    let profile = profile_for(process_name);
+    let request = SpawnRequest::from_config(process_name, config, profile)?;
 
-    let process_name = process.name().to_owned();
     info!("[{process_name}] spawn profile: {profile}");
     if matches!(profile, SpawnProfile::Privileged) {
-        privileged::validate_process_request(&process_name, &request)?;
+        privileged::validate_process_request(process_name, &request)?;
     }
 
     let job = JobObject::new()
@@ -30,15 +33,19 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
 
     let credential = SpawnCredential::resolve(profile)
         .with_context(|| format!("[{process_name}] resolve spawn credential"))?;
-    process.set_intended_user(credential.display_name());
+    let intended_user = credential.display_name();
 
-    let (suspended, user_profile) = spawn_as_primary_token(&process_name, &request, &credential)
+    let (suspended, user_profile) = spawn_as_primary_token(process_name, &request, &credential)
         .with_context(|| format!("[{process_name}] CreateProcessAsUserW spawn failed"))?;
-    if let Some(profile) = user_profile {
-        process.set_user_profile_guard(profile);
-    }
 
-    suspended
-        .supervise(process, job)
-        .with_context(|| format!("[{process_name}] start supervised child"))
+    let (handle, job_object) = suspended
+        .supervise(process_name, job)
+        .with_context(|| format!("[{process_name}] start supervised child"))?;
+
+    Ok(ManagedChildSpawn {
+        handle,
+        intended_user,
+        job_object,
+        user_profile,
+    })
 }

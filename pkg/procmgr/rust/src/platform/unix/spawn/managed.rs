@@ -7,16 +7,24 @@ use anyhow::{Context, Result};
 use log::info;
 use tokio::process::Command;
 
+use crate::config::ProcessConfig;
 use crate::handle::ProcessHandle;
-use crate::process::ManagedProcess;
+use crate::process::ManagedChildSpawn;
 use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 use crate::spawn_context;
 
-pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {
-    let profile = profile_for(process.name());
-    let request = SpawnRequest::from_config(process.name(), process.config(), profile)?;
-    process.set_intended_user(super::super::spawn_user_for_supervisor());
-    spawn_child(process.name(), request, profile)
+pub(crate) fn spawn_managed_child(
+    process_name: &str,
+    config: &ProcessConfig,
+) -> Result<ManagedChildSpawn> {
+    let profile = profile_for(process_name);
+    let request = SpawnRequest::from_config(process_name, config, profile)?;
+    let intended_user = super::super::spawn_user_for_supervisor();
+    let handle = spawn_child(process_name, request, profile)?;
+    Ok(ManagedChildSpawn {
+        handle,
+        intended_user,
+    })
 }
 
 /// Spawn a managed child. On Unix, children inherit procmgr's effective user; both profiles

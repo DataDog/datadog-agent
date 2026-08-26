@@ -140,6 +140,34 @@ enum ForceKillWaitTarget<'a> {
 /// Placeholder until platform spawn resolves the intended account.
 const DEFERRED_SPAWN_USER: &str = "unknown";
 
+/// Result of platform spawn before it is committed to a catalog entry.
+pub(crate) struct ManagedChildSpawn {
+    pub(crate) handle: ProcessHandle,
+    pub(crate) intended_user: String,
+    #[cfg(windows)]
+    pub(crate) job_object: platform::JobObject,
+    #[cfg(windows)]
+    pub(crate) user_profile: Option<platform::UserProfileGuard>,
+}
+
+impl ManagedChildSpawn {
+    pub(crate) async fn abort(self, process_name: &str) {
+        #[cfg(windows)]
+        {
+            if let Err(e) = self.job_object.terminate() {
+                warn!("[{process_name}] failed to terminate uncommitted spawn job: {e:#}");
+            }
+        }
+        let mut handle = self.handle;
+        if let Err(e) = handle.kill().await {
+            warn!(
+                "[{process_name}] failed to terminate uncommitted spawn (pid={}): {e:#}",
+                handle.id().unwrap_or(0)
+            );
+        }
+    }
+}
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -243,10 +271,6 @@ impl ManagedProcess {
         &self.user
     }
 
-    pub(crate) fn set_intended_user(&mut self, user: String) {
-        self.user = user;
-    }
-
     pub fn restart_count(&self) -> u32 {
         self.restarts.count
     }
@@ -342,8 +366,59 @@ impl ManagedProcess {
         result
     }
 
-    pub(crate) fn spawn_and_watch(&mut self, exit_tx: mpsc::Sender<ProcessExit>) -> Result<()> {
-        self.spawn()?;
+    pub(crate) fn apply_managed_child_spawn(&mut self, outcome: ManagedChildSpawn) -> Result<()> {
+        self.pid = outcome.handle.id();
+        self.user = outcome.intended_user;
+        #[cfg(windows)]
+        {
+            self.wait_control = Some(outcome.handle.wait_control());
+            self.job_object = Some(outcome.job_object);
+            self.user_profile = outcome.user_profile;
+        }
+        self.handle = Some(outcome.handle);
+        info!(
+            "[{}] spawned (pid={}, cmd={})",
+            self.name,
+            self.pid.map_or("unknown".to_string(), |p| p.to_string()),
+            self.config.command
+        );
+        self.transition_to(ProcessState::Running);
+        self.inc_spawn_seq();
+        self.restarts.mark_spawned();
+        Ok(())
+    }
+
+    pub(crate) fn mark_spawn_failed(&mut self) {
+        if self.state.can_transition_to(ProcessState::Starting) {
+            self.transition_to(ProcessState::Starting);
+        }
+        if self.state.can_transition_to(ProcessState::Failed) {
+            self.transition_to(ProcessState::Failed);
+        }
+        #[cfg(windows)]
+        self.clear_windows_spawn_resources();
+    }
+
+    pub(crate) fn spawn_and_watch_from_outcome(
+        &mut self,
+        outcome: ManagedChildSpawn,
+        exit_tx: mpsc::Sender<ProcessExit>,
+    ) -> Result<()> {
+        if !self.state.can_transition_to(ProcessState::Starting) {
+            bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
+        }
+        self.transition_to(ProcessState::Starting);
+        if let Err(e) = self.apply_managed_child_spawn(outcome) {
+            #[cfg(windows)]
+            self.clear_windows_spawn_resources();
+            self.transition_to(ProcessState::Failed);
+            return Err(e);
+        }
+        self.attach_exit_watcher(exit_tx);
+        Ok(())
+    }
+
+    fn attach_exit_watcher(&mut self, exit_tx: mpsc::Sender<ProcessExit>) {
         if let Some(mut proc_handle) = self.take_handle() {
             let name = self.name().to_owned();
             let pid = self.pid().unwrap_or(0);
@@ -371,6 +446,11 @@ impl ManagedProcess {
             });
             self.set_watcher_handle(watcher_handle);
         }
+    }
+
+    pub(crate) fn spawn_and_watch(&mut self, exit_tx: mpsc::Sender<ProcessExit>) -> Result<()> {
+        self.spawn()?;
+        self.attach_exit_watcher(exit_tx);
         Ok(())
     }
 
@@ -378,23 +458,8 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        // Platform spawn resolves the account and records intended user from the
-        // identity actually selected for launch (before creating the child).
-        let handle = platform::spawn_child_handle(self)?;
-
-        self.pid = handle.id();
-        info!(
-            "[{}] spawned (pid={}, cmd={})",
-            self.name,
-            self.pid.map_or("unknown".to_string(), |p| p.to_string()),
-            self.config.command
-        );
-
-        self.handle = Some(handle);
-        self.transition_to(ProcessState::Running);
-        self.inc_spawn_seq();
-        self.restarts.mark_spawned();
-        Ok(())
+        let outcome = platform::spawn_managed_child(self.name(), self.config())?;
+        self.apply_managed_child_spawn(outcome)
     }
 
     pub fn is_running(&self) -> bool {

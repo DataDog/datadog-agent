@@ -28,7 +28,7 @@ pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use runtime_user::runtime_user_for_pid;
 pub use scm_service::run_as_service;
 pub(crate) use scm_service::service_shutdown_deadline;
-pub(crate) use spawn::spawn_child_handle;
+pub(crate) use spawn::spawn_managed_child;
 pub(crate) use spawn::user_profile::UserProfileGuard;
 
 use anyhow::Result;
@@ -426,6 +426,14 @@ pub(crate) fn signal_shutdown_for_test() {
 #[cfg(test)]
 pub(crate) fn reset_shutdown_state_for_test() {
     SHUTDOWN_REQUESTED.store(false, Ordering::SeqCst);
+}
+
+#[cfg(test)]
+pub(crate) fn test_shutdown_lock() -> std::sync::MutexGuard<'static, ()> {
+    static SHUTDOWN_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    SHUTDOWN_TEST_LOCK
+        .lock()
+        .expect("shutdown test lock poisoned")
 }
 
 // ---------------------------------------------------------------------------

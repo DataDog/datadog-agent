@@ -7,7 +7,7 @@ mod runtime_user;
 mod spawn;
 
 pub(crate) use runtime_user::runtime_user_for_pid;
-pub(crate) use spawn::spawn_child_handle;
+pub(crate) use spawn::spawn_managed_child;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
@@ -142,6 +142,14 @@ pub(crate) fn signal_shutdown_for_test() {
 #[cfg(test)]
 pub(crate) fn reset_shutdown_state_for_test() {
     SHUTDOWN_REQUESTED.store(false, Ordering::SeqCst);
+}
+
+#[cfg(test)]
+pub(crate) fn test_shutdown_lock() -> std::sync::MutexGuard<'static, ()> {
+    static SHUTDOWN_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    SHUTDOWN_TEST_LOCK
+        .lock()
+        .expect("shutdown test lock poisoned")
 }
 
 pub(crate) fn service_stop_signal_time() -> Option<std::time::Instant> {

@@ -13,6 +13,8 @@ use supervisor::RuntimeHandles;
 use crate::process::ManagedProcess;
 use anyhow::Result;
 use log::warn;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tonic::Status;
 
 pub use process_manager::ProcessManager;
@@ -89,6 +91,60 @@ fn try_auto_start(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
     }
 }
 
+pub(in crate::manager) async fn run_auto_start_child_at(
+    processes: Arc<RwLock<Vec<ManagedProcess>>>,
+    idx: usize,
+    handles: &RuntimeHandles,
+) {
+    let spawn_input = {
+        let procs = processes.read().await;
+        let Some(proc) = procs.get(idx) else {
+            return;
+        };
+        if !proc.may_auto_start() {
+            return;
+        }
+        Some((proc.name().to_owned(), proc.config().clone()))
+    };
+    let Some((name, config)) = spawn_input else {
+        return;
+    };
+
+    let spawn_result = {
+        #[cfg(windows)]
+        let _console_guard = crate::platform::console_lock();
+        crate::platform::spawn_managed_child(&name, &config)
+    };
+
+    let mut procs = processes.write().await;
+    let Some(proc) = procs.get_mut(idx) else {
+        if let Ok(outcome) = spawn_result {
+            outcome.abort(&name).await;
+        }
+        return;
+    };
+
+    match spawn_result {
+        Ok(outcome) => {
+            if crate::platform::shutdown_requested() {
+                outcome.abort(&name).await;
+                return;
+            }
+            if let Err(e) = proc.spawn_and_watch_from_outcome(outcome, handles.exit_tx.clone()) {
+                warn!("[{name}] auto-start failed: {e:#}");
+                enqueue_pending_restart(proc, handles);
+            }
+        }
+        Err(e) => {
+            warn!("[{name}] auto-start failed: {e:#}");
+            proc.mark_spawn_failed();
+            if !crate::platform::shutdown_requested() {
+                enqueue_pending_restart(proc, handles);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,6 +174,8 @@ mod tests {
     }
 
     async fn auto_start_for_test(mgr: &ProcessManager, handles: &RuntimeHandles) {
+        let _guard = crate::platform::test_shutdown_lock();
+        crate::platform::reset_shutdown_state_for_test();
         mgr.auto_start_all(handles).await;
     }
 
@@ -176,6 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow::Result<()> {
+        let _guard = crate::platform::test_shutdown_lock();
         crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(
             loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
@@ -228,6 +287,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Result<()> {
+        let _guard = crate::platform::test_shutdown_lock();
         crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(
             loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
@@ -268,6 +328,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_requested_during_auto_start() {
+        let _guard = crate::platform::test_shutdown_lock();
         crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(
             loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
@@ -287,6 +348,7 @@ mod tests {
         use supervisor::run_manager_event_loop;
         use tokio::sync::mpsc;
 
+        let _guard = crate::platform::test_shutdown_lock();
         crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (handles, mut exit_rx, mut restart_rx) = test_runtime_handles();

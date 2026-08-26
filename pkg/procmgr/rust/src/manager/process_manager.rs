@@ -1,6 +1,6 @@
 use super::{
     ExitEvent, PendingRestart, RuntimeHandles, Supervisor, enqueue_pending_restart,
-    find_index_by_name, resolve_index, try_auto_start,
+    find_index_by_name, resolve_index, run_auto_start_child_at, try_auto_start,
 };
 use crate::command::{CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
@@ -11,7 +11,12 @@ use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
+use std::pin::Pin;
 use std::sync::Arc;
+#[cfg(windows)]
+use std::time::Duration;
+#[cfg(windows)]
+use std::time::Instant;
 use tokio::sync::RwLock;
 use tonic::Status;
 
@@ -47,7 +52,7 @@ impl ProcessManager {
                 biased;
                 _ = platform::wait_for_shutdown() => {
                     info!("skipping remaining auto-starts: service shutting down");
-                    log_auto_start_join_error(worker.as_mut().await);
+                    join_auto_start_worker(worker.as_mut()).await;
                     return;
                 }
                 result = worker.as_mut() => {
@@ -65,13 +70,8 @@ impl ProcessManager {
         let processes = Arc::clone(&self.processes);
         let handles = handles.clone();
         tokio::task::spawn_blocking(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                let mut procs = processes.write().await;
-                let Some(proc) = procs.get_mut(idx) else {
-                    return;
-                };
-                try_auto_start(proc, &handles);
-            });
+            tokio::runtime::Handle::current()
+                .block_on(run_auto_start_child_at(processes, idx, &handles));
         })
     }
 
@@ -292,4 +292,27 @@ fn log_auto_start_join_error(result: Result<(), tokio::task::JoinError>) {
     if let Err(e) = result {
         warn!("auto-start worker task failed: {e:#}");
     }
+}
+
+async fn join_auto_start_worker(mut worker: Pin<&mut tokio::task::JoinHandle<()>>) {
+    #[cfg(windows)]
+    if let Some(signal_time) = platform::service_stop_signal_time() {
+        let budget = shutdown::ShutdownBudget::service_stop(signal_time);
+        let cap = budget.remaining_cap(Duration::from_secs(180));
+        if cap.is_zero() {
+            warn!(
+                "SCM shutdown budget exhausted; proceeding without waiting for in-flight auto-start"
+            );
+            return;
+        }
+        match tokio::time::timeout(cap, worker.as_mut()).await {
+            Ok(result) => log_auto_start_join_error(result),
+            Err(_) => warn!(
+                "timed out waiting for in-flight auto-start worker ({cap:?} left in SCM budget)"
+            ),
+        }
+        return;
+    }
+
+    log_auto_start_join_error(worker.as_mut().await);
 }
