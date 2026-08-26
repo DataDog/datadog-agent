@@ -325,6 +325,16 @@ struct mount_event_t {
     u32    source;
 };
 
+struct unshare_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+    struct syscall_t syscall;
+
+    u64 flags;
+};
+
 struct unshare_mntns_event_t {
     struct kevent_t event;
     struct mount_fields_t mountfields;
