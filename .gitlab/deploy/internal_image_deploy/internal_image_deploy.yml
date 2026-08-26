@@ -68,7 +68,7 @@ publish_internal_container_image-jmx:
     matrix:
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
-        IMAGE_VERSION: tmpl-v24
+        IMAGE_VERSION: tmpl-v24.1
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
         IMAGE_VERSION: tmpl-v26
@@ -89,7 +89,7 @@ publish_internal_container_image-fips:
     matrix:
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
-        IMAGE_VERSION: tmpl-v24
+        IMAGE_VERSION: tmpl-v24.1
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
         IMAGE_VERSION: tmpl-v26
