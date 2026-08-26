@@ -22,7 +22,7 @@ import (
 func TestBuildServerlessEndpoints(t *testing.T) {
 	config := config.NewMock(t)
 
-	endpoints, err := buildEndpoints(config)
+	endpoints, err := buildEndpoints(config, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "http-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	assert.Equal(t, "serverless", string(endpoints.Main.Origin))
@@ -39,7 +39,7 @@ func TestServerlessLogsAgent(t *testing.T) {
 	assert.True(t, ok, "Expected NewServerlessLogsAgent to return *logAgent type")
 
 	// Build endpoints first, setupAgent() calls SetupPipeline which references logsAgent.endpoints
-	endpoints, err := buildEndpoints(config)
+	endpoints, err := buildEndpoints(config, nil)
 	assert.NoError(t, err, "buildEndpoints should not fail")
 	logsAgent.endpoints = endpoints
 

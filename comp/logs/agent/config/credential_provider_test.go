@@ -167,3 +167,59 @@ func TestPlainAdditionalEndpointIgnoresTheLookup(t *testing.T) {
 	require.True(t, endpoints[0].Authorize(h))
 	assert.Equal(t, "a-real-key", h.Get("DD-API-KEY"))
 }
+
+// The TCP framing prefixes every log line with the API key verbatim, and there is no Authorize
+// gate on that path. A directive there would be written to the wire in cleartext, including any
+// fallback=<real key> it carries, so the endpoint must not be built at all.
+//
+// This is the default path for this feature, not an edge case: shouldUseTCP() returns true as soon
+// as logs_config.additional_endpoints is set, so TCP is chosen unless HTTP is explicitly forced.
+func TestTCPAdditionalEndpointDropsADirectiveRatherThanPuttingItOnTheWire(t *testing.T) {
+	cfg := mock.New(t)
+	cfg.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{
+		{"host": "org2.datadoghq.com", "port": 10516, "api_key": "DELA(org-uuid-2, aws, fallback=abcdef0123456789abcdef0123456789)"},
+		{"host": "org3.datadoghq.com", "port": 10516, "api_key": "a-real-key"},
+	})
+	keys := defaultLogsConfigKeys(cfg)
+
+	endpoints := loadTCPAdditionalEndpoints(newTCPEndpoint(keys, false), keys, false)
+
+	require.Len(t, endpoints, 1, "the delegated-auth endpoint must be dropped, the plain one kept")
+	assert.Equal(t, "org3.datadoghq.com", endpoints[0].Host)
+	for _, e := range endpoints {
+		assert.NotContains(t, e.GetAPIKey(), "DELA(", "a directive must never become a TCP prefix")
+		assert.NotContains(t, e.GetAPIKey(), "abcdef0123456789", "the fallback key must never reach the wire")
+	}
+}
+
+// SkipConfigWriteback leaves the directive in the config tree, so the rotation callback re-reads
+// it on every update to additional_endpoints. If that value ever lands in apiKey, Authorize must
+// still refuse: the directive is not a credential, and stamping it would send the org UUID and any
+// fallback=<real key> it carries to the intake.
+//
+// Asserted against apiKey directly rather than by driving a config update, because the config
+// mock's SetInTest does not fire OnUpdate - a test written that way passes whether or not the
+// protection exists.
+func TestADirectiveInTheAPIKeyIsStillNeverStamped(t *testing.T) {
+	e := NewEndpoint("", "logs_config.additional_endpoints", "org2.datadoghq.com", 0, "", false)
+	e.credentialDirective = "DELA(org-uuid-2, aws, fallback=abcdef0123456789abcdef0123456789)"
+
+	// Simulate the rotation callback having written the raw config value back into the key.
+	e.apiKey.Store("DELA(org-uuid-2, aws, fallback=abcdef0123456789abcdef0123456789)")
+
+	h := http.Header{}
+	assert.False(t, e.Authorize(h), "an endpoint with a directive and no provider must never send")
+	assert.Empty(t, h.Get("DD-API-KEY"))
+}
+
+// A resolved provider still wins over whatever apiKey happens to hold.
+func TestProviderStillWinsWhenTheKeyHoldsADirective(t *testing.T) {
+	e := NewEndpoint("", "logs_config.additional_endpoints", "org2.datadoghq.com", 0, "", false)
+	e.credentialDirective = "DELA(org-uuid-2, aws)"
+	e.apiKey.Store("DELA(org-uuid-2, aws)")
+	e.SetCredentialProvider(&stubProvider{key: "org2-key", ready: true})
+
+	h := http.Header{}
+	require.True(t, e.Authorize(h))
+	assert.Equal(t, "org2-key", h.Get("DD-API-KEY"))
+}

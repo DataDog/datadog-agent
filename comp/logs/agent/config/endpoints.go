@@ -193,6 +193,15 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
+		// Delegated auth is HTTP-only. The TCP framing prefixes every log line with the API key
+		// verbatim, so a directive here would be written to the wire in cleartext - including any
+		// fallback=<key> it carries - and would authenticate nothing. There is no Authorize gate on
+		// this path to hold the payload instead, so the endpoint is dropped rather than built.
+		if isDelaDirective(e.APIKey) {
+			log.Warnf("Additional endpoint %q at %q uses delegated auth, which is not supported over TCP; this endpoint is disabled. Set logs_config.force_use_http to use it.", e.Host, configKeyUsed)
+			continue
+		}
+
 		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, EmptyPathPrefix, false)
 
 		newE.isAdditionalEndpoint = true
@@ -332,13 +341,15 @@ func (e *Endpoint) Authorize(h http.Header) bool {
 	if e.credentialProvider != nil {
 		return e.credentialProvider.Authorize(h)
 	}
-	key := e.GetAPIKey()
-	if key == "" && e.credentialDirective != "" {
+	if e.credentialDirective != "" {
 		// Built from a directive that never produced an instance - an unsupported cloud provider,
-		// say. Stamping the empty key would send this org's logs to its intake unauthenticated.
+		// say. There is no credential to send, and whatever apiKey holds is not one: the config
+		// still contains the directive text, so a config update can put it back into apiKey (see
+		// onConfigUpdateAdditionalEndpoints). Refuse on the directive rather than on the key being
+		// empty, so that cannot turn into stamping the directive as a credential.
 		return false
 	}
-	h.Set("DD-API-KEY", key)
+	h.Set("DD-API-KEY", e.GetAPIKey())
 	return true
 }
 
@@ -440,6 +451,12 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 		}
 
 		newAPIKey := newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey
+		if isDelaDirective(newAPIKey) {
+			// SkipConfigWriteback leaves the directive in the config tree permanently, so every
+			// update re-reads it here. Storing it would put the directive text back into apiKey,
+			// where it would be stamped onto requests as if it were a credential.
+			return
+		}
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,
