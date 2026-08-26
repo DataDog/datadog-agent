@@ -965,6 +965,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dd-procmgr-client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "hyper-util",
+ "prost",
+ "protoc-gen-prost",
+ "protoc-gen-tonic",
+ "tempfile",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "tonic-prost",
+ "tonic-prost-build",
+ "tower",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "dd-procmgrd"
 version = "0.1.0"
 dependencies = [
@@ -975,10 +994,6 @@ dependencies = [
  "libc",
  "log",
  "nix",
- "prost",
- "prost-types",
- "protoc-gen-prost",
- "protoc-gen-tonic",
  "saphyr-parser",
  "serde",
  "serde_json",
@@ -987,11 +1002,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
- "tonic-build",
- "tonic-prost",
- "tonic-prost-build",
  "tonic-reflection",
- "tower",
  "uuid",
  "windows-registry",
  "windows-sys 0.61.2",

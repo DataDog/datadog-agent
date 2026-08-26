@@ -657,6 +657,14 @@ impl ManagedProcess {
         false
     }
 
+    fn config_gate_met(&self) -> bool {
+        if crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            return true;
+        }
+        info!("[{}] condition_config_any not met", self.name);
+        false
+    }
+
     #[must_use]
     pub(crate) fn start_conditions_met(&self) -> bool {
         self.condition_path_exists_met()
