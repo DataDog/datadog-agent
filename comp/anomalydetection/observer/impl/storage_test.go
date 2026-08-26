@@ -1029,3 +1029,15 @@ func TestSeriesKeyHashMatchesSeriesKey(t *testing.T) {
 		)
 	}
 }
+
+func TestParseSeriesKeyRequiresHostField(t *testing.T) {
+	namespace, name, host, tags, ok := parseSeriesKey("ns|metric:avg||env:prod")
+	assert.True(t, ok)
+	assert.Equal(t, "ns", namespace)
+	assert.Equal(t, "metric:avg", name)
+	assert.Empty(t, host)
+	assert.Equal(t, []string{"env:prod"}, tags)
+
+	_, _, _, _, ok = parseSeriesKey("ns|metric:avg|env:prod")
+	assert.False(t, ok)
+}

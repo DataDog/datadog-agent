@@ -674,17 +674,11 @@ func seriesKey(namespace, name, host string, tags []string) string {
 // parseSeriesKey parses a series key back into its parts.
 func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {
 	parts := strings.SplitN(key, "|", 4)
-	if len(parts) < 3 {
+	if len(parts) != 4 {
 		return "", "", "", nil, false
 	}
 	namespace = parts[0]
 	name = parts[1]
-	if len(parts) == 3 { // legacy hostless key
-		if parts[2] == "" {
-			return namespace, name, "", nil, true
-		}
-		return namespace, name, "", strings.Split(parts[2], ","), true
-	}
 	host = parts[2]
 	if parts[3] == "" {
 		return namespace, name, host, nil, true
