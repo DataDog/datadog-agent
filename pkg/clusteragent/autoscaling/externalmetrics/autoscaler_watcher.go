@@ -22,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
@@ -30,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,14 +68,13 @@ var gvr = schema.GroupVersionResource{
 }
 
 // NewAutoscalerWatcher returns a new AutoscalerWatcher, giving nil `autoscalerInformer` or nil `wpaInformer` disables watching HPA or WPA
-// We need at least one of them
 func NewAutoscalerWatcher(
 	refreshPeriod int64,
 	autogenEnabled bool,
 	autogenExpirationPeriodHours int64,
 	autogenNamespace string,
 	autogenLabelSelector labels.Selector,
-	client kubernetes.Interface,
+	hpaGVR schema.GroupVersionResource,
 	informer informers.SharedInformerFactory,
 	wpaInformer dynamic_informer.DynamicSharedInformerFactory,
 	isLeader func() bool,
@@ -96,11 +93,6 @@ func NewAutoscalerWatcher(
 	var autoscalerLister cache.GenericLister
 	var autoscalerListerSynced cache.InformerSynced
 	if informer != nil {
-		hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(client)
-		if err != nil {
-			return nil, fmt.Errorf("unable to discover HPA GroupVersionResource: %s", err)
-		}
-
 		genericInformerFactory, err := informer.ForResource(hpaGVR)
 		if err != nil {
 			return nil, fmt.Errorf("error creating generic informer: %s", err)
