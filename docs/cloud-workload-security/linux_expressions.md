@@ -205,10 +205,12 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`process.ancestors.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`process.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -318,10 +320,12 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`process.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`process.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`process.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -411,10 +415,12 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`process.parent.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`process.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -814,10 +820,12 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`exec.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`exec.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exec.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exec.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -943,11 +951,13 @@ A process was terminated
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`exit.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`exit.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`exit.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exit.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exit.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1410,10 +1420,12 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`ptrace.tracee.ancestors.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`ptrace.tracee.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1523,10 +1535,12 @@ A ptrace command was executed
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`ptrace.tracee.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`ptrace.tracee.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1616,10 +1630,12 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`ptrace.tracee.parent.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`ptrace.tracee.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1919,10 +1935,12 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`setrlimit.target.ancestors.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`setrlimit.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`setrlimit.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2032,10 +2050,12 @@ A setrlimit command was executed
 | [`setrlimit.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`setrlimit.target.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`setrlimit.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`setrlimit.target.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2125,10 +2145,12 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`setrlimit.target.parent.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`setrlimit.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`setrlimit.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2333,10 +2355,12 @@ A signal was sent
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`signal.target.ancestors.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`signal.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2446,10 +2470,12 @@ A signal was sent
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`signal.target.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`signal.target.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2539,10 +2565,12 @@ A signal was sent
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`signal.target.parent.cgroup.path`](#common-cgroupcontext-path-doc) | Full mount-relative cgroup path |
 | [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`signal.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -3551,6 +3579,15 @@ Definition: Count of network packets transmitted or received
 `network_flow_monitor.flows.egress` `network_flow_monitor.flows.ingress`
 
 
+### `*.path` {#common-cgroupcontext-path-doc}
+Type: string
+
+Definition: Full mount-relative cgroup path
+
+`*.path` has 14 possible prefixes:
+`exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
 ### `*.path` {#common-fileevent-path-doc}
 Type: string
 
@@ -3584,6 +3621,15 @@ Definition: Process ID of the process (also called thread group ID)
 
 `*.pid` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.pod_uid` {#common-containercontext-pod_uid-doc}
+Type: string
+
+Definition: Kubernetes pod UID
+
+`*.pod_uid` has 14 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
 
 
 ### `*.port` {#common-ipportcontext-port-doc}

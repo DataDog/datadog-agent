@@ -128,6 +128,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "process.ancestors.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "process.ancestors.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -146,6 +151,11 @@
           "name": "process.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.ancestors.container.tags",
@@ -693,6 +703,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "process.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "process.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -711,6 +726,11 @@
           "name": "process.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.container.tags",
@@ -1158,6 +1178,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "process.parent.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "process.parent.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -1176,6 +1201,11 @@
           "name": "process.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.parent.container.tags",
@@ -2841,6 +2871,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "exec.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "exec.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -2859,6 +2894,11 @@
           "name": "exec.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exec.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exec.container.tags",
@@ -3460,6 +3500,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "exit.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "exit.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -3483,6 +3528,11 @@
           "name": "exit.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exit.container.tags",
@@ -5473,6 +5523,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -5491,6 +5546,11 @@
           "name": "ptrace.tracee.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.container.tags",
@@ -6038,6 +6098,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "ptrace.tracee.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "ptrace.tracee.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -6056,6 +6121,11 @@
           "name": "ptrace.tracee.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.container.tags",
@@ -6503,6 +6573,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "ptrace.tracee.parent.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -6521,6 +6596,11 @@
           "name": "ptrace.tracee.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.parent.container.tags",
@@ -7862,6 +7942,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -7880,6 +7965,11 @@
           "name": "setrlimit.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.container.tags",
@@ -8427,6 +8517,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "setrlimit.target.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "setrlimit.target.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -8445,6 +8540,11 @@
           "name": "setrlimit.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.container.tags",
@@ -8892,6 +8992,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "setrlimit.target.parent.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "setrlimit.target.parent.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -8910,6 +9015,11 @@
           "name": "setrlimit.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.parent.container.tags",
@@ -9828,6 +9938,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "signal.target.ancestors.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "signal.target.ancestors.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -9846,6 +9961,11 @@
           "name": "signal.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.ancestors.container.tags",
@@ -10393,6 +10513,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "signal.target.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "signal.target.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -10411,6 +10536,11 @@
           "name": "signal.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.container.tags",
@@ -10858,6 +10988,11 @@
           "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
+          "name": "signal.target.parent.cgroup.path",
+          "definition": "Full mount-relative cgroup path",
+          "property_doc_link": "common-cgroupcontext-path-doc"
+        },
+        {
           "name": "signal.target.parent.cgroup.version",
           "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
@@ -10876,6 +11011,11 @@
           "name": "signal.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.parent.container.tags",
@@ -14576,6 +14716,31 @@
     },
     {
       "name": "*.path",
+      "link": "common-cgroupcontext-path-doc",
+      "type": "string",
+      "definition": "Full mount-relative cgroup path",
+      "prefixes": [
+        "exec.cgroup",
+        "exit.cgroup",
+        "process.ancestors.cgroup",
+        "process.cgroup",
+        "process.parent.cgroup",
+        "ptrace.tracee.ancestors.cgroup",
+        "ptrace.tracee.cgroup",
+        "ptrace.tracee.parent.cgroup",
+        "setrlimit.target.ancestors.cgroup",
+        "setrlimit.target.cgroup",
+        "setrlimit.target.parent.cgroup",
+        "signal.target.ancestors.cgroup",
+        "signal.target.cgroup",
+        "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.path",
       "link": "common-fileevent-path-doc",
       "type": "string",
       "definition": "File's path",
@@ -14660,6 +14825,31 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.pod_uid",
+      "link": "common-containercontext-pod_uid-doc",
+      "type": "string",
+      "definition": "Kubernetes pod UID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",

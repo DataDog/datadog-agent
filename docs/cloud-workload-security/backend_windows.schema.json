@@ -76,6 +76,10 @@
           "type": "string",
           "description": "Container ID"
         },
+        "pod_uid": {
+          "type": "string",
+          "description": "Kubernetes pod UID"
+        },
         "created_at": {
           "type": "string",
           "format": "date-time",

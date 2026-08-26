@@ -82,6 +82,11 @@ func newProcess(ps *ProcessSerializer) model.Process {
 	}
 	if ps.Container != nil {
 		p.ContainerContext.ContainerID = containerutils.ContainerID(ps.Container.ID)
+		p.ContainerContext.PodUID = ps.Container.PodUID
+	}
+	if ps.CGroup != nil {
+		p.CGroup.CGroupID = containerutils.CGroupID(ps.CGroup.ID)
+		p.CGroup.CGroupPath = containerutils.CGroupID(ps.CGroup.Path)
 	}
 
 	// TODO: credentials

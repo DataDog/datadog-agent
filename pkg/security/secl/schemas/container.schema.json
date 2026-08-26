@@ -6,6 +6,9 @@
         "id": {
             "type": "string"
         },
+        "pod_uid": {
+            "type": "string"
+        },
         "created_at": {
             "$ref": "datetime.schema.json"
         },

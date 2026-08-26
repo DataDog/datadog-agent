@@ -30,6 +30,8 @@ import (
 type ContainerContextSerializer struct {
 	// Container ID
 	ID string `json:"id,omitempty"`
+	// Kubernetes pod UID
+	PodUID string `json:"pod_uid,omitempty"`
 	// Source of the container entry (event or procfs)
 	Source string `json:"source,omitempty"`
 	// Creation time of the container
@@ -43,6 +45,8 @@ type ContainerContextSerializer struct {
 type CGroupContextSerializer struct {
 	// CGroup ID
 	ID string `json:"id,omitempty"`
+	// Full mount-relative cgroup path
+	Path string `json:"path,omitempty"`
 	// CGroup manager
 	Manager string `json:"manager,omitempty"`
 	// Source of the cgroup entry (event or procfs)

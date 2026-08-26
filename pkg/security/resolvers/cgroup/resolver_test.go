@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -67,6 +68,52 @@ func TestResolvePidCgroupFallback_SuccessDirectResolution(t *testing.T) {
 	assert.Equal(t, containerutils.CGroupID("test-cgroup-id"), cacheEntry.GetCGroupID())
 	assert.Equal(t, uint64(9876), cacheEntry.GetCGroupInode())
 	assert.Equal(t, containerutils.ContainerID("container-123"), cacheEntry.GetContainerID())
+
+	mockFS.AssertExpectations(t)
+}
+
+func TestAddCGroup_PopulatesPodUIDAndCGroupPath(t *testing.T) {
+	resolver, _ := createTestResolver(t)
+
+	cgroupID := containerutils.CGroupID("/kubepods/besteffort/pod48d25824-cbe2-4fdc-9928-5bb49e05473d/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope")
+	cacheEntry := resolver.Add(model.CGroupContext{
+		CGroupID: cgroupID,
+		CGroupPathKey: model.PathKey{
+			MountID: 42,
+			Inode:   9876,
+		},
+		CGroupSource: model.CGroupSourceEvent,
+	})
+
+	require.NotNil(t, cacheEntry)
+	assert.Equal(t, cgroupID, cacheEntry.GetCGroupID())
+	assert.Equal(t, cgroupID, cacheEntry.GetCGroupContext().CGroupPath)
+	assert.Equal(t, containerutils.ContainerID("c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad"), cacheEntry.GetContainerID())
+	assert.Equal(t, "48d25824-cbe2-4fdc-9928-5bb49e05473d", cacheEntry.GetContainerContext().PodUID)
+}
+
+func TestResolvePidCgroupFallback_PopulatesPodUIDAndCGroupPath(t *testing.T) {
+	resolver, mockFS := createTestResolver(t)
+
+	cgroupID := containerutils.CGroupID("/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope")
+	expectedContext := utils.CGroupContext{
+		CGroupID:          cgroupID,
+		CGroupFileMountID: 42,
+		CGroupFileInode:   9876,
+	}
+
+	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
+		containerutils.ContainerID("c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad"),
+		expectedContext,
+		"/sys/fs/cgroup/test",
+		nil,
+	)
+
+	cacheEntry := resolver.resolveFromFallback(1234)
+	require.NotNil(t, cacheEntry)
+	assert.Equal(t, cgroupID, cacheEntry.GetCGroupID())
+	assert.Equal(t, cgroupID, cacheEntry.GetCGroupContext().CGroupPath)
+	assert.Equal(t, "48d25824-cbe2-4fdc-9928-5bb49e05473d", cacheEntry.GetContainerContext().PodUID)
 
 	mockFS.AssertExpectations(t)
 }

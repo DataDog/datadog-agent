@@ -178,6 +178,10 @@
           "type": "string",
           "description": "CGroup ID"
         },
+        "path": {
+          "type": "string",
+          "description": "Full mount-relative cgroup path"
+        },
         "manager": {
           "type": "string",
           "description": "CGroup manager"
@@ -192,6 +196,10 @@
         "id": {
           "type": "string",
           "description": "Container ID"
+        },
+        "pod_uid": {
+          "type": "string",
+          "description": "Kubernetes pod UID"
         },
         "created_at": {
           "type": "string",

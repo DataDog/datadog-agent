@@ -2302,6 +2302,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return string(ev.Exec.Process.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2341,6 +2352,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.Exec.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3804,6 +3826,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exit.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return string(ev.Exit.Process.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exit.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -3854,6 +3887,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.Exit.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -8609,6 +8653,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.cgroup.path":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := string(element.ProcessContext.Process.CGroup.CGroupPath)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.CGroup.CGroupPath)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.cgroup.version":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -8709,6 +8780,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
 					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.container.pod_uid":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.ContainerContext.PodUID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.ContainerContext.PodUID
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -11714,6 +11812,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return string(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -11753,6 +11862,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -12942,6 +13062,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return string(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -12993,6 +13127,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return string(ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.BaseEvent.ProcessContext.Parent.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -15084,6 +15232,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.cgroup.path":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := string(element.ProcessContext.Process.CGroup.CGroupPath)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.CGroup.CGroupPath)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.cgroup.version":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -15184,6 +15359,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
 					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.container.pod_uid":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.ContainerContext.PodUID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.ContainerContext.PodUID
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -18189,6 +18391,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return string(ev.PTrace.Tracee.Process.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -18228,6 +18441,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.PTrace.Tracee.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PTrace.Tracee.Process.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -19417,6 +19641,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return string(ev.PTrace.Tracee.Parent.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -19468,6 +19706,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return string(ev.PTrace.Tracee.Parent.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.PTrace.Tracee.Parent.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -22987,6 +23239,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.cgroup.path":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := string(element.ProcessContext.Process.CGroup.CGroupPath)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.CGroup.CGroupPath)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.cgroup.version":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -23087,6 +23366,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
 					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.container.pod_uid":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.ContainerContext.PodUID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.ContainerContext.PodUID
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -26092,6 +26398,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return string(ev.Setrlimit.Target.Process.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -26131,6 +26448,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.Setrlimit.Target.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -27320,6 +27648,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return string(ev.Setrlimit.Target.Parent.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -27371,6 +27713,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return string(ev.Setrlimit.Target.Parent.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -29984,6 +30340,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.cgroup.path":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := string(element.ProcessContext.Process.CGroup.CGroupPath)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.CGroup.CGroupPath)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.cgroup.version":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -30084,6 +30467,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
 					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.container.pod_uid":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.ContainerContext.PodUID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.ContainerContext.PodUID
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -33089,6 +33499,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return string(ev.Signal.Target.Process.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -33128,6 +33549,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.Signal.Target.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Signal.Target.Process.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -34317,6 +34749,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.cgroup.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return string(ev.Signal.Target.Parent.CGroup.CGroupPath)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -34368,6 +34814,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return string(ev.Signal.Target.Parent.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.Signal.Target.Parent.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -37413,10 +37873,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.cgroup.file.inode",
 		"exec.cgroup.file.mount_id",
 		"exec.cgroup.id",
+		"exec.cgroup.path",
 		"exec.cgroup.version",
 		"exec.comm",
 		"exec.container.created_at",
 		"exec.container.id",
+		"exec.container.pod_uid",
 		"exec.container.tags",
 		"exec.created_at",
 		"exec.egid",
@@ -37535,11 +37997,13 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.cgroup.file.inode",
 		"exit.cgroup.file.mount_id",
 		"exit.cgroup.id",
+		"exit.cgroup.path",
 		"exit.cgroup.version",
 		"exit.code",
 		"exit.comm",
 		"exit.container.created_at",
 		"exit.container.id",
+		"exit.container.pod_uid",
 		"exit.container.tags",
 		"exit.created_at",
 		"exit.egid",
@@ -37914,10 +38378,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.cgroup.file.inode",
 		"process.ancestors.cgroup.file.mount_id",
 		"process.ancestors.cgroup.id",
+		"process.ancestors.cgroup.path",
 		"process.ancestors.cgroup.version",
 		"process.ancestors.comm",
 		"process.ancestors.container.created_at",
 		"process.ancestors.container.id",
+		"process.ancestors.container.pod_uid",
 		"process.ancestors.container.tags",
 		"process.ancestors.created_at",
 		"process.ancestors.egid",
@@ -38027,10 +38493,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.cgroup.file.inode",
 		"process.cgroup.file.mount_id",
 		"process.cgroup.id",
+		"process.cgroup.path",
 		"process.cgroup.version",
 		"process.comm",
 		"process.container.created_at",
 		"process.container.id",
+		"process.container.pod_uid",
 		"process.container.tags",
 		"process.created_at",
 		"process.egid",
@@ -38120,10 +38588,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.cgroup.file.inode",
 		"process.parent.cgroup.file.mount_id",
 		"process.parent.cgroup.id",
+		"process.parent.cgroup.path",
 		"process.parent.cgroup.version",
 		"process.parent.comm",
 		"process.parent.container.created_at",
 		"process.parent.container.id",
+		"process.parent.container.pod_uid",
 		"process.parent.container.tags",
 		"process.parent.created_at",
 		"process.parent.egid",
@@ -38253,10 +38723,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.cgroup.file.inode",
 		"ptrace.tracee.ancestors.cgroup.file.mount_id",
 		"ptrace.tracee.ancestors.cgroup.id",
+		"ptrace.tracee.ancestors.cgroup.path",
 		"ptrace.tracee.ancestors.cgroup.version",
 		"ptrace.tracee.ancestors.comm",
 		"ptrace.tracee.ancestors.container.created_at",
 		"ptrace.tracee.ancestors.container.id",
+		"ptrace.tracee.ancestors.container.pod_uid",
 		"ptrace.tracee.ancestors.container.tags",
 		"ptrace.tracee.ancestors.created_at",
 		"ptrace.tracee.ancestors.egid",
@@ -38366,10 +38838,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.cgroup.file.inode",
 		"ptrace.tracee.cgroup.file.mount_id",
 		"ptrace.tracee.cgroup.id",
+		"ptrace.tracee.cgroup.path",
 		"ptrace.tracee.cgroup.version",
 		"ptrace.tracee.comm",
 		"ptrace.tracee.container.created_at",
 		"ptrace.tracee.container.id",
+		"ptrace.tracee.container.pod_uid",
 		"ptrace.tracee.container.tags",
 		"ptrace.tracee.created_at",
 		"ptrace.tracee.egid",
@@ -38459,10 +38933,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.cgroup.file.inode",
 		"ptrace.tracee.parent.cgroup.file.mount_id",
 		"ptrace.tracee.parent.cgroup.id",
+		"ptrace.tracee.parent.cgroup.path",
 		"ptrace.tracee.parent.cgroup.version",
 		"ptrace.tracee.parent.comm",
 		"ptrace.tracee.parent.container.created_at",
 		"ptrace.tracee.parent.container.id",
+		"ptrace.tracee.parent.container.pod_uid",
 		"ptrace.tracee.parent.container.tags",
 		"ptrace.tracee.parent.created_at",
 		"ptrace.tracee.parent.egid",
@@ -38720,10 +39196,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.cgroup.file.inode",
 		"setrlimit.target.ancestors.cgroup.file.mount_id",
 		"setrlimit.target.ancestors.cgroup.id",
+		"setrlimit.target.ancestors.cgroup.path",
 		"setrlimit.target.ancestors.cgroup.version",
 		"setrlimit.target.ancestors.comm",
 		"setrlimit.target.ancestors.container.created_at",
 		"setrlimit.target.ancestors.container.id",
+		"setrlimit.target.ancestors.container.pod_uid",
 		"setrlimit.target.ancestors.container.tags",
 		"setrlimit.target.ancestors.created_at",
 		"setrlimit.target.ancestors.egid",
@@ -38833,10 +39311,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.cgroup.file.inode",
 		"setrlimit.target.cgroup.file.mount_id",
 		"setrlimit.target.cgroup.id",
+		"setrlimit.target.cgroup.path",
 		"setrlimit.target.cgroup.version",
 		"setrlimit.target.comm",
 		"setrlimit.target.container.created_at",
 		"setrlimit.target.container.id",
+		"setrlimit.target.container.pod_uid",
 		"setrlimit.target.container.tags",
 		"setrlimit.target.created_at",
 		"setrlimit.target.egid",
@@ -38926,10 +39406,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.cgroup.file.inode",
 		"setrlimit.target.parent.cgroup.file.mount_id",
 		"setrlimit.target.parent.cgroup.id",
+		"setrlimit.target.parent.cgroup.path",
 		"setrlimit.target.parent.cgroup.version",
 		"setrlimit.target.parent.comm",
 		"setrlimit.target.parent.container.created_at",
 		"setrlimit.target.parent.container.id",
+		"setrlimit.target.parent.container.pod_uid",
 		"setrlimit.target.parent.container.tags",
 		"setrlimit.target.parent.created_at",
 		"setrlimit.target.parent.egid",
@@ -39106,10 +39588,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.cgroup.file.inode",
 		"signal.target.ancestors.cgroup.file.mount_id",
 		"signal.target.ancestors.cgroup.id",
+		"signal.target.ancestors.cgroup.path",
 		"signal.target.ancestors.cgroup.version",
 		"signal.target.ancestors.comm",
 		"signal.target.ancestors.container.created_at",
 		"signal.target.ancestors.container.id",
+		"signal.target.ancestors.container.pod_uid",
 		"signal.target.ancestors.container.tags",
 		"signal.target.ancestors.created_at",
 		"signal.target.ancestors.egid",
@@ -39219,10 +39703,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.cgroup.file.inode",
 		"signal.target.cgroup.file.mount_id",
 		"signal.target.cgroup.id",
+		"signal.target.cgroup.path",
 		"signal.target.cgroup.version",
 		"signal.target.comm",
 		"signal.target.container.created_at",
 		"signal.target.container.id",
+		"signal.target.container.pod_uid",
 		"signal.target.container.tags",
 		"signal.target.created_at",
 		"signal.target.egid",
@@ -39312,10 +39798,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.cgroup.file.inode",
 		"signal.target.parent.cgroup.file.mount_id",
 		"signal.target.parent.cgroup.id",
+		"signal.target.parent.cgroup.path",
 		"signal.target.parent.cgroup.version",
 		"signal.target.parent.comm",
 		"signal.target.parent.container.created_at",
 		"signal.target.parent.container.id",
+		"signal.target.parent.container.pod_uid",
 		"signal.target.parent.container.tags",
 		"signal.target.parent.created_at",
 		"signal.target.parent.egid",
@@ -39941,6 +40429,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.cgroup.id":
 		return "exec", reflect.String, "string", false, nil
+	case "exec.cgroup.path":
+		return "exec", reflect.String, "string", false, nil
 	case "exec.cgroup.version":
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.comm":
@@ -39948,6 +40438,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exec.container.created_at":
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.container.id":
+		return "exec", reflect.String, "string", false, nil
+	case "exec.container.pod_uid":
 		return "exec", reflect.String, "string", false, nil
 	case "exec.container.tags":
 		return "exec", reflect.String, "string", true, nil
@@ -40185,6 +40677,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.cgroup.id":
 		return "exit", reflect.String, "string", false, nil
+	case "exit.cgroup.path":
+		return "exit", reflect.String, "string", false, nil
 	case "exit.cgroup.version":
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.code":
@@ -40194,6 +40688,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exit.container.created_at":
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.container.id":
+		return "exit", reflect.String, "string", false, nil
+	case "exit.container.pod_uid":
 		return "exit", reflect.String, "string", false, nil
 	case "exit.container.tags":
 		return "exit", reflect.String, "string", true, nil
@@ -40943,6 +41439,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.cgroup.id":
 		return "", reflect.String, "string", false, nil
+	case "process.ancestors.cgroup.path":
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.cgroup.version":
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.comm":
@@ -40950,6 +41448,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.ancestors.container.created_at":
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.container.id":
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.container.pod_uid":
 		return "", reflect.String, "string", false, nil
 	case "process.ancestors.container.tags":
 		return "", reflect.String, "string", true, nil
@@ -41169,6 +41669,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.cgroup.id":
 		return "", reflect.String, "string", false, nil
+	case "process.cgroup.path":
+		return "", reflect.String, "string", false, nil
 	case "process.cgroup.version":
 		return "", reflect.Int, "int", false, nil
 	case "process.comm":
@@ -41176,6 +41678,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.container.created_at":
 		return "", reflect.Int, "int", false, nil
 	case "process.container.id":
+		return "", reflect.String, "string", false, nil
+	case "process.container.pod_uid":
 		return "", reflect.String, "string", false, nil
 	case "process.container.tags":
 		return "", reflect.String, "string", true, nil
@@ -41355,6 +41859,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.cgroup.id":
 		return "", reflect.String, "string", false, nil
+	case "process.parent.cgroup.path":
+		return "", reflect.String, "string", false, nil
 	case "process.parent.cgroup.version":
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.comm":
@@ -41362,6 +41868,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.parent.container.created_at":
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.container.id":
+		return "", reflect.String, "string", false, nil
+	case "process.parent.container.pod_uid":
 		return "", reflect.String, "string", false, nil
 	case "process.parent.container.tags":
 		return "", reflect.String, "string", true, nil
@@ -41621,6 +42129,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.cgroup.id":
 		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.cgroup.path":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.cgroup.version":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.comm":
@@ -41628,6 +42138,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.ancestors.container.created_at":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.container.id":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.container.pod_uid":
 		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.container.tags":
 		return "ptrace", reflect.String, "string", true, nil
@@ -41847,6 +42359,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.cgroup.id":
 		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.cgroup.path":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.cgroup.version":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.comm":
@@ -41854,6 +42368,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.container.created_at":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.container.id":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.container.pod_uid":
 		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.container.tags":
 		return "ptrace", reflect.String, "string", true, nil
@@ -42033,6 +42549,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.cgroup.id":
 		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.cgroup.path":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.cgroup.version":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.comm":
@@ -42040,6 +42558,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.parent.container.created_at":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.container.id":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.container.pod_uid":
 		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.container.tags":
 		return "ptrace", reflect.String, "string", true, nil
@@ -42555,6 +43075,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.cgroup.id":
 		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.cgroup.path":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.cgroup.version":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.comm":
@@ -42562,6 +43084,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setrlimit.target.ancestors.container.created_at":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.container.id":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.container.pod_uid":
 		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.container.tags":
 		return "setrlimit", reflect.String, "string", true, nil
@@ -42781,6 +43305,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.cgroup.id":
 		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.cgroup.path":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.cgroup.version":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.comm":
@@ -42788,6 +43314,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setrlimit.target.container.created_at":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.container.id":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.container.pod_uid":
 		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.container.tags":
 		return "setrlimit", reflect.String, "string", true, nil
@@ -42967,6 +43495,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.cgroup.id":
 		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.cgroup.path":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.cgroup.version":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.comm":
@@ -42974,6 +43504,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setrlimit.target.parent.container.created_at":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.container.id":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.container.pod_uid":
 		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.container.tags":
 		return "setrlimit", reflect.String, "string", true, nil
@@ -43327,6 +43859,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.cgroup.id":
 		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.cgroup.path":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.cgroup.version":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.comm":
@@ -43334,6 +43868,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.ancestors.container.created_at":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.container.id":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.container.pod_uid":
 		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.container.tags":
 		return "signal", reflect.String, "string", true, nil
@@ -43553,6 +44089,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.cgroup.id":
 		return "signal", reflect.String, "string", false, nil
+	case "signal.target.cgroup.path":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.cgroup.version":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.comm":
@@ -43560,6 +44098,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.container.created_at":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.container.id":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.container.pod_uid":
 		return "signal", reflect.String, "string", false, nil
 	case "signal.target.container.tags":
 		return "signal", reflect.String, "string", true, nil
@@ -43739,6 +44279,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.cgroup.id":
 		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.cgroup.path":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.cgroup.version":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.comm":
@@ -43746,6 +44288,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.parent.container.created_at":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.container.id":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.container.pod_uid":
 		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.container.tags":
 		return "signal", reflect.String, "string", true, nil
@@ -44633,6 +45177,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "exec.cgroup.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.cgroup.path"}
+		}
+		ev.Exec.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "exec.cgroup.version":
 		return ev.setIntFieldValue("exec.cgroup.version", &ev.Exec.Process.CGroup.CGroupVersion, value)
 	case "exec.comm":
@@ -44646,6 +45197,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "exec.container.pod_uid":
+		return ev.setStringFieldValue("exec.container.pod_uid", &ev.Exec.Process.ContainerContext.PodUID, value)
 	case "exec.container.tags":
 		return ev.setStringArrayFieldValue("exec.container.tags", &ev.Exec.Process.ContainerContext.Tags, value)
 	case "exec.created_at":
@@ -44992,6 +45545,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "exit.cgroup.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exit.cgroup.path"}
+		}
+		ev.Exit.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "exit.cgroup.version":
 		return ev.setIntFieldValue("exit.cgroup.version", &ev.Exit.Process.CGroup.CGroupVersion, value)
 	case "exit.code":
@@ -45007,6 +45567,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "exit.container.pod_uid":
+		return ev.setStringFieldValue("exit.container.pod_uid", &ev.Exit.Process.ContainerContext.PodUID, value)
 	case "exit.container.tags":
 		return ev.setStringArrayFieldValue("exit.container.tags", &ev.Exit.Process.ContainerContext.Tags, value)
 	case "exit.created_at":
@@ -45931,6 +46493,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "process.ancestors.cgroup.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.cgroup.path"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "process.ancestors.cgroup.version":
 		return ev.setIntFieldValue("process.ancestors.cgroup.version", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupVersion, value)
 	case "process.ancestors.comm":
@@ -45944,6 +46513,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.ancestors.container.pod_uid":
+		return ev.setStringFieldValue("process.ancestors.container.pod_uid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.PodUID, value)
 	case "process.ancestors.container.tags":
 		return ev.setStringArrayFieldValue("process.ancestors.container.tags", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.ancestors.created_at":
@@ -46272,6 +46843,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "process.cgroup.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.cgroup.path"}
+		}
+		ev.BaseEvent.ProcessContext.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "process.cgroup.version":
 		return ev.setIntFieldValue("process.cgroup.version", &ev.BaseEvent.ProcessContext.Process.CGroup.CGroupVersion, value)
 	case "process.comm":
@@ -46285,6 +46863,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.container.pod_uid":
+		return ev.setStringFieldValue("process.container.pod_uid", &ev.BaseEvent.ProcessContext.Process.ContainerContext.PodUID, value)
 	case "process.container.tags":
 		return ev.setStringArrayFieldValue("process.container.tags", &ev.BaseEvent.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.created_at":
@@ -46568,6 +47148,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "process.parent.cgroup.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.cgroup.path"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "process.parent.cgroup.version":
 		return ev.setIntFieldValue("process.parent.cgroup.version", &ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupVersion, value)
 	case "process.parent.comm":
@@ -46581,6 +47168,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.parent.container.pod_uid":
+		return ev.setStringFieldValue("process.parent.container.pod_uid", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.PodUID, value)
 	case "process.parent.container.tags":
 		return ev.setStringArrayFieldValue("process.parent.container.tags", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.Tags, value)
 	case "process.parent.created_at":
@@ -46954,6 +47543,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "ptrace.tracee.ancestors.cgroup.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.cgroup.path"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "ptrace.tracee.ancestors.cgroup.version":
 		return ev.setIntFieldValue("ptrace.tracee.ancestors.cgroup.version", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupVersion, value)
 	case "ptrace.tracee.ancestors.comm":
@@ -46967,6 +47563,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "ptrace.tracee.ancestors.container.pod_uid":
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.container.pod_uid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerContext.PodUID, value)
 	case "ptrace.tracee.ancestors.container.tags":
 		return ev.setStringArrayFieldValue("ptrace.tracee.ancestors.container.tags", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerContext.Tags, value)
 	case "ptrace.tracee.ancestors.created_at":
@@ -47295,6 +47893,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "ptrace.tracee.cgroup.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.cgroup.path"}
+		}
+		ev.PTrace.Tracee.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "ptrace.tracee.cgroup.version":
 		return ev.setIntFieldValue("ptrace.tracee.cgroup.version", &ev.PTrace.Tracee.Process.CGroup.CGroupVersion, value)
 	case "ptrace.tracee.comm":
@@ -47308,6 +47913,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "ptrace.tracee.container.pod_uid":
+		return ev.setStringFieldValue("ptrace.tracee.container.pod_uid", &ev.PTrace.Tracee.Process.ContainerContext.PodUID, value)
 	case "ptrace.tracee.container.tags":
 		return ev.setStringArrayFieldValue("ptrace.tracee.container.tags", &ev.PTrace.Tracee.Process.ContainerContext.Tags, value)
 	case "ptrace.tracee.created_at":
@@ -47591,6 +48198,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "ptrace.tracee.parent.cgroup.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.cgroup.path"}
+		}
+		ev.PTrace.Tracee.Parent.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "ptrace.tracee.parent.cgroup.version":
 		return ev.setIntFieldValue("ptrace.tracee.parent.cgroup.version", &ev.PTrace.Tracee.Parent.CGroup.CGroupVersion, value)
 	case "ptrace.tracee.parent.comm":
@@ -47604,6 +48218,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "ptrace.tracee.parent.container.pod_uid":
+		return ev.setStringFieldValue("ptrace.tracee.parent.container.pod_uid", &ev.PTrace.Tracee.Parent.ContainerContext.PodUID, value)
 	case "ptrace.tracee.parent.container.tags":
 		return ev.setStringArrayFieldValue("ptrace.tracee.parent.container.tags", &ev.PTrace.Tracee.Parent.ContainerContext.Tags, value)
 	case "ptrace.tracee.parent.created_at":
@@ -48323,6 +48939,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "setrlimit.target.ancestors.cgroup.path":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.cgroup.path"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "setrlimit.target.ancestors.cgroup.version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -48360,6 +48989,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "setrlimit.target.ancestors.container.pod_uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.container.pod_uid", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.ContainerContext.PodUID, value)
 	case "setrlimit.target.ancestors.container.tags":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49297,6 +49934,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "setrlimit.target.cgroup.path":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.cgroup.path"}
+		}
+		ev.Setrlimit.Target.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "setrlimit.target.cgroup.version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49322,6 +49969,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "setrlimit.target.container.pod_uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.container.pod_uid", &ev.Setrlimit.Target.Process.ContainerContext.PodUID, value)
 	case "setrlimit.target.container.tags":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49917,6 +50569,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "setrlimit.target.parent.cgroup.path":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.cgroup.path"}
+		}
+		ev.Setrlimit.Target.Parent.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "setrlimit.target.parent.cgroup.version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49954,6 +50619,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "setrlimit.target.parent.container.pod_uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.container.pod_uid", &ev.Setrlimit.Target.Parent.ContainerContext.PodUID, value)
 	case "setrlimit.target.parent.container.tags":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51136,6 +51809,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "signal.target.ancestors.cgroup.path":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.cgroup.path"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "signal.target.ancestors.cgroup.version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -51173,6 +51859,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "signal.target.ancestors.container.pod_uid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.container.pod_uid", &ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerContext.PodUID, value)
 	case "signal.target.ancestors.container.tags":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52110,6 +52804,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "signal.target.cgroup.path":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.cgroup.path"}
+		}
+		ev.Signal.Target.Process.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "signal.target.cgroup.version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52135,6 +52839,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "signal.target.container.pod_uid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.container.pod_uid", &ev.Signal.Target.Process.ContainerContext.PodUID, value)
 	case "signal.target.container.tags":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52730,6 +53439,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
+	case "signal.target.parent.cgroup.path":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.cgroup.path"}
+		}
+		ev.Signal.Target.Parent.CGroup.CGroupPath = containerutils.CGroupID(rv)
+		return nil
 	case "signal.target.parent.cgroup.version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52767,6 +53489,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "signal.target.parent.container.pod_uid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.container.pod_uid", &ev.Signal.Target.Parent.ContainerContext.PodUID, value)
 	case "signal.target.parent.container.tags":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}

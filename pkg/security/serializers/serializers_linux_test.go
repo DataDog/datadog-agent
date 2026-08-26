@@ -346,6 +346,48 @@ func TestCustomEventVariables_AncestorVariables(t *testing.T) {
 	assert.Equal(t, false, s.ProcessContextSerializer.Variables["is_suspicious"])
 }
 
+func TestProcessSerializer_ContainerPodUIDAndCGroupPath(t *testing.T) {
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.ExecEventType)
+
+	proc := &event.ProcessContext.Process
+	proc.Pid = 1234
+	proc.Tid = 1234
+	proc.PPid = 1
+	proc.Comm = "test"
+	proc.FileEvent.PathnameStr = "/usr/bin/test"
+	proc.FileEvent.BasenameStr = "test"
+	proc.FileEvent.Inode = 12345
+	proc.FileEvent.MountID = 1
+	proc.FileEvent.FileFields.Mode = 0o755
+	proc.ContainerContext.ContainerID = "container-123"
+	proc.ContainerContext.PodUID = "48d25824-cbe2-4fdc-9928-5bb49e05473d"
+	proc.ContainerContext.ContainerSource = model.ContainerSourceEvent
+	proc.CGroup.CGroupID = "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-container-123.scope"
+	proc.CGroup.CGroupSource = model.CGroupSourceEvent
+
+	ps := newProcessSerializer(proc, event)
+	require.NotNil(t, ps.Container)
+	assert.Equal(t, "container-123", ps.Container.ID)
+	assert.Equal(t, "48d25824-cbe2-4fdc-9928-5bb49e05473d", ps.Container.PodUID)
+	require.NotNil(t, ps.CGroup)
+	assert.Equal(t, ps.CGroup.ID, ps.CGroup.Path)
+
+	data, err := json.Marshal(ps)
+	require.NoError(t, err)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	container, ok := raw["container"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "48d25824-cbe2-4fdc-9928-5bb49e05473d", container["pod_uid"])
+
+	cgroup, ok := raw["cgroup"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, string(proc.CGroup.CGroupID), cgroup["path"])
+}
+
 func TestProcessSerializer_IsExecFields(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.ExecEventType)

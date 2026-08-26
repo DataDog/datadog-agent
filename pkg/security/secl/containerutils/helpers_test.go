@@ -92,3 +92,41 @@ func TestFindContainerID(t *testing.T) {
 		assert.Equal(t, test.output, string(containerID))
 	}
 }
+
+func TestFindPodUID(t *testing.T) {
+	testCases := []testCase{
+		{
+			input:  "/kubepods/besteffort/pod48d25824-cbe2-4fdc-9928-5bb49e05473d/09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6",
+			output: "48d25824-cbe2-4fdc-9928-5bb49e05473d",
+		},
+		{
+			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+			output: "48d25824-cbe2-4fdc-9928-5bb49e05473d",
+		},
+		{
+			input:  "/kubepods/pod48D25824-CBE2-4FDC-9928-5BB49E05473D/docker/0123456789012345678901234567890123456789012345678901234567890123",
+			output: "48d25824-cbe2-4fdc-9928-5bb49e05473d",
+		},
+		{
+			input:  "/ecs/409b8b89ccd746bdb9b5e03418406d96/409b8b89ccd746bdb9b5e03418406d96-3057940393/kubepods/besteffort/podc00eb3e2-d6c0-4eb6-9e58-fe539629263f/7022ec9d5774c69f38feddd6460373c4681ef72a4e03bc6f2d374387e9bde981",
+			output: "c00eb3e2-d6c0-4eb6-9e58-fe539629263f",
+		},
+		{
+			input:  "/user.slice/user-1000.slice/user@1000.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-f9176c6a-2a34-4ce2-86af-60d16888ed8e.scope",
+			output: "",
+		},
+		{
+			input:  "/kubepods/notapod48d25824-cbe2-4fdc-9928-5bb49e05473d/scope",
+			output: "",
+		},
+		{
+			input:  "/kubepods/pod48d25824-cbe2-4fdc-9928-5bb49e05473d0/scope",
+			output: "",
+		},
+	}
+
+	for _, test := range testCases {
+		podUID := FindPodUID(CGroupID(test.input))
+		assert.Equal(t, test.output, podUID)
+	}
+}

@@ -234,7 +234,8 @@ func (s CGroupSource) String() string {
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	*Releasable
-	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupID      containerutils.CGroupID `field:"id"`   // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupPath    containerutils.CGroupID `field:"path"` // SECLDoc[path] Definition:`Full mount-relative cgroup path`
 	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 	CGroupSource  CGroupSource            `field:"-"`

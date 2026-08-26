@@ -294,6 +294,7 @@ func deepCopyArgsEntryPtr(fieldToCopy *ArgsEntry) *ArgsEntry {
 func deepCopyCGroupContext(fieldToCopy CGroupContext) CGroupContext {
 	copied := CGroupContext{}
 	copied.CGroupID = fieldToCopy.CGroupID
+	copied.CGroupPath = fieldToCopy.CGroupPath
 	copied.CGroupPathKey = deepCopyPathKey(fieldToCopy.CGroupPathKey)
 	copied.CGroupSource = fieldToCopy.CGroupSource
 	copied.CGroupVersion = fieldToCopy.CGroupVersion
@@ -320,6 +321,7 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
+	copied.PodUID = fieldToCopy.PodUID
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	return copied

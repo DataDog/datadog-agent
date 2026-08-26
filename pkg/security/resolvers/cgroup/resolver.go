@@ -159,6 +159,9 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 	if cgroupContext.Releasable == nil {
 		cgroupContext.Releasable = &model.Releasable{}
 	}
+	if cgroupContext.CGroupPath == "" {
+		cgroupContext.CGroupPath = cgroupContext.CGroupID
+	}
 
 	cacheEntry := cgroupModel.NewCacheEntry(containerContext, cgroupContext, pid)
 
@@ -200,10 +203,12 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 		cgroupContext.CGroupID = containerutils.CGroupID(path)
 	}
 
+	podUID := containerutils.FindPodUID(cgroupContext.CGroupID)
 	var containerContext model.ContainerContext
-	if containerID := containerutils.FindContainerID(cgroupContext.CGroupID); containerID != "" {
+	if containerID := containerutils.FindContainerID(cgroupContext.CGroupID); containerID != "" || podUID != "" {
 		containerContext = model.ContainerContext{
 			ContainerID:     containerID,
+			PodUID:          podUID,
 			CreatedAt:       cgroupContext.CreatedAt,
 			ContainerSource: model.ContainerSourceEvent,
 		}
@@ -239,6 +244,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32) *cgroupModel.CacheEntry {
 		}
 		containerContext := model.ContainerContext{
 			ContainerID:     cid,
+			PodUID:          containerutils.FindPodUID(cgroup.CGroupID),
 			CreatedAt:       uint64(cgroup.CreatedAt.UnixNano()),
 			ContainerSource: model.ContainerSourceProcFS,
 		}
