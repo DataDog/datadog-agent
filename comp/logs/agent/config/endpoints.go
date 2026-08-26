@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -318,14 +319,10 @@ func isDelaDirective(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), model.DelaDirectivePrefix)
 }
 
-// CredentialProvider supplies the credential for one destination. It mirrors
-// comp/core/delegatedauth's Provider, redeclared here so this module does not take a dependency
-// on the component.
-type CredentialProvider interface {
-	// Authorize stamps the credential onto h and reports whether it did. A false return means no
-	// credential is available yet and the caller must not send.
-	Authorize(h http.Header) bool
-}
+// CredentialProvider supplies the credential for one destination. It is an alias for
+// delegatedauth.Provider so consumers that import this package get the canonical interface
+// without a separate import.
+type CredentialProvider = delegatedauth.Provider
 
 // SetCredentialProvider makes this endpoint take its credential from p rather than from a
 // configured API key. Call it during endpoint construction, before any destination uses it.
