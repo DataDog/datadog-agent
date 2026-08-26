@@ -567,6 +567,44 @@ func TestMergeRuntimeProperties_DoesNotMutateInput(t *testing.T) {
 	assert.False(t, hasLastSeen, "original component must not be enriched in place")
 }
 
+// A component that already carries the runtime properties, as it does on every
+// merge round after the first, takes the in-place update path of updateProperty.
+func TestMergeRuntimeProperties_DoesNotMutateEnrichedInput(t *testing.T) {
+	original := component("openssl", "1.1.1k",
+		prop("trivy.layer", "sha256:abc"),
+		prop(LastAccessProperty, "1700000000"),
+		prop(HasSetSuidBitProperty, "true"),
+	)
+	existing := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{original},
+	}
+	newBom := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			component("openssl", "1.1.1k",
+				prop(LastAccessProperty, "1800000000"),
+				prop(HasSetSuidBitProperty, "false"),
+			),
+		},
+	}
+
+	mergedBom := mergeRuntimeProperties(existing, newBom)
+
+	got, ok := findProp(original, LastAccessProperty)
+	require.True(t, ok)
+	assert.Equal(t, "1700000000", got, "merge overwrote LastSeenRunning on the input BOM")
+	got, ok = findProp(original, HasSetSuidBitProperty)
+	require.True(t, ok)
+	assert.Equal(t, "true", got, "merge overwrote HasSetSuidBit on the input BOM")
+
+	// The merged copy carries the new values.
+	got, ok = findProp(mergedBom.Components[0], LastAccessProperty)
+	require.True(t, ok)
+	assert.Equal(t, "1800000000", got)
+	got, ok = findProp(mergedBom.Components[0], HasSetSuidBitProperty)
+	require.True(t, ok)
+	assert.Equal(t, "false", got)
+}
+
 // ---------------------------------------------------------------------------
 // workloadmetaEventFromSBOMEventSet
 // ---------------------------------------------------------------------------

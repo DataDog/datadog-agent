@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    HA Agent: a Remote Config document on the ``HA_AGENT`` product that belongs to the
+    ``comp/workloadbalancing`` component (identified by an explicit ``type`` field) is now
+    skipped instead of being processed as an invalid HA Agent document. If every document in
+    an update batch turns out to belong to ``comp/workloadbalancing``, HA Agent resets its
+    state to ``Unknown`` rather than keeping a stale Active/Standby state.

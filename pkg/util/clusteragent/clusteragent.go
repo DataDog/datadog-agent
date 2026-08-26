@@ -138,7 +138,7 @@ func GetClusterAgentClient() (*DCAClient, error) {
 func (c *DCAClient) init() error {
 	var err error
 
-	c.clusterAgentAPIEndpoint, err = utils.GetClusterAgentEndpoint()
+	endpoint, err := utils.GetClusterAgentEndpoint()
 	if err != nil {
 		return err
 	}
@@ -148,10 +148,20 @@ func (c *DCAClient) init() error {
 		return err
 	}
 
-	c.clusterAgentAPIRequestHeaders = http.Header{}
-	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, "Bearer "+authToken)
+	headers := http.Header{}
+	headers.Set(authorizationHeaderKey, "Bearer "+authToken)
 	podIP := pkgconfigsetup.Datadog().GetString("clc_runner_host")
-	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
+	headers.Set(RealIPHeader, podIP)
+
+	// init() can run concurrently with readers (buildURL/doQuery/ClusterAgentAPIEndpoint)
+	// via GetClusterAgentClient retries racing with ClusterChecksConfigProvider.IsUpToDate.
+	// Guard the endpoint and request headers with the same lock that protects the
+	// HTTP client and version (see #54638); build the values on locals first so we
+	// don't hold the lock while doing config lookups.
+	c.clusterAgentClientLock.Lock()
+	c.clusterAgentAPIEndpoint = endpoint
+	c.clusterAgentAPIRequestHeaders = headers
+	c.clusterAgentClientLock.Unlock()
 
 	if err := c.initHTTPClient(); err != nil {
 		return err
@@ -269,6 +279,8 @@ func (c *DCAClient) Version(withRefresh bool) version.Version {
 
 // ClusterAgentAPIEndpoint returns the Agent API Endpoint URL as a string
 func (c *DCAClient) ClusterAgentAPIEndpoint() string {
+	c.clusterAgentClientLock.RLock()
+	defer c.clusterAgentClientLock.RUnlock()
 	return c.clusterAgentAPIEndpoint
 }
 
@@ -278,7 +290,17 @@ func (c *DCAClient) buildURL(useLeaderClient bool, path string) string {
 		return c.leaderClient.buildURL(path)
 	}
 
+	c.clusterAgentClientLock.RLock()
+	defer c.clusterAgentClientLock.RUnlock()
 	return c.clusterAgentAPIEndpoint + "/" + path
+}
+
+// requestHeaders returns a copy of the request headers safe to mutate. It takes the
+// read lock so it doesn't race with init() rebuilding the headers.
+func (c *DCAClient) requestHeaders() http.Header {
+	c.clusterAgentClientLock.RLock()
+	defer c.clusterAgentClientLock.RUnlock()
+	return c.clusterAgentAPIRequestHeaders.Clone()
 }
 
 // TODO: remove when we drop compatibility with older Agents, see end of `init()`
@@ -300,7 +322,7 @@ func (c *DCAClient) doQuery(ctx context.Context, path, method string, body io.Re
 	if err != nil {
 		return nil, fmt.Errorf("unable to build request during query to: %s, err: %w", url, err)
 	}
-	req.Header = c.clusterAgentAPIRequestHeaders
+	req.Header = c.requestHeaders()
 
 	client := c.httpClient(useLeaderClient)
 	resp, err := client.Do(req)

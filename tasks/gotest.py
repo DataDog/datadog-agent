@@ -472,14 +472,30 @@ def test_flavor(
     for batch in batches:
         batch_packages = ' '.join(batch)
         with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
-            res = bazel(
-                "run",
-                "//internal/tools:gotestsum",
-                "--",
-                *shlex.split(cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)),
-                env=env,  # contains secrets, so passing each variable through `--run_env=` would print their values
-                ignore_errors=True,
-            )
+            formatted_cmd = cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)
+            if sys.platform == "aix":
+                # AIX has no Bazel yet. ctx.run goes through a shell, so build the
+                # exact argv (the same shlex.split list the bazel path passes) and
+                # re-quote it with shlex.join — otherwise shell metacharacters in
+                # the command (e.g. `|` in a `-run TestA|TestB` regex) would be
+                # interpreted by the shell instead of passed literally to go test.
+                gotestsum_argv = ["gotestsum", *shlex.split(formatted_cmd)]
+                run_res = ctx.run(shlex.join(gotestsum_argv), env=env, warn=True, hide=False)
+                res = subprocess.CompletedProcess(
+                    args=gotestsum_argv,
+                    returncode=run_res.return_code,
+                    stdout=run_res.stdout,
+                    stderr=run_res.stderr,
+                )
+            else:
+                res = bazel(
+                    "run",
+                    "//internal/tools:gotestsum",
+                    "--",
+                    *shlex.split(formatted_cmd),
+                    env=env,  # contains secrets, so passing each variable through `--run_env=` would print their values
+                    ignore_errors=True,
+                )
             # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
             if res is not None and res.returncode in (130, -signal.SIGINT):
                 raise KeyboardInterrupt()

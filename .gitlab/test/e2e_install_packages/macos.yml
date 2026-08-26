@@ -1,6 +1,9 @@
 new-e2e-agent-platform-install-script-macos-x64:
   extends:
     - .new_e2e_template
+  before_script:
+    - !reference [.new_e2e_template, before_script]
+    - export E2E_MACOS_POOL_ENABLED=$(dda self feature ci-datadog-agent-e2e-macos-pools --default false)
   stage: e2e_install_packages
   needs:
     - !reference [.needs_new_e2e_template]

@@ -92,7 +92,7 @@ func TestNewStats(t *testing.T) {
 
 func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("telemetry.checks", "*")
+	mockConfig.SetInTest("telemetry.checks", []string{"*"})
 
 	NewStats(newMockCheck())
 
@@ -113,7 +113,7 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 
 func TestFirstExecutionTimeMetric(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("telemetry.checks", "*")
+	mockConfig.SetInTest("telemetry.checks", []string{"*"})
 
 	stats := NewStats(newMockCheck())
 	haagent := haagentmock.NewMockHaAgent()

@@ -248,6 +248,12 @@ func (e *CommonEnvironment) DefaultResourceTags() map[string]string {
 	return map[string]string{"managed-by": "pulumi", "username": e.username, "stack": e.Ctx().Stack()}
 }
 
+// Username returns the local OS user the stack is running as. Prefer this over
+// indexing DefaultResourceTags(), which silently yields "" if the key ever changes.
+func (e *CommonEnvironment) Username() string {
+	return e.username
+}
+
 func (e *CommonEnvironment) InitOnly() bool {
 	return e.GetBoolWithDefault(e.InfraConfig, DDInfraInitOnly, false)
 }
