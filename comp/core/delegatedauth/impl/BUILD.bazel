@@ -6,6 +6,8 @@ go_library(
     srcs = [
         "delegatedauth.go",
         "provider.go",
+        "status.go",
+        "writeback.go",
     ],
     embedsrcs = [
         "status_templates/delegatedauth.tmpl",
