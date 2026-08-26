@@ -381,17 +381,21 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresEnvVarsDiscovered() {
 				envVars[envVar.Name] = envVar.Value
 			}
 			assert.Equal(c, "/var/lib/postgresql/data/configfilesdiscovery", envVars["PGDATA"])
+			assert.Equal(c, "5432", envVars["PGPORT"])
 			assert.Equal(c, postgresDBName, envVars["POSTGRES_DB"])
 			assert.Equal(c, postgresUser, envVars["POSTGRES_USER"])
 			assert.Equal(c, "/bitnami/postgresql/data/configfilesdiscovery", envVars["POSTGRESQL_DATA_DIR"])
 			assert.Equal(c, "configfilesdiscovery-bitnami", envVars["POSTGRESQL_DATABASE"])
 			assert.Equal(c, "configfilesdiscovery-bitnami", envVars["POSTGRESQL_USERNAME"])
 			assert.Equal(c, "/bitnami/postgresql/wal", envVars["POSTGRESQL_INITDB_WAL_DIR"])
+			assert.Equal(c, "200", envVars["POSTGRESQL_MAX_CONNECTIONS"])
+			assert.Equal(c, "scram-sha-256", envVars["POSTGRESQL_PASSWORD_ENCRYPTION"])
+			assert.Equal(c, "no", envVars["POSTGRESQL_ENABLE_TLS"])
+			assert.Equal(c, "master", envVars["POSTGRESQL_REPLICATION_MODE"])
 			assert.NotContains(c, envVars, "POSTGRES_PASSWORD")
 			assert.NotContains(c, envVars, "POSTGRESQL_PASSWORD")
-			for name := range envVars {
-				assert.NotContains(c, strings.ToUpper(name), "PASSWORD")
-			}
+			assert.NotContains(c, envVars, "POSTGRESQL_PASSWORD_FILE")
+			assert.NotContains(c, envVars, "POSTGRESQL_LDAP_URL")
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres env var discovery payload")
 }

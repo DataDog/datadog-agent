@@ -8,6 +8,7 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 )
@@ -17,40 +18,66 @@ const PostgresIntegrationName = "postgres"
 
 type postgresConfigCollector struct{}
 
-// postgresEnvAllow lists the only environment variables this collector ever
-// forwards. It covers the official image plus the equivalent canonical Bitnami
-// names. Other PG*/POSTGRES* variables can carry credentials, connection
-// strings, or arbitrary argument bags.
+// postgresEnvAllow lists the documented PostgreSQL server and official-image
+// settings whose values are configuration metadata. Bitnami's POSTGRESQL_*
+// settings are handled by postgresBitnamiEnvAllow below.
+//
+// Keep POSTGRES_* explicit: that namespace contains passwords, credentials,
+// and free-form argument values.
 var postgresEnvAllow = map[string]struct{}{
-	"PGDATA":                    {},
-	"POSTGRES_DB":               {},
-	"POSTGRES_USER":             {},
-	"POSTGRES_INITDB_WALDIR":    {},
-	"POSTGRESQL_DATA_DIR":       {},
-	"POSTGRESQL_DATABASE":       {},
-	"POSTGRESQL_USERNAME":       {},
-	"POSTGRESQL_INITDB_WAL_DIR": {},
+	// PostgreSQL server environment variables.
+	"PGCLIENTENCODING":    {},
+	"PGDATA":              {},
+	"PGDATESTYLE":         {},
+	"PGPORT":              {},
+	"PG_OOM_ADJUST_FILE":  {},
+	"PG_OOM_ADJUST_VALUE": {},
+
+	// Official PostgreSQL image variables.
+	"POSTGRES_DB":            {},
+	"POSTGRES_INITDB_WALDIR": {},
+	"POSTGRES_USER":          {},
+
+	// Bitnami POSTGRES_* aliases for the settings above.
+	"POSTGRES_CLUSTER_APP_NAME":         {},
+	"POSTGRES_INITDB_WAL_DIR":           {},
+	"POSTGRES_MASTER_HOST":              {},
+	"POSTGRES_MASTER_PORT_NUMBER":       {},
+	"POSTGRES_NUM_SYNCHRONOUS_REPLICAS": {},
+	"POSTGRES_PORT_NUMBER":              {},
+	"POSTGRES_REPLICATION_MODE":         {},
+	"POSTGRES_REPLICATION_USER":         {},
+	"POSTGRES_SHUTDOWN_MODE":            {},
+	"POSTGRES_SYNCHRONOUS_COMMIT_MODE":  {},
 }
 
-// postgresEnvDeny is defense in depth and documentation: the allow-list above
-// already excludes every name here. Keeping the exclusion explicit protects
-// against the allow-list being loosened later without revisiting these.
+// postgresBitnamiEnvAllow accepts Bitnami's configuration namespace. The
+// shared secret-name policy and postgresEnvDeny reject unsafe settings first.
+var postgresBitnamiEnvAllow = regexp.MustCompile(`^POSTGRESQL_[A-Z0-9_]+$`)
+
+// postgresEnvDeny covers documented settings whose values can contain a secret
+// or an unbounded argument string. The common secret-name filter rejects the
+// password, key and certificate variants before this predicate is reached.
 var postgresEnvDeny = map[string]struct{}{
-	"POSTGRES_PASSWORD":      {},
-	"POSTGRES_PASSWORD_FILE": {},
-	"POSTGRES_INITDB_ARGS":   {},
-	"PGPASSWORD":             {},
-	"PGPASSFILE":             {},
-	"PGSERVICE":              {},
-	"PGSERVICEFILE":          {},
-	"PGOPTIONS":              {},
-	"PGSSLKEY":               {},
-	"PGSSLCERT":              {},
-	"PGSSLROOTCERT":          {},
-	"PGREQUIRESSL":           {},
-	"DATABASE_URL":           {},
-	"POSTGRES_URL":           {},
+	"PGOPTIONS":                            {},
+	"PGPASSFILE":                           {},
+	"PGSERVICE":                            {},
+	"PGSERVICEFILE":                        {},
+	"POSTGRES_HOST_AUTH_METHOD":            {},
+	"POSTGRES_INITDB_ARGS":                 {},
+	"POSTGRESQL_EXTRA_FLAGS":               {},
+	"POSTGRESQL_INITDB_ARGS":               {},
+	"POSTGRESQL_LDAP_BIND_PASSFILE_PATH":   {},
+	"POSTGRESQL_LDAP_URL":                  {},
+	"POSTGRESQL_PGHBA_AUTH_METHOD":         {},
+	"POSTGRESQL_REPLICATION_PASSFILE_PATH": {},
+	"POSTGRESQL_TLS_CA_FILE":               {},
+	"POSTGRESQL_TLS_CRL_FILE":              {},
 }
+
+var postgresBitnamiEnvDeny = regexp.MustCompile(
+	`^POSTGRESQL_(?:.*_)?(?:ARGS|AUTH_METHOD|CONNECTION_STRING|DSN|FLAGS|OPTS|PASSFILE(?:_PATH)?|URI|URL)$`,
+)
 
 // NewPostgres returns a collector that reads selected, non-secret PostgreSQL
 // environment variables. It does not read postgresql.conf; config-file
@@ -86,6 +113,9 @@ func includePostgresEnvVar(name string) bool {
 	if _, denied := postgresEnvDeny[name]; denied {
 		return false
 	}
+	if postgresBitnamiEnvDeny.MatchString(name) {
+		return false
+	}
 	_, allowed := postgresEnvAllow[name]
-	return allowed
+	return allowed || postgresBitnamiEnvAllow.MatchString(name)
 }

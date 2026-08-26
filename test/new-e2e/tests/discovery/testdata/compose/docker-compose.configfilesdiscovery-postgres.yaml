@@ -6,6 +6,7 @@ services:
     # realistic deployment scenario.
     environment:
       PGDATA: /var/lib/postgresql/data/configfilesdiscovery
+      PGPORT: "5432"
       POSTGRES_DB: configfilesdiscovery
       POSTGRES_USER: configfilesdiscovery
       POSTGRES_PASSWORD: must-not-be-forwarded
@@ -15,6 +16,11 @@ services:
       POSTGRESQL_DATABASE: configfilesdiscovery-bitnami
       POSTGRESQL_USERNAME: configfilesdiscovery-bitnami
       POSTGRESQL_INITDB_WAL_DIR: /bitnami/postgresql/wal
+      POSTGRESQL_MAX_CONNECTIONS: "200"
+      POSTGRESQL_PASSWORD_ENCRYPTION: scram-sha-256
+      POSTGRESQL_ENABLE_TLS: "no"
+      POSTGRESQL_REPLICATION_MODE: master
+      POSTGRESQL_LDAP_URL: ldap://user:password@ldap.example.test
       POSTGRESQL_PASSWORD: must-not-be-forwarded
     labels:
       com.datadoghq.ad.checks: |
