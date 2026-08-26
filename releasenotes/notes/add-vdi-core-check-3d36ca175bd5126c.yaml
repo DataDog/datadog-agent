@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add a Windows VDI core check with Amazon WorkSpaces DCV performance
-    metrics.
