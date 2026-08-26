@@ -92,21 +92,44 @@ func IPCCertFilepath() string {
 	return pkgconfigsetup.Datadog().GetString("ipc_cert_file_path")
 }
 
-// ApplySetting writes one streamed setting to the global config, preserving the source. Bypasses
-// the ordinary Set() guardrail against SourceEnvVar (nodetreemodel only) so streamed settings mirror
-// the core agent's resolved config exactly, including ones sourced from its own env vars.
-func ApplySetting(key string, value *structpb.Value, source string) {
+// StreamedSetting is one setting carried by a config stream event.
+type StreamedSetting struct {
+	Key    string
+	Value  *structpb.Value
+	Source string
+}
+
+// ApplyStreamedSettings writes a whole streamed snapshot to the global config in one pass. Unlike
+// ApplySetting it accepts env-var-sourced settings, so the result mirrors the core agent exactly.
+func ApplyStreamedSettings(settings []StreamedSetting) {
 	b := pkgconfigsetup.Datadog()
-	goValue := pbValueToGo(value)
-	streamedSource := pkgconfigmodel.Source(source)
-	type streamIngester interface {
-		IngestStreamedSetting(key string, newValue any, source pkgconfigmodel.Source)
+	type bulkSetter interface {
+		DirectBulkSet(settings []pkgconfigmodel.DirectSetting)
 	}
-	if ingester, ok := b.(streamIngester); ok {
-		ingester.IngestStreamedSetting(key, goValue, streamedSource)
+	setter, ok := b.(bulkSetter)
+	if !ok {
+		pkglog.Warnf("config implementation %T has no DirectBulkSet; falling back to Set, which rejects env-var-sourced settings", b)
+		for _, setting := range settings {
+			ApplySetting(setting.Key, setting.Value, setting.Source)
+		}
 		return
 	}
-	b.Set(key, goValue, streamedSource)
+
+	direct := make([]pkgconfigmodel.DirectSetting, 0, len(settings))
+	for _, setting := range settings {
+		direct = append(direct, pkgconfigmodel.DirectSetting{
+			Key:    setting.Key,
+			Value:  pbValueToGo(setting.Value),
+			Source: pkgconfigmodel.Source(setting.Source),
+		})
+	}
+	setter.DirectBulkSet(direct)
+}
+
+// ApplySetting writes one streamed setting to the global config, preserving the source. Goes
+// through Set so change notifications still reach registered receivers.
+func ApplySetting(key string, value *structpb.Value, source string) {
+	pkgconfigsetup.Datadog().Set(key, pbValueToGo(value), pkgconfigmodel.Source(source))
 }
 
 // pbValueToGo converts a protobuf Value to a Go value. It preserves integer types that structpb widens to float64.

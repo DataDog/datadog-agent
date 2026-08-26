@@ -216,18 +216,6 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
-	c.set(key, newValue, source)
-}
-
-// IngestStreamedSetting assigns the newValue to the given key and marks it as originating from the
-// given source, same as Set but without the SourceEnvVar guardrail. It exists so a configstream
-// client can mirror the core agent's resolved config, including settings sourced from its env vars,
-// without opening up Set itself to writing to the env var layer.
-func (c *ntmConfig) IngestStreamedSetting(key string, newValue interface{}, source model.Source) {
-	c.set(key, newValue, source)
-}
-
-func (c *ntmConfig) set(key string, newValue interface{}, source model.Source) {
 	c.maybeRebuild()
 
 	c.Lock()
@@ -305,6 +293,52 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	parts := splitKey(key)
 	err = tree.setAt(parts, value, source, copyOnWrite) // config may already be in use
 	return tree, err
+}
+
+// DirectBulkSet seeds a config wholesale from an already-resolved one. Unlike Set it accepts
+// SourceEnvVar and skips notifications, so it is unfit for applying a live change.
+func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
+	c.maybeRebuild()
+
+	c.Lock()
+	defer c.Unlock()
+
+	// Merge ranks conflicting leaves by source, so merging each layer once at the end is
+	// equivalent to Set's merge-per-write.
+	touched := make([]*nodeImpl, 0, len(model.Sources))
+	for _, setting := range settings {
+		key := strings.ToLower(setting.Key)
+		if !c.isKnownKey(key) && !c.allowDynamicSchema.Load() {
+			log.Errorf("could not set '%s' unknown key", key)
+			continue
+		}
+
+		declaredNode := c.nodeAtPathFromNode(key, c.defaults)
+		if declaredNode.IsInnerNode() {
+			log.Errorf("could not set '%s': partial path of a setting", key)
+			continue
+		}
+
+		value := setting.Value
+		if declaredNode.IsLeafNode() {
+			if converted, err := basic.ConvertToDefaultType(value, declaredNode.Get(), false); err == nil {
+				value = converted
+			}
+		}
+
+		tree, err := c.insertValueIntoTree(key, value, setting.Source)
+		if err != nil {
+			log.Errorf("could not insert value for '%s': %s", key, err)
+			continue
+		}
+		if tree != nil && !slices.Contains(touched, tree) {
+			touched = append(touched, tree)
+		}
+	}
+
+	for _, tree := range touched {
+		c.root, _ = c.root.Merge(tree)
+	}
 }
 
 // SetInTest assigns the value to the given key using source Unknown, may only be called from tests

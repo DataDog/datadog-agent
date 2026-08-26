@@ -94,6 +94,13 @@ var sourcesPriority = map[Source]int{
 	SourceCLI:                11,
 }
 
+// DirectSetting is one key/value/source assignment for nodetreemodel's DirectBulkSet.
+type DirectSetting struct {
+	Key    string
+	Value  interface{}
+	Source Source
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
