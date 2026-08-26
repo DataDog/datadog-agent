@@ -25,7 +25,8 @@ license(
     license_kinds = ["@rules_license//licenses/spdx:Python-2.0"],
     # Instead of the LICENSE file upstream, we use the license text previously approved
     # and locally cached at https://dd-agent-omnibus.s3.amazonaws.com/licenses/Python-2.0"
-    # Switching to the upstream one would add explanatory boilerplate that costs 4K of disk space.
+    # Switching to the upstream one would add historical notes that point to obsolete
+    # license terms, making the actual license obligations less clear and costing 4K of disk space.
     license_text = "Python-2.0",
     visibility = ["//visibility:public"],
 )
