@@ -526,13 +526,19 @@ const (
 
 func (s *sender) do(req *http.Request) error {
 	if !s.apiKeyManager.Authorize(req.Header) {
-		// Only latch for a provider-backed endpoint: a plain-key sender with an empty key is
-		// misconfigured, not waiting on a credential, and latching here would make Push drop
-		// its payloads silently instead of back-pressuring.
 		if s.apiKeyManager.hasProvider() {
+			// A provider-backed endpoint whose credential hasn't arrived yet. This is transient:
+			// latch so Push drops for this sender alone rather than blocking the shared flusher,
+			// and return a credentialNotReadyError so the payload is requeued without consuming
+			// a retry.
 			s.awaitingCredential.Store(true)
+			return &credentialNotReadyError{}
 		}
-		return &credentialNotReadyError{}
+		// No provider and no key: the endpoint was built from a directive that never produced
+		// an instance (malformed, unsupported provider, or noop component). This is a permanent
+		// failure, not a credential that may resolve. Return a fatal error so the payload is
+		// dropped rather than retried forever, which would fill the queue and block the flusher.
+		return fmt.Errorf("endpoint has no credential and no delegated-auth provider; it will not send")
 	}
 	s.awaitingCredential.Store(false)
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
