@@ -631,7 +631,7 @@ type parquetMetricView struct {
 }
 
 // newParquetMetricView resolves the recorder's legacy host:* tag into the
-// separate host dimension. The remaining tags stay raw for later tag resolution.
+// separate host dimension. The remaining tags are the final tags from the replay input.
 func newParquetMetricView(name string, value float64, tags []string, timestamp int64) parquetMetricView {
 	host, metricTags := resolveParquetMetricHostAndTags(tags)
 	return parquetMetricView{name: name, value: value, host: host, tags: metricTags, timestamp: timestamp}
@@ -682,7 +682,7 @@ func metricSeriesHash(name, host string, sortedTags []string) uint64 {
 
 func (m *parquetMetricView) GetName() string         { return m.name }
 func (m *parquetMetricView) GetValue() float64       { return m.value }
-func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
+func (m *parquetMetricView) GetTags() []string       { return m.tags }
 func (m *parquetMetricView) GetHost() string         { return m.host }
 func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
