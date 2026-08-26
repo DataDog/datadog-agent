@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add a Windows VDI core check with Amazon WorkSpaces DCV performance
+    metrics and privileged session enrichment through system-probe.
