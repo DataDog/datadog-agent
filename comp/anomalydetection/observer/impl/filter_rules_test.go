@@ -159,6 +159,19 @@ func TestMetricsFilterRulesSourceFilter(t *testing.T) {
 	assert.True(t, filter.isAllowed("system.cpu.user", "check", []string{"env:dev"}))
 }
 
+func TestMetricsFilterRulesHostFilter(t *testing.T) {
+	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
+		Type: excludeAtMatch,
+		Name: "drop_noisy_host",
+		Host: "noisy-host",
+	}})
+	require.NoError(t, err)
+
+	assert.False(t, filter.isAllowedWithHost("system.cpu.user", "dogstatsd", "noisy-host", []string{"env:prod"}))
+	assert.True(t, filter.isAllowedWithHost("system.cpu.user", "dogstatsd", "other-host", []string{"env:prod"}))
+	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"host:noisy-host"}))
+}
+
 func TestMetricsFilterRulesOrderedEvaluationFirstMatchWins(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{
 		{
