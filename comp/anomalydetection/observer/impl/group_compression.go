@@ -41,15 +41,6 @@ type seriesCompact struct {
 	Tags      []string
 }
 
-func (s seriesCompact) effectiveTags() []string {
-	if s.Host == "" || sliceContains(s.Tags, "host:"+s.Host) {
-		return s.Tags
-	}
-	tags := make([]string, 0, len(s.Tags)+1)
-	tags = append(tags, "host:"+s.Host)
-	return append(tags, s.Tags...)
-}
-
 // extractCommonTags finds tags shared by all members, returning common tags as a map
 // and the residual per-member tags.
 func extractCommonTags(members []seriesCompact) (common map[string]string, residuals [][]string) {
@@ -60,7 +51,7 @@ func extractCommonTags(members []seriesCompact) (common map[string]string, resid
 
 	// Parse tags from first member as candidates
 	candidates := make(map[string]string)
-	for _, tag := range members[0].effectiveTags() {
+	for _, tag := range members[0].Tags {
 		k, v := splitTag(tag)
 		candidates[k] = v
 	}
@@ -68,7 +59,7 @@ func extractCommonTags(members []seriesCompact) (common map[string]string, resid
 	// Intersect with remaining members
 	for _, m := range members[1:] {
 		memberTags := make(map[string]string)
-		for _, tag := range m.effectiveTags() {
+		for _, tag := range m.Tags {
 			k, v := splitTag(tag)
 			memberTags[k] = v
 		}
@@ -84,7 +75,7 @@ func extractCommonTags(members []seriesCompact) (common map[string]string, resid
 	// Compute residuals
 	residuals = make([][]string, len(members))
 	for i, m := range members {
-		for _, tag := range m.effectiveTags() {
+		for _, tag := range m.Tags {
 			k, _ := splitTag(tag)
 			if _, isCommon := common[k]; !isCommon {
 				residuals[i] = append(residuals[i], tag)
