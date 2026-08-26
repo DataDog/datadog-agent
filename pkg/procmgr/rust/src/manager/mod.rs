@@ -227,6 +227,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Result<()> {
+        crate::platform::reset_shutdown_state_for_test();
+        let mgr = ProcessManager::new(
+            loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
+            uuid_gen(),
+        );
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
+
+        let mgr_task = mgr.clone();
+        let handles_task = handles.clone();
+        let auto_start_task =
+            tokio::spawn(async move { mgr_task.auto_start_all(&handles_task).await });
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let procs = mgr.processes().await;
+                if procs
+                    .iter()
+                    .any(|p| p.name() == "first-child" && p.is_running())
+                {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("timed out waiting for first auto-start child");
+
+        crate::platform::signal_shutdown_for_test();
+        auto_start_task.await?;
+
+        let _write_guard = tokio::time::timeout(Duration::from_millis(100), mgr.processes.write())
+            .await
+            .expect("catalog write lock still held after auto-start shutdown join");
+
+        crate::platform::reset_shutdown_state_for_test();
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_shutdown_requested_during_auto_start() {
         crate::platform::reset_shutdown_state_for_test();
         let mgr = ProcessManager::new(

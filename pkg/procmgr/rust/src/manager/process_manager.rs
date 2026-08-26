@@ -41,21 +41,30 @@ impl ProcessManager {
     pub(in crate::manager) async fn auto_start_all(&self, handles: &RuntimeHandles) {
         let order = self.startup_order.read().await.clone();
         for idx in order {
+            let worker = self.spawn_auto_start_at(idx, handles);
+            tokio::pin!(worker);
             tokio::select! {
                 biased;
                 _ = platform::wait_for_shutdown() => {
                     info!("skipping remaining auto-starts: service shutting down");
+                    log_auto_start_join_error(worker.as_mut().await);
                     return;
                 }
-                _ = self.auto_start_at(idx, handles) => {}
+                result = worker.as_mut() => {
+                    log_auto_start_join_error(result);
+                }
             }
         }
     }
 
-    async fn auto_start_at(&self, idx: usize, handles: &RuntimeHandles) {
+    fn spawn_auto_start_at(
+        &self,
+        idx: usize,
+        handles: &RuntimeHandles,
+    ) -> tokio::task::JoinHandle<()> {
         let processes = Arc::clone(&self.processes);
         let handles = handles.clone();
-        let result = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             tokio::runtime::Handle::current().block_on(async move {
                 let mut procs = processes.write().await;
                 let Some(proc) = procs.get_mut(idx) else {
@@ -64,10 +73,6 @@ impl ProcessManager {
                 try_auto_start(proc, &handles);
             });
         })
-        .await;
-        if let Err(e) = result {
-            warn!("auto-start worker task failed: {e:#}");
-        }
     }
 
     pub(crate) async fn processes(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
@@ -280,5 +285,11 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
     StartupOrderResult {
         order: result.order,
         warnings: result.warnings,
+    }
+}
+
+fn log_auto_start_join_error(result: Result<(), tokio::task::JoinError>) {
+    if let Err(e) = result {
+        warn!("auto-start worker task failed: {e:#}");
     }
 }
