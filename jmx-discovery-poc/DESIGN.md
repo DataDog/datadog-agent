@@ -57,9 +57,16 @@ Details: [approach-0-one-shot-subprocess.md](approach-0-one-shot-subprocess.md)
 |---|---|
 | Matches Python pattern (synchronous verify) | JVM startup ~1–2s per probe |
 | No new channels needed | Multiple probes × retries = expensive |
-| Simple to implement | Not suitable for production |
+| Simple to implement | Needs bounded concurrency + rate limiting |
+| No impact on running JMXFetch instances | |
+| Natural process isolation and timeouts | |
+| Clean stdout result contract | |
+| No bootstrap deadlock | |
 
-**Verdict:** Rejected for production. Acceptable as a stepping stone only.
+**Verdict:** Reconsidered as near-term implementation. With bounded
+concurrency (1–2 JVMs), per-service dedup, and rate limiting, the JVM
+startup cost is acceptable for rare one-time discovery probes. See
+[DESIGN-CRITIQUE.md](DESIGN-CRITIQUE.md) for the full argument.
 
 ---
 
@@ -79,8 +86,9 @@ Details: [approach-1-discovery-http-server.md](approach-1-discovery-http-server.
 | Low latency | Harder to get accepted in review |
 | Full verification before scheduling | Agent → JMXFetch direction is new |
 
-**Verdict:** Technically best, but significant architecture change. Keep as
-a future optimization if Approach 2 proves insufficient.
+**Verdict:** Technically best, but significant architecture change. A
+better long-term alternative is dedicated pull endpoints on the existing
+Agent IPC server (Approach 4), which avoids adding a server to JMXFetch.
 
 ---
 
@@ -107,10 +115,9 @@ Details: [approach-2-error-suppression.md](approach-2-error-suppression.md)
 | Works within existing architecture | **Discovery telemetry useless** |
 | Easy to get accepted in review | **Fleet Automation shows unverified config** |
 
-**Verdict:** Recommended. Minimal changes, works within existing
-architecture, preserves the key property (no error service checks on
-discovery failure). Can be upgraded to Approach 1 later if lower latency
-is needed.
+**Verdict:** Rejected. The critique identified fundamental problems:
+bootstrap deadlock, global reinit churn, lossy result delivery, wrong
+validation. See [DESIGN-CRITIQUE.md](DESIGN-CRITIQUE.md).
 
 ---
 
@@ -135,22 +142,73 @@ Details: [approach-3-dummy-config.md](approach-3-dummy-config.md)
 | Fleet Automation status stays clean | |
 | Works within existing architecture | |
 
-**Verdict:** Recommended. Solves the problems with Approach 2 (config
-scheduled before verification, agent doesn't know result, telemetry useless)
-without the architecture change required by Approach 1.
+**Verdict:** Rejected. The critique identified fundamental problems:
+bootstrap deadlock (JMXFetch not started), global reinit churn (every
+discovery request disrupts all running JMX integrations), lossy result
+delivery (/status is not a reliable RPC), wrong validation (JVM metrics
+don't prove app detection), and IsJMXConfig misclassification with empty
+instances. See [DESIGN-CRITIQUE.md](DESIGN-CRITIQUE.md).
+
+---
+
+## Approach 4: Dedicated Pull Endpoints on Existing Agent IPC Server
+
+Add two new endpoints to the Agent's existing HTTPS IPC server (the same
+server that already serves `/agent/jmx/configs` and `/agent/jmx/status`):
+
+- `GET /agent/jmx/discovery/requests?cursor=N` — JMXFetch polls for
+  pending discovery requests (with monotonic sequence numbers)
+- `POST /agent/jmx/discovery/results` — JMXFetch posts discovery results
+
+JMXFetch remains the HTTP client; no new server or port on JMXFetch.
+This preserves the existing communication direction.
+
+Details: [approach-4-pull-endpoints.md](approach-4-pull-endpoints.md)
+
+| Pros | Cons |
+|---|---|
+| No new JMXFetch server or port | New endpoints on Agent IPC server |
+| Preserves existing communication direction | More complex protocol than one-shot |
+| Monotonic versioning, reliable delivery | Needs lease/ack protocol |
+| Separate JMXFetch discovery executor | |
+| No reinit churn on regular configs | |
+| Long-term production solution | |
+
+**Verdict:** Best long-term solution. More work than Approach 0 but
+cleaner protocol. Can be built after Approach 0 proves the concept.
 
 ---
 
 ## Recommendation
 
-**Approach 3** for implementation. It requires:
+**Near term: Approach 0** (one-shot subprocess with bounded concurrency).
+It's simple, correct, and avoids all the protocol issues identified in
+the critique. The JVM startup cost (~1–2s) is acceptable for rare,
+one-time discovery probes. With bounded concurrency (1–2 concurrent
+JVMs), per-service dedup, and rate limiting, it's operationally safe.
 
-- **Agent**: Discovery request registry, modified `/configs` and `/status`
-  handlers, JMX bridge that blocks on result channel
-- **JMXFetch**: Recognize `__jmx_discovery__` configs, run probe (connect,
-  inspect MBeans, collect one iteration), post result via `/status`
+**Long term: Approach 4** (dedicated pull endpoints). Once the concept is
+proven, add proper pull endpoints to the Agent IPC server with monotonic
+versioning, reliable delivery, and a separate JMXFetch discovery executor.
+This eliminates the JVM startup cost and provides a clean, reliable
+protocol.
 
-No new endpoints, no new HTTP servers, no new command-line params.
+**Key design principles** (from critique, apply to both):
+
+1. **Don't replace integration metric definitions.** Discovery should
+   vary only the connection instance (host, port), not replace the
+   integration's `metrics.yaml`. The template's `init_config` and
+   `MetricConfig` must be preserved.
+2. **Use application-specific validation.** Don't just check
+   `metric_count > 0` (any JVM produces JVM metrics). Require at least
+   one metric from the intended integration's application-specific rules,
+   or use an explicit identity predicate (domain/ObjectName check).
+3. **The integration is already known.** The discovery template carries
+   the integration name. Don't auto-detect from a global registry —
+   verify that the specific integration's expected MBeans are present.
+4. **Store integration-owned data in integrations-core.** Preferred
+   ports, identity ObjectNames, and required metric selectors should live
+   with each integration, not hardcoded in JMXFetch.
 
 ## Related Files
 
@@ -161,4 +219,12 @@ No new endpoints, no new HTTP servers, no new command-line params.
 - [approach-1-discovery-http-server.md](approach-1-discovery-http-server.md)
   — Discovery HTTP server approach
 - [approach-2-error-suppression.md](approach-2-error-suppression.md) —
-  Error suppression approach (recommended)
+  Error suppression approach (rejected)
+- [approach-3-dummy-config.md](approach-3-dummy-config.md) —
+  Dummy config approach (rejected — see critique)
+- [approach-3-blocking-analysis.md](approach-3-blocking-analysis.md) —
+  Blocking analysis for Approach 3
+- [approach-4-pull-endpoints.md](approach-4-pull-endpoints.md) —
+  Dedicated pull endpoints on Agent IPC server (long-term)
+- [DESIGN-CRITIQUE.md](DESIGN-CRITIQUE.md) —
+  Critique of Approach 3 with suggested alternatives
