@@ -78,8 +78,10 @@ TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/bu
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
 DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
+# TODO(OTAGENT-1305): point back to a tagged release once one ships with the go.mod
+# bump upstream currently only has on main.
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
 )
 
 
@@ -1509,6 +1511,11 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
+    print(
+        f"Checking against opentelemetry-collector-contrib main instead of the latest "
+        f"tagged release (v{OTEL_CONTRIB_VERSION}) — see OTAGENT-1305"
+    )
+
     # Get Go version from upstream (e.g., "1.24" or "1.24.0")
     upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
