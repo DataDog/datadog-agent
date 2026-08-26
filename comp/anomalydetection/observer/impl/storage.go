@@ -170,8 +170,6 @@ type seriesStats struct {
 	timestamps []int64
 	sums       []float64
 	counts     []int64
-	mins       []float64
-	maxes      []float64
 }
 
 func aggregateMask(agg observer.Aggregate) uint8 {
@@ -201,8 +199,6 @@ const (
 	AggregateAverage = observer.AggregateAverage
 	AggregateSum     = observer.AggregateSum
 	AggregateCount   = observer.AggregateCount
-	AggregateMin     = observer.AggregateMin
-	AggregateMax     = observer.AggregateMax
 )
 
 // aggregateColumn returns the pre-materialized column values for a given aggregate.
@@ -211,10 +207,6 @@ func (s *seriesStats) aggregateColumn(agg Aggregate) []float64 {
 	switch agg {
 	case AggregateSum:
 		return s.sums
-	case AggregateMin:
-		return s.mins
-	case AggregateMax:
-		return s.maxes
 	case AggregateCount:
 		vals := make([]float64, len(s.counts))
 		for i, c := range s.counts {
@@ -248,10 +240,6 @@ func (s *seriesStats) aggregateAt(i int, agg Aggregate) float64 {
 		return s.sums[i]
 	case AggregateCount:
 		return float64(s.counts[i])
-	case AggregateMin:
-		return s.mins[i]
-	case AggregateMax:
-		return s.maxes[i]
 	default:
 		return 0
 	}
@@ -396,20 +384,12 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		// Update existing bucket in-place.
 		stats.sums[idx] += value
 		stats.counts[idx]++
-		if value < stats.mins[idx] {
-			stats.mins[idx] = value
-		}
-		if value > stats.maxes[idx] {
-			stats.maxes[idx] = value
-		}
 		return res
 	}
 
 	stats.timestamps = insertInt64(stats.timestamps, idx, bucket)
 	stats.sums = insertFloat64(stats.sums, idx, value)
 	stats.counts = insertInt64(stats.counts, idx, 1)
-	stats.mins = insertFloat64(stats.mins, idx, value)
-	stats.maxes = insertFloat64(stats.maxes, idx, value)
 
 	retentionSecs := s.cfg.PointRetentionSecs
 	if stats.retentionOverrideSecs > 0 {
@@ -424,8 +404,6 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 			stats.timestamps = trimFront(stats.timestamps, trim)
 			stats.sums = trimFront(stats.sums, trim)
 			stats.counts = trimFront(stats.counts, trim)
-			stats.mins = trimFront(stats.mins, trim)
-			stats.maxes = trimFront(stats.maxes, trim)
 		}
 	}
 	if s.cfg.MaxPointsPerSeries > 0 {
@@ -434,8 +412,6 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 			stats.timestamps = trimFront(stats.timestamps, trim)
 			stats.sums = trimFront(stats.sums, trim)
 			stats.counts = trimFront(stats.counts, trim)
-			stats.mins = trimFront(stats.mins, trim)
-			stats.maxes = trimFront(stats.maxes, trim)
 		}
 	}
 	return res
@@ -1002,8 +978,6 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 		Timestamp int64   `json:"ts"`
 		Sum       float64 `json:"sum"`
 		Count     int64   `json:"count"`
-		Min       float64 `json:"min"`
-		Max       float64 `json:"max"`
 	}
 	type dumpSeries struct {
 		Namespace string      `json:"namespace"`
@@ -1028,8 +1002,6 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 				Timestamp: st.timestamps[i],
 				Sum:       st.sums[i],
 				Count:     st.counts[i],
-				Min:       st.mins[i],
-				Max:       st.maxes[i],
 			})
 		}
 		out = append(out, ds)
@@ -1565,20 +1537,6 @@ func (s *timeSeriesStorage) GetSeriesRange(ref observer.SeriesRef, start, end in
 				Value:     stats.sums[lo+i],
 			}
 		}
-	case AggregateMin:
-		for i := 0; i < resultLen; i++ {
-			points[i] = observer.Point{
-				Timestamp: stats.timestamps[lo+i],
-				Value:     stats.mins[lo+i],
-			}
-		}
-	case AggregateMax:
-		for i := 0; i < resultLen; i++ {
-			points[i] = observer.Point{
-				Timestamp: stats.timestamps[lo+i],
-				Value:     stats.maxes[lo+i],
-			}
-		}
 	case AggregateCount:
 		for i := 0; i < resultLen; i++ {
 			points[i] = observer.Point{
@@ -1638,6 +1596,43 @@ func (s *timeSeriesStorage) ForEachPoint(
 	return true
 }
 
+// ForEachLastPoints calls fn for up to n of the newest points with timestamp
+// <= end. Like ForEachPoint, it snapshots points under the read lock and runs
+// the callback outside the lock. The Series pointer is valid only during fn.
+func (s *timeSeriesStorage) ForEachLastPoints(
+	ref observer.SeriesRef, end int64, n int, agg Aggregate,
+	fn func(*observer.Series, observer.Point),
+) bool {
+	if n <= 0 {
+		return false
+	}
+
+	bufp := pointBufPool.Get().(*[]observer.Point)
+	buf := *bufp
+
+	s.mu.RLock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		s.mu.RUnlock()
+		*bufp = buf
+		pointBufPool.Put(bufp)
+		return false
+	}
+	endIndex := searchAfter(stats.timestamps, end)
+	startIndex := max(0, endIndex-n)
+	series := observer.Series{Namespace: stats.Namespace, Name: stats.Name, Tags: stats.Tags}
+	buf = snapshotPoints(stats, startIndex, endIndex, agg, buf)
+	s.mu.RUnlock()
+
+	for _, p := range buf {
+		fn(&series, p)
+	}
+
+	*bufp = buf
+	pointBufPool.Put(bufp)
+	return true
+}
+
 // SumRange returns the aggregate total over the time range (start, end] without
 // allocating any intermediate slices. It operates directly on the columnar
 // data arrays, using binary search to locate the range boundaries.
@@ -1667,14 +1662,6 @@ func (s *timeSeriesStorage) SumRange(ref observer.SeriesRef, start, end int64, a
 		for _, c := range stats.counts[lo:hi] {
 			total += float64(c)
 		}
-	case AggregateMin:
-		for _, v := range stats.mins[lo:hi] {
-			total += v
-		}
-	case AggregateMax:
-		for _, v := range stats.maxes[lo:hi] {
-			total += v
-		}
 	default: // AggregateAverage
 		for i := lo; i < hi; i++ {
 			total += stats.aggregateAt(i, agg)
@@ -1700,24 +1687,29 @@ func (s *timeSeriesStorage) snapshotRange(
 
 	lo := searchAfter(stats.timestamps, start)
 	hi := searchAfter(stats.timestamps, end)
-	n := hi - lo
-
-	if cap(buf) >= n {
-		buf = buf[:n]
-	} else {
-		buf = make([]observer.Point, n)
-	}
-
-	for i := 0; i < n; i++ {
-		buf[i] = observer.Point{
-			Timestamp: stats.timestamps[lo+i],
-			Value:     stats.aggregateAt(lo+i, agg),
-		}
-	}
+	buf = snapshotPoints(stats, lo, hi, agg, buf)
 
 	return observer.Series{
 		Namespace: stats.Namespace,
 		Name:      stats.Name,
 		Tags:      stats.Tags,
 	}, buf, true
+}
+
+// snapshotPoints copies [lo, hi) from stats into buf. The caller must hold
+// stats' storage read lock.
+func snapshotPoints(stats *seriesStats, lo, hi int, agg Aggregate, buf []observer.Point) []observer.Point {
+	n := hi - lo
+	if cap(buf) >= n {
+		buf = buf[:n]
+	} else {
+		buf = make([]observer.Point, n)
+	}
+	for i := range buf {
+		buf[i] = observer.Point{
+			Timestamp: stats.timestamps[lo+i],
+			Value:     stats.aggregateAt(lo+i, agg),
+		}
+	}
+	return buf
 }

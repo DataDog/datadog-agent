@@ -202,8 +202,8 @@ go_e2e_test_binaries:
     - go_e2e_deps
   variables:
     KUBERNETES_CPU_REQUEST: 4
-    KUBERNETES_MEMORY_REQUEST: 64Gi
-    KUBERNETES_MEMORY_LIMIT: 64Gi
+    KUBERNETES_MEMORY_REQUEST: 72Gi
+    KUBERNETES_MEMORY_LIMIT: 72Gi
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
@@ -293,7 +293,7 @@ new-e2e-containers-k8s-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.3@sha256:a16e7786dbb06083ddd49e59a17f9cb36e75e85491b192d6977a674d5364b720"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.4@sha256:aaacd9f04ed5d2161b30c6041dff5385d4d809766e46953b9df1fc6f9f5f4095"
 
 new-e2e-containers-k8s-rc-latest:
   extends:
@@ -325,8 +325,8 @@ new-e2e-containers-eks-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    KUBERNETES_MEMORY_REQUEST: 20Gi
-    KUBERNETES_MEMORY_LIMIT: 20Gi
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -372,8 +372,8 @@ new-e2e-containers-openshift-init:
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
     # Same as new-e2e-containers-eks-init.
-    KUBERNETES_MEMORY_REQUEST: 20Gi
-    KUBERNETES_MEMORY_LIMIT: 20Gi
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -567,8 +567,8 @@ new-e2e-npm-eks-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -1082,8 +1082,8 @@ new-e2e-otel-eks-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 

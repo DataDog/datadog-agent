@@ -473,6 +473,7 @@
 
 # pkg
 /pkg/                                                                 @DataDog/agent-runtimes
+/pkg/BUILD.bazel                                                      @DataDog/agent-build
 /pkg/metriclookback/                                                  @DataDog/q-branch
 /pkg/metriclookback/dogstatsd/                                        @DataDog/q-branch @DataDog/agent-metric-pipelines
 /pkg/api/                                                             @DataDog/agent-runtimes
@@ -801,6 +802,8 @@
 /comp/core/workloadmeta/collectors/internal/nvml                      @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
 /comp/core/workloadmeta/collectors/internal/podman                    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences @DataDog/container-platform
+/comp/core/workloadmeta/collectors/internal/remote/sbomcollector      @DataDog/agent-security
+/comp/core/workloadmeta/collectors/sbomutil                           @DataDog/agent-security
 /comp/core/tagger/collectors                                          @DataDog/container-platform @DataDog/container-integrations
 /comp/core/tagger/types/entity_id.go                                  @DataDog/container-platform @DataDog/agent-data-plane
 /pkg/sbom/                                                            @DataDog/agent-security @DataDog/container-integrations
@@ -1030,5 +1033,4 @@
 
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
-/**/BUILD.bazel @DataDog/agent-build
 /**/*.bzl       @DataDog/agent-build
