@@ -165,33 +165,82 @@ impl Drop for TempLsaSecret {
     }
 }
 
-struct RegistryPrivilegeGuard;
+/// Restores process-token privileges after copying an SCM LSA secret.
+struct RegistryPrivilegeGuard {
+    token: windows_sys::Win32::Foundation::HANDLE,
+    previous_states: Vec<Vec<u8>>,
+}
 
 impl RegistryPrivilegeGuard {
     fn enable_for_lsa_secret_copy() -> Self {
+        let mut token = ptr::null_mut();
+        let ok = unsafe {
+            OpenProcessToken(
+                GetCurrentProcess(),
+                TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+                &mut token,
+            )
+        };
+        if ok == 0 {
+            warn!(
+                "could not open process token for LSA secret copy: {}",
+                std::io::Error::last_os_error()
+            );
+            return Self {
+                token: ptr::null_mut(),
+                previous_states: Vec::new(),
+            };
+        }
+
+        let mut previous_states = Vec::new();
         for privilege in [SE_BACKUP_PRIVILEGE, SE_RESTORE_PRIVILEGE] {
-            if let Err(err) = enable_privilege(privilege) {
-                warn!("could not enable {privilege} for LSA secret copy: {err:#}");
+            match enable_privilege(token, privilege) {
+                Ok(Some(previous)) => previous_states.push(previous),
+                Ok(None) => {}
+                Err(err) => {
+                    warn!("could not enable {privilege} for LSA secret copy: {err:#}");
+                }
             }
         }
-        Self
+
+        Self {
+            token,
+            previous_states,
+        }
     }
 }
 
-fn enable_privilege(name: &str) -> Result<()> {
-    let mut token = ptr::null_mut();
-    let ok = unsafe {
-        OpenProcessToken(
-            GetCurrentProcess(),
-            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-            &mut token,
-        )
-    };
-    if ok == 0 {
-        bail!("OpenProcessToken: {}", std::io::Error::last_os_error());
-    }
-    let _token = TokenHandle(token);
+impl Drop for RegistryPrivilegeGuard {
+    fn drop(&mut self) {
+        if self.token.is_null() {
+            return;
+        }
 
+        for previous in self.previous_states.iter().rev() {
+            let previous_tp = previous.as_ptr().cast::<TOKEN_PRIVILEGES>();
+            unsafe {
+                AdjustTokenPrivileges(
+                    self.token,
+                    0,
+                    previous_tp,
+                    0,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
+            }
+        }
+
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(self.token);
+        }
+        self.token = ptr::null_mut();
+    }
+}
+
+fn enable_privilege(
+    token: windows_sys::Win32::Foundation::HANDLE,
+    name: &str,
+) -> Result<Option<Vec<u8>>> {
     let mut luid = windows_sys::Win32::Foundation::LUID {
         LowPart: 0,
         HighPart: 0,
@@ -212,8 +261,17 @@ fn enable_privilege(name: &str) -> Result<()> {
             Attributes: SE_PRIVILEGE_ENABLED,
         }],
     };
+
+    let mut previous_size = 0u32;
     let ok = unsafe {
-        AdjustTokenPrivileges(token, 0, &privileges, 0, ptr::null_mut(), ptr::null_mut())
+        AdjustTokenPrivileges(
+            token,
+            0,
+            &privileges,
+            0,
+            ptr::null_mut(),
+            &mut previous_size,
+        )
     };
     if ok == 0 {
         bail!(
@@ -223,21 +281,31 @@ fn enable_privilege(name: &str) -> Result<()> {
     }
     let err = unsafe { windows_sys::Win32::Foundation::GetLastError() };
     if err == windows_sys::Win32::Foundation::ERROR_NOT_ALL_ASSIGNED {
-        bail!("AdjustTokenPrivileges({name}): privilege not held by token");
+        return Ok(None);
     }
-    Ok(())
-}
-
-struct TokenHandle(windows_sys::Win32::Foundation::HANDLE);
-
-impl Drop for TokenHandle {
-    fn drop(&mut self) {
-        if !self.0.is_null() {
-            unsafe {
-                windows_sys::Win32::Foundation::CloseHandle(self.0);
-            }
-        }
+    if previous_size == 0 {
+        return Ok(None);
     }
+
+    let mut previous = vec![0u8; previous_size as usize];
+    let ok = unsafe {
+        AdjustTokenPrivileges(
+            token,
+            0,
+            &privileges,
+            previous_size,
+            previous.as_mut_ptr().cast(),
+            &mut previous_size,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "AdjustTokenPrivileges({name}, previous): {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    previous.truncate(previous_size as usize);
+    Ok(Some(previous))
 }
 
 fn scm_secret_registry_subkey(service_name: &str) -> String {
