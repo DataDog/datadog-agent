@@ -59,31 +59,39 @@ type kmsgSource interface {
 }
 
 type kmsgTelemetry struct {
+	once      sync.Once
 	read      telemetry.Counter
 	delivered telemetry.Counter
 	errors    telemetry.Counter
 	losses    telemetry.Counter
 }
 
-func newKmsgTelemetry(component telemetry.Component) *kmsgTelemetry {
+var kmsgTelemetryDefinitions kmsgTelemetry
+
+func (t *kmsgTelemetry) init(component telemetry.Component) {
 	const subsystem = "kernel__kmsg"
 
-	return &kmsgTelemetry{
-		read:      component.NewCounter(subsystem, "records_read", nil, "Number of records read from /dev/kmsg"),
-		delivered: component.NewCounter(subsystem, "records_delivered", nil, "Number of /dev/kmsg records delivered to subscribers"),
-		errors:    component.NewCounter(subsystem, "errors", nil, "Number of /dev/kmsg reader errors"),
-		losses:    component.NewCounter(subsystem, "losses", nil, "Number of /dev/kmsg records lost because the ring buffer or output channel was full"),
-	}
+	t.once.Do(func() {
+		t.read = component.NewCounter(subsystem, "records_read", nil, "Number of records read from /dev/kmsg")
+		t.delivered = component.NewCounter(subsystem, "records_delivered", nil, "Number of /dev/kmsg records delivered to subscribers")
+		t.errors = component.NewCounter(subsystem, "errors", nil, "Number of /dev/kmsg reader errors")
+		t.losses = component.NewCounter(subsystem, "losses", nil, "Number of /dev/kmsg records lost because the ring buffer or output channel was full")
+	})
 }
 
 // NewKmsgReader opens /dev/kmsg, seeks to the end of its current buffer, and starts delivering future records.
 func NewKmsgReader(component telemetry.Component, filter KmsgFilter) (*KmsgReader, error) {
+	if component == nil {
+		return nil, errors.New("kmsg telemetry component is nil")
+	}
+
 	source, err := openKmsg()
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", kmsgPath, err)
 	}
 
-	reader, err := newKmsgReader(source, component, filter, defaultKmsgChannelSize)
+	kmsgTelemetryDefinitions.init(component)
+	reader, err := newKmsgReader(source, &kmsgTelemetryDefinitions, filter, defaultKmsgChannelSize)
 	if err != nil {
 		_ = source.Close()
 		return nil, err
@@ -92,12 +100,12 @@ func NewKmsgReader(component telemetry.Component, filter KmsgFilter) (*KmsgReade
 }
 
 // newKmsgReader creates a reader around a source. Tests use it to substitute /dev/kmsg with a fake source.
-func newKmsgReader(source kmsgSource, component telemetry.Component, filter KmsgFilter, channelSize int) (*KmsgReader, error) {
+func newKmsgReader(source kmsgSource, telemetry *kmsgTelemetry, filter KmsgFilter, channelSize int) (*KmsgReader, error) {
 	if source == nil {
 		return nil, errors.New("kmsg source is nil")
 	}
-	if component == nil {
-		return nil, errors.New("kmsg telemetry component is nil")
+	if telemetry == nil {
+		return nil, errors.New("kmsg telemetry is nil")
 	}
 	if channelSize <= 0 {
 		return nil, fmt.Errorf("kmsg channel size must be positive, got %d", channelSize)
@@ -113,7 +121,7 @@ func newKmsgReader(source kmsgSource, component telemetry.Component, filter Kmsg
 		errors:    make(chan error, 1),
 		stop:      make(chan struct{}),
 		done:      make(chan struct{}),
-		telemetry: newKmsgTelemetry(component),
+		telemetry: telemetry,
 	}
 	go reader.run()
 	return reader, nil

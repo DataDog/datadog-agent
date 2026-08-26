@@ -140,23 +140,28 @@ func TestKmsgReaderStopCancelsIdleRead(t *testing.T) {
 
 func TestNewKmsgReaderRejectsInvalidConfiguration(t *testing.T) {
 	tel := telemetrymock.New(t)
-	_, err := newKmsgReader(nil, tel, nil, 1)
+	kmsgTelemetry := &kmsgTelemetry{}
+	kmsgTelemetry.init(tel)
+	_, err := newKmsgReader(nil, kmsgTelemetry, nil, 1)
 	require.ErrorContains(t, err, "kmsg source is nil")
 
 	source := newFakeKmsgSource()
-	_, err = newKmsgReader(source, tel, nil, 0)
+	_, err = newKmsgReader(source, kmsgTelemetry, nil, 0)
 	require.ErrorContains(t, err, "channel size must be positive")
 
 	source = newFakeKmsgSource()
 	source.seekErr = errors.New("seek failed")
-	_, err = newKmsgReader(source, tel, nil, 1)
+	_, err = newKmsgReader(source, kmsgTelemetry, nil, 1)
 	require.ErrorContains(t, err, "seek kmsg to end: seek failed")
 }
 
 func newTestKmsgReader(t *testing.T, source *fakeKmsgSource, component telemetry.Component, filter KmsgFilter, channelSize int) *KmsgReader {
 	t.Helper()
 
-	reader, err := newKmsgReader(source, component, filter, channelSize)
+	kmsgTelemetry := &kmsgTelemetry{}
+	kmsgTelemetry.init(component)
+
+	reader, err := newKmsgReader(source, kmsgTelemetry, filter, channelSize)
 	require.NoError(t, err)
 	t.Cleanup(reader.Stop)
 	return reader
