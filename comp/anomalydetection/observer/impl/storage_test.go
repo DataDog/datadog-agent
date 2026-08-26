@@ -1041,3 +1041,37 @@ func TestParseSeriesKeyRequiresHostField(t *testing.T) {
 	_, _, _, _, ok = parseSeriesKey("ns|metric:avg|env:prod")
 	assert.False(t, ok)
 }
+
+func TestCompactSeriesIDResolvesHostDimension(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	hostless := s.AddWithHost("ns", "metric", "", 1, 1000, tags)
+	hostA := s.AddWithHost("ns", "metric", "web-a", 1, 1000, tags)
+	hostB := s.AddWithHost("ns", "metric", "web-b", 1, 1000, tags)
+
+	for _, tc := range []struct {
+		host string
+		ref  observer.SeriesRef
+	}{
+		{host: "", ref: hostless.Ref},
+		{host: "web-a", ref: hostA.Ref},
+		{host: "web-b", ref: hostB.Ref},
+	} {
+		key := (observer.SeriesDescriptor{
+			Namespace: "ns",
+			Name:      "metric",
+			Host:      tc.host,
+			Tags:      tags,
+			Aggregate: AggregateAverage,
+		}).Key()
+		assert.Equal(t, fmt.Sprintf("%d:avg", tc.ref), s.CompactSeriesID(key))
+	}
+}
+
+func TestCompactSeriesIDRejectsLegacyHostlessKey(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("ns", "metric", 1, 1000, []string{"env:prod"})
+	legacyKey := "ns|metric:avg|env:prod"
+
+	assert.Equal(t, legacyKey, s.CompactSeriesID(legacyKey))
+}

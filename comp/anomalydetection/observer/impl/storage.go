@@ -1304,8 +1304,8 @@ func (s *timeSeriesStorage) EvictDefault() []observer.SeriesRef {
 }
 
 // CompactSeriesID translates a full series key to its compact numeric ID string.
-// The full key format is "namespace|name:agg|tags" where the storage key is
-// "namespace|name|tags" (without the agg suffix). This method strips the agg
+// The full key format is "namespace|name:agg|host|tags" where the storage key is
+// "namespace|name|host|tags" (without the agg suffix). This method strips the agg
 // suffix, looks up the numeric ID, and returns "numericID:agg".
 // Returns the original key unchanged if no mapping exists.
 func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
