@@ -387,7 +387,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	helm.sh/helm/v3 v3.20.0 // indirect
+	helm.sh/helm/v3 v3.20.2 // indirect
 	k8s.io/apiextensions-apiserver v0.35.5 // indirect
 	k8s.io/apiserver v0.35.5 // indirect
 	k8s.io/cli-runtime v0.35.5 // indirect
