@@ -320,7 +320,6 @@ require (
 	github.com/judwhite/go-svc v1.2.1
 	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
 	github.com/klauspost/compress v1.19.2
-	github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23
 	github.com/knqyf263/go-rpmdb v0.1.2-0.20250519070707-7e39c901d1c4
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/kr/pretty v0.3.1
@@ -357,6 +356,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/openshift/api v3.9.0+incompatible
+	github.com/package-url/packageurl-go v0.1.3
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pierrec/lz4/v4 v4.1.29
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
@@ -844,6 +844,7 @@ require (
 	github.com/knadh/koanf/providers/confmap v1.0.1 // indirect
 	github.com/knadh/koanf/v2 v2.3.6 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
+	github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23 // indirect
 	github.com/knqyf263/go-rpm-version v0.0.0-20220614171824-631e686d1075 // indirect
 	github.com/knqyf263/nested v0.0.1 // indirect
 	github.com/kolo/xmlrpc v0.0.0-20220921171641-a4b6fa1dd06b // indirect
@@ -966,7 +967,6 @@ require (
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/outscale/osc-sdk-go/v2 v2.34.0 // indirect
 	github.com/ovh/go-ovh v1.9.0 // indirect
-	github.com/package-url/packageurl-go v0.1.3 // indirect
 	github.com/packethost/packngo v0.1.1-0.20180711074735-b9cb5096f54c // indirect
 	github.com/pandatix/go-cvss v0.6.2 // indirect
 	github.com/pb33f/jsonpath v0.8.2 // indirect

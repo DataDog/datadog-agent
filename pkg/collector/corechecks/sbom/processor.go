@@ -24,16 +24,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
+	sbomusage "github.com/DataDog/datadog-agent/comp/sbom/usage/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/bomconvert"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	model "github.com/DataDog/agent-payload/v5/sbom"
 
@@ -62,9 +65,11 @@ type processor struct {
 	hostCache             string
 	hostLastFullSBOM      time.Time
 	hostHeartbeatValidity time.Duration
+	hostUsageRevision     uint64
+	usage                 option.Option[sbomusage.Component]
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workloadfilter.Component, sender sender.Sender, tagger tagger.Component, cfg config.Component, maxNbItem int, maxRetentionTime time.Duration, hostHeartbeatValidity time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workloadfilter.Component, sender sender.Sender, tagger tagger.Component, cfg config.Component, sbomUsage option.Option[sbomusage.Component], maxNbItem int, maxRetentionTime time.Duration, hostHeartbeatValidity time.Duration) (*processor, error) {
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -109,6 +114,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		procfsSBOM:            procfsSBOM,
 		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
+		usage:                 sbomUsage,
 	}, nil
 }
 
@@ -310,10 +316,25 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	} else {
 		log.Infof("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
 
-		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
+		// The hash names the packages alone, so an unchanged inventory whose usage
+		// moved has to be sent in full: a heartbeat would leave the back end with
+		// the usage of the last full payload for as long as the validity window,
+		// a day by default.
+		enrichment, enriched := p.usage.Get()
+		revision := uint64(0)
+		if enriched {
+			revision = enrichment.Revision(usage.Host)
+		}
+
+		if p.hostCache != "" && p.hostCache == result.Report.ID() &&
+			revision == p.hostUsageRevision &&
+			result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
 			sbom.Heartbeat = true
 		} else {
 			report := result.Report.ToCycloneDX()
+			if enriched {
+				report = enrichment.Stamp(usage.Host, report)
+			}
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
 				Cyclonedx: report,
 			}
@@ -321,6 +342,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 			sbom.Hash = result.Report.ID()
 			p.hostCache = result.Report.ID()
 			p.hostLastFullSBOM = result.CreatedAt
+			p.hostUsageRevision = revision
 		}
 	}
 
@@ -386,6 +408,9 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 			sbom.Heartbeat = true
 		} else {
 			report := result.Report.ToCycloneDX()
+			if enrichment, ok := p.usage.Get(); ok {
+				report = enrichment.Stamp(usage.ContainerScan(result.RequestID), report)
+			}
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
 				Cyclonedx: report,
 			}
@@ -445,6 +470,13 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 	if err != nil {
 		log.Errorf("Failed to uncompress SBOM for image %s: %v", img.ID, err)
 		return
+	}
+
+	// Apply the runtime usage the enrichment observed. It is stamped here rather
+	// than stored, so the image entity keeps the one copy of the SBOM the scan
+	// produced and each send carries the usage as it stands.
+	if enrichment, ok := p.usage.Get(); ok {
+		cyclosbom.CycloneDXBOM = enrichment.Stamp(usage.ImageScan(img.ID), cyclosbom.CycloneDXBOM)
 	}
 
 	for repo := range repos {

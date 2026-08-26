@@ -456,6 +456,46 @@ func (mr *MockAgentSecureClientMockRecorder) ResolveHealthIssue(ctx, in any, opt
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveHealthIssue", reflect.TypeOf((*MockAgentSecureClient)(nil).ResolveHealthIssue), varargs...)
 }
 
+// SBOMReportUsage mocks base method.
+func (m *MockAgentSecureClient) SBOMReportUsage(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[core.UsageMessage, core.UsageAck], error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "SBOMReportUsage", varargs...)
+	ret0, _ := ret[0].(grpc.BidiStreamingClient[core.UsageMessage, core.UsageAck])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SBOMReportUsage indicates an expected call of SBOMReportUsage.
+func (mr *MockAgentSecureClientMockRecorder) SBOMReportUsage(ctx any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SBOMReportUsage", reflect.TypeOf((*MockAgentSecureClient)(nil).SBOMReportUsage), varargs...)
+}
+
+// SBOMStreamIndex mocks base method.
+func (m *MockAgentSecureClient) SBOMStreamIndex(ctx context.Context, in *core.IndexRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[core.IndexUpdate], error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "SBOMStreamIndex", varargs...)
+	ret0, _ := ret[0].(grpc.ServerStreamingClient[core.IndexUpdate])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SBOMStreamIndex indicates an expected call of SBOMStreamIndex.
+func (mr *MockAgentSecureClientMockRecorder) SBOMStreamIndex(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SBOMStreamIndex", reflect.TypeOf((*MockAgentSecureClient)(nil).SBOMStreamIndex), varargs...)
+}
+
 // StreamConfigEvents mocks base method.
 func (m *MockAgentSecureClient) StreamConfigEvents(ctx context.Context, in *core.ConfigStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[core.ConfigEvent], error) {
 	m.ctrl.T.Helper()
@@ -826,6 +866,34 @@ func (m *MockAgentSecureServer) ResolveHealthIssue(arg0 context.Context, arg1 *c
 func (mr *MockAgentSecureServerMockRecorder) ResolveHealthIssue(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveHealthIssue", reflect.TypeOf((*MockAgentSecureServer)(nil).ResolveHealthIssue), arg0, arg1)
+}
+
+// SBOMReportUsage mocks base method.
+func (m *MockAgentSecureServer) SBOMReportUsage(arg0 grpc.BidiStreamingServer[core.UsageMessage, core.UsageAck]) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SBOMReportUsage", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SBOMReportUsage indicates an expected call of SBOMReportUsage.
+func (mr *MockAgentSecureServerMockRecorder) SBOMReportUsage(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SBOMReportUsage", reflect.TypeOf((*MockAgentSecureServer)(nil).SBOMReportUsage), arg0)
+}
+
+// SBOMStreamIndex mocks base method.
+func (m *MockAgentSecureServer) SBOMStreamIndex(arg0 *core.IndexRequest, arg1 grpc.ServerStreamingServer[core.IndexUpdate]) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SBOMStreamIndex", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SBOMStreamIndex indicates an expected call of SBOMStreamIndex.
+func (mr *MockAgentSecureServerMockRecorder) SBOMStreamIndex(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SBOMStreamIndex", reflect.TypeOf((*MockAgentSecureServer)(nil).SBOMStreamIndex), arg0, arg1)
 }
 
 // StreamConfigEvents mocks base method.

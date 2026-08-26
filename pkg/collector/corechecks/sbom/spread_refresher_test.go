@@ -25,6 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	sbomusage "github.com/DataDog/datadog-agent/comp/sbom/usage/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -67,7 +68,7 @@ func TestSpreadRefresherCoversEveryImage(t *testing.T) {
 				})
 			}
 
-			p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), mocksender.NewMockSender(t, ""), taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Second)
+			p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), mocksender.NewMockSender(t, ""), taggerfxmock.SetupFakeTagger(t), cfg, option.None[sbomusage.Component](), 1, 50*time.Millisecond, time.Second)
 			assert.Nil(t, err)
 			defer p.stop()
 

@@ -369,19 +369,11 @@ type RuntimeSecurityConfig struct {
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
-	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
 	// the SBOMs of short-lived and periodical workloads
-	SBOMResolverWorkloadsCacheSize int
-	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
-	SBOMResolverHostEnabled bool
 	// SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
 	SBOMResolverEnrichmentInterval time.Duration
-	// SBOMResolverForwardInterval defines the interval for forwarding SBOMs
-	SBOMResolverForwardInterval time.Duration
 	// SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
 	SBOMResolverRefreshInterval time.Duration
-	// SBOMResolverGeneratePolicies defines if the SBOM resolver should generate runtime security policies based on the computed SBOMs
-	SBOMResolverGeneratePolicies bool
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -619,12 +611,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// SBOM resolver
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled") || pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
-		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
 		SBOMResolverEnrichmentInterval: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_interval"),
 		SBOMResolverRefreshInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.refresh_interval"),
-		SBOMResolverForwardInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.forward_interval"),
-		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
-		SBOMResolverGeneratePolicies:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),

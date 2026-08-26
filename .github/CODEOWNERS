@@ -455,6 +455,7 @@
 /comp/privateactionrunner @DataDog/action-platform
 /comp/publishermetadatacache @DataDog/windows-products
 /comp/rdnsquerier @DataDog/ndm-integrations
+/comp/sbom/usage @DataDog/container-integrations
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
 /comp/snmpscan @DataDog/network-device-monitoring-core
@@ -826,7 +827,6 @@
 /comp/core/workloadmeta/collectors/internal/nvml                      @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
 /comp/core/workloadmeta/collectors/internal/podman                    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences @DataDog/container-platform
-/comp/core/workloadmeta/collectors/internal/remote/sbomcollector      @DataDog/agent-security
 /comp/core/workloadmeta/collectors/sbomutil                           @DataDog/agent-security
 /comp/core/tagger/collectors                                          @DataDog/container-platform @DataDog/container-integrations
 /comp/core/tagger/types/entity_id.go                                  @DataDog/container-platform @DataDog/agent-data-plane

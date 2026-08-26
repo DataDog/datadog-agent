@@ -33,3 +33,10 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 // so that SBOM-generated policies are automatically loaded when SBOMs are computed
 func (e *RuleEngine) ConnectSBOMResolver() {
 }
+
+// unavailableFieldPrefixes names the field prefixes whose source is not running.
+// The package fields exist only on Linux, so there is nothing here to declare
+// missing.
+func (*RuleEngine) unavailableFieldPrefixes() []string {
+	return nil
+}

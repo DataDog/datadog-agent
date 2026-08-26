@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
@@ -63,7 +64,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 
 // DirectScan performs a scan on a specific path
 func (c *Collector) DirectScan(ctx context.Context, path string) (sbom.Report, error) {
-	return c.trivyCollector.ScanFilesystem(ctx, path, c.opts, true)
+	return c.trivyCollector.ScanFilesystem(ctx, path, c.opts, true, usage.Host)
 }
 
 // DirectScanForTrivyReport performs a scan on a specific path

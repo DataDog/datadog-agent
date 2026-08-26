@@ -34,6 +34,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	sbomusage "github.com/DataDog/datadog-agent/comp/sbom/usage/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -682,7 +683,7 @@ func TestProcessEvents(t *testing.T) {
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(workloadmetaStore, mockFilterStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
+			p, err := newProcessor(workloadmetaStore, mockFilterStore, sender, fakeTagger, cfg, option.None[sbomusage.Component](), 1, 50*time.Millisecond, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -855,7 +856,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 		// Queue size 1 so each entity becomes its own event, matching the assertion style.
-		p, err := newProcessor(store, mockFilterStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
+		p, err := newProcessor(store, mockFilterStore, sender, fakeTagger, cfg, option.None[sbomusage.Component](), 1, 50*time.Millisecond, time.Second)
 		assert.Nil(t, err)
 		return p, sender, counter, store
 	}
@@ -1108,7 +1109,7 @@ func TestCorruptedSBOM(t *testing.T) {
 		sent.Inc()
 	})
 
-	p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Second)
+	p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, option.None[sbomusage.Component](), 1, 50*time.Millisecond, time.Second)
 	assert.Nil(t, err)
 
 	store.Set(imageEntity)

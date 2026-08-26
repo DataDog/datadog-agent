@@ -983,6 +983,14 @@ Package publishermetadatacache provides a cache for Windows Event Log publisher 
 
 Package rdnsquerier provides the reverse DNS querier component.
 
+### [comp/sbom/usage](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/sbom/usage)
+
+*Datadog Team*: container-integrations
+
+Package usage serves the file-to-component table of each SBOM scan to a
+runtime observer, records the usage that observer reports back, and stamps it
+onto the SBOM the agent sends.
+
 ### [comp/serializer/logscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/logscompression)
 
 *Datadog Team*: agent-log-pipelines

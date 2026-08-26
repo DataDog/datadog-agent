@@ -15,13 +15,16 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/pkg/sbom/bomconvert"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
+	sbomio "github.com/aquasecurity/trivy/pkg/sbom/io"
 	"github.com/aquasecurity/trivy/pkg/types"
 )
 
 // Report describes a trivy report along with its marshaler
 type Report struct {
-	id  string
-	bom *cyclonedx_v1_4.Bom
+	id            string
+	bom           *cyclonedx_v1_4.Bom
+	indexID       string
+	componentRefs map[string]string
 }
 
 type reportOptions struct {
@@ -30,7 +33,32 @@ type reportOptions struct {
 }
 
 func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, opts reportOptions) (*Report, error) {
-	bom, err := marshaler.MarshalReport(context.TODO(), *report)
+	// Keep the intermediate BOM so the usage index can follow the exact refs
+	// Trivy chose for duplicate-PURL and PURL-less component occurrences. Calling
+	// MarshalReport would hide this identity assignment behind the final output.
+	coreBOM, err := sbomio.NewEncoder(sbomio.WithBOMRef()).Encode(*report)
+	if err != nil {
+		return nil, err
+	}
+
+	// Components finalizes BOM refs lazily. UID is used only as an in-process
+	// bridge back to the packages in the source report; ambiguous UIDs are left
+	// out rather than silently attaching usage to the wrong occurrence.
+	rawRefsByUID := make(map[string][]string)
+	rawRefCounts := make(map[string]int)
+	for _, component := range coreBOM.Components() {
+		uid := component.PkgIdentifier.UID
+		bomRef := component.PkgIdentifier.BOMRef
+		if bomRef == "" {
+			continue
+		}
+		rawRefCounts[bomRef]++
+		if uid != "" {
+			rawRefsByUID[uid] = append(rawRefsByUID[uid], bomRef)
+		}
+	}
+
+	bom, err := marshaler.Marshal(context.TODO(), coreBOM)
 	if err != nil {
 		return nil, err
 	}
@@ -39,11 +67,22 @@ func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, o
 		bom.Dependencies = nil
 	}
 
-	bom14 := bomconvert.ConvertBOM(bom, opts.simplifyBomRefs)
+	bom14, convertedRefs := bomconvert.ConvertBOMWithBOMRefMapping(bom, opts.simplifyBomRefs)
+	componentRefs := make(map[string]string, len(rawRefsByUID))
+	for uid, rawRefs := range rawRefsByUID {
+		if len(rawRefs) != 1 || rawRefCounts[rawRefs[0]] != 1 {
+			continue
+		}
+		if converted := convertedRefs[rawRefs[0]]; converted != "" {
+			componentRefs[uid] = converted
+		}
+	}
 
 	return &Report{
-		id:  id,
-		bom: bom14,
+		id:            id,
+		bom:           bom14,
+		indexID:       bom14.GetSerialNumber(),
+		componentRefs: componentRefs,
 	}, nil
 }
 

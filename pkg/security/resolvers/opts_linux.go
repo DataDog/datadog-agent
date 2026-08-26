@@ -8,6 +8,7 @@ package resolvers
 
 import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 )
 
@@ -19,4 +20,9 @@ type Opts struct {
 	UseRingBuffer            bool
 	TTYFallbackEnabled       bool
 	WorkloadMeta             workloadmeta.Component
+
+	// SBOMIndexSource supplies the file indexes the SBOM resolver attributes
+	// accesses against. It is nil when the core agent serves none, which leaves
+	// the package fields and the usage enrichment unavailable.
+	SBOMIndexSource sbom.IndexSource
 }

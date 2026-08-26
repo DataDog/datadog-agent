@@ -11,7 +11,6 @@ package bomconvert
 import (
 	"strconv"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
@@ -23,13 +22,22 @@ import (
 
 // ConvertBOM converts a CycloneDX BOM to a CycloneDX v1.4 BOM.
 func ConvertBOM(in *cyclonedx.BOM, simplifyBomRefs bool) *cyclonedx_v1_4.Bom {
+	bom, _ := ConvertBOMWithBOMRefMapping(in, simplifyBomRefs)
+	return bom
+}
+
+// ConvertBOMWithBOMRefMapping converts a CycloneDX BOM to a CycloneDX v1.4
+// BOM and returns the mapping from every input BOM ref to the ref used in the
+// converted payload. The mapping is an identity mapping when simplification is
+// disabled.
+func ConvertBOMWithBOMRefMapping(in *cyclonedx.BOM, simplifyBomRefs bool) (*cyclonedx_v1_4.Bom, map[string]string) {
 	if in == nil {
-		return nil
+		return nil, nil
 	}
 
 	b := newBomConvertor(simplifyBomRefs)
 
-	return &cyclonedx_v1_4.Bom{
+	out := &cyclonedx_v1_4.Bom{
 		SpecVersion:        cyclonedx.SpecVersion1_4.String(),
 		Version:            pointer.Ptr(int32(in.Version)),
 		SerialNumber:       stringPtr(in.SerialNumber),
@@ -38,9 +46,14 @@ func ConvertBOM(in *cyclonedx.BOM, simplifyBomRefs bool) *cyclonedx_v1_4.Bom {
 		Services:           convertArray(in.Services, b.convertService),
 		ExternalReferences: convertArray(in.ExternalReferences, convertExternalReference),
 		Dependencies:       convertArray(in.Dependencies, b.convertDependency),
-		Compositions:       convertArray(in.Compositions, convertComposition),
+		Compositions:       convertArray(in.Compositions, b.convertComposition),
 		Vulnerabilities:    convertArray(in.Vulnerabilities, b.convertVulnerability),
 	}
+	mapping := make(map[string]string, len(b.bomRefMapper))
+	for raw, converted := range b.bomRefMapper {
+		mapping[raw] = converted
+	}
+	return out, mapping
 }
 
 type bomConvertor struct {
@@ -59,10 +72,6 @@ func newBomConvertor(simplifyMapping bool) *bomConvertor {
 }
 
 func (b *bomConvertor) getOrCreateBOMRef(in string) string {
-	if !b.simplifyMapping {
-		return in
-	}
-
 	if in == "" {
 		return ""
 	}
@@ -71,8 +80,11 @@ func (b *bomConvertor) getOrCreateBOMRef(in string) string {
 		return ref
 	}
 
-	b.bomRefCounter++
-	mappedRef := strconv.Itoa(b.bomRefCounter)
+	mappedRef := in
+	if b.simplifyMapping {
+		b.bomRefCounter++
+		mappedRef = strconv.Itoa(b.bomRefCounter)
+	}
 	b.bomRefMapper[in] = mappedRef
 	return mappedRef
 }
@@ -257,7 +269,7 @@ func convertComponentType(in cyclonedx.ComponentType) cyclonedx_v1_4.Classificat
 	}
 }
 
-func convertComposition(in *cyclonedx.Composition) (out *cyclonedx_v1_4.Composition) {
+func (b *bomConvertor) convertComposition(in *cyclonedx.Composition) (out *cyclonedx_v1_4.Composition) {
 	if in == nil {
 		return nil
 	}
@@ -267,13 +279,21 @@ func convertComposition(in *cyclonedx.Composition) (out *cyclonedx_v1_4.Composit
 	}
 
 	if in.Assemblies != nil {
-		out.Assemblies = *(*[]string)(unsafe.Pointer(in.Assemblies))
+		out.Assemblies = b.convertBOMReferences(in.Assemblies)
 	}
 
 	if in.Dependencies != nil {
-		out.Dependencies = *(*[]string)(unsafe.Pointer(in.Dependencies))
+		out.Dependencies = b.convertBOMReferences(in.Dependencies)
 	}
 
+	return out
+}
+
+func (b *bomConvertor) convertBOMReferences(in *[]cyclonedx.BOMReference) []string {
+	out := make([]string, 0, len(*in))
+	for _, ref := range *in {
+		out = append(out, b.getOrCreateBOMRef(string(ref)))
+	}
 	return out
 }
 
@@ -951,7 +971,7 @@ func (b *bomConvertor) convertVulnerability(in *cyclonedx.Vulnerability) *cyclon
 		Credits:        convertVulnerabilityCredits(in.Credits),
 		Tools:          tools,
 		Analysis:       convertVulnerabilityAnalysis(in.Analysis),
-		Affects:        convertArray(in.Affects, convertVulnerabilityAffects),
+		Affects:        convertArray(in.Affects, b.convertVulnerabilityAffects),
 		Properties:     convertArray(in.Properties, convertProperty),
 	}
 }
@@ -997,13 +1017,13 @@ func convertVulnerabilityAffectedVersions(in *cyclonedx.AffectedVersions) (out *
 	return out
 }
 
-func convertVulnerabilityAffects(in *cyclonedx.Affects) *cyclonedx_v1_4.VulnerabilityAffects {
+func (b *bomConvertor) convertVulnerabilityAffects(in *cyclonedx.Affects) *cyclonedx_v1_4.VulnerabilityAffects {
 	if in == nil {
 		return nil
 	}
 
 	return &cyclonedx_v1_4.VulnerabilityAffects{
-		Ref:      in.Ref,
+		Ref:      b.getOrCreateBOMRef(in.Ref),
 		Versions: convertArray(in.Range, convertVulnerabilityAffectedVersions),
 	}
 }
