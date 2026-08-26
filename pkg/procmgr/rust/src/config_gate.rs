@@ -285,43 +285,43 @@ impl YamlCache {
         }))
     }
 
-    /// Fleet policy → env bindings → base YAML → `false`.
-    pub(super) fn resolve_bool(
-        &mut self,
-        base_path: &str,
-        key: &str,
-        fleet_policy_file: Option<&str>,
-    ) -> anyhow::Result<bool> {
-        if let Some(filename) = fleet_policy_file
-            && let Some(path) = self.fleet_policy_path(filename, base_path)?
-            && let Some(value) = self.bool_key_if_exists(&path, key)?
-        {
-            return Ok(value);
-        }
-        if let Some(enabled) = env_bool_for_config_key(key) {
-            return Ok(enabled);
-        }
-        Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(false))
-    }
-
-    /// Like [`Self::resolve_bool`] but uses `default` when the key is unset everywhere.
-    pub(super) fn resolve_bool_with_default(
+    /// Go `GetBool` parity for module derivation (malformed values → false).
+    pub(super) fn resolve_get_bool_with_default(
         &mut self,
         base_path: &str,
         key: &str,
         fleet_policy_file: Option<&str>,
         default: bool,
     ) -> anyhow::Result<bool> {
+        if env_configured_for_key(key) {
+            return Ok(env_bool_for_config_key(key).unwrap_or(false));
+        }
         if let Some(filename) = fleet_policy_file
             && let Some(path) = self.fleet_policy_path(filename, base_path)?
-            && let Some(value) = self.bool_key_if_exists(&path, key)?
+            && self.dotted_key_if_exists(&path, key)?.is_some()
         {
-            return Ok(value);
+            return self.get_bool_at(&path, key);
         }
-        if let Some(enabled) = env_bool_for_config_key(key) {
-            return Ok(enabled);
+        if self.dotted_key_if_exists(base_path, key)?.is_some() {
+            return self.get_bool_at(base_path, key);
         }
-        Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(default))
+        Ok(default)
+    }
+
+    pub(super) fn resolve_get_bool(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+    ) -> anyhow::Result<bool> {
+        self.resolve_get_bool_with_default(base_path, key, fleet_policy_file, false)
+    }
+
+    fn get_bool_at(&mut self, path: &str, key: &str) -> anyhow::Result<bool> {
+        Ok(match self.dotted_key_if_exists(path, key)? {
+            Some(value) => value_as_bool(value).unwrap_or(false),
+            None => false,
+        })
     }
 
     /// Env → base YAML (no fleet). Used where Go override funcs run before MergeFleetPolicy.
@@ -2352,6 +2352,25 @@ process_config:
                 keys: vec!["process_config.process_collection.enabled".into()],
             }];
             assert!(!condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn malformed_system_probe_bool_does_not_abort_module_derivation() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "network_config:\n  enabled: []\nservice_monitoring_config:\n  enabled: true\n",
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: sysprobe,
+                keys: vec!["system_probe_config.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
         });
     }
 

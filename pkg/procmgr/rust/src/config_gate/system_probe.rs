@@ -50,13 +50,13 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
     // config.go:123-131 — values reused below (post-Adjust; USM may be cleared by sk tracer).
     let npm = cfg.npm_enabled()?;
     let usm = cfg.effective_usm_enabled()?;
-    let ccm = cfg.sp_bool("ccm_network_config.enabled")?;
+    let ccm = cfg.sp_get_bool("ccm_network_config.enabled")?;
     let eudm = cfg
         .agent_string("infrastructure_mode")?
         .is_some_and(|m| m == "end_user_device");
-    let csm = cfg.sp_bool("runtime_security_config.enabled")?;
-    let gpu = cfg.sp_bool("gpu_monitoring.enabled")?;
-    let di = cfg.sp_bool("dynamic_instrumentation.enabled")?;
+    let csm = cfg.sp_get_bool("runtime_security_config.enabled")?;
+    let gpu = cfg.sp_get_bool("gpu_monitoring.enabled")?;
+    let di = cfg.sp_get_bool("dynamic_instrumentation.enabled")?;
     let discovery_service_map = cfg.effective_discovery_service_map()?;
 
     // config.go:133-135 — NetworkTracerModule
@@ -65,14 +65,14 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
         || ccm
         || eudm
         || discovery_service_map
-        || (csm && cfg.sp_bool("runtime_security_config.network_monitoring.enabled")?);
+        || (csm && cfg.sp_get_bool("runtime_security_config.network_monitoring.enabled")?);
     if network_tracer {
         return Ok(true);
     }
 
     // config.go:136-141 — TCP queue length, OOM kill
-    if cfg.sp_bool("system_probe_config.enable_tcp_queue_length")?
-        || cfg.sp_bool("system_probe_config.enable_oom_kill")?
+    if cfg.sp_get_bool("system_probe_config.enable_tcp_queue_length")?
+        || cfg.sp_get_bool("system_probe_config.enable_oom_kill")?
     {
         return Ok(true);
     }
@@ -81,9 +81,9 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
     // `network_process.enabled` needs NetworkTracerModule too (config.go:146); when that is on we
     // already returned above.
     if csm
-        || cfg.sp_bool("runtime_security_config.fim_enabled")?
-        || cfg.agent_bool("sbom.enrichment.usage.enabled")?
-        || (usm && cfg.sp_bool("service_monitoring_config.enable_event_stream")?)
+        || cfg.sp_get_bool("runtime_security_config.fim_enabled")?
+        || cfg.agent_get_bool("sbom.enrichment.usage.enabled")?
+        || (usm && cfg.sp_get_bool("service_monitoring_config.enable_event_stream")?)
         || gpu
         || di
     {
@@ -91,10 +91,10 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
     }
 
     // config.go:151-164 — ComplianceModule
-    if (cfg.agent_bool("compliance_config.enabled")?
-        && cfg.agent_bool("compliance_config.run_in_system_probe")?)
-        || cfg.sp_bool("compliance_config.database_benchmarks.enabled")?
-        || (csm && cfg.sp_bool("runtime_security_config.compliance_module.enabled")?)
+    if (cfg.agent_get_bool("compliance_config.enabled")?
+        && cfg.agent_get_bool("compliance_config.run_in_system_probe")?)
+        || cfg.sp_get_bool("compliance_config.database_benchmarks.enabled")?
+        || (csm && cfg.sp_get_bool("runtime_security_config.compliance_module.enabled")?)
     {
         return Ok(true);
     }
@@ -115,20 +115,20 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
         "noisy_neighbor.enabled",
         "windows_crash_detection.enabled",
     ] {
-        if cfg.sp_bool(key)? {
+        if cfg.sp_get_bool(key)? {
             return Ok(true);
         }
     }
 
     // config.go:199-203: LogonDurationModule reads core datadog.yaml, not system-probe.yaml.
     #[cfg(target_os = "macos")]
-    if cfg.agent_bool("logon_duration.enabled")? {
+    if cfg.agent_get_bool("logon_duration.enabled")? {
         return Ok(true);
     }
 
     // config.go:221 — NotableEventsModule reads core datadog.yaml, not system-probe.yaml.
     #[cfg(target_os = "macos")]
-    if cfg.agent_bool("notable_events.enabled")? {
+    if cfg.agent_get_bool("notable_events.enabled")? {
         return Ok(true);
     }
 
@@ -138,8 +138,8 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
     // likewise requires network tracer or event monitor, already handled above.
     #[cfg(any(windows, target_os = "macos"))]
     {
-        if cfg.agent_bool("software_inventory.enabled")?
-            || cfg.sp_bool("injector.enable_telemetry")?
+        if cfg.agent_get_bool("software_inventory.enabled")?
+            || cfg.sp_get_bool("injector.enable_telemetry")?
         {
             return Ok(true);
         }
@@ -148,7 +148,6 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
     Ok(false)
 }
 
-/// Resolved config values from system-probe.yaml / datadog.yaml (+ fleet when set).
 struct Cfg<'a> {
     sysprobe: &'a str,
     agent: &'a str,
@@ -156,34 +155,40 @@ struct Cfg<'a> {
 }
 
 impl<'a> Cfg<'a> {
-    fn sp_bool(&mut self, key: &str) -> anyhow::Result<bool> {
+    fn sp_get_bool(&mut self, key: &str) -> anyhow::Result<bool> {
         self.yaml
-            .resolve_bool(self.sysprobe, key, Some(SYSPROBE_FLEET))
+            .resolve_get_bool(self.sysprobe, key, Some(SYSPROBE_FLEET))
     }
 
-    fn sp_bool_default(&mut self, key: &str, default: bool) -> anyhow::Result<bool> {
-        self.yaml
-            .resolve_bool_with_default(self.sysprobe, key, Some(SYSPROBE_FLEET), default)
+    fn sp_get_bool_default(&mut self, key: &str, default: bool) -> anyhow::Result<bool> {
+        self.yaml.resolve_get_bool_with_default(
+            self.sysprobe,
+            key,
+            Some(SYSPROBE_FLEET),
+            default,
+        )
     }
 
-    fn agent_bool(&mut self, key: &str) -> anyhow::Result<bool> {
-        if let Some(enabled) = self.agent_bool_if_set(key)? {
+    fn agent_get_bool(&mut self, key: &str) -> anyhow::Result<bool> {
+        if let Some(enabled) = self.agent_get_bool_if_set(key)? {
             return Ok(enabled);
         }
         Ok(self.infra_mode_eud_agent_bool(key))
     }
 
-    /// Fleet, env, or base YAML value when the key is explicitly set.
-    fn agent_bool_if_set(&mut self, key: &str) -> anyhow::Result<Option<bool>> {
+    fn agent_get_bool_if_set(&mut self, key: &str) -> anyhow::Result<Option<bool>> {
         if let Some(path) = self.yaml.fleet_policy_path(AGENT_FLEET, self.agent)?
-            && let Some(enabled) = self.yaml.bool_key_if_exists(&path, key)?
+            && self.yaml.dotted_key_if_exists(&path, key)?.is_some()
         {
-            return Ok(Some(enabled));
+            return Ok(Some(self.yaml.get_bool_at(&path, key)?));
         }
         if let Some(enabled) = env_bool_for_config_key(key) {
             return Ok(Some(enabled));
         }
-        self.yaml.bool_key_if_exists(self.agent, key)
+        if self.yaml.dotted_key_if_exists(self.agent, key)?.is_some() {
+            return Ok(Some(self.yaml.get_bool_at(self.agent, key)?));
+        }
+        Ok(None)
     }
 
     /// `applyInfrastructureModeOverrides` runs before `MergeFleetPolicy` and is not
@@ -210,50 +215,45 @@ impl<'a> Cfg<'a> {
 
     /// adjust.go: `system_probe_config.enabled: true` with no NPM/USM block enables NPM.
     fn npm_enabled(&mut self) -> anyhow::Result<bool> {
-        if self.sp_bool("network_config.enabled")? {
+        if self.sp_get_bool("network_config.enabled")? {
             return Ok(true);
         }
-        // Network: Go uses IsConfigured; USM: Go uses !GetBool (explicit `false` still allows back-compat).
-        // Keep in sync with `adjust.go` (`!cfg.IsConfigured(netNS("enabled"))`).
-        // Back-compat runs before adjustNetwork, so use raw USM here (not effective_usm_enabled).
-        if self.sp_bool("system_probe_config.enabled")?
+        // Network: IsConfigured; USM: !GetBool. Back-compat runs before adjustNetwork (raw USM).
+        if self.sp_get_bool("system_probe_config.enabled")?
             && !self.sp_is_configured("network_config.enabled")?
-            && !self.sp_bool("service_monitoring_config.enabled")?
+            && !self.sp_get_bool("service_monitoring_config.enabled")?
         {
             return Ok(true);
         }
         Ok(false)
     }
 
-    /// USM after `adjustNetwork`: sk tracer disables `service_monitoring_config.enabled`.
     fn effective_usm_enabled(&mut self) -> anyhow::Result<bool> {
-        // adjust_npm.go:123-130 gates sk tracer; :131-135 disables USM when it stays on.
-        let sk_tracer = self.sp_bool("network_config.enable_sk_tracer")?
-            && self.sp_bool_default("system_probe_config.enable_co_re", true)?
-            && self.sp_bool_default("network_config.enable_ringbuffers", true)?;
+        // adjust_npm.go:123-135 — sk tracer disables USM when enabled.
+        let sk_tracer = self.sp_get_bool("network_config.enable_sk_tracer")?
+            && self.sp_get_bool_default("system_probe_config.enable_co_re", true)?
+            && self.sp_get_bool_default("network_config.enable_ringbuffers", true)?;
         if sk_tracer {
             return Ok(false);
         }
-        self.sp_bool("service_monitoring_config.enabled")
+        self.sp_get_bool("service_monitoring_config.enabled")
     }
 
-    /// `discovery.enabled` with schema platform defaults (`system-probe_schema.yaml`).
     fn effective_discovery_enabled(&mut self) -> anyhow::Result<bool> {
-        self.sp_bool_default("discovery.enabled", discovery_enabled_platform_default())
+        self.sp_get_bool_default("discovery.enabled", discovery_enabled_platform_default())
     }
 
-    /// Discovery service map after `adjustDiscovery` conflict checks.
     fn effective_discovery_service_map(&mut self) -> anyhow::Result<bool> {
-        if !self.sp_bool("discovery.service_map.enabled")? {
+        if !self.sp_get_bool("discovery.service_map.enabled")? {
             return Ok(false);
         }
         // adjust_discovery.go:48-52 — full USM makes discovery redundant (pre-adjustNetwork).
-        if self.sp_bool("service_monitoring_config.enabled")? {
+        if self.sp_get_bool("service_monitoring_config.enabled")? {
             return Ok(false);
         }
         // adjust_discovery.go:61-77 — raw sk_tracer / ebpfless (before adjustNetwork).
-        if self.sp_bool("network_config.enable_sk_tracer")?
-            || self.sp_bool("network_config.enable_ebpfless")?
+        if self.sp_get_bool("network_config.enable_sk_tracer")?
+            || self.sp_get_bool("network_config.enable_ebpfless")?
         {
             return Ok(false);
         }
