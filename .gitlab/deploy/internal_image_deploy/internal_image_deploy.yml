@@ -46,15 +46,18 @@
 .agent_variables: &agent_variables
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
+  RELEASE_PROD_OVERRIDE: "true"
 
 .cluster_agent_variables: &cluster_agent_variables
   IMAGE_NAME: datadog-cluster-agent
   TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
   RELEASE_PROD: "true"
+  RELEASE_PROD_OVERRIDE: "true"
 
 .ot_standalone_variables: &ot_standalone_variables
   IMAGE_NAME: otel-agent
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
+  RELEASE_PROD_OVERRIDE: "true"
 
 .host_profiler_standalone_variables: &host_profiler_standalone_variables
   IMAGE_NAME: ddot-ebpf
@@ -203,7 +206,8 @@ publish_internal_dca_container_image-fips:
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
         IMAGE_VERSION: tmpl-v13
-        MERGE_PLATFORM: "true"
+        MERGE_PLATFORM: "false"
+
   needs:
     - job: docker_build_cluster_agent_fips_amd64
       artifacts: false
