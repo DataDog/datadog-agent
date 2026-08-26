@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstore"
@@ -24,6 +25,11 @@ import (
 
 const (
 	metricPrefix = "datadog.cluster_agent.autoscaling.workload"
+
+	allContainersTagValue = "all"
+
+	dpaDimensionHorizontal = "horizontal"
+	dpaDimensionVertical   = "vertical"
 )
 
 // Tag generation helper functions
@@ -65,6 +71,53 @@ func resourceTags(containerName, resourceName string) []string {
 // conditionTags generates tags for autoscaler condition metrics
 func conditionTags(baseTags []string, conditionType string) []string {
 	return append(baseTags, "type:"+conditionType)
+}
+
+func applyModeTags(baseTags []string, applyMode, dimension string) []string {
+	return append(baseTags, "dpa_mode:"+applyMode, "dpa_dimension:"+dimension)
+}
+
+func controlledResourceTags(baseTags []string, containerName string, resource corev1.ResourceName) []string {
+	if containerName == "*" {
+		containerName = allContainersTagValue
+	}
+	return append(baseTags, "kube_container_name:"+containerName, "resource_name:"+string(resource), "dpa_dimension:"+dpaDimensionVertical)
+}
+
+func applyModeTagValue(spec *datadoghq.DatadogPodAutoscalerSpec) string {
+	mode := datadoghq.DatadogPodAutoscalerApplyModeApply
+	if spec != nil && spec.ApplyPolicy != nil && spec.ApplyPolicy.Mode != "" {
+		mode = spec.ApplyPolicy.Mode
+	}
+	return strings.ToLower(string(mode))
+}
+
+func controlledResourcesForMetrics(resources []corev1.ResourceName) []corev1.ResourceName {
+	if resources == nil {
+		return []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
+	}
+	return resources
+}
+
+func appendApplyModeMetrics(metrics metricsstore.StructuredMetrics, internal *model.PodAutoscalerInternal, baseTags []string) metricsstore.StructuredMetrics {
+	applyMode := applyModeTagValue(internal.Spec())
+	if internal.IsHorizontalScalingEnabled() {
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".apply_mode",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: 1.0,
+			Tags:  applyModeTags(baseTags, applyMode, dpaDimensionHorizontal),
+		})
+	}
+	if internal.IsVerticalScalingEnabled() {
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".apply_mode",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: 1.0,
+			Tags:  applyModeTags(baseTags, applyMode, dpaDimensionVertical),
+		})
+	}
+	return metrics
 }
 
 // objectiveTags generates tags for autoscaler objective (target) metrics.
@@ -171,7 +224,10 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		Tags:  baseTags,
 	})
 
-	// 3. Horizontal scaling received replicas
+	// 3. DPA apply mode
+	metrics = appendApplyModeMetrics(metrics, internal, baseTags)
+
+	// 4. Horizontal scaling received replicas
 	if scalingValues.Horizontal != nil {
 		metrics = append(metrics, metricsstore.StructuredMetric{
 			Name:  metricPrefix + ".horizontal_scaling_received_replicas",
@@ -181,7 +237,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		})
 	}
 
-	// 4. Vertical scaling received requests and limits
+	// 5. Vertical scaling received requests and limits
 	if scalingValues.Vertical != nil {
 		for _, containerResources := range scalingValues.Vertical.ContainerResources {
 			// Requests
@@ -206,7 +262,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 5. Horizontal scaling last action metrics
+	// 6. Horizontal scaling last action metrics
 	lastHorizontalActions := internal.HorizontalLastActions()
 	actionSource := ""
 	if sv := internal.ScalingValues(); sv.Horizontal != nil {
@@ -240,7 +296,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		Tags:  append(horizontalTags, "status:ok"),
 	})
 
-	// 6. Vertical scaling last action metrics
+	// 7. Vertical scaling last action metrics
 	metrics = append(metrics, metricsstore.StructuredMetric{
 		Name:  metricPrefix + ".vertical_rollout_triggered",
 		Type:  metricsstore.MetricTypeMonotonicCount,
@@ -255,7 +311,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		Tags:  append(baseWithVerticalSourceTags, "status:ok"),
 	})
 
-	// 7. In-place vertical scaling action metrics
+	// 8. In-place vertical scaling action metrics
 	metrics = append(metrics, metricsstore.StructuredMetric{
 		Name:  metricPrefix + ".vertical_inplace.patch",
 		Type:  metricsstore.MetricTypeMonotonicCount,
@@ -310,7 +366,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		Tags:  baseWithVerticalSourceTags,
 	})
 
-	// 8. Vertical scaled/evicted replica gauges
+	// 9. Vertical scaled/evicted replica gauges
 	if scaledReplicas := internal.ScaledReplicas(); scaledReplicas != nil {
 		metrics = append(metrics, metricsstore.StructuredMetric{
 			Name:  metricPrefix + ".status.vertical.scaled_replicas",
@@ -328,7 +384,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		})
 	}
 
-	// 9. Local recommender horizontal metrics
+	// 10. Local recommender horizontal metrics
 	if fallbackHorizontal := internal.FallbackScalingValues().Horizontal; fallbackHorizontal != nil {
 		localSourceTags := append(baseTags, "source:"+string(fallbackHorizontal.Source))
 		metrics = append(metrics, metricsstore.StructuredMetric{
@@ -347,7 +403,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 10. Horizontal scaling constraints
+	// 11. Horizontal scaling constraints
 	if spec := internal.Spec(); spec != nil && spec.Constraints != nil {
 		if spec.Constraints.MaxReplicas != nil {
 			metrics = append(metrics, metricsstore.StructuredMetric{
@@ -366,11 +422,27 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 			})
 		}
 
-		// 11. Vertical scaling container constraints (per container, CPU in millicores, memory in bytes)
+		// 12. Vertical scaling container constraints (per container, CPU in millicores, memory in bytes)
 		// Mirror the resolveMinMaxBounds fallback from controller_vertical_helpers.go:
 		// prefer top-level MinAllowed/MaxAllowed; fall back to deprecated Requests field.
 		for _, container := range spec.Constraints.Containers {
 			containerTags := append(baseTags, "kube_container_name:"+container.Name)
+
+			if container.Enabled == nil || *container.Enabled {
+				seenResources := make(map[corev1.ResourceName]struct{})
+				for _, resource := range controlledResourcesForMetrics(container.ControlledResources) {
+					if _, seen := seenResources[resource]; seen {
+						continue
+					}
+					seenResources[resource] = struct{}{}
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".vertical_scaling.controlled_resources",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: 1.0,
+						Tags:  controlledResourceTags(baseTags, container.Name, resource),
+					})
+				}
+			}
 
 			effectiveMin := container.MinAllowed
 			if len(effectiveMin) == 0 && container.Requests != nil {
@@ -416,7 +488,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 12. Autoscaling objectives (target values from spec)
+	// 13. Autoscaling objectives (target values from spec)
 	if spec := internal.Spec(); spec != nil {
 		for idx, objective := range spec.Objectives {
 			switch objective.Type {
@@ -460,9 +532,9 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 13. Status metrics and autoscaler conditions (from upstream CR)
+	// 14. Status metrics and autoscaler conditions (from upstream CR)
 	if podAutoscaler := internal.UpstreamCR(); podAutoscaler != nil {
-		// 13a. Horizontal desired replicas from status
+		// 14a. Horizontal desired replicas from status
 		if horizontal := podAutoscaler.Status.Horizontal; horizontal != nil && horizontal.Target != nil {
 			metrics = append(metrics, metricsstore.StructuredMetric{
 				Name:  metricPrefix + ".status.desired.replicas",
@@ -472,7 +544,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 			})
 		}
 
-		// 13b. Vertical desired resources from status (per container, CPU in millicores, memory in bytes)
+		// 14b. Vertical desired resources from status (per container, CPU in millicores, memory in bytes)
 		if vertical := podAutoscaler.Status.Vertical; vertical != nil && vertical.Target != nil {
 			for _, container := range vertical.Target.DesiredResources {
 				containerTags := append(baseTags, "kube_container_name:"+container.Name)
@@ -511,7 +583,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 			}
 		}
 
-		// 13c. Autoscaler conditions
+		// 14c. Autoscaler conditions
 		for _, condition := range podAutoscaler.Status.Conditions {
 			value := 0.0
 			if condition.Status == corev1.ConditionTrue {
