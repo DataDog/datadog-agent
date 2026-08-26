@@ -96,6 +96,17 @@ func isStandardJMXIntegration(name string) bool {
 	return ok
 }
 
+// isEmptyJSON reports whether data is empty or a JSON null/empty object.
+// parseDiscoveryResult sets init_config to "{}" when the discovered config
+// has no init_config, so a simple len() check is insufficient.
+func isEmptyJSON(data integration.Data) bool {
+	if len(data) == 0 {
+		return true
+	}
+	s := strings.TrimSpace(string(data))
+	return s == "{}" || s == "null"
+}
+
 func (cm *reconcilingConfigManager) start() {
 	cm.pythonDiscoveryWorker.Start()
 	if cm.jmxDiscoveryWorker != nil {
@@ -192,14 +203,16 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 	merged := tpl
 	merged.Discovery = nil // IMPORTANT: make sure resolveTemplateForService doesn't loop on the discovered/resolved result
 	// Only replace init_config/metric_config if the discovered config
-	// provides non-empty values. This preserves the template's init_config
+	// provides meaningful values. This preserves the template's init_config
 	// (which includes the integration's metrics.yaml bean filters and
 	// aliases) when the JMX bridge returns only connection info (host/port).
-	if len(discovered.InitConfig) > 0 {
+	// Note: parseDiscoveryResult sets init_config to "{}" when empty, so we
+	// must check for that case explicitly.
+	if !isEmptyJSON(discovered.InitConfig) {
 		merged.InitConfig = discovered.InitConfig
 	}
 	merged.Instances = discovered.Instances
-	if len(discovered.MetricConfig) > 0 {
+	if !isEmptyJSON(discovered.MetricConfig) {
 		merged.MetricConfig = discovered.MetricConfig
 	}
 	merged.LogsConfig = discovered.LogsConfig
