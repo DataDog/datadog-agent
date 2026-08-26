@@ -4308,8 +4308,6 @@ github.com/netsampler/goflow2 v1.3.8-0.20260412031118-ad727784ae6f h1:wpzqmWjjze
 github.com/netsampler/goflow2 v1.3.8-0.20260412031118-ad727784ae6f/go.mod h1:sdklMQYJojc2Q8VuC+yzS+9r2hK+VrDgDM81CEP0psw=
 github.com/nexus-rpc/nexus-proto-annotations v0.1.0 h1:2fELd+9sqUtNu6Fg//pw8YFsxOvp8vZ8hfP0nHhNI80=
 github.com/nexus-rpc/nexus-proto-annotations v0.1.0/go.mod h1:n3UjF1bPCW8llR8tHvbxJ+27yPWrhpo8w/Yg1IOuY0Y=
-github.com/nexus-rpc/sdk-go v0.6.0 h1:QRgnP2zTbxEbiyWG/aXH8uSC5LV/Mg1fqb19jb4DBlo=
-github.com/nexus-rpc/sdk-go v0.6.0/go.mod h1:FHdPfVQwRuJFZFTF0Y2GOAxCrbIBNrcPna9slkGKPYk=
 github.com/nexus-rpc/sdk-go v0.7.0 h1:38NrfY5rLnZAiMMs2ZfCKI/CSDzdfJG+27iAgfA8bUI=
 github.com/nexus-rpc/sdk-go v0.7.0/go.mod h1:FHdPfVQwRuJFZFTF0Y2GOAxCrbIBNrcPna9slkGKPYk=
 github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 h1:BQ1HW7hr4IVovMwWg0E0PYcyW8CzqDcVmaew9cujU4s=
@@ -5368,8 +5366,6 @@ go.step.sm/crypto v0.83.0 h1:llCPEiL2f+kUPY+CUJrOCsuSBoJZ2qooFG9EqGast6w=
 go.step.sm/crypto v0.83.0/go.mod h1:qyLTv666WJ6ImFPUjljux+684Y/GGYUjAZcKCnc6yBs=
 go.temporal.io/api v1.63.5 h1:c11+kPYHkXXL3UiShPdbMD+xtvqGsbTibUA9ypmiCa4=
 go.temporal.io/api v1.63.5/go.mod h1:SrlW2JMwVlDP4nRWSNznUFqnSHd+YeMDS1BkYo63HCQ=
-go.temporal.io/sdk v1.47.0 h1:lZ39w1+uWSjHTL0F3mSc0t4XUnKX8CCcWxqSiLbaHnc=
-go.temporal.io/sdk v1.47.0/go.mod h1:ilKs0twgP4JpP8pfhIgZumnOEyBiYn6ZO/ta//NnKMU=
 go.temporal.io/sdk v1.48.0 h1:WDctKDVuh0Z8Nf7euAyqs/EwcPg1JTIIq1Fut8Tq118=
 go.temporal.io/sdk v1.48.0/go.mod h1:SHv3+fLzD0GGZAwf0xNSvu8UmO1nFgG9WBSYoowApIk=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
