@@ -5,10 +5,6 @@ These images are pinned by ID in this repo (`test/e2e-framework/resources/aws/pl
 
 The images themselves are built in [ami-builder](https://github.com/DataDog/ami-builder/tree/master/ami/images/e2e). This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.
 
-/// warning
-`test/e2e-framework/resources/aws/platforms.json` (AMI IDs, the subject of this page) is a different file from `test/new-e2e/tests/agent-platform/platforms/platforms.json`, which lists `platform/arch/version` strings for the agent-platform install-test matrix and contains no AMI IDs.
-///
-
 ## How an AMI is chosen
 
 1. `ec2.WithOS(e2eos.Ubuntu2204E2E)` resolves to a `Descriptor{Ubuntu, "22-04-e2e", x86_64}` — a `(flavor, version, architecture)` triple.
