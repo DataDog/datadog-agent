@@ -1597,6 +1597,27 @@ func TestKSMCheck_processAnnotationsAsTags(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Regression test: a wildcard on the "namespace" kind must not
+			// duplicate the "namespace" entry in labelsToMatch, or insertMetric panics
+			// (`makeslice: cap out of range`) on any un-annotated namespace.
+			name: "With wildcard template on namespace kind",
+			config: &KSMConfig{
+				labelJoins:   map[string]*joinsConfig{},
+				LabelsMapper: map[string]string{},
+				AnnotationsAsTags: map[string]map[string]string{
+					"namespace": {"*": "%%annotation%%"},
+				},
+			},
+			expectedJoins: map[string]*joinsConfig{
+				"kube_namespace_annotations": {
+					labelsToMatch:    []string{"namespace"},
+					labelsToGet:      map[string]string{},
+					getAllLabels:     true,
+					wildcardTemplate: "%%annotation%%",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
