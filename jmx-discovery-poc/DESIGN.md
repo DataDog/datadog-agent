@@ -129,7 +129,7 @@ Details: [approach-3-dummy-config.md](approach-3-dummy-config.md)
 |---|---|
 | No new channels or endpoints | Latency: ≤15s poll + 5s probe = ≤20s |
 | Config NOT scheduled before verification | Blocks a worker goroutine during wait |
-| Agent knows if discovery succeeded | Requires separate workqueue for JMX (production) |
+| Agent knows if discovery succeeded | Requires separate JMX workqueue (see analysis) |
 | Discovery telemetry works | Status struct needs new field |
 | No error service checks on failure | |
 | Fleet Automation status stays clean | |

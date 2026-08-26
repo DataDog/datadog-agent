@@ -190,19 +190,22 @@ The bridge blocks the discovery worker goroutine until JMXFetch responds
 
 ### 5. Blocking concern
 
-The discovery worker (`worker.go`) has a fixed number of goroutines
-(default 4). A blocked JMX probe occupies one goroutine for up to 20s. If
-multiple JMX services are discovered simultaneously, this could block all
-workers and delay Python discovery probes.
+**Solved.** See [approach-3-blocking-analysis.md](approach-3-blocking-analysis.md)
+for the full analysis.
 
-**Mitigation for PoC:** Acceptable — discovery is a one-time operation per
-service, and the timeout prevents indefinite blocking.
+The discovery worker has 4 goroutines (default). A blocked JMX probe
+occupies one goroutine for up to 20s per attempt, and the retry loop
+(5–10 attempts) can block a goroutine for minutes. With 2+ slow JMX
+services, Python discovery throughput degrades significantly.
 
-**Mitigation for production:** The composite discoverer could use a
-separate `Worker` instance for JMX probes, with its own workqueue and
-worker count. This is a small refactor: `initDiscoveryWorker` would create
-two workers instead of one, and `scheduleDiscovery` would route to the
-right one based on the integration name.
+**Solution**: Two separate `Worker` instances — one for Python probes
+(4 goroutines, Python bridge) and one for JMX probes (2 goroutines,
+JMX bridge, JMX-tuned retry config). Routing happens in
+`scheduleDiscovery` based on `check.IsJMXConfig(tpl)`. The composite
+discoverer is no longer needed.
+
+This is a small refactor of `discoveryState` and `initDiscoveryWorker`,
+with zero impact on the existing Python discovery path.
 
 ### 6. Status struct change (`pkg/status/jmx/jmx.go`)
 
