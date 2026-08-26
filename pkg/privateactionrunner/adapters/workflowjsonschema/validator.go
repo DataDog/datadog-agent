@@ -6,6 +6,7 @@
 package workflowjsonschema
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -47,4 +48,31 @@ func FormatValidationError(err error) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// ValidateParameters validates parameters against the properties and required fields
+// from an action parameter schema.
+func ValidateParameters(parameterSchema map[string]interface{}, parameters any) error {
+	schemaData := map[string]interface{}{
+		"type":       "object",
+		"properties": parameterSchema["properties"],
+	}
+	if required, found := parameterSchema["required"]; found {
+		schemaData["required"] = required
+	}
+
+	schemaJSON, err := json.Marshal(schemaData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal schema to JSON: %w", err)
+	}
+
+	schema, err := jsonschema.CompileString("parameter-schema.json", string(schemaJSON))
+	if err != nil {
+		return fmt.Errorf("failed to compile schema: %w", err)
+	}
+
+	if err := Validate(schema, parameters); err != nil {
+		return fmt.Errorf("parameter validation failed: %w", err)
+	}
+	return nil
 }
