@@ -81,7 +81,7 @@ func prepare(root *cobra.Command, args []string, discover providerDiscovery) err
 		return errors.New("remote command was not initialized")
 	}
 	params := globalParams.(*command.GlobalParams)
-	if err := command.ParseGlobalFlagsBeforeSubcommand(args, "remote", params); err != nil {
+	if err := command.ParseGlobalFlags(args, params); err != nil {
 		return err
 	}
 	return discover(remote, params, args)
@@ -110,23 +110,40 @@ func discoverProviders(remote *cobra.Command, globalParams *command.GlobalParams
 			return nil
 		}
 		return AttachCommandProviders(remote, response.GetProviders(), func(providerName string, commandPath []string, arguments *structpb.Struct, stdout, stderr io.Writer) error {
-			stream, err := client.ExecuteCommand(ctx, &pb.ExecuteCommandRequest{ProviderName: providerName, CommandPath: commandPath, Arguments: arguments})
+			return executeProviderCommand(globalParams, providerName, commandPath, arguments, stdout, stderr)
+		})
+	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams)), core.Bundle(), ipcfx.ModuleReadOnly())
+}
+
+func executeProviderCommand(globalParams *command.GlobalParams, providerName string, commandPath []string, arguments *structpb.Struct, stdout, stderr io.Writer) error {
+	return fxutil.OneShot(func(_ log.Component, _ config.Component, ipc ipc.Component) error {
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
+		conn, err := dialCoreAgent(ipc)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		stream, err := pb.NewRemoteCommandProviderClient(conn).ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{
+			ProviderName: providerName,
+			CommandPath:  commandPath,
+			Arguments:    arguments,
+		})
+		if err != nil {
+			return err
+		}
+		for {
+			frame, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
 			if err != nil {
 				return err
 			}
-			for {
-				frame, err := stream.Recv()
-				if errors.Is(err, io.EOF) {
-					return nil
-				}
-				if err != nil {
-					return err
-				}
-				if err := renderFrame(frame, stdout, stderr); err != nil {
-					return err
-				}
+			if err := renderFrame(frame, stdout, stderr); err != nil {
+				return err
 			}
-		})
+		}
 	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams)), core.Bundle(), ipcfx.ModuleReadOnly())
 }
 
@@ -315,6 +332,19 @@ func argumentsForCommand(cmd *cobra.Command, args []string, parameters []*pb.Com
 			}
 			continue
 		}
+		if isSliceType(parameter.GetType()) {
+			if parameter != parameters[len(parameters)-1] {
+				return nil, fmt.Errorf("slice argument %q must be the final positional parameter", parameter.GetName())
+			}
+			value, err := positionalSliceValue(parameter.GetType(), args[position:])
+			if err != nil {
+				return nil, fmt.Errorf("invalid argument %q: %w", parameter.GetName(), err)
+			}
+			fields[parameter.GetName()] = value
+			position = len(args)
+			continue
+		}
+
 		value, err := stringValue(parameter.GetType(), args[position])
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument %q: %w", parameter.GetName(), err)
@@ -361,6 +391,32 @@ func flagValue(cmd *cobra.Command, parameter *pb.CommandParameter) (*structpb.Va
 	default:
 		return nil, fmt.Errorf("unsupported parameter type %s", parameter.GetType())
 	}
+}
+
+func isSliceType(typ pb.ParameterType) bool {
+	return typ == pb.ParameterType_TYPE_STRING_SLICE ||
+		typ == pb.ParameterType_TYPE_INT_SLICE ||
+		typ == pb.ParameterType_TYPE_UINT_SLICE ||
+		typ == pb.ParameterType_TYPE_FLOAT_SLICE
+}
+
+func positionalSliceValue(typ pb.ParameterType, args []string) (*structpb.Value, error) {
+	elementType := map[pb.ParameterType]pb.ParameterType{
+		pb.ParameterType_TYPE_STRING_SLICE: pb.ParameterType_TYPE_STRING,
+		pb.ParameterType_TYPE_INT_SLICE:    pb.ParameterType_TYPE_INT,
+		pb.ParameterType_TYPE_UINT_SLICE:   pb.ParameterType_TYPE_UINT,
+		pb.ParameterType_TYPE_FLOAT_SLICE:  pb.ParameterType_TYPE_FLOAT,
+	}[typ]
+
+	values := make([]*structpb.Value, 0, len(args))
+	for _, arg := range args {
+		value, err := stringValue(elementType, arg)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	return structpb.NewListValue(&structpb.ListValue{Values: values}), nil
 }
 
 func stringValue(typ pb.ParameterType, raw string) (*structpb.Value, error) {

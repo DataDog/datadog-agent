@@ -9,6 +9,7 @@ package command
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -115,18 +116,40 @@ func RegisterGlobalFlags(flags *pflag.FlagSet, params *GlobalParams) {
 	flags.BoolVarP(&params.NoColor, "no-color", "n", false, "disable color output")
 }
 
-// ParseGlobalFlagsBeforeSubcommand parses root flags without consuming the selected subcommand's flags.
-func ParseGlobalFlagsBeforeSubcommand(args []string, subcommandName string, params *GlobalParams) error {
+// ParseGlobalFlags parses recognized root flags without consuming provider-specific arguments.
+func ParseGlobalFlags(args []string, params *GlobalParams) error {
 	flags := pflag.NewFlagSet("agent", pflag.ContinueOnError)
-	flags.SetInterspersed(false)
 	RegisterGlobalFlags(flags, params)
 
-	for index, arg := range args {
-		if arg == subcommandName {
-			return flags.Parse(args[:index])
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		if arg == "--" {
+			break
+		}
+		if !strings.HasPrefix(arg, "-") {
+			continue
+		}
+
+		name, value, hasValue := strings.Cut(strings.TrimLeft(arg, "-"), "=")
+		flag := flags.Lookup(name)
+		if flag == nil {
+			continue
+		}
+		if !hasValue {
+			if flag.NoOptDefVal != "" {
+				value = flag.NoOptDefVal
+			} else if index+1 < len(args) {
+				index++
+				value = args[index]
+			} else {
+				return pflag.ErrHelp
+			}
+		}
+		if err := flags.Set(flag.Name, value); err != nil {
+			return err
 		}
 	}
-	return flags.Parse(args)
+	return nil
 }
 
 // LogLevelDefaultOff is used only for commands where logs are disabled by default.

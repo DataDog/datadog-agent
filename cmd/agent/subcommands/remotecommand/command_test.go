@@ -103,9 +103,9 @@ func TestPrepareSkipsDiscoveryForNonRemoteCommand(t *testing.T) {
 	require.NoError(t, prepare(root, []string{"status"}, discover))
 }
 
-func TestParseGlobalFlagsBeforeRemote(t *testing.T) {
+func TestParseGlobalFlags(t *testing.T) {
 	params := &command.GlobalParams{}
-	require.NoError(t, command.ParseGlobalFlagsBeforeSubcommand([]string{"--cfgpath", "/tmp/config", "--extracfgpath=extra.yaml", "--sysprobecfgpath", "/tmp/sysprobe", "--fleetcfgpath=/tmp/fleet", "--no-color", "remote", "fixture", "--provider-flag"}, "remote", params))
+	require.NoError(t, command.ParseGlobalFlags([]string{"--cfgpath", "/tmp/config", "remote", "fixture", "--provider-flag", "--extracfgpath=extra.yaml", "--sysprobecfgpath", "/tmp/sysprobe", "--fleetcfgpath=/tmp/fleet", "--no-color"}, params))
 	require.Equal(t, "/tmp/config", params.ConfFilePath)
 	require.Equal(t, []string{"extra.yaml"}, params.ExtraConfFilePath)
 	require.Equal(t, "/tmp/sysprobe", params.SysProbeConfFilePath)
