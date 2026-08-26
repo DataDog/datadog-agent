@@ -87,6 +87,8 @@ initContainers:
       readOnlyRootFilesystem: true
       appArmorProfile:
         type: Unconfined
+      seLinuxOptions:
+        type: spc_t
       capabilities:
         drop:
           - ALL
