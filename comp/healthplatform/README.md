@@ -56,16 +56,71 @@ The state machine in the store (`store/impl/store.go`):
 
 On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store accepts `"new"` and `"ongoing"` as legacy aliases for `"active"` when reading persistence files written by older agent versions (schema v2).
 
+## Cluster-wide issue collapse (`deployment_id`)
+
+The backend dedups issues by `id` alone, ignoring hostname. By default this means every issue module
+scopes its `id` per host (e.g. `fnv64a(hostname + templateIdentity)`), so a problem affecting `N`
+node agents in a Kubernetes cluster produces `N` separate issues.
+
+When a problem is actually caused by a template the cluster *distributed* to every node agent (a bad
+cluster check, a cluster-distributed config file, a broken operator-rendered `datadog.yaml`), scoping
+by hostname is wrong: it hides that the issue is shared and points remediation at one node instead of
+the shared source. `comp/healthplatform/issueregistry/utils/selfident.SelfIdent` exists for this case:
+
+- `SelfIdent.DeploymentID()` resolves the UID of the Kubernetes DaemonSet that owns the agent's own
+  pod (via workloadmeta), cached for the process lifetime. Empty when not running under a DaemonSet
+  (non-Kubernetes, or no DaemonSet owner).
+- `SelfIdent.IssueDiscriminator()` returns `DeploymentID()`, or `""` when no DaemonSet owns this
+  agent. It deliberately does *not* invent a per-host id, so that it behaves identically to the no-op
+  build (see below).
+- `issues.IssueDiscriminator(selfIdent, hostID)` is the function callers actually use: it takes
+  `SelfIdent.IssueDiscriminator()` when non-empty, else `hostID`, else `os.Hostname()`. All agents
+  owned by the same DaemonSet therefore compute the same discriminator, so `id`s built from it
+  collapse into one backend issue instead of one per host; every other agent keeps per-host
+  behavior. It tolerates a nil `selfIdent` (`ModuleDeps` is a plain struct).
+- `healthplatformstore.Component.IssueDiscriminator(hostID)` (implemented in `store/impl`) delegates
+  to that function with a process-shared `SelfIdent`, for Path-B reporters that hold the store
+  component. Path-A modules that don't (`invalidconfig`, `invalidsysprobeconfig`) call it directly
+  with their own `*selfident.SelfIdent` from `issues.ModuleDeps.SelfIdent` — a second,
+  independently-cached instance is harmless since both resolve the same deterministic value.
+- **`selfident` is behind the `kubeapiserver` build tag.** `selfident_noop.go` provides the same API
+  returning `""` everywhere for flavors built without it — the iot and heroku agents,
+  `cluster-agent-cloudfoundry`, and `serverless-init`. None of them can run as a Kubernetes
+  DaemonSet, and every binary that both wires this bundle and can (`cmd/agent` base flavor,
+  `cmd/cluster-agent`) has the tag. This keeps the resolver, and its retry loop, out of binaries
+  where it could never succeed — `env.IsFeaturePresent(env.Kubernetes)` is not tag-gated, so a
+  package-installed agent on a Kubernetes node would otherwise retry a lookup that cannot resolve
+  without the kubelet workloadmeta collector. It also matters for the iot static quality gate, which
+  has almost no headroom. If you add anything to `selfident`, keep both variants in sync.
+- `cluster_id` (`SelfIdent.ClusterID()`) rides along in issue `Extra`/`Tags` for UI identification
+  only — it is never part of the `id` itself. Unlike `DeploymentID()`, it resolves in a background
+  goroutine and returns `""` until resolved: `clustername.GetClusterID()` usually requires a
+  synchronous HTTP call to the Cluster Agent (`DD_ORCHESTRATOR_CLUSTER_ID` is not set by current
+  Helm chart/Operator deployments), and `cluster_id` is best-effort metadata that must never block
+  issue reporting on Cluster Agent availability.
+
+**When adding or scoping a new module's `id`:** use `issues.IssueDiscriminator` instead of a bare
+hostname/host ID whenever the module's failure mode can plausibly originate from a cluster-distributed
+template (config validation, cluster check load/exec failures). Keep using a bare per-host id for
+failures that are inherently host-local (e.g. filesystem permissions, local Docker socket access).
+
+**Shared-resolution caveat:** because a collapsed `id` omits hostname, the first agent to recover
+calls `ResolveIssue` with that same `id` and clears the issue for every other node still affected —
+correct when the fix is genuinely shared, but it can flap if only some agents recover. Per-agent
+affected-count is a backend follow-up, not handled by the agent today. Document this caveat at every
+`ResolveIssue` call site for a collapsed issue.
+
 ## Current issues
 
-| Package | `id` | `issue_name` | `issue_type` | `title` |
-|---|---|---|---|---|
-| `admisconfig` (annotation) | set by caller | `Autodiscovery Annotation Misconfiguration` | `autodiscovery_annotation_misconfiguration` | `"<subtype> Misconfiguration on \"<entityName>\""` |
-| `admisconfig` (template) | set by caller | `Autodiscovery Template Resolution Error` | `autodiscovery_template_resolution_error` | `"Autodiscovery Template Resolution Error on '<entityName>'"` |
-| `invalidconfig` | `invalid-config` | `Invalid Config` | `invalid_config` | `"Datadog Agent Configuration Has <N> Schema Violation(s) in <filename>"` |
-| `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `read-only_filesystem_error` | `"Agent cannot write to: <directories>"` |
-| `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `admission_controller_unreachable` | `"Admission Controller Unreachable"` |
-| `dockerpermissions` | `docker-socket-permissions` | `Docker File Tailing Disabled` | `docker_file_tailing_disabled` | `"Docker log tailing disabled for '<dockerDir>'"` |
+| Package | `id` | `issue_name` | `issue_type` | `title` | `id` scoping |
+|---|---|---|---|---|---|
+| `admisconfig` (annotation) | set by caller | `Autodiscovery Annotation Misconfiguration` | `autodiscovery_annotation_misconfiguration` | `"<subtype> Misconfiguration on '<entityName>'"` | hostname-free (already collapses) |
+| `admisconfig` (template) | set by caller | `Autodiscovery Template Resolution Error` | `autodiscovery_template_resolution_error` | `"Autodiscovery Template Resolution Error on '<entityName>'"` | hostname-free (already collapses) |
+| `invalidconfig` | `invalid-config:<digest>` | `Invalid Config` | `invalid_config` | `"Datadog Agent Configuration Has <N> Schema Violation(s) in <filename>"` | `IssueDiscriminator` (cluster-collapsible) |
+| `invalidsysprobeconfig` | `invalid-system-probe-config:<digest>` | `Invalid System-Probe Config` | `invalid_system-probe_config` | `"Datadog System-Probe Configuration Has <N> Schema Violation(s) in <filename>"` | `IssueDiscriminator` (cluster-collapsible) |
+| `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `read-only_filesystem_error` | `"Agent cannot write to: <directories>"` | per-host (host-local failure) |
+| `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `admission_controller_unreachable` | `"Admission Controller Unreachable"` | singleton |
+| `dockerpermissions` | `docker-socket-permissions` | `Docker File Tailing Disabled` | `docker_file_tailing_disabled` | `"Docker log tailing disabled for '<dockerDir>'"` | per-host (host-local failure) |
 
 ## Adding a new issue module
 
