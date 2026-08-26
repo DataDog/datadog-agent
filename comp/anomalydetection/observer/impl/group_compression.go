@@ -42,17 +42,12 @@ type seriesCompact struct {
 }
 
 func (s seriesCompact) effectiveTags() []string {
-	if s.Host == "" || (len(s.Tags) > 0 && s.Tags[0] == "host:"+s.Host) {
+	if s.Host == "" || sliceContains(s.Tags, "host:"+s.Host) {
 		return s.Tags
 	}
 	tags := make([]string, 0, len(s.Tags)+1)
 	tags = append(tags, "host:"+s.Host)
-	for _, tag := range s.Tags {
-		if tag != "host:"+s.Host {
-			tags = append(tags, tag)
-		}
-	}
-	return tags
+	return append(tags, s.Tags...)
 }
 
 // extractCommonTags finds tags shared by all members, returning common tags as a map
