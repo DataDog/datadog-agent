@@ -124,6 +124,42 @@ func TestTimeSeriesStorage_LeavesUnitCountsImplicit(t *testing.T) {
 	assert.Equal(t, int64(2), stats.sampleCount())
 }
 
+func TestTimeSeriesStorage_LeavesDefaultSeriesExtrasImplicit(t *testing.T) {
+	s := newTimeSeriesStorage()
+	res := s.Add("test", "my.metric", 10, 1000, nil)
+
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	assert.Nil(t, stats.extras)
+	assert.Nil(t, s.GetContext(res.Ref))
+	assert.True(t, s.SupportsAggregate(res.Ref, AggregateAverage))
+	assert.True(t, s.SupportsAggregate(res.Ref, AggregateSum))
+	assert.True(t, s.SupportsAggregate(res.Ref, AggregateCount))
+}
+
+func TestTimeSeriesStorage_MaterializesAndReleasesSeriesExtras(t *testing.T) {
+	s := newTimeSeriesStorage()
+	res := s.Add("test", "my.metric", 10, 1000, nil)
+	ctx := &observer.MetricContext{Pattern: "request <*>"}
+
+	s.SetContext(res.Ref, ctx)
+	s.SetSupportedAggregations(res.Ref, AggregateAverage)
+	s.SetSeriesRetention(res.Ref, 600)
+
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	require.NotNil(t, stats.extras)
+	assert.Same(t, ctx, s.GetContext(res.Ref))
+	assert.True(t, s.SupportsAggregate(res.Ref, AggregateAverage))
+	assert.False(t, s.SupportsAggregate(res.Ref, AggregateCount))
+	assert.Equal(t, int64(600), stats.extras.retentionOverrideSecs)
+
+	s.SetContext(res.Ref, nil)
+	s.SetSupportedAggregations(res.Ref)
+	s.SetSeriesRetention(res.Ref, 0)
+	assert.Nil(t, stats.extras)
+}
+
 func TestTimeSeriesStorage_ExplicitCountsStayAlignedThroughInsertAndTrim(t *testing.T) {
 	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
 	res := s.Add("test", "my.metric", 30, 1002, nil)
