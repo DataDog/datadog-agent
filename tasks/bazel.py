@@ -103,8 +103,11 @@ def _resolve_test_output_path(
 def _parse_bep(bep_path: Path) -> dict[str, BepTestArtifacts]:
     """Parse a BEP JSON file in one pass.
 
-    Returns a mapping keyed by Go import path. Each value contains the cache
+    Returns a mapping keyed by Bazel test label. Each value contains the cache
     status and the test.xml/test.log files produced by this invocation.
+
+    The label key preserves distinct dd_agent_go_test variants for the same Go
+    package, such as //pkg/foo:foo_test and //pkg/foo:foo_test_containerd.
     """
     ctx = _BepContext()
     test_actions: list[tuple[str, str, str, str, bool]] = []
@@ -141,8 +144,10 @@ def _parse_bep(bep_path: Path) -> dict[str, BepTestArtifacts]:
 
     results: dict[str, BepTestArtifacts] = {}
     for label, cfg_id, xml_uri, log_uri, cached in test_actions:
-        import_path = _label_to_import_path(label)
-        artifacts = results.setdefault(import_path, {"cached": cached, "xml_paths": [], "log_paths": []})
+        artifacts = results.setdefault(
+            label,
+            {"cached": cached, "xml_paths": [], "log_paths": []},
+        )
         artifacts["cached"] = cached
         artifacts["xml_paths"].append(_resolve_test_output_path(label, xml_uri, cfg_id, ctx, "test.xml"))
         artifacts["log_paths"].append(_resolve_test_output_path(label, log_uri, cfg_id, ctx, "test.log"))
@@ -198,7 +203,7 @@ def _collect_junit(test_artifacts, output_tgz):
     from tasks.libs.common.junit_upload_core import produce_junit_tar
 
     xml_files = [p for artifacts in test_artifacts.values() for p in artifacts["xml_paths"]]
-    cache_status = {import_path: artifacts["cached"] for import_path, artifacts in test_artifacts.items()}
+    cache_status = {_label_to_import_path(label): artifacts["cached"] for label, artifacts in test_artifacts.items()}
     if not xml_files:
         print("error: no test.xml files found in BEP output", file=sys.stderr)
         sys.exit(1)
@@ -248,13 +253,15 @@ def _collect_test2json(ctx, test_artifacts, output_path):
     with tempfile.TemporaryDirectory() as tmpdir:
         manifest_path = os.path.join(tmpdir, "manifest.tsv")
         with open(manifest_path, "w") as manifest:
-            for import_path in sorted(test_artifacts.keys()):
-                manifest.writelines(
-                    f'{import_path}\t{log_path}\n' for log_path in test_artifacts[import_path]["log_paths"]
-                )
+            for label in sorted(test_artifacts.keys()):
+                # Use the Bazel label, not the Go import path, as the test2json package
+                # identity. dd_agent_go_test emits multiple configured go_test targets
+                # for different build-tag sets in the same Go package; collapsing them
+                # to one import path would make UTOF report those distinct runs as
+                # retries.
+                manifest.writelines(f'{label}\t{log_path}\n' for log_path in test_artifacts[label]["log_paths"])
 
         bazel(
-            ctx,
             "run",
             "--config=gorace",  # to use same analysis cache across test & run commands
             "//bazel/tools/testlogs_to_json",

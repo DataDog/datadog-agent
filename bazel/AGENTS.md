@@ -941,6 +941,10 @@ The target name is spent twice in that path, so keep target names, tag-set suffi
 runner has 16 CPUs, and building the repo alongside ~1k race-instrumented Go tests starves them enough that tests
 asserting on wall-clock time fail. Prefer waiting on a signal over a fixed duration in any test that runs there.
 
+**Go test link memory.** Windows race/cgo Go test binaries can exhaust the container or host commit limit during
+external linking (`VirtualAlloc ... errno=1455`). Hybrid `dda inv test` runs can lower Bazel test concurrency with
+`DD_BAZEL_TEST_JOBS`; keep this aligned with the Windows unit-test container memory ceiling.
+
 ## Testing
 
 ### Testing rules (Starlark unit tests)
@@ -1068,7 +1072,7 @@ When a `verify_generated_files` test fails, run the corresponding
 
 ```bash
 # Update a single cgo godefs output
-bazel run //pkg/ebpf:types_godefs
+bazel run //pkg/ebpf/lockcontention:types_godefs
 ```
 
 Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are

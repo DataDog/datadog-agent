@@ -134,7 +134,7 @@ class TestParseBep(unittest.TestCase):
             self.assertEqual(
                 _parse_bep(bep_path),
                 {
-                    f"{_IMPORT_PREFIX}/pkg/foo": {
+                    "//pkg/foo:foo_test": {
                         "cached": True,
                         "xml_paths": [reconstructed],
                         "log_paths": [reconstructed_log],
@@ -181,8 +181,8 @@ class TestParseBep(unittest.TestCase):
             )
 
             artifacts = _parse_bep(bep_path)
-            self.assertEqual(artifacts[f"{_IMPORT_PREFIX}/pkg/foo"]["xml_paths"], [file_uri_path])
-            self.assertEqual(artifacts[f"{_IMPORT_PREFIX}/pkg/foo"]["log_paths"], [reconstructed_log])
+            self.assertEqual(artifacts["//pkg/foo:foo_test"]["xml_paths"], [file_uri_path])
+            self.assertEqual(artifacts["//pkg/foo:foo_test"]["log_paths"], [reconstructed_log])
 
     def test_repeated_test_result_for_same_label_all_kept(self):
         # A sharded or retried target reports multiple testResult events for
@@ -228,10 +228,8 @@ class TestParseBep(unittest.TestCase):
             )
 
             artifacts = _parse_bep(bep_path)
-            self.assertEqual(sorted(artifacts[f"{_IMPORT_PREFIX}/pkg/foo"]["xml_paths"]), sorted([first, second]))
-            self.assertEqual(
-                sorted(artifacts[f"{_IMPORT_PREFIX}/pkg/foo"]["log_paths"]), sorted([first_log, second_log])
-            )
+            self.assertEqual(sorted(artifacts["//pkg/foo:foo_test"]["xml_paths"]), sorted([first, second]))
+            self.assertEqual(sorted(artifacts["//pkg/foo:foo_test"]["log_paths"]), sorted([first_log, second_log]))
 
     def test_no_test_result_events_produces_nothing(self):
         with tempfile.TemporaryDirectory() as tmpdir:

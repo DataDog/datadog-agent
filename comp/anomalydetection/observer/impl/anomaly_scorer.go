@@ -15,11 +15,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	severityeventsimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/impl"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ---------------------------------------------------------------------------
@@ -73,20 +73,6 @@ func nextSeverityLevel(ewma float64, current severityeventsdef.SeverityLevel, lo
 	return severityeventsdef.SeverityLow
 }
 
-// severityLevelName returns a human-readable label for a SeverityLevel.
-func severityLevelName(l severityeventsdef.SeverityLevel) string {
-	switch l {
-	case severityeventsdef.SeverityLow:
-		return "Low"
-	case severityeventsdef.SeverityMedium:
-		return "Medium"
-	case severityeventsdef.SeverityHigh:
-		return "High"
-	default:
-		return fmt.Sprintf("SeverityLevel(%d)", int(l))
-	}
-}
-
 // ---------------------------------------------------------------------------
 // EWMA helpers
 // ---------------------------------------------------------------------------
@@ -94,6 +80,15 @@ func severityLevelName(l severityeventsdef.SeverityLevel) string {
 // levelWeights maps anomaly level (0–4) to its EWMA weight.
 // Level 0=VeryLow, 1=Low, 2=Medium, 3=High, 4=XHigh.
 var levelWeights = [5]float64{0.2, 0.5, 1.0, 2.0, 3.0}
+
+var anomalySeverityLabels = [5]string{"xlow", "low", "medium", "high", "xhigh"}
+
+func anomalySeverityLabel(level int) string {
+	if level < 0 || level >= len(anomalySeverityLabels) {
+		return "unknown"
+	}
+	return anomalySeverityLabels[level]
+}
 
 // anomalyLevel assigns a 0–4 level to an anomaly.
 // If the detector has an entry in cfg.DetectorThresholds, the numeric Score is
@@ -345,7 +340,7 @@ type secState struct {
 // internal watcher (logs, correlation events, cooldown, episode size cap).
 type AnomalyScorerConfig struct {
 	observerdef.AnomalyScorerConfig
-	// Logs controls whether severity transitions are logged via pkglog.
+	// Logs controls whether severity transitions are logged through the anomaly-detection logger.
 	Logs bool `json:"logs"`
 	// CorrelationEvents controls whether scorer severity episodes are tracked
 	// and returned by ActiveCorrelations() for the reporter pipeline.
@@ -410,7 +405,7 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	key := prefix + "alpha"
 	v := r.GetFloat64(key)
 	if v <= 0 || v >= 1 {
-		pkglog.Warnf("anomaly_scorer: %s must be in (0, 1), got %g — using default %g", key, v, defaults.Alpha)
+		logging.Warnf("anomaly scorer: %s must be in (0, 1), got %g — using default %g", key, v, defaults.Alpha)
 		v = defaults.Alpha
 	}
 	ewma.Alpha = v
@@ -418,7 +413,7 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	key = prefix + "saturation_k"
 	v = r.GetFloat64(key)
 	if v <= 0 {
-		pkglog.Warnf("anomaly_scorer: %s must be > 0, got %g — using default %g", key, v, defaults.SaturationK)
+		logging.Warnf("anomaly scorer: %s must be > 0, got %g — using default %g", key, v, defaults.SaturationK)
 		v = defaults.SaturationK
 	}
 	ewma.SaturationK = v
@@ -426,7 +421,7 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	key = prefix + "window"
 	d := r.GetDuration(key)
 	if d < time.Second {
-		pkglog.Warnf("anomaly_scorer: %s must be >= 1s, got %s — using default %ds", key, d, defaults.WindowSecs)
+		logging.Warnf("anomaly scorer: %s must be >= 1s, got %s — using default %ds", key, d, defaults.WindowSecs)
 		d = time.Duration(defaults.WindowSecs) * time.Second
 	}
 	ewma.WindowSecs = int64(d.Seconds())
@@ -441,14 +436,14 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	thresholdKey := outPrefix + "correlation_event_threshold"
 	threshold, err := normalizeCorrelationEventThreshold(r.GetString(thresholdKey))
 	if err != nil {
-		pkglog.Warnf("anomaly_scorer: %s %v; using default %q", thresholdKey, err, defaults.CorrelationEventThreshold)
+		logging.Warnf("anomaly scorer: %s %v; using default %q", thresholdKey, err, defaults.CorrelationEventThreshold)
 	} else {
 		cfg.CorrelationEventThreshold = threshold
 	}
 	key = outPrefix + "cooldown"
 	d = r.GetDuration(key)
 	if d < 0 {
-		pkglog.Warnf("anomaly_scorer: %s must be >= 0, got %s — using default %ds", key, d, defaults.CooldownSecs)
+		logging.Warnf("anomaly scorer: %s must be >= 0, got %s — using default %ds", key, d, defaults.CooldownSecs)
 		d = time.Duration(defaults.CooldownSecs) * time.Second
 	}
 	cfg.CooldownSecs = int64(d.Seconds())
@@ -456,10 +451,10 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	key = outPrefix + "max_reported_items"
 	cfg.MaxReportedItems = r.GetInt(key)
 	if cfg.MaxReportedItems < minMaxReportedItems {
-		pkglog.Warnf("anomaly_scorer: %s must be at least %d, got %d — using %d", key, minMaxReportedItems, cfg.MaxReportedItems, minMaxReportedItems)
+		logging.Warnf("anomaly scorer: %s must be at least %d, got %d — using %d", key, minMaxReportedItems, cfg.MaxReportedItems, minMaxReportedItems)
 		cfg.MaxReportedItems = minMaxReportedItems
 	} else if cfg.MaxReportedItems > maxMaxReportedItems {
-		pkglog.Warnf("anomaly_scorer: %s must be at most %d, got %d — using %d", key, maxMaxReportedItems, cfg.MaxReportedItems, maxMaxReportedItems)
+		logging.Warnf("anomaly scorer: %s must be at most %d, got %d — using %d", key, maxMaxReportedItems, cfg.MaxReportedItems, maxMaxReportedItems)
 		cfg.MaxReportedItems = maxMaxReportedItems
 	}
 
@@ -560,8 +555,8 @@ type anomalyScorer struct {
 	dispatchers []*severityeventsimpl.Dispatcher
 
 	// Internal watcher fields (gauges may be nil when replay only needs episodes).
-	ewmaGauge  telemetry.Gauge // may be nil; set on every Advance tick
-	stateGauge telemetry.Gauge // may be nil; set on severity transitions
+	ewmaGauge     telemetry.Gauge // may be nil; set on every Advance tick
+	severityGauge telemetry.Gauge // may be nil; set to the current severity on every Advance tick
 
 	// Episode tracking (guarded by mu; only active when correlationEvents is true).
 	// openEpisode is the currently open configured-threshold severity period.
@@ -606,7 +601,7 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 		cfg.MaxReportedItems = maxMaxReportedItems
 	}
 	if threshold, err := normalizeCorrelationEventThreshold(cfg.CorrelationEventThreshold); err != nil {
-		pkglog.Warnf("anomaly_scorer: correlation_event_threshold %v; using default %q", err, defaults.CorrelationEventThreshold)
+		logging.Warnf("anomaly scorer: correlation_event_threshold %v; using default %q", err, defaults.CorrelationEventThreshold)
 		cfg.CorrelationEventThreshold = defaults.CorrelationEventThreshold
 	} else {
 		cfg.CorrelationEventThreshold = threshold
@@ -647,18 +642,19 @@ func (s *anomalyScorer) advanceRawLevel(ewma float64) severityeventsdef.Severity
 }
 
 // newAnomalyScorerWithTelemetry creates a scorer with the watcher enabled.
-// Non-nil stateGauge and ewmaGauge values are written on each severity transition
-// and EWMA tick respectively. The watcher self-subscribes using cfg.CooldownSecs.
-func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGauge telemetry.Gauge) *anomalyScorer {
+// Non-nil severityGauge and ewmaGauge values are written with the current
+// severity and EWMA on every advance tick. The watcher self-subscribes using
+// cfg.CooldownSecs.
+func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaGauge telemetry.Gauge) *anomalyScorer {
 	s := newAnomalyScorerBase(cfg)
 	s.ewmaGauge = ewmaGauge
-	s.stateGauge = stateGauge
+	s.severityGauge = severityGauge
 
 	// Self-subscribe as the internal watcher.
 	if _, err := s.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
 		CooldownSecs: cfg.CooldownSecs,
 	}, s); err != nil {
-		pkglog.Errorf("[observer] anomaly scorer self-subscription failed: %v", err)
+		logging.Errorf("anomaly scorer self-subscription failed: %v", err)
 	}
 
 	return s
@@ -669,8 +665,8 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGaug
 // ---------------------------------------------------------------------------
 
 // OnSeverityTransition is called by the self-subscription on each severity
-// transition. It sets the state gauge, optionally logs the event, and manages
-// episodes while severity is at or above the configured event threshold.
+// transition. It optionally logs the event and manages episodes while severity
+// is at or above the configured event threshold.
 func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
 	direction := "escalation"
 	if evt.Direction == severityeventsdef.SeverityEventDeescalation {
@@ -678,17 +674,13 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 	}
 
 	if s.config.Logs {
-		pkglog.Infof("[observer] anomaly scorer %s severity %s to %s (was %s, t=%d)",
+		logging.Infof("anomaly scorer %s severity %s to %s (was %s, t=%d)",
 			s.Name(),
 			direction,
-			severityLevelName(evt.ToLevel),
-			severityLevelName(evt.FromLevel),
+			evt.ToLevel.String(),
+			evt.FromLevel.String(),
 			evt.Timestamp,
 		)
-	}
-
-	if s.stateGauge != nil {
-		s.stateGauge.Set(float64(evt.ToLevel), "scorer:"+s.Name(), direction)
 	}
 
 	if s.config.CorrelationEvents {
@@ -793,6 +785,10 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	if s.ewmaGauge != nil && len(states) > 0 {
 		last := states[len(states)-1]
 		s.ewmaGauge.Set(last.ewma, s.Name())
+	}
+	if s.severityGauge != nil && len(states) > 0 {
+		last := states[len(states)-1]
+		s.severityGauge.Set(float64(last.level), s.Name())
 	}
 
 	// Drive the dispatchers outside the scorer lock so listeners can safely call

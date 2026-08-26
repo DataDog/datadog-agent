@@ -87,13 +87,23 @@ type RCAddConfigRequest struct {
 	Data       json.RawMessage `json:"data"`
 }
 
+type RCApplyState struct {
+	ClientID   string `json:"client_id"`
+	ConfigID   string `json:"config_id"`
+	Product    string `json:"product"`
+	Version    uint64 `json:"version"`
+	ApplyState uint64 `json:"apply_state"`
+	ApplyError string `json:"apply_error"`
+}
+
 // RCStats is returned by GET /fakeintake/rc/stats.
 type RCStats struct {
-	Polls        uint64    `json:"polls"`
-	LastPoll     time.Time `json:"last_poll"`
-	Version      uint64    `json:"version"`
-	ConfigsCount int       `json:"configs_count"`
-	KeyID        string    `json:"key_id"`
-	PublicKey    string    `json:"public_key"`
-	RootJSON     string    `json:"root_json"`
+	Polls        uint64         `json:"polls"`
+	LastPoll     time.Time      `json:"last_poll"`
+	Version      uint64         `json:"version"`
+	ConfigsCount int            `json:"configs_count"`
+	ApplyStates  []RCApplyState `json:"apply_states"`
+	KeyID        string         `json:"key_id"`
+	PublicKey    string         `json:"public_key"`
+	RootJSON     string         `json:"root_json"`
 }

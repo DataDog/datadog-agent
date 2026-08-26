@@ -76,8 +76,12 @@ WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
+BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
+DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
+# TODO(OTAGENT-1305): point back to a tagged release once one ships with the go.mod
+# bump upstream currently only has on main.
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
 )
 
 
@@ -274,6 +278,17 @@ def _parse_bazel_test_line(line: str) -> tuple[str, str, str | None, bool] | Non
     return None
 
 
+def _bazel_test_jobs() -> str | None:
+    jobs = os.environ.get(BAZEL_TEST_JOBS_ENV)
+    if jobs is None and sys.platform == "win32" and running_in_ci():
+        jobs = str(DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS)
+    if not jobs:
+        return None
+    if not jobs.isdigit() or int(jobs) <= 0:
+        raise Exit(f"{BAZEL_TEST_JOBS_ENV} must be a positive integer, got {jobs!r}")
+    return jobs
+
+
 def _run_bazel_tests(
     ctx, flavor: AgentFlavor, targets: list[str], bazel_flags: list[str] = None, verbose: bool = False
 ) -> TestStats:
@@ -294,6 +309,8 @@ def _run_bazel_tests(
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
     base_args = ["test", "--keep_going", "--build_tests_only", "--curses=no", "--color=no"]
+    if jobs := _bazel_test_jobs():
+        base_args.append(f"--jobs={jobs}")
     if bazel_flags:
         base_args.extend(bazel_flags)
     fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
@@ -456,7 +473,6 @@ def test_flavor(
         batch_packages = ' '.join(batch)
         with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
             res = bazel(
-                ctx,
                 "run",
                 "//internal/tools:gotestsum",
                 "--",
@@ -603,6 +619,7 @@ def test(
     rtloader_root=None,
     python_home_3=None,
     cpus=None,
+    build_cpus=None,
     timeout=180,
     cache=True,
     test_run_name="",
@@ -664,12 +681,10 @@ def test(
     race_opt = "-race" if race else ""
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
-    build_cpus_opt = f"-p {cpus}" if cpus else ""
+    build_cpus = build_cpus or cpus
+    build_cpus_opt = f"-p {build_cpus}" if build_cpus else ""
     test_cpus_opt = f"-parallel {cpus}" if cpus else ""
     trimpath_opt = "-trimpath" if 'DELVE' not in os.environ else ""
-    if sys.platform == "win32" and "DELVE" not in os.environ:
-        # incident-59224: omit DWARF to deflate peak link memory, while preserving symbol table diagnostics
-        ldflags += "-w"
 
     nocache = '-count=1' if not cache else ''
 
@@ -897,7 +912,6 @@ def test_new(
     ]
 
     bazel(
-        ctx,
         "test",
         *bazel_flags,
         *_minimize_bazel_patterns(bazel_targets),
@@ -1481,6 +1495,11 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
+    print(
+        f"Checking against opentelemetry-collector-contrib main instead of the latest "
+        f"tagged release (v{OTEL_CONTRIB_VERSION}) — see OTAGENT-1305"
+    )
+
     # Get Go version from upstream (e.g., "1.24" or "1.24.0")
     upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
