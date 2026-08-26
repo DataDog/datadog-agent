@@ -19,7 +19,37 @@ license(
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["**"]),
+    srcs = glob([
+        "*",
+        "bin/*",
+        "build-aux/*",
+        "doc/*",
+        "doc_internal/*",
+        "include/jemalloc/*",
+        "include/jemalloc/internal/*",
+        "include/msvc_compat/*",
+        "include/msvc_compat/C99/*",
+        "m4/*",
+        "msvc/*",
+        "msvc/projects/vc2015/jemalloc/*",
+        "msvc/projects/vc2015/test_threads/*",
+        "msvc/projects/vc2017/jemalloc/*",
+        "msvc/projects/vc2017/test_threads/*",
+        "msvc/test_threads/*",
+        "scripts/*",
+        "scripts/freebsd/*",
+        "scripts/linux/*",
+        "scripts/windows/*",
+        "src/*",
+        "test/*",
+        "test/analyze/*",
+        "test/include/test/*",
+        "test/integration/*",
+        "test/integration/cpp/*",
+        "test/src/*",
+        "test/stress/*",
+        "test/unit/*",
+    ]),
 )
 
 configure_make(
