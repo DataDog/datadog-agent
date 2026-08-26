@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"testing"
 	"unsafe"
@@ -988,4 +989,15 @@ func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
 
 	s.Add("ns2", "m0", 1.0, 1000, []string{"unique:tag0"})
 	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "hit on existing entry must not grow pool")
+}
+
+func TestTimeSeriesStorage_DumpToFileIncludesHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.AddWithHost("ns", "metric", "web-1", 1, 1000, []string{"env:prod"})
+
+	path := t.TempDir() + "/series.json"
+	require.NoError(t, s.DumpToFile(path))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"host": "web-1"`)
 }

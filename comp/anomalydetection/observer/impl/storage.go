@@ -1006,6 +1006,7 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 	type dumpSeries struct {
 		Namespace string      `json:"namespace"`
 		Name      string      `json:"name"`
+		Host      string      `json:"host,omitempty"`
 		Tags      []string    `json:"tags"`
 		Points    []dumpPoint `json:"points"`
 	}
@@ -1018,6 +1019,7 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 		ds := dumpSeries{
 			Namespace: st.Namespace,
 			Name:      st.Name,
+			Host:      st.Host,
 			Tags:      st.Tags,
 		}
 		n := st.pointCount()
