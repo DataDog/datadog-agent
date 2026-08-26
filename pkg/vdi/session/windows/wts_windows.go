@@ -85,10 +85,10 @@ func EnumerateSessions() ([]vdimodel.WindowsSession, error) {
 		domain, _ := queryString(item.SessionID, wtsDomainName)
 
 		session := vdimodel.WindowsSession{
-			OSSessionID: item.SessionID,
-			OSUser:      user,
-			Domain:      domain,
-			State:       stateName(item.State),
+			WindowsSessionID: item.SessionID,
+			User:             user,
+			Domain:           domain,
+			State:            stateName(item.State),
 		}
 		if info, err := queryInfo(item.SessionID); err == nil {
 			session.LogonAt = windowsTimestamp(info.LogonTime)

@@ -26,9 +26,9 @@ func testCheck() *checkImpl {
 
 func TestConnectionAndExtensionChannelTags(t *testing.T) {
 	check := testCheck()
-	connections := map[connectionKey]vdimodel.DesktopConnection{
+	connections := map[connectionKey]vdimodel.Connection{
 		{sessionID: "console", connectionID: "1"}: {
-			ConnectionID:      "1",
+			ID:                "1",
 			AuthenticatedUser: "test-user@corp.amazonworkspaces.com",
 			Transport:         "quic",
 			ClientMode:        "classic",
@@ -36,12 +36,12 @@ func TestConnectionAndExtensionChannelTags(t *testing.T) {
 		},
 	}
 
-	connectionTags, key := check.tagsForInstance("DCV Server Connections", "console:1", connections)
+	connectionTags, key := check.tagsForInstance("DCV Server Connections", "console:1", connections, nil)
 	require.Equal(t, &connectionKey{sessionID: "console", connectionID: "1"}, key)
 	require.Subset(t, connectionTags, []string{
-		"dcv_session_id:console",
-		"dcv_connection_id:1",
-		"vdi_user:test-user@corp.amazonworkspaces.com",
+		"vdi_session_id:console",
+		"vdi_connection_id:1",
+		"vdi_connection_user:test-user@corp.amazonworkspaces.com",
 		"dcv_transport:quic",
 		"dcv_client_mode:classic",
 		"dcv_client_version:2026.0.11738",
@@ -49,61 +49,50 @@ func TestConnectionAndExtensionChannelTags(t *testing.T) {
 		"dcv_client_arch:arm64",
 	})
 
-	channelTags, _ := check.tagsForInstance("DCV Server Channels", "console:1:wsp::wadapter", connections)
-	require.Contains(t, channelTags, "vdi_user:test-user@corp.amazonworkspaces.com")
+	channelTags, _ := check.tagsForInstance("DCV Server Channels", "console:1:wsp::wadapter", connections, nil)
+	require.Contains(t, channelTags, "vdi_connection_user:test-user@corp.amazonworkspaces.com")
 	require.Contains(t, channelTags, "dcv_channel:wsp::wadapter")
 }
 
 func TestMultipleConnectionsMapIndependently(t *testing.T) {
 	check := testCheck()
-	connections := map[connectionKey]vdimodel.DesktopConnection{
+	connections := map[connectionKey]vdimodel.Connection{
 		{sessionID: "console", connectionID: "1"}: {AuthenticatedUser: "user-one"},
 		{sessionID: "console", connectionID: "2"}: {AuthenticatedUser: "user-two"},
 	}
 
-	first, _ := check.tagsForInstance("DCV Server Connections", "console:1", connections)
-	second, _ := check.tagsForInstance("DCV Server Connections", "console:2", connections)
-	require.Contains(t, first, "vdi_user:user-one")
-	require.NotContains(t, first, "vdi_user:user-two")
-	require.Contains(t, second, "vdi_user:user-two")
-	require.NotContains(t, second, "vdi_user:user-one")
+	first, _ := check.tagsForInstance("DCV Server Connections", "console:1", connections, nil)
+	second, _ := check.tagsForInstance("DCV Server Connections", "console:2", connections, nil)
+	require.Contains(t, first, "vdi_connection_user:user-one")
+	require.NotContains(t, first, "vdi_connection_user:user-two")
+	require.Contains(t, second, "vdi_connection_user:user-two")
+	require.NotContains(t, second, "vdi_connection_user:user-one")
 }
 
-func TestSessionIdentityRequiresOneUnambiguousUser(t *testing.T) {
+func TestSessionMetricsNeverInheritConnectionUser(t *testing.T) {
 	check := testCheck()
-	oneUser := map[connectionKey]vdimodel.DesktopConnection{
+	connections := map[connectionKey]vdimodel.Connection{
 		{sessionID: "console", connectionID: "1"}: {AuthenticatedUser: "user"},
 		{sessionID: "console", connectionID: "2"}: {AuthenticatedUser: "user"},
 	}
-	tags, _ := check.tagsForInstance("DCV Server Sessions", "console", oneUser)
-	require.Contains(t, tags, "vdi_user:user")
-
-	multipleUsers := map[connectionKey]vdimodel.DesktopConnection{
-		{sessionID: "console", connectionID: "1"}: {AuthenticatedUser: "user-one"},
-		{sessionID: "console", connectionID: "2"}: {AuthenticatedUser: "user-two"},
-	}
-	tags, _ = check.tagsForInstance("DCV Server Sessions", "console", multipleUsers)
-	require.NotContains(t, tags, "vdi_user:user-one")
-	require.NotContains(t, tags, "vdi_user:user-two")
+	tags, _ := check.tagsForInstance("DCV Server Sessions", "console", connections, nil)
+	require.Contains(t, tags, "vdi_session_id:console")
+	require.NotContains(t, tags, "vdi_connection_user:user")
 }
 
 func TestImagingIdentityUsesUnambiguousSession(t *testing.T) {
 	check := testCheck()
-	connections := map[connectionKey]vdimodel.DesktopConnection{
-		{sessionID: "console", connectionID: "1"}: {AuthenticatedUser: "user"},
-	}
-
-	tags, _ := check.tagsForInstance("DCV Server Imaging", "console:nvenc", connections)
-	require.Contains(t, tags, "dcv_session_id:console")
+	tags, _ := check.tagsForInstance("DCV Server Imaging", "console:nvenc", nil, map[string]struct{}{"console": {}})
+	require.Contains(t, tags, "vdi_session_id:console")
 	require.Contains(t, tags, "dcv_encoder:nvenc")
-	require.Contains(t, tags, "vdi_user:user")
+	require.NotContains(t, tags, "vdi_connection_user:user")
 }
 
 func TestUnavailableInventoryNeverIndexesStaleIdentity(t *testing.T) {
-	provider := vdimodel.ProviderInventory{Sessions: []vdimodel.ProtocolSession{{
-		ProtocolSessionID: "console",
-		Connections: []vdimodel.DesktopConnection{{
-			ConnectionID:      "1",
+	provider := vdimodel.ProviderInventory{Sessions: []vdimodel.Session{{
+		ID: "console",
+		Connections: []vdimodel.Connection{{
+			ID:                "1",
 			AuthenticatedUser: "stale-user",
 		}},
 	}}}
@@ -120,7 +109,7 @@ func TestInventoryStaleTTLCanBeImmediate(t *testing.T) {
 
 func TestTotalHasNoIdentityTags(t *testing.T) {
 	check := testCheck()
-	tags, key := check.tagsForInstance("DCV Server Connections", "_Total", map[connectionKey]vdimodel.DesktopConnection{})
+	tags, key := check.tagsForInstance("DCV Server Connections", "_Total", map[connectionKey]vdimodel.Connection{}, nil)
 	require.Nil(t, key)
 	require.ElementsMatch(t, []string{
 		"vdi_provider:aws_workspaces",
