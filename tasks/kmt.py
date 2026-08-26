@@ -2264,11 +2264,17 @@ def tag_ci_job(ctx: Context):
 
         ssh_config_path = Path.home() / ".ssh" / "config"
         setup_ddvm_status_file = ci_project_dir / "setup-ddvm.status"
+        instance_not_found_marker = ci_project_dir / "instance_not_found"
 
         if test_jobs_executed and not tests_failed:
             tags["failure_reason"] = "none"
         elif test_jobs_executed and tests_failed:  # The first condition is redundant but makes the logic clearer
             tags["failure_reason"] = "test"
+        elif instance_not_found_marker.is_file():
+            # The metal instance backing this test job was gone by the time the test job ran (e.g. provisioning
+            # failed or the instance was cleaned up early). SSH config is never set up in that case, which would
+            # otherwise be misreported as infra_ssh-config.
+            tags["failure_reason"] = "infra_instance-not-found"
         elif setup_ddvm_status_file.is_file() and "active" not in setup_ddvm_status_file.read_text():
             tags["failure_reason"] = "infra_setup-ddvm"
         elif not ssh_config_path.is_file():
