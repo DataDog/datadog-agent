@@ -15,4 +15,4 @@ enhancements:
     limits are exceeded, the least-recently-used configs are evicted. min_configs_per_device and max_configs_per_device is floored at 2.
     min_configs_per_device and max_configs_per_device are hard limits and will be enforced even if the size of the database file is greater than or less than max_raw_config_store_bytes.
     Default values are as follows: min_configs_per_device = 3, max_configs_per_device = 50, max_raw_config_store_bytes = 2000000000.
-    Updates to store configurations becone active upon agent restart. 
+    Updates to store configurations become active upon agent restart. 
