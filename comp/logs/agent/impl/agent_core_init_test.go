@@ -17,7 +17,7 @@ import (
 func TestBuildEndpoints(t *testing.T) {
 	config := config.NewMock(t)
 
-	endpoints, err := buildEndpoints(config)
+	endpoints, err := buildEndpoints(config, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 }

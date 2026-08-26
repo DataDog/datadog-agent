@@ -14,6 +14,7 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
@@ -67,11 +68,17 @@ var _ defaultforwarderdef.Forwarder = &OTelSyncForwarder{}
 // NewOTelSyncForwarder returns a new synchronous, error-propagating forwarder.
 // The caller supplies the *http.Client (typically built from confighttp.ClientConfig
 // via ToClient so OTel-native HTTP settings are honored).
-func NewOTelSyncForwarder(config config.Component, log log.Component, secrets secrets.Component, endpoints utils.EndpointDescriptorSet, client *http.Client) (*OTelSyncForwarder, error) {
+//
+// delegatedAuth supplies the delegated-auth component for credential provider lookup. It may be
+// nil in builds that wire the noop component (e.g. the standalone OTel agent), in which case no
+// providers are attached and delegated-auth endpoints produce no transactions — the same behavior
+// as the core Agent before attachCredentialProviders was called there.
+func NewOTelSyncForwarder(config config.Component, log log.Component, secrets secrets.Component, endpoints utils.EndpointDescriptorSet, client *http.Client, delegatedAuth delegatedauth.Component) (*OTelSyncForwarder, error) {
 	options, err := NewOptionsWithOPW(config, log, endpoints)
 	if err != nil {
 		return nil, err
 	}
+	attachCredentialProviders(options.DomainResolvers, endpoints, delegatedAuth, log)
 	options.Secrets = secrets
 	return &OTelSyncForwarder{
 		config:           config,

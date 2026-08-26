@@ -24,7 +24,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const transactionsSerializerVersion = 3
+// transactionsSerializerVersion is bumped when the meaning of APIKeyIndex changes. Version 4 is
+// required because provider slots are now prepended before static-key slots in GetAuthorizers,
+// so an index stored under version 3 may point at a different credential after restart. Old
+// collections are discarded by the version check in Deserialize.
+const transactionsSerializerVersion = 4
 
 // Use a non US ASCII char as a separator (Should neither appear in an HTTP header value nor in a URL).
 // Note: This is not valid UTF-8, but the proto fields using it are defined as `bytes` to avoid UTF-8 validation.
@@ -150,6 +154,13 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 
 	if err := proto.Unmarshal(bytes, &collection); err != nil {
 		return nil, 0, err
+	}
+
+	// Version 4 changes the meaning of APIKeyIndex: provider slots are now prepended before
+	// static-key slots in GetAuthorizers, so an index from an older version may point at a
+	// different credential. Discard old collections rather than reinterpreting their indices.
+	if collection.Version < transactionsSerializerVersion {
+		return nil, 0, fmt.Errorf("discarding %d transactions serialized with version %d (current version %d): authorizer index mapping has changed", len(collection.Values), collection.Version, transactionsSerializerVersion)
 	}
 
 	s.checkAPIKeyUpdate()

@@ -16,6 +16,10 @@
 package trace
 
 import (
+	"go.uber.org/fx"
+
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthnoop "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx-mock"
 	traceconfigmock "github.com/DataDog/datadog-agent/comp/trace/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -27,5 +31,8 @@ import (
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		traceconfigmock.MockModule(),
+		// The trace agent resolves delegated-auth credential providers, so the mock graph has to
+		// supply the component too. The noop never has a credential, which is what a test wants.
+		fx.Provide(func() delegatedauth.Component { return delegatedauthnoop.NewComponent().Comp }),
 		traceagentfx.MockModule())
 }

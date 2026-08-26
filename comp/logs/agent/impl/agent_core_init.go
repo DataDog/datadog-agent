@@ -57,7 +57,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 
 // buildEndpoints builds endpoints for the logs agent, either HTTP or TCP,
 // dependent on configuration and connectivity
-func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
+func buildEndpoints(coreConfig model.Reader, lookup config.CredentialProviderLookup) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := buildHTTPEndpointsForConnectivityCheck(coreConfig); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
@@ -70,7 +70,7 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 		metrics.TlmHTTPConnectivityCheck.Inc("failure")
 	}
 
-	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsWithVectorOverrideAndProviders(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin, lookup)
 }
 
 // buildHTTPEndpointsForConnectivityCheck builds HTTP endpoints for connectivity testing only.

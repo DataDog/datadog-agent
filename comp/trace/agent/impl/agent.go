@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -62,6 +63,7 @@ type dependencies struct {
 
 	Config                traceconfigdef.Component
 	Secrets               secrets.Component
+	DelegatedAuth         delegatedauth.Component
 	Context               context.Context
 	Params                *Params
 	TelemetryCollector    telemetry.TelemetryCollector
@@ -154,6 +156,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	tracecfg.APIKeyIsFromSecretFn = func(apiKey string) bool {
 		return deps.Secrets != nil && deps.Secrets.IsValueFromSecret(apiKey)
 	}
+	tracecfg.CredentialProviderFn = credentialProviderLookup(deps.DelegatedAuth)
 
 	c.Agent = pkgagent.NewAgent(
 		ctx,
@@ -173,6 +176,25 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		OnStop:  func(_ context.Context) error { return stop(c) },
 	})
 	return c, nil
+}
+
+// credentialProviderLookup resolves an endpoint's delegated-auth provider. It is a package-level
+// function because inside start the tracecfg identifier is shadowed by the config value.
+func credentialProviderLookup(d delegatedauth.Component) func(configSettingPath, host, directive string) tracecfg.CredentialProvider {
+	return func(configSettingPath, host, directive string) tracecfg.CredentialProvider {
+		if d == nil || directive == "" {
+			return nil
+		}
+		// Match on the directive, not just the host: two orgs may dual-ship to the same host, and
+		// picking the first provider there would ship both endpoints under one org's credential
+		// while the other org received nothing.
+		p := d.ProviderForDirective(configSettingPath, host, directive)
+		if p == nil {
+			log.Warnf("no delegated auth instance for the directive on endpoint %q at %q; that endpoint will not send", host, configSettingPath)
+			return nil
+		}
+		return p
+	}
 }
 
 func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {

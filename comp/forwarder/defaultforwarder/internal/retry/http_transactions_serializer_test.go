@@ -406,25 +406,12 @@ func TestDeserializeV2BackwardCompat(t *testing.T) {
 		0x1, 0x30, 0xae, 0xcc, 0xc3, 0xcb, 0x6, 0x38, 0x1, 0x40, 0x1, 0x48, 0xa, 0x50, 0x1,
 	}
 
-	txns, errorCount, err := serializer.Deserialize(bytes)
-	r.NoError(err)
-	r.Equal(0, errorCount)
-	r.Len(txns, 1)
-
-	deserialized := txns[0].(*transaction.HTTPTransaction)
-
-	// The placeholder index 0 is extracted and written to APIKeyIndex; Resolver is set so
-	// Authorize() can apply the key at send time.
-	r.NotNil(deserialized.Resolver, "V2 transactions should have Resolver set so Authorize() works")
-	r.Equal(uint(0), deserialized.APIKeyIndex, "placeholder index 0 maps to APIKeyIndex 0 for V2")
-
-	// The placeholder has been stripped from the headers; the raw key is not present.
-	r.Empty(deserialized.Headers.Get("Key"), "Headers must not contain the API key value")
-
-	// Authorize() applies the key at index 0 (apiKey1).
-	r.NotPanics(func() {
-		r.Equal(apiKey1, resolveKey(deserialized, log))
-	})
+	// V2 collections are discarded: the serializer version was bumped to 4 because
+	// provider slots are now prepended before static-key slots in GetAuthorizers,
+	// changing the meaning of APIKeyIndex.
+	txns, _, err := serializer.Deserialize(bytes)
+	r.Error(err, "V2 collections must be discarded due to version mismatch")
+	r.Empty(txns)
 }
 
 // TestDeserializeV2MissingAPIKey verifies that a V2 transaction whose placeholder index
@@ -439,9 +426,7 @@ func TestDeserializeV2MissingAPIKey(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
 
-	// Binary blob of a V2 collection with placeholder index 1 (\xfeAPI_KEY\xfe1\xfe)
-	// embedded in both the route and the "Key" header — identical to the blob in
-	// TestDeserializeV2BackwardCompat but with 0x30 → 0x31 at the two index positions.
+	// Binary blob of a V2 collection with placeholder index 1.
 	var v2Bytes = []byte{
 		0x8, 0x2, 0x12, 0x45, 0x12, 0x18, 0xa, 0x10, 0x72, 0x6f, 0x75, 0x74, 0x65, 0xfe, 0x41, 0x50, 0x49, 0x5f, 0x4b,
 		0x45, 0x59, 0xfe, 0x31, 0xfe, 0x12, 0x4, 0x6e, 0x61, 0x6d, 0x65, 0x1a, 0x14, 0xa, 0x3, 0x4b, 0x65, 0x79, 0x12,
@@ -449,22 +434,19 @@ func TestDeserializeV2MissingAPIKey(t *testing.T) {
 		0x1, 0x30, 0xae, 0xcc, 0xc3, 0xcb, 0x6, 0x38, 0x1, 0x40, 0x1, 0x48, 0xa, 0x50, 0x1,
 	}
 
-	// Two-key resolver: the blob is valid (index 1 → apiKey2).
+	// V2 collections are discarded due to serializer version bump.
 	res2, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
 	r.NoError(err)
 	serializerFull := NewHTTPTransactionsSerializer(log, res2)
-	txns, errorCount, err := serializerFull.Deserialize(v2Bytes)
-	r.NoError(err)
-	r.Equal(0, errorCount)
-	r.Len(txns, 1)
+	txns, _, err := serializerFull.Deserialize(v2Bytes)
+	r.Error(err, "V2 collections must be discarded")
+	r.Empty(txns)
 
-	// One-key resolver: index 1 is out of range — transaction must be dropped.
 	res1, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1)})
 	r.NoError(err)
 	serializerSmaller := NewHTTPTransactionsSerializer(log, res1)
-	txns, errorCount, err = serializerSmaller.Deserialize(v2Bytes)
-	r.NoError(err)
-	r.Equal(1, errorCount, "V2 transaction referencing a missing key must be dropped")
+	txns, _, err = serializerSmaller.Deserialize(v2Bytes)
+	r.Error(err, "V2 collections must be discarded")
 	r.Empty(txns)
 }
 
@@ -517,13 +499,9 @@ func TestV2IndexExtraction(t *testing.T) {
 	}
 }
 
-// TestV1IndexExtraction verifies that a V1-format transaction (sorted key order) is mapped
-// to the correct APIKeyIndex in the current (unsorted) resolver key list.
+// TestV1IndexExtraction verifies that V1 collections are discarded by the version check.
 func TestV1IndexExtraction(t *testing.T) {
 	log := logmock.New(t)
-	// Keys are deliberately out of alphabetical order so sorted order differs from config order.
-	// Config order (deduped): [apiKey3, apiKey1, apiKey2]
-	// Sorted order:           [apiKey1, apiKey2, apiKey3]
 	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{
 		utils.NewAPIKeys("path", apiKey3, apiKey1, apiKey2),
 	})
@@ -531,53 +509,32 @@ func TestV1IndexExtraction(t *testing.T) {
 
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
-	// Build a minimal V1 proto blob by hand: version=1, one transaction whose route
-	// contains placeholder index N (sorted order).
 	buildV1Blob := func(sortedIdx int) []byte {
 		ph := fmt.Sprintf(placeHolderFormat, sortedIdx)
 		col := HttpTransactionProtoCollection{
 			Version: 1,
-			Values: []*HttpTransactionProto{
-				{
-					Endpoint:    &EndpointProto{Route: []byte("route" + ph), Name: "name"},
-					Headers:     map[string]*HeaderValuesProto{},
-					Payload:     []byte{1, 2, 3},
-					PointCount:  10,
-					Retryable:   true,
-					Destination: TransactionDestinationProto_PRIMARY_ONLY,
-				},
-			},
+			Values: []*HttpTransactionProto{{
+				Endpoint:    &EndpointProto{Route: []byte("route" + ph), Name: "name"},
+				Headers:     map[string]*HeaderValuesProto{},
+				Payload:     []byte{1, 2, 3},
+				PointCount:  10,
+				Retryable:   true,
+				Destination: TransactionDestinationProto_PRIMARY_ONLY,
+			}},
 		}
 		b, _ := proto.Marshal(&col)
 		return b
 	}
 
-	// sorted index 0 = apiKey1; apiKey1 is at position 1 in the config list.
-	// sorted index 1 = apiKey2; apiKey2 is at position 2 in the config list.
-	// sorted index 2 = apiKey3; apiKey3 is at position 0 in the config list.
-	wantCurrentIdx := []uint{1, 2, 0}
-
-	for sortedIdx, wantIdx := range wantCurrentIdx {
+	for sortedIdx := 0; sortedIdx < 3; sortedIdx++ {
 		data := buildV1Blob(sortedIdx)
-		txns, errorCount, err := serializer.Deserialize(data)
-		require.NoError(t, err, "sorted index %d", sortedIdx)
-		require.Equal(t, 0, errorCount)
-		require.Len(t, txns, 1)
-
-		deserialized := txns[0].(*transaction.HTTPTransaction)
-		assert.Equal(t, wantIdx, deserialized.APIKeyIndex,
-			"V1 sorted index %d should map to current index %d", sortedIdx, wantIdx)
-		assert.NotNil(t, deserialized.Resolver)
-
-		// Authorize() should apply the correct key.
-		dedupedKeys := res.GetAPIKeys() // [apiKey3, apiKey1, apiKey2]
-		assert.Equal(t, dedupedKeys[wantIdx], resolveKey(deserialized, log),
-			"Authorize() key at current index %d", wantIdx)
+		txns, _, err := serializer.Deserialize(data)
+		require.Error(t, err, "V1 collections must be discarded (sorted index %d)", sortedIdx)
+		require.Empty(t, txns)
 	}
 }
 
-// TestV2IndexFromHeaderPlaceholder verifies that when the route has no placeholder but a
-// header value does, the index is still extracted correctly (V2 format).
+// TestV2IndexFromHeaderPlaceholder verifies that V2 collections are discarded by the version check.
 func TestV2IndexFromHeaderPlaceholder(t *testing.T) {
 	log := logmock.New(t)
 	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
@@ -585,39 +542,28 @@ func TestV2IndexFromHeaderPlaceholder(t *testing.T) {
 
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
-	ph1 := fmt.Sprintf(placeHolderFormat, 1) // points to apiKey2
+	ph1 := fmt.Sprintf(placeHolderFormat, 1)
 	col := HttpTransactionProtoCollection{
 		Version: 2,
-		Values: []*HttpTransactionProto{
-			{
-				// Route has no placeholder; placeholder is only in a header value.
-				Endpoint: &EndpointProto{Route: []byte("route"), Name: "name"},
-				Headers: map[string]*HeaderValuesProto{
-					"X-Custom": {Values: [][]byte{[]byte(ph1)}},
-				},
-				Payload:     []byte{1},
-				Retryable:   true,
-				Destination: TransactionDestinationProto_ALL_REGIONS,
+		Values: []*HttpTransactionProto{{
+			Endpoint: &EndpointProto{Route: []byte("route"), Name: "name"},
+			Headers: map[string]*HeaderValuesProto{
+				"X-Custom": {Values: [][]byte{[]byte(ph1)}},
 			},
-		},
+			Payload:     []byte{1},
+			Retryable:   true,
+			Destination: TransactionDestinationProto_ALL_REGIONS,
+		}},
 	}
 	data, err := proto.Marshal(&col)
 	require.NoError(t, err)
 
-	txns, errorCount, err := serializer.Deserialize(data)
-	require.NoError(t, err)
-	require.Equal(t, 0, errorCount)
-	require.Len(t, txns, 1)
-
-	deserialized := txns[0].(*transaction.HTTPTransaction)
-	assert.Equal(t, uint(1), deserialized.APIKeyIndex)
-	assert.NotNil(t, deserialized.Resolver)
-	assert.Empty(t, deserialized.Headers.Get("X-Custom"), "placeholder must be stripped from header")
+	txns, _, err := serializer.Deserialize(data)
+	require.Error(t, err, "V2 collections must be discarded")
+	require.Empty(t, txns)
 }
 
-// TestDeserializeV2 ensures that newer agent versions can read files created by old agent
-// versions (V2 format). The placeholder index is extracted from the stored data, written to
-// APIKeyIndex, and Authorize() applies the correct key.
+// TestDeserializeV2 verifies that V2 collections are discarded by the version check.
 func TestDeserializeV2(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
@@ -625,7 +571,6 @@ func TestDeserializeV2(t *testing.T) {
 	r.NoError(err)
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
-	// Two V2 transactions: first embeds placeholder index 0, second embeds index 1.
 	var bytes = []byte{
 		0x8, 0x2, 0x12, 0x45, 0x12, 0x18, 0xa, 0x10, 0x72, 0x6f, 0x75, 0x74, 0x65, 0xfe, 0x41, 0x50, 0x49, 0x5f, 0x4b,
 		0x45, 0x59, 0xfe, 0x30, 0xfe, 0x12, 0x4, 0x6e, 0x61, 0x6d, 0x65, 0x1a, 0x14, 0xa, 0x3, 0x4b, 0x65, 0x79, 0x12,
@@ -637,29 +582,7 @@ func TestDeserializeV2(t *testing.T) {
 		0x6, 0x38, 0x1, 0x40, 0x1, 0x48, 0xa, 0x50, 0x1,
 	}
 
-	txns, errorCount, err := serializer.Deserialize(bytes)
-	r.NoError(err)
-	r.Equal(0, errorCount)
-	r.Len(txns, 2)
-
-	expectedIndices := []uint{0, 1}
-	expectedKeys := []string{apiKey1, apiKey2}
-
-	for i, txn := range txns {
-		txn := txn.(*transaction.HTTPTransaction)
-		t.Run(fmt.Sprintf("payload %d", i), func(t *testing.T) {
-			r := require.New(t)
-			r.Equal(expectedIndices[i], txn.APIKeyIndex)
-			r.NotNil(txn.Resolver, "Resolver must be set for V2 transactions")
-			// The placeholder has been stripped; the raw key is not in headers.
-			r.Empty(txn.Headers.Get("Key"), "Headers must not contain the API key value")
-			// Authorize() applies the correct key.
-			r.Equal(expectedKeys[i], resolveKey(txn, log))
-			r.Equal(domain, txn.Domain)
-			// Placeholder is stripped from the route too.
-			r.Equal("route", txn.Endpoint.Route)
-			r.Equal([]byte{1, 2, 3}, txn.Payload.GetContent())
-			r.Equal(10, txn.Payload.GetPointCount())
-		})
-	}
+	txns, _, err := serializer.Deserialize(bytes)
+	r.Error(err, "V2 collections must be discarded")
+	r.Empty(txns)
 }

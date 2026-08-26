@@ -16,6 +16,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -54,6 +55,10 @@ type domainResolver struct {
 	apiKeys        []utils.APIKeys
 	keyVersion     int
 	dedupedAPIKeys []string
+	// credentialProviders supply credentials at send time for destinations whose key is not a
+	// config value - delegated auth, today. Each one gets its own authorization slot, and hence
+	// its own transaction, even before it has a credential to offer.
+	credentialProviders []CredentialProvider
 	// hasPendingDelegatedAuth mirrors HasPendingDelegatedAuth across apiKeys: true when the domain
 	// has no real API key yet but is waiting on one from the delegatedauth component. Kept in sync
 	// with apiKeys by hasPendingDelegatedAuthKeys() wherever apiKeys is replaced.
@@ -438,25 +443,58 @@ func (r *domainResolver) IsMetricToVector() bool {
 	return r.isMetricToVector
 }
 
-type authHeader struct {
+// CredentialProvider supplies a credential for outbound requests at send time, rather than the
+// resolver holding a key string up front. It is an alias for delegatedauth.Provider so consumers
+// that import this package get the canonical interface without a separate import.
+type CredentialProvider = delegatedauth.Provider
+
+// credentialSource is one authorization slot on a domain. The forwarder creates one transaction
+// per slot, so a slot must exist even when its credential has not arrived yet - otherwise the
+// payload is dropped at creation instead of being retried once the credential lands.
+type credentialSource interface {
+	// authorize stamps credentials onto headers and reports whether it could.
+	authorize(http.Header) bool
+}
+
+// staticAuthHeader is a fixed header/value pair, known at construction: an API key from config, or
+// the cluster-agent bearer token.
+type staticAuthHeader struct {
 	key, value string
 }
 
-// Authorize sets the auth header on the provided headers map.
-func (ah authHeader) Authorize(headers http.Header) {
-	headers.Set(ah.key, ah.value)
+func (a staticAuthHeader) authorize(headers http.Header) bool {
+	headers.Set(a.key, a.value)
+	return true
 }
 
-// GetAuthHeaders returns
-func (r *domainResolver) GetAuthorizers() (res []authHeader) {
+// providerAuth defers to a CredentialProvider on every request, so a credential that resolves
+// after startup is picked up with no rebuild and no config write.
+type providerAuth struct {
+	provider CredentialProvider
+}
+
+func (a providerAuth) authorize(headers http.Header) bool {
+	return a.provider.Authorize(headers)
+}
+
+// GetAuthorizers returns one entry per authorization slot on this domain: one per credential
+// provider, then the deduped static API keys. Providers come first so their indices are stable
+// regardless of how many static keys are configured: a config update that adds or removes a
+// static key shifts only the static-key indices, not the provider indices. This matters because
+// on-disk transactions carry their APIKeyIndex, and a provider slot that shifted would either
+// be dropped (out of range) or, worse, authenticated under a different credential.
+func (r *domainResolver) GetAuthorizers() (res []credentialSource) {
 	if r.IsLocal() {
-		res = append(res, authHeader{
+		res = append(res, staticAuthHeader{
 			key:   "Authorization",
 			value: "Bearer " + r.authToken,
 		})
 	} else {
+		for _, p := range r.GetCredentialProviders() {
+			res = append(res, providerAuth{provider: p})
+		}
 		for _, key := range r.GetAPIKeys() {
-			res = append(res, authHeader{
+			res = append(res, staticAuthHeader{
 				key:   "DD-Api-Key",
 				value: key,
 			})
@@ -465,14 +503,43 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 	return
 }
 
-func (r *domainResolver) Authorize(apiKeyIdx uint, headers http.Header, log log.Component) {
+// GetCredentialProviders returns the providers supplying credentials for this domain.
+func (r *domainResolver) GetCredentialProviders() []CredentialProvider {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.credentialProviders
+}
+
+// SetCredentialProviders attaches credential providers to this domain, each getting its own
+// authorization slot. Call it before the resolver is handed to the forwarder: the slot count
+// determines how many transactions a payload fans out to, and on-disk transactions serialized
+// against a different count are discarded on load.
+func (r *domainResolver) SetCredentialProviders(providers []CredentialProvider) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.credentialProviders = providers
+}
+
+// ErrCredentialNotReady reports that a credential for this slot has not arrived yet. Callers must
+// not send. It is defined in the transaction package so the forwarder's circuit breaker can
+// recognize it without resolver importing back into it.
+var ErrCredentialNotReady = transaction.ErrCredentialNotReady
+
+// Authorize stamps the credential for slot apiKeyIdx onto headers.
+//
+// It returns ErrCredentialNotReady when the slot is backed by a provider that has nothing yet. The
+// caller must treat that as "retry later", never as "send unauthenticated".
+func (r *domainResolver) Authorize(apiKeyIdx uint, headers http.Header, log log.Component) error {
 	authorizers := r.GetAuthorizers()
 
 	if apiKeyIdx >= uint(len(authorizers)) {
 		log.Errorf("API key index %d is greater than the number of available authorizers (%d)", apiKeyIdx, len(authorizers))
-	} else {
-		authorizers[apiKeyIdx].Authorize(headers)
+		return fmt.Errorf("API key index %d out of range (have %d authorizers)", apiKeyIdx, len(authorizers))
 	}
+	if !authorizers[apiKeyIdx].authorize(headers) {
+		return ErrCredentialNotReady
+	}
+	return nil
 }
 
 // GetConfigName returns the base url as it was originally written in the config.
