@@ -197,42 +197,40 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 	var resolvedProvider string
 	var disabledReason string
 
-	if params.ProviderConfig != nil {
-		// If provider config is explicitly specified, use it
-		detectedConfig = params.ProviderConfig
-		resolvedProvider = params.ProviderConfig.ProviderName()
-		log.Infof("Using explicitly configured cloud provider '%s' for delegated auth", resolvedProvider)
+	// Shared initialization always auto-detects the cloud provider and region from the
+	// environment and the process-wide config. It must never use a per-instance ProviderConfig:
+	// the first directive to call AddInstance would pin the component-wide default to its own
+	// overrides (e.g. a specific AWS region), and later directives with no overrides would inherit
+	// that default instead of auto-detecting. Per-instance config is applied later by
+	// providerConfigForInstance.
+	source, err := detectAWSCredentialSource(ctx)
+	if err != nil {
+		// No supported cloud provider detected. Warn and record the reason for the status page.
+		disabledReason = fmt.Sprintf("no supported cloud provider detected: %v", err)
+		log.Warnf("Delegated authentication is configured but no supported cloud provider was "+
+			"detected, so it will stay disabled and the Agent will keep using its statically "+
+			"configured API key. %v", err)
 	} else {
-		// Auto-detect cloud provider (network I/O happens here, outside any lock)
-		source, err := detectAWSCredentialSource(ctx)
-		if err != nil {
-			// No supported cloud provider detected. Warn and record the reason for the status page.
-			disabledReason = fmt.Sprintf("no supported cloud provider detected: %v", err)
-			log.Warnf("Delegated authentication is configured but no supported cloud provider was "+
-				"detected, so it will stay disabled and the Agent will keep using its statically "+
-				"configured API key. %v", err)
-		} else {
-			log.Infof("Auto-detected AWS as cloud provider for delegated auth (credential source: %s)", source)
+		log.Infof("Auto-detected AWS as cloud provider for delegated auth (credential source: %s)", source)
 
-			// A configured region wins over auto-detection.
-			awsRegion := ""
-			if params.Config != nil {
-				awsRegion = params.Config.GetString("delegated_auth.aws.region")
-			}
-			if awsRegion != "" {
-				log.Infof("Using configured AWS region for delegated auth: %s", awsRegion)
-			} else if region, err := creds.GetAWSRegion(ctx); err != nil {
-				log.Warnf("Failed to auto-detect AWS region: %v. Will use default region.", err)
-			} else if region != "" {
-				awsRegion = region
-				log.Infof("Auto-detected AWS region: %s", awsRegion)
-			}
-
-			detectedConfig = &cloudauthconfig.AWSProviderConfig{
-				Region: awsRegion,
-			}
-			resolvedProvider = cloudauthconfig.ProviderAWS
+		// A configured region wins over auto-detection.
+		awsRegion := ""
+		if params.Config != nil {
+			awsRegion = params.Config.GetString("delegated_auth.aws.region")
 		}
+		if awsRegion != "" {
+			log.Infof("Using configured AWS region for delegated auth: %s", awsRegion)
+		} else if region, err := creds.GetAWSRegion(ctx); err != nil {
+			log.Warnf("Failed to auto-detect AWS region: %v. Will use default region.", err)
+		} else if region != "" {
+			awsRegion = region
+			log.Infof("Auto-detected AWS region: %s", awsRegion)
+		}
+
+		detectedConfig = &cloudauthconfig.AWSProviderConfig{
+			Region: awsRegion,
+		}
+		resolvedProvider = cloudauthconfig.ProviderAWS
 	}
 
 	// Now acquire write lock to update state
@@ -440,7 +438,18 @@ func (d *delegatedAuthComponent) registerProvider(params delegatedauth.InstanceP
 		// Tests construct the component struct directly rather than through NewComponent.
 		d.providers = make(map[providerKey][]registeredProvider)
 	}
-	d.providers[key] = append(d.providers[key], registeredProvider{directive: params.Directive, provider: p})
+
+	// If this directive was previously registered (e.g. AddInstance replacing an existing
+	// instance), remove the old entry before appending the new one. Without this, lookup can
+	// return the old (cancelled) provider, and ProvidersFor returns both.
+	existing := d.providers[key]
+	for i, r := range existing {
+		if r.directive == params.Directive {
+			existing = append(existing[:i], existing[i+1:]...)
+			break
+		}
+	}
+	d.providers[key] = append(existing, registeredProvider{directive: params.Directive, provider: p})
 }
 
 // ProvidersFor implements delegatedauth.Component.

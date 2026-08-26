@@ -72,6 +72,11 @@ const secretHandlePrefix = "ENC["
 // resolveFallbackAPIKey resolves a directive's fallback=<value> through the secrets backend when it
 // is an ENC[...] handle. An unresolved handle is dropped rather than returned: shipping the literal
 // "ENC[...]" text as an API key would authenticate nothing and leak the handle to the intake.
+//
+// TODO: The resolved value is a snapshot taken at config-load time. If the secrets backend rotates
+// the handle later, this instance keeps the old value until the agent restarts or the config is
+// reloaded. A future change should pass the raw handle and the secrets resolver to the component
+// so it can re-resolve on secret refresh, or re-run this function when the secrets subscriber fires.
 func resolveFallbackAPIKey(secretResolver secrets.Component, fallback string, origin string) string {
 	if fallback == "" {
 		return ""
