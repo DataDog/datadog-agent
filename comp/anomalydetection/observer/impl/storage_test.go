@@ -124,6 +124,28 @@ func TestTimeSeriesStorage_LeavesUnitCountsImplicit(t *testing.T) {
 	assert.Equal(t, int64(2), stats.sampleCount())
 }
 
+func TestTimeSeriesStorage_NamespacePolicyAppliesToAllSeries(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{PointRetentionSecs: 10})
+	s.SetNamespacePolicy("logs", 60, AggregateAverage)
+
+	first := s.Add("logs", "first.count", 1, 5, nil)
+	second := s.Add("logs", "second.count", 1, 5, nil)
+	native := s.Add("native", "metric", 1, 5, nil)
+	s.Add("logs", "first.count", 1, 25, nil)
+	s.Add("native", "metric", 1, 25, nil)
+
+	assert.True(t, s.SupportsAggregate(first.Ref, AggregateAverage))
+	assert.False(t, s.SupportsAggregate(first.Ref, AggregateCount))
+	assert.False(t, s.SupportsAggregate(second.Ref, AggregateSum))
+	assert.True(t, s.SupportsAggregate(native.Ref, AggregateCount))
+	require.Len(t, s.GetSeries("logs", "first.count", nil, AggregateAverage).Points, 2)
+	require.Len(t, s.GetSeries("native", "metric", nil, AggregateAverage).Points, 1)
+
+	s.SetNamespacePolicy("logs", 0)
+	assert.True(t, s.SupportsAggregate(first.Ref, AggregateCount))
+	assert.Nil(t, s.namespacePolicies)
+}
+
 func TestTimeSeriesStorage_ExplicitCountsStayAlignedThroughInsertAndTrim(t *testing.T) {
 	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
 	res := s.Add("test", "my.metric", 30, 1002, nil)

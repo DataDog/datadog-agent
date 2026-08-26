@@ -61,9 +61,10 @@ type logCountBucketSeries struct {
 // zero only after the series has been discovered and only through its idle TTL.
 // It is confined to the engine's single dispatch goroutine.
 type materializedLogCountBucketizer struct {
-	config         LogCountBucketConfig
-	series         map[uint64]*logCountBucketSeries
-	flushedThrough int64
+	config               LogCountBucketConfig
+	series               map[uint64]*logCountBucketSeries
+	configuredNamespaces map[string]struct{}
+	flushedThrough       int64
 }
 
 func newMaterializedLogCountBucketizer(config LogCountBucketConfig) *materializedLogCountBucketizer {
@@ -78,8 +79,9 @@ func newMaterializedLogCountBucketizer(config LogCountBucketConfig) *materialize
 		config.RetentionSeconds = defaults.RetentionSeconds
 	}
 	return &materializedLogCountBucketizer{
-		config: config,
-		series: make(map[uint64]*logCountBucketSeries),
+		config:               config,
+		series:               make(map[uint64]*logCountBucketSeries),
+		configuredNamespaces: make(map[string]struct{}),
 	}
 }
 
@@ -149,6 +151,14 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		return
 	}
 	for key, state := range b.series {
+		if _, configured := b.configuredNamespaces[state.namespace]; !configured {
+			storage.SetNamespacePolicy(
+				state.namespace,
+				b.config.RetentionSeconds,
+				observerdef.AggregateAverage,
+			)
+			b.configuredNamespaces[state.namespace] = struct{}{}
+		}
 		remaining := state.intervals[:0]
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
@@ -165,8 +175,6 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 				}
 				if result.Ref >= 0 {
 					state.storageRef = result.Ref
-					storage.SetSupportedAggregations(result.Ref, observerdef.AggregateAverage)
-					storage.SetSeriesRetention(result.Ref, b.config.RetentionSeconds)
 					storage.SetSeriesActivityTimestamp(result.Ref, state.lastObserved)
 				}
 				delete(state.values, nextEnd)
@@ -216,6 +224,7 @@ func (b *materializedLogCountBucketizer) removeSeriesByRefs(refs []observerdef.S
 
 func (b *materializedLogCountBucketizer) reset() {
 	clear(b.series)
+	clear(b.configuredNamespaces)
 	b.flushedThrough = 0
 }
 
