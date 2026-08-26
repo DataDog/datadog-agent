@@ -55,7 +55,8 @@ func TestStateView_StorageAccess(t *testing.T) {
 
 func TestStateView_Anomalies(t *testing.T) {
 	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
+		storage:             newTimeSeriesStorage(),
+		trackAnomalyHistory: true,
 	})
 	sv := e.StateView()
 
@@ -68,16 +69,16 @@ func TestStateView_Anomalies(t *testing.T) {
 	}
 
 	// Add some anomalies via the engine
-	e.captureRawAnomaly(observerdef.Anomaly{
+	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
 		DetectorName: "detector_a",
 		Timestamp:    100,
-	})
-	e.captureRawAnomaly(observerdef.Anomaly{
+	}, 100)
+	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "mem"},
 		DetectorName: "bocpd",
 		Timestamp:    101,
-	})
+	}, 101)
 
 	if len(sv.Anomalies()) != 2 {
 		t.Fatalf("expected 2 anomalies, got %d", len(sv.Anomalies()))
@@ -112,11 +113,11 @@ func TestStateView_Anomalies(t *testing.T) {
 
 	// AnomaliesForSource filters by SeriesDescriptor
 	diskDesc := observerdef.SeriesDescriptor{Name: "disk", Aggregate: observerdef.AggregateAverage}
-	e.captureRawAnomaly(observerdef.Anomaly{
+	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       diskDesc,
 		DetectorName: "detector_a",
 		Timestamp:    102,
-	})
+	}, 102)
 	diskAnomalies := sv.AnomaliesForSource(diskDesc)
 	if len(diskAnomalies) != 1 {
 		t.Fatalf("expected 1 disk anomaly, got %d", len(diskAnomalies))
@@ -131,6 +132,123 @@ func TestStateView_Anomalies(t *testing.T) {
 	}
 	if cpuAnomalies[0].Source.Name != "cpu" {
 		t.Fatalf("expected cpu source, got %s", cpuAnomalies[0].Source.Name)
+	}
+}
+
+func TestLiveAnomalyTrackingDeduplicatesWithoutRetainingHistory(t *testing.T) {
+	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	anomaly := observerdef.Anomaly{
+		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
+		DetectorName: "detector_a",
+		Title:        "spike",
+		Timestamp:    100,
+	}
+
+	if !e.acceptAnomaly(anomaly, 100) {
+		t.Fatal("expected the first anomaly to be accepted")
+	}
+	if e.acceptAnomaly(anomaly, 101) {
+		t.Fatal("expected the repeated anomaly to be deduplicated")
+	}
+	if got := len(e.RawAnomalies()); got != 0 {
+		t.Fatalf("live mode retained %d raw anomalies, expected none", got)
+	}
+	if got := len(e.uniqueAnomalySources); got != 0 {
+		t.Fatalf("live mode retained %d unique anomaly sources, expected none", got)
+	}
+	if got := len(e.anomalyDeduper.entries); got != 1 {
+		t.Fatalf("live dedup cache has %d entries, expected 1", got)
+	}
+}
+
+func TestAnomalyDeduperBoundsEntries(t *testing.T) {
+	key := func(source string, timestamp int64) anomalyDedupKey {
+		return anomalyDedupKey{sourceKey: source, detectorName: "detector", timestamp: timestamp}
+	}
+
+	t.Run("data time", func(t *testing.T) {
+		deduper := newAnomalyDeduper(10, 10)
+		first := key("first", 100)
+		if !deduper.accept(first, 100) {
+			t.Fatal("expected first key to be accepted")
+		}
+		if deduper.accept(first, 110) {
+			t.Fatal("expected key at the retention boundary to remain deduplicated")
+		}
+		if !deduper.accept(key("second", 111), 111) {
+			t.Fatal("expected second key to be accepted")
+		}
+		if !deduper.accept(first, 111) {
+			t.Fatal("expected expired key to be accepted again")
+		}
+	})
+
+	t.Run("cardinality", func(t *testing.T) {
+		deduper := newAnomalyDeduper(0, 2)
+		first := key("first", 100)
+		if !deduper.accept(first, 100) ||
+			!deduper.accept(key("second", 101), 101) ||
+			!deduper.accept(key("third", 102), 102) {
+			t.Fatal("expected unique keys to be accepted")
+		}
+		if got := len(deduper.entries); got != 2 {
+			t.Fatalf("dedup cache has %d entries, expected cardinality cap 2", got)
+		}
+		if !deduper.accept(first, 102) {
+			t.Fatal("expected the oldest capacity-evicted key to be accepted again")
+		}
+	})
+}
+
+func TestAnomalyDedupKeyUsesStorageRefWhenAvailable(t *testing.T) {
+	ref := observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage}
+	key := anomalyDedupKeyFor(observerdef.Anomaly{
+		Source: observerdef.SeriesDescriptor{
+			Namespace: "dogstatsd",
+			Name:      "cpu.user",
+			Tags:      []string{"host:a"},
+		},
+		SourceRef:    &ref,
+		DetectorName: "bocpd",
+		Timestamp:    100,
+	})
+
+	if !key.hasSourceRef || key.sourceRef != ref.Ref || key.sourceAggregate != ref.Aggregate {
+		t.Fatalf("dedup key did not preserve compact storage identity: %+v", key)
+	}
+	if key.sourceKey != "" {
+		t.Fatalf("storage-backed anomaly allocated a string source key: %q", key.sourceKey)
+	}
+}
+
+func TestResetForReplayConfiguresAnomalyHistory(t *testing.T) {
+	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	storageCfg := DefaultStorageConfig()
+	storageCfg.TrackAnomalyHistory = true
+	e.ResetForReplay(nil, nil, nil, nil, storageCfg, BaselineConfig{})
+
+	anomaly := observerdef.Anomaly{
+		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
+		DetectorName: "detector_a",
+		Timestamp:    100,
+	}
+	if !e.acceptAnomaly(anomaly, 100) {
+		t.Fatal("expected replay anomaly to be accepted")
+	}
+	if got := len(e.RawAnomalies()); got != 1 {
+		t.Fatalf("replay mode retained %d raw anomalies, expected 1", got)
+	}
+
+	storageCfg.TrackAnomalyHistory = false
+	e.ResetForReplay(nil, nil, nil, nil, storageCfg, BaselineConfig{})
+	if !e.acceptAnomaly(anomaly, 100) {
+		t.Fatal("expected live-mode anomaly after reset to be accepted")
+	}
+	if got := len(e.RawAnomalies()); got != 0 {
+		t.Fatalf("live mode retained %d raw anomalies after reset, expected none", got)
+	}
+	if e.anomalyDeduper.maxAgeSecs <= 0 || e.anomalyDeduper.maxEntries <= 0 {
+		t.Fatal("live mode dedup cache must be bounded by both age and cardinality")
 	}
 }
 

@@ -436,7 +436,8 @@ type ActiveCorrelation struct {
 // RawAnomalyState provides read access to raw anomalies before correlation processing.
 // Used by test bench reporters to display individual detector outputs.
 type RawAnomalyState interface {
-	// RawAnomalies returns all anomalies detected by detector implementations.
+	// RawAnomalies returns retained detector output when replay/debug history is enabled.
+	// Live production observers deliberately retain no full anomaly history.
 	RawAnomalies() []Anomaly
 }
 

@@ -618,7 +618,7 @@ func (r *countingReporter) Report(_ reporterdef.ReportOutput) bool {
 	return true
 }
 
-func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
+func TestAnomalyDedupKeyIncludesTitle(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
 			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
@@ -637,7 +637,8 @@ func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 	}
 
 	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
+		storage:             newTimeSeriesStorage(),
+		trackAnomalyHistory: true,
 		detectors: []observerdef.Detector{
 			&anomalyDetector{name: "test_detector", anomalies: anomalies},
 		},
@@ -651,7 +652,7 @@ func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 		"two anomalies with same Source+detector+timestamp but different titles should both survive dedup")
 }
 
-func TestFindingM2_EmptySourceCollision(t *testing.T) {
+func TestLogAnomaliesWithDifferentTitlesDoNotCollide(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
 			Type:         observerdef.AnomalyTypeLog,
@@ -672,7 +673,8 @@ func TestFindingM2_EmptySourceCollision(t *testing.T) {
 	}
 
 	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
+		storage:             newTimeSeriesStorage(),
+		trackAnomalyHistory: true,
 		detectors: []observerdef.Detector{
 			&anomalyDetector{name: "log_detector", anomalies: anomalies},
 		},
@@ -686,8 +688,9 @@ func TestFindingM2_EmptySourceCollision(t *testing.T) {
 		"two log anomalies with same Source but different titles should both survive dedup")
 }
 
-func TestFindingM3_DedupAsymmetry(t *testing.T) {
-	// Two identical anomalies (same dedup key) -- one will be deduped from rawAnomalies.
+func TestAnomalyDedupIsConsistentAcrossHistoryAndEvents(t *testing.T) {
+	// Two identical anomalies share one dedup key, so history and event consumers
+	// should each observe exactly one accepted anomaly.
 	anomalies := []observerdef.Anomaly{
 		{
 			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
@@ -704,7 +707,8 @@ func TestFindingM3_DedupAsymmetry(t *testing.T) {
 	}
 
 	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
+		storage:             newTimeSeriesStorage(),
+		trackAnomalyHistory: true,
 		detectors: []observerdef.Detector{
 			&anomalyDetector{name: "test_detector", anomalies: anomalies},
 		},
@@ -719,28 +723,22 @@ func TestFindingM3_DedupAsymmetry(t *testing.T) {
 	rawCount := len(sv.Anomalies())
 	eventCount := len(sink.eventsOfKind(eventAnomalyCreated))
 
-	// The bug: events will have 2 (no dedup) but rawAnomalies will have 1 (deduped).
-	// If the system were consistent, these should match.
 	assert.Equal(t, rawCount, eventCount,
 		"anomalyCreated event count (%d) should match rawAnomalies count (%d); "+
 			"mismatch means events/reporters see duplicates that rawAnomalies filtered out",
 		eventCount, rawCount)
 }
 
-func TestFindingM4_UnboundedGrowthOfUniqueAnomalySources(t *testing.T) {
-	// Run the engine with many unique anomaly source names. The
-	// uniqueAnomalySources map should be bounded, but the finding says it grows
-	// without eviction.
-
+func TestReplayUniqueAnomalySourcesAreBounded(t *testing.T) {
 	storage := newTimeSeriesStorage()
 
-	// We need a detector that emits anomalies with unique source names.
 	// Use a custom detector that generates a unique source on each Detect call.
 	det := &dynamicAnomalyDetector{prefix: "metric_"}
 
 	e := newEngine(engineConfig{
-		storage:   storage,
-		detectors: []observerdef.Detector{det},
+		storage:             storage,
+		detectors:           []observerdef.Detector{det},
+		trackAnomalyHistory: true,
 	})
 
 	// Generate 1000 unique anomaly sources across many advance cycles.
@@ -752,10 +750,6 @@ func TestFindingM4_UnboundedGrowthOfUniqueAnomalySources(t *testing.T) {
 	sourceCount := e.UniqueAnomalySourceCount()
 	t.Logf("uniqueAnomalySources size after 1000 unique anomalies: %d", sourceCount)
 
-	// The bug: all 1000 unique sources are retained forever.
-	// A bounded implementation would cap or evict old entries.
-	// Assert that the map is bounded (e.g., under 500).
-	// This WILL FAIL because the map grows unbounded.
 	assert.LessOrEqual(t, sourceCount, 500,
 		"uniqueAnomalySources has %d entries after 1000 anomalies; "+
 			"expected bounded growth but map grows without eviction", sourceCount)

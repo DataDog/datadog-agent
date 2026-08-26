@@ -44,6 +44,7 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	}
 	storageCfg := DefaultStorageConfig()
 	storageCfg.TrackCorrelationHistory = true
+	storageCfg.TrackAnomalyHistory = true
 	obs.Reset(settings, storageCfg)
 
 	scorer := obs.engine.scorer

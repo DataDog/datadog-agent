@@ -20,10 +20,126 @@ import (
 
 // anomalyDedupKey is a map key for O(1) anomaly deduplication.
 type anomalyDedupKey struct {
-	sourceKey    string // SeriesDescriptor.Key()
-	detectorName string
-	timestamp    int64
-	title        string
+	sourceRef       observerdef.SeriesRef
+	sourceAggregate observerdef.Aggregate
+	sourceKey       string // SeriesDescriptor.Key(), only for anomalies without a storage ref
+	hasSourceRef    bool
+	detectorName    string
+	timestamp       int64
+	title           string
+}
+
+const maxLiveAnomalyDedupEntries = 50_000
+
+type anomalyDedupQueueEntry struct {
+	key    anomalyDedupKey
+	seenAt int64
+}
+
+// anomalyDeduper suppresses detector outputs that are re-emitted across
+// consecutive advances. Live mode bounds it by both data time and cardinality;
+// testbench history mode intentionally leaves it unbounded for finite replays.
+type anomalyDeduper struct {
+	entries        map[anomalyDedupKey]struct{}
+	queue          []anomalyDedupQueueEntry
+	head           int
+	maxAgeSecs     int64
+	maxEntries     int
+	latestDataTime int64
+}
+
+func newAnomalyDeduper(maxAgeSecs int64, maxEntries int) anomalyDeduper {
+	return anomalyDeduper{
+		entries:    make(map[anomalyDedupKey]struct{}),
+		maxAgeSecs: maxAgeSecs,
+		maxEntries: maxEntries,
+	}
+}
+
+func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
+	key := anomalyDedupKey{
+		detectorName: anomaly.DetectorName,
+		timestamp:    anomaly.Timestamp,
+		title:        anomaly.Title,
+	}
+	if anomaly.SourceRef != nil {
+		key.sourceRef = anomaly.SourceRef.Ref
+		key.sourceAggregate = anomaly.SourceRef.Aggregate
+		key.hasSourceRef = true
+	} else {
+		key.sourceKey = anomaly.Source.Key()
+	}
+	return key
+}
+
+func (d *anomalyDeduper) accept(key anomalyDedupKey, dataTime int64) bool {
+	if dataTime < d.latestDataTime {
+		dataTime = d.latestDataTime
+	} else {
+		d.latestDataTime = dataTime
+	}
+	d.evictExpired(dataTime)
+
+	if _, duplicate := d.entries[key]; duplicate {
+		return false
+	}
+	for d.maxEntries > 0 && len(d.entries) >= d.maxEntries {
+		d.evictOldest()
+	}
+	d.compactQueue()
+
+	d.entries[key] = struct{}{}
+	if d.maxAgeSecs > 0 || d.maxEntries > 0 {
+		d.queue = append(d.queue, anomalyDedupQueueEntry{key: key, seenAt: dataTime})
+	}
+	return true
+}
+
+func (d *anomalyDeduper) evictExpired(dataTime int64) {
+	if d.maxAgeSecs <= 0 {
+		return
+	}
+	cutoff := dataTime - d.maxAgeSecs
+	for d.head < len(d.queue) && d.queue[d.head].seenAt < cutoff {
+		d.evictOldest()
+	}
+	d.compactQueue()
+}
+
+func (d *anomalyDeduper) evictOldest() {
+	if d.head >= len(d.queue) {
+		return
+	}
+	entry := d.queue[d.head]
+	delete(d.entries, entry.key)
+	d.queue[d.head] = anomalyDedupQueueEntry{}
+	d.head++
+}
+
+func (d *anomalyDeduper) compactQueue() {
+	if d.head == len(d.queue) {
+		d.queue = nil
+		d.head = 0
+		return
+	}
+	if d.head < 1024 || d.head*2 < len(d.queue) {
+		return
+	}
+	remaining := make([]anomalyDedupQueueEntry, len(d.queue)-d.head)
+	copy(remaining, d.queue[d.head:])
+	d.queue = remaining
+	d.head = 0
+}
+
+func anomalyDedupBounds(storageCfg StorageConfig, trackHistory bool) (int64, int) {
+	if trackHistory {
+		return 0, 0
+	}
+	window := storageCfg.PointRetentionSecs
+	if window <= 0 {
+		window = storagePointRetentionSecs
+	}
+	return window, maxLiveAnomalyDedupEntries
 }
 
 // engine is the shared orchestration core for the observer pipeline.
@@ -68,15 +184,14 @@ type engine struct {
 	inactiveSeriesEvictionChecked   bool
 	lastInactiveSeriesEvictionCheck int64
 
-	// Raw anomaly tracking (for telemetry and testbench display).
+	// Cross-advance detector deduplication is always active. Full anomaly history
+	// and its introspection indexes are populated only for testbench/replay.
+	anomalyDeduper       anomalyDeduper
+	trackAnomalyHistory  bool
 	rawAnomalies         []observerdef.Anomaly
-	rawAnomalyIndex      map[anomalyDedupKey]int // O(1) dedup lookup
 	rawAnomalyMu         sync.RWMutex
-	rawAnomalyWindow     int64           // seconds to keep (0 = unlimited)
-	maxRawAnomalies      int             // max count to keep (0 = unlimited)
-	currentDataTime      int64           // latest anomaly timestamp seen
 	totalAnomalyCount    int             // total count ever (no cap)
-	uniqueAnomalySources map[string]bool // unique sources that had anomalies (keyed by SeriesDescriptor.Key())
+	uniqueAnomalySources map[string]bool // testbench-only, capped unique source set
 
 	// Accumulated correlations — populated only when trackCorrelationHistory is true.
 	// Correlators maintain sliding windows that evict old state, but for
@@ -148,9 +263,9 @@ type engineConfig struct {
 	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
 	scheduler schedulerPolicy
 
-	rawAnomalyWindow int64
-	maxRawAnomalies  int
-
+	// trackAnomalyHistory enables full raw anomaly history for testbench replay.
+	// Live production engines leave this false and retain only bounded dedup state.
+	trackAnomalyHistory bool
 	// trackCorrelationHistory enables the accumulated-correlations map.
 	// Only used in tests and testbench replay; live production engines leave this false.
 	trackCorrelationHistory bool
@@ -172,6 +287,12 @@ func newEngine(cfg engineConfig) *engine {
 		correlators = append(correlators, cfg.scorer)
 	}
 
+	storageCfg := DefaultStorageConfig()
+	if cfg.storage != nil {
+		storageCfg = cfg.storage.cfg
+	}
+	dedupWindow, dedupMaxEntries := anomalyDedupBounds(storageCfg, cfg.trackAnomalyHistory)
+
 	e := &engine{
 		storage:     cfg.storage,
 		extractors:  cfg.extractors,
@@ -180,9 +301,8 @@ func newEngine(cfg engineConfig) *engine {
 		scorer:      cfg.scorer,
 		scheduler:   sched,
 
-		rawAnomalyWindow:        cfg.rawAnomalyWindow,
-		maxRawAnomalies:         cfg.maxRawAnomalies,
-		rawAnomalyIndex:         make(map[anomalyDedupKey]int),
+		anomalyDeduper:          newAnomalyDeduper(dedupWindow, dedupMaxEntries),
+		trackAnomalyHistory:     cfg.trackAnomalyHistory,
 		trackCorrelationHistory: cfg.trackCorrelationHistory,
 	}
 	if cfg.logCountBuckets.Enabled {
@@ -638,9 +758,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 		for _, anomaly := range result.Anomalies {
 			e.enrichAnomaly(&anomaly)
-			// Baseline gate must precede captureRawAnomaly: scan detectors re-emit
+			// Baseline gate must precede acceptAnomaly: scan detectors re-emit
 			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
-			// so captureRawAnomaly would return false (duplicate) before we could mark it.
+			// so acceptAnomaly would return false (duplicate) before we could mark it.
 			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
 				if anomaly.SourceRef != nil {
@@ -654,7 +774,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 					continue
 				}
 			}
-			if !e.captureRawAnomaly(anomaly) {
+			if !e.acceptAnomaly(anomaly, upTo) {
 				continue // duplicate
 			}
 			if e.onDetectorEmission != nil {
@@ -736,78 +856,33 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 	}
 }
 
-// captureRawAnomaly stores a raw anomaly for telemetry and testbench display.
-// Deduplicates by Source+DetectorName+Timestamp+Title.
+// acceptAnomaly deduplicates by Source+DetectorName+Timestamp+Title and,
+// when testbench history is enabled, stores the accepted anomaly for display.
 // Returns true if the anomaly was new, false if it was a duplicate.
-func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
+func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly, dataTime int64) bool {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
 	e.totalAnomalyCount++
 
-	if e.uniqueAnomalySources == nil {
-		e.uniqueAnomalySources = make(map[string]bool)
+	if !e.anomalyDeduper.accept(anomalyDedupKeyFor(anomaly), dataTime) {
+		return false
 	}
-	const maxUniqueSources = 500
-	if len(e.uniqueAnomalySources) < maxUniqueSources {
-		e.uniqueAnomalySources[anomaly.Source.Key()] = true
-	}
-
-	if anomaly.Timestamp > e.currentDataTime {
-		e.currentDataTime = anomaly.Timestamp
-	}
-
-	// Deduplicate by Source+DetectorName+Timestamp+Title
-	key := anomalyDedupKey{
-		sourceKey:    anomaly.Source.Key(),
-		detectorName: anomaly.DetectorName,
-		timestamp:    anomaly.Timestamp,
-		title:        anomaly.Title,
-	}
-	if _, ok := e.rawAnomalyIndex[key]; ok {
-		return false // exact duplicate
-	}
-	e.rawAnomalyIndex[key] = len(e.rawAnomalies)
-	e.rawAnomalies = append(e.rawAnomalies, anomaly)
-
-	// Evict old anomalies if window is set
-	needsReindex := false
-	if e.rawAnomalyWindow > 0 {
-		cutoff := e.currentDataTime - e.rawAnomalyWindow
-		newBuffer := e.rawAnomalies[:0]
-		for _, a := range e.rawAnomalies {
-			if a.Timestamp >= cutoff {
-				newBuffer = append(newBuffer, a)
-			}
+	if e.trackAnomalyHistory {
+		if e.uniqueAnomalySources == nil {
+			e.uniqueAnomalySources = make(map[string]bool)
 		}
-		if len(newBuffer) != len(e.rawAnomalies) {
-			needsReindex = true
+		const maxUniqueSources = 500
+		if len(e.uniqueAnomalySources) < maxUniqueSources {
+			e.uniqueAnomalySources[anomaly.Source.Key()] = true
 		}
-		e.rawAnomalies = newBuffer
-	}
-
-	// Cap at maxRawAnomalies if set
-	if e.maxRawAnomalies > 0 && len(e.rawAnomalies) > e.maxRawAnomalies {
-		e.rawAnomalies = e.rawAnomalies[len(e.rawAnomalies)-e.maxRawAnomalies:]
-		needsReindex = true
-	}
-
-	// Rebuild index after eviction changes indices.
-	if needsReindex {
-		e.rawAnomalyIndex = make(map[anomalyDedupKey]int, len(e.rawAnomalies))
-		for i, a := range e.rawAnomalies {
-			e.rawAnomalyIndex[anomalyDedupKey{
-				sourceKey:    a.Source.Key(),
-				detectorName: a.DetectorName,
-				timestamp:    a.Timestamp,
-				title:        a.Title,
-			}] = i
-		}
+		e.rawAnomalies = append(e.rawAnomalies, anomaly)
 	}
 	return true
 }
 
-// RawAnomalies returns a copy of currently tracked raw anomalies.
+// RawAnomalies returns replay/debug history when anomaly history is enabled.
+// Live production mode returns an empty slice.
 func (e *engine) RawAnomalies() []observerdef.Anomaly {
 	e.rawAnomalyMu.RLock()
 	defer e.rawAnomalyMu.RUnlock()
@@ -1030,11 +1105,27 @@ func (e *engine) resetRawAnomalies() {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
+	storageCfg := DefaultStorageConfig()
+	if e.storage != nil {
+		storageCfg = e.storage.cfg
+	}
+	dedupWindow, dedupMaxEntries := anomalyDedupBounds(storageCfg, e.trackAnomalyHistory)
+	e.anomalyDeduper = newAnomalyDeduper(dedupWindow, dedupMaxEntries)
 	e.rawAnomalies = nil
-	e.rawAnomalyIndex = make(map[anomalyDedupKey]int)
 	e.totalAnomalyCount = 0
 	e.uniqueAnomalySources = nil
-	e.currentDataTime = 0
+}
+
+func (e *engine) configureAnomalyTracking(storageCfg StorageConfig, trackHistory bool) {
+	e.rawAnomalyMu.Lock()
+	defer e.rawAnomalyMu.Unlock()
+
+	dedupWindow, dedupMaxEntries := anomalyDedupBounds(storageCfg, trackHistory)
+	e.anomalyDeduper = newAnomalyDeduper(dedupWindow, dedupMaxEntries)
+	e.trackAnomalyHistory = trackHistory
+	e.rawAnomalies = nil
+	e.totalAnomalyCount = 0
+	e.uniqueAnomalySources = nil
 }
 
 // resetCorrelations clears accumulated correlation history.
@@ -1110,6 +1201,7 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.maxCorrelations = storageCfg.MaxCorrelations
 	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()
+	e.configureAnomalyTracking(storageCfg, storageCfg.TrackAnomalyHistory)
 	if baselineCfg.Enabled {
 		e.baseline = newBaselineController(baselineCfg, detectorNames(detectors))
 	} else {
