@@ -231,6 +231,7 @@ func addCommand(parent *cobra.Command, providerName string, parentPath []string,
 	}
 	commandPath := append(append([]string{}, parentPath...), name)
 	parameters := append(append([]*pb.CommandParameter{}, inheritedParameters...), definition.GetParameters()...)
+	inheritedPersistentParameters := append(append([]*pb.CommandParameter{}, inheritedParameters...), persistentParameters(definition.GetParameters())...)
 	if definition.GetIsRunnable() {
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
 			arguments, err := argumentsForCommand(cmd, args, parameters)
@@ -241,12 +242,22 @@ func addCommand(parent *cobra.Command, providerName string, parentPath []string,
 		}
 	}
 	for _, child := range definition.GetChildren() {
-		if err := addCommand(cmd, providerName, commandPath, parameters, child, execute); err != nil {
+		if err := addCommand(cmd, providerName, commandPath, inheritedPersistentParameters, child, execute); err != nil {
 			return err
 		}
 	}
 	parent.AddCommand(cmd)
 	return nil
+}
+
+func persistentParameters(parameters []*pb.CommandParameter) []*pb.CommandParameter {
+	persistent := make([]*pb.CommandParameter, 0, len(parameters))
+	for _, parameter := range parameters {
+		if parameter.GetIsPersistent() {
+			persistent = append(persistent, parameter)
+		}
+	}
+	return persistent
 }
 
 func renderFrame(frame *pb.ExecuteCommandResponse, stdout, stderr io.Writer) error {
@@ -314,7 +325,7 @@ func addFlag(cmd *cobra.Command, parameter *pb.CommandParameter) error {
 func argumentsForCommand(cmd *cobra.Command, args []string, parameters []*pb.CommandParameter) (*structpb.Struct, error) {
 	fields := map[string]*structpb.Value{}
 	position := 0
-	for _, parameter := range parameters {
+	for parameterIndex, parameter := range parameters {
 		if parameter.GetIsFlag() {
 			if !cmd.Flags().Changed(parameter.GetName()) {
 				continue
@@ -333,7 +344,7 @@ func argumentsForCommand(cmd *cobra.Command, args []string, parameters []*pb.Com
 			continue
 		}
 		if isSliceType(parameter.GetType()) {
-			if parameter != parameters[len(parameters)-1] {
+			if hasFollowingPositionalParameter(parameters[parameterIndex+1:]) {
 				return nil, fmt.Errorf("slice argument %q must be the final positional parameter", parameter.GetName())
 			}
 			value, err := positionalSliceValue(parameter.GetType(), args[position:])
@@ -391,6 +402,15 @@ func flagValue(cmd *cobra.Command, parameter *pb.CommandParameter) (*structpb.Va
 	default:
 		return nil, fmt.Errorf("unsupported parameter type %s", parameter.GetType())
 	}
+}
+
+func hasFollowingPositionalParameter(parameters []*pb.CommandParameter) bool {
+	for _, parameter := range parameters {
+		if !parameter.GetIsFlag() {
+			return true
+		}
+	}
+	return false
 }
 
 func isSliceType(typ pb.ParameterType) bool {
