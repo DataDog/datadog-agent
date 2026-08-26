@@ -293,14 +293,14 @@ impl YamlCache {
         fleet_policy_file: Option<&str>,
         default: bool,
     ) -> anyhow::Result<bool> {
-        if env_configured_for_key(key) {
-            return Ok(env_bool_for_config_key(key).unwrap_or(false));
-        }
         if let Some(filename) = fleet_policy_file
             && let Some(path) = self.fleet_policy_path(filename, base_path)?
             && self.dotted_key_if_exists(&path, key)?.is_some()
         {
             return self.get_bool_at(&path, key);
+        }
+        if env_configured_for_key(key) {
+            return Ok(env_bool_for_config_key(key).unwrap_or(false));
         }
         if self.dotted_key_if_exists(base_path, key)?.is_some() {
             return self.get_bool_at(base_path, key);
