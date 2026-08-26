@@ -45,6 +45,7 @@ type handlerBase struct {
 	filterList filterlist.Component
 	out        serializer
 	tlm        endpointTelemetry
+	sem        semaphore
 
 	// maxPayloadSize caps the request body we are willing to buffer. Zero or
 	// less disables the cap.
@@ -65,6 +66,16 @@ func (h *handlerBase) handle(
 		log:    h.log,
 		writer: w,
 	}
+
+	// Claimed before anything else so that an overloaded server spends as little
+	// as possible on a request it is going to refuse. The client is expected to
+	// retry.
+	if !h.sem.acquire() {
+		h.tlm.requestOverloaded.Inc()
+		ctx.respond(http.StatusServiceUnavailable, "too many requests")
+		return
+	}
+	defer h.sem.release()
 
 	origin, err := originFromHeader(r.Header, h.tagger)
 	if err != nil {
