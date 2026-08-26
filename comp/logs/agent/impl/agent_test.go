@@ -505,6 +505,76 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 	}
 }
 
+// TestStatusTextShowsSourceInfo renders the Logs Agent status text for a source
+// carrying an info provider, using the fingerprint open_flags failures the file
+// launcher reports.
+//
+// Those failures are recorded on the source rather than on a tailer, because a
+// file that cannot be fingerprinted is never tailed at all. That makes the
+// Integrations section the only place an operator can find out why the file
+// stopped being collected, so it has to render at default verbosity and for a
+// source with no tailers behind it.
+func TestStatusTextShowsSourceInfo(t *testing.T) {
+	const infoKey = "Fingerprint Open Flags Errors"
+
+	// The template formats a single value inline and multiple values as an
+	// indented list, so both counts are worth pinning down.
+	tests := []struct {
+		name     string
+		messages []string
+		expected []string
+	}{
+		{
+			name:     "one failing file",
+			messages: []string{"/var/log/a.log: requested log open flags are not supported"},
+			expected: []string{"Fingerprint Open Flags Errors: /var/log/a.log: requested log open flags are not supported"},
+		},
+		{
+			name: "several failing files",
+			messages: []string{
+				"/var/log/a.log: requested log open flags are not supported",
+				"/var/log/b.log: requested log open flags are not supported",
+			},
+			expected: []string{
+				"Fingerprint Open Flags Errors:",
+				"/var/log/a.log: requested log open flags are not supported",
+				"/var/log/b.log: requested log open flags are not supported",
+			},
+		},
+	}
+
+	originalProvider := logsProvider
+	defer func() { logsProvider = originalProvider }()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			logsProvider = func(_ bool) logsStatus.Status {
+				return logsStatus.Status{
+					IsRunning: true,
+					Integrations: []logsStatus.Integration{{
+						Name: "my_app",
+						Sources: []logsStatus.Source{{
+							Type:   "file",
+							Status: "Pending",
+							Info:   map[string][]string{infoKey: test.messages},
+						}},
+					}},
+				}
+			}
+
+			var buffer bytes.Buffer
+			// verbose=false: the operator running plain `agent status` has to see this.
+			assert.NoError(t, StatusProvider{}.Text(false, &buffer))
+
+			output := strings.ReplaceAll(buffer.String(), "\r\n", "\n")
+			assert.Contains(t, output, "Integrations")
+			for _, expected := range test.expected {
+				assert.Contains(t, output, expected)
+			}
+		})
+	}
+}
+
 // testAgentDeps mirrors Requires but with fx.In for use with fxutil.Test[T],
 // which uses fx.Invoke internally and requires fx.In (not compdef.In).
 type testAgentDeps struct {

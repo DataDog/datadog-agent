@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -36,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type RegularTestSetupStrategy struct{}
@@ -1517,4 +1519,44 @@ func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
 	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show per-source origin")
 	suite.Equal(500, fingerprint.Config.Count, "Config values should be preserved")
 	suite.Equal(types.InvalidFingerprintValue, int(fingerprint.Value), "Fingerprint value should be invalid when disabled")
+}
+
+// TestFingerprintOpenFlagsErrorSurfacesOnSource covers the status surface for an
+// open_flags configuration a file cannot honour. No tailer exists in that
+// situation, so without a message on the source the file would vanish from the
+// status page with nothing to explain why it stopped being collected.
+func TestFingerprintOpenFlagsErrorSurfacesOnSource(t *testing.T) {
+	launcher := &Launcher{openFlagsLogLimit: log.NewLogLimit(5, 10*time.Minute)}
+	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType, Path: "/logs/*.log"})
+	first := filetailer.NewFile("/logs/a.log", source, true)
+	second := filetailer.NewFile("/logs/b.log", source, true)
+
+	launcher.reportFingerprintOpenFlagsError(first, opener.ErrOpenFlagsUnsupported)
+	launcher.reportFingerprintOpenFlagsError(second, opener.ErrOpenFlagsUnsupported)
+
+	reported := source.GetInfoStatus()[fingerprintOpenFlagsInfoKey]
+	require.Len(t, reported, 2, "every failing file of a source reports under one heading")
+	require.Contains(t, strings.Join(reported, "\n"), "/logs/a.log")
+
+	// Reporting the same file again replaces its message rather than adding one,
+	// which matters because this runs on every scan.
+	launcher.reportFingerprintOpenFlagsError(first, opener.ErrOpenFlagsUnsupported)
+	require.Len(t, source.GetInfoStatus()[fingerprintOpenFlagsInfoKey], 2)
+
+	clearFingerprintOpenFlagsError(first)
+	require.Len(t, source.GetInfoStatus()[fingerprintOpenFlagsInfoKey], 1)
+
+	clearFingerprintOpenFlagsError(second)
+	_, present := source.GetInfoStatus()[fingerprintOpenFlagsInfoKey]
+	require.False(t, present, "the heading disappears once no file is failing")
+}
+
+// TestClearFingerprintOpenFlagsErrorWithoutReport guards the ordinary case:
+// almost every file succeeds, so the clear path runs constantly against sources
+// that never registered the info provider at all.
+func TestClearFingerprintOpenFlagsErrorWithoutReport(t *testing.T) {
+	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType, Path: "/logs/*.log"})
+	require.NotPanics(t, func() {
+		clearFingerprintOpenFlagsError(filetailer.NewFile("/logs/a.log", source, true))
+	})
 }

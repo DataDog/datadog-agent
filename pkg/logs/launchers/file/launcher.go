@@ -8,6 +8,7 @@ package file
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"slices"
 	"sync"
@@ -67,7 +68,11 @@ type Launcher struct {
 	oldInfoMap    map[string]*oldTailerInfo
 	fileOpener    opener.FileOpener
 	fingerprinter tailer.Fingerprinter
-	stopOnce      sync.Once
+	// openFlagsLogLimit rate limits the warning for an unusable open_flags
+	// configuration. The condition does not clear on its own, so without this the
+	// warning would repeat on every scan for the lifetime of the Agent.
+	openFlagsLogLimit *log.Limit
+	stopOnce          sync.Once
 }
 
 const (
@@ -124,6 +129,7 @@ func NewLauncher(
 		oldInfoMap:             make(map[string]*oldTailerInfo),
 		fileOpener:             fileOpener,
 		fingerprinter:          fingerprinter,
+		openFlagsLogLimit:      log.NewLogLimit(5, 10*time.Minute),
 	}
 }
 
@@ -261,6 +267,14 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			if s.fingerprinter.ShouldFileFingerprint(file) {
 				didRotate, err = tailered.DidRotateViaFingerprint(s.fingerprinter)
 				if err != nil {
+					// Treating this as "no rotation" keeps the tailer draining the
+					// old file, so a persistent error here means rotations go
+					// unnoticed. Make that visible rather than silent.
+					if opener.IsOpenFlagsUnsupportedError(err) {
+						s.reportFingerprintOpenFlagsError(file, err)
+					} else {
+						log.Debugf("failed to detect log rotation via fingerprint: %v", err)
+					}
 					didRotate = false
 				}
 				if didRotate {
@@ -325,12 +339,18 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
 			// Skip files with invalid fingerprints (Value == 0)
 			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
+				if opener.IsOpenFlagsUnsupportedError(err) {
+					// Unlike a file that is merely too short to fingerprint yet,
+					// this never resolves on its own, so tell the operator.
+					s.reportFingerprintOpenFlagsError(file, err)
+				}
 				// If fingerprint is invalid, persist the old info back into the map for future attempts
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
 				continue
 			}
+			clearFingerprintOpenFlagsError(file)
 		} else {
 			// File is not fingerprinted, but we still want to forward fingerprinting config for status display
 			if fpConfig := s.fingerprinter.GetEffectiveConfigForFile(file); fpConfig != nil {
@@ -428,8 +448,12 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
 			if err != nil || !fingerprint.ValidFingerprint() {
+				if opener.IsOpenFlagsUnsupportedError(err) {
+					s.reportFingerprintOpenFlagsError(file, err)
+				}
 				continue
 			}
+			clearFingerprintOpenFlagsError(file)
 		} else {
 			// File is not fingerprinted, but we still want to forward fingerprinting config for status display
 			if fpConfig := s.fingerprinter.GetEffectiveConfigForFile(file); fpConfig != nil {
@@ -690,6 +714,45 @@ func addFingerprintConfigToTailerInfo(t *tailer.Tailer) {
 	// Always register config info, even if nil - the Info() method handles nil gracefully
 	configInfo := tailer.NewFingerprintConfigInfo(config)
 	t.GetInfo().Register(configInfo)
+}
+
+// fingerprintOpenFlagsInfoKey groups the per-file open_flags failures of a
+// source under a single heading on the status page.
+const fingerprintOpenFlagsInfoKey = "Fingerprint Open Flags Errors"
+
+// reportFingerprintOpenFlagsError records that a file cannot be fingerprinted
+// with the open_flags its source configured. What the Agent gives up as a
+// result differs by caller, so the message stays with the condition and the
+// remedy, which hold everywhere.
+//
+// The message goes on the source rather than the tailer because a file that was
+// never picked up has no tailer, which is the whole point: without it the file
+// just disappears from the status page with no explanation.
+func (s *Launcher) reportFingerprintOpenFlagsError(file *tailer.File, err error) {
+	info, ok := file.Source.GetInfo(fingerprintOpenFlagsInfoKey).(*status.MappedInfo)
+	if !ok {
+		info = status.NewMappedInfo(fingerprintOpenFlagsInfoKey)
+		file.Source.RegisterInfo(info)
+	}
+	info.SetMessage(file.Path, fmt.Sprintf("%s: %v", file.Path, err))
+
+	if s.openFlagsLogLimit.ShouldLog() {
+		log.Warnf(
+			"The fingerprint open_flags configured for the source of %q are not usable for this file (%v). "+
+				"Remove open_flags from the source, or scope the source so it only matches files that support them.",
+			file.Path,
+			err,
+		)
+	}
+}
+
+// clearFingerprintOpenFlagsError drops a previously reported failure for file.
+// Once the last message is gone the whole entry stops rendering, so a source
+// that recovers leaves nothing behind on the status page.
+func clearFingerprintOpenFlagsError(file *tailer.File) {
+	if info, ok := file.Source.GetInfo(fingerprintOpenFlagsInfoKey).(*status.MappedInfo); ok {
+		info.RemoveMessage(file.Path)
+	}
 }
 
 // CheckProcessTelemetry checks process file statistics and logs warnings about file handle usage

@@ -11,6 +11,8 @@ features:
     If the requested flags are not usable for a file, because its filesystem
     rejects them or the Agent cannot open it directly, that file is not
     tailed. The Agent does not silently fall back to a buffered read, which
-    would leave it reporting a configuration it is not honouring. Remove
+    would leave it reporting a configuration it is not honouring. The affected
+    files are listed per source under ``Fingerprint Open Flags Errors`` in
+    ``agent status``, alongside a warning in the Agent log. Remove
     ``open_flags`` from the source, or scope the source so it only matches
     files that support them.
