@@ -24,6 +24,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -243,7 +244,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 
 		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(params.pidfilePath)),
-		fx.Provide(func(c defaultforwarder.Component, cfg coreconfig.Component, l log.Component, sec secrets.Component) (defaultforwarder.Forwarder, error) {
+		fx.Provide(func(c defaultforwarder.Component, cfg coreconfig.Component, l log.Component, sec secrets.Component, delegatedAuth delegatedauth.Component) (defaultforwarder.Forwarder, error) {
 			if serializerexporter.IsSyncForwarderEnabled() {
 				eds, err := configutils.GetMultipleEndpoints(cfg)
 				if err != nil {
@@ -256,7 +257,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 				return defaultforwarderimpl.NewOTelSyncForwarder(cfg, l, sec, eds, &http.Client{
 					Timeout:   timeout,
 					Transport: utilhttp.CreateHTTPTransport(cfg),
-				})
+				}, delegatedAuth)
 			}
 			return defaultforwarder.Forwarder(c), nil
 		}),
