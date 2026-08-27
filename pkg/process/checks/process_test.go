@@ -659,7 +659,7 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, CombinedRunResult{}, first)
 
-	cfg.SetInTest("process_config.ignore_zombie_processes", "true")
+	cfg.SetInTest("process_config.ignore_zombie_processes", true)
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 	expected := []model.MessageBody{
 		&model.CollectorProc{
