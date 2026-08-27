@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer/consumererror"
+	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -402,6 +403,70 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 				}
 				assert.Equal(t, sketch.Source, tt.msrc)
 			}
+		})
+	}
+}
+
+// Test_ConsumeMetrics_UnattributedOrigin covers points whose instrumentation scope does
+// not name a contrib receiver -- an SDK reporting straight over OTLP. The OTLP receiver
+// stamps no scope, so these can only be attributed to it where the pipeline is known to
+// be an OTLP one: Agent OTLP ingest, but not DDOT.
+func Test_ConsumeMetrics_UnattributedOrigin(t *testing.T) {
+	genMetrics := func() pmetric.Metrics {
+		md := pmetric.NewMetrics()
+		ilm := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty()
+		ilm.Scope().SetName("go.opentelemetry.io/otel/metric/example")
+		met := ilm.Metrics().AppendEmpty()
+		met.SetName(numberMetricName)
+		met.SetEmptyGauge()
+		met.Gauge().DataPoints().AppendEmpty().SetIntValue(100)
+		return md
+	}
+
+	tests := []struct {
+		name    string
+		typeStr string
+		factory func(s serializer.MetricSerializer) exp.Factory
+		msrc    metrics.MetricSource
+	}{
+		{
+			name:    "agent otlp ingest",
+			typeStr: TypeStr,
+			factory: func(s serializer.MetricSerializer) exp.Factory {
+				return NewFactoryForAgent(s, func(context.Context) (string, error) { return "", nil }, TelemetryStore{})
+			},
+			msrc: metrics.MetricSourceOpenTelemetryCollectorOtlpReceiver,
+		},
+		{
+			name:    "ddot",
+			typeStr: "datadog",
+			factory: func(s serializer.MetricSerializer) exp.Factory {
+				return NewFactoryForOTelAgent(s, func(context.Context) (string, error) { return "", nil }, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			},
+			msrc: metrics.MetricSourceOpenTelemetryCollectorUnknown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &metricRecorder{}
+			ctx := context.Background()
+			f := tt.factory(rec)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			exp, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(component.MustNewType(tt.typeStr)), cfg)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+			require.NoError(t, exp.ConsumeMetrics(ctx, genMetrics()))
+			require.NoError(t, exp.Shutdown(ctx))
+
+			var found bool
+			for _, serie := range rec.series {
+				if serie.Name != numberMetricName {
+					continue
+				}
+				found = true
+				assert.Equal(t, tt.msrc, serie.Source)
+			}
+			assert.True(t, found, "expected the gauge to reach the serializer")
 		})
 	}
 }

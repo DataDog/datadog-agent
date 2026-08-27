@@ -842,6 +842,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 235
 	case metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver:
 		return 236
+	case metrics.MetricSourceOpenTelemetryCollectorOtlpReceiver:
+		return 529
 	case metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver:
 		return 521
 	case metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver:

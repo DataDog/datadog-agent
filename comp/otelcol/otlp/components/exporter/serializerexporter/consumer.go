@@ -54,6 +54,7 @@ var metricOriginsMappings = map[otlpmetrics.OriginProductDetail]metrics.MetricSo
 	otlpmetrics.OriginProductDetailNginxReceiver:             metrics.MetricSourceOpenTelemetryCollectorNginxReceiver,
 	otlpmetrics.OriginProductDetailNSXTReceiver:              metrics.MetricSourceOpenTelemetryCollectorNsxtReceiver,
 	otlpmetrics.OriginProductDetailOracleDBReceiver:          metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver,
+	otlpmetrics.OriginProductDetailOTLPReceiver:              metrics.MetricSourceOpenTelemetryCollectorOtlpReceiver,
 	otlpmetrics.OriginProductDetailPodmanReceiver:            metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver,
 	otlpmetrics.OriginProductDetailPostgreSQLReceiver:        metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver,
 	otlpmetrics.OriginProductDetailPrometheusReceiver:        metrics.MetricSourceOpenTelemetryCollectorPrometheusReceiver,
@@ -129,6 +130,27 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
+// metricSource resolves the MetricSource for a data point from the contrib receiver
+// the translator identified via the instrumentation scope name.
+//
+// Points that carry no contrib receiver scope cannot be attributed by the translator:
+// the OTLP receiver lives in collector core and stamps no scope of its own, so the
+// scope on the data is whatever the upstream producer set. In Agent OTLP ingest the
+// pipeline is a fixed otlpreceiver -> serializer exporter one, so such points are
+// known to have arrived over OTLP. DDOT and the OSS collector run user-defined
+// pipelines with an arbitrary receiver set, so there they stay unknown rather than
+// risk attributing another receiver's data to the OTLP receiver.
+func (c *serializerConsumer) metricSource(dimensions *otlpmetrics.Dimensions) metrics.MetricSource {
+	detail := dimensions.OriginProductDetail()
+	if detail == otlpmetrics.OriginProductDetailUnknown && c.ipath == agentOTLPIngest {
+		return metrics.MetricSourceOpenTelemetryCollectorOtlpReceiver
+	}
+	if msrc, ok := metricOriginsMappings[detail]; ok {
+		return msrc
+	}
+	return metrics.MetricSourceOpenTelemetryCollectorUnknown
+}
+
 func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
 	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, extraTags...)
@@ -137,10 +159,7 @@ func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
-	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
-	if !ok {
-		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
-	}
+	msrc := c.metricSource(dimensions)
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{
 			Name:     dimensions.Name(),
@@ -169,10 +188,7 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 }
 
 func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, interval int64, value float64) {
-	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
-	if !ok {
-		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
-	}
+	msrc := c.metricSource(dimensions)
 	c.series = append(c.series,
 		&metrics.Serie{
 			Name:     dimensions.Name(),
