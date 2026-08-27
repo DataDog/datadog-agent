@@ -81,5 +81,5 @@ type Filter struct {
 
 // Key returns a key representing the filter
 func (f *Filter) Key() string {
-	return f.RuleID + ":" + strconv.FormatUint(uint64(f.Pid), 10) + ":" + strconv.FormatUint(f.CGroupPathKey.Inode, 10)
+	return f.RuleID + ":" + strconv.FormatUint(uint64(f.Pid), 10) + ":" + strconv.FormatUint(f.CGroupPathKey.Inode, 10) + ":" + f.BPFFilter
 }
