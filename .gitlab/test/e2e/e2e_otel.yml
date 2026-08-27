@@ -10,7 +10,6 @@ new-e2e-otel-eks-init:
     - !reference [.manual]
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - !reference [.needs_fakeintake_publish]
   variables:
     TARGETS: ./tests/otel
