@@ -119,8 +119,20 @@ func TestSourceFromAttrs(t *testing.T) {
 				attributeServiceInstanceID:            testServiceInstanceID,
 				string(conventions.HostIDKey):         testHostID,
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.AzureAppServiceKind, Identifier: testAzureAppServiceInstanceID},
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureAppServiceKind,
+				Identifier: testAzureAppServiceInstanceID,
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: testAzureAppServiceInstanceID,
+					Dimensions: map[string]string{
+						"name":            testAzureAppServiceName,
+						"subscription_id": testAzureSubscriptionID,
+						"resource_group":  testAzureResourceGroup,
+						"instance":        testAzureAppServiceInstanceID,
+					},
+				},
+			},
 		},
 		{
 			name: "Azure App Service legacy platform spelling",
@@ -131,8 +143,20 @@ func TestSourceFromAttrs(t *testing.T) {
 				attributeAzureResourceGroupName:       testAzureResourceGroup,
 				attributeAzureAppServiceInstanceID:    testAzureAppServiceInstanceID,
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.AzureAppServiceKind, Identifier: testAzureAppServiceInstanceID},
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureAppServiceKind,
+				Identifier: testAzureAppServiceInstanceID,
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: testAzureAppServiceInstanceID,
+					Dimensions: map[string]string{
+						"name":            testAzureAppServiceName,
+						"subscription_id": testAzureSubscriptionID,
+						"resource_group":  testAzureResourceGroup,
+						"instance":        testAzureAppServiceInstanceID,
+					},
+				},
+			},
 		},
 		{
 			name: "Azure App Service service instance fallback",
@@ -143,8 +167,20 @@ func TestSourceFromAttrs(t *testing.T) {
 				attributeAzureResourceGroupName:       testAzureResourceGroup,
 				attributeServiceInstanceID:            testServiceInstanceID,
 			}),
-			ok:  true,
-			src: source.Source{Kind: source.AzureAppServiceKind, Identifier: testServiceInstanceID},
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureAppServiceKind,
+				Identifier: testServiceInstanceID,
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: testServiceInstanceID,
+					Dimensions: map[string]string{
+						"name":            testAzureAppServiceName,
+						"subscription_id": testAzureSubscriptionID,
+						"resource_group":  testAzureResourceGroup,
+						"instance":        testServiceInstanceID,
+					},
+				},
+			},
 		},
 		{
 			name: "GCP",
