@@ -169,6 +169,10 @@ impl JobObject {
         }
     }
 
+    pub(crate) fn may_have_active_members(&self) -> bool {
+        !matches!(self.active_process_count(), Ok(0))
+    }
+
     pub fn wait_until_empty(&self, timeout: std::time::Duration) -> bool {
         const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
         let deadline = std::time::Instant::now() + timeout;

@@ -78,6 +78,10 @@ impl ProcessWaitControl {
         }))
     }
 
+    pub(crate) fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+
     pub(crate) fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Acquire)
     }
@@ -136,6 +140,11 @@ impl ProcessHandle {
             },
             wait_control,
         })
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn wait_control(&self) -> Arc<ProcessWaitControl> {
+        Arc::clone(&self.wait_control)
     }
 
     pub fn id(&self) -> Option<u32> {

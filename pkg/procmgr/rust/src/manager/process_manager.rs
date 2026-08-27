@@ -67,6 +67,11 @@ impl ProcessManager {
         if proc.pid() == Some(event.pid) && proc.state().is_alive() {
             info!("[{}] exited with {}", proc.name(), event.status);
             proc.set_last_status(event.status);
+            #[cfg(windows)]
+            proc.ensure_windows_spawn_resources_released(shutdown::ShutdownBudget::unlimited(
+                Instant::now(),
+            ))
+            .await;
             enqueue_pending_restart(proc, handles);
             return;
         }
