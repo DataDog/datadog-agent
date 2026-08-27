@@ -52,9 +52,11 @@ func (h *rcHandler) Update(updates map[string]state.RawConfig, applyStateCallbac
 		kind, err := configKind(raw.Config)
 		if err != nil {
 			// The kind is unreadable, so this config cannot be claimed.
+			h.dropClaim(path, "its payload is no longer readable")
 			continue
 		}
 		if kind != kindAutodiscovery {
+			h.dropClaim(path, "it now carries a kind this component does not own")
 			continue
 		}
 
@@ -69,6 +71,14 @@ func (h *rcHandler) Update(updates map[string]state.RawConfig, applyStateCallbac
 			continue
 		}
 
+		// A path keeps its RC path while its payload names a different range.
+		// The range it used to name has no config describing it any more, so
+		// it is released here rather than left sweeping forever.
+		if previousID, ok := h.activeByPath[path]; ok && previousID != cfg.AutodiscoveryID {
+			h.log.Infof("ndmdiscovery: config %s now names range %s, stopping range %s", path, cfg.AutodiscoveryID, previousID)
+			h.releasePath(path)
+		}
+
 		h.activeByPath[path] = cfg.AutodiscoveryID
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
@@ -78,8 +88,7 @@ func (h *rcHandler) Update(updates map[string]state.RawConfig, applyStateCallbac
 			continue
 		}
 		h.log.Infof("ndmdiscovery: range %s was removed from the configuration", autodiscoveryID)
-		h.sched.remove(autodiscoveryID)
-		delete(h.activeByPath, path)
+		h.releasePath(path)
 	}
 }
 
@@ -87,12 +96,45 @@ func (h *rcHandler) Update(updates map[string]state.RawConfig, applyStateCallbac
 // backend, so an operator sees why their range is not being scanned.
 func (h *rcHandler) reject(path string, applyStateCallback func(string, state.ApplyStatus), err error) {
 	h.log.Warnf("ndmdiscovery: rejecting autodiscovery config %s: %v", path, err)
-	if id, ok := h.activeByPath[path]; ok {
-		h.sched.remove(id)
-		delete(h.activeByPath, path)
-	}
+	h.releasePath(path)
 	applyStateCallback(path, state.ApplyStatus{
 		State: state.ApplyStateError,
 		Error: err.Error(),
 	})
+}
+
+// dropClaim releases a range this component had claimed from a path whose
+// payload it can no longer claim, either because the payload is unreadable or
+// because it now belongs to another NDM subscriber.
+//
+// No applyStateCallback is reported: the product is shared, and acknowledging
+// a config this component cannot claim would report a state it cannot honour.
+// The range still has to stop, because nothing describes it any more.
+func (h *rcHandler) dropClaim(path, reason string) {
+	id, ok := h.activeByPath[path]
+	if !ok {
+		return
+	}
+	h.log.Warnf("ndmdiscovery: stopping range %s from config %s: %s", id, path, reason)
+	h.releasePath(path)
+}
+
+// releasePath forgets a path and stops the range it named.
+//
+// The scheduler is keyed by autodiscovery ID while activeByPath is keyed by RC
+// path, so two paths can name the same ID. Removing the ID whenever one of
+// those paths goes away would stop a range the other path still asks for,
+// which is why the removal only happens once no path references the ID.
+func (h *rcHandler) releasePath(path string) {
+	id, ok := h.activeByPath[path]
+	if !ok {
+		return
+	}
+	delete(h.activeByPath, path)
+	for _, otherID := range h.activeByPath {
+		if otherID == id {
+			return
+		}
+	}
+	h.sched.remove(id)
 }

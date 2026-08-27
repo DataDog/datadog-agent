@@ -7,6 +7,7 @@ package ndmdiscoveryimpl
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"testing"
 
@@ -230,4 +231,97 @@ func TestRCUpdateIgnoresMalformedJSONSilently(t *testing.T) {
 
 	assert.Equal(t, 0, sched.count())
 	assert.Equal(t, 0, rec.len())
+}
+
+// scheduledIDs reports which autodiscovery IDs the scheduler currently runs,
+// so a test can tell "the right number of ranges" from "the right ranges".
+func scheduledIDs(s *scheduler) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := make([]string, 0, len(s.ranges))
+	for id := range s.ranges {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func TestRCUpdateStopsPreviousRangeWhenAutodiscoveryIDChanges(t *testing.T) {
+	h, sched := newTestRCHandler(t)
+	rec := newApplyRecorder()
+
+	h.Update(map[string]state.RawConfig{
+		"p1": rawConfig(autodiscoveryBody("ad-1", "10.0.0.0/24")),
+	}, rec.callback)
+	require.Equal(t, []string{"ad-1"}, scheduledIDs(sched))
+
+	// The same RC path now names a different range.
+	h.Update(map[string]state.RawConfig{
+		"p1": rawConfig(autodiscoveryBody("ad-2", "10.0.1.0/24")),
+	}, rec.callback)
+
+	assert.Equal(t, []string{"ad-2"}, scheduledIDs(sched),
+		"the range a path used to name stops when that path's autodiscovery ID changes")
+	st, ok := rec.get("p1")
+	require.True(t, ok)
+	assert.Equal(t, state.ApplyStateAcknowledged, st.State)
+}
+
+func TestRCUpdateDropsClaimedRangeThatBecomesMalformed(t *testing.T) {
+	h, sched := newTestRCHandler(t)
+	rec := newApplyRecorder()
+
+	h.Update(map[string]state.RawConfig{
+		"p1": rawConfig(autodiscoveryBody("ad-1", "10.0.0.0/24")),
+	}, rec.callback)
+	require.Equal(t, 1, sched.count())
+
+	after := newApplyRecorder()
+	h.Update(map[string]state.RawConfig{"p1": rawConfig(`not json`)}, after.callback)
+
+	assert.Equal(t, 0, sched.count(), "a claimed range stops sweeping once its payload becomes unreadable")
+	assert.Equal(t, 0, after.len(),
+		"an unreadable payload is still not acknowledged: this component cannot claim it")
+}
+
+func TestRCUpdateDropsClaimedRangeThatBecomesForeignKind(t *testing.T) {
+	h, sched := newTestRCHandler(t)
+	rec := newApplyRecorder()
+
+	h.Update(map[string]state.RawConfig{
+		"p1": rawConfig(autodiscoveryBody("ad-1", "10.0.0.0/24")),
+	}, rec.callback)
+	require.Equal(t, 1, sched.count())
+
+	after := newApplyRecorder()
+	h.Update(map[string]state.RawConfig{
+		"p1": rawConfig(`{"kind":"monitored_devices","devices":[]}`),
+	}, after.callback)
+
+	assert.Equal(t, 0, sched.count(),
+		"a claimed range stops sweeping once its path turns into someone else's config")
+	assert.Equal(t, 0, after.len(),
+		"a foreign kind is still not acknowledged: another subscriber owns it")
+}
+
+func TestRCUpdateKeepsRangeNamedByASecondPath(t *testing.T) {
+	h, sched := newTestRCHandler(t)
+	rec := newApplyRecorder()
+
+	h.Update(map[string]state.RawConfig{
+		"p1": rawConfig(autodiscoveryBody("ad-1", "10.0.0.0/24")),
+		"p2": rawConfig(autodiscoveryBody("ad-1", "10.0.0.0/24")),
+	}, rec.callback)
+	require.Equal(t, []string{"ad-1"}, scheduledIDs(sched))
+
+	// p1 is gone from the snapshot, but p2 still names ad-1.
+	h.Update(map[string]state.RawConfig{
+		"p2": rawConfig(autodiscoveryBody("ad-1", "10.0.0.0/24")),
+	}, rec.callback)
+	assert.Equal(t, []string{"ad-1"}, scheduledIDs(sched),
+		"another path still names this range, so dropping one path must not stop it")
+
+	// With the last path gone, the range stops.
+	h.Update(map[string]state.RawConfig{}, rec.callback)
+	assert.Empty(t, scheduledIDs(sched))
 }
