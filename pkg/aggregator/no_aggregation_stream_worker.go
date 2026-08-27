@@ -210,7 +210,7 @@ func (w *noAggregationStreamWorker) run() {
 							// enrich metric sample tags
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
-							tags := w.metricBuffer.Copy()
+							tags := tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							if w.observerHandle != nil {
 								w.observerHandle.ObserveMetric(resolvedMetricView{
 									sample: &sample,
@@ -228,7 +228,7 @@ func (w *noAggregationStreamWorker) run() {
 							var serie metrics.Serie
 							serie.Name = sample.Name
 							serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
-							serie.Tags = tagset.CompositeTagsFromSlice(tags)
+							serie.Tags = tags
 							serie.Host = sample.Host
 							serie.MType = mtype
 							serie.Interval = bucketSize

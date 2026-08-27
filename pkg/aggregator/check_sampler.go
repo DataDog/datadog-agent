@@ -82,7 +82,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 		cs.observerHandle.ObserveMetric(resolvedMetricView{
 			sample: metricSample,
 			host:   context.Host,
-			tags:   context.Tags().UnsafeToReadOnlySliceString(),
+			tags:   context.Tags(),
 		})
 	}
 	if metricSample.Mtype == metrics.DistributionType {

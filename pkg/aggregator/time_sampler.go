@@ -104,7 +104,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 		s.observerHandle.ObserveMetric(resolvedMetricView{
 			sample: metricSample,
 			host:   context.Host,
-			tags:   context.Tags().UnsafeToReadOnlySliceString(),
+			tags:   context.Tags(),
 		})
 	}
 	bucketStart := s.calculateBucketStart(timestamp)
