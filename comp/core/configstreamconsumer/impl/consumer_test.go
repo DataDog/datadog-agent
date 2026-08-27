@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 )
@@ -127,4 +128,13 @@ remote_agent:
 		got := readSettings(path)
 		require.Equal(t, "vsock:2:5001", got.VSockAddr)
 	})
+}
+
+func TestPbValueToGoKeepsWireType(t *testing.T) {
+	// Narrowing is the declared default type's job, not this function's.
+	require.Nil(t, pbValueToGo(nil))
+	require.Equal(t, float64(5), pbValueToGo(structpb.NewNumberValue(5)))
+	require.Equal(t, float64(5.5), pbValueToGo(structpb.NewNumberValue(5.5)))
+	require.Equal(t, "s", pbValueToGo(structpb.NewStringValue("s")))
+	require.Equal(t, true, pbValueToGo(structpb.NewBoolValue(true)))
 }

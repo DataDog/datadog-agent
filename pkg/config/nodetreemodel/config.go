@@ -323,11 +323,12 @@ func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
 
 	for _, setting := range settings {
 		key := setting.Key
-		// An unknown key is still stored, mirroring how the YAML loader treats one, because the
-		// point of the stream is to reproduce the sending config exactly.
+		// Stored anyway, as the YAML loader does, so the client mirrors the sender. Reconnects
+		// resend the whole snapshot, hence warn once.
 		if !c.isKnownKey(key) {
-			log.Warnf("unknown key from config stream: %s", key)
-			c.unknownKeys.Store(key, struct{}{})
+			if _, alreadySeen := c.unknownKeys.LoadOrStore(key, struct{}{}); !alreadySeen {
+				log.Warnf("unknown key from config stream: %s", key)
+			}
 		}
 
 		declaredNode := c.nodeAtPathFromNode(key, c.defaults)

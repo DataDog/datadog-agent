@@ -2068,6 +2068,7 @@ func TestDirectBulkSet(t *testing.T) {
 	cfg.SetDefault("from_file", 0)
 	cfg.SetDefault("coerced", "")
 	cfg.SetDefault("outranked", 0)
+	cfg.SetDefault("a_float", 0.0)
 	cfg.BuildSchema()
 
 	cfg.Set("outranked", 9, model.SourceAgentRuntime)
@@ -2082,6 +2083,7 @@ func TestDirectBulkSet(t *testing.T) {
 		{Key: "coerced", Value: 3, Source: model.SourceEnvVar},
 		{Key: "outranked", Value: 4, Source: model.SourceFile},
 		{Key: "undeclared", Value: 5, Source: model.SourceEnvVar},
+		{Key: "a_float", Value: float64(5), Source: model.SourceEnvVar},
 	})
 
 	assert.Equal(t, 1, cfg.Get("from_env"))
@@ -2097,6 +2099,9 @@ func TestDirectBulkSet(t *testing.T) {
 
 	// A key absent from this process's schema is still stored, so the config mirrors the sender.
 	assert.Equal(t, 5, cfg.Get("undeclared"))
+
+	// An integral float64 must not collapse to int.
+	assert.Equal(t, float64(5), cfg.Get("a_float"))
 
 	assert.Zero(t, notified, "notifications should not fire")
 }

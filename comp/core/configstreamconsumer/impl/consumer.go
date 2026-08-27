@@ -17,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"strconv"
 	"sync"
@@ -362,22 +361,13 @@ func toDirectSetting(setting *pb.ConfigSetting) pkgconfigmodel.DirectSetting {
 	}
 }
 
-// pbValueToGo converts a protobuf Value to a Go value. It preserves integer types that structpb widens to float64.
-// Bounded to |x| <= 2^53, the largest magnitude at which float64 still represents every integer:
-// past it an integral float64 is ambiguous, so widening it back to int64 would invent precision.
-// Ints beyond 2^53 therefore cannot survive the round trip, structpb having no integer type.
+// pbValueToGo converts a protobuf Value to a Go value. structpb has no integer type, so numbers
+// arrive as float64; narrowing is left to the declared default type.
 func pbValueToGo(v *structpb.Value) any {
 	if v == nil {
 		return nil
 	}
-	result := v.AsInterface()
-	if f, ok := result.(float64); ok {
-		const maxExactInt = 1 << 53
-		if !math.IsNaN(f) && !math.IsInf(f, 0) && f >= -maxExactInt && f <= maxExactInt && f == math.Trunc(f) {
-			return int64(f)
-		}
-	}
-	return result
+	return v.AsInterface()
 }
 
 func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
