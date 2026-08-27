@@ -46,8 +46,9 @@ type recordedCall struct {
 
 func (h *recordingHandle) ObserveMetric(v observer.MetricView) {
 	// copy values — the MetricView contract forbids retaining the view itself
-	tagsCopy := make([]string, len(v.GetTags()))
-	copy(tagsCopy, v.GetTags())
+	tags := v.GetTags().UnsafeToReadOnlySliceString()
+	tagsCopy := make([]string, len(tags))
+	copy(tagsCopy, tags)
 	h.calls = append(h.calls, recordedCall{
 		name:      v.GetName(),
 		value:     v.GetValue(),

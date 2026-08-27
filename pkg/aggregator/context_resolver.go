@@ -36,15 +36,15 @@ type Context struct {
 type resolvedMetricView struct {
 	sample *metrics.MetricSample
 	host   string
-	tags   []string
+	tags   tagset.CompositeTags
 }
 
-func (v resolvedMetricView) GetName() string         { return v.sample.GetName() }
-func (v resolvedMetricView) GetValue() float64       { return v.sample.GetValue() }
-func (v resolvedMetricView) GetTags() []string       { return v.tags }
-func (v resolvedMetricView) GetHost() string         { return v.host }
-func (v resolvedMetricView) GetTimestampUnix() int64 { return v.sample.GetTimestampUnix() }
-func (v resolvedMetricView) GetSampleRate() float64  { return v.sample.GetSampleRate() }
+func (v resolvedMetricView) GetName() string               { return v.sample.GetName() }
+func (v resolvedMetricView) GetValue() float64             { return v.sample.GetValue() }
+func (v resolvedMetricView) GetTags() tagset.CompositeTags { return v.tags }
+func (v resolvedMetricView) GetHost() string               { return v.host }
+func (v resolvedMetricView) GetTimestampUnix() int64       { return v.sample.GetTimestampUnix() }
+func (v resolvedMetricView) GetSampleRate() float64        { return v.sample.GetSampleRate() }
 
 type resolverEntry struct {
 	lastSeen int64

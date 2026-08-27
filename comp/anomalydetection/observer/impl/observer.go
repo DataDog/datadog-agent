@@ -29,6 +29,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -85,8 +86,8 @@ func (m *metricObs) GetValue() float64 {
 	return m.value
 }
 
-func (m *metricObs) GetTags() []string {
-	return m.tags
+func (m *metricObs) GetTags() tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice(m.tags)
 }
 
 func (m *metricObs) GetHost() string { return m.host }
@@ -1081,7 +1082,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 
 	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
 	// storage, and downstream Add calls hit the tagsSorted fast path.
-	tags := canonicalizeTags(sample.GetTags())
+	tags := canonicalizeTags(sample.GetTags().UnsafeToReadOnlySliceString())
 	if filter.isMutedWithHost(name, normalizedSource, host, tags) ||
 		(precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, normalizedSource, host, tags, precheck.firstCandidate)) {
 		return metricIngestDecision{source: normalizedSource}

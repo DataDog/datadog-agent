@@ -13,6 +13,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,9 +82,9 @@ func (m *tagsTrackingMetric) GetValue() float64       { return m.value }
 func (m *tagsTrackingMetric) GetHost() string         { return "" }
 func (m *tagsTrackingMetric) GetTimestampUnix() int64 { return m.timestamp }
 func (m *tagsTrackingMetric) GetSampleRate() float64  { return 1.0 }
-func (m *tagsTrackingMetric) GetTags() []string {
+func (m *tagsTrackingMetric) GetTags() tagset.CompositeTags {
 	m.tagsRead++
-	return m.tags
+	return tagset.CompositeTagsFromSlice(m.tags)
 }
 
 func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Handle is the lightweight observation interface passed to other components.
@@ -39,7 +40,7 @@ type MetricView interface {
 	GetName() string
 	GetValue() float64
 	// GetTags returns the final tags used by the metrics pipeline for this sample.
-	GetTags() []string
+	GetTags() tagset.CompositeTags
 	// GetHost returns the host dimension carried separately from metric tags.
 	GetHost() string
 	// GetTimestampUnix returns the sample timestamp in Unix seconds.
