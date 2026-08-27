@@ -92,21 +92,3 @@ func IPCCertFilepath() string {
 func Config() pkgconfigmodel.Config {
 	return pkgconfigsetup.Datadog()
 }
-
-// ApplyStreamedSettings writes a whole streamed snapshot to the global config in one pass. Unlike
-// Set it accepts env-var-sourced settings, so the result mirrors the core agent exactly.
-func ApplyStreamedSettings(settings []pkgconfigmodel.DirectSetting) {
-	b := pkgconfigsetup.Datadog()
-	type bulkSetter interface {
-		DirectBulkSet(settings []pkgconfigmodel.DirectSetting)
-	}
-	setter, ok := b.(bulkSetter)
-	if !ok {
-		pkglog.Warnf("config implementation %T has no DirectBulkSet; falling back to Set, which rejects env-var-sourced settings", b)
-		for _, setting := range settings {
-			b.Set(setting.Key, setting.Value, setting.Source)
-		}
-		return
-	}
-	setter.DirectBulkSet(settings)
-}

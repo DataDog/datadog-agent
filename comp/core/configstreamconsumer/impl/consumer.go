@@ -338,7 +338,7 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	for _, setting := range snapshot.Settings {
 		settings = append(settings, toDirectSetting(setting))
 	}
-	configstreambootstrap.ApplyStreamedSettings(settings)
+	configstreambootstrap.Config().DirectBulkSet(settings)
 	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 
@@ -363,7 +363,9 @@ func toDirectSetting(setting *pb.ConfigSetting) pkgconfigmodel.DirectSetting {
 }
 
 // pbValueToGo converts a protobuf Value to a Go value. It preserves integer types that structpb widens to float64.
-// Bounded to |x| <= 2^53 — beyond that float64 loses integer precision.
+// Bounded to |x| <= 2^53, the largest magnitude at which float64 still represents every integer:
+// past it an integral float64 is ambiguous, so widening it back to int64 would invent precision.
+// Ints beyond 2^53 therefore cannot survive the round trip, structpb having no integer type.
 func pbValueToGo(v *structpb.Value) any {
 	if v == nil {
 		return nil
