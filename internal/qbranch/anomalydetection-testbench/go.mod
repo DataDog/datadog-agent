@@ -18,7 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.81.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.62.0
 	github.com/apache/arrow-go/v18 v18.7.0
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.uber.org/fx v1.24.0
 )
 
@@ -159,7 +159,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260810153831-ec0a7760b754 // indirect
 	google.golang.org/grpc v1.83.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apimachinery v0.35.6 // indirect
 )
 

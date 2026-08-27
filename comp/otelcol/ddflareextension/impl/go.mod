@@ -25,7 +25,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.158.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.158.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.158.0
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/component/componentstatus v0.158.0
 	go.opentelemetry.io/collector/component/componenttest v0.158.0
@@ -53,6 +53,8 @@ require (
 	go.uber.org/zap v1.28.0
 	go.yaml.in/yaml/v2 v2.4.4
 )
+
+require golang.org/x/sys v0.47.0 // indirect
 
 require (
 	cloud.google.com/go/auth v0.20.0 // indirect
@@ -502,7 +504,6 @@ require (
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
