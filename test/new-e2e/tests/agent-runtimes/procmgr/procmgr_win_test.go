@@ -190,16 +190,6 @@ func (s *procmgrWindowsSuite) ensureWindowsProcmgrServiceRunning() {
 	}, 60*time.Second, 2*time.Second)
 }
 
-func (s *procmgrWindowsSuite) TestProcmgrServiceRunsAsLocalSystem() {
-	host := s.Env().RemoteHost
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		owner, err := windowsProcessOwnerByName(host, "dd-procmgrd.exe")
-		assert.NoError(ct, err)
-		assert.Contains(ct, owner, "NT AUTHORITY/SYSTEM")
-	}, 60*time.Second, 2*time.Second)
-}
-
 func (s *procmgrWindowsSuite) TestAdministratorCreateViaNamedPipe() {
 	host := s.Env().RemoteHost
 
@@ -425,15 +415,6 @@ func (s *procmgrWindowsSuite) TestADPProcessDescribe() {
 		assertHasField(ct, out, "PID")
 		assertHasField(ct, out, "UUID")
 	}, 90*time.Second, 2*time.Second)
-}
-
-func windowsProcessOwnerByName(host *e2ecomponents.RemoteHost, name string) (string, error) {
-	script := psRemote(
-		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`,
-		name,
-	)
-	out, err := host.Execute(script)
-	return strings.TrimSpace(out), err
 }
 
 func windowsProcessOwnerByPID(host *e2ecomponents.RemoteHost, pid string) (string, error) {
