@@ -64,12 +64,12 @@ __attribute__((always_inline)) void delete_syscall_monitor_entry(u32 pid, u8 sys
 // Returns the reason to send an event for `entry` now, or 0 for nothing to send.
 static u8 __attribute__((always_inline)) syscall_monitor_should_send(struct _tracepoint_raw_syscalls_sys_enter *args, struct syscall_monitor_entry_t *entry, u64 now) {
     if (!entry->dirty) {
-        return 0;
+        return SYSCALL_MONITOR_REASON_NONE;
     }
 
     if (now > entry->last_sent + get_syscall_monitor_event_period()) {
         // it's been a while since we last sent something and the list of syscalls is dirty, send now
-        return 1;
+        return SYSCALL_MONITOR_REASON_PERIOD;
     }
 
     struct syscall_table_key_t key = {
@@ -78,14 +78,14 @@ static u8 __attribute__((always_inline)) syscall_monitor_should_send(struct _tra
     key.syscall_key = EXIT_SYSCALL_KEY;
     if (is_syscall(&key)) {
         // a thread is about to exit and the list of syscalls is dirty, send now
-        return 2;
+        return SYSCALL_MONITOR_REASON_EXIT;
     }
     key.syscall_key = EXECVE_SYSCALL_KEY;
     if (is_syscall(&key)) {
         // a new process is about to exec, flush the existing syscalls now
-        return 3;
+        return SYSCALL_MONITOR_REASON_EXECVE;
     }
-    return 0;
+    return SYSCALL_MONITOR_REASON_NONE;
 }
 
 // Stages the entry's syscall mask into the event; the caller sends it.

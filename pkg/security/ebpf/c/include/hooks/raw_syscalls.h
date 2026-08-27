@@ -39,8 +39,8 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     // entry.
     u8 drift_active = 0;
     u8 dump_active = 0;
-    u8 drift_reason = 0;
-    u8 dump_reason = 0;
+    u8 drift_reason = SYSCALL_MONITOR_REASON_NONE;
+    u8 dump_reason = SYSCALL_MONITOR_REASON_NONE;
 
     // check if this event should trigger a syscall drift event
     if (is_anomaly_syscalls_enabled()) {
