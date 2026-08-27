@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/afero"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,6 +38,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	filePos, _ := f.Seek(offset, whence)
 	if st, statErr := f.Stat(); statErr == nil {
 		t.cachedFileSize.Store(st.Size())
+		t.tailedFileSize.Store(st.Size())
 	} else {
 		t.cachedFileSize.Store(0)
 	}
@@ -46,6 +48,21 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.decodedOffset.Store(filePos)
 
 	return nil
+}
+
+// recordRotationLossFromLastKnownSize accounts for bytes the tailer never read.
+// The file is closed between reads, so the rotated file cannot be stat'ed once
+// its path has been reused; measuring against the last size the read path saw
+// makes this a lower bound.
+func (t *Tailer) recordRotationLossFromLastKnownSize(source, service string) {
+	remainingBytes := t.tailedFileSize.Load() - t.lastReadOffset.Load()
+	if remainingBytes <= 0 {
+		return
+	}
+	metrics.BytesMissed.Add(remainingBytes)
+	metrics.TlmBytesMissed.Add(float64(remainingBytes))
+	metrics.RecordMissedBytes(source, service, remainingBytes)
+	log.Warnf("After rotation of %q, at least %d bytes were never read. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.file.Path, remainingBytes)
 }
 
 func (t *Tailer) readAvailable() (int, error) {
@@ -83,6 +100,9 @@ func (t *Tailer) readAvailable() (int, error) {
 				t.didFileRotate.Store(true)
 				return bytes, io.EOF
 			}
+			// Recorded before this cycle's reads, so a rotation landing mid-cycle
+			// is measured against the file we were reading, not its replacement.
+			t.tailedFileSize.Store(sz)
 
 			// Only perform fingerprint checks when fingerprinting is enabled and a valid fingerprint exists.
 			if t.fingerprint != nil && t.fingerprint.ValidFingerprint() {

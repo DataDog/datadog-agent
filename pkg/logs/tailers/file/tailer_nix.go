@@ -45,6 +45,10 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	return nil
 }
 
+// recordRotationLossFromLastKnownSize is a no-op here: StopAfterFileRotation
+// measures the loss from the handle it still holds on the rotated file.
+func (t *Tailer) recordRotationLossFromLastKnownSize(_, _ string) {}
+
 // read lets the tailer tail the content of a file
 // until it is closed or the tailer is stopped.
 func (t *Tailer) read() (int, error) {

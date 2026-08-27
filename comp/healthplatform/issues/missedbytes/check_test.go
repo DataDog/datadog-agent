@@ -1,0 +1,161 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+package missedbytes
+
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+)
+
+// newTestChecker returns a checker over a clean process-wide tracker. The
+// tracker is a singleton, so these tests must not run in parallel.
+func newTestChecker(t *testing.T, hostname string) *checker {
+	t.Helper()
+	logsmetrics.ResetMissedBytesForTest()
+	t.Cleanup(logsmetrics.ResetMissedBytesForTest)
+	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname(hostname))
+	return newChecker(hn)
+}
+
+// reportSources reads the breakdown back out of a report's context.
+func reportSources(t *testing.T, ctx map[string]string) []sourceLoss {
+	t.Helper()
+	var got []sourceLoss
+	require.NoError(t, json.Unmarshal([]byte(ctx[contextKeySources]), &got))
+	return got
+}
+
+// Without the file launcher the tracker is empty for reasons unrelated to loss.
+// The check must error rather than report zero issues, which the scheduler would
+// read as "everything resolved".
+func TestCheck_FileTailingInactiveErrors(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024)
+
+	reports, err := c.Run()
+	require.ErrorIs(t, err, errFileTailingInactive)
+	assert.Empty(t, reports, "an unestablished state must not be reported as no-loss")
+}
+
+func TestCheck_NoLossReportsNothing(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkFileTailingActive()
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+}
+
+// Every affected tuple on the host folds into one issue: the backend keeps a
+// single row per issue type, so per-tuple reports only fight each other for it.
+func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkFileTailingActive()
+	logsmetrics.RecordMissedBytes("nginx", "web", 4000000)
+	logsmetrics.RecordMissedBytes("nginx", "web", 200000)
+	logsmetrics.RecordMissedBytes("redis", "cache", 512)
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1, "every tuple on the host folds into one issue")
+
+	report := reports[0]
+	assert.Equal(t, IssueName, report.IssueName)
+	assert.Equal(t, issueSource, report.Source)
+	assert.Equal(t, hostIssueID("host-a"), report.IssueID)
+
+	assert.Equal(t, "4200512", report.Context[contextKeyBytes], "totals sum across every tuple")
+	assert.Equal(t, "3", report.Context[contextKeyRotations])
+	assert.Equal(t, "2", report.Context[contextKeySourceCount])
+	assert.Equal(t, "0", report.Context[contextKeySourcesOmitted])
+	assert.NotEmpty(t, report.Context[contextKeyLastLossAt])
+
+	assert.Equal(t, []sourceLoss{
+		{Source: "nginx", Service: "web", Bytes: 4200000, Rotations: 2},
+		{Source: "redis", Service: "cache", Bytes: 512, Rotations: 1},
+	}, reportSources(t, report.Context))
+
+	// The check and the template must agree on the context keys.
+	issue, err := MissedBytesIssue{}.BuildIssue(report.Context)
+	require.NoError(t, err)
+	assert.Equal(t, "Lost 4.2 MB of logs from 2 sources across 3 rotations in the last 24 hours", issue.GetTitle())
+}
+
+// The breakdown is capped, so it must spend its slots on the worst offenders
+// rather than on whichever tuples the snapshot happened to sort first.
+func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkFileTailingActive()
+
+	// Named so the snapshot's (source, service) ordering is the reverse of the
+	// byte ordering: source-00 is the smallest loss but sorts first.
+	const total = maxBreakdownSources + 2
+	for i := 0; i < total; i++ {
+		logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", int64(i+1)*1000)
+	}
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	ctx := reports[0].Context
+
+	assert.Equal(t, strconv.Itoa(total), ctx[contextKeySourceCount], "the count covers every tuple, not just the listed ones")
+	assert.Equal(t, "2", ctx[contextKeySourcesOmitted])
+
+	got := reportSources(t, ctx)
+	require.Len(t, got, maxBreakdownSources)
+	assert.Equal(t, "source-11", got[0].Source, "largest loss first")
+	assert.Equal(t, int64(12000), got[0].Bytes)
+	assert.Equal(t, "source-02", got[len(got)-1].Source, "the two smallest losses are the ones dropped")
+
+	// Totals must still account for the omitted tuples.
+	var want int64
+	for i := 0; i < total; i++ {
+		want += int64(i+1) * 1000
+	}
+	assert.Equal(t, strconv.FormatInt(want, 10), ctx[contextKeyBytes])
+}
+
+// The report is re-sent on every egress interval, so equal-loss tuples must not
+// reorder between ticks and churn the payload.
+func TestCheck_BreakdownOrderIsDeterministicOnTies(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkFileTailingActive()
+	logsmetrics.RecordMissedBytes("beta", "two", 1000)
+	logsmetrics.RecordMissedBytes("alpha", "two", 1000)
+	logsmetrics.RecordMissedBytes("alpha", "one", 1000)
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+
+	got := reportSources(t, reports[0].Context)
+	require.Len(t, got, 3)
+	assert.Equal(t, []string{"alpha/one", "alpha/two", "beta/two"}, []string{
+		got[0].Source + "/" + got[0].Service,
+		got[1].Source + "/" + got[1].Service,
+		got[2].Source + "/" + got[2].Service,
+	}, "ties break on source then service")
+}
+
+// The host must map to the same id on every run, or each check tick would file a
+// new issue instead of refreshing the existing one.
+func TestHostIssueID_StableAndHostScoped(t *testing.T) {
+	base := hostIssueID("host-a")
+
+	assert.Equal(t, base, hostIssueID("host-a"))
+	assert.True(t, strings.HasPrefix(base, IssueID+":"), "id %q must keep the kebab-case prefix", base)
+	assert.NotEqual(t, base, hostIssueID("host-b"), "hostname must scope the id")
+}

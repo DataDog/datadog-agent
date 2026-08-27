@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 
@@ -688,4 +689,107 @@ func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// The deferred goleak.VerifyNone() will detect if goroutine leaked
+}
+
+func TestMissedBytesIdentity(t *testing.T) {
+	tests := []struct {
+		name            string
+		cfg             *config.LogsConfig
+		expectedSource  string
+		expectedService string
+	}{
+		{
+			name:            "nil config",
+			cfg:             nil,
+			expectedSource:  "unknown",
+			expectedService: "unknown",
+		},
+		{
+			name:            "only the required fields are set",
+			cfg:             &config.LogsConfig{Type: config.FileType, Path: "/var/log/app.log"},
+			expectedSource:  "unknown",
+			expectedService: "unknown",
+		},
+		{
+			name:            "both set",
+			cfg:             &config.LogsConfig{Source: "nginx", Service: "web"},
+			expectedSource:  "nginx",
+			expectedService: "web",
+		},
+		{
+			name:            "service falls back to source",
+			cfg:             &config.LogsConfig{Source: "nginx"},
+			expectedSource:  "nginx",
+			expectedService: "nginx",
+		},
+		{
+			name:            "both fall back to the integration name",
+			cfg:             &config.LogsConfig{IntegrationName: "nginx-int"},
+			expectedSource:  "nginx-int",
+			expectedService: "nginx-int",
+		},
+		{
+			name:            "source falls back while service is set",
+			cfg:             &config.LogsConfig{IntegrationName: "nginx-int", Service: "web"},
+			expectedSource:  "nginx-int",
+			expectedService: "web",
+		},
+		{
+			name:            "source wins over the integration name",
+			cfg:             &config.LogsConfig{IntegrationName: "nginx-int", Source: "nginx"},
+			expectedSource:  "nginx",
+			expectedService: "nginx",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			source, service := missedBytesIdentity(tc.cfg)
+			require.Equal(t, tc.expectedSource, source)
+			require.Equal(t, tc.expectedService, service)
+		})
+	}
+}
+
+// newMissedBytesTailer builds a tailer with no filesystem or pipeline behind it.
+// Callers arm the platform's own loss measurement and drive
+// StopAfterFileRotation directly.
+func newMissedBytesTailer(t *testing.T, readOffset int64) *Tailer {
+	t.Helper()
+
+	const path = "rotated.log"
+	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
+		Type:    config.FileType,
+		Path:    path,
+		Source:  "missed-bytes-source",
+		Service: "missed-bytes-service",
+	}))
+	info := status.NewInfoRegistry()
+
+	tailer := NewTailer(&TailerOptions{
+		OutputChan:      make(chan *message.Message, 1),
+		File:            NewFile(path, source.UnderlyingSource(), false),
+		SleepDuration:   time.Millisecond,
+		Decoder:         decoder.NewDecoderFromSource(source, info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewMockFileOpener(),
+	})
+	tailer.lastReadOffset.Store(readOffset)
+	tailer.closeTimeout = 10 * time.Millisecond
+
+	return tailer
+}
+
+// awaitRotationClose waits for the goroutine StopAfterFileRotation spawned.
+// It signals t.stop after the accounting, so this is a synchronization point
+// rather than a poll.
+func awaitRotationClose(t *testing.T, tailer *Tailer) {
+	t.Helper()
+	select {
+	case <-tailer.stop:
+	case <-time.After(10 * time.Second):
+		t.Fatal("rotation close goroutine never finished")
+	}
 }

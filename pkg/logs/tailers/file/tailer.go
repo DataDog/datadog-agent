@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -63,6 +64,10 @@ type Tailer struct {
 	// osFile is the afero.File object from which log data is read.  The read implementation
 	// is platform-specific, and not every platform will have a non-nil value here.
 	osFile afero.File
+
+	// tailedFileSize is the size of the file being read, as last seen by the read
+	// path. Only platforms that keep no handle across a rotation use it.
+	tailedFileSize *atomic.Int64
 
 	// tags are the tags to be attached to each log message, excluding tags provided
 	// by the tag provider.
@@ -199,6 +204,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		isFinished:                   atomic.NewBool(false),
 		didFileRotate:                atomic.NewBool(false),
 		cachedFileSize:               atomic.NewInt64(0),
+		tailedFileSize:               atomic.NewInt64(0),
 		rotationMismatchCacheActive:  atomic.NewBool(false),
 		rotationMismatchOffsetActive: atomic.NewBool(false),
 		info:                         opts.Info,
@@ -303,11 +309,44 @@ func (t *Tailer) Stop() {
 	<-t.done
 }
 
+// missedBytesIdentity resolves the (source, service) tuple reported for bytes
+// lost to a rotation. Both LogsConfig fields can legitimately be empty, so the
+// fallbacks keep unlabelled configs from collapsing onto one empty tuple.
+func missedBytesIdentity(cfg *config.LogsConfig) (source string, service string) {
+	const unknown = "unknown"
+	if cfg == nil {
+		return unknown, unknown
+	}
+
+	source = unknown
+	switch {
+	case cfg.Source != "":
+		source = cfg.Source
+	case cfg.IntegrationName != "":
+		source = cfg.IntegrationName
+	}
+
+	service = unknown
+	switch {
+	case cfg.Service != "":
+		service = cfg.Service
+	case cfg.Source != "":
+		service = cfg.Source
+	case cfg.IntegrationName != "":
+		service = cfg.IntegrationName
+	}
+
+	return source, service
+}
+
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
 	bytesReadAtRotationTime := t.bytesRead.Get()
+	// Resolved before the goroutine, which sleeps for closeTimeout first, to keep
+	// the source lock off that path.
+	missedSource, missedService := missedBytesIdentity(t.file.Source.Config())
 	go func() {
 		time.Sleep(t.closeTimeout)
 		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
@@ -324,11 +363,13 @@ func (t *Tailer) StopAfterFileRotation() {
 					if remainingBytes > 0 {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
+						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes)
 						log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
 					}
 				}
 			}
 		}
+		t.recordRotationLossFromLastKnownSize(missedSource, missedService)
 		t.stopForward()
 		select {
 		case t.stop <- struct{}{}:

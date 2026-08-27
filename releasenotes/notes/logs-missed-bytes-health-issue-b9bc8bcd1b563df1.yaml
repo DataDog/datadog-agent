@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    The Agent now reports an Agent Health issue when the log file tailer loses
+    log data because a file was rotated before the tailer finished reading it.
+    The issue is reported once per host and covers every affected log source,
+    reporting the total bytes lost and rotations involved over the last 24 hours
+    together with a per-source breakdown. On Windows the reported byte count is
+    a lower bound, because the tailer holds no handle on the rotated file and
+    can only measure against the size it last observed.
