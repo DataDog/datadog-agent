@@ -12,21 +12,36 @@ import (
 	"errors"
 	"fmt"
 
+	installerenv "github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
+	authoredscriptsoci "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts/oci"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type RunAuthoredScriptHandler struct {
-	catalog authoredscripts.Catalog
-	enabled bool
+	catalog           authoredscripts.Catalog
+	downloader        *authoredscripts.Downloader
+	downloaderInitErr error
+	enabled           bool
 }
 
 func NewRunAuthoredScriptHandler(enabled bool) *RunAuthoredScriptHandler {
-	return &RunAuthoredScriptHandler{
+	handler := &RunAuthoredScriptHandler{
 		catalog: authoredscripts.NewStaticCatalog(),
 		enabled: enabled,
 	}
+	if !enabled {
+		return handler
+	}
+
+	environment := installerenv.FromEnv()
+	materializer, err := authoredscriptsoci.NewMaterializer(environment, environment.HTTPClient())
+	if err == nil {
+		handler.downloader, err = authoredscripts.NewUserCacheDownloader(materializer)
+	}
+	handler.downloaderInitErr = err
+	return handler
 }
 
 // RunAuthoredScriptOutputs contains the process result returned by an authored action.
@@ -56,14 +71,16 @@ func (h *RunAuthoredScriptHandler) Run(
 	if err != nil {
 		return nil, fmt.Errorf("could not resolve authored-script package %q: %w", fqn, err)
 	}
-
-	store, err := authoredscripts.NewUserCacheStore()
-	if err != nil {
-		return nil, err
+	if h.downloaderInitErr != nil {
+		return nil, fmt.Errorf("could not initialize authored-script downloader: %w", h.downloaderInitErr)
 	}
-	artifact, err := store.Open(descriptor)
+	if h.downloader == nil {
+		return nil, errors.New("authored-script downloader is not configured")
+	}
+
+	artifact, err := h.downloader.Download(ctx, descriptor)
 	if err != nil {
-		return nil, fmt.Errorf("could not open authored-script package %q: %w", fqn, err)
+		return nil, fmt.Errorf("could not download authored-script package %q: %w", fqn, err)
 	}
 	scriptPackage, err := authoredscripts.LoadPackage(fqn, descriptor, artifact)
 	if err != nil {

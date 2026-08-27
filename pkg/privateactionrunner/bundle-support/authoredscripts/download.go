@@ -13,6 +13,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	godigest "github.com/opencontainers/go-digest"
 
@@ -20,9 +22,16 @@ import (
 )
 
 const (
-	artifactDigestNamespace = "sha256"
-	artifactKeyVersion      = "v1"
+	artifactDigestNamespace      = "sha256"
+	artifactKeyVersion           = "v1"
+	datadogAgentCacheDirectory   = "datadog-agent"
+	authoredScriptCacheDirectory = "dd-authored-script"
 )
+
+// LocalArtifact identifies an immutable artifact directory that is ready for use.
+type LocalArtifact struct {
+	Directory string
+}
 
 // MaterializedPackage describes the package metadata observed by a
 // PackageMaterializer while materializing an artifact.
@@ -73,6 +82,19 @@ func NewDownloader(rootDirectory string, materializer PackageMaterializer) (*Dow
 		materializer: materializer,
 		cacheVariant: cacheVariant,
 	}, nil
+}
+
+// NewUserCacheDownloader creates a downloader rooted in the current user's
+// authored-script cache directory.
+func NewUserCacheDownloader(materializer PackageMaterializer) (*Downloader, error) {
+	userCacheDirectory, err := os.UserCacheDir()
+	if err != nil {
+		return nil, fmt.Errorf("could not locate the OS user cache: %w", err)
+	}
+	return NewDownloader(
+		filepath.Join(userCacheDirectory, datadogAgentCacheDirectory, authoredScriptCacheDirectory),
+		materializer,
+	)
 }
 
 // Download returns a validated local artifact for descriptor, downloading and
