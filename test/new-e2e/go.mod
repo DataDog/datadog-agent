@@ -44,7 +44,7 @@ require (
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.33.0
 	github.com/pulumi/pulumi/sdk/v3 v3.258.0
 	github.com/samber/lo v1.53.0
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.yaml.in/yaml/v2 v2.4.4
 	go.yaml.in/yaml/v3 v3.0.5
@@ -311,7 +311,7 @@ require (
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v9 v9.30.0 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v9 v9.34.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 // indirect

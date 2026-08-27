@@ -415,8 +415,8 @@ github.com/mattn/go-runewidth v0.0.27/go.mod h1:3qAiGCV4Koz/yuveO58qUefmUTRm8r0I
 github.com/mattn/go-sqlite3 v1.14.22/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
 github.com/mattn/go-sqlite3 v1.14.50 h1:dmdFvo1XG4MPzA4IkAmE9upVz/Nj31uRoM5+jC8hYbY=
 github.com/mattn/go-sqlite3 v1.14.50/go.mod h1:6JTjA44L93a0QCyJef5YvlPoKXntQPjzWv5gtm9sB6w=
-github.com/miekg/dns v1.1.72 h1:vhmr+TF2A3tuoGNkLDFK9zi36F2LS+hKTRW0Uf8kbzI=
-github.com/miekg/dns v1.1.72/go.mod h1:+EuEPhdHOsfk6Wk5TT2CzssZdqkmFhf8r+aVyDEToIs=
+github.com/miekg/dns v1.1.73 h1:uhT8nJxmTrPJYClxVxTCX+CVn6qnzSiybRk72Z6DgrE=
+github.com/miekg/dns v1.1.73/go.mod h1:RW2Obtfd5NZHvOFe3zYG0W8koWOQtAzyHaLo8vASBuQ=
 github.com/mitchellh/copystructure v1.2.0 h1:vpKXTN4ewci03Vljg/q9QvCGUDttBOGBIa15WveJJGw=
 github.com/mitchellh/copystructure v1.2.0/go.mod h1:qLl+cE2AmVv+CoeAwDPye/v+N2HKCj9FbZEVFJRxO9s=
 github.com/mitchellh/go-ps v1.0.0 h1:i6ampVEEF4wQFF+bkYfwYgY+F/uYJDktmvLPf7qIgjc=
@@ -529,8 +529,8 @@ github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 h1:mc9IbrRi1pWSg9HWEFT6EcQ274WnZ9
 github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2/go.mod h1:gPNbbz+ywFqnRRQMDxQQbMp4nXJIk43QBUj0N+xWXbw=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0 h1:XcPRW3UTtepkS9hH0czw2pzuuYDgx0FePzvjGXFoLgg=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0/go.mod h1:dQCjEUDAsgGdgF4vaYgadAG96eCgJdJ4cZ21Wyca2tU=
-github.com/pulumi/pulumi-gcp/sdk/v9 v9.30.0 h1:IqV/xBowPn4y7xaOB77plp7n6Vftr/aNoA2UF0YTw+s=
-github.com/pulumi/pulumi-gcp/sdk/v9 v9.30.0/go.mod h1:d60JuN+7L+PscwZK++AlFyrfia1s1fWsO1EiSzbrelw=
+github.com/pulumi/pulumi-gcp/sdk/v9 v9.34.1 h1:/khW98FHrRGKtzhyqLwgTjJjmA5+ev4aGIvp06AZe7o=
+github.com/pulumi/pulumi-gcp/sdk/v9 v9.34.1/go.mod h1:YMIpKrD4W1lhzfiHGCDklsl8qh0jl3dwbc8CRifBzUQ=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.33.0 h1:fFP72Q6/GfyI7BII3hUS7vn45Eg16zKIIS3I3R9bNEY=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.33.0/go.mod h1:sIZVlvi6oFQMEgTa+XkYfr/sAXRfrprPo3Ja6UYpGEU=
 github.com/pulumi/pulumi-libvirt/sdk v0.5.4 h1:7nS8ATK0Iml+yid80BrkW8WDynzwWYevx0cLpbPOYdM=
@@ -585,8 +585,8 @@ github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81P
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
-github.com/stretchr/testify v1.12.0 h1:K6Mr6jO9JICuend/5xzTM03ydSV3vdNRYAdPSukj8uI=
-github.com/stretchr/testify v1.12.0/go.mod h1:bOYBZb5qJ00vPzWfIqBUZPaxK8jWiXc6d3ErP4Ca9Gw=
+github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
+github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 github.com/texttheater/golang-levenshtein v1.0.1 h1:+cRNoVrfiwufQPhoMzB6N0Yf/Mqajr6t1lOv8GyGE2U=
 github.com/texttheater/golang-levenshtein v1.0.1/go.mod h1:PYAKrbF5sAiq9wd+H82hs7gNaen0CplQ9uvm6+enD/8=
 github.com/tinylib/msgp v1.6.4 h1:mOwYbyYDLPj35mkA2BjjYejgJk9BuHxDdvRnb6v2ZcQ=
