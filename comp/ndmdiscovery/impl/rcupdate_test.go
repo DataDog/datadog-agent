@@ -255,14 +255,16 @@ func TestRCUpdateStopsPreviousRangeWhenAutodiscoveryIDChanges(t *testing.T) {
 	}, rec.callback)
 	require.Equal(t, []string{"ad-1"}, scheduledIDs(sched))
 
-	// The same RC path now names a different range.
+	// The same RC path now names a different range. A fresh recorder, so the
+	// acknowledgement asserted below is this snapshot's and not the first one's.
+	second := newApplyRecorder()
 	h.Update(map[string]state.RawConfig{
 		"p1": rawConfig(autodiscoveryBody("ad-2", "10.0.1.0/24")),
-	}, rec.callback)
+	}, second.callback)
 
 	assert.Equal(t, []string{"ad-2"}, scheduledIDs(sched),
 		"the range a path used to name stops when that path's autodiscovery ID changes")
-	st, ok := rec.get("p1")
+	st, ok := second.get("p1")
 	require.True(t, ok)
 	assert.Equal(t, state.ApplyStateAcknowledged, st.State)
 }
