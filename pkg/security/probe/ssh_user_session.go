@@ -19,7 +19,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
-const maxRetryForMsgWithSSHContext = 15
+// maxRetryForMsgWithSSHContext is the number of retries granted to an event to wait for the
+// authentication log line of its SSH session to be tailed from the auth log.
+//
+// sshd logs the "Accepted <method>" line right before spawning the user session, so the event of
+// the very first command of a session usually races with the auth log tailer. A couple of retries
+// (each one is `retryDelay` apart) is enough to close that gap.
+//
+// This budget must stay small: the retry queue is ordered, so an event waiting here delays all the
+// following events. Sessions that can never be resolved (typically because they were established
+// before the agent started tailing the log) pay it only once, see MarkUnresolved.
+const maxRetryForMsgWithSSHContext = 5
 
 func (p *EBPFProbe) HandleSSHUserSessionFromEvent(event *model.Event) {
 	if p.config.RuntimeSecurity.SSHUserSessionsEnabled {
@@ -45,6 +55,15 @@ func NewSSHUserSessionPatcher(userSessionCtx *serializers.SSHSessionContextSeria
 	}
 }
 
+// sessionKey returns the LRU key of the SSH session of the event
+func (p *SSHUserSessionPatcher) sessionKey() usersessions.SSHSessionKey {
+	return usersessions.SSHSessionKey{
+		SSHDPid: strconv.FormatUint(uint64(p.SSHDPid), 10),
+		IP:      p.userSessionCtx.SSHClientIP,
+		Port:    strconv.Itoa(p.userSessionCtx.SSHClientPort),
+	}
+}
+
 // IsResolved implements the EventSerializerPatcher interface for SSH user sessions
 func (p *SSHUserSessionPatcher) IsResolved() error {
 	if p.userSessionCtx == nil {
@@ -54,26 +73,34 @@ func (p *SSHUserSessionPatcher) IsResolved() error {
 		return errors.New("resolver is nil")
 	}
 
+	key := p.sessionKey()
+
 	// Check in LRU
-	key := usersessions.SSHSessionKey{
-		SSHDPid: strconv.FormatUint(uint64(p.SSHDPid), 10),
-		IP:      p.userSessionCtx.SSHClientIP,
-		Port:    strconv.Itoa(p.userSessionCtx.SSHClientPort),
+	if _, ok := p.resolver.GetSSHSession(key); ok {
+		return nil
 	}
 
-	_, ok := p.resolver.GetSSHSession(key)
-
-	if !ok {
-		return fmt.Errorf("ssh session not found in LRU for %s:%d",
-			p.userSessionCtx.SSHClientIP, p.userSessionCtx.SSHClientPort)
+	// the session was already given up on, don't delay this event
+	if p.resolver.IsSSHSessionUnresolved(key) {
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf("ssh session not found in LRU for %s:%d",
+		p.userSessionCtx.SSHClientIP, p.userSessionCtx.SSHClientPort)
 }
 
 // MaxRetry implements the DelayabledEvent interface for SSH user sessions
 func (p *SSHUserSessionPatcher) MaxRetry() int {
 	return maxRetryForMsgWithSSHContext
+}
+
+// MarkUnresolved flags the SSH session of the event as unresolvable so that the next events of the
+// same session are sent without waiting for its authentication log line
+func (p *SSHUserSessionPatcher) MarkUnresolved() {
+	if p.userSessionCtx == nil || p.resolver == nil {
+		return
+	}
+	p.resolver.MarkSSHSessionUnresolved(p.sessionKey())
 }
 
 // PatchEvent implements the EventSerializerPatcher interface for SSH user sessions

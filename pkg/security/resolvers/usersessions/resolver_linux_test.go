@@ -11,6 +11,7 @@ package usersessions
 import (
 	"testing"
 
+	"github.com/go-openapi/testify/v2/require"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 
@@ -101,4 +102,41 @@ func Test_parseSSHLogLine(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_SSHSessionsResolvable(t *testing.T) {
+	resolver, err := NewResolver(64, true)
+	require.NoError(t, err)
+
+	// no auth log tailer started, nothing will ever populate the session cache
+	assert.False(t, resolver.SSHSessionsResolvable())
+
+	resolver.sshLogReader = &incrementalFileReader{path: "/var/log/auth.log"}
+	assert.True(t, resolver.SSHSessionsResolvable())
+}
+
+func Test_SSHSessionUnresolved(t *testing.T) {
+	key := SSHSessionKey{SSHDPid: "4242", IP: "127.0.0.1", Port: "38835"}
+
+	t.Run("ssh disabled", func(t *testing.T) {
+		resolver, err := NewResolver(64, false)
+		assert.NoError(t, err)
+
+		// must not panic nor report anything when the ssh caches are not initialized
+		resolver.MarkSSHSessionUnresolved(key)
+		assert.False(t, resolver.IsSSHSessionUnresolved(key))
+	})
+
+	t.Run("ssh enabled", func(t *testing.T) {
+		resolver, err := NewResolver(64, true)
+		assert.NoError(t, err)
+
+		assert.False(t, resolver.IsSSHSessionUnresolved(key), "session must not be flagged yet")
+
+		resolver.MarkSSHSessionUnresolved(key)
+		assert.True(t, resolver.IsSSHSessionUnresolved(key), "session must be flagged")
+
+		other := SSHSessionKey{SSHDPid: "4243", IP: "127.0.0.1", Port: "38835"}
+		assert.False(t, resolver.IsSSHSessionUnresolved(other), "other sessions must not be flagged")
+	})
 }

@@ -80,9 +80,6 @@ func (p *pendingMsg) getMaxRetry() int {
 	for _, report := range p.actionReports {
 		maxRetry = max(maxRetry, report.MaxRetry())
 	}
-	if p.sshSessionPatcher != nil {
-		maxRetry = max(maxRetry, p.sshSessionPatcher.MaxRetry())
-	}
 	return maxRetry
 }
 
@@ -142,13 +139,22 @@ func (p *pendingMsg) isResolved() bool {
 		}
 	}
 
-	// TODO: for now skip the retry mechanism and always send the event
-	// if p.sshSessionPatcher != nil {
-	// 	if err := p.sshSessionPatcher.IsResolved(); err != nil {
-	// 		seclog.Tracef("ssh session not resolved: %v", err)
-	// 		return false
-	// 	}
-	// }
+	// The SSH session patcher has its own, much smaller, retry budget: the auth log line of a
+	// session is expected within a few hundreds of milliseconds, and the retry queue is ordered so
+	// waiting longer would delay all the following events.
+	if p.sshSessionPatcher != nil {
+		if err := p.sshSessionPatcher.IsResolved(); err != nil {
+			if p.retry < p.sshSessionPatcher.MaxRetry() {
+				seclog.Tracef("ssh session not resolved: %v", err)
+				return false
+			}
+			// give up on this session, the auth log line will most likely never show up (session
+			// established before the agent started tailing the log). Flag it so that its next
+			// events are sent right away instead of being delayed too.
+			seclog.Debugf("giving up on ssh session resolution: %v", err)
+			p.sshSessionPatcher.MarkUnresolved()
+		}
+	}
 	return true
 }
 
