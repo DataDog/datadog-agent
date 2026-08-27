@@ -182,8 +182,8 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("timeout", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(300 * time.Millisecond)
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			<-r.Context().Done()
 			w.WriteHeader(http.StatusOK)
 		}
 		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
