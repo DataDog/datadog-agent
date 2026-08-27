@@ -74,7 +74,7 @@ fn log_spawn_result(result: Result<(), anyhow::Error>, name: &str) {
     }
 }
 
-async fn join_in_flight_spawn<F>(spawn_fut: Pin<&mut F>)
+async fn join_in_flight_spawn<F>(mut spawn_fut: Pin<&mut F>)
 where
     F: Future<Output = anyhow::Result<()>>,
 {
@@ -96,7 +96,7 @@ where
         return;
     }
 
-    if let Err(e) = spawn_fut.await {
+    if let Err(e) = spawn_fut.as_mut().await {
         warn!("startup: in-flight auto-start failed: {e:#}");
     }
 }
