@@ -1775,6 +1775,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									{
 										Kill: &KillDefinition{
 											Signal: "SIGUSR2",
+											Scope: "process",
 										},
 									},
 								},
@@ -1870,11 +1871,13 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									{
 										Kill: &KillDefinition{
 											Signal: "SIGUSR1",
+											Scope: "process",
 										},
 									},
 									{
 										Kill: &KillDefinition{
 											Signal: "SIGUSR2",
+											Scope: "process",
 										},
 									},
 								},
@@ -1962,6 +1965,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									{
 										Kill: &KillDefinition{
 											Signal: "SIGUSR1",
+											Scope: "process",
 										},
 									},
 								},
@@ -2049,6 +2053,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									{
 										Kill: &KillDefinition{
 											Signal: "SIGUSR1",
+											Scope: "process",
 										},
 									},
 								},
@@ -2245,6 +2250,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									{
 										Kill: &KillDefinition{
 											Signal: "SIGUSR1",
+											Scope: "process",
 										},
 									},
 								},
@@ -2340,11 +2346,13 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									{
 										Kill: &KillDefinition{
 											Signal: "SIGUSR1",
+											Scope: "process",
 										},
 									},
 									{
 										Kill: &KillDefinition{
 											Signal: "SIGUSR2",
+											Scope: "process",
 										},
 									},
 								},
