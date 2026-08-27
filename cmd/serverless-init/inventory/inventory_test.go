@@ -123,6 +123,14 @@ func TestResourceIDFromTags(t *testing.T) {
 		}
 		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/revisions/s-00004-def", resourceIDFromTags(cloudservice.CloudRunOrigin, tags))
 	})
+	t.Run("cloud_run_function_with_only_function_resource_tag", func(t *testing.T) {
+		t.Setenv("FUNCTION_TARGET", "myHandler")
+		t.Setenv("K_REVISION", "s-00004-def")
+		tags := map[string]string{
+			"gcrfx.resource_name": "projects/p/locations/l/services/s/functions/myHandler",
+		}
+		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/revisions/s-00004-def", resourceIDFromTags(cloudservice.CloudRunOrigin, tags))
+	})
 	t.Run("cloud_run_job", func(t *testing.T) {
 		tags := map[string]string{"gcrj.resource_name": "projects/p/locations/l/jobs/my-job"}
 		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/jobs/my-job", resourceIDFromTags(cloudservice.CloudRunJobsOrigin, tags))
@@ -153,6 +161,10 @@ func TestParentResourceIDFromTags(t *testing.T) {
 	t.Run("cloud_run", func(t *testing.T) {
 		tags := map[string]string{"gcr.resource_name": "projects/p/locations/l/services/my-service"}
 		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/services/my-service", parentResourceIDFromTags(cloudservice.CloudRunOrigin, tags))
+	})
+	t.Run("cloud_run_function_with_only_function_resource_tag", func(t *testing.T) {
+		tags := map[string]string{"gcrfx.resource_name": "projects/p/locations/l/services/my-function/functions/main"}
+		assert.Equal(t, "//run.googleapis.com/projects/p/locations/l/services/my-function", parentResourceIDFromTags(cloudservice.CloudRunOrigin, tags))
 	})
 	t.Run("container_app", func(t *testing.T) {
 		tags := map[string]string{"resource_id": "/subscriptions/sub-1/resourceGroups/RG-1/providers/Microsoft.App/containerApps/My-App"}

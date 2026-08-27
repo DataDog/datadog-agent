@@ -184,6 +184,19 @@ func lastPathSegment(path string) string {
 	return path
 }
 
+// cloudRunServicePath returns the backing Cloud Run service path. Gen2
+// function sidecars expose gcrfx.resource_name but do not always expose the
+// equivalent gcr.resource_name, so trim the function suffix when needed.
+func cloudRunServicePath(tags map[string]string) string {
+	if path := tags["gcr.resource_name"]; path != "" {
+		return path
+	}
+	if before, _, found := strings.Cut(tags["gcrfx.resource_name"], "/functions/"); found {
+		return before
+	}
+	return ""
+}
+
 // resourceIDFromTags returns the full cloud resource identifier (CCRID) for
 // the workload, derived from cloudservice tags. This joins to the crawler's
 // canonical_resource_id for the matching resource type. The format MUST match
@@ -194,7 +207,7 @@ func resourceIDFromTags(origin string, tags map[string]string) string {
 		// Cloud Run revisions are independently active and can receive traffic at
 		// the same time. Key their reports to the crawler's revision CCRID, while
 		// parent_resource_id retains the stable service identity.
-		return canonicalGCPRunRevisionID(tags["gcr.resource_name"], os.Getenv("K_REVISION"))
+		return canonicalGCPRunRevisionID(cloudRunServicePath(tags), os.Getenv("K_REVISION"))
 	case cloudservice.CloudRunJobsOrigin:
 		// tags["gcrj.resource_name"] = "projects/<p>/locations/<l>/jobs/<j>"
 		return canonicalGCPRunID(tags["gcrj.resource_name"])
@@ -219,7 +232,7 @@ func resourceIDFromTags(origin string, tags map[string]string) string {
 func parentResourceIDFromTags(origin string, tags map[string]string) string {
 	switch origin {
 	case cloudservice.CloudRunOrigin:
-		return canonicalGCPRunID(tags["gcr.resource_name"])
+		return canonicalGCPRunID(cloudRunServicePath(tags))
 	case cloudservice.ContainerAppOrigin:
 		return canonicalAzureID(tags["resource_id"])
 	default:
