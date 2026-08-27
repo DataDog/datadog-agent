@@ -59,6 +59,7 @@ go_library(
         "//pkg/config/structure",
         "//pkg/util/log",
         "//pkg/util/option",
+        "@com_github_hashicorp_golang_lru_v2//simplelru",
     ],
 )
 

@@ -160,7 +160,7 @@ not embed a `correlationEmitter`.
 ### Detector-output deduplication vs replay history
 
 The engine deduplicates detector outputs across advances before feeding them to
-correlators. Live mode keeps only a data-time- and cardinality-bounded dedup cache;
+correlators. Live mode keeps only a fixed-size dedup cache;
 it does not retain full raw anomalies because reporters receive advance-local
 anomalies and correlator events directly. `StorageConfig.TrackAnomalyHistory` is
 false by default and is enabled only by testbench/replay configuration so

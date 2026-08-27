@@ -73,12 +73,12 @@ func TestStateView_Anomalies(t *testing.T) {
 		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
 		DetectorName: "detector_a",
 		Timestamp:    100,
-	}, 100)
+	})
 	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "mem"},
 		DetectorName: "bocpd",
 		Timestamp:    101,
-	}, 101)
+	})
 
 	if len(sv.Anomalies()) != 2 {
 		t.Fatalf("expected 2 anomalies, got %d", len(sv.Anomalies()))
@@ -117,7 +117,7 @@ func TestStateView_Anomalies(t *testing.T) {
 		Source:       diskDesc,
 		DetectorName: "detector_a",
 		Timestamp:    102,
-	}, 102)
+	})
 	diskAnomalies := sv.AnomaliesForSource(diskDesc)
 	if len(diskAnomalies) != 1 {
 		t.Fatalf("expected 1 disk anomaly, got %d", len(diskAnomalies))
@@ -135,20 +135,40 @@ func TestStateView_Anomalies(t *testing.T) {
 	}
 }
 
-func TestLiveAnomalyTrackingDeduplicatesWithoutRetainingHistory(t *testing.T) {
+func TestLiveAnomalyTrackingIsBoundedAndDoesNotRetainHistory(t *testing.T) {
 	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
-	anomaly := observerdef.Anomaly{
-		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
-		DetectorName: "detector_a",
-		Title:        "spike",
-		Timestamp:    100,
+	e.anomalyDeduper = newAnomalyDeduper(2)
+	evicted := make(map[string]int)
+	e.onAnomalyDedupEvicted = func(reason string, count int) {
+		evicted[reason] += count
+	}
+	anomaly := func(ref observerdef.SeriesRef, timestamp int64) observerdef.Anomaly {
+		return observerdef.Anomaly{
+			Source:       observerdef.SeriesDescriptor{Name: "cpu"},
+			SourceRef:    &observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
+			DetectorName: "detector",
+			Title:        "spike",
+			Timestamp:    timestamp,
+		}
 	}
 
-	if !e.acceptAnomaly(anomaly, 100) {
-		t.Fatal("expected the first anomaly to be accepted")
+	first := anomaly(1, 100)
+	second := anomaly(2, 101)
+	third := anomaly(3, 102)
+	if !e.acceptAnomaly(first) || !e.acceptAnomaly(second) {
+		t.Fatal("expected unique anomalies to be accepted")
 	}
-	if e.acceptAnomaly(anomaly, 101) {
+	if e.acceptAnomaly(first) {
 		t.Fatal("expected the repeated anomaly to be deduplicated")
+	}
+	if !e.acceptAnomaly(third) {
+		t.Fatal("expected the third unique anomaly to be accepted")
+	}
+	if e.acceptAnomaly(first) {
+		t.Fatal("expected the recently used anomaly to remain deduplicated after eviction")
+	}
+	if got := e.anomalyDeduper.live.Len(); got != 2 {
+		t.Fatalf("live dedup cache has %d entries, expected capacity 2", got)
 	}
 	if got := len(e.RawAnomalies()); got != 0 {
 		t.Fatalf("live mode retained %d raw anomalies, expected none", got)
@@ -156,180 +176,16 @@ func TestLiveAnomalyTrackingDeduplicatesWithoutRetainingHistory(t *testing.T) {
 	if got := len(e.uniqueAnomalySources); got != 0 {
 		t.Fatalf("live mode retained %d unique anomaly sources, expected none", got)
 	}
-	if got := len(e.anomalyDeduper.entries); got != 1 {
-		t.Fatalf("live dedup cache has %d entries, expected 1", got)
-	}
-}
-
-func TestAnomalyDeduperBoundsEntries(t *testing.T) {
-	key := func(source string, timestamp int64) anomalyDedupKey {
-		return anomalyDedupKey{sourceKey: source, detectorName: "detector", timestamp: timestamp}
-	}
-
-	t.Run("data time", func(t *testing.T) {
-		deduper := newAnomalyDeduper(10, 10)
-		first := key("first", 100)
-		if !deduper.accept(first, 100) {
-			t.Fatal("expected first key to be accepted")
-		}
-		if deduper.accept(first, 110) {
-			t.Fatal("expected key at the retention boundary to remain deduplicated")
-		}
-		result := deduper.acceptWithEvictions(key("second", 111), 111)
-		if !result.accepted {
-			t.Fatal("expected second key to be accepted")
-		}
-		if result.ageEvicted != 1 || result.capacityEvicted != 0 {
-			t.Fatalf("unexpected eviction counts: %+v", result)
-		}
-		if !deduper.accept(first, 111) {
-			t.Fatal("expected expired key to be accepted again")
-		}
-	})
-
-	t.Run("cardinality", func(t *testing.T) {
-		deduper := newAnomalyDeduper(0, 2)
-		first := key("first", 100)
-		if !deduper.accept(first, 100) || !deduper.accept(key("second", 101), 101) {
-			t.Fatal("expected unique keys to be accepted")
-		}
-		result := deduper.acceptWithEvictions(key("third", 102), 102)
-		if !result.accepted || result.capacityEvicted != 1 || result.ageEvicted != 0 {
-			t.Fatalf("unexpected capacity eviction result: %+v", result)
-		}
-		if got := len(deduper.entries); got != 2 {
-			t.Fatalf("dedup cache has %d entries, expected cardinality cap 2", got)
-		}
-		if !deduper.accept(first, 102) {
-			t.Fatal("expected the oldest capacity-evicted key to be accepted again")
-		}
-	})
-}
-
-func TestAnomalyDeduperRemovesStorageRefs(t *testing.T) {
-	deduper := newAnomalyDeduper(100, 10)
-	refKey := func(ref observerdef.SeriesRef, agg observerdef.Aggregate) anomalyDedupKey {
-		return anomalyDedupKey{
-			sourceRef:       ref,
-			sourceAggregate: agg,
-			hasSourceRef:    true,
-			detectorName:    "detector",
-			timestamp:       100,
-		}
-	}
-	refOneAvg := refKey(1, observerdef.AggregateAverage)
-	refOneSum := refKey(1, observerdef.AggregateSum)
-	refTwo := refKey(2, observerdef.AggregateAverage)
-	withoutRef := anomalyDedupKey{sourceKey: "rrcf/score", detectorName: "rrcf", timestamp: 100}
-	for _, key := range []anomalyDedupKey{refOneAvg, refOneSum, refTwo, withoutRef} {
-		if !deduper.accept(key, 100) {
-			t.Fatalf("expected key to be accepted: %+v", key)
-		}
-	}
-
-	if removed := deduper.removeSourceRefs([]observerdef.SeriesRef{1}); removed != 2 {
-		t.Fatalf("removed %d dedup entries for ref 1, expected 2", removed)
-	}
-	if got := len(deduper.entries); got != 2 {
-		t.Fatalf("dedup cache has %d entries after source removal, expected 2", got)
-	}
-	if _, exists := deduper.refHeads[1]; exists {
-		t.Fatal("source-ref index retained an evicted ref")
-	}
-	if !deduper.accept(refOneAvg, 100) {
-		t.Fatal("expected a removed source-ref key to be accepted again")
-	}
-	if deduper.accept(refTwo, 100) || deduper.accept(withoutRef, 100) {
-		t.Fatal("removing ref 1 also removed unrelated dedup keys")
-	}
-}
-
-func TestAnomalyDeduperRebuildsSourceIndexesAfterCompaction(t *testing.T) {
-	const entryCount = 2048
-	deduper := newAnomalyDeduper(0, entryCount)
-	for i := 0; i < entryCount; i++ {
-		key := anomalyDedupKey{
-			sourceRef:    observerdef.SeriesRef(i),
-			hasSourceRef: true,
-			detectorName: "detector",
-			timestamp:    100,
-		}
-		if !deduper.accept(key, 100) {
-			t.Fatalf("expected ref %d to be accepted", i)
-		}
-	}
-
-	refs := make([]observerdef.SeriesRef, entryCount/2)
-	for i := range refs {
-		refs[i] = observerdef.SeriesRef(i)
-	}
-	if removed := deduper.removeSourceRefs(refs); removed != len(refs) {
-		t.Fatalf("removed %d entries before compaction, expected %d", removed, len(refs))
-	}
-	if len(deduper.queue) != entryCount/2 || deduper.inactive != 0 {
-		t.Fatalf("queue was not compacted: len=%d inactive=%d", len(deduper.queue), deduper.inactive)
-	}
-	if removed := deduper.removeSourceRefs([]observerdef.SeriesRef{entryCount - 1}); removed != 1 {
-		t.Fatalf("rebuilt source index removed %d entries, expected 1", removed)
-	}
-}
-
-func TestLiveAnomalyDedupEvictionTelemetry(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
-	e.anomalyDeduper.maxAgeSecs = 10
-	e.anomalyDeduper.maxEntries = 2
-	evicted := make(map[string]int)
-	e.onAnomalyDedupEvicted = func(reason string, count int) {
-		evicted[reason] += count
-	}
-	anomaly := func(name string, timestamp int64) observerdef.Anomaly {
-		return observerdef.Anomaly{
-			Source:       observerdef.SeriesDescriptor{Name: name},
-			DetectorName: "detector",
-			Timestamp:    timestamp,
-		}
-	}
-
-	e.acceptAnomaly(anomaly("first", 100), 100)
-	e.acceptAnomaly(anomaly("second", 101), 101)
-	e.acceptAnomaly(anomaly("third", 102), 102)
-	e.acceptAnomaly(anomaly("fourth", 113), 113)
-
-	ref := observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage}
-	withRef := anomaly("storage-backed", 114)
-	withRef.SourceRef = &ref
-	e.acceptAnomaly(withRef, 114)
-	e.fanOutSeriesRemoval([]observerdef.SeriesRef{ref.Ref})
 
 	if evicted[anomalyDedupEvictionReasonCapacity] != 1 {
 		t.Fatalf("capacity eviction telemetry = %d, expected 1", evicted[anomalyDedupEvictionReasonCapacity])
 	}
-	if evicted[anomalyDedupEvictionReasonAge] != 2 {
-		t.Fatalf("age eviction telemetry = %d, expected 2", evicted[anomalyDedupEvictionReasonAge])
-	}
+	e.fanOutSeriesRemoval([]observerdef.SeriesRef{third.SourceRef.Ref})
 	if evicted[anomalyDedupEvictionReasonSeries] != 1 {
 		t.Fatalf("series eviction telemetry = %d, expected 1", evicted[anomalyDedupEvictionReasonSeries])
 	}
-}
-
-func TestAnomalyDedupKeyUsesStorageRefWhenAvailable(t *testing.T) {
-	ref := observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage}
-	key := anomalyDedupKeyFor(observerdef.Anomaly{
-		Source: observerdef.SeriesDescriptor{
-			Namespace: "dogstatsd",
-			Name:      "cpu.user",
-			Tags:      []string{"host:a"},
-		},
-		SourceRef:    &ref,
-		DetectorName: "bocpd",
-		Timestamp:    100,
-	})
-
-	if !key.hasSourceRef || key.sourceRef != ref.Ref || key.sourceAggregate != ref.Aggregate {
-		t.Fatalf("dedup key did not preserve compact storage identity: %+v", key)
-	}
-	if key.sourceKey != "" {
-		t.Fatalf("storage-backed anomaly allocated a string source key: %q", key.sourceKey)
+	if !e.acceptAnomaly(third) {
+		t.Fatal("expected an anomaly to be accepted after its source was removed")
 	}
 }
 
@@ -344,7 +200,7 @@ func TestResetForReplayConfiguresAnomalyHistory(t *testing.T) {
 		DetectorName: "detector_a",
 		Timestamp:    100,
 	}
-	if !e.acceptAnomaly(anomaly, 100) {
+	if !e.acceptAnomaly(anomaly) {
 		t.Fatal("expected replay anomaly to be accepted")
 	}
 	if got := len(e.RawAnomalies()); got != 1 {
@@ -353,14 +209,14 @@ func TestResetForReplayConfiguresAnomalyHistory(t *testing.T) {
 
 	storageCfg.TrackAnomalyHistory = false
 	e.ResetForReplay(nil, nil, nil, nil, storageCfg, BaselineConfig{})
-	if !e.acceptAnomaly(anomaly, 100) {
+	if !e.acceptAnomaly(anomaly) {
 		t.Fatal("expected live-mode anomaly after reset to be accepted")
 	}
 	if got := len(e.RawAnomalies()); got != 0 {
 		t.Fatalf("live mode retained %d raw anomalies after reset, expected none", got)
 	}
-	if e.anomalyDeduper.maxAgeSecs <= 0 || e.anomalyDeduper.maxEntries <= 0 {
-		t.Fatal("live mode dedup cache must be bounded by both age and cardinality")
+	if e.anomalyDeduper.live == nil || e.anomalyDeduper.replay != nil {
+		t.Fatal("live mode must use the bounded dedup cache")
 	}
 }
 
