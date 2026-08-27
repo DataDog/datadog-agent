@@ -160,7 +160,7 @@ type testUpgradeWithoutStoredPasswordSuite struct {
 
 // TestUpgradeWithoutPasswordKeepsProcessManagerEnabled covers upgrading a host first
 // installed with Agent 7.65 or earlier without providing DDAGENTUSER_PASSWORD. Before
-// dd-procmgr-service moved to LocalSystem (#54731), that upgrade disabled the service to
+// dd-procmgr-service moved to LocalSystem (#55529), that upgrade disabled the service to
 // avoid domain account lockout (#55130). With LocalSystem procmgr, the service stays enabled
 // because it no longer logs on as the Agent user.
 func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordKeepsProcessManagerEnabled() {
