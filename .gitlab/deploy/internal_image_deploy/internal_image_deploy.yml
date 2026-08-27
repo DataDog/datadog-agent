@@ -16,10 +16,7 @@
     - export IMAGES_GIT_REF="master"
     # Job specific variables
     - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
-    # These tags are consumed downstream as k8s label values, which cap at 63 characters.
-    # Only the branch-derived part may be shortened: the suffixes identify distinct
-    # artifacts (-fips, -jmx, -zstd-nydus), so trimming them would let different images
-    # collide on a single tag. The budget assumes the longest assembly below (the dev one).
+    # 63 is the k8s label value cap. Only the base is trimmed: suffixes identify distinct images.
     - |
       tag_budget=$(( 63 - 5 - ${#CI_COMMIT_SHORT_SHA} - ${#RELEASE_TAG_SUFFIX} - ${#RELEASE_TAG_COMPRESSION_SUFFIX} ))
       if [ "${#BASE_RELEASE_TAG}" -gt "${tag_budget}" ]; then
@@ -43,8 +40,6 @@
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"; fi
     - |
-      # Guards against a future change adding another component to the tag without
-      # accounting for it in tag_budget above.
       if [ "${#RELEASE_TAG}" -gt 63 ]; then
         echo "RELEASE_TAG '${RELEASE_TAG}' is ${#RELEASE_TAG} characters, over the 63 character limit" >&2
         exit 1
