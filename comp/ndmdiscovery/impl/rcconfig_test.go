@@ -89,6 +89,38 @@ func TestParseRangeConfigDefaults(t *testing.T) {
 	assert.Nil(t, cfg.PingOptions, "no ping_options means ping is disabled for the range")
 }
 
+func TestParseRangeConfigRetriesExplicitZeroPreserved(t *testing.T) {
+	raw := []byte(`{
+		"kind": "autodiscovery",
+		"autodiscovery_id": "ad-1",
+		"cidr": "10.0.0.0/24",
+		"credential_ids": ["cred-a"],
+		"snmp_options": {"retries": 0}
+	}`)
+
+	cfg, err := parseRangeConfig(raw, testDefaults)
+	require.NoError(t, err)
+
+	require.NotNil(t, cfg.SNMPOptions)
+	assert.Equal(t, 0, cfg.SNMPOptions.Retries, "an explicit retries:0 is a legitimate do-not-retry setting and must not be overwritten by the default")
+}
+
+func TestParseRangeConfigRetriesDefaultedWhenAbsent(t *testing.T) {
+	raw := []byte(`{
+		"kind": "autodiscovery",
+		"autodiscovery_id": "ad-1",
+		"cidr": "10.0.0.0/24",
+		"credential_ids": ["cred-a"],
+		"snmp_options": {"port": 1161}
+	}`)
+
+	cfg, err := parseRangeConfig(raw, testDefaults)
+	require.NoError(t, err)
+
+	require.NotNil(t, cfg.SNMPOptions)
+	assert.Equal(t, defaultSNMPRetries, cfg.SNMPOptions.Retries, "retries omitted from the payload must fall back to the default")
+}
+
 func TestParseRangeConfigPingDefaultsWhenSectionPresent(t *testing.T) {
 	raw := []byte(`{
 		"kind": "autodiscovery",

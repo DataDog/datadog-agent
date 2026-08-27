@@ -45,9 +45,9 @@ func configKind(raw []byte) (string, error) {
 // connectivity.SNMPOptions uses camelCase tags, so it cannot be decoded
 // directly.
 type snmpOptionsConfig struct {
-	Port      int `json:"port"`
-	TimeoutMs int `json:"timeout_ms"`
-	Retries   int `json:"retries"`
+	Port      int  `json:"port"`
+	TimeoutMs int  `json:"timeout_ms"`
+	Retries   *int `json:"retries"`
 }
 
 // pingOptionsConfig mirrors the snake_case Remote Configuration payload.
@@ -151,8 +151,8 @@ func parseRangeConfig(raw []byte, def rangeDefaults) (rangeConfig, error) {
 		if p.SNMPOptions.TimeoutMs != 0 {
 			snmp.TimeoutMs = p.SNMPOptions.TimeoutMs
 		}
-		if p.SNMPOptions.Retries != 0 {
-			snmp.Retries = p.SNMPOptions.Retries
+		if p.SNMPOptions.Retries != nil {
+			snmp.Retries = *p.SNMPOptions.Retries
 		}
 	}
 	if snmp.Port < 1 || snmp.Port > 65535 {
