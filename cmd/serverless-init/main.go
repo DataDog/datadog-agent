@@ -53,14 +53,23 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
+	serverlessInitInventory "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx-none"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -73,6 +82,7 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -311,6 +321,25 @@ func main() {
 		fx.Provide(func() cloudservice.CloudService { return cloudService }),
 		fx.Supply(tagConfig),
 		fx.Supply(metricTags),
+		// Inventory metadata via the shared inventoryagent component + runner
+		// (Option C: capability tiers). Three of the component's deps are not in
+		// serverless-init's fx graph, so they are adapted here:
+		//   - MetricSerializer is reached through the demultiplexer rather than as
+		//     a distinct fx type.
+		//   - ipc.HTTPClient comes from the noop IPC component; it is never
+		//     dereferenced because the serverless Capabilities turn off
+		//     cross-process enrichment (the only consumer of the client).
+		//   - the sysprobeconfig option has no provider, so supply None.
+		// The Capabilities adapt cross-process enrichment, on-start submission,
+		// and the payload uuid for the serverless environment; the serverless
+		// fields and flavor are injected via the component's Set API in run().
+		fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() }),
+		ipcfx.Module(),
+		fx.Provide(func(c ipc.Component) ipc.HTTPClient { return c.GetClient() }),
+		fx.Provide(func() option.Option[sysprobeconfig.Component] { return option.None[sysprobeconfig.Component]() }),
+		fx.Provide(func() *inventoryagent.Capabilities { return serverlessInitInventory.NewCapabilities() }),
+		runnerfx.Module(),
+		inventoryagentfx.Module(),
 		delegatedauthfx.Module(),
 		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
@@ -371,10 +400,16 @@ func run(
 	cloudService cloudservice.CloudService,
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
+	// inventoryAgent is requested so Fx constructs the inventoryagent component,
+	// and the runner so its lifecycle collection loop starts. Both are handed to
+	// setup(), which injects the serverless fields and enqueues the first
+	// payload as part of initialization.
+	inventoryAgent inventoryagent.Component,
+	_ runner.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
-		cloudService, tagConfig, metricTags, demux,
+		cloudService, tagConfig, metricTags, demux, inventoryAgent,
 	)
 
 	err := cloudService.Run(modeConf, logConfig)
@@ -445,6 +480,7 @@ func setup(
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
 	demux aggregator.Demultiplexer,
+	inventoryAgent inventoryagent.Component,
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
@@ -460,6 +496,13 @@ func setup(
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
+
+	// Inject the serverless-specific inventory fields and enqueue the first
+	// payload synchronously (see serverlessInitInventory.Inject). Done here,
+	// right after the config is loaded, so the enablement gate and DD_*
+	// passthrough fields are readable and the payload is enqueued as early as
+	// possible; a no-op while the feature is gated off.
+	serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf)
 
 	origin := cloudService.GetOrigin()
 	// Note: we do not modify tags for the LogsAgent.
