@@ -63,9 +63,9 @@ const (
 
 	// otelProcCtxQueueSize bounds the pids waiting for OTel process context
 	// resolution.
-	otelProcCtxQueueSize = 100
-	tryReparentMaxForkDepth          = 3                // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
-	tryReparentMaxIterations         = 64               // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
+	otelProcCtxQueueSize     = 100
+	tryReparentMaxForkDepth  = 3  // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
+	tryReparentMaxIterations = 64 // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
 )
 
 // EBPFResolver resolved process context
@@ -663,7 +663,7 @@ func (p *EBPFResolver) ApplyExitEntry(event *model.Event, newEntryCb func(*model
 	p.Lock()
 	defer p.Unlock()
 
-	event.ProcessCacheEntry = p.resolve(event.PIDContext.Pid, event.PIDContext.Tid, event.PIDContext.ExecInode, false, newEntryCb)
+	event.ProcessCacheEntry = p.resolve(event.PIDContext.Pid, event.PIDContext.Tid, event.PIDContext.PPid, event.PIDContext.ExecInode, false, newEntryCb)
 	if event.ProcessCacheEntry == nil {
 		// no need to dispatch an exit event that don't have the corresponding cache entry
 		return false
@@ -978,7 +978,7 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 				seclog.Debugf("parent is present but with different inodes (%d/%d), parent:%s and entry:%s",
 					parent.FileEvent.Inode, inode, parent.FileEvent.PathnameStr, entry.FileEvent.PathnameStr)
 			}
-			if candidate := p.resolve(entry.PPid, entry.PPid, inode, true, newEntryCb); candidate != nil {
+			if candidate := p.resolve(entry.PPid, entry.PPid, 0, inode, true, newEntryCb); candidate != nil {
 				parent = candidate
 			} else {
 				entry.IsParentMissing = true
@@ -1045,7 +1045,7 @@ func (p *EBPFResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *EBPFResolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+func (p *EBPFResolver) Resolve(pid, tid, ppid uint32, inode uint64, useProcFS bool, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
 	if pid == 0 {
 		return nil
 	}
@@ -1053,10 +1053,10 @@ func (p *EBPFResolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 	p.Lock()
 	defer p.Unlock()
 
-	return p.resolve(pid, tid, inode, useProcFS, newEntryCb)
+	return p.resolve(pid, tid, ppid, inode, useProcFS, newEntryCb)
 }
 
-func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+func (p *EBPFResolver) resolve(pid, tid, ppid uint32, inode uint64, useProcFS bool, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
 	if entry := p.resolveFromCache(pid, tid, inode); entry != nil {
 		p.hitsStats[metrics.CacheTag].Inc()
 		return entry
@@ -1067,7 +1067,7 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
-	if entry := p.resolveFromKernelMaps(pid, tid, inode, newEntryCb); entry != nil {
+	if entry := p.resolveFromKernelMaps(pid, tid, ppid, inode, newEntryCb); entry != nil {
 		p.hitsStats[metrics.KernelMapsTag].Inc()
 		return entry
 	}
@@ -1210,14 +1210,16 @@ func (p *EBPFResolver) resolveNewProcessCacheEntry(entry *model.ProcessCacheEntr
 	return err
 }
 
-// ResolveFromKernelMaps resolves the entry from the kernel maps
-func (p *EBPFResolver) ResolveFromKernelMaps(pid, tid uint32, inode uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+// ResolveFromKernelMaps resolves the entry from the kernel maps. ppid is the
+// parent PID observed in the triggering event and is used when the map entry
+// represents a forked process.
+func (p *EBPFResolver) ResolveFromKernelMaps(pid, tid, ppid uint32, inode uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
-	return p.resolveFromKernelMaps(pid, tid, inode, newEntryCb)
+	return p.resolveFromKernelMaps(pid, tid, ppid, inode, newEntryCb)
 }
 
-func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+func (p *EBPFResolver) resolveFromKernelMaps(pid, tid, ppid uint32, inode uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
 	if pid == 0 {
 		return nil
 	}
@@ -1244,7 +1246,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
-	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid, ExecInode: inode})
+	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid, PPid: ppid, ExecInode: inode})
 
 	cgroupRead, err := entry.CGroup.CGroupPathKey.UnmarshalBinary(procCache)
 	if err != nil {
@@ -2069,38 +2071,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	}
 
 	p := &EBPFResolver{
-<<<<<<< HEAD
-		manager:                   manager,
-		config:                    config,
-		statsdClient:              statsdClient,
-		scrubber:                  scrubber,
-		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		opts:                      *opts,
-		argsEnvsCache:             argsEnvsCache,
-		state:                     atomic.NewInt64(Snapshotting),
-		hitsStats:                 map[string]*atomic.Int64{},
-		missStats:                 atomic.NewInt64(0),
-		addedEntriesFromEvent:     atomic.NewInt64(0),
-		addedEntriesFromKernelMap: atomic.NewInt64(0),
-		addedEntriesFromProcFS:    atomic.NewInt64(0),
-		flushedEntries:            atomic.NewInt64(0),
-		pathErrStats:              atomic.NewInt64(0),
-		argsTruncated:             atomic.NewInt64(0),
-		argsSize:                  atomic.NewInt64(0),
-		envsTruncated:             atomic.NewInt64(0),
-		envsSize:                  atomic.NewInt64(0),
-		brokenLineage:             atomic.NewInt64(0),
-		inodeErrStats:             make(map[string]*atomic.Int64),
-		mountResolver:             mountResolver,
-		cgroupResolver:            cgroupResolver,
-		userGroupResolver:         userGroupResolver,
-		timeResolver:              timeResolver,
-		pathResolver:              pathResolver,
-		envVarsResolver:           envVarsResolver,
-		userSessionResolver:       userSessionResolver,
-		otelProcCtxQueue:          make(chan uint32, otelProcCtxQueueSize),
-		otelProcCtxPending:        make(map[uint32]struct{}),
-=======
 		manager:                      manager,
 		config:                       config,
 		statsdClient:                 statsdClient,
@@ -2134,7 +2104,8 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		pathResolver:                 pathResolver,
 		envVarsResolver:              envVarsResolver,
 		userSessionResolver:          userSessionResolver,
->>>>>>> 5ab586cd68e (Revert "[CWS] Revert subreaper reparenting, again (#51873)")
+		otelProcCtxQueue:             make(chan uint32, otelProcCtxQueueSize),
+		otelProcCtxPending:           make(map[uint32]struct{}),
 	}
 
 	for _, t := range metrics.AllTypesTags {

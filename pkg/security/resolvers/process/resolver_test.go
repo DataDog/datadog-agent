@@ -12,11 +12,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -340,6 +342,47 @@ func TestResolveFromProcfs(t *testing.T) {
 		})
 		assert.NotNil(t, entry)
 	})
+}
+
+func TestResolveFromKernelMapsUsesEventPPid(t *testing.T) {
+	resolver, err := newResolver()
+	require.NoError(t, err)
+
+	resolver.procCacheMap = newFakeEBPMap()
+	resolver.pidCacheMap = newFakeEBPMap()
+
+	const (
+		parentPID = uint32(5_000_000)
+		childPID  = uint32(5_000_001)
+		inode     = uint64(123)
+	)
+
+	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: parentPID, Tid: parentPID})
+	parent.FileEvent.Inode = inode
+	resolver.entryCache[parentPID] = parent
+
+	kernelEntry := resolver.NewProcessCacheEntry(model.PIDContext{Pid: childPID, Tid: childPID})
+	kernelEntry.FileEvent.Inode = inode
+	bootTime := resolver.timeResolver.GetBootTime()
+	kernelEntry.ForkTime = bootTime
+	kernelEntry.ExecTime = bootTime
+	kernelEntry.ExitTime = bootTime
+
+	procCache := make([]byte, 176) // sizeof(struct proc_cache_t)
+	_, err = kernelEntry.Process.MarshalProcCache(procCache, bootTime)
+	require.NoError(t, err)
+
+	pidCache := make([]byte, model.PidCacheEntrySize)
+	_, err = kernelEntry.Process.MarshalPidCache(pidCache, bootTime)
+	require.NoError(t, err)
+	require.NoError(t, resolver.procCacheMap.Put(kernelEntry.Cookie, procCache))
+	require.NoError(t, resolver.pidCacheMap.Put(childPID, pidCache))
+
+	entry := resolver.ResolveFromKernelMaps(childPID, childPID, parentPID, inode, nil)
+	require.NotNil(t, entry)
+	assert.Equal(t, parentPID, entry.PPid)
+	assert.Same(t, parent, entry.Ancestor)
+	assert.False(t, entry.IsParentMissing)
 }
 
 func TestOrphanExec(t *testing.T) {

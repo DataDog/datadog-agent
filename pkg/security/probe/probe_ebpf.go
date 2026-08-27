@@ -1960,7 +1960,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		pid := event.CgroupWrite.Pid
 
-		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, true, p.onNewPCE)
+		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, 0, true, p.onNewPCE)
 		if pce == nil {
 			seclog.Debugf("failed to resolve process: %d", pid)
 			return false
@@ -2153,7 +2153,7 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 }
 
 func resolveAndRepairTargetProcessCacheEntry(pid uint32, p *EBPFProbe) *model.ProcessCacheEntry {
-	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, p.onNewPCE)
+	pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, 0, false, p.onNewPCE)
 	if pce != nil {
 		p.Resolvers.ProcessResolver.TryReparentFromProcfs(pce, metrics.ReparentCallpathTargetProcess, p.onNewPCE)
 	}

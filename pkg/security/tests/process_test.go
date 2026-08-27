@@ -2359,9 +2359,10 @@ func TestProcessResolution(t *testing.T) {
 		cacheEntry := resolver.ResolveFromCache(pid, pid, inode)
 		if cacheEntry == nil {
 			t.Errorf("not able to resolve the entry")
+			return
 		}
 
-		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, inode, nil)
+		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, cacheEntry.PPid, inode, nil)
 		if mapsEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}
