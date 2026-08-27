@@ -1,0 +1,59 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "0.0.0-placeholder"
+
+SOURCE_URL_BASE = "https://binaries.ddbuild.io/agent-check-runner"
+
+HASHES = {
+    "linux-amd64": "0000000000000000000000000000000000000000000000000000000000000000",
+    "linux-arm64": "0000000000000000000000000000000000000000000000000000000000000000",
+}
+
+# Unlike Agent Data Plane, which is a single static binary, the Agent Check Runner (ACR) ships a
+# directory that must stay together:
+#
+#   opt/datadog-agent/embedded/bin/agent-check-runner/agent-check-runner
+#   opt/datadog-agent/embedded/bin/agent-check-runner/libstd-<hash>.so
+#   opt/datadog-agent/embedded/bin/agent-check-runner/adapters/lib{rust,python}_adapter_plugin.so
+#
+# The recursive globs are acceptable here, and only here, because the fetched archive contains
+# no BUILD.bazel files of its own for a glob to skip past.
+_BUILD_FILE_CONTENT = """\
+filegroup(
+    name = "payload",
+    srcs = glob(["opt/datadog-agent/embedded/bin/agent-check-runner/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_3rdparty",
+    srcs = glob(["**/LICENSE-3rdparty.csv"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_files",
+    srcs = glob(["**/LICENSES/**"], allow_empty = True),
+    visibility = ["//visibility:public"],
+)
+"""
+
+# The repo name suffix is the hash key with "-" replaced by "_".
+_ARTIFACTS = [
+    "linux-amd64",
+    "linux-arm64",
+]
+
+[
+    http_archive(
+        name = "agent_check_runner_{}".format(hash_key.replace("-", "_")),
+        build_file_content = _BUILD_FILE_CONTENT,
+        sha256 = HASHES[hash_key],
+        url = "{base}/agent-check-runner-{version}-{target}.tar.gz".format(
+            base = SOURCE_URL_BASE,
+            target = hash_key,
+            version = VERSION,
+        ),
+    )
+    for hash_key in _ARTIFACTS
+]
