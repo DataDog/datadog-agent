@@ -509,10 +509,6 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 			m.persistProfileToStorage(p, request, data)
 		}
 	}
-
-	if enabled {
-		p.SetHasAlreadyBeenSent()
-	}
 }
 
 // persistProfileToStorage persists profile data to a specific storage backend
@@ -697,7 +693,7 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
 func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	profile, inserted := m.insertEventIntoProfile(event)
-	if !inserted || profile == nil || !profile.HasAlreadyBeenSent() {
+	if !inserted || profile == nil {
 		return
 	}
 
