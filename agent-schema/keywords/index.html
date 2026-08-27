@@ -4906,10 +4906,9 @@ and filter settings — for example, to produce different variants of
 <li><code>golang_type</code>: flag that this setting should use a different type when generating go code. Usage of <code>golang_type</code> tag
   is often a sign of an issue. The agent code should be easily configurable from YAML types.</li>
 <li><code>golang_type:duration</code>: will use a <code>time.duration</code>.</li>
-<li><code>golang_type:float64</code>: will use a <code>float64</code>.</li>
+<li><code>golang_type:int64</code>: will use a <code>int64</code> (only available for <code>type: integer</code>).</li>
 <li><code>golang_type:map[string]float64</code>: will used a <code>map[string]float64{}</code>.</li>
 <li><code>golang_type:map[string]interface{}</code>: will used a <code>golang_type:map[string]interface{}{}</code>.</li>
-<li><code>golang_type:nil</code>: will use <code>nil</code> from Go (should not be used for any new setting).</li>
 <li><code>no-env</code>: mark the settings as not configurable through en vars (should not be used by new settings).</li>
 <li><code>generate_const:&lt;name&gt;</code>: generate a Go constant from this setting's default value.</li>
 </ul>
