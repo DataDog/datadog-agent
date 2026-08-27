@@ -13,6 +13,7 @@ int otel_span_open(int argc, char **argv);
 int otel_span_open_wait(int argc, char **argv);
 int otel_span_exec(int argc, char **argv);
 int otel_span_fork_exec(int argc, char **argv);
+int otel_span_fork_open(int argc, char **argv);
 
 // Negative cases: a record the reader must reject, and no record at all.
 int otel_span_open_invalid(int argc, char **argv);

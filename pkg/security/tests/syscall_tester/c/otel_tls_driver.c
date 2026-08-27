@@ -43,6 +43,7 @@ static const struct command_entry commands[] = {
     OTEL_COMMAND("otel-span-open-wait", otel_span_open_wait),
     OTEL_COMMAND("otel-span-exec", otel_span_exec),
     OTEL_COMMAND("otel-span-fork-exec", otel_span_fork_exec),
+    OTEL_COMMAND("otel-span-fork-open", otel_span_fork_open),
     OTEL_COMMAND("otel-span-open-invalid", otel_span_open_invalid),
     OTEL_COMMAND("otel-span-open-null-ptr", otel_span_open_null_ptr),
     OTEL_COMMAND("otel-span-exec-invalid", otel_span_exec_invalid),

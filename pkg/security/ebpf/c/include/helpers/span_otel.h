@@ -20,6 +20,21 @@ int __attribute__((always_inline)) unregister_otel_tls() {
     return 0;
 }
 
+// A forked child keeps the parent's address space, so its TLS copy still holds
+// the record.
+static int __attribute__((always_inline)) inherit_otel_tls(u32 ppid, u32 pid) {
+    struct otel_tls_t *parent = bpf_map_lookup_elem(&otel_tls, &ppid);
+    if (!parent) {
+        return 0;
+    }
+
+    // copy to stack for older kernel verifiers
+    struct otel_tls_t on_stack_otls = *parent;
+    bpf_map_update_elem(&otel_tls, &pid, &on_stack_otls, BPF_ANY);
+
+    return 0;
+}
+
 // Convert 8 bytes in W3C order (big-endian) to a native-endian u64.
 static u64 __attribute__((always_inline)) otel_bytes_to_u64(const u8 *bytes) {
     return ((u64)bytes[0] << 56) | ((u64)bytes[1] << 48) |

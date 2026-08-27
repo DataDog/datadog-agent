@@ -272,6 +272,9 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     // insert the pid cache entry for the new process
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
+    // the child inherits the address space the thread-context readers describe
+    inherit_span_context(ppid, pid);
+
     // [activity_dump] inherit tracing state
     inherit_traced_state(ctx, ppid, pid, &event->cgroup);
 

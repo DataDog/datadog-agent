@@ -330,6 +330,20 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
     return id;
 }
 
+// The offsets describe the executable, which a fork does not replace.
+static int __attribute__((always_inline)) inherit_go_labels(u32 ppid, u32 pid) {
+    struct go_labels_offsets_t *parent = bpf_map_lookup_elem(&go_labels_procs, &ppid);
+    if (!parent) {
+        return 0;
+    }
+
+    // copy to stack for older kernel verifiers
+    struct go_labels_offsets_t on_stack_offs = *parent;
+    bpf_map_update_elem(&go_labels_procs, &pid, &on_stack_offs, BPF_ANY);
+
+    return 0;
+}
+
 static int __attribute__((always_inline)) unregister_go_labels() {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;

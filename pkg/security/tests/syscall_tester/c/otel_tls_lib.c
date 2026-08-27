@@ -216,6 +216,44 @@ int otel_span_exec_null_ptr(int argc, char **argv) {
     return run_on_thread(thread_otel_exec, argv, otel_record_absent, 1);
 }
 
+// otel_span_fork_open has a forked child which never execs, so it keeps the
+// The fork publishes a record of its own, with a different span
+// id, before making the observed syscall.
+int otel_span_fork_open(int argc, char **argv) {
+    if (argc < 5) {
+        fprintf(stderr, "Usage: otel-span-fork-open <trace_id> <parent_span_id> <child_span_id> <file_path>\n");
+        return EXIT_FAILURE;
+    }
+
+    int memfd = -1;
+    struct otel_record_with_attrs record;
+    if (prepare_otel_context(&record, argv, &memfd, otel_record_valid) < 0) {
+        return EXIT_FAILURE;
+    }
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork");
+        otel_thread_ctx_v1 = NULL;
+        close(memfd);
+        return EXIT_FAILURE;
+    }
+    if (child == 0) {
+        struct otel_record_with_attrs own;
+        otel_fill_record(&own, argv[1], argv[3]);
+        publish_otel_record(&own);
+
+        _exit(open_test_path(argv[4], 1) < 0 ? EXIT_FAILURE : EXIT_SUCCESS);
+    }
+
+    int status;
+    waitpid(child, &status, 0);
+
+    otel_thread_ctx_v1 = NULL;
+    close(memfd);
+    return WIFEXITED(status) ? WEXITSTATUS(status) : EXIT_FAILURE;
+}
+
 int otel_span_fork_exec(int argc, char **argv) {
     if (argc < 4) {
         fprintf(stderr, "Usage: otel-span-fork-exec <trace_id> <span_id> <exec_path> [args...]\n");

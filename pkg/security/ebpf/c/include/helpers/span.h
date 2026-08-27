@@ -49,6 +49,17 @@ void __attribute__((always_inline)) reset_span_context(struct span_context_t *sp
     go_labels->id = 0;
 }
 
+// Hand the thread-context registrations of a forking process down to the child,
+// which inherits both the address space they describe and the records in it.
+void __attribute__((always_inline)) inherit_span_context(u32 ppid, u32 pid) {
+    if (!is_span_tracking_enabled()) {
+        return;
+    }
+
+    inherit_otel_tls(ppid, pid);
+    inherit_go_labels(ppid, pid);
+}
+
 void __attribute__((always_inline)) unregister_span_context() {
     unregister_otel_tls();
     unregister_go_labels();
