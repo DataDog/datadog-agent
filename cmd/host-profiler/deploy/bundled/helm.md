@@ -10,7 +10,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 ## Prerequisites
 
-Deploy the Datadog Agent with the Datadog Helm chart version **TBD** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
+Deploy the Datadog Agent with the Datadog Helm chart version **3.240.2** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
 
 ## Deploy
 
