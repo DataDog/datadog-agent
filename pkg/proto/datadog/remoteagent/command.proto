@@ -58,8 +58,6 @@ message ExecuteCommandRequest {
   string provider_name = 1;
   repeated string command_path = 2;
   google.protobuf.Struct arguments = 3;
-  bool json_output = 4;
-  bool verbose = 5;
 }
 
 message ExecuteCommandResponse {

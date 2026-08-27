@@ -17,6 +17,7 @@ go_library(
         "//pkg/proto/pbgo/core",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_pflag//:pflag",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//grpclog",
