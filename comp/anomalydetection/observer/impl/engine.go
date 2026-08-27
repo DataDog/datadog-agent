@@ -30,7 +30,7 @@ type anomalyDedupKey struct {
 }
 
 const (
-	maxLiveAnomalyDedupEntries         = 50_000
+	maxLiveAnomalyDedupEntries         = 20_000
 	anomalyDedupEvictionReasonAge      = "age"
 	anomalyDedupEvictionReasonCapacity = "capacity"
 	anomalyDedupEvictionReasonSeries   = "series_evicted"
