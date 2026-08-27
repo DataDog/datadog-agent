@@ -17,6 +17,7 @@ go_library(
         "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
         "//pkg/util/log",
         "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/util/errors",
     ],
