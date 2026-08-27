@@ -40,6 +40,16 @@ type Source struct {
 	Kind Kind
 	// Identifier that uniquely determines the source.
 	Identifier string
+	// SourceIdentifier contains the source's primary identifier and the
+	// dimensions needed to emit workload-specific running metrics.
+	SourceIdentifier SourceIdentifier
+}
+
+// SourceIdentifier holds the identity of a telemetry source that requires
+// more than one identifying dimension.
+type SourceIdentifier struct {
+	Primary    string
+	Dimensions map[string]string
 }
 
 // Tag associated to a source.

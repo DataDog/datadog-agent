@@ -193,7 +193,19 @@ type HostFromAttributesHandler interface {
 // Deprecated: Use Translator.ResourceToSource or Translator.AttributesToSource instead.
 func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttributesHandler) (source.Source, bool) {
 	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
-		return source.Source{Kind: source.AzureAppServiceKind, Identifier: appService.instanceID}, true
+		return source.Source{
+			Kind:       source.AzureAppServiceKind,
+			Identifier: appService.instanceID,
+			SourceIdentifier: source.SourceIdentifier{
+				Primary: appService.instanceID,
+				Dimensions: map[string]string{
+					"name":            appService.name,
+					"subscription_id": appService.subscriptionID,
+					"resource_group":  appService.resourceGroup,
+					"instance":        appService.instanceID,
+				},
+			},
+		}, true
 	}
 
 	if launchType, ok := attrs.Get(string(conventions.AWSECSLaunchtypeKey)); ok && launchType.Str() == conventions.AWSECSLaunchtypeFargate.Value.AsString() {
