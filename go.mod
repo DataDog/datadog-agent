@@ -271,7 +271,6 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/fatih/structtag v1.2.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
-	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344
 	github.com/glaslos/ssdeep v1.0.0
 	github.com/go-delve/delve v1.27.1
 	github.com/go-jose/go-jose/v4 v4.1.4
@@ -379,7 +378,7 @@ require (
 	github.com/sassoftware/go-rpmutils v0.4.0
 	github.com/shirou/gopsutil/v4 v4.26.7
 	github.com/sijms/go-ora/v2 v2.9.0
-	github.com/sirupsen/logrus v1.10.0
+	github.com/sirupsen/logrus v1.10.1
 	github.com/skydive-project/go-debouncer v1.0.1
 	github.com/smira/go-xz v0.1.0
 	github.com/spf13/afero v1.15.0

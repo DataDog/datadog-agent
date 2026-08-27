@@ -56,7 +56,7 @@ func newTestProfileWithNodes(name string, nodeCount int) *profile.Profile {
 	for i := 0; i < nodeCount; i++ {
 		p.ActivityTree.ProcessNodes = append(p.ActivityTree.ProcessNodes, &activity_tree.ProcessNode{
 			NodeBase: activity_tree.NewNodeBase(),
-			Process: model.Process{
+			Process: activity_tree.ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/proc",
 					BasenameStr: "proc",
