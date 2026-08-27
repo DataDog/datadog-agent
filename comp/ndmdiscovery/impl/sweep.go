@@ -159,7 +159,10 @@ func (s *sweeper) startState(r sweepRequest) cursorState {
 		// The saved run already ended on a terminal failed record. Finishing it
 		// would give the backend a second terminal record for one run ID, so
 		// the remaining chunks continue under a fresh run while the progress
-		// made so far is preserved.
+		// made so far is preserved. That carried-over progress is what makes
+		// AddressesScanned cycle-cumulative rather than per-run: the new run
+		// reports the whole cycle's count, so summing the runs of a cycle
+		// double-counts. See AutodiscoveryRunMetadata.AddressesScanned.
 		saved.RunID = s.newRunID()
 		saved.StartedAtMs = s.now()
 		saved.Failed = false

@@ -6,6 +6,7 @@
 package ndmdiscoveryimpl
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -176,4 +177,76 @@ func TestParseRangeConfigClampsInterval(t *testing.T) {
 	cfg, err := parseRangeConfig(raw, testDefaults)
 	require.NoError(t, err)
 	assert.Equal(t, minIntervalSec, cfg.IntervalSec)
+}
+
+func TestParseRangeConfigValidatesAutodiscoveryID(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+		ok   bool
+	}{
+		{"uuid", "6f1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d", true},
+		{"underscores and dashes", "range_a-1", true},
+		{"dot", "range.a", false},
+		{"slash", "range/a", false},
+		{"sanitises to empty", "...", false},
+		{"space", "range a", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, err := json.Marshal(map[string]any{
+				"kind":             "autodiscovery",
+				"autodiscovery_id": tt.id,
+				"cidr":             "10.0.0.0/24",
+				"credential_ids":   []string{"cred-a"},
+			})
+			require.NoError(t, err)
+
+			cfg, err := parseRangeConfig(raw, testDefaults)
+			if tt.ok {
+				require.NoError(t, err)
+				assert.Equal(t, tt.id, cfg.AutodiscoveryID)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "autodiscovery_id")
+		})
+	}
+}
+
+func TestParseRangeConfigValidatesNumericOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    string
+		errPart string
+	}{
+		{"negative snmp timeout", `"snmp_options":{"timeout_ms":-1}`, "snmp_options.timeout_ms"},
+		{"huge snmp timeout", `"snmp_options":{"timeout_ms":100000000}`, "snmp_options.timeout_ms"},
+		{"negative retries", `"snmp_options":{"retries":-5}`, "snmp_options.retries"},
+		{"huge retries", `"snmp_options":{"retries":500}`, "snmp_options.retries"},
+		{"negative ping count", `"ping_options":{"count":-1}`, "ping_options.count"},
+		{"huge ping count", `"ping_options":{"count":100000}`, "ping_options.count"},
+		{"negative ping interval", `"ping_options":{"interval_ms":-1}`, "ping_options.interval_ms"},
+		{"huge ping interval", `"ping_options":{"interval_ms":100000000}`, "ping_options.interval_ms"},
+		{"negative ping timeout", `"ping_options":{"timeout_ms":-1}`, "ping_options.timeout_ms"},
+		{"huge ping timeout", `"ping_options":{"timeout_ms":100000000}`, "ping_options.timeout_ms"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw := []byte(`{"kind":"autodiscovery","autodiscovery_id":"ad-1","cidr":"10.0.0.0/24","credential_ids":["c"],` + tt.opts + `}`)
+			_, err := parseRangeConfig(raw, testDefaults)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errPart)
+		})
+	}
+}
+
+func TestParseRangeConfigRetriesExplicitZeroStillAccepted(t *testing.T) {
+	raw := []byte(`{"kind":"autodiscovery","autodiscovery_id":"ad-1","cidr":"10.0.0.0/24","credential_ids":["c"],"snmp_options":{"retries":0}}`)
+	cfg, err := parseRangeConfig(raw, testDefaults)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.SNMPOptions)
+	assert.Equal(t, 0, cfg.SNMPOptions.Retries, "retries:0 is a legitimate do-not-retry setting and must survive validation")
 }

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
@@ -28,6 +29,30 @@ const (
 	defaultPingTimeoutMs  = 1000
 	minIntervalSec        = 60
 )
+
+// Upper bounds on the per-probe knobs. They are deliberately generous: the
+// point is not to tune the sweep but to keep one misconfigured range from
+// turning a chunk into an unbounded amount of work. A chunk is 256 addresses,
+// so a per-address budget above a minute already makes a single chunk longer
+// than the shortest allowed cycle, and a ping count above a handful stops
+// being a liveness check.
+const (
+	maxSNMPTimeoutMs  = 60_000
+	maxSNMPRetries    = 10
+	maxPingCount      = 10
+	maxPingIntervalMs = 60_000
+	maxPingTimeoutMs  = 60_000
+)
+
+// autodiscoveryIDPattern is the character set the persistent cursor cache can
+// round-trip. persistentcache.GetFileForKey strips every character outside
+// [a-zA-Z0-9_-] from the key instead of hashing it, so "range.a", "range/a"
+// and "rangea" would all resolve to the same cursor file, and an ID made only
+// of stripped characters would resolve to the cache directory itself. Two
+// ranges sharing one cursor silently skip each other's chunks and still report
+// completed, so an ID that is not already in this character set is rejected up
+// front rather than sanitised.
+var autodiscoveryIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // configKind reads the kind discriminator without decoding the rest of the
 // payload. A payload with no kind yields an empty string.
@@ -107,6 +132,12 @@ func parseRangeConfig(raw []byte, def rangeDefaults) (rangeConfig, error) {
 	if p.AutodiscoveryID == "" {
 		return rangeConfig{}, errors.New("autodiscovery_id is required")
 	}
+	// See autodiscoveryIDPattern: the ID is the persistent cursor key, and the
+	// cache sanitises rather than hashes it, so only an ID already inside this
+	// character set keeps the key namespace injective.
+	if !autodiscoveryIDPattern.MatchString(p.AutodiscoveryID) {
+		return rangeConfig{}, fmt.Errorf("autodiscovery_id %q is invalid: it must hold only letters, digits, underscores, and dashes", p.AutodiscoveryID)
+	}
 	if p.CIDR == "" {
 		return rangeConfig{}, errors.New("cidr is required")
 	}
@@ -158,6 +189,14 @@ func parseRangeConfig(raw []byte, def rangeDefaults) (rangeConfig, error) {
 	if snmp.Port < 1 || snmp.Port > 65535 {
 		return rangeConfig{}, fmt.Errorf("snmp_options.port %d is out of range (expected 1-65535)", snmp.Port)
 	}
+	if snmp.TimeoutMs < 1 || snmp.TimeoutMs > maxSNMPTimeoutMs {
+		return rangeConfig{}, fmt.Errorf("snmp_options.timeout_ms %d is out of range (expected 1-%d)", snmp.TimeoutMs, maxSNMPTimeoutMs)
+	}
+	// 0 is allowed here and only here: an explicit retries:0 is a legitimate
+	// do-not-retry setting.
+	if snmp.Retries < 0 || snmp.Retries > maxSNMPRetries {
+		return rangeConfig{}, fmt.Errorf("snmp_options.retries %d is out of range (expected 0-%d)", snmp.Retries, maxSNMPRetries)
+	}
 	cfg.SNMPOptions = &snmp
 
 	if p.PingOptions != nil {
@@ -174,6 +213,15 @@ func parseRangeConfig(raw []byte, def rangeDefaults) (rangeConfig, error) {
 		}
 		if p.PingOptions.TimeoutMs != 0 {
 			ping.TimeoutMs = p.PingOptions.TimeoutMs
+		}
+		if ping.Count < 1 || ping.Count > maxPingCount {
+			return rangeConfig{}, fmt.Errorf("ping_options.count %d is out of range (expected 1-%d)", ping.Count, maxPingCount)
+		}
+		if ping.IntervalMs < 1 || ping.IntervalMs > maxPingIntervalMs {
+			return rangeConfig{}, fmt.Errorf("ping_options.interval_ms %d is out of range (expected 1-%d)", ping.IntervalMs, maxPingIntervalMs)
+		}
+		if ping.TimeoutMs < 1 || ping.TimeoutMs > maxPingTimeoutMs {
+			return rangeConfig{}, fmt.Errorf("ping_options.timeout_ms %d is out of range (expected 1-%d)", ping.TimeoutMs, maxPingTimeoutMs)
 		}
 		cfg.PingOptions = &ping
 	}

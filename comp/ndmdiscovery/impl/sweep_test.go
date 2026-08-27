@@ -8,6 +8,7 @@ package ndmdiscoveryimpl
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -158,6 +159,25 @@ func TestSweepCountsIgnoredAddressesTowardsProgress(t *testing.T) {
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, int64(256), final.AddressesScanned, "ignored addresses still count, so progress reaches 100%")
 	assert.Len(t, reporter.devices, 254, "but they are not reported as probed devices")
+}
+
+func TestSweepFullyIgnoredChunkHasNoTargets(t *testing.T) {
+	ignored := make([]string, 0, 256)
+	for i := 0; i < 256; i++ {
+		ignored = append(ignored, "10.0.0."+strconv.Itoa(i))
+	}
+
+	checker := answerAll()
+	reporter := &recordingReporter{}
+	s := newTestSweeper(t, checker, reporter, newMemCursorStore(), 10)
+
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", ignored)))
+
+	final := reporter.runs[len(reporter.runs)-1]
+	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
+	assert.Equal(t, int64(256), final.AddressesScanned)
+	assert.Equal(t, 0, reporter.batches, "a chunk with no targets is not probed and reports nothing")
+	assert.Empty(t, checker.recorded(), "the connectivity engine is never called for a fully ignored chunk")
 }
 
 func TestSweepResumesFromCursor(t *testing.T) {

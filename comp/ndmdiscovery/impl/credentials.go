@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 const credentialsConfigKey = "network_devices.discovery.credentials"
@@ -100,9 +101,12 @@ func (s *configCredentialStore) Get(id string) (connectivity.SNMPCredential, boo
 
 // resolveCredentials maps a range's credential IDs to credentials, preserving
 // the configured order so the most likely credential is tried first. The SNMP
-// version is validated here: buildSNMPClient turns an unknown version into an
-// error that cancels the whole chunk, so a bad credential must block the range
-// before the sweep starts rather than half way through it.
+// version and, for v3, the auth and privacy protocols are validated here:
+// buildSNMPClient turns any of them into an error that cancels the whole
+// chunk, so a bad credential must block the range before the sweep starts
+// rather than failing chunk 0 of every cycle forever. The protocols are
+// checked with the very helpers buildSNMPClient calls so the accepted sets
+// cannot drift apart.
 func resolveCredentials(store credentialStore, ids []string) ([]connectivity.SNMPCredential, error) {
 	if len(ids) == 0 {
 		return nil, errors.New("the range references no credentials")
@@ -115,7 +119,20 @@ func resolveCredentials(store credentialStore, ids []string) ([]connectivity.SNM
 			return nil, fmt.Errorf("credential %q is not available on this agent", id)
 		}
 		switch c.Version {
-		case "1", "2c", "3":
+		case "1", "2c":
+		case "3":
+			// The protocols only apply to v3, and an empty value means "none",
+			// so only a non-empty value is worth checking.
+			if c.AuthProtocol != "" {
+				if _, err := gosnmplib.GetAuthProtocol(c.AuthProtocol); err != nil {
+					return nil, fmt.Errorf("credential %q has an unsupported authProtocol %q", id, c.AuthProtocol)
+				}
+			}
+			if c.PrivProtocol != "" {
+				if _, err := gosnmplib.GetPrivProtocol(c.PrivProtocol); err != nil {
+					return nil, fmt.Errorf("credential %q has an unsupported privProtocol %q", id, c.PrivProtocol)
+				}
+			}
 		default:
 			return nil, fmt.Errorf("credential %q has an unknown SNMP version %q (expected 1, 2c, or 3)", id, c.Version)
 		}

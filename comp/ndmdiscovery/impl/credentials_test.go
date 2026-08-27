@@ -155,3 +155,57 @@ func TestResolveCredentialsRejectsEmptyList(t *testing.T) {
 	_, err := resolveCredentials(store, nil)
 	require.Error(t, err)
 }
+
+func TestResolveCredentialsRejectsUnknownV3Protocols(t *testing.T) {
+	tests := []struct {
+		name    string
+		cred    connectivity.SNMPCredential
+		errPart string
+	}{
+		{
+			name:    "bad auth protocol",
+			cred:    connectivity.SNMPCredential{ID: "bad", Version: "3", User: "datadog", AuthProtocol: "sha-256", AuthKey: "secret"},
+			errPart: "authProtocol",
+		},
+		{
+			name:    "bad priv protocol",
+			cred:    connectivity.SNMPCredential{ID: "bad", Version: "3", User: "datadog", PrivProtocol: "aes-256", PrivKey: "secret"},
+			errPart: "privProtocol",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &stubCredentialStore{creds: map[string]connectivity.SNMPCredential{"bad": tt.cred}}
+			_, err := resolveCredentials(store, []string{"bad"})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errPart)
+			assert.NotContains(t, err.Error(), "secret", "an error must never carry key material")
+		})
+	}
+}
+
+func TestResolveCredentialsAcceptsEveryValidV3Protocol(t *testing.T) {
+	auths := []string{"", "md5", "sha", "sha224", "sha256", "sha384", "sha512", "SHA256"}
+	privs := []string{"", "des", "aes", "aes192", "aes256", "aes192c", "aes256c", "AES256C"}
+
+	for _, a := range auths {
+		for _, p := range privs {
+			store := &stubCredentialStore{creds: map[string]connectivity.SNMPCredential{
+				"cred": {ID: "cred", Version: "3", User: "datadog", AuthProtocol: a, PrivProtocol: p},
+			}}
+			_, err := resolveCredentials(store, []string{"cred"})
+			require.NoErrorf(t, err, "auth=%q priv=%q must be accepted", a, p)
+		}
+	}
+}
+
+func TestResolveCredentialsIgnoresProtocolsOnV2c(t *testing.T) {
+	// The protocols only apply to v3, so a stale value on a v2c credential
+	// must not block the range.
+	store := &stubCredentialStore{creds: map[string]connectivity.SNMPCredential{
+		"cred": {ID: "cred", Version: "2c", Community: "public", AuthProtocol: "sha-256", PrivProtocol: "aes-256"},
+	}}
+	_, err := resolveCredentials(store, []string{"cred"})
+	require.NoError(t, err)
+}

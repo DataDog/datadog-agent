@@ -81,13 +81,19 @@ type DiscoveredDeviceMetadata struct {
 // AutodiscoveryRunMetadata is the lifecycle record of one autodiscovery sweep
 // cycle over one configured range.
 type AutodiscoveryRunMetadata struct {
-	AutodiscoveryID  string                 `json:"autodiscovery_id"`
-	RunID            string                 `json:"run_id"`
-	Status           AutodiscoveryRunStatus `json:"status"`
-	AddressesScanned int64                  `json:"addresses_scanned"`
-	Error            string                 `json:"error,omitempty"`
-	StartedAtMs      int64                  `json:"started_at_ms"`
-	FinishedAtMs     int64                  `json:"finished_at_ms,omitempty"`
+	AutodiscoveryID string                 `json:"autodiscovery_id"`
+	RunID           string                 `json:"run_id"`
+	Status          AutodiscoveryRunStatus `json:"status"`
+	// AddressesScanned is cumulative over the whole cycle, not over this run.
+	// A cycle interrupted by a failure resumes under a new run ID but keeps
+	// the progress made so far, so the new run's count already includes the
+	// addresses the previous run scanned. Consumers must therefore take the
+	// latest run's value rather than summing the runs of a cycle, which would
+	// double-count.
+	AddressesScanned int64  `json:"addresses_scanned"`
+	Error            string `json:"error,omitempty"`
+	StartedAtMs      int64  `json:"started_at_ms"`
+	FinishedAtMs     int64  `json:"finished_at_ms,omitempty"`
 }
 
 // DeviceMetadata contains device metadata

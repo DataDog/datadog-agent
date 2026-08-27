@@ -107,6 +107,18 @@ func NewComponent(reqs Requires) (Provides, error) {
 	)
 	comp.rc = newRCHandler(comp.sched, reqs.Log, defaults)
 
+	// This hook must run before rcclient's, so that sched.start precedes the
+	// first rc.Update. It does today because rcclient consumes the
+	// group:"rCListener" value provided below, which makes this constructor a
+	// dependency of rcclient's and orders our OnStart first.
+	//
+	// If that ordering ever inverts, the failure is permanent rather than
+	// transient: an update that lands before sched.start is rejected with
+	// "the discovery scheduler is not running" (see scheduler.set), and Remote
+	// Configuration does not re-send an unchanged config, so every range is
+	// rejected once and never retried until the config changes or the agent
+	// restarts. Anything that changes how this component is wired into
+	// rcclient must preserve the ordering.
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
 
 	return Provides{

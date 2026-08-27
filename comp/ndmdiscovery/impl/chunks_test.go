@@ -59,6 +59,18 @@ func TestNewChunkPlanPartialFinalChunk(t *testing.T) {
 	assert.Len(t, p2.chunk(0).Targets, 128)
 }
 
+func TestNewChunkPlanSlash32(t *testing.T) {
+	p, err := newChunkPlan("10.0.0.7/32", nil, 65536)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, p.chunkCount())
+	assert.Equal(t, 1, p.totalAddresses())
+
+	c := p.chunk(0)
+	require.Len(t, c.Targets, 1)
+	assert.Equal(t, "10.0.0.7", c.Targets[0])
+}
+
 func TestChunkPlanExcludesIgnoredAddresses(t *testing.T) {
 	p, err := newChunkPlan("10.0.0.0/24", []string{"10.0.0.1", "10.0.0.2"}, 65536)
 	require.NoError(t, err)
