@@ -82,7 +82,10 @@
       fi
     # Build image, use target none label to avoid replication
     - |-
-      docker buildx build --push --pull --platform linux/$ARCH \
+      # BuildKit v0.31 changed the default image media type to OCI. Keep the
+      # output format explicit so amd64 and arm64 images remain compatible
+      # when dd-pkg combines them into a manifest list.
+      docker buildx build --output type=image,push=true,oci-mediatypes=false --pull --platform linux/$ARCH \
         ${CACHE_SOURCE} \
         ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
