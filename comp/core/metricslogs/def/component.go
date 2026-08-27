@@ -17,11 +17,36 @@ package metricslogs
 // as billable Datadog usage.
 type Component interface {
 	// LogMetrics writes a batch of metrics as one structured line to the
-	// agent's local log, at Debug level. All metrics in one call share a
-	// single timestamp, so callers should batch metrics that must stay
-	// correlated (e.g. all per-map/per-program stats gathered within one
-	// check Run()) into a single LogMetrics call.
-	LogMetrics(metrics []*Metric) error
+	// agent's local log, at Debug level by default. All metrics in one call
+	// share a single timestamp, so callers should batch metrics that must
+	// stay correlated (e.g. all per-map/per-program stats gathered within
+	// one check Run()) into a single LogMetrics call.
+	LogMetrics(metrics []*Metric, opts ...Option) error
+}
+
+// Level selects which local log level a LogMetrics call writes at.
+type Level int
+
+const (
+	// LevelDebug logs at Debug level (the default).
+	LevelDebug Level = iota
+	// LevelTrace logs at Trace level, for callers that want a quieter
+	// option than agent-wide Debug.
+	LevelTrace
+)
+
+// LogConfig holds the resolved options for one LogMetrics call.
+type LogConfig struct {
+	Level Level
+}
+
+// Option customizes a single LogMetrics call.
+type Option func(*LogConfig)
+
+// WithLevel selects the local log level for one LogMetrics call. The
+// default, when omitted, is LevelDebug.
+func WithLevel(level Level) Option {
+	return func(c *LogConfig) { c.Level = level }
 }
 
 // MetricType is the type of a metric passed to LogMetrics.

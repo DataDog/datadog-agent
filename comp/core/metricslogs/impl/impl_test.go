@@ -19,14 +19,17 @@ import (
 )
 
 // recordingLog is a minimal logcomp.Component test double that records
-// every Debugf call so tests can assert on what LogMetrics wrote.
+// every Debugf/Tracef call so tests can assert on what LogMetrics wrote.
 type recordingLog struct {
 	debugf []string
+	tracef []string
 }
 
-func (r *recordingLog) Trace(...interface{})          {}
-func (r *recordingLog) Tracef(string, ...interface{}) {}
-func (r *recordingLog) Debug(...interface{})          {}
+func (r *recordingLog) Trace(...interface{}) {}
+func (r *recordingLog) Tracef(format string, params ...interface{}) {
+	r.tracef = append(r.tracef, fmt.Sprintf(format, params...))
+}
+func (r *recordingLog) Debug(...interface{}) {}
 func (r *recordingLog) Debugf(format string, params ...interface{}) {
 	r.debugf = append(r.debugf, fmt.Sprintf(format, params...))
 }
@@ -67,5 +70,30 @@ func TestLogMetrics_EmptyBatchIsNoop(t *testing.T) {
 
 	err := c.LogMetrics(nil)
 	require.NoError(t, err)
+	assert.Empty(t, log.debugf)
+	assert.Empty(t, log.tracef)
+}
+
+func TestLogMetrics_DefaultLevelIsDebug(t *testing.T) {
+	log := &recordingLog{}
+	c := &metricsLogsComponent{log: log}
+
+	err := c.LogMetrics([]*metricslogs.Metric{
+		{Name: "m1", Type: metricslogs.MetricTypeGauge, Value: 1},
+	})
+	require.NoError(t, err)
+	assert.Len(t, log.debugf, 1)
+	assert.Empty(t, log.tracef)
+}
+
+func TestLogMetrics_WithLevelTrace(t *testing.T) {
+	log := &recordingLog{}
+	c := &metricsLogsComponent{log: log}
+
+	err := c.LogMetrics([]*metricslogs.Metric{
+		{Name: "m1", Type: metricslogs.MetricTypeGauge, Value: 1},
+	}, metricslogs.WithLevel(metricslogs.LevelTrace))
+	require.NoError(t, err)
+	assert.Len(t, log.tracef, 1)
 	assert.Empty(t, log.debugf)
 }
