@@ -30,11 +30,15 @@ import (
 )
 
 const (
-	smActiveDelta = 15.0
+	smActiveDelta               = 15.0
+	gpuBurnerCollectionPasses   = 3
+	gpuBurnerCollectionInterval = 5 * time.Second
 )
 
-func collectGPUBurnerMetrics(t *testing.T) map[string]map[string][]gpuspec.MetricObservation {
+func collectGPUBurnerMetrics(t *testing.T, passes int, interval time.Duration) map[string]map[string][]gpuspec.MetricObservation {
 	t.Helper()
+	require.Positive(t, passes)
+	require.Positive(t, interval)
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
@@ -54,10 +58,14 @@ func collectGPUBurnerMetrics(t *testing.T) map[string]map[string][]gpuspec.Metri
 	require.NoError(t, checkInstance.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(checkInstance.Cancel)
 
+	// Run once to initialize rate-derived collectors, then collect multiple
+	// intervals while the burner is active. Keep every observation so callers
+	// can validate how metric values evolve across the collection window.
 	require.NoError(t, checkInstance.Run())
-	time.Sleep(time.Second)
-	mockSender.ResetCalls()
-	require.NoError(t, checkInstance.Run())
+	for range passes {
+		time.Sleep(interval)
+		require.NoError(t, checkInstance.Run())
+	}
 
 	metricsByUUID := make(map[string]map[string][]gpuspec.MetricObservation)
 	for metricName, observations := range gpu.GetEmittedGPUMetrics(mockSender) {
@@ -126,11 +134,10 @@ func TestGPUBurnerTwoGPUDeviceSelection(t *testing.T) {
 func assertBurnerDevicesActive(t *testing.T, burner *GPUBurner, expectedWorkers int, targetSM float64) {
 	t.Helper()
 
+	metricsByUUID := collectGPUBurnerMetrics(t, gpuBurnerCollectionPasses, gpuBurnerCollectionInterval)
 	status, err := burner.Status(t.Context())
 	require.NoError(t, err)
 	require.Len(t, status.Workers, expectedWorkers)
-
-	metricsByUUID := collectGPUBurnerMetrics(t)
 	for _, worker := range status.Workers {
 		deviceMetrics := metricsByUUID[strings.ToLower(worker.GPUUUID)]
 		require.NotEmpty(t, deviceMetrics, "no metrics emitted for gpu-burner worker GPU %s", worker.GPUUUID)
@@ -165,13 +172,13 @@ func assertBurnerDevicesActive(t *testing.T, burner *GPUBurner, expectedWorkers 
 func requireMetricsMatchSmi(t *testing.T, deviceMetrics map[string][]gpuspec.MetricObservation, sample *testutil.SmiSample) {
 	t.Helper()
 
-	requireMetricNearSmi(t, deviceMetrics, "sm_active", sample.SMUtilPct, 1, smActiveDelta)
-	requireMetricNearSmi(t, deviceMetrics, "temperature", sample.GPUTempC, 1, 5)
-	requireMetricNearSmi(t, deviceMetrics, "encoder_active", sample.EncoderPct, 1, 5)
-	requireMetricNearSmi(t, deviceMetrics, "decoder_active", sample.DecoderPct, 1, 5)
-	requireMetricNearSmi(t, deviceMetrics, "clock.speed.memory", sample.MemClockMHz, 1, 25)
+	requireLatestMetricNearSmi(t, deviceMetrics, "sm_active", sample.SMUtilPct, 1, smActiveDelta)
+	requireLatestMetricNearSmi(t, deviceMetrics, "temperature", sample.GPUTempC, 1, 5)
+	requireLatestMetricNearSmi(t, deviceMetrics, "encoder_active", sample.EncoderPct, 1, 5)
+	requireLatestMetricNearSmi(t, deviceMetrics, "decoder_active", sample.DecoderPct, 1, 5)
+	requireLatestMetricNearSmi(t, deviceMetrics, "clock.speed.memory", sample.MemClockMHz, 1, 25)
 	if sample.MemTempC != nil {
-		requireMetricNearSmi(t, deviceMetrics, "memory.temperature", sample.MemTempC, 1, 5)
+		requireLatestMetricNearSmi(t, deviceMetrics, "memory.temperature", sample.MemTempC, 1, 5)
 	}
 }
 
@@ -180,6 +187,18 @@ func requireMetricNearValue(t *testing.T, deviceMetrics map[string][]gpuspec.Met
 
 	observations := deviceMetrics[name]
 	require.NotEmpty(t, observations, "%s was not emitted", name)
-	require.NotNil(t, observations[0].Value, "%s was emitted without a value", name)
-	require.InDelta(t, expected, *observations[0].Value, delta, "%s differs from gpu-burner status value", name)
+	latest := observations[len(observations)-1]
+	require.NotNil(t, latest.Value, "%s was emitted without a value", name)
+	require.InDelta(t, expected, *latest.Value, delta, "%s differs from gpu-burner status value", name)
+}
+
+func requireLatestMetricNearSmi(t *testing.T, deviceMetrics map[string][]gpuspec.MetricObservation, name string, smiValue *float64, scale, delta float64) {
+	t.Helper()
+
+	observations := deviceMetrics[name]
+	require.NotEmpty(t, observations, "%s was not emitted for this device", name)
+	latest := observations[len(observations)-1]
+	require.NotNil(t, latest.Value, "%s was emitted without a value", name)
+	require.NotNil(t, smiValue, "nvidia-smi value was blank for %s", name)
+	require.InDelta(t, *smiValue*scale, *latest.Value, delta, "%s value %v differs from nvidia-smi reading %v", name, *latest.Value, *smiValue*scale)
 }
