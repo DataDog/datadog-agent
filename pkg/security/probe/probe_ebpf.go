@@ -3991,6 +3991,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				Policy: policy.String(),
 				rule:   rule,
 				Status: reportStatus,
+				Scope:  action.Def.NetworkFilter.Scope,
 			}
 
 			ev.ActionReports = append(ev.ActionReports, report)
