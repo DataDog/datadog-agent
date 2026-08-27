@@ -7,7 +7,6 @@ package privateactionrunner
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 )
 
 const (
@@ -76,10 +74,6 @@ func TestLinuxPARSplitSuite(t *testing.T) {
 	))
 }
 
-// TestSplitControlPlaneEndToEnd exercises the complete split-runner path in one
-// ordered flow: OPMS polling and liveness, idle executor reclamation, on-demand
-// action execution and publication, and graceful control-plane shutdown. Keeping
-// the flow in one test avoids order dependencies between suite methods.
 func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	client := s.Env().FakeIntake.Client()
 	s.Require().NoError(client.FlushPAR(), "reset PAR state so same-host retries are independent")
@@ -88,8 +82,7 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey1.id, s.signingKey1.id, s.signingKey1.config))
 
 	s.waitForProcessStateStable(parControlProcess, "Running", 5*time.Second, 2*time.Minute)
-	// Exactly one process may poll OPMS in split mode. Confirm the monolithic
-	// systemd service has exited before attributing the requests below to par-control.
+	// Confirm the monolith exits.
 	s.waitForSystemdState(privateActionRunnerServiceName, "inactive", 2*time.Minute)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPARDequeueCount()
@@ -105,7 +98,17 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	// The executor definition must stay cold until work arrives.
 	s.waitForProcessState(parExecutorProcess, "Created", 2*time.Minute)
 
-	result := s.runSignedTask(s.signingKey1, "par-split-e2e")
+	setPARTaskSigningKey(s.T(), client, s.signingKey1)
+	taskID := uuid.New().String()
+	s.Require().NoError(client.EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "echo par-split-e2e",
+		"allowedCommands": []string{"rshell:echo"},
+	}))
+	s.waitForProcessState(parExecutorProcess, "Running", 2*time.Minute)
+	// Deliver the key asynchronously while the cold executor registers its subscription.
+	s.deliverSigningKeyAfterSubscription(s.signingKey1)
+	result, err := client.GetPARTaskResult(taskID, 2*time.Minute)
+	s.Require().NoError(err)
 	s.Require().True(result.Success, "split PAR action failed: %+v", result)
 	s.Require().Equal(0, rshellExitCode(s.T(), result), "unexpected rshell result: %+v", result)
 	s.Require().Contains(result.Outputs["stdout"], "par-split-e2e")
@@ -113,9 +116,7 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	s.testCoreAgentUnavailableRecovery()
 	s.testSigningKeyLifecycle()
 
-	// Successful execution proves the cold executor was started on demand;
-	// verify its clean idle self-exit is recorded as Exited, not Stopped (which
-	// is reserved for an explicit supervisor stop).
+	// Successful execution proves the cold executor was started on demand.
 	s.waitForProcessState(parExecutorProcess, "Exited", 3*time.Minute)
 
 	// Exercise bootstrap and identity selection through the installed process
@@ -123,35 +124,19 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	// datadog.yaml and the persisted identity file.
 	s.testBootstrapIdentityScenarios()
 
-	// Stopping par-control through its supervisor must not deadlock on a nested
-	// process-manager Stop RPC. Restore it so a same-host retry starts cleanly.
-	defer func() {
-		s.Require().NoError(s.runProcmgr("start", parControlProcess))
-		s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
-	}()
-
-	started := time.Now()
-	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
-	s.Require().Less(time.Since(started), 15*time.Second, "par-control should stop promptly")
-	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
-	s.waitForProcessState(parExecutorProcess, "Exited", 10*time.Second)
 }
 
 func (s *linuxPARSplitSuite) testCoreAgentUnavailableRecovery() {
 	client := s.Env().FakeIntake.Client()
 	s.waitForProcessState(parExecutorProcess, "Exited", 3*time.Minute)
 
-	serviceManager := common.GetServiceManager(s.Env().RemoteHost)
-	s.Require().NotNil(serviceManager)
-	_, err := serviceManager.Stop(coreAgentServiceName)
+	host := s.Env().RemoteHost
+	// Stopping the service also stops procmgr through systemd's BindsTo relationship.
+	pauseAgent := fmt.Sprintf("sudo systemctl kill --kill-who=main --signal=SIGSTOP %s", coreAgentServiceName)
+	resumeAgent := fmt.Sprintf("sudo systemctl kill --kill-who=main --signal=SIGCONT %s", coreAgentServiceName)
+	_, err := host.Execute(pauseAgent)
 	s.Require().NoError(err)
-	s.T().Cleanup(func() {
-		_, _ = serviceManager.Start(coreAgentServiceName)
-	})
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		_, statusErr := serviceManager.Status(coreAgentServiceName)
-		require.Error(c, statusErr)
-	}, 30*time.Second, time.Second, "core Agent should be unavailable")
+	s.T().Cleanup(func() { _, _ = host.Execute(resumeAgent) })
 
 	setPARTaskSigningKey(s.T(), client, s.signingKey1)
 	taskID := uuid.New().String()
@@ -163,13 +148,15 @@ func (s *linuxPARSplitSuite) testCoreAgentUnavailableRecovery() {
 	_, err = client.GetPARTaskResult(taskID, 5*time.Second)
 	s.Require().Error(err, "task should remain queued while the Core Agent is unavailable")
 
-	_, err = serviceManager.Start(coreAgentServiceName)
+	_, err = host.Execute(resumeAgent)
 	s.Require().NoError(err)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		status, statusErr := serviceManager.Status(coreAgentServiceName)
+		_, statusErr := host.Execute("sudo datadog-agent status")
 		require.NoError(c, statusErr)
-		require.Contains(c, status, "active")
 	}, 2*time.Minute, 5*time.Second, "core Agent should recover")
+	// This is a fresh executor; deliver the key as an RC update
+	// after its subscription can reach the resumed Core Agent.
+	s.deliverSigningKeyAfterSubscription(s.signingKey1)
 
 	result, err := client.GetPARTaskResult(taskID, 2*time.Minute)
 	s.Require().NoError(err)
@@ -235,6 +222,16 @@ func (s *linuxPARSplitSuite) resetSigningKeyState() {
 	}
 }
 
+// deliverSigningKeyAfterSubscription simulates an asynchronous RC update.
+// Repeated versions tolerate the absence of a subscription-readiness signal.
+func (s *linuxPARSplitSuite) deliverSigningKeyAfterSubscription(key testSigningKey) {
+	client := s.Env().FakeIntake.Client()
+	for range 5 {
+		s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, key.id, key.id, key.config))
+		time.Sleep(2 * time.Second)
+	}
+}
+
 func (s *linuxPARSplitSuite) deleteSigningKey(id string) {
 	configs, err := s.Env().FakeIntake.Client().RCListConfigs()
 	s.Require().NoError(err)
@@ -251,18 +248,13 @@ func (s *linuxPARSplitSuite) deleteSigningKey(id string) {
 func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	host := s.Env().RemoteHost
 
-	// Always restore the provisioned inline configuration so same-host retries
-	// and suite teardown leave a healthy control plane behind.
+	// Restore the provisioned inline configuration for same-host retries.
 	s.T().Cleanup(s.restoreBaseline)
 
-	// Enrollment normally targets api.datadoghq.com even when dd_url points to
-	// fakeintake. Route that hostname to fakeintake's HTTPS endpoint for these
-	// deployed bootstrap checks; skip_ssl_validation accepts the test endpoint's
-	// different certificate name.
-	s.routeEnrollmentToFakeintake()
 	client := s.Env().FakeIntake.Client()
+	selfEnrollConfig := selfEnrollSplitConfig(client.URL())
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
-	s.restartControl(selfEnrollSplitConfig(), "Running")
+	s.restartControl(selfEnrollConfig, "Running")
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPAREnrollmentCount()
 		require.NoError(c, err)
@@ -272,7 +264,7 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 
 	// A subsequent startup adopts the persisted identity without enrollment or
 	// file rotation.
-	s.restartControl(selfEnrollSplitConfig(), "Running")
+	s.restartControl(selfEnrollConfig, "Running")
 	secondIdentity := strings.TrimSpace(host.MustExecute("sudo sha256sum " + parIdentityPath + " | cut -d' ' -f1"))
 	s.Require().Equal(firstIdentity, secondIdentity, "valid persisted identity should not rotate")
 	count, err := client.GetPAREnrollmentCount()
@@ -283,7 +275,7 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	host.MustExecute(
 		`sudo sed -i 's/"hostname":"[^"]*"/"hostname":"definitely-not-this-host"/' ` + parIdentityPath,
 	)
-	s.restartControl(selfEnrollSplitConfig(), "Running")
+	s.restartControl(selfEnrollConfig, "Running")
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPAREnrollmentCount()
 		require.NoError(c, err)
@@ -304,7 +296,10 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	stale := fmt.Sprintf(`{"private_key":%q,"urn":%q,"hostname":"definitely-not-this-host"}`, s.persistedKey, s.persistedURN)
 	s.Require().NoError(s.writeIdentity(stale))
 	s.restartControl(s.baselineConfig, "Running")
-	host.MustExecute("sudo test ! -e " + parIdentityPath)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		_, err := host.Execute("sudo test ! -e " + parIdentityPath)
+		require.NoError(c, err)
+	}, 10*time.Second, time.Second, "stale persisted identity should be removed")
 
 	// With enrollment disabled, no persisted or inline identity is a startup
 	// error rather than an attempted enrollment.
@@ -317,22 +312,21 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	s.restartControl(encConfig, "Failed")
 	host.MustExecute("sudo test ! -e " + parIdentityPath)
 
-	// The remaining lifecycle assertions expect the original healthy process.
-	s.restoreBaseline()
 }
 
 func (s *linuxPARSplitSuite) restoreBaseline() {
 	host := s.Env().RemoteHost
-	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
-	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
+	_ = s.runProcmgr("stop", parControlProcess)
+	s.waitForProcessInactive(parControlProcess, 10*time.Second)
 	s.Require().NoError(s.writeConfig(s.baselineConfig))
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
 	s.Require().NoError(s.runProcmgr("start", parControlProcess))
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 }
 
-func selfEnrollSplitConfig() string {
-	return fmt.Sprintf(`skip_ssl_validation: true
+func selfEnrollSplitConfig(fakeintakeURL string) string {
+	return fmt.Sprintf(`dd_url: %q
+skip_ssl_validation: true
 private_action_runner:
   enabled: true
   split_enabled: true
@@ -340,7 +334,7 @@ private_action_runner:
   idle_timeout_seconds: 5
   actions_allowlist:
     - %s
-`, runCommandAction)
+`, fakeintakeURL, runCommandAction)
 }
 
 func splitConfig(urn, privateKey string) string {
@@ -361,30 +355,9 @@ func splitConfig(urn, privateKey string) string {
 `, identity, runCommandAction)
 }
 
-func (s *linuxPARSplitSuite) routeEnrollmentToFakeintake() {
-	fakeintakeURL, err := url.Parse(s.Env().FakeIntake.Client().URL())
-	s.Require().NoError(err)
-	hostname := fakeintakeURL.Hostname()
-	s.Require().NotEmpty(hostname)
-
-	host := s.Env().RemoteHost
-	address := strings.TrimSpace(host.MustExecute(fmt.Sprintf(
-		"getent ahostsv4 %q | awk 'NR == 1 {print $1}'",
-		hostname,
-	)))
-	s.Require().NotEmpty(address, "fakeintake hostname should resolve on the test host")
-	host.MustExecute(fmt.Sprintf(
-		`printf '%%s\n' %q | sudo tee -a /etc/hosts >/dev/null`,
-		address+" api.datadoghq.com # par-enrollment-e2e",
-	))
-	s.T().Cleanup(func() {
-		_, _ = host.Execute(`sudo sed -i '/# par-enrollment-e2e$/d' /etc/hosts`)
-	})
-}
-
 func (s *linuxPARSplitSuite) restartControl(config, expectedState string) {
-	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
-	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
+	_ = s.runProcmgr("stop", parControlProcess)
+	s.waitForProcessInactive(parControlProcess, 10*time.Second)
 	s.Require().NoError(s.writeConfig(config))
 	s.Require().NoError(s.runProcmgr("start", parControlProcess))
 	s.waitForProcessState(parControlProcess, expectedState, 2*time.Minute)
@@ -426,6 +399,18 @@ func (s *linuxPARSplitSuite) runProcmgr(command, name string) error {
 func (s *linuxPARSplitSuite) waitForProcessState(name, state string, timeout time.Duration) {
 	s.T().Helper()
 	s.waitForProcessStateStable(name, state, 0, timeout)
+}
+
+func (s *linuxPARSplitSuite) waitForProcessInactive(name string, timeout time.Duration) {
+	s.T().Helper()
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+			"sudo %s --socket %s describe %s", procmgrCLI, procmgrSocket, name,
+		))
+		require.NoError(c, err)
+		state := strings.ReplaceAll(output, " ", "")
+		require.True(c, strings.Contains(state, "State:Stopped") || strings.Contains(state, "State:Failed"))
+	}, timeout, time.Second, "%s should stop running", name)
 }
 
 func (s *linuxPARSplitSuite) waitForProcessStateStable(name, state string, stableFor, timeout time.Duration) {

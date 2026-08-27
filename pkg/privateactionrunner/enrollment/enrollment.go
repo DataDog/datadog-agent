@@ -9,12 +9,15 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -100,8 +103,7 @@ func SelfEnroll(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -136,6 +138,13 @@ func SelfEnroll(
 		RunnerName:    runnerName,
 		OrchClusterID: agentIdentifier.OrchClusterID,
 	}, nil
+}
+
+func enrollmentBaseURL(cfg configModel.Reader, ddSite string) string {
+	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
+		return strings.TrimSuffix(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"), "/")
+	}
+	return "https://api." + ddSite
 }
 
 // Enroll performs self-enrollment using config and an agent identifier.
@@ -185,8 +194,7 @@ func SelfEnrollApiKeyOnly(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
