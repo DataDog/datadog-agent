@@ -260,3 +260,31 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     # insert flags right after the bazel command, preserving startup options before it and subcommand arguments after it
     index = next((i for i, a in enumerate(args, 1) if not a.startswith("-")), len(args))
     return (*args[:index], *flags, *args[index:])
+
+
+def build_go_binary_with_bazel(target: str, bin_path: str) -> None:
+    """Build a ``go_binary``/``dd_agent_go_binary`` Bazel target and copy its output to ``bin_path``.
+
+    This is the "opt-in" counterpart to ``go_build()`` for invoke tasks that grew an
+    ``--enable_bazel`` flag: it runs ``bazel build <target>`` and copies the resulting
+    binary from ``bazel-bin`` to wherever the legacy ``go_build()`` path would have put it,
+    so the rest of the invoke task (asset staging, etc.) doesn't need to know which path built it.
+    """
+    label = split_label(target)
+    if label.name is None:
+        raise ValueError(f"Bazel target {target!r} must include a target name (e.g. //cmd/foo:foo)")
+
+    bazel("build", target)
+
+    # Don't derive the output path from `bazel info bazel-bin` + the target's package/name:
+    # some targets go through a Starlark transition (e.g. because one of their dependencies
+    # does), which puts their outputs under a `bazel-out/<cpu>-<mode>-ST-<hash>/...` directory
+    # that differs from the top-level `bazel-bin` convenience path. `cquery --output=files`
+    # reports the actual output path for the target as it was just built.
+    output = bazel("cquery", "--output=files", target, capture_output=True).strip().splitlines()[-1]
+    execution_root = bazel("info", "execution_root", capture_output=True).strip()
+    src = os.path.join(execution_root, output)
+
+    os.makedirs(os.path.dirname(bin_path), exist_ok=True)
+    shutil.copy2(src, bin_path)
+    os.chmod(bin_path, 0o755)
