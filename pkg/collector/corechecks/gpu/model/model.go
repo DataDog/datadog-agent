@@ -7,6 +7,8 @@
 // the gpu core agent check
 package model
 
+import "time"
+
 // MemoryMetrics contains the memory stats for a given memory type
 type MemoryMetrics struct {
 	// CurrentBytes is the amount of memory that is allocated when the stats are generated.
@@ -68,4 +70,20 @@ type DeviceStatsTuple struct {
 type GPUStats struct {
 	ProcessMetrics []ProcessStatsTuple `json:"process_metrics"` // Per-process metrics
 	DeviceMetrics  []DeviceStatsTuple  `json:"device_metrics"`  // Device-level metrics
+}
+
+// DriverEventType identifies the type of GPU driver event.
+type DriverEventType string
+
+const (
+	// DriverEventTypeNvidiaXid identifies an NVIDIA Xid error event.
+	DriverEventTypeNvidiaXid DriverEventType = "nvidia_xid"
+)
+
+// DriverEvent is a GPU driver event observed by system-probe.
+type DriverEvent struct {
+	DeviceUUID string          `json:"device_uuid"`
+	Timestamp  time.Time       `json:"timestamp"`
+	Type       DriverEventType `json:"type"`
+	XidCode    uint64          `json:"xid_code,omitempty"`
 }
