@@ -362,6 +362,11 @@ func (s *sender) Push(p *payload) {
 		// for that endpoint alone rather than blocking the others.
 		if s.awaitingCredential.Load() {
 			_ = s.statsd.Count("datadog.trace_agent.sender.payload_dropped_awaiting_credential", 1, nil, 1)
+			// Return the payload to the pool and record the drop so the writer recorder reports
+			// the loss. Without this the buffer leaks (GC pressure) and telemetry underreports.
+			stats := &eventData{}
+			s.recordEvent(eventTypeDropped, stats)
+			ppool.Put(p)
 			return
 		}
 		_ = s.statsd.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
