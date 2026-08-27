@@ -230,9 +230,10 @@ func (s *scheduler) run(ctx context.Context, cfg rangeConfig) {
 	// this goroutine takes the agent down. parseRangeConfig clamps upstream,
 	// so this is the floor for anything that reaches the scheduler by another
 	// route.
+	floor := time.Duration(minIntervalSec) * time.Second
 	d := time.Duration(cfg.IntervalSec) * time.Second
-	if d <= 0 {
-		d = time.Duration(minIntervalSec) * time.Second
+	if d < floor {
+		d = floor
 	}
 
 	tick, stopTicker := s.newTicker(d)

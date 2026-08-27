@@ -213,7 +213,7 @@ func TestSchedulerPingToggle(t *testing.T) {
 	assert.Equal(t, []string{connectivity.CheckPing, connectivity.CheckSNMP}, checker.recorded()[0].Checks)
 }
 
-func TestSchedulerFloorsANonPositiveInterval(t *testing.T) {
+func TestSchedulerFloorsIntervalsBelowTheMinimum(t *testing.T) {
 	checker := answerAll()
 	s, _ := newTestScheduler(t, checker, 10)
 
@@ -241,8 +241,15 @@ func TestSchedulerFloorsANonPositiveInterval(t *testing.T) {
 	require.NoError(t, s.set(negative))
 	assert.Equal(t, floor, <-intervals, "a negative interval ticks at the floor instead of panicking")
 
-	require.Eventually(t, func() bool { return len(checker.recorded()) == 2 }, 5*time.Second, 10*time.Millisecond,
-		"both ranges are still swept once immediately")
+	// parseRangeConfig clamps to minIntervalSec upstream, but a config reaching
+	// the scheduler by another route must not out-tick that floor either.
+	tooFast := testRangeConfig("ad-too-fast", "10.0.2.0/24")
+	tooFast.IntervalSec = 1
+	require.NoError(t, s.set(tooFast))
+	assert.Equal(t, floor, <-intervals, "an interval below the floor is raised to it")
+
+	require.Eventually(t, func() bool { return len(checker.recorded()) == 3 }, 5*time.Second, 10*time.Millisecond,
+		"every range is still swept once immediately")
 }
 
 // blockingChecker holds every probe until release is closed, and records how
