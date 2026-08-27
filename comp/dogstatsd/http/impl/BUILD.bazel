@@ -42,11 +42,13 @@ dd_agent_go_test(
         "handler_test.go",
         "iterator_test.go",
         "semaphore_test.go",
+        "server_test.go",
         "sketch_iterator_test.go",
     ],
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
         "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/impl",

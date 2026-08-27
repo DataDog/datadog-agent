@@ -6986,6 +6986,16 @@ properties:
           will buffer. Defaults to 256KiB. Set to 0 to disable the limit.
         tags:
         - golang_type:int64
+      read_timeout:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        comment: |-
+          Maximum time the dogstatsd http server will spend reading a request,
+          headers and body together. Set to 0 to disable the limit.
+        tags:
+        - golang_type:duration
       listen_address:
         node_type: setting
         type: string

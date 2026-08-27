@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -97,6 +98,13 @@ func (h *handlerBase) handle(
 		if errors.As(err, &tooLarge) {
 			h.tlm.requestTooLarge.Inc()
 			ctx.respond(http.StatusRequestEntityTooLarge, "payload exceeds the %d byte limit", h.maxPayloadSize)
+			return
+		}
+		// The read deadline comes from the server's ReadTimeout, so the client
+		// is slow rather than wrong.
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			h.tlm.requestTimeout.Inc()
+			ctx.respond(http.StatusRequestTimeout, "timed out reading request body")
 			return
 		}
 		h.tlm.requestReadError.Inc()

@@ -75,6 +75,8 @@ func (s *server) start(ctx context.Context) error {
 	s.http = &http.Server{
 		Handler:   mux,
 		Protocols: &p,
+		// Also sets IdleTimeout
+		ReadTimeout: s.config.GetDuration("dogstatsd_experimental_http.read_timeout"),
 	}
 
 	addr := s.config.GetString("dogstatsd_experimental_http.listen_address")
