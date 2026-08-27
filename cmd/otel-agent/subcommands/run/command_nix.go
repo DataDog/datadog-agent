@@ -34,11 +34,11 @@ func fleetPoliciesDirFromPlatform() string {
 // defaulting to an absent path would boot-loop deployments that legitimately
 // run without a core Agent.
 func defaultCoreConfPath(candidate string) string {
-	// A standalone collector has no core Agent to share IPC artifacts with. The
-	// dedicated otel-agent image bakes DD_OTEL_STANDALONE=true in and is built
-	// FROM the Agent image, so without this it could pick up a datadog.yaml the
-	// deployment opted out of. Reading the env directly is required: the config
-	// is not loaded yet.
+	// A standalone collector has no core Agent to share IPC artifacts with, so
+	// it can function normally without having to load a core config.
+	// Furthermore, the ddot-collector image contains a default core config at the
+	// default path, while the users not including `--core-config` in the CLI args
+	// do not intend for it to be loaded.
 	if standalone, err := strconv.ParseBool(os.Getenv("DD_OTEL_STANDALONE")); err == nil && standalone {
 		return ""
 	}
