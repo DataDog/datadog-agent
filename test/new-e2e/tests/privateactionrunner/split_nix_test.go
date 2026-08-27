@@ -132,8 +132,8 @@ func (s *linuxPARSplitSuite) testCoreAgentUnavailableRecovery() {
 
 	host := s.Env().RemoteHost
 	// Stopping the service also stops procmgr through systemd's BindsTo relationship.
-	pauseAgent := fmt.Sprintf("sudo systemctl kill --kill-who=main --signal=SIGSTOP %s", coreAgentServiceName)
-	resumeAgent := fmt.Sprintf("sudo systemctl kill --kill-who=main --signal=SIGCONT %s", coreAgentServiceName)
+	pauseAgent := "sudo systemctl kill --kill-who=main --signal=SIGSTOP " + coreAgentServiceName
+	resumeAgent := "sudo systemctl kill --kill-who=main --signal=SIGCONT " + coreAgentServiceName
 	_, err := host.Execute(pauseAgent)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() { _, _ = host.Execute(resumeAgent) })
