@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::info;
+use log::{info, warn};
 
 use crate::config::ProcessConfig;
 use crate::process::ManagedChildSpawn;
@@ -47,4 +47,21 @@ pub(crate) fn spawn_managed_child(
         job_object,
         user_profile,
     })
+}
+
+pub(crate) async fn abort_uncommitted_spawn(spawn: ManagedChildSpawn, process_name: &str) {
+    let ManagedChildSpawn {
+        mut handle,
+        intended_user: _,
+        job_object,
+        user_profile: _,
+    } = spawn;
+
+    if let Err(e) = job_object.terminate() {
+        warn!("[{process_name}] failed to terminate uncommitted spawn job: {e:#}");
+    }
+    let pid = handle.id().unwrap_or(0);
+    if let Err(e) = handle.kill().await {
+        warn!("[{process_name}] failed to terminate uncommitted spawn (pid={pid}): {e:#}");
+    }
 }

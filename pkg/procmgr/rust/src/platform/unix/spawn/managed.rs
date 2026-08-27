@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::info;
+use log::{info, warn};
 use tokio::process::Command;
 
 use crate::config::ProcessConfig;
@@ -25,6 +25,25 @@ pub(crate) fn spawn_managed_child(
         handle,
         intended_user,
     })
+}
+
+pub(crate) async fn abort_uncommitted_spawn(spawn: ManagedChildSpawn, process_name: &str) {
+    let ManagedChildSpawn {
+        mut handle,
+        intended_user: _,
+    } = spawn;
+    let pid = handle.id().unwrap_or(0);
+
+    let group_killed = match handle.id() {
+        Some(pid) => super::super::send_force_kill(pid).is_ok(),
+        None => false,
+    };
+    if !group_killed && let Err(e) = handle.kill().await {
+        warn!("[{process_name}] failed to terminate uncommitted spawn: {e:#}");
+    }
+    if let Err(e) = handle.wait().await {
+        warn!("[{process_name}] failed to reap uncommitted spawn (pid={pid}): {e:#}");
+    }
 }
 
 fn spawn_child(

@@ -151,19 +151,7 @@ pub(crate) struct ManagedChildSpawn {
 
 impl ManagedChildSpawn {
     pub(crate) async fn abort(self, process_name: &str) {
-        #[cfg(windows)]
-        {
-            if let Err(e) = self.job_object.terminate() {
-                warn!("[{process_name}] failed to terminate uncommitted spawn job: {e:#}");
-            }
-        }
-        let mut handle = self.handle;
-        if let Err(e) = handle.kill().await {
-            warn!(
-                "[{process_name}] failed to terminate uncommitted spawn (pid={}): {e:#}",
-                handle.id().unwrap_or(0)
-            );
-        }
+        platform::abort_uncommitted_spawn(self, process_name).await;
     }
 }
 

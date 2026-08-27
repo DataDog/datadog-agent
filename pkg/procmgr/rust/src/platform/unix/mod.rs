@@ -7,7 +7,7 @@ mod runtime_user;
 mod spawn;
 
 pub(crate) use runtime_user::runtime_user_for_pid;
-pub(crate) use spawn::spawn_managed_child;
+pub(crate) use spawn::{abort_uncommitted_spawn, spawn_managed_child};
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
