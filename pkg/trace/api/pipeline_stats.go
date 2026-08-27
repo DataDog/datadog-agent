@@ -73,27 +73,28 @@ func pipelineStatsErrorHandler(err error) http.Handler {
 func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	log.Debug("[pipeline_stats] Creating reverse proxy")
 	cidProvider := NewContainerIDProviderFromConfig(conf)
-	director := func(req *http.Request) {
-		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
-		if _, ok := req.Header["User-Agent"]; !ok {
+	director := func(pr *httputil.ProxyRequest) {
+		pr.SetXForwarded()
+		pr.Out.Header.Set("Via", "trace-agent "+conf.AgentVersion)
+		if _, ok := pr.Out.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
 			// that net/http gives it: Go-http-client/1.1
 			// See https://codereview.appspot.com/7532043
-			req.Header.Set("User-Agent", "")
+			pr.Out.Header.Set("User-Agent", "")
 		}
-		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
+		containerID := cidProvider.GetContainerID(pr.In.Context(), pr.In.Header)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			ctagsHeader := normalizeHTTPHeader(ctags)
-			req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+			pr.Out.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
 			log.Debugf("Setting header X-Datadog-Container-Tags=%s for pipeline stats proxy", ctagsHeader)
 		}
-		req.Header.Set("X-Datadog-Additional-Tags", tags)
+		pr.Out.Header.Set("X-Datadog-Additional-Tags", tags)
 		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for pipeline stats proxy", tags)
 		_ = statsd.Count("datadog.trace_agent.pipelines_stats", 1, nil, 1)
 	}
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director:  director,
+		Rewrite:   director,
 		ErrorLog:  stdlog.New(logger, "pipeline_stats.Proxy: ", 0),
 		Transport: &multiDataStreamsTransport{rt: conf.NewHTTPTransport(), targets: urls, keys: apiKeys, maxRequestBytes: conf.MaxRequestBytes},
 	}

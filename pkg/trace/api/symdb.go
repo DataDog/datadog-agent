@@ -60,29 +60,30 @@ func newSymDBProxy(conf *config.AgentConfig, transport http.RoundTripper, hostTa
 	cidProvider := NewContainerIDProviderFromConfig(conf)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director:  getSymDBDirector(hostTags, cidProvider, conf.ContainerTags),
+		Rewrite:   getSymDBDirector(hostTags, cidProvider, conf.ContainerTags),
 		ErrorLog:  stdlog.New(logger, "symdb.Proxy: ", 0),
 		Transport: transport,
 	}
 }
 
-func getSymDBDirector(hostTags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*http.Request) {
-	return func(req *http.Request) {
-		req.Header.Set("DD-REQUEST-ID", uuid.New().String())
-		req.Header.Set("DD-EVP-ORIGIN", "agent-symdb")
-		q := req.URL.Query()
-		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
+func getSymDBDirector(hostTags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*httputil.ProxyRequest) {
+	return func(pr *httputil.ProxyRequest) {
+		pr.SetXForwarded()
+		pr.Out.Header.Set("DD-REQUEST-ID", uuid.New().String())
+		pr.Out.Header.Set("DD-EVP-ORIGIN", "agent-symdb")
+		q := pr.Out.URL.Query()
+		containerID := cidProvider.GetContainerID(pr.In.Context(), pr.In.Header)
 		tags := hostTags
 		if ctags := getContainerTags(containerTags, containerID); ctags != "" {
 			tags = fmt.Sprintf("%s,%s", tags, ctags)
 		}
-		if htags := req.Header.Get("X-Datadog-Additional-Tags"); htags != "" {
+		if htags := pr.In.Header.Get("X-Datadog-Additional-Tags"); htags != "" {
 			tags = fmt.Sprintf("%s,%s", tags, htags)
 		}
 		if qtags := q.Get("ddtags"); qtags != "" {
 			tags = fmt.Sprintf("%s,%s", tags, qtags)
 		}
-		req.Header.Set("X-Datadog-Additional-Tags", tags)
+		pr.Out.Header.Set("X-Datadog-Additional-Tags", tags)
 		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for symdb proxy", tags)
 	}
 }
