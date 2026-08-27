@@ -9,6 +9,7 @@ package aggregator
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	coretaggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -190,6 +193,56 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 			assert.ElementsMatch(t, []string{"service:web", "image_name:image"}, filtered.tags)
 		})
 	}
+}
+
+// TestNoAggStreamWorkerObserverHandleUsesSerializedTags verifies that the
+// observer sees the final no-aggregation series tags, including origin tags.
+func TestNoAggStreamWorkerObserverHandleUsesSerializedTags(t *testing.T) {
+	require := require.New(t)
+
+	opts := demuxTestOptions()
+	opts.NoAggregationPipelineWorkersCount = 1
+	mockSerializer := &MockSerializerIterableSerie{}
+	mockSerializer.On("AreSeriesEnabled").Return(true)
+	mockSerializer.On("AreSketchesEnabled").Return(true)
+	serializer := &flushSignalingSerializer{
+		MockSerializerIterableSerie: mockSerializer,
+		flushed:                     make(chan struct{}, 1),
+	}
+
+	deps := createDemultiplexerAgentTestDeps(t)
+	fakeTagger, ok := deps.Tagger.(taggermock.Mock)
+	require.True(ok)
+	fakeTagger.SetTags(coretaggertypes.NewEntityID(coretaggertypes.ContainerID, "container-a"), "test", []string{"env:prod"}, nil, nil, nil)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux.statsd.noAggStreamWorkers[0].serializer = serializer
+	demux.statsd.noAggStreamWorkers[0].maxMetricsPerPayload = 0
+	handle := &recordingHandle{}
+	demux.statsd.noAggStreamWorkers[0].observerHandle = handle
+
+	go demux.run()
+	demux.SendSamplesWithoutAggregation(metrics.MetricSampleBatch{{
+		Name:       "gauge.metric",
+		Host:       "host-gauge",
+		Mtype:      metrics.GaugeType,
+		Value:      42,
+		Timestamp:  1657099120,
+		Tags:       []string{"tag:1", "tag:2"},
+		OriginInfo: taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://container-a", Cardinality: "low"},
+	}})
+
+	select {
+	case <-serializer.flushed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for the no-aggregation worker to serialize the batch")
+	}
+	demux.Stop()
+
+	require.Len(mockSerializer.series, 1)
+	require.Len(handle.calls, 1)
+	assert.Equal(t, "host-gauge", handle.calls[0].host)
+	assert.ElementsMatch(t, []string{"tag:1", "tag:2", "env:prod"}, handle.calls[0].tags)
+	assert.ElementsMatch(t, mockSerializer.series[0].Tags.UnsafeToReadOnlySliceString(), handle.calls[0].tags)
 }
 
 // TestTimeSamplerObserverHandleNil verifies no panic when observerHandle is nil.
