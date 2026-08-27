@@ -44,18 +44,25 @@ type sweeper struct {
 	reporter discoveryReporter
 	cursors  cursorStore
 	sem      *semaphore.Weighted
-	log      log.Component
+	// budget is the size of sem. Acquiring more than that blocks until the
+	// context is done, so a range's worker share is clamped to it.
+	budget int64
+	log    log.Component
 
 	now      func() int64
 	newRunID func() string
 }
 
-func newSweeper(checker connectivityChecker, reporter discoveryReporter, cursors cursorStore, sem *semaphore.Weighted, logger log.Component) *sweeper {
+func newSweeper(checker connectivityChecker, reporter discoveryReporter, cursors cursorStore, sem *semaphore.Weighted, budget int64, logger log.Component) *sweeper {
+	if budget < 1 {
+		budget = 1
+	}
 	return &sweeper{
 		checker:  checker,
 		reporter: reporter,
 		cursors:  cursors,
 		sem:      sem,
+		budget:   budget,
 		log:      logger,
 		now:      func() int64 { return time.Now().UnixMilli() },
 		newRunID: func() string { return uuid.New().String() },
@@ -64,14 +71,18 @@ func newSweeper(checker connectivityChecker, reporter discoveryReporter, cursors
 
 func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 	id := r.Config.AutodiscoveryID
+	// A share below 1 bounds nothing, and a share above the global budget can
+	// never be acquired, so it is clamped rather than left to hang the sweep.
+	r.Workers = clampWorkers(r.Workers, s.budget)
 	state := s.startState(r)
 
 	if state.NextChunk == 0 {
 		s.reportRun(r, metadata.AutodiscoveryRunMetadata{
-			AutodiscoveryID: id,
-			RunID:           state.RunID,
-			Status:          metadata.AutodiscoveryRunInProgress,
-			StartedAtMs:     state.StartedAtMs,
+			AutodiscoveryID:  id,
+			RunID:            state.RunID,
+			Status:           metadata.AutodiscoveryRunInProgress,
+			AddressesScanned: state.Scanned,
+			StartedAtMs:      state.StartedAtMs,
 		})
 	}
 
@@ -81,13 +92,19 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 
 		devices, err := s.probe(ctx, r, state.RunID, chunk)
 		if err != nil {
-			// The cursor is kept either way, so the next tick resumes at this
-			// same chunk instead of re-scanning the range from the start.
-			s.saveCursor(id, state)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				// The agent is stopping. The run is paused, not broken.
+				// The agent is stopping. The run is paused, not broken, so the
+				// cursor is kept as is and the next start resumes this run.
+				s.saveCursor(id, state)
 				return err
 			}
+			// This run ends here on a terminal failed record. The cursor is
+			// kept so the next tick resumes at this same chunk instead of
+			// re-scanning the range, but it is marked failed so that the
+			// resume opens a new run rather than completing one the backend
+			// already recorded as failed.
+			state.Failed = true
+			s.saveCursor(id, state)
 			s.reportRun(r, metadata.AutodiscoveryRunMetadata{
 				AutodiscoveryID:  id,
 				RunID:            state.RunID,
@@ -100,10 +117,12 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 			return err
 		}
 
-		if err := s.reporter.ReportDevices(r.Config.Namespace, devices); err != nil {
-			// A transport failure is not a scan failure: log it and keep
-			// sweeping rather than aborting a multi-hour cycle.
-			s.log.Warnf("ndmdiscovery: failed to report chunk %d of range %s: %v", chunk.Index, id, err)
+		if len(devices) > 0 {
+			if err := s.reporter.ReportDevices(r.Config.Namespace, devices); err != nil {
+				// A transport failure is not a scan failure: log it and keep
+				// sweeping rather than aborting a multi-hour cycle.
+				s.log.Warnf("ndmdiscovery: failed to report chunk %d of range %s: %v", chunk.Index, id, err)
+			}
 		}
 
 		state.NextChunk++
@@ -133,6 +152,25 @@ func (s *sweeper) startState(r sweepRequest) cursorState {
 		saved.ConfigDigest == r.Digest &&
 		saved.NextChunk > 0 &&
 		saved.NextChunk < r.Plan.chunkCount() {
+		if !saved.Failed {
+			return saved
+		}
+
+		// The saved run already ended on a terminal failed record. Finishing it
+		// would give the backend a second terminal record for one run ID, so
+		// the remaining chunks continue under a fresh run while the progress
+		// made so far is preserved.
+		saved.RunID = s.newRunID()
+		saved.StartedAtMs = s.now()
+		saved.Failed = false
+		s.saveCursor(r.Config.AutodiscoveryID, saved)
+		s.reportRun(r, metadata.AutodiscoveryRunMetadata{
+			AutodiscoveryID:  r.Config.AutodiscoveryID,
+			RunID:            saved.RunID,
+			Status:           metadata.AutodiscoveryRunInProgress,
+			AddressesScanned: saved.Scanned,
+			StartedAtMs:      saved.StartedAtMs,
+		})
 		return saved
 	}
 
@@ -149,7 +187,12 @@ func (s *sweeper) startState(r sweepRequest) cursorState {
 
 func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk probeChunk) ([]metadata.DiscoveredDeviceMetadata, error) {
 	if len(chunk.Targets) == 0 {
-		return nil, ctx.Err()
+		// Every address of this chunk is ignored, so there is nothing to
+		// probe. A cancelled context still stops the cycle here.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return nil, nil
 	}
 
 	// The worker budget is global, so a chunk waits for its share rather than
@@ -181,6 +224,19 @@ func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk
 		return nil, err
 	}
 	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), nil
+}
+
+// clampWorkers keeps a range's worker share inside [1, budget].
+// semaphore.Weighted.Acquire blocks until the context is done when n exceeds
+// the semaphore size, and bounds nothing at all when n is zero.
+func clampWorkers(workers, budget int64) int64 {
+	if workers < 1 {
+		return 1
+	}
+	if workers > budget {
+		return budget
+	}
+	return workers
 }
 
 func (s *sweeper) saveCursor(id string, state cursorState) {

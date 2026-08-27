@@ -22,17 +22,28 @@ import (
 
 // recordingReporter captures everything the sweeper publishes.
 type recordingReporter struct {
-	mu        sync.Mutex
-	devices   []metadata.DiscoveredDeviceMetadata
-	batches   int
-	runs      []metadata.AutodiscoveryRunMetadata
-	deviceErr error
+	mu      sync.Mutex
+	devices []metadata.DiscoveredDeviceMetadata
+	batches int
+	runs    []metadata.AutodiscoveryRunMetadata
+	// deviceErr is returned by the next deviceErrLeft calls to ReportDevices.
+	deviceErr     error
+	deviceErrLeft int
+}
+
+// failNextDeviceReports makes the next n ReportDevices calls fail with
+// deviceErr, which must be set.
+func (r *recordingReporter) failNextDeviceReports(n int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deviceErrLeft = n
 }
 
 func (r *recordingReporter) ReportDevices(_ string, d []metadata.DiscoveredDeviceMetadata) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.deviceErr != nil {
+	if r.deviceErr != nil && r.deviceErrLeft > 0 {
+		r.deviceErrLeft--
 		return r.deviceErr
 	}
 	r.batches++
@@ -49,7 +60,7 @@ func (r *recordingReporter) ReportRun(_ string, run metadata.AutodiscoveryRunMet
 
 func newTestSweeper(t *testing.T, checker connectivityChecker, reporter discoveryReporter, cursors cursorStore, workers int64) *sweeper {
 	t.Helper()
-	s := newSweeper(checker, reporter, cursors, semaphore.NewWeighted(workers), logmock.New(t))
+	s := newSweeper(checker, reporter, cursors, semaphore.NewWeighted(workers), workers, logmock.New(t))
 	s.now = func() int64 { return 1700000000000 }
 	s.newRunID = func() string { return "run-fixed" }
 	return s
@@ -246,8 +257,161 @@ func TestSweepCancellationDoesNotReportFailure(t *testing.T) {
 			"a stopping agent is not a broken run")
 	}
 	saved, ok := cursors.Load("ad-1")
-	require.True(t, ok, "the cursor is kept so the next agent start resumes here")
+	require.True(t, ok, "the cursor is kept, even though it holds no completed chunk yet")
 	assert.Equal(t, 0, saved.NextChunk, "the interrupted chunk is not counted as done")
+	assert.False(t, saved.Failed, "a stopping agent does not end the run")
+	// NextChunk is still 0, so startState discards this cursor: an interruption
+	// during the very first chunk restarts as a fresh cycle rather than
+	// resuming, which costs at most one chunk of re-scanning.
+}
+
+func TestSweepCancellationMidRangeResumesWithTheSameRunID(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	checker := &fakeChecker{respond: func(req connectivity.Request) (connectivity.Result, error) {
+		calls++
+		if calls == 3 {
+			// Two chunks are already done, so the cursor holds real progress.
+			cancel()
+		}
+		devices := make([]connectivity.DeviceResult, 0, len(req.Targets))
+		for _, ip := range req.Targets {
+			devices = append(devices, connectivity.DeviceResult{IPAddress: ip})
+		}
+		return connectivity.Result{Devices: devices}, nil
+	}}
+	reporter := &recordingReporter{}
+	cursors := newMemCursorStore()
+	s := newTestSweeper(t, checker, reporter, cursors, 10)
+
+	req := testSweepRequest(t, "10.0.0.0/22", nil)
+	require.ErrorIs(t, s.sweep(ctx, req), context.Canceled)
+
+	saved, ok := cursors.Load("ad-1")
+	require.True(t, ok)
+	assert.Equal(t, 2, saved.NextChunk, "the two completed chunks are not re-scanned")
+	assert.Equal(t, "run-fixed", saved.RunID)
+	assert.False(t, saved.Failed)
+
+	// The next agent start picks the cycle back up where it stopped.
+	resumeChecker := answerAll()
+	s2 := newTestSweeper(t, resumeChecker, reporter, cursors, 10)
+	s2.newRunID = func() string { return "run-should-not-be-used" }
+	require.NoError(t, s2.sweep(context.Background(), req))
+
+	assert.Len(t, resumeChecker.recorded(), 2, "only the remaining chunks are swept")
+	final := reporter.runs[len(reporter.runs)-1]
+	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
+	assert.Equal(t, "run-fixed", final.RunID, "the resumed cycle keeps its original run ID")
+	assert.Equal(t, int64(1024), final.AddressesScanned)
+	for _, run := range reporter.runs {
+		assert.NotEqual(t, "run-should-not-be-used", run.RunID)
+	}
+	assert.Equal(t, 1, countRunStatus(reporter.runs, metadata.AutodiscoveryRunInProgress),
+		"a plain restart mid-run does not duplicate the in_progress record")
+}
+
+func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
+	calls := 0
+	checker := &fakeChecker{respond: func(req connectivity.Request) (connectivity.Result, error) {
+		calls++
+		if calls == 3 {
+			return connectivity.Result{}, errors.New("engine exploded")
+		}
+		devices := make([]connectivity.DeviceResult, 0, len(req.Targets))
+		for _, ip := range req.Targets {
+			devices = append(devices, connectivity.DeviceResult{IPAddress: ip})
+		}
+		return connectivity.Result{Devices: devices}, nil
+	}}
+	reporter := &recordingReporter{}
+	cursors := newMemCursorStore()
+	s := newTestSweeper(t, checker, reporter, cursors, 10)
+
+	req := testSweepRequest(t, "10.0.0.0/22", nil)
+	require.Error(t, s.sweep(context.Background(), req))
+
+	saved, ok := cursors.Load("ad-1")
+	require.True(t, ok)
+	assert.True(t, saved.Failed, "the terminal failed record is remembered on the cursor")
+
+	// The next tick resumes the remaining chunks.
+	s2 := newTestSweeper(t, answerAll(), reporter, cursors, 10)
+	s2.newRunID = func() string { return "run-second" }
+	require.NoError(t, s2.sweep(context.Background(), req))
+
+	byRun := map[string][]metadata.AutodiscoveryRunStatus{}
+	for _, run := range reporter.runs {
+		byRun[run.RunID] = append(byRun[run.RunID], run.Status)
+	}
+	assert.Equal(t, []metadata.AutodiscoveryRunStatus{metadata.AutodiscoveryRunInProgress, metadata.AutodiscoveryRunFailed}, byRun["run-fixed"],
+		"the failed run gets exactly one terminal record")
+	assert.Equal(t, []metadata.AutodiscoveryRunStatus{metadata.AutodiscoveryRunInProgress, metadata.AutodiscoveryRunCompleted}, byRun["run-second"],
+		"the remaining work runs under a new run ID with its own lifecycle")
+
+	final := reporter.runs[len(reporter.runs)-1]
+	assert.Equal(t, int64(1024), final.AddressesScanned, "progress made before the failure is preserved")
+
+	saved, ok = cursors.Load("ad-1")
+	assert.False(t, ok, "the completed cycle clears its cursor")
+	assert.False(t, saved.Failed)
+}
+
+func TestSweepClampsWorkersToTheBudget(t *testing.T) {
+	checker := answerAll()
+	// The global budget is 4, so a range asking for 32 must not deadlock on
+	// semaphore.Acquire, which never returns for n greater than the size.
+	s := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 4)
+
+	req := testSweepRequest(t, "10.0.0.0/24", nil)
+	req.Workers = 32
+	require.NoError(t, s.sweep(context.Background(), req))
+
+	sent := checker.recorded()
+	require.Len(t, sent, 1)
+	assert.Equal(t, 4, sent[0].Workers)
+}
+
+func TestSweepClampsNonPositiveWorkersToOne(t *testing.T) {
+	checker := answerAll()
+	s := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 4)
+
+	req := testSweepRequest(t, "10.0.0.0/24", nil)
+	req.Workers = 0
+	require.NoError(t, s.sweep(context.Background(), req))
+
+	sent := checker.recorded()
+	require.Len(t, sent, 1)
+	assert.Equal(t, 1, sent[0].Workers, "a zero share would bound nothing")
+}
+
+func TestSweepContinuesWhenAChunkReportFails(t *testing.T) {
+	reporter := &recordingReporter{deviceErr: errors.New("intake unavailable")}
+	cursors := newMemCursorStore()
+	s := newTestSweeper(t, answerAll(), reporter, cursors, 10)
+
+	req := testSweepRequest(t, "10.0.0.0/22", nil)
+	// Only the first chunk fails to report: a transport failure must not abort
+	// a multi-hour cycle.
+	reporter.failNextDeviceReports(1)
+	require.NoError(t, s.sweep(context.Background(), req))
+
+	final := reporter.runs[len(reporter.runs)-1]
+	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
+	assert.Equal(t, int64(1024), final.AddressesScanned, "the unreported chunk still counts as swept")
+	assert.Equal(t, 3, reporter.batches, "the three chunks after it are reported normally")
+	_, ok := cursors.Load("ad-1")
+	assert.False(t, ok, "the cursor advanced past the failed report and the cycle cleared it")
+}
+
+func countRunStatus(runs []metadata.AutodiscoveryRunMetadata, status metadata.AutodiscoveryRunStatus) int {
+	n := 0
+	for _, run := range runs {
+		if run.Status == status {
+			n++
+		}
+	}
+	return n
 }
 
 func TestSweepBuildsTheRequest(t *testing.T) {
@@ -286,11 +450,10 @@ func TestSweepOmitsPingWhenDisabled(t *testing.T) {
 }
 
 func TestToDiscoveredDevices(t *testing.T) {
-	rtt := int64(4)
 	res := connectivity.Result{Devices: []connectivity.DeviceResult{
 		{
 			IPAddress:  "10.0.0.1",
-			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true, RttMs: &rtt}},
+			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true, RttMs: nil}},
 			SNMPResult: &connectivity.SNMPResult{
 				CheckResult: connectivity.CheckResult{Success: true},
 				CredID:      "cred-a",

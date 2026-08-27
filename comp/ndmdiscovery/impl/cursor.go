@@ -27,6 +27,12 @@ type cursorState struct {
 	Scanned      int64  `json:"scanned"`
 	StartedAtMs  int64  `json:"started_at_ms"`
 	ConfigDigest string `json:"config_digest"`
+	// Failed marks a cycle that already reported a terminal failed status for
+	// RunID. The backend keeps one terminal record per run, so resuming such a
+	// cursor must open a new run rather than complete the failed one. An older
+	// cursor without the field decodes to false, which is the pre-existing
+	// behaviour.
+	Failed bool `json:"failed"`
 }
 
 // cursorStore persists the cycle progress of each configured range.
