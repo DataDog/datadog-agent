@@ -165,3 +165,27 @@ func TestStopAfterFileRotationRealFileMissedBytes(t *testing.T) {
 	require.Equal(t, int64(fileSize-readOffset), summaries[0].Bytes)
 	require.Equal(t, int64(1), summaries[0].Rotations)
 }
+
+// A handoff drain ends once the file goes idle; a plain rotation drain waits out
+// the close timeout.
+func TestStopAfterFileRotationForHandoffEndsWhenIdle(t *testing.T) {
+	for _, handoff := range []bool{true, false} {
+		tailer, _ := newMissedBytesTailer(t, 0, 0)
+		tailer.closeTimeout = 2 * time.Second
+		tailer.rotationHandoffQuietPeriod = 50 * time.Millisecond
+
+		if handoff {
+			tailer.StopAfterFileRotationForHandoff()
+		} else {
+			tailer.StopAfterFileRotation()
+		}
+		require.Equal(t, handoff, tailer.IsHandoffDrain())
+
+		select {
+		case <-tailer.stop:
+			require.True(t, handoff, "a plain rotation drain must wait out the close timeout")
+		case <-time.After(time.Second):
+			require.False(t, handoff, "a handoff drain must end once the file goes idle")
+		}
+	}
+}
