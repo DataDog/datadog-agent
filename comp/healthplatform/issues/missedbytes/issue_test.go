@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// recentTimestamp is rendered relatively ("... ago"), so the tests use a time
-// relative to now rather than a fixed date that would drift in the output.
+// recentTimestamp feeds last_loss_at, which reaches Extra but no longer appears
+// in the prose — the platform tracks last-seen per issue itself.
 func recentTimestamp() string {
 	return time.Now().Add(-90 * time.Minute).UTC().Format(time.RFC3339)
 }
@@ -52,11 +52,12 @@ func TestBuildIssue(t *testing.T) {
 				// Ranked by bytes, with no per-source rotation count: that
 				// detail lives in Extra.
 				"Most affected: nginx/web 4.0 MB, redis/cache 200 kB, kafka/queue 512 B.",
-				"ago.",
 			},
 			descNotSubstrs: []string{
 				// The byte total belongs to the Title only.
 				"4.2 MB",
+				// Recency belongs to the platform's own last-seen, not the prose.
+				"Last loss",
 			},
 			extraBytes:  4200512,
 			extraRotate: 4,
@@ -118,13 +119,13 @@ func TestBuildIssue(t *testing.T) {
 			name:        "empty context falls back to defaults",
 			ctx:         map[string]string{},
 			title:       "Lost 0 B of logs from 0 sources in the last 24 hours",
-			descSubstrs: []string{"Last loss at an " + unknownValue + " time."},
+			descSubstrs: []string{"Logs from 0 sources never reached Datadog"},
 		},
 		{
 			name:        "nil context must not panic",
 			ctx:         nil,
 			title:       "Lost 0 B of logs from 0 sources in the last 24 hours",
-			descSubstrs: []string{"Last loss at an " + unknownValue + " time."},
+			descSubstrs: []string{"Logs from 0 sources never reached Datadog"},
 		},
 		{
 			name: "unparseable counters degrade to zero",
@@ -185,7 +186,7 @@ func TestBuildIssue(t *testing.T) {
 			assert.Equal(t, []string{"logs", "file-tailing", "rotation", "data-loss"}, issue.GetTags())
 
 			require.NotNil(t, issue.GetRemediation())
-			assert.Equal(t, "Adjust your agent configuration", issue.GetRemediation().GetSummary())
+			assert.Contains(t, issue.GetRemediation().GetSummary(), "Logs Agent Backpressure")
 			assert.Empty(t, issue.GetRemediation().GetSteps(), "remediation content for this issue is served backend-side")
 			assert.Nil(t, issue.GetRemediation().GetScript())
 
@@ -251,19 +252,6 @@ func TestSourceNameTruncation(t *testing.T) {
 	// A name already within the bound is passed through untouched.
 	short := issue.GetExtra().GetFields()[contextKeySources].GetListValue().GetValues()[1].GetStructValue().GetFields()
 	assert.Equal(t, "short", short["source"].GetStringValue())
-}
-
-func TestDescribeLastLoss(t *testing.T) {
-	assert.Equal(t, "at an unknown time", describeLastLoss(""))
-	assert.Equal(t, "at an unknown time", describeLastLoss(unknownValue))
-
-	// A parseable stamp is rendered relatively, not dumped into the prose.
-	rel := describeLastLoss(time.Now().Add(-90 * time.Minute).UTC().Format(time.RFC3339))
-	assert.Contains(t, rel, "ago")
-	assert.NotContains(t, rel, "T")
-
-	// An unparseable value is still surfaced rather than discarded.
-	assert.Equal(t, "at not-a-timestamp", describeLastLoss("not-a-timestamp"))
 }
 
 // IssueType must stay IssueName lowercased with spaces replaced by underscores;

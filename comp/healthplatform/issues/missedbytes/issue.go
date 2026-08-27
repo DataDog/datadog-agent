@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -99,7 +98,9 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	// Each aggregate lands in exactly one place: the byte total in the Title,
 	// the rotation count in the Description, the per-source split in the
 	// breakdown. Repeating all three in both fields is what made the old
-	// wording read as a wall of text.
+	// wording read as a wall of text. The time of the last loss is deliberately
+	// absent: the Agent Health Platform already tracks last-seen per issue, and
+	// last_loss_at remains in Extra for anything that needs the exact value.
 	sentences := []string{
 		fmt.Sprintf("%s never reached Datadog: %d log %s closed %s before the Agent finished reading it.",
 			subject, rotations, pluralize(rotations, "rotation"), file),
@@ -107,7 +108,6 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	if breakdown != "" {
 		sentences = append(sentences, breakdown)
 	}
-	sentences = append(sentences, "Last loss "+describeLastLoss(lastLossAt)+".")
 
 	extra, err := structpb.NewStruct(map[string]any{
 		contextKeyBytes:          bytesLost,
@@ -142,8 +142,11 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		Extra:    extra,
 		Tags:     []string{"logs", "file-tailing", "rotation", "data-loss"},
 		Remediation: &healthplatform.Remediation{
-			// Summary only: remediation content is authored backend-side.
-			Summary: "Adjust your agent configuration",
+			// Deliberately generic for now: detailed remediation is authored
+			// backend-side. The "Logs Agent Backpressure" section of `agent
+			// status` is the closest first stop, since a pipeline that cannot
+			// keep up is a common reason a tailer falls behind a rotation.
+			Summary: "Run `agent status` and review the Logs Agent Backpressure section",
 		},
 	}, nil
 }
@@ -193,19 +196,6 @@ func describeSources(sources []sourceLoss, omitted int64) string {
 		parts = append(parts, fmt.Sprintf("and %d other %s", omitted, pluralize(omitted, "source")))
 	}
 	return "Most affected: " + strings.Join(parts, ", ") + "."
-}
-
-// describeLastLoss renders recency as a tail phrase. A relative time reads
-// better than an RFC3339 stamp dropped mid-sentence, but a value that does not
-// parse is still surfaced verbatim rather than discarded.
-func describeLastLoss(raw string) string {
-	if raw == "" || raw == unknownValue {
-		return "at an " + unknownValue + " time"
-	}
-	if t, err := time.Parse(time.RFC3339, raw); err == nil {
-		return humanize.Time(t)
-	}
-	return "at " + raw
 }
 
 // sourcesAsExtra converts the breakdown into the shape structpb accepts, so it
