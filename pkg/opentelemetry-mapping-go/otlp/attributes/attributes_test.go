@@ -84,6 +84,26 @@ func TestTagsFromAzureAppServiceAttributes(t *testing.T) {
 		}, TagsFromAttributes(attrs))
 	})
 
+	t.Run("service instance fallback", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		require.NoError(t, attrs.FromRaw(map[string]any{
+			string(semconv127.CloudPlatformKey):  cloudPlatformAzureAppService,
+			string(semconv127.ServiceNameKey):    testAzureAppServiceName,
+			string(semconv127.CloudAccountIDKey): testAzureSubscriptionID,
+			attributeAzureResourceGroupName:      testAzureResourceGroup,
+			attributeServiceInstanceID:           testServiceInstanceID,
+		}))
+
+		assert.ElementsMatch(t, []string{
+			"service:" + testAzureAppServiceName,
+			"service.instance.id:" + testServiceInstanceID,
+			"name:" + testAzureAppServiceName,
+			"subscription_id:" + testAzureSubscriptionID,
+			"resource_group:" + testAzureResourceGroup,
+			"instance:" + testServiceInstanceID,
+		}, TagsFromAttributes(attrs))
+	})
+
 	t.Run("incomplete identity", func(t *testing.T) {
 		attrs := pcommon.NewMap()
 		require.NoError(t, attrs.FromRaw(map[string]any{
