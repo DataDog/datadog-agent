@@ -15,7 +15,7 @@ dda inv -- anomalydetection.launch-testbench
 dda inv -- anomalydetection.launch-testbench --scenarios-dir /path/to/scenarios
 ```
 
-Then open http://localhost:5173 in your browser.
+Then open `http://localhost:5173` in your browser.
 
 The `--build` flag rebuilds the binary before launching. Omit it after the first run to skip the build step.
 
@@ -73,6 +73,7 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--output` | _(empty)_ | Path for observer JSON output |
 | `--verbose` | `false` | Include full detail in JSON output (titles, member series, individual anomalies) |
 | `--memprofile` | _(empty)_ | Write a heap profile to this file after the run |
+| `--cpuprofile` | _(empty)_ | Write a CPU profile covering the scenario replay to this file |
 | `--retain-parquet` | `false` | Retain and sort all parquet rows in headless mode. Use for unordered local recordings; headless runs stream by default. |
 
 ## Components
@@ -128,13 +129,21 @@ Run a scenario without the HTTP server — load data, run the full detector→co
 # Via invoke (builds automatically with --build)
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --headless-output /tmp/out.json
-dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --profile  # write heap profile
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --mem-profile  # write heap profile
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --cpu-profile  # write CPU profile
 
 # Direct binary
 ./bin/anomalydetection-testbench \
   --headless <scenario-name> \
   --output results.json \
   --scenarios-dir ./comp/anomalydetection/observer/scenarios
+
+# Capture a CPU profile for the scenario replay
+./bin/anomalydetection-testbench \
+  --headless <scenario-name> \
+  --cpuprofile /tmp/observer.cpu.pprof \
+  --scenarios-dir ./comp/anomalydetection/observer/scenarios
+go tool pprof /tmp/observer.cpu.pprof
 
 # Same, but only ingest logs from parquet (ignore metrics and trace stats)
 ./bin/anomalydetection-testbench \
@@ -393,7 +402,7 @@ These endpoints are available in interactive mode (not headless).
 - **Scenario Selection**: Load different scenarios from the sidebar
 - **Component Toggles**: Enable/disable detectors and correlators live
 - **Series Tree**: Browse and select time series to visualize
-- **Aggregation Types**: Switch between avg, count, sum, min, max views
+- **Aggregation Types**: Switch between avg, count, and sum views
 - **Time Clusters**: View correlated anomaly groups
 - **Zoom/Pan**: Drag to zoom, middle-drag to pan on charts
 - **Split by Tag**: Split series by tag values for comparison

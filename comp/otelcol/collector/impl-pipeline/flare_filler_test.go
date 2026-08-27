@@ -130,7 +130,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 
 	cfg := config.NewMock(t)
 	cfg.Set("otelcollector.enabled", true, pkgconfigmodel.SourceAgentRuntime)
-	cfg.Set("otelcollector.extension_url", 7777, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("otelcollector.extension_url", "https://localhost:7777", pkgconfigmodel.SourceAgentRuntime)
 
 	reqs := Requires{
 		Lc:     compdef.NewTestLifecycle(t),

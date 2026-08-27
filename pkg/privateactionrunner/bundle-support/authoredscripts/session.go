@@ -16,6 +16,7 @@ import (
 
 const (
 	sessionDirectoryPrefix = "dd-authored-script-"
+	workDirectoryName      = "work"
 	homeDirectoryName      = "home"
 	tempDirectoryName      = "tmp"
 	sessionDirectoryMode   = 0700
@@ -24,6 +25,7 @@ const (
 // Session provides isolated writable directories for one script execution.
 type Session struct {
 	RootDirectory string
+	WorkDirectory string
 	HomeDirectory string
 	TempDirectory string
 
@@ -46,10 +48,11 @@ func NewSession() (*Session, error) {
 
 	session := &Session{
 		RootDirectory: rootDirectory,
+		WorkDirectory: filepath.Join(rootDirectory, workDirectoryName),
 		HomeDirectory: filepath.Join(rootDirectory, homeDirectoryName),
 		TempDirectory: filepath.Join(rootDirectory, tempDirectoryName),
 	}
-	for _, directory := range []string{session.HomeDirectory, session.TempDirectory} {
+	for _, directory := range []string{session.WorkDirectory, session.HomeDirectory, session.TempDirectory} {
 		if err := os.Mkdir(directory, sessionDirectoryMode); err != nil {
 			return nil, fmt.Errorf("could not create authored-script session directory %q: %w", directory, err)
 		}
