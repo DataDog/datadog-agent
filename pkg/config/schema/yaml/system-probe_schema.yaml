@@ -1513,8 +1513,6 @@ properties:
             node_type: setting
             type: number
             default: 0.5
-            tags:
-            - golang_type:float64
           interrupt_overhead:
             node_type: setting
             type: string
@@ -1533,8 +1531,6 @@ properties:
             node_type: setting
             type: number
             default: 0.1
-            tags:
-            - golang_type:float64
       debug_info_disk_cache:
         node_type: section
         type: object
@@ -1563,8 +1559,6 @@ properties:
             node_type: setting
             type: number
             default: 0
-            tags:
-            - golang_type:float64
       diagnostics_output_file_path:
         node_type: setting
         type: boolean
