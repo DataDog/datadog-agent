@@ -5,17 +5,6 @@
 
 package workloadbalancingimpl
 
-// workloadBalancingType is the type value comp/workloadbalancing sets on its own HA_AGENT
-// documents. HA Agent's own documents never set type at all.
-const workloadBalancingType = "workload_balancing"
-
-// workloadBalancingDiscriminator tells whether an HA_AGENT document belongs to
-// comp/workloadbalancing. Its json tag must match comp/haagent's own copy by hand; the two are
-// deliberately not shared to avoid a dependency between the components.
-type workloadBalancingDiscriminator struct {
-	Type string `json:"type"`
-}
-
 // workloadBalancingRCConfig is the workload-balancing payload on the shared HA_AGENT product.
 // Named workload_balancing_group_id, not group/group_id/GroupID, to avoid colliding with
 // ha_agent.group, a dormant config key and RC schema field reserved for an unrelated,

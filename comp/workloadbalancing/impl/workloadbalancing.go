@@ -82,8 +82,8 @@ func (w *workloadBalancingImpl) onWorkloadBalancingUpdate(updates map[string]sta
 	seenGroups := make(map[string]groupState, len(previousGroups))
 
 	for configPath, rawConfig := range updates {
-		var discriminator workloadBalancingDiscriminator
-		if err := json.Unmarshal(rawConfig.Config, &discriminator); err != nil || discriminator.Type != workloadBalancingType {
+		var discriminator haagent.WorkloadBalancingDiscriminator
+		if err := json.Unmarshal(rawConfig.Config, &discriminator); err != nil || discriminator.Type != haagent.WorkloadBalancingType {
 			if !haAgentEnabled {
 				// comp/haagent isn't listening on this Agent to claim it either; report status
 				// ourselves so nothing is silently dropped just because Failover mode is off.
