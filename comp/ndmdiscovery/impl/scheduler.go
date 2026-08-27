@@ -50,7 +50,10 @@ type scheduler struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	pingEnabled bool
-	wg          sync.WaitGroup
+	// wg is reused across start/stop pairs, which assumes the two are never
+	// called concurrently. The fx lifecycle hooks that drive them are
+	// sequential, so that holds.
+	wg sync.WaitGroup
 }
 
 func newScheduler(sw *sweeper, creds credentialStore, logger log.Component, opts schedulerOptions) *scheduler {
@@ -155,8 +158,10 @@ func (s *scheduler) set(cfg rangeConfig) error {
 		s.mu.Unlock()
 		return errors.New("the discovery scheduler is not running")
 	}
+	// Cancelled after the lock is released, the way remove does it.
+	var replaced context.CancelFunc
 	if existing, ok := s.ranges[cfg.AutodiscoveryID]; ok {
-		existing.cancel()
+		replaced = existing.cancel
 	}
 	rangeCtx, rangeCancel := context.WithCancel(s.ctx)
 	s.ranges[cfg.AutodiscoveryID] = &scheduledRange{cfg: cfg, cancel: rangeCancel}
@@ -168,18 +173,26 @@ func (s *scheduler) set(cfg rangeConfig) error {
 	s.wg.Add(1)
 	s.mu.Unlock()
 
+	if replaced != nil {
+		replaced()
+	}
+
 	go func() {
 		defer s.wg.Done()
 		defer s.finishCycles(cfg.AutodiscoveryID, done)
 
 		if previous != nil {
 			// The range this one replaces is cancelled but may still be inside
-			// a probe. Waiting for it keeps one cursor under one writer.
-			select {
-			case <-previous:
-			case <-rangeCtx.Done():
-				return
-			}
+			// a probe. Waiting for it keeps one cursor under one writer. The
+			// wait is unconditional: giving it a cancellation escape would let
+			// a cancelled waiter close its own channel while its predecessor
+			// is still probing, and the next cycle in the chain would then
+			// start alongside that predecessor. A cancelled predecessor
+			// unwinds on its own, so the wait stays bounded.
+			<-previous
+		}
+		if rangeCtx.Err() != nil {
+			return
 		}
 		s.run(rangeCtx, cfg)
 	}()
@@ -213,7 +226,16 @@ func (s *scheduler) remove(autodiscoveryID string) {
 // sequential: a tick that arrives while a cycle is still running starts the
 // next one as soon as that cycle ends rather than alongside it.
 func (s *scheduler) run(ctx context.Context, cfg rangeConfig) {
-	tick, stopTicker := s.newTicker(time.Duration(cfg.IntervalSec) * time.Second)
+	// A non-positive interval would panic in time.NewTicker, and a panic in
+	// this goroutine takes the agent down. parseRangeConfig clamps upstream,
+	// so this is the floor for anything that reaches the scheduler by another
+	// route.
+	d := time.Duration(cfg.IntervalSec) * time.Second
+	if d <= 0 {
+		d = time.Duration(minIntervalSec) * time.Second
+	}
+
+	tick, stopTicker := s.newTicker(d)
 	defer stopTicker()
 
 	for {
