@@ -315,7 +315,7 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 
 	if s.Resource() == "" {
 		ts.SpansMalformed.ResourceEmpty.Inc()
-		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: %s", s.Name, s)
+		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: SpanID: %d, Service: %s", s.Name(), s.SpanID(), s.Service())
 		s.SetResource(s.Name())
 	}
 
@@ -463,7 +463,7 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 		}
 		if _, ok := spanIDs[span.SpanID()]; ok {
 			ts.SpansMalformed.DuplicateSpanID.Inc()
-			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
+			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): SpanID: %d, Service: %s, Name: %s, Resource: %s", span.SpanID(), span.Service(), span.Name(), span.Resource())
 		}
 		spanIDs[span.SpanID()] = struct{}{}
 	}

@@ -76,7 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/lockcontention"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -328,7 +328,7 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
 				deps.Telemetry.RegisterCollector(pc)
 			}
-			if lcc := ddebpf.NewLockContentionCollector(); lcc != nil {
+			if lcc := lockcontention.NewLockContentionCollector(); lcc != nil {
 				deps.Telemetry.RegisterCollector(lcc)
 			}
 			if ec := ebpftelemetry.NewEBPFErrorsCollector(); ec != nil {

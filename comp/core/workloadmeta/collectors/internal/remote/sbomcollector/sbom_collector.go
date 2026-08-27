@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"go.uber.org/fx"
@@ -248,7 +249,8 @@ func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 		}
 		seen[key] = struct{}{}
 
-		// Copy all fields so we do not mutate the original BOM.
+		// Copy all fields so we do not mutate the original BOM. The property
+		// slice is cloned because updateProperty replaces entries in place.
 		mergedComp := &cyclonedx_v1_4.Component{
 			Type:               existingComp.Type,
 			MimeType:           existingComp.MimeType,
@@ -271,7 +273,7 @@ func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 			Pedigree:           existingComp.Pedigree,
 			ExternalReferences: existingComp.ExternalReferences,
 			Components:         existingComp.Components,
-			Properties:         existingComp.Properties,
+			Properties:         slices.Clone(existingComp.Properties),
 			Evidence:           existingComp.Evidence,
 			ReleaseNotes:       existingComp.ReleaseNotes,
 		}
