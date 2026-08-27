@@ -376,251 +376,101 @@ func TestShouldMutatePod(t *testing.T) {
 	}
 }
 
-func TestIsNamespaceEligible(t *testing.T) {
-	tests := map[string]struct {
-		configPath string
-		in         string
-		expected   bool
-		namespaces []workloadmeta.KubernetesMetadata
-	}{
-		"a matchNames namespace is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "billing-service",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("billing-service", nil),
-			},
-			expected: true,
-		},
-		"a rule without a namespace selector is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "foo",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("foo", nil),
-			},
-			expected: true,
-		},
-		"a matchLabels namespace is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "foo",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("foo", map[string]string{
-					"tracing": "yes",
-					"env":     "prod",
-				}),
-			},
-			expected: true,
-		},
-		"a disabled namespace is not eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "infra",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("infra", nil),
-			},
-			expected: false,
-		},
-		"kube-system is eligible because default namespaces are filtered at the webhook layer": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "kube-system",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("kube-system", nil),
-			},
-			expected: true,
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Load the config.
-			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig)
-			require.NoError(t, err)
-
-			// Create a mock meta.
-			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				fx.Supply(coreconfig.Params{}),
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			))
-
-			// Add the namespaces.
-			for _, ns := range test.namespaces {
-				wmeta.Set(&ns)
-			}
-
-			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
-			require.NoError(t, err)
-
-			// Determine if the namespace is eligible.
-			actual := f.IsNamespaceEligible(test.in)
-
-			// Validate the output.
-			require.Equal(t, test.expected, actual)
-		})
-	}
-}
-
-func TestIsNamespaceEligibleSkipsTargetWhenNamespaceMetadataIsUnavailable(t *testing.T) {
-	tests := map[string]struct {
-		fallback string
-		want     bool
-	}{
-		"catch-all fallback makes namespace eligible": {
-			fallback: `
-      - name: "fallback"`,
-			want: true,
-		},
-		"pod-only fallback makes namespace eligible": {
-			fallback: `
-      - name: "pod-only"
-        podSelector:
-          matchLabels:
-            app: "web"`,
-			want: true,
-		},
-		"no fallback leaves namespace ineligible": {
-			want: false,
-		},
-	}
-
-	const configTemplate = `
-apm_config:
-  instrumentation:
-    enabled: true
-    targets:
-      - name: "namespace-label-target"
-        namespaceSelector:
-          matchLabels:
-            instrument: "true"
-%s
-`
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			wmeta := newMatchTestWmeta(t)
-			m := newMatchMutator(t, fmt.Sprintf(configTemplate, test.fallback), wmeta)
-
-			require.Equal(t, test.want, m.IsNamespaceEligible("temporarily-unavailable"))
-		})
-	}
-}
-
-func TestGetTargetFromAnnotation(t *testing.T) {
+func TestResolveInjection(t *testing.T) {
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
-		expected   *targetInternal
+		wantNil    bool
+		wantSSI    bool
+		wantLibs   []libInfo
+		wantEnv    []corev1.EnvVar
 	}{
-		"a pod with no annotations gets no values": {
+		"no annotations and no matching target": {
 			configPath: "testdata/filter_limited.yaml",
 			in: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "foo",
-				},
+				ObjectMeta: metav1.ObjectMeta{Namespace: "foo"},
 			},
-			expected: nil,
+			wantNil: true,
 		},
-		"a pod with an annotation gets a value": {
+		"annotation only is lib-injection": {
 			configPath: "testdata/filter_limited.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
-					Labels: map[string]string{
-						common.EnabledLabelKey: "true",
-					},
+					Labels:    map[string]string{common.EnabledLabelKey: "true"},
 					Annotations: map[string]string{
 						"admission.datadoghq.com/python-lib.version": "v3",
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(python, "v3"),
-				},
-			},
+			wantSSI:  false,
+			wantLibs: []libInfo{defaultLibInfoWithVersion(python, "v3")},
 		},
-		"a pod with an annotation but disabled label gets no value": {
+		"enabled=false is a hard opt-out": {
 			configPath: "testdata/filter_limited.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
-					Labels: map[string]string{
-						common.EnabledLabelKey: "false",
-					},
+					Labels:    map[string]string{common.EnabledLabelKey: "false"},
 					Annotations: map[string]string{
 						"admission.datadoghq.com/python-lib.version": "v3",
 					},
 				},
 			},
-			expected: nil,
+			wantNil: true,
 		},
-		"a pod with a lib annotation and tracer-configs gets env vars": {
+		"annotation tracer-configs are kept on lib-injection": {
 			configPath: "testdata/filter_limited.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
-					Labels: map[string]string{
-						common.EnabledLabelKey: "true",
-					},
+					Labels:    map[string]string{common.EnabledLabelKey: "true"},
 					Annotations: map[string]string{
 						"admission.datadoghq.com/python-lib.version":        "v3",
 						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"},{"name":"DD_DATA_JOBS_ENABLED","value":"true"}]`,
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(python, "v3"),
-				},
-				envVars: []corev1.EnvVar{
-					{Name: "DD_PROFILING_ENABLED", Value: "true"},
-					{Name: "DD_DATA_JOBS_ENABLED", Value: "true"},
-				},
+			wantSSI:  false,
+			wantLibs: []libInfo{defaultLibInfoWithVersion(python, "v3")},
+			wantEnv: []corev1.EnvVar{
+				{Name: "DD_PROFILING_ENABLED", Value: "true"},
+				{Name: "DD_DATA_JOBS_ENABLED", Value: "true"},
 			},
 		},
-		"a pod with the inject-all annotation and tracer-configs gets env vars": {
+		"inject-all annotation with tracer-configs": {
 			configPath: "testdata/filter_limited.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
-					Labels: map[string]string{
-						common.EnabledLabelKey: "true",
-					},
+					Labels:    map[string]string{common.EnabledLabelKey: "true"},
 					Annotations: map[string]string{
 						"admission.datadoghq.com/all-lib.version":           "latest",
 						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
 					},
 				},
 			},
-			expected: &targetInternal{
-				envVars: []corev1.EnvVar{
-					{Name: "DD_PROFILING_ENABLED", Value: "true"},
-				},
+			wantSSI: false,
+			wantEnv: []corev1.EnvVar{
+				{Name: "DD_PROFILING_ENABLED", Value: "true"},
 			},
 		},
-		"tracer-configs entries without a DD_ prefix are skipped": {
+		"tracer-configs without DD_ prefix are skipped": {
 			configPath: "testdata/filter_limited.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
-					Labels: map[string]string{
-						common.EnabledLabelKey: "true",
-					},
+					Labels:    map[string]string{common.EnabledLabelKey: "true"},
 					Annotations: map[string]string{
 						"admission.datadoghq.com/python-lib.version":        "v3",
 						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"NOT_DD","value":"true"},{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(python, "v3"),
-				},
-				envVars: []corev1.EnvVar{
-					{Name: "DD_PROFILING_ENABLED", Value: "true"},
-				},
+			wantSSI:  false,
+			wantLibs: []libInfo{defaultLibInfoWithVersion(python, "v3")},
+			wantEnv: []corev1.EnvVar{
+				{Name: "DD_PROFILING_ENABLED", Value: "true"},
 			},
 		},
 		"malformed tracer-configs json is ignored": {
@@ -628,32 +478,38 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
-					Labels: map[string]string{
-						common.EnabledLabelKey: "true",
-					},
+					Labels:    map[string]string{common.EnabledLabelKey: "true"},
 					Annotations: map[string]string{
 						"admission.datadoghq.com/python-lib.version":        "v3",
 						"admission.datadoghq.com/apm-inject.tracer-configs": `not json`,
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(python, "v3"),
-				},
+			wantSSI:  false,
+			wantLibs: []libInfo{defaultLibInfoWithVersion(python, "v3")},
+		},
+		"matching target without annotations is SSI": {
+			configPath: "testdata/filter_simple_configs.yaml",
+			in: mutatecommon.WithLabels(
+				mutatecommon.FakePodWithNamespace("svc", "application"),
+				map[string]string{"language": "python"},
+			),
+			wantSSI:  true,
+			wantLibs: []libInfo{defaultLibInfoWithVersion(python, "v3")},
+			wantEnv: []corev1.EnvVar{
+				{Name: "DD_PROFILING_ENABLED", Value: "true"},
+				{Name: "DD_DATA_JOBS_ENABLED", Value: "true"},
 			},
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
 			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
-			// Create a mock meta.
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -661,26 +517,20 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			// Create the mutator.
 			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
 			require.NoError(t, err)
 
-			// Get the target from the annotation.
-			actual := f.getTargetFromAnnotation(test.in)
-
-			// Validate the output.
-			if test.expected == nil {
-				require.Nil(t, actual.target)
-			} else {
-				require.NotNil(t, actual)
-				require.NotNil(t, actual.target)
-				// Some cases (e.g. inject-all) populate libVersions with the default
-				// libraries, which we don't assert on here; only check when set.
-				if test.expected.libVersions != nil {
-					require.Equal(t, test.expected.libVersions, actual.target.libVersions)
-				}
-				require.Equal(t, test.expected.envVars, actual.target.envVars)
+			actual := f.resolveInjection(test.in)
+			if test.wantNil {
+				require.Nil(t, actual)
+				return
 			}
+			require.NotNil(t, actual)
+			require.Equal(t, test.wantSSI, actual.ssi)
+			if test.wantLibs != nil {
+				require.Equal(t, test.wantLibs, actual.target.libVersions)
+			}
+			require.Equal(t, test.wantEnv, actual.target.envVars)
 		})
 	}
 }
