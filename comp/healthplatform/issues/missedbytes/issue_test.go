@@ -6,7 +6,10 @@
 package missedbytes
 
 import (
+	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,16 +17,23 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
+// recentTimestamp is rendered relatively ("... ago"), so the tests use a time
+// relative to now rather than a fixed date that would drift in the output.
+func recentTimestamp() string {
+	return time.Now().Add(-90 * time.Minute).UTC().Format(time.RFC3339)
+}
+
 func TestBuildIssue(t *testing.T) {
 	tests := []struct {
-		name        string
-		ctx         map[string]string
-		title       string
-		descSubstrs []string
-		extraBytes  float64
-		extraRotate float64
-		extraCount  float64
-		extraSource []sourceLoss
+		name           string
+		ctx            map[string]string
+		title          string
+		descSubstrs    []string
+		descNotSubstrs []string
+		extraBytes     float64
+		extraRotate    float64
+		extraCount     float64
+		extraSource    []sourceLoss
 	}{
 		{
 			name: "several sources are summarised and broken down",
@@ -32,14 +42,21 @@ func TestBuildIssue(t *testing.T) {
 				contextKeyRotations:      "4",
 				contextKeySourceCount:    "3",
 				contextKeySourcesOmitted: "0",
-				contextKeyLastLossAt:     "2026-08-25T10:04:05Z",
+				contextKeyLastLossAt:     recentTimestamp(),
 				contextKeySources:        `[{"source":"nginx","service":"web","bytes":4000000,"rotations":2},{"source":"redis","service":"cache","bytes":200000,"rotations":1},{"source":"kafka","service":"queue","bytes":512,"rotations":1}]`,
 			},
-			title: "Lost 4.2 MB of logs from 3 sources across 4 rotations in the last 24 hours",
+			title: "Lost 4.2 MB of logs from 3 sources in the last 24 hours",
 			descSubstrs: []string{
-				"across 3 sources",
-				"Most affected: nginx/web 4.0 MB (2 rotations), redis/cache 200 kB (1 rotation), kafka/queue 512 B (1 rotation).",
-				"2026-08-25T10:04:05Z",
+				"Logs from 3 sources never reached Datadog",
+				"4 log rotations closed a file",
+				// Ranked by bytes, with no per-source rotation count: that
+				// detail lives in Extra.
+				"Most affected: nginx/web 4.0 MB, redis/cache 200 kB, kafka/queue 512 B.",
+				"ago.",
+			},
+			descNotSubstrs: []string{
+				// The byte total belongs to the Title only.
+				"4.2 MB",
 			},
 			extraBytes:  4200512,
 			extraRotate: 4,
@@ -57,13 +74,18 @@ func TestBuildIssue(t *testing.T) {
 				contextKeyRotations:      "1",
 				contextKeySourceCount:    "1",
 				contextKeySourcesOmitted: "0",
-				contextKeyLastLossAt:     "2026-08-25T10:04:05Z",
+				contextKeyLastLossAt:     recentTimestamp(),
 				contextKeySources:        `[{"source":"app","service":"billing","bytes":512,"rotations":1}]`,
 			},
-			title: "Lost 512 B of logs from source app across 1 rotation in the last 24 hours",
+			title: "Lost 512 B of logs from source app in the last 24 hours",
 			descSubstrs: []string{
-				`from source "app" (service "billing")`,
-				"1 log rotation",
+				`Logs from source "app" (service "billing") never reached Datadog`,
+				// The one known file is "the file", not "a file".
+				"1 log rotation closed the file",
+			},
+			descNotSubstrs: []string{
+				// A named source needs no breakdown repeating it.
+				"Most affected",
 			},
 			extraBytes:  512,
 			extraRotate: 1,
@@ -77,12 +99,12 @@ func TestBuildIssue(t *testing.T) {
 				contextKeyRotations:      "2",
 				contextKeySourceCount:    "192",
 				contextKeySourcesOmitted: "190",
-				contextKeyLastLossAt:     "2026-08-25T10:04:05Z",
+				contextKeyLastLossAt:     recentTimestamp(),
 				contextKeySources:        `[{"source":"nginx","service":"web","bytes":600,"rotations":1},{"source":"redis","service":"cache","bytes":400,"rotations":1}]`,
 			},
-			title: "Lost 1.0 kB of logs from 192 sources across 2 rotations in the last 24 hours",
+			title: "Lost 1.0 kB of logs from 192 sources in the last 24 hours",
 			descSubstrs: []string{
-				"Most affected: nginx/web 600 B (1 rotation), redis/cache 400 B (1 rotation), and 190 other sources.",
+				"Most affected: nginx/web 600 B, redis/cache 400 B, and 190 other sources.",
 			},
 			extraBytes:  1000,
 			extraRotate: 2,
@@ -95,14 +117,14 @@ func TestBuildIssue(t *testing.T) {
 		{
 			name:        "empty context falls back to defaults",
 			ctx:         map[string]string{},
-			title:       "Lost 0 B of logs from 0 sources across 0 rotations in the last 24 hours",
-			descSubstrs: []string{unknownValue},
+			title:       "Lost 0 B of logs from 0 sources in the last 24 hours",
+			descSubstrs: []string{"Last loss at an " + unknownValue + " time."},
 		},
 		{
 			name:        "nil context must not panic",
 			ctx:         nil,
-			title:       "Lost 0 B of logs from 0 sources across 0 rotations in the last 24 hours",
-			descSubstrs: []string{unknownValue},
+			title:       "Lost 0 B of logs from 0 sources in the last 24 hours",
+			descSubstrs: []string{"Last loss at an " + unknownValue + " time."},
 		},
 		{
 			name: "unparseable counters degrade to zero",
@@ -112,7 +134,7 @@ func TestBuildIssue(t *testing.T) {
 				contextKeySourceCount: "3",
 				contextKeySources:     `[{"source":"nginx","service":"web","bytes":1,"rotations":1}]`,
 			},
-			title:       "Lost 0 B of logs from 3 sources across 0 rotations in the last 24 hours",
+			title:       "Lost 0 B of logs from 3 sources in the last 24 hours",
 			descSubstrs: []string{"nginx"},
 			extraCount:  3,
 			extraSource: []sourceLoss{{Source: "nginx", Service: "web", Bytes: 1, Rotations: 1}},
@@ -127,8 +149,8 @@ func TestBuildIssue(t *testing.T) {
 				contextKeySourceCount: "1",
 				contextKeySources:     `{"not":"an array"`,
 			},
-			title:       "Lost 512 B of logs from 1 source across 1 rotation in the last 24 hours",
-			descSubstrs: []string{"across 1 source"},
+			title:       "Lost 512 B of logs from 1 source in the last 24 hours",
+			descSubstrs: []string{"Logs from 1 source never reached Datadog"},
 			extraBytes:  512,
 			extraRotate: 1,
 			extraCount:  1,
@@ -149,6 +171,13 @@ func TestBuildIssue(t *testing.T) {
 			for _, substr := range tc.descSubstrs {
 				assert.Contains(t, issue.GetDescription(), substr)
 			}
+			for _, substr := range tc.descNotSubstrs {
+				assert.NotContains(t, issue.GetDescription(), substr)
+			}
+			// Description is printed verbatim by `agent diagnose` behind a
+			// fixed "  Diagnosis: " prefix, so it must stay a single block.
+			assert.NotContains(t, issue.GetDescription(), "\n", "Description must not contain line breaks")
+			assert.NotContains(t, issue.GetDescription(), "  ", "Description must not contain double spaces")
 			assert.Equal(t, "logs_pipeline", issue.GetCategory())
 			assert.Equal(t, "logs-agent", issue.GetLocation())
 			assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, issue.GetSeverity())
@@ -185,6 +214,56 @@ func TestBuildIssue(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Source and service names are free-form (user YAML, pod annotations) and ship
+// twice per payload, so they must be bounded before they reach either sink.
+func TestSourceNameTruncation(t *testing.T) {
+	longASCII := strings.Repeat("a", 200)
+	// Multi-byte, to prove the cut lands on a rune boundary.
+	longUnicode := strings.Repeat("é", 200)
+
+	issue, err := MissedBytesIssue{}.BuildIssue(map[string]string{
+		contextKeyBytes:       "512",
+		contextKeyRotations:   "1",
+		contextKeySourceCount: "2",
+		contextKeySources: `[{"source":"` + longASCII + `","service":"` + longUnicode + `","bytes":512,"rotations":1},` +
+			`{"source":"short","service":"svc","bytes":1,"rotations":1}]`,
+	})
+	require.NoError(t, err)
+
+	wantSource := strings.Repeat("a", maxNameLen-len(nameEllipsis)) + nameEllipsis
+	wantService := strings.Repeat("é", maxNameLen-len(nameEllipsis)) + nameEllipsis
+
+	assert.Contains(t, issue.GetDescription(), wantSource+"/"+wantService)
+	assert.NotContains(t, issue.GetDescription(), longASCII, "the untruncated name must never reach the Description")
+
+	entry := issue.GetExtra().GetFields()[contextKeySources].GetListValue().GetValues()[0].GetStructValue().GetFields()
+	gotSource := entry["source"].GetStringValue()
+	gotService := entry["service"].GetStringValue()
+
+	assert.Equal(t, wantSource, gotSource, "Extra must carry the same bounded name as the Description")
+	assert.Equal(t, wantService, gotService)
+	assert.Equal(t, maxNameLen, utf8.RuneCountInString(gotSource))
+	assert.Equal(t, maxNameLen, utf8.RuneCountInString(gotService))
+	assert.True(t, utf8.ValidString(gotService), "a multi-byte name must not be split into invalid UTF-8")
+
+	// A name already within the bound is passed through untouched.
+	short := issue.GetExtra().GetFields()[contextKeySources].GetListValue().GetValues()[1].GetStructValue().GetFields()
+	assert.Equal(t, "short", short["source"].GetStringValue())
+}
+
+func TestDescribeLastLoss(t *testing.T) {
+	assert.Equal(t, "at an unknown time", describeLastLoss(""))
+	assert.Equal(t, "at an unknown time", describeLastLoss(unknownValue))
+
+	// A parseable stamp is rendered relatively, not dumped into the prose.
+	rel := describeLastLoss(time.Now().Add(-90 * time.Minute).UTC().Format(time.RFC3339))
+	assert.Contains(t, rel, "ago")
+	assert.NotContains(t, rel, "T")
+
+	// An unparseable value is still surfaced rather than discarded.
+	assert.Equal(t, "at not-a-timestamp", describeLastLoss("not-a-timestamp"))
 }
 
 // IssueType must stay IssueName lowercased with spaces replaced by underscores;

@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/dustin/go-humanize"
@@ -34,6 +36,17 @@ const (
 	// issueCategory describes the failing subsystem. The loss happens in the log
 	// pipeline; configuration is only where the fix lands.
 	issueCategory = "logs_pipeline"
+
+	// maxNameLen bounds a single source or service name. Both are free-form —
+	// they come from user YAML and pod annotations — and each one ships twice
+	// per payload, once rendered into Description and once structured in
+	// Extra. Nothing else in comp/healthplatform bounds them.
+	maxNameLen = 64
+
+	// nameEllipsis marks a truncated name. Deliberately ASCII: Description is
+	// printed verbatim by `agent diagnose`, including on Windows consoles that
+	// may not be running a UTF-8 code page.
+	nameEllipsis = "..."
 
 	unknownValue = "unknown"
 )
@@ -70,14 +83,31 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	// breakdown repeating it.
 	named := sourceCount == 1 && len(sources) == 1
 
-	subject := fmt.Sprintf("from %d %s", sourceCount, pluralize(sourceCount, "source"))
-	origin := fmt.Sprintf("across %d %s", sourceCount, pluralize(sourceCount, "source"))
+	// scope is the Title's "from ..." clause; subject opens the Description.
+	// file distinguishes the one known file from an unidentified one.
+	scope := fmt.Sprintf("%d %s", sourceCount, pluralize(sourceCount, "source"))
+	subject := "Logs from " + scope
+	file := "a file"
 	breakdown := describeSources(sources, omitted)
 	if named {
-		subject = "from source " + sources[0].Source
-		origin = fmt.Sprintf("from source %q (service %q)", sources[0].Source, sources[0].Service)
+		scope = "source " + sources[0].Source
+		subject = fmt.Sprintf("Logs from source %q (service %q)", sources[0].Source, sources[0].Service)
+		file = "the file"
 		breakdown = ""
 	}
+
+	// Each aggregate lands in exactly one place: the byte total in the Title,
+	// the rotation count in the Description, the per-source split in the
+	// breakdown. Repeating all three in both fields is what made the old
+	// wording read as a wall of text.
+	sentences := []string{
+		fmt.Sprintf("%s never reached Datadog: %d log %s closed %s before the Agent finished reading it.",
+			subject, rotations, pluralize(rotations, "rotation"), file),
+	}
+	if breakdown != "" {
+		sentences = append(sentences, breakdown)
+	}
+	sentences = append(sentences, "Last loss "+describeLastLoss(lastLossAt)+".")
 
 	extra, err := structpb.NewStruct(map[string]any{
 		contextKeyBytes:          bytesLost,
@@ -94,14 +124,18 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	return &healthplatform.Issue{
 		IssueName: IssueName,
 		IssueType: IssueType,
-		Title: fmt.Sprintf("Lost %s of logs %s across %d %s in the last 24 hours",
-			humanizeBytes(bytesLost), subject, rotations, pluralize(rotations, "rotation")),
-		// Repeats the breakdown because Description is the only field confirmed
-		// to render to a customer.
-		Description: fmt.Sprintf("The logs agent lost %s of logs %s in the last 24 hours because %d log %s closed a file before the tailer finished reading it.%s The most recent loss was at %s.",
-			humanizeBytes(bytesLost), origin, rotations, pluralize(rotations, "rotation"), breakdown, lastLossAt),
-		Category: issueCategory,
-		Location: "logs-agent",
+		Title: fmt.Sprintf("Lost %s of logs from %s in the last 24 hours",
+			humanizeBytes(bytesLost), scope),
+		// Single block of sentences, no newlines and no markdown: this string
+		// is rendered verbatim by `agent diagnose` behind a fixed "  Diagnosis: "
+		// prefix (comp/core/diagnose/format/format.go), so a line break would
+		// break that indentation and a bullet would print as a literal "*".
+		// It repeats the breakdown that Extra already carries structurally
+		// because Description is the only field confirmed to render to a
+		// customer.
+		Description: strings.Join(sentences, " "),
+		Category:    issueCategory,
+		Location:    "logs-agent",
 		// HIGH puts this in the Fleet UI's "Agent Health: Broken" bucket.
 		Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH,
 		Source:   issueSource,
@@ -124,24 +158,54 @@ func decodeSources(encoded string) []sourceLoss {
 	if err := json.Unmarshal([]byte(encoded), &sources); err != nil {
 		return nil
 	}
+	// Bound the free-form names here, the one point every consumer reads
+	// through: the Title's named case, the Description breakdown, and Extra
+	// all take their strings from this slice.
+	for i := range sources {
+		sources[i].Source = truncateName(sources[i].Source)
+		sources[i].Service = truncateName(sources[i].Service)
+	}
 	return sources
 }
 
+// truncateName bounds one free-form name, cutting on a rune boundary so a
+// multi-byte name is never split into invalid UTF-8.
+func truncateName(name string) string {
+	if utf8.RuneCountInString(name) <= maxNameLen {
+		return name
+	}
+	return string([]rune(name)[:maxNameLen-utf8.RuneCountInString(nameEllipsis)]) + nameEllipsis
+}
+
 // describeSources renders the breakdown as a sentence, including a count of the
-// tuples the cap left out.
+// tuples the cap left out. Per-source rotation counts are deliberately left to
+// Extra: the list is ranked by bytes, and repeating a second number for every
+// entry is what made the ten-source case unreadable.
 func describeSources(sources []sourceLoss, omitted int64) string {
 	if len(sources) == 0 {
 		return ""
 	}
 	parts := make([]string, 0, len(sources)+1)
 	for _, s := range sources {
-		parts = append(parts, fmt.Sprintf("%s/%s %s (%d %s)",
-			s.Source, s.Service, humanizeBytes(s.Bytes), s.Rotations, pluralize(s.Rotations, "rotation")))
+		parts = append(parts, fmt.Sprintf("%s/%s %s", s.Source, s.Service, humanizeBytes(s.Bytes)))
 	}
 	if omitted > 0 {
 		parts = append(parts, fmt.Sprintf("and %d other %s", omitted, pluralize(omitted, "source")))
 	}
-	return " Most affected: " + strings.Join(parts, ", ") + "."
+	return "Most affected: " + strings.Join(parts, ", ") + "."
+}
+
+// describeLastLoss renders recency as a tail phrase. A relative time reads
+// better than an RFC3339 stamp dropped mid-sentence, but a value that does not
+// parse is still surfaced verbatim rather than discarded.
+func describeLastLoss(raw string) string {
+	if raw == "" || raw == unknownValue {
+		return "at an " + unknownValue + " time"
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return humanize.Time(t)
+	}
+	return "at " + raw
 }
 
 // sourcesAsExtra converts the breakdown into the shape structpb accepts, so it

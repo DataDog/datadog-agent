@@ -90,7 +90,7 @@ func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 	// The check and the template must agree on the context keys.
 	issue, err := MissedBytesIssue{}.BuildIssue(report.Context)
 	require.NoError(t, err)
-	assert.Equal(t, "Lost 4.2 MB of logs from 2 sources across 3 rotations in the last 24 hours", issue.GetTitle())
+	assert.Equal(t, "Lost 4.2 MB of logs from 2 sources in the last 24 hours", issue.GetTitle())
 }
 
 // The breakdown is capped, so it must spend its slots on the worst offenders
