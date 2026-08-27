@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/delegatedauth/noop-impl/types",
+        "//comp/core/delegatedauth/def",
         "//comp/core/secrets/impl",
         "//comp/core/secrets/noop-impl/types",
         "//comp/core/telemetry/impl/noops",

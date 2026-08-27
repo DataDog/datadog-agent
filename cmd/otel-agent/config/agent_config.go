@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
@@ -90,7 +90,7 @@ var otelAgentEnvVars = []string{
 }
 
 // NewConfigComponent creates a new config component from the given URIs
-func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
+func NewConfigComponent(ctx context.Context, ddCfg string, uris []string, delegatedAuthComp delegatedauth.Component) (config.Component, error) {
 	if len(uris) == 0 {
 		return nil, errors.New("no URIs provided for configs")
 	}
@@ -119,7 +119,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, otelAgentEnvVars)
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, delegatedAuthComp, otelAgentEnvVars)
 		if err != nil {
 			return nil, err
 		}

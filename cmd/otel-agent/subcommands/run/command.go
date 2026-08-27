@@ -25,7 +25,7 @@ import (
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
-	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
+	delegatedauthimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -125,7 +125,13 @@ func isCmdPortNegative(cfg coreconfig.Component) bool {
 }
 
 func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Option) error {
-	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
+	// Create the real delegated auth component before config loading so DELA directives
+	// in the config are discovered and registered. The same instance is later supplied
+	// to the fx graph so consumers (forwarder, trace writers, logs) get the real one.
+	delegatedAuthProvides := delegatedauthimpl.NewComponent()
+	delegatedAuthComp := delegatedAuthProvides.Comp
+
+	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths, delegatedAuthComp)
 	if err != nil && err != agentConfig.ErrNoDDExporter {
 		return err
 	}
@@ -163,7 +169,8 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
-			delegatedauthnoopfx.Module(),
+			// Supply the real delegated auth component created above, instead of the noop.
+			fx.Supply(delegatedAuthComp),
 			fx.Invoke(func(_ collectordef.Component, _ pid.Component) {
 			}),
 			fxinstrumentation.Module(),
@@ -296,7 +303,8 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 		payloadmodifierfx.NilModule(),
 		traceagentfx.Module(),
 		agenttelemetryfx.Module(),
-		delegatedauthnoopfx.Module(),
+		// Supply the real delegated auth component created above, instead of the noop.
+		fx.Supply(delegatedAuthComp),
 		fxinstrumentation.Module(),
 	)
 }

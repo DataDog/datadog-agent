@@ -30,7 +30,7 @@ import (
 // lives in the OTLP integration test (Content-Encoding assertion).
 func TestDDOTCompressionConsistency(t *testing.T) {
 	configmock.New(t)
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"}, nil)
 	require.NoError(t, err)
 
 	const wantAlgo = "zstd"
@@ -69,7 +69,7 @@ func TestDDOTCompressionLevelOverridable(t *testing.T) {
 	t.Setenv("DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL", "6")
 	t.Setenv("DD_LOGS_CONFIG_ZSTD_COMPRESSION_LEVEL", "9")
 
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"}, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, 6, c.GetInt("serializer_zstd_compressor_level"), "metrics zstd level should be overridable via env")
@@ -92,7 +92,7 @@ func TestDDOTCompressionLevelOverridable(t *testing.T) {
 // test pins that so the two cannot silently diverge.
 func TestDDOTHostMetadataCompression(t *testing.T) {
 	configmock.New(t)
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"}, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, "zstd", c.GetString("serializer_compressor_kind"),
@@ -138,7 +138,7 @@ func TestDDOTSupportedCompressors(t *testing.T) {
 		t.Run("metrics/"+tc.kind, func(t *testing.T) {
 			configmock.New(t)
 			t.Setenv("DD_SERIALIZER_COMPRESSOR_KIND", tc.kind)
-			c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+			c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"}, nil)
 			require.NoError(t, err)
 			assert.Equalf(t, tc.kind, c.GetString("serializer_compressor_kind"),
 				"operators must be able to select %q for metrics via DD_SERIALIZER_COMPRESSOR_KIND (wire encoding %q)", tc.kind, tc.wantEncoding)
@@ -152,7 +152,7 @@ func TestDDOTSupportedCompressors(t *testing.T) {
 		t.Run("logs/"+kind, func(t *testing.T) {
 			configmock.New(t)
 			t.Setenv("DD_LOGS_CONFIG_COMPRESSION_KIND", kind)
-			c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+			c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"}, nil)
 			require.NoError(t, err)
 			assert.Equalf(t, kind, c.GetString("logs_config.compression_kind"),
 				"operators must be able to select %q for logs via DD_LOGS_CONFIG_COMPRESSION_KIND", kind)

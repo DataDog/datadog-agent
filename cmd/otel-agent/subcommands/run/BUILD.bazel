@@ -20,7 +20,7 @@ go_library(
         "//comp/core/configsync/def",
         "//comp/core/configsync/fx",
         "//comp/core/delegatedauth/def",
-        "//comp/core/delegatedauth/fx-noop",
+        "//comp/core/delegatedauth/impl",
         "//comp/core/fxinstrumentation/fx",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/hostname/hostnameinterface/def",
