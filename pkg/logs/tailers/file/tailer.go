@@ -65,10 +65,6 @@ type Tailer struct {
 	// is platform-specific, and not every platform will have a non-nil value here.
 	osFile afero.File
 
-	// tailedFileSize is the size of the file being read, as last seen by the read
-	// path. Only platforms that keep no handle across a rotation use it.
-	tailedFileSize *atomic.Int64
-
 	// tags are the tags to be attached to each log message, excluding tags provided
 	// by the tag provider.
 	tags []string
@@ -204,7 +200,6 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		isFinished:                   atomic.NewBool(false),
 		didFileRotate:                atomic.NewBool(false),
 		cachedFileSize:               atomic.NewInt64(0),
-		tailedFileSize:               atomic.NewInt64(0),
 		rotationMismatchCacheActive:  atomic.NewBool(false),
 		rotationMismatchOffsetActive: atomic.NewBool(false),
 		info:                         opts.Info,
@@ -369,7 +364,6 @@ func (t *Tailer) StopAfterFileRotation() {
 				}
 			}
 		}
-		t.recordRotationLossFromLastKnownSize(missedSource, missedService)
 		t.stopForward()
 		select {
 		case t.stop <- struct{}{}:

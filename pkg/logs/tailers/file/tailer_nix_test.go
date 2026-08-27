@@ -9,12 +9,62 @@ package file
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
+
+// newMissedBytesTailer builds a tailer with no filesystem or pipeline behind it.
+// Callers arm the platform's own loss measurement and drive
+// StopAfterFileRotation directly.
+func newMissedBytesTailer(t *testing.T, readOffset int64) *Tailer {
+	t.Helper()
+
+	const path = "rotated.log"
+	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
+		Type:    config.FileType,
+		Path:    path,
+		Source:  "missed-bytes-source",
+		Service: "missed-bytes-service",
+	}))
+	info := status.NewInfoRegistry()
+
+	tailer := NewTailer(&TailerOptions{
+		OutputChan:      make(chan *message.Message, 1),
+		File:            NewFile(path, source.UnderlyingSource(), false),
+		SleepDuration:   time.Millisecond,
+		Decoder:         decoder.NewDecoderFromSource(source, info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewMockFileOpener(),
+	})
+	tailer.lastReadOffset.Store(readOffset)
+	tailer.closeTimeout = 10 * time.Millisecond
+
+	return tailer
+}
+
+// awaitRotationClose waits for the goroutine StopAfterFileRotation spawned.
+// It signals t.stop after the accounting, so this is a synchronization point
+// rather than a poll.
+func awaitRotationClose(t *testing.T, tailer *Tailer) {
+	t.Helper()
+	select {
+	case <-tailer.stop:
+	case <-time.After(10 * time.Second):
+		t.Fatal("rotation close goroutine never finished")
+	}
+}
 
 // armRotationLoss gives the tailer an open handle reporting fileSize, which is
 // what StopAfterFileRotation stats to size the loss.

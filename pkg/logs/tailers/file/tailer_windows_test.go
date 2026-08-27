@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -116,76 +115,6 @@ func TestReadAvailableRotation(t *testing.T) {
 	assert.Equal(t, firstFileSize, n, "Expected to have read the first file of %d bytes, got %d", firstFileSize, n)
 	assert.Equal(t, true, tailer.didFileRotate.Load(), "Expected file to have rotated")
 }
-
-// TestReadAvailableRecordsTailedFileSize covers the size rotation loss is
-// measured against here, since the rotated file cannot be stat'ed by name once
-// its path has been reused.
-func TestReadAvailableRecordsTailedFileSize(t *testing.T) {
-	mockFile := opener.NewMockFile("test.log", [][]byte{
-		[]byte("one\ntwo\n"),
-		[]byte("three\nfour\n"),
-	})
-
-	mockOpener := opener.NewMockFileOpener()
-	mockOpener.AddMockFile(mockFile)
-
-	tailer, _ := newTestTailer(t, mockFile.Name(), nil, NewFingerprinterMock(), mockOpener, nil)
-	// setup() already recorded a size; clear it so this is about the read path.
-	tailer.tailedFileSize.Store(0)
-
-	_, err := tailer.readAvailable()
-	assert.ErrorIs(t, err, io.EOF, "Expected EOF, got %v", err)
-	assert.Equal(t, int64(mockFile.FileSize()), tailer.tailedFileSize.Load())
-}
-
-func TestStopAfterFileRotationRecordsMissedBytes(t *testing.T) {
-	metrics.ResetMissedBytesForTest()
-	defer metrics.ResetMissedBytesForTest()
-
-	tailer := newMissedBytesTailer(t, 1024)
-	tailer.tailedFileSize.Store(4096)
-
-	tailer.StopAfterFileRotation()
-	awaitRotationClose(t, tailer)
-
-	summaries := metrics.MissedBytesSnapshot()
-	require.Len(t, summaries, 1)
-	require.Equal(t, "missed-bytes-source", summaries[0].Source)
-	require.Equal(t, "missed-bytes-service", summaries[0].Service)
-	require.Equal(t, int64(3072), summaries[0].Bytes)
-	require.Equal(t, int64(1), summaries[0].Rotations)
-}
-
-// TestStopAfterFileRotationFullyRead is the common rotation: the tailer finished
-// the file, so there is no loss and no issue to raise.
-func TestStopAfterFileRotationFullyRead(t *testing.T) {
-	metrics.ResetMissedBytesForTest()
-	defer metrics.ResetMissedBytesForTest()
-
-	tailer := newMissedBytesTailer(t, 4096)
-	tailer.tailedFileSize.Store(4096)
-
-	tailer.StopAfterFileRotation()
-	awaitRotationClose(t, tailer)
-
-	require.Empty(t, metrics.MissedBytesSnapshot())
-}
-
-// TestStopAfterFileRotationTruncated covers the offset outrunning the file, which
-// is loss the tailer cannot quantify rather than loss of zero bytes.
-func TestStopAfterFileRotationTruncated(t *testing.T) {
-	metrics.ResetMissedBytesForTest()
-	defer metrics.ResetMissedBytesForTest()
-
-	tailer := newMissedBytesTailer(t, 4096)
-	tailer.tailedFileSize.Store(0)
-
-	tailer.StopAfterFileRotation()
-	awaitRotationClose(t, tailer)
-
-	require.Empty(t, metrics.MissedBytesSnapshot())
-}
-
 func TestReadAvailableFingerprintMismatch(t *testing.T) {
 	mockFile := opener.NewMockFile(
 		"test.log",
