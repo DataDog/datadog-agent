@@ -107,6 +107,6 @@ def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
 
     with ctx.cd("./pkg/trace"):
         ctx.run(
-            f"go test -tags=test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}",
+            f"go test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s | tee -a {output}",
             env=env,
         )
