@@ -16,13 +16,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
 const procmgrServiceName = "dd-procmgr-service"
 
 func TestProcmgrLocalSystem(t *testing.T) {
-	suite.Run(t, new(procmgrLocalSystemSuite))
+	s := &procmgrLocalSystemSuite{}
+	Run(t, s)
 }
 
 type procmgrLocalSystemSuite struct {
@@ -31,6 +31,7 @@ type procmgrLocalSystemSuite struct {
 
 func (s *procmgrLocalSystemSuite) TestProcmgrServiceRunsAsLocalSystem() {
 	host := s.Env().RemoteHost
+	_ = s.installAgentPackage(host, s.AgentPackage)
 
 	account, err := windowsCommon.GetServiceAccountName(host, procmgrServiceName)
 	s.Require().NoError(err)
