@@ -22,7 +22,9 @@ pub(in crate::manager) enum SpawnKind {
 impl SpawnKind {
     fn allowed(&self, proc: &ManagedProcess) -> bool {
         match self {
-            Self::BootAutoStart | Self::CreateAutoStart => proc.may_auto_start(),
+            Self::BootAutoStart | Self::CreateAutoStart => {
+                proc.may_auto_start() && !proc.is_running()
+            }
             Self::Manual => !proc.is_running(),
             Self::Restart(pending) => pending_restart_still_valid(proc, pending),
         }
