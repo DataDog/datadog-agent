@@ -226,6 +226,36 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	return i.MinInterval
 }
 
+// Submit synchronously builds a payload and enqueues it for submission now,
+// ignoring the first-run delay and the min/max interval gating that collect()
+// applies. It is the mechanism behind the immediate-on-start-submission
+// capability: an embedder with no host-metadata pipeline has no host-creation
+// race to order around and may exit before the runner goroutine fires, so it
+// enqueues the first payload directly. SendMetadata only enqueues a
+// transaction (the HTTP POST is async and drained at shutdown), so this does
+// not block the caller.
+func (i *InventoryPayload) Submit() {
+	i.m.Lock()
+	defer i.m.Unlock()
+	if !i.Enabled {
+		return
+	}
+	if i.serializer == nil {
+		i.log.Tracef("serializer is nil, skipping submission")
+		return
+	}
+
+	i.LastCollect = time.Now()
+	p := i.getPayload()
+	if p == nil {
+		i.log.Debugf("inventory payload is nil, skipping submission")
+		return
+	}
+	if err := i.serializer.SendMetadata(p); err != nil {
+		i.log.Errorf("unable to submit inventories payload, %s", err)
+	}
+}
+
 // Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
 func (i *InventoryPayload) Refresh() {
 	if !i.Enabled {

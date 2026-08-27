@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
@@ -87,16 +88,29 @@ type inventoryagent struct {
 	data         agentMetadata
 	hostname     string
 	client       ipc.HTTPClient
+	// crossProcessEnrichment gates the refreshMetadata() tier (fetching config
+	// from the other agent processes). Defaults to true (full-agent behavior);
+	// an embedder can turn it off via Capabilities.
+	crossProcessEnrichment bool
+	// payloadUUID overrides the payload uuid. Empty means use the host GUID.
+	payloadUUID string
 }
 
 // Requires defines the dependencies for the inventoryagent component
 type Requires struct {
+	compdef.In
+
 	Log            log.Component
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
+	// Capabilities is optional. When absent the component uses standard
+	// full-agent behavior; an embedder (serverless-init) supplies it to adapt
+	// cross-process enrichment, on-start submission, and the payload uuid to a
+	// divergent environment. See iainterface.Capabilities.
+	Capabilities *iainterface.Capabilities `optional:"true"`
 }
 
 // Provides defines the output of the inventoryagent component
@@ -119,8 +133,16 @@ func NewComponent(deps Requires) Provides {
 		hostname:     hname,
 		data:         make(agentMetadata),
 		client:       deps.IPCClient,
+		// Full-agent default: run the cross-process enrichment tier. An embedder
+		// can turn it off below via Capabilities.
+		crossProcessEnrichment: true,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
+
+	if deps.Capabilities != nil {
+		ia.crossProcessEnrichment = deps.Capabilities.CrossProcessEnrichment
+		ia.payloadUUID = deps.Capabilities.PayloadUUID
+	}
 
 	if ia.Enabled {
 		ia.initData()
@@ -529,7 +551,9 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
 
-	ia.refreshMetadata()
+	if ia.crossProcessEnrichment {
+		ia.refreshMetadata()
+	}
 
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
@@ -541,8 +565,17 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  data,
-		UUID:      uuid.GetUUID(),
+		UUID:      ia.getUUID(),
 	}
+}
+
+// getUUID returns the per-process uuid override when set, otherwise the cached
+// host machine GUID used by the full agent.
+func (ia *inventoryagent) getUUID() string {
+	if ia.payloadUUID != "" {
+		return ia.payloadUUID
+	}
+	return uuid.GetUUID()
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
