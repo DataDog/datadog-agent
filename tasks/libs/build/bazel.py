@@ -240,6 +240,27 @@ def bazel(
     return completed.stdout if capture_output else ""
 
 
+def build_binary_with_bazel(target: str, bin_path: str = None) -> None:
+    """Build a Bazel target and copy its output to bin_path.
+
+    Args:
+        target: Bazel target
+        bin_path: directory to copy the binary to. None for no copy.
+    """
+    bazel("build", target)
+    # We need cquery to find the output path that has the configuration hash in it.
+    output = bazel("cquery", "--output=files", target, capture_output=True).strip()
+    outputs = [line for line in output.splitlines() if line]
+    if len(outputs) != 1:
+        raise SystemExit(f"Expected exactly one output file for Bazel target {target!r}, got: {outputs!r}")
+    src = os.path.join(get_repo_root(), outputs[0])
+
+    if bin_path:
+        os.makedirs(os.path.dirname(bin_path), exist_ok=True)
+        shutil.copy2(src, bin_path)
+        os.chmod(bin_path, 0o755)
+
+
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
     omnibus build environment variables.
