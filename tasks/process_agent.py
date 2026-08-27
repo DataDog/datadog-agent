@@ -10,6 +10,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import build_go_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.system_probe import copy_ebpf_and_related_files
@@ -17,6 +18,8 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent"))
+
+BAZEL_TARGET = "//cmd/process-agent:process-agent"
 
 
 @task
@@ -29,12 +32,48 @@ def build(
     flavor=AgentFlavor.base.name,
     rebuild=False,
     go_mod="readonly",
+    enable_bazel=False,
 ):
     """
     Build the process agent
+
+    enable_bazel: build via `bazel build //cmd/process-agent:process-agent` instead of
+    `go build`, then copy the resulting binary to the usual bin path. Developer opt-in
+    only; defaults to off. Only supported for the default (base, non-FIPS) flavor, the
+    default build tags, non-race builds, no custom install path, and on Linux -- see
+    ABLD-310.
     """
 
     flavor = AgentFlavor[flavor]
+
+    if enable_bazel:
+        if race:
+            raise NotImplementedError("process-agent.build --enable-bazel does not support --race yet (ABLD-310)")
+        if build_include is not None or build_exclude is not None:
+            raise NotImplementedError(
+                "process-agent.build --enable-bazel does not support --build-include/--build-exclude yet: "
+                "the Bazel target always builds with a fixed set of gotags (ABLD-310)"
+            )
+        if flavor != AgentFlavor.base:
+            raise NotImplementedError(
+                f"process-agent.build --enable-bazel does not support flavor={flavor.name} yet: the Bazel "
+                "target does not thread flavor-specific build tags (e.g. FIPS) through (ABLD-310)"
+            )
+        if install_path is not None:
+            raise NotImplementedError(
+                "process-agent.build --enable-bazel does not support --install-path yet: the Bazel target "
+                "has no equivalent to the defaultpaths.defaultInstallPath ldflag (ABLD-310)"
+            )
+        if sys.platform != 'linux':
+            raise NotImplementedError(
+                "process-agent.build --enable-bazel is only supported on Linux for now: //pkg/ebpf (a "
+                "transitive dependency pulled in unconditionally, independent of gotags) is marked "
+                "target_compatible_with linux-only in Bazel, so the target cannot be analyzed on other "
+                "platforms yet (ABLD-310)"
+            )
+
+        build_go_binary_with_bazel(BAZEL_TARGET, BIN_PATH)
+        return
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
