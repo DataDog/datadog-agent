@@ -67,7 +67,10 @@ func TestLinuxPARSplitSuite(t *testing.T) {
 		awshost.Provisioner(
 			awshost.WithRunOptions(
 				scenec2.WithFakeIntakeOptions(awsfakeintake.WithLoadBalancer()),
-				scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(config),
+					agentparams.WithFile("/etc/datadog-agent/environment", "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS=true\n", true),
+				),
 			),
 		),
 	))
