@@ -10,6 +10,7 @@ package missedbytes
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
@@ -21,7 +22,7 @@ const (
 	// IssueName lowercased with spaces replaced by underscores.
 	IssueType = "log_data_lost_after_rotation"
 	// IssueID is the stable instance identifier prefix (kebab-case). The check
-	// appends a per-(host, source, service) digest — see instanceIssueID.
+	// appends a per-host digest — see hostIssueID.
 	IssueID = "log-data-lost-after-rotation"
 )
 
@@ -35,13 +36,14 @@ func init() {
 }
 
 type missedBytesModule struct {
+	cfg     config.Component
 	checker *checker
 }
 
 // NewModule creates the missed-bytes issue module, capturing the hostname the
 // check needs to scope its issue ids; HealthCheckFunc takes no arguments.
 func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &missedBytesModule{checker: newChecker(deps.Hostname)}
+	return &missedBytesModule{cfg: deps.Config, checker: newChecker(deps.Hostname)}
 }
 
 func (m *missedBytesModule) IssueName() string {
@@ -59,11 +61,23 @@ func (m *missedBytesModule) BuildIssue(context map[string]string) (*healthplatfo
 // BuiltInPeriodicHealthCheck returns the periodic health check configuration.
 // Interval is omitted so the scheduler's default (15 minutes) applies; the
 // tracker's window is 24 hours, so polling faster adds no signal.
+//
+// The logs_enabled gate lives inside Fn rather than returning nil here, so that
+// an agent whose logs were turned off still resolves an issue a previous
+// logs-enabled run left in the store. It also keeps the check quiet on the
+// large share of the fleet that runs with logs_enabled false: health_platform
+// is on by default and logs are not, and checker.Run's inactive case reports an
+// error, which the runner and the scheduler each log at warn on every tick.
 func (m *missedBytesModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return &runnerdef.BuiltInPeriodicHealthCheck{
 		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
 			Source: checkSource,
-			Fn:     m.checker.Run,
+			Fn: func() ([]runnerdef.IssueReport, error) {
+				if !m.cfg.GetBool("logs_enabled") {
+					return nil, nil
+				}
+				return m.checker.Run()
+			},
 		},
 	}
 }

@@ -41,9 +41,15 @@ func newChecker(hostname hostnameinterface.Component) *checker {
 // bytes to a rotation inside the tracker's trailing window. One issue rather than
 // one per tuple because the backend keeps a single row per {org, issue_type}.
 func (c *checker) Run() ([]runnerdef.IssueReport, error) {
-	// One-shot commands wire the health platform without the logs agent. An error
-	// says "state unknown", which leaves the scheduler's active-id set alone; nil
-	// would resolve the running agent's issue.
+	// One-shot commands (flare, jmx, diagnose, analyze-logs, check) wire the
+	// health platform without the logs agent, and share the running agent's
+	// on-disk issue store. An error says "state unknown", which leaves the
+	// scheduler's active-id set alone; nil would resolve the running agent's
+	// issue from a process that never tailed anything.
+	//
+	// This is reached only when logs_enabled is true — see the module's
+	// BuiltInPeriodicHealthCheck — so it is a one-shot command or the window
+	// before the file launcher has started, never a steady state.
 	if !logsmetrics.FileTailingActive() {
 		return nil, errFileTailingInactive
 	}
@@ -120,6 +126,7 @@ func rankSources(summaries []logsmetrics.MissedBytesSummary) ([]sourceLoss, int)
 // window goes clean would resolve the issue for every other affected host.
 func hostIssueID(hostname string) string {
 	h := fnv.New64a()
-	fmt.Fprintf(h, "%s", hostname)
+	// Write never returns an error for hash.Hash.
+	h.Write([]byte(hostname))
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }

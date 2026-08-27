@@ -80,6 +80,9 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetInTest("api_key", "test-api-key")
 			cfg.SetInTest("dd_url", fi.URL())
+			// The check is gated on logs_enabled, matching the agent this test
+			// stands in for: one whose file launcher is running.
+			cfg.SetInTest("logs_enabled", true)
 			cfg.SetInTest("health_platform.enabled", true)
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)

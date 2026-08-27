@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
@@ -26,10 +27,13 @@ dd_agent_go_test(
     srcs = [
         "check_test.go",
         "issue_test.go",
+        "module_test.go",
     ],
     embed = [":missedbytes"],
     deps = [
+        "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/healthplatform/issues",
         "//comp/logs-library/metrics",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
