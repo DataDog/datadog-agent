@@ -1213,7 +1213,7 @@ func initSyncSerializerForTest(t testing.TB, logger *zap.Logger, cfg *ExporterCo
 			if err != nil {
 				return nil, err
 			}
-			return defaultforwarderimpl.NewOTelSyncForwarder(c, l, sec, eds, httpClient)
+			return defaultforwarderimpl.NewOTelSyncForwarder(c, l, sec, eds, httpClient, nil)
 		}),
 	}
 

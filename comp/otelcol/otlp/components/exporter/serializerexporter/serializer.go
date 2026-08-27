@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -214,7 +215,7 @@ func initSerializerInternal(logger *zap.Logger, cfg *ExporterConfig, sourceProvi
 
 	if IsSyncForwarderEnabled() {
 		opts = append(opts,
-			fx.Provide(func(c config.Component, l logdef.Component, sec secrets.Component) (defaultforwarder.Forwarder, error) {
+			fx.Provide(func(c config.Component, l logdef.Component, sec secrets.Component, delegatedAuth delegatedauth.Component) (defaultforwarder.Forwarder, error) {
 				eds, err := configutils.GetMultipleEndpoints(c)
 				if err != nil {
 					return nil, err
@@ -227,7 +228,7 @@ func initSerializerInternal(logger *zap.Logger, cfg *ExporterConfig, sourceProvi
 					Timeout:   timeout,
 					Transport: utilhttp.CreateHTTPTransport(c),
 				}
-				return defaultforwarderimpl.NewOTelSyncForwarder(c, l, sec, eds, httpClient)
+				return defaultforwarderimpl.NewOTelSyncForwarder(c, l, sec, eds, httpClient, delegatedAuth)
 			}),
 		)
 	} else {
