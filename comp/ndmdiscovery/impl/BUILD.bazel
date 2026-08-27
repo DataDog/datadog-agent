@@ -10,6 +10,7 @@ go_library(
         "pingcapability.go",
         "rcconfig.go",
         "report.go",
+        "sweep.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/ndmdiscovery/impl",
     visibility = ["//visibility:public"],
@@ -23,6 +24,8 @@ go_library(
         "//pkg/networkdevice/metadata",
         "//pkg/networkdevices/connectivity",
         "//pkg/persistentcache",
+        "@com_github_google_uuid//:uuid",
+        "@org_golang_x_sync//semaphore",
     ],
 )
 
@@ -35,6 +38,7 @@ dd_agent_go_test(
         "pingcapability_test.go",
         "rcconfig_test.go",
         "report_test.go",
+        "sweep_test.go",
     ],
     embed = [":impl"],
     deps = [
@@ -47,5 +51,6 @@ dd_agent_go_test(
         "//pkg/networkdevices/connectivity",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_golang_x_sync//semaphore",
     ],
 )

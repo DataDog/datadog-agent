@@ -1,0 +1,236 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package ndmdiscoveryimpl
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/sync/semaphore"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
+)
+
+// Reachability statuses reported per address.
+const (
+	statusReachable   = "reachable"
+	statusUnreachable = "unreachable"
+)
+
+// sweepRequest is everything one cycle over one range needs.
+type sweepRequest struct {
+	Config      rangeConfig
+	Credentials []connectivity.SNMPCredential
+	Plan        *chunkPlan
+	Digest      string
+	// Workers is this range's share of the global worker budget.
+	Workers int64
+	// PingEnabled is false when the agent cannot send ICMP, so ping_status is
+	// left empty rather than reported as unreachable for every address.
+	PingEnabled bool
+}
+
+// sweeper runs one cycle over one range: chunk by chunk, reporting as it goes
+// and persisting a cursor so a restart resumes instead of starting again.
+type sweeper struct {
+	checker  connectivityChecker
+	reporter discoveryReporter
+	cursors  cursorStore
+	sem      *semaphore.Weighted
+	log      log.Component
+
+	now      func() int64
+	newRunID func() string
+}
+
+func newSweeper(checker connectivityChecker, reporter discoveryReporter, cursors cursorStore, sem *semaphore.Weighted, logger log.Component) *sweeper {
+	return &sweeper{
+		checker:  checker,
+		reporter: reporter,
+		cursors:  cursors,
+		sem:      sem,
+		log:      logger,
+		now:      func() int64 { return time.Now().UnixMilli() },
+		newRunID: func() string { return uuid.New().String() },
+	}
+}
+
+func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
+	id := r.Config.AutodiscoveryID
+	state := s.startState(r)
+
+	if state.NextChunk == 0 {
+		s.reportRun(r, metadata.AutodiscoveryRunMetadata{
+			AutodiscoveryID: id,
+			RunID:           state.RunID,
+			Status:          metadata.AutodiscoveryRunInProgress,
+			StartedAtMs:     state.StartedAtMs,
+		})
+	}
+
+	total := r.Plan.chunkCount()
+	for state.NextChunk < total {
+		chunk := r.Plan.chunk(state.NextChunk)
+
+		devices, err := s.probe(ctx, r, state.RunID, chunk)
+		if err != nil {
+			// The cursor is kept either way, so the next tick resumes at this
+			// same chunk instead of re-scanning the range from the start.
+			s.saveCursor(id, state)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				// The agent is stopping. The run is paused, not broken.
+				return err
+			}
+			s.reportRun(r, metadata.AutodiscoveryRunMetadata{
+				AutodiscoveryID:  id,
+				RunID:            state.RunID,
+				Status:           metadata.AutodiscoveryRunFailed,
+				AddressesScanned: state.Scanned,
+				Error:            err.Error(),
+				StartedAtMs:      state.StartedAtMs,
+				FinishedAtMs:     s.now(),
+			})
+			return err
+		}
+
+		if err := s.reporter.ReportDevices(r.Config.Namespace, devices); err != nil {
+			// A transport failure is not a scan failure: log it and keep
+			// sweeping rather than aborting a multi-hour cycle.
+			s.log.Warnf("ndmdiscovery: failed to report chunk %d of range %s: %v", chunk.Index, id, err)
+		}
+
+		state.NextChunk++
+		state.Scanned += int64(len(chunk.Targets))
+		s.saveCursor(id, state)
+	}
+
+	s.reportRun(r, metadata.AutodiscoveryRunMetadata{
+		AutodiscoveryID:  id,
+		RunID:            state.RunID,
+		Status:           metadata.AutodiscoveryRunCompleted,
+		AddressesScanned: state.Scanned,
+		StartedAtMs:      state.StartedAtMs,
+		FinishedAtMs:     s.now(),
+	})
+
+	if err := s.cursors.Clear(id); err != nil {
+		s.log.Warnf("ndmdiscovery: failed to clear the cursor of range %s: %v", id, err)
+	}
+	return nil
+}
+
+// startState resumes the persisted cycle when the range and its credentials
+// are unchanged, and starts a new one otherwise.
+func (s *sweeper) startState(r sweepRequest) cursorState {
+	if saved, ok := s.cursors.Load(r.Config.AutodiscoveryID); ok &&
+		saved.ConfigDigest == r.Digest &&
+		saved.NextChunk > 0 &&
+		saved.NextChunk < r.Plan.chunkCount() {
+		return saved
+	}
+
+	return cursorState{
+		RunID:     s.newRunID(),
+		NextChunk: 0,
+		// Ignored addresses are counted up front so that a range with
+		// exclusions still reaches its total.
+		Scanned:      int64(r.Plan.ignoredCount()),
+		StartedAtMs:  s.now(),
+		ConfigDigest: r.Digest,
+	}
+}
+
+func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk probeChunk) ([]metadata.DiscoveredDeviceMetadata, error) {
+	if len(chunk.Targets) == 0 {
+		return nil, ctx.Err()
+	}
+
+	// The worker budget is global, so a chunk waits for its share rather than
+	// each range running its own pool.
+	if err := s.sem.Acquire(ctx, r.Workers); err != nil {
+		return nil, err
+	}
+	defer s.sem.Release(r.Workers)
+
+	req := connectivity.Request{
+		Targets:     chunk.Targets,
+		Checks:      []string{connectivity.CheckSNMP},
+		SNMPOptions: r.Config.SNMPOptions,
+		Credentials: r.Credentials,
+		Workers:     int(r.Workers),
+	}
+	if r.PingEnabled && r.Config.PingOptions != nil {
+		// Ping first: it is the cheaper probe and its result is reported
+		// alongside the SNMP result for the same address.
+		req.Checks = []string{connectivity.CheckPing, connectivity.CheckSNMP}
+		req.PingOptions = r.Config.PingOptions
+	}
+
+	res, err := s.checker.CheckConnectivity(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), nil
+}
+
+func (s *sweeper) saveCursor(id string, state cursorState) {
+	if err := s.cursors.Save(id, state); err != nil {
+		s.log.Warnf("ndmdiscovery: failed to persist the cursor of range %s: %v", id, err)
+	}
+}
+
+func (s *sweeper) reportRun(r sweepRequest, run metadata.AutodiscoveryRunMetadata) {
+	if err := s.reporter.ReportRun(r.Config.Namespace, run); err != nil {
+		s.log.Warnf("ndmdiscovery: failed to report the run status of range %s: %v", r.Config.AutodiscoveryID, err)
+	}
+}
+
+// toDiscoveredDevices converts one chunk's probe results into report
+// documents. Every probed address is reported, answering or not, so the
+// backend can show the whole range. A check that did not run leaves its status
+// empty rather than claiming the address is unreachable.
+func toDiscoveredDevices(autodiscoveryID, runID string, res connectivity.Result) []metadata.DiscoveredDeviceMetadata {
+	devices := make([]metadata.DiscoveredDeviceMetadata, 0, len(res.Devices))
+	for _, d := range res.Devices {
+		if d.IPAddress == "" {
+			// The engine pre-allocates its result slice, so an interrupted run
+			// can leave zero-value holes.
+			continue
+		}
+
+		device := metadata.DiscoveredDeviceMetadata{
+			AutodiscoveryID: autodiscoveryID,
+			RunID:           runID,
+			IPAddress:       d.IPAddress,
+		}
+		if d.PingResult != nil {
+			device.PingStatus = statusString(d.PingResult.Success)
+		}
+		if d.SNMPResult != nil {
+			device.SNMPStatus = statusString(d.SNMPResult.Success)
+			if d.SNMPResult.Success {
+				device.Name = d.SNMPResult.SysName
+				device.SNMPCredID = d.SNMPResult.CredID
+			}
+		}
+		devices = append(devices, device)
+	}
+	return devices
+}
+
+func statusString(success bool) string {
+	if success {
+		return statusReachable
+	}
+	return statusUnreachable
+}
