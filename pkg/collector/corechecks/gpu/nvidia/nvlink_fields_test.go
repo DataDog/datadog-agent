@@ -96,7 +96,7 @@ func TestNVLinkFieldsCollectorQueriesForcedScopeForEachPort(t *testing.T) {
 			commonSpeedRequests = append(commonSpeedRequests, request)
 		}
 	}
-	require.Len(t, commonSpeedRequests, 3)
+	require.Len(t, commonSpeedRequests, 1)
 	for _, request := range commonSpeedRequests {
 		require.Equal(t, uint32(0), request.ScopeId)
 	}
@@ -108,6 +108,15 @@ func TestNVLinkFieldsCollectorQueriesForcedScopeForEachPort(t *testing.T) {
 		}
 	}
 	require.Len(t, speeds, 3)
+	require.ElementsMatch(t, []string{
+		nvlinkPortTag(1),
+		nvlinkPortTag(2),
+		nvlinkPortTag(3),
+	}, []string{
+		speeds[0].Tags[0],
+		speeds[1].Tags[0],
+		speeds[2].Tags[0],
+	})
 }
 
 func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
@@ -229,7 +238,7 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	}
 
 	require.Contains(t, requestedFieldsByScope[0], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
-	require.Contains(t, requestedFieldsByScope[1], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
+	require.NotContains(t, requestedFieldsByScope[1], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
 }
 
 func TestNVLinkFieldsCollectorReturnsErrorsForUnsupportedCollectedFields(t *testing.T) {
@@ -338,9 +347,12 @@ func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigur
 	fc, ok := collector.(*nvlinkFieldsCollector)
 	require.True(t, ok, "expected *nvlinkFieldsCollector")
 
-	for _, request := range fc.requests {
-		if request.field.FieldId == nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS {
-			t.Fatal("nvlink.errors.effective should not be collected when INVALID_ARGUMENT is mapped to unsupported")
+	foundNvlinkEffective := false
+	for _, metric := range fc.metrics {
+		if metric.name == "nvlink.errors.effective" {
+			foundNvlinkEffective = true
 		}
 	}
+
+	require.False(t, foundNvlinkEffective, "nvlink.errors.effective should be removed when INVALID_ARGUMENT is explicitly mapped to unsupported")
 }

@@ -245,6 +245,7 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]*Metric, error)
 		// We also assume that if a field is not supported for a port, it's not supported for any other port.
 		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) || (val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument) {
 			log.Warnf("nvlink: fields collector removing metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
+			delete(c.metrics, val.FieldId)
 			continue
 		} else if val.NvmlReturn != uint32(nvml.SUCCESS) {
 			errs = append(errs, fmt.Errorf("failed to get field value %s for port %d: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
@@ -266,9 +267,9 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]*Metric, error)
 // addRequest adds a request for a metric to the collector. If the request already exists, it adds the port to the existing request.
 func (c *nvlinkFieldsCollector) addRequest(metric nvlinkFieldValueMetric, port int) {
 	fieldValue := nvml.FieldValue{FieldId: metric.fieldValueID, ScopeId: metric.scopeForPort(port)}
-	for _, request := range c.requests {
-		if request.field.FieldId == fieldValue.FieldId && request.field.ScopeId == fieldValue.ScopeId {
-			request.ports = append(request.ports, port)
+	for i := range c.requests {
+		if c.requests[i].field.FieldId == fieldValue.FieldId && c.requests[i].field.ScopeId == fieldValue.ScopeId {
+			c.requests[i].ports = append(c.requests[i].ports, port)
 			return
 		}
 	}
