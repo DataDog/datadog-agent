@@ -137,10 +137,9 @@ enum ForceKillWaitTarget<'a> {
     Child,
 }
 
-/// Placeholder until platform spawn resolves the intended account.
+#[cfg(windows)]
 const DEFERRED_SPAWN_USER: &str = "unknown";
 
-/// Result of platform spawn before it is committed to a catalog entry.
 pub(crate) struct ManagedChildSpawn {
     pub(crate) handle: ProcessHandle,
     pub(crate) intended_user: String,
@@ -207,7 +206,7 @@ impl ManagedProcess {
             uuid,
             config,
             profile,
-            user: DEFERRED_SPAWN_USER.to_string(),
+            user: Self::initial_intended_user(),
             state: ProcessState::Created,
             pid: None,
             handle: None,
@@ -220,6 +219,17 @@ impl ManagedProcess {
             job_object: None,
             #[cfg(windows)]
             user_profile: None,
+        }
+    }
+
+    fn initial_intended_user() -> String {
+        #[cfg(unix)]
+        {
+            platform::spawn_user_for_supervisor()
+        }
+        #[cfg(windows)]
+        {
+            DEFERRED_SPAWN_USER.to_string()
         }
     }
 
@@ -441,12 +451,6 @@ impl ManagedProcess {
             });
             self.set_watcher_handle(watcher_handle);
         }
-    }
-
-    pub(crate) fn spawn_and_watch(&mut self, exit_tx: mpsc::Sender<ProcessExit>) -> Result<()> {
-        self.spawn()?;
-        self.attach_exit_watcher(exit_tx);
-        Ok(())
     }
 
     fn try_spawn(&mut self) -> Result<()> {

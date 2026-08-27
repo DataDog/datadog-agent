@@ -434,6 +434,9 @@ mod tests {
         assert_eq!(detail.after, vec!["dep-a"]);
         assert_eq!(detail.before, vec!["dep-b"]);
         assert_eq!(detail.profile, "agent");
+        #[cfg(unix)]
+        assert_eq!(detail.user, crate::platform::spawn_user_for_supervisor());
+        #[cfg(windows)]
         assert_eq!(detail.user, "unknown");
     }
 

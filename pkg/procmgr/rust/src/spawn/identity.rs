@@ -3,15 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Spawn identity for operator-facing list/describe output.
-
 #[cfg(any(test, feature = "test-helpers"))]
 use log::warn;
 
 #[cfg(any(test, feature = "test-helpers"))]
 use super::profile::SpawnProfile;
 
-/// Resolve the account procmgr intends to use (or last used) for spawn.
 #[cfg(any(test, feature = "test-helpers"))]
 pub fn spawn_user_for(process_name: &str, profile: SpawnProfile) -> String {
     match resolve_spawn_user(process_name, profile) {

@@ -394,12 +394,6 @@ fn default_stable_fleet_policies_dir() -> Option<PathBuf> {
     )
 }
 
-/// Whether a shutdown trigger (SCM stop or Ctrl+C) has been received.
-pub(crate) fn shutdown_requested() -> bool {
-    service_stop_signal_time().is_some() || SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
-}
-
-/// Wait until SCM stop or Ctrl+C is signaled. Safe to call from multiple tasks.
 pub(crate) async fn wait_for_shutdown() {
     tokio::select! {
         result = tokio::signal::ctrl_c() => {

@@ -1,22 +1,25 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
 use super::{
-    ExitEvent, PendingRestart, RuntimeHandles, Supervisor, enqueue_pending_restart,
-    find_index_by_name, resolve_index, run_auto_start_child_at, try_auto_start,
+    ExitEvent, PendingRestart, RuntimeContext, Supervisor, enqueue_pending_restart,
+    find_index_by_name, resolve_index,
+    spawn::{
+        SpawnKind, log_skipped_pending_restart, pending_restart_still_valid, spawn_process,
+        spawn_process_background,
+    },
 };
-use crate::command::{CreateResult, StartResult, StopResult};
+use crate::command::{Command, CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::ordering;
-use crate::platform;
 use crate::process::ManagedProcess;
 use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
-use std::pin::Pin;
 use std::sync::Arc;
-#[cfg(windows)]
-use std::time::Duration;
-#[cfg(windows)]
-use std::time::Instant;
 use tokio::sync::RwLock;
 use tonic::Status;
 
@@ -43,38 +46,6 @@ impl ProcessManager {
         Supervisor::new(self)
     }
 
-    pub(in crate::manager) async fn auto_start_all(&self, handles: &RuntimeHandles) {
-        let order = self.startup_order.read().await.clone();
-        for idx in order {
-            let worker = self.spawn_auto_start_at(idx, handles);
-            tokio::pin!(worker);
-            tokio::select! {
-                biased;
-                _ = platform::wait_for_shutdown() => {
-                    info!("skipping remaining auto-starts: service shutting down");
-                    join_auto_start_worker(worker.as_mut()).await;
-                    return;
-                }
-                result = worker.as_mut() => {
-                    log_auto_start_join_error(result);
-                }
-            }
-        }
-    }
-
-    fn spawn_auto_start_at(
-        &self,
-        idx: usize,
-        handles: &RuntimeHandles,
-    ) -> tokio::task::JoinHandle<()> {
-        let processes = Arc::clone(&self.processes);
-        let handles = handles.clone();
-        tokio::task::spawn_blocking(move || {
-            tokio::runtime::Handle::current()
-                .block_on(run_auto_start_child_at(processes, idx, &handles));
-        })
-    }
-
     pub(crate) async fn processes(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
         self.processes.read().await
     }
@@ -87,7 +58,31 @@ impl ProcessManager {
         self.config_loader.location()
     }
 
-    pub(in crate::manager) async fn handle_exit(&self, event: ExitEvent, handles: &RuntimeHandles) {
+    pub(in crate::manager) async fn handle_command(&self, ctx: &RuntimeContext, cmd: Command) {
+        match cmd {
+            Command::Create {
+                name,
+                config,
+                reply,
+            } => {
+                let _ = reply.send(self.handle_create(name, *config, ctx).await);
+            }
+            Command::Start {
+                name_or_uuid,
+                reply,
+            } => {
+                let _ = reply.send(self.handle_start(&name_or_uuid, ctx).await);
+            }
+            Command::Stop {
+                name_or_uuid,
+                reply,
+            } => {
+                let _ = reply.send(self.handle_stop(&name_or_uuid).await);
+            }
+        }
+    }
+
+    pub(in crate::manager) async fn handle_exit(&self, event: ExitEvent, ctx: &RuntimeContext) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
             warn!("exit event for unknown process '{}'", event.name);
@@ -97,7 +92,12 @@ impl ProcessManager {
         if proc.pid() == Some(event.pid) && proc.state().is_alive() {
             info!("[{}] exited with {}", proc.name(), event.status);
             proc.set_last_status(event.status);
-            enqueue_pending_restart(proc, handles);
+            #[cfg(windows)]
+            proc.ensure_windows_spawn_resources_released(shutdown::ShutdownBudget::unlimited(
+                std::time::Instant::now(),
+            ))
+            .await;
+            enqueue_pending_restart(proc, ctx);
             return;
         }
 
@@ -115,41 +115,38 @@ impl ProcessManager {
     pub(in crate::manager) async fn complete_restart(
         &self,
         pending: PendingRestart,
-        handles: &RuntimeHandles,
+        ctx: &RuntimeContext,
     ) {
-        let mut procs = self.processes.write().await;
-        let Some(proc) = procs.iter_mut().find(|p| p.uuid() == pending.uuid) else {
-            warn!("restart for unknown process '{}'", pending.uuid);
-            return;
+        let idx = {
+            let procs = self.processes.read().await;
+            let Some((idx, proc)) = procs
+                .iter()
+                .enumerate()
+                .find(|(_, p)| p.uuid() == pending.uuid)
+            else {
+                warn!("restart for unknown process '{}'", pending.uuid);
+                return;
+            };
+            if !pending_restart_still_valid(proc, &pending) {
+                log_skipped_pending_restart(proc, &pending);
+                return;
+            }
+            idx
         };
-        let name = proc.name().to_owned();
-        if pending.spawn_seq != proc.spawn_seq() {
-            info!(
-                "[{name}] ignoring stale queued restart (spawn_seq {} != {})",
-                pending.spawn_seq,
-                proc.spawn_seq()
-            );
-            return;
-        }
-        if proc.is_running() {
-            info!("[{name}] already running, skipping queued restart");
-            return;
-        }
-        if !proc.should_complete_pending_restart() {
-            info!("[{name}] not restarting: policy or start conditions not met");
-            return;
-        }
-        if let Err(e) = proc.spawn_and_watch(handles.exit_tx.clone()) {
-            warn!("[{name}] restart failed: {e:#}");
-            enqueue_pending_restart(proc, handles);
-        }
+
+        spawn_process_background(
+            Arc::clone(&self.processes),
+            idx,
+            ctx.clone(),
+            SpawnKind::Restart(pending),
+        );
     }
 
     pub(in crate::manager) async fn handle_create(
         &self,
         name: String,
         config: config::ProcessConfig,
-        handles: &RuntimeHandles,
+        ctx: &RuntimeContext,
     ) -> Result<CreateResult, Status> {
         if name.is_empty() {
             return Err(Status::invalid_argument("name must not be empty"));
@@ -165,8 +162,7 @@ impl ProcessManager {
         if config.command.is_empty() {
             return Err(Status::invalid_argument("command must not be empty"));
         }
-        let uuid;
-        {
+        let (uuid, auto_start_idx, auto_start) = {
             let mut procs = self.processes.write().await;
             if find_index_by_name(&procs, &name).is_some() {
                 return Err(Status::already_exists(format!(
@@ -174,10 +170,19 @@ impl ProcessManager {
                 )));
             }
             let proc = ManagedProcess::new_runtime(name.clone(), self.uuid_gen.generate(), config);
-            uuid = proc.uuid().to_owned();
+            let uuid = proc.uuid().to_owned();
+            let auto_start = proc.may_auto_start();
             info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
-            try_auto_start(procs.last_mut().unwrap(), handles);
+            (uuid, procs.len() - 1, auto_start)
+        };
+        if auto_start {
+            spawn_process_background(
+                Arc::clone(&self.processes),
+                auto_start_idx,
+                ctx.clone(),
+                SpawnKind::CreateAutoStart,
+            );
         }
         let warnings = self.update_startup_order().await;
         Ok(CreateResult { uuid, warnings })
@@ -186,20 +191,33 @@ impl ProcessManager {
     pub(in crate::manager) async fn handle_start(
         &self,
         name_or_uuid: &str,
-        handles: &RuntimeHandles,
+        ctx: &RuntimeContext,
     ) -> Result<StartResult, Status> {
-        let mut procs = self.processes.write().await;
-        let idx = resolve_index(&procs, name_or_uuid)?;
-        let proc = &mut procs[idx];
-        let name = proc.name().to_owned();
+        let (idx, name) = {
+            let procs = self.processes.read().await;
+            let idx = resolve_index(&procs, name_or_uuid)?;
+            let proc = &procs[idx];
+            let name = proc.name().to_owned();
 
-        if proc.is_running() {
-            return Err(Status::failed_precondition(format!(
-                "process '{name}' is already running",
+            if proc.is_running() {
+                return Err(Status::failed_precondition(format!(
+                    "process '{name}' is already running",
+                )));
+            }
+            (idx, name)
+        };
+
+        spawn_process(Arc::clone(&self.processes), idx, ctx, SpawnKind::Manual)
+            .await
+            .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
+
+        let procs = self.processes.read().await;
+        let proc = &procs[idx];
+        if !proc.is_running() {
+            return Err(Status::internal(format!(
+                "failed to start '{name}': process is not running"
             )));
         }
-        proc.spawn_and_watch(handles.exit_tx.clone())
-            .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
         Ok(StartResult {
             uuid: proc.uuid().to_owned(),
             pid: proc.pid(),
@@ -286,33 +304,4 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
         order: result.order,
         warnings: result.warnings,
     }
-}
-
-fn log_auto_start_join_error(result: Result<(), tokio::task::JoinError>) {
-    if let Err(e) = result {
-        warn!("auto-start worker task failed: {e:#}");
-    }
-}
-
-async fn join_auto_start_worker(mut worker: Pin<&mut tokio::task::JoinHandle<()>>) {
-    #[cfg(windows)]
-    if let Some(signal_time) = platform::service_stop_signal_time() {
-        let budget = shutdown::ShutdownBudget::service_stop(signal_time);
-        let cap = budget.remaining_cap(Duration::from_secs(180));
-        if cap.is_zero() {
-            warn!(
-                "SCM shutdown budget exhausted; proceeding without waiting for in-flight auto-start"
-            );
-            return;
-        }
-        match tokio::time::timeout(cap, worker.as_mut()).await {
-            Ok(result) => log_auto_start_join_error(result),
-            Err(_) => warn!(
-                "timed out waiting for in-flight auto-start worker ({cap:?} left in SCM budget)"
-            ),
-        }
-        return;
-    }
-
-    log_auto_start_join_error(worker.as_mut().await);
 }

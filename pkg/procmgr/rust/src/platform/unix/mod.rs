@@ -103,12 +103,6 @@ pub fn stderr_inheritable() -> bool {
     true
 }
 
-/// Whether a shutdown trigger (SIGTERM or SIGINT) has been received.
-pub(crate) fn shutdown_requested() -> bool {
-    SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
-}
-
-/// Wait until SIGTERM, SIGINT, or a test shutdown signal is received.
 pub(crate) async fn wait_for_shutdown() {
     use tokio::signal::unix::{SignalKind, signal};
     let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
@@ -128,7 +122,6 @@ pub(crate) async fn wait_for_shutdown() {
     }
 }
 
-/// Wait for a shutdown trigger (SIGTERM or SIGINT).
 pub async fn shutdown_signal() {
     wait_for_shutdown().await;
 }

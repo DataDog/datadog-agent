@@ -44,7 +44,7 @@ mod tests {
             Arc::new(StaticConfigLoader::new(defs)),
             Arc::new(crate::uuid_gen::V4UuidGenerator),
         );
-        let svc = ProcessManagerService::new(mgr.clone(), cmd_tx);
+        let svc = ProcessManagerService::new(mgr.clone(), cmd_tx.clone());
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
@@ -74,7 +74,7 @@ mod tests {
             drop(dir);
         });
 
-        crate::manager::spawn_command_loop_for_tests(mgr.clone(), cmd_rx);
+        crate::manager::spawn_command_loop_for_tests(mgr.clone(), cmd_tx, cmd_rx);
 
         let channel = dd_procmgr_client::connect(&sock_path).await.unwrap();
 

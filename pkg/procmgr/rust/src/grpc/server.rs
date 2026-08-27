@@ -3,21 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::command::Command;
 use crate::grpc::proto;
 use crate::grpc::service::ProcessManagerService;
-use crate::manager::ProcessManager;
+use crate::manager::{ProcessManager, RuntimeContext};
 use crate::transport;
 use anyhow::{Context, Result};
-use tokio::sync::mpsc;
 use tonic::transport::Server;
 
-pub async fn run(
+pub(crate) async fn run(
     mgr: ProcessManager,
-    cmd_tx: mpsc::Sender<Command>,
+    ctx: RuntimeContext,
     shutdown: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<()> {
-    let svc = ProcessManagerService::new(mgr, cmd_tx);
+    let svc = ProcessManagerService::new(mgr, ctx.cmd_tx);
     let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
     let reflection = tonic_reflection::server::Builder::configure()

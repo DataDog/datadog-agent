@@ -174,7 +174,6 @@ impl fmt::Display for RestartPolicy {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ProcessConfig {
     #[serde(default)]
-    #[allow(dead_code)]
     pub description: Option<String>,
     pub command: String,
     #[serde(default)]
@@ -183,8 +182,6 @@ pub struct ProcessConfig {
     pub env: HashMap<String, String>,
     pub environment_file: Option<String>,
     pub working_dir: Option<String>,
-    /// Parsed for forward-compatibility but not yet acted upon.
-    #[allow(dead_code)]
     pub pidfile: Option<String>,
     #[serde(default = "default_inherit")]
     pub stdout: String,
