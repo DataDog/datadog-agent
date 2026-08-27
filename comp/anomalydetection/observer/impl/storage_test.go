@@ -235,11 +235,9 @@ func TestTimeSeriesStorage_AllSeries(t *testing.T) {
 }
 
 func TestSeriesStats_AggregateAt(t *testing.T) {
-	// Build a seriesStats with known columnar data to test aggregation.
+	// Build a seriesStats with known bucket data to test aggregation.
 	ss := &seriesStats{
-		timestamps: []int64{1000},
-		sums:       []float64{100.0},
-		counts:     []int64{4},
+		buckets: []pointBucket{{timestamp: 1000, sum: 100.0, count: 4}},
 	}
 
 	assert.Equal(t, 25.0, ss.aggregateAt(0, AggregateAverage))
@@ -248,9 +246,7 @@ func TestSeriesStats_AggregateAt(t *testing.T) {
 
 	// Zero count returns 0 for average
 	ss2 := &seriesStats{
-		timestamps: []int64{1000},
-		sums:       []float64{10.0},
-		counts:     []int64{0},
+		buckets: []pointBucket{{timestamp: 1000, sum: 10.0}},
 	}
 	assert.Equal(t, 0.0, ss2.aggregateAt(0, AggregateAverage))
 }

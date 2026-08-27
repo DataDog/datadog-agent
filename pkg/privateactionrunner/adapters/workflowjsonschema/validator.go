@@ -6,13 +6,19 @@
 package workflowjsonschema
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v6"
+	"github.com/santhosh-tekuri/jsonschema/v6/kind"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
+
+var messagePrinter = message.NewPrinter(language.English)
 
 func Validate(schema *jsonschema.Schema, data any) error {
 	return FormatValidationError(schema.Validate(data))
@@ -27,19 +33,19 @@ func FormatValidationError(err error) error {
 	if !ok {
 		return err
 	}
-	if ve.KeywordLocation == "/required" {
-		return errors.New(ve.Message)
+	if _, ok := ve.ErrorKind.(*kind.Required); ok && len(ve.InstanceLocation) == 0 {
+		return errors.New(ve.ErrorKind.LocalizedString(messagePrinter))
 	}
-	// /conditions/comparator/0/foo -> .conditions.comparator.0.foo
-	loc := strings.ReplaceAll(ve.InstanceLocation, "/", ".")
-	if strings.HasSuffix(ve.KeywordLocation, "/anyOf") {
+	// [conditions comparator 0 foo] -> .conditions.comparator.0.foo
+	loc := strings.Join(append([]string{""}, ve.InstanceLocation...), ".")
+	if _, ok := ve.ErrorKind.(*kind.AnyOf); ok {
 		return fmt.Errorf("%s: did not match any specified AnyOf schemas", loc)
 	}
-	if strings.HasSuffix(ve.KeywordLocation, "/additionalProperties") {
-		return errors.New(ve.Message)
+	if _, ok := ve.ErrorKind.(*kind.AdditionalProperties); ok {
+		return errors.New(ve.ErrorKind.LocalizedString(messagePrinter))
 	}
 	if len(ve.Causes) == 0 {
-		return fmt.Errorf("%s: %s", loc, ve.Message)
+		return fmt.Errorf("%s: %s", loc, ve.ErrorKind.LocalizedString(messagePrinter))
 	}
 	var errs []error
 	for _, c := range ve.Causes {
@@ -66,7 +72,18 @@ func ValidateParameters(parameterSchema map[string]interface{}, parameters any) 
 		return fmt.Errorf("failed to marshal schema to JSON: %w", err)
 	}
 
-	schema, err := jsonschema.CompileString("parameter-schema.json", string(schemaJSON))
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
+	if err != nil {
+		return fmt.Errorf("failed to parse schema: %w", err)
+	}
+
+	const loc = "parameter-schema.json"
+	c := jsonschema.NewCompiler()
+	if err := c.AddResource(loc, doc); err != nil {
+		return fmt.Errorf("failed to add schema resource: %w", err)
+	}
+
+	schema, err := c.Compile(loc)
 	if err != nil {
 		return fmt.Errorf("failed to compile schema: %w", err)
 	}
