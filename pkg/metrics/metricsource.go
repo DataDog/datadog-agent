@@ -348,6 +348,7 @@ const (
 	MetricSourceNiFi
 	MetricSourceKueue
 	MetricSourceExternalSecrets
+	MetricSourceCiscoCatalystCenter
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1158,6 +1159,8 @@ func (ms MetricSource) String() string {
 		return "kueue"
 	case MetricSourceExternalSecrets:
 		return "external_secrets"
+	case MetricSourceCiscoCatalystCenter:
+		return "cisco_catalyst_center"
 	default:
 		return "<unknown>"
 	}
@@ -1864,6 +1867,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKueue
 	case "external_secrets":
 		return MetricSourceExternalSecrets
+	case "cisco_catalyst_center":
+		return MetricSourceCiscoCatalystCenter
 	default:
 		return MetricSourceUnknown
 	}

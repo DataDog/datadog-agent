@@ -60,4 +60,5 @@
 '@datadog/fleet-remediation': FLREM
 '@datadog/profiling-full-host': 'PROF'
 '@datadog/q-branch': AAD
+'@datadog/agent-anomaly-detection': AAD
 '@datadog/gpu-monitoring-agent': EBPF
