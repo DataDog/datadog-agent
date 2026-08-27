@@ -262,20 +262,21 @@ func (p *EBPFProbe) selectSyscallTaskStorageMode() {
 		return
 	}
 
+	var supported bool
 	var programType lib.ProgramType
 	if p.useFentry {
-		programType = lib.Tracing
+		supported, programType = p.kernelVersion.HasTaskStorageInTracingPrograms(), lib.Tracing
 	} else {
-		programType = lib.Kprobe
+		supported, programType = p.kernelVersion.HasTaskStorageInKprobePrograms(), lib.Kprobe
 	}
 
-	if !p.kernelVersion.HasTaskStorageForProgramType(programType) {
+	if !supported {
 		p.useSyscallTaskStorage = false
 		seclog.Warnf("syscall task storage enabled but not supported for program type %s on this kernel version, falling back to LRU hash map", programType)
 		return
 	}
 
-	if !p.kernelVersion.HasTaskStorageForProgramType(lib.TracePoint) {
+	if !p.kernelVersion.HasTaskStorageInTracePointPrograms() {
 		p.useSyscallTaskStorage = false
 		seclog.Warnf("syscall task storage enabled but not supported for program type %s on this kernel version, falling back to LRU hash map", lib.TracePoint)
 		return
