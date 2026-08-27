@@ -148,6 +148,19 @@ properties:
       after it has been rotated.
     comment: maximum time that the unix tailer will hold a log file open after it
       has been rotated
+  rotation_handoff_quiet_period:
+    node_type: setting
+    type: integer
+    default: 2
+    description: |-
+      The number of seconds a rotated file must stop producing data before the Agent
+      stops reading it and reopens the path.
+
+      This only applies to file sources that set `fingerprint_config.open_flags`, for
+      which the Agent reads the rotated and the new file one after the other rather
+      than in parallel. Set it to `0` to always wait for `close_timeout` instead.
+    comment: a shorter quiet period hands the path over faster, at the risk of ending
+      the drain while the writer is only briefly idle
   open_files_limit:
     node_type: setting
     type: integer

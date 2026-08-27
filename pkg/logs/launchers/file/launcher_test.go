@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -1610,4 +1611,183 @@ func (suite *LauncherTestSuite) TestFingerprintOpenFlagsErrorClearsWhenFileDisap
 
 	_, present := disappearedSource.GetInfoStatus()[fingerprintOpenFlagsInfoKey]
 	suite.False(present, "a file that no longer fails must leave no stale error")
+}
+
+type sequentialHandoffFixture struct {
+	t          *testing.T
+	launcher   *Launcher
+	logSources []*sources.LogSource
+	path       string
+	file       *os.File
+}
+
+// newSequentialHandoffFixture builds a launcher tailing one file through as many
+// sources as identifiers are given. open_flags on the fingerprint config is what
+// turns the sequential handoff on, so passing none exercises parallel rotation.
+func newSequentialHandoffFixture(t *testing.T, openFlags []types.FileOpenFlag, identifiers ...string) *sequentialHandoffFixture {
+	mockConfig := configmock.New(t)
+	// A rotated tailer that drains on its own would hide the barrier, so keep it
+	// draining until the test ends it explicitly.
+	mockConfig.SetInTest("logs_config.close_timeout", 60)
+
+	launcher := createLauncher(t, launcherTestOptions{
+		fingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+			Count:               1,
+			CountToSkip:         0,
+			MaxBytes:            256,
+			OpenFlags:           openFlags,
+		},
+	})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	// The mock pipeline channel is unbuffered, so a tailer that is never read
+	// from blocks forever when it is stopped. Nothing here asserts on content.
+	outputChan := launcher.pipelineProvider.NextPipelineChan()
+	stopDraining := make(chan struct{})
+	t.Cleanup(func() { close(stopDraining) })
+	go func() {
+		for {
+			select {
+			case <-outputChan:
+			case <-stopDraining:
+				return
+			}
+		}
+	}()
+
+	path := t.TempDir() + "/launcher.log"
+	file, err := os.Create(path)
+	require.NoError(t, err)
+
+	logSources := make([]*sources.LogSource, 0, len(identifiers))
+	for _, identifier := range identifiers {
+		logSources = append(logSources, sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: identifier, Path: path}))
+	}
+	launcher.activeSources = append(launcher.activeSources, logSources...)
+
+	status.Clear()
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
+	t.Cleanup(func() {
+		launcher.cleanup()
+		file.Close()
+		status.Clear()
+	})
+
+	return &sequentialHandoffFixture{t: t, launcher: launcher, logSources: logSources, path: path, file: file}
+}
+
+func (f *sequentialHandoffFixture) scan() {
+	l := f.launcher
+	l.resolveActiveTailers(l.fileProvider.FilesToTail(context.Background(), l.validatePodContainerID, l.activeSources, l.registry))
+}
+
+func (f *sequentialHandoffFixture) write(content string) {
+	_, err := f.file.WriteString(content)
+	require.NoError(f.t, err)
+	require.NoError(f.t, f.file.Sync())
+}
+
+// rotate renames the file away and puts different content at the original path,
+// which is what the fingerprint comparison sees as a rotation.
+func (f *sequentialHandoffFixture) rotate(content string) {
+	require.NoError(f.t, os.Rename(f.path, f.path+".1"))
+
+	rotated, err := os.Create(f.path)
+	require.NoError(f.t, err)
+	f.t.Cleanup(func() { rotated.Close() })
+
+	_, err = rotated.WriteString(content)
+	require.NoError(f.t, err)
+	require.NoError(f.t, rotated.Sync())
+}
+
+func TestSequentialHandoffDefersReplacementUntilRotatedTailerFinishes(t *testing.T) {
+	fixture := newSequentialHandoffFixture(t, []types.FileOpenFlag{types.FileOpenFlagDirect}, "")
+	launcher := fixture.launcher
+	scanKey := getScanKey(fixture.path, fixture.logSources[0])
+
+	fixture.write("hello world\n")
+	fixture.scan()
+	rotatedTailer, found := launcher.tailers.Get(scanKey)
+	require.True(t, found, "the initial tailer should be running")
+
+	fixture.rotate("hello again\n")
+	fixture.scan()
+
+	assert.Equal(t, 0, launcher.tailers.Count(), "the replacement must wait for the rotated tailer to release its descriptor")
+	require.Len(t, launcher.rotatedTailers, 1)
+	assert.Same(t, rotatedTailer, launcher.rotatedTailers[0])
+	assert.Contains(t, launcher.oldInfoMap, scanKey, "a deferred scan must keep the info the replacement inherits")
+
+	rotatedTailer.Stop()
+	fixture.scan()
+
+	replacement, found := launcher.tailers.Get(scanKey)
+	require.True(t, found, "the replacement should start once the rotated tailer is finished")
+	assert.NotSame(t, rotatedTailer, replacement)
+	assert.Same(t, rotatedTailer.GetInfo(), replacement.GetInfo(), "the replacement inherits the rotated tailer's info registry")
+}
+
+func TestSequentialHandoffDoesNotDeferWithoutOpenFlags(t *testing.T) {
+	fixture := newSequentialHandoffFixture(t, nil, "")
+	launcher := fixture.launcher
+	scanKey := getScanKey(fixture.path, fixture.logSources[0])
+
+	fixture.write("hello world\n")
+	fixture.scan()
+	rotatedTailer, found := launcher.tailers.Get(scanKey)
+	require.True(t, found, "the initial tailer should be running")
+
+	fixture.rotate("hello again\n")
+	fixture.scan()
+
+	replacement, found := launcher.tailers.Get(scanKey)
+	require.True(t, found, "without open_flags the replacement starts in the same scan as the rotation")
+	assert.NotSame(t, rotatedTailer, replacement)
+	assert.Len(t, launcher.rotatedTailers, 1)
+}
+
+func TestSequentialHandoffDefersLaunchTailers(t *testing.T) {
+	fixture := newSequentialHandoffFixture(t, []types.FileOpenFlag{types.FileOpenFlagDirect}, "")
+	launcher := fixture.launcher
+
+	fixture.write("hello world\n")
+	fixture.scan()
+
+	fixture.rotate("hello again\n")
+	fixture.scan()
+	require.Len(t, launcher.rotatedTailers, 1)
+
+	// A source added or reloaded mid-drain reaches the file through launchTailers
+	// rather than a scan, so it needs the same barrier.
+	launcher.launchTailers(fixture.logSources[0])
+	assert.Equal(t, 0, launcher.tailers.Count(), "launchTailers must not reopen a path that is still draining")
+
+	launcher.rotatedTailers[0].Stop()
+	launcher.launchTailers(fixture.logSources[0])
+	assert.Equal(t, 1, launcher.tailers.Count(), "launchTailers starts the tailer once the drain is over")
+}
+
+func TestSequentialHandoffBlocksEveryScanKeyOnPath(t *testing.T) {
+	fixture := newSequentialHandoffFixture(t, []types.FileOpenFlag{types.FileOpenFlagDirect}, "container-1", "container-2")
+	launcher := fixture.launcher
+
+	fixture.write("hello world\n")
+	fixture.scan()
+	require.Equal(t, 2, launcher.tailers.Count(), "both containers tail the same path")
+
+	fixture.rotate("hello again\n")
+	fixture.scan()
+
+	assert.Equal(t, 0, launcher.tailers.Count(), "both scan keys are blocked by a drain on their shared path")
+	require.Len(t, launcher.rotatedTailers, 2)
+
+	for _, rotatedTailer := range launcher.rotatedTailers {
+		rotatedTailer.Stop()
+	}
+	fixture.scan()
+
+	assert.Equal(t, 2, launcher.tailers.Count(), "both replacements start once the path is free")
 }
