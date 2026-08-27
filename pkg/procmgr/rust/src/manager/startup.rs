@@ -14,7 +14,11 @@ use std::pin::Pin;
 #[cfg(windows)]
 use std::time::Duration;
 
-pub(in crate::manager) async fn run(manager: &ProcessManager, ctx: &RuntimeContext) {
+pub(in crate::manager) async fn run(
+    manager: &ProcessManager,
+    ctx: &RuntimeContext,
+    mut shutdown: Pin<&mut impl Future<Output = ()>>,
+) {
     let order = manager.startup_order.read().await.clone();
     if order.is_empty() {
         info!("startup: catalog is empty, nothing to auto-start");
@@ -24,7 +28,10 @@ pub(in crate::manager) async fn run(manager: &ProcessManager, ctx: &RuntimeConte
     log_startup_plan(manager, &order).await;
 
     for (step, &idx) in order.iter().enumerate() {
-        if ctx.lifecycle.is_stopping() {
+        if ctx.lifecycle.is_stopping() || platform::shutdown_requested() {
+            if platform::shutdown_requested() {
+                ctx.lifecycle.begin_stopping();
+            }
             info!("startup: service stopping, skipping remaining auto-starts");
             return;
         }
@@ -43,7 +50,7 @@ pub(in crate::manager) async fn run(manager: &ProcessManager, ctx: &RuntimeConte
 
         tokio::select! {
             biased;
-            _ = platform::wait_for_shutdown() => {
+            _ = shutdown.as_mut() => {
                 ctx.lifecycle.begin_stopping();
                 info!("startup: shutdown signaled, skipping remaining auto-starts");
                 join_in_flight_spawn(spawn_fut.as_mut()).await;

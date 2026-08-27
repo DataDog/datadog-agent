@@ -37,7 +37,7 @@ use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use tokio::sync::Notify;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE, TRUE};
@@ -72,6 +72,11 @@ pub fn shutdown_notify() -> &'static Notify {
 /// Record when SCM delivered STOP/SHUTDOWN/PRESHUTDOWN (before async teardown).
 pub(crate) fn record_service_stop_signal() {
     let _ = SERVICE_STOP_SIGNAL_TIME.set(Instant::now());
+    SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+}
+
+pub(crate) fn shutdown_requested() -> bool {
+    SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
 }
 
 /// Time SCM stop was signaled, if this process is stopping as a Windows service.
@@ -402,6 +407,7 @@ pub(crate) async fn wait_for_shutdown() {
             log::info!("received Ctrl+C");
         }
         _ = shutdown_notify().notified() => {
+            SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
             log::info!("received service stop request");
         }
     }
@@ -418,8 +424,22 @@ pub(crate) fn signal_shutdown_for_test() {
 }
 
 #[cfg(test)]
+fn drain_shutdown_notify() {
+    struct Noop;
+    impl std::task::Wake for Noop {
+        fn wake(self: Arc<Self>) {}
+        fn wake_by_ref(self: &Arc<Self>) {}
+    }
+    let waker = std::task::Waker::from(Arc::new(Noop));
+    let mut cx = std::task::Context::from_waker(&waker);
+    let mut fut = std::pin::pin!(shutdown_notify().notified());
+    let _ = fut.as_mut().poll(&mut cx);
+}
+
+#[cfg(test)]
 pub(crate) fn reset_shutdown_state_for_test() {
     SHUTDOWN_REQUESTED.store(false, Ordering::SeqCst);
+    drain_shutdown_notify();
 }
 
 #[cfg(test)]

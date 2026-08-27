@@ -36,7 +36,9 @@ pub fn startup_runtime_context() -> (Lifecycle, RuntimeContext, RuntimeReceivers
 pub async fn auto_start_for_test(mgr: &ProcessManager, ctx: &RuntimeContext) {
     let _guard = crate::platform::test_shutdown_lock().await;
     crate::platform::reset_shutdown_state_for_test();
-    startup::run(mgr, ctx).await;
+    let pending = std::future::pending::<()>();
+    tokio::pin!(pending);
+    startup::run(mgr, ctx, pending.as_mut()).await;
 }
 
 pub fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {

@@ -51,7 +51,11 @@ async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow
 
     let mgr_task = mgr.clone();
     let handles_task = handles.clone();
-    let auto_start_task = tokio::spawn(async move { startup::run(&mgr_task, &handles_task).await });
+    let auto_start_task = tokio::spawn(async move {
+        let shutdown = crate::platform::shutdown_signal();
+        tokio::pin!(shutdown);
+        startup::run(&mgr_task, &handles_task, shutdown.as_mut()).await
+    });
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -103,7 +107,11 @@ async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Resu
 
     let mgr_task = mgr.clone();
     let handles_task = handles.clone();
-    let auto_start_task = tokio::spawn(async move { startup::run(&mgr_task, &handles_task).await });
+    let auto_start_task = tokio::spawn(async move {
+        let shutdown = crate::platform::shutdown_signal();
+        tokio::pin!(shutdown);
+        startup::run(&mgr_task, &handles_task, shutdown.as_mut()).await
+    });
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -142,7 +150,9 @@ async fn test_shutdown_during_auto_start_transitions_lifecycle() {
     let (lifecycle, handles, _rx) = startup_runtime_context();
 
     crate::platform::signal_shutdown_for_test();
-    startup::run(&mgr, &handles).await;
+    let pending = std::future::pending::<()>();
+    tokio::pin!(pending);
+    startup::run(&mgr, &handles, pending.as_mut()).await;
 
     assert!(lifecycle.is_stopping());
     crate::platform::reset_shutdown_state_for_test();

@@ -17,7 +17,7 @@ use tokio::process::Command;
 
 use log::warn;
 use nix::unistd::{User, geteuid};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Notify;
 
@@ -31,6 +31,10 @@ fn shutdown_notify() -> &'static Notify {
 
 fn mark_shutdown_requested() {
     SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+}
+
+pub(crate) fn shutdown_requested() -> bool {
+    SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
 }
 
 fn resolve_supervisor_spawn_user() -> String {
@@ -133,8 +137,22 @@ pub(crate) fn signal_shutdown_for_test() {
 }
 
 #[cfg(test)]
+fn drain_shutdown_notify() {
+    struct Noop;
+    impl std::task::Wake for Noop {
+        fn wake(self: Arc<Self>) {}
+        fn wake_by_ref(self: &Arc<Self>) {}
+    }
+    let waker = std::task::Waker::from(Arc::new(Noop));
+    let mut cx = std::task::Context::from_waker(&waker);
+    let mut fut = std::pin::pin!(shutdown_notify().notified());
+    let _ = fut.as_mut().poll(&mut cx);
+}
+
+#[cfg(test)]
 pub(crate) fn reset_shutdown_state_for_test() {
     SHUTDOWN_REQUESTED.store(false, Ordering::SeqCst);
+    drain_shutdown_notify();
 }
 
 #[cfg(test)]

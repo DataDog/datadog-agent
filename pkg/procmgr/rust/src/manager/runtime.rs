@@ -146,11 +146,11 @@ mod tests {
         let manager = empty_manager();
         let (ctx, mut rx) = running_runtime();
 
-        startup::run(&manager, &ctx).await;
-        assert!(!ctx.lifecycle.is_stopping());
-
         let shutdown = platform::shutdown_signal();
         tokio::pin!(shutdown);
+        startup::run(&manager, &ctx, shutdown.as_mut()).await;
+        assert!(!ctx.lifecycle.is_stopping());
+
         tokio::spawn(async {
             tokio::time::sleep(Duration::from_millis(10)).await;
             platform::signal_shutdown_for_test();

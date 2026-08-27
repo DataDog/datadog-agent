@@ -10,6 +10,7 @@ use crate::grpc;
 use crate::platform;
 use anyhow::Result;
 use log::{info, warn};
+use std::pin::pin;
 use tokio::sync::oneshot;
 
 pub struct Supervisor {
@@ -32,13 +33,13 @@ impl Supervisor {
             grpc_shutdown_rx,
         ));
 
-        startup::run(&self.manager, &ctx).await;
+        let shutdown = platform::shutdown_signal();
+        let mut shutdown = pin!(shutdown);
+        startup::run(&self.manager, &ctx, shutdown.as_mut()).await;
 
         if !ctx.lifecycle.is_stopping() {
             ctx.lifecycle.begin_running();
             info!("dd-procmgrd ready");
-            let shutdown = platform::shutdown_signal();
-            tokio::pin!(shutdown);
             rx.run_with(&self.manager, &ctx, shutdown).await;
         }
 
