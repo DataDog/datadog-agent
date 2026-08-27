@@ -16,13 +16,16 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
 // recordingHandle records every ObserveMetric call for test assertions.
@@ -129,6 +132,64 @@ func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
 	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
+}
+
+func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
+	type samplerCase struct {
+		name    string
+		observe func(*testing.T, tagger.Component, *metrics.MetricSample, filterlistdef.TagMatcher) recordedCall
+	}
+	cases := []samplerCase{
+		{
+			name: "time sampler",
+			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
+				t.Helper()
+				sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), tagger, "host")
+				handle := &recordingHandle{}
+				sampler.observerHandle = handle
+				sampler.sample(sample, 1000, matcher)
+				require.Len(t, handle.calls, 1)
+				return handle.calls[0]
+			},
+		},
+		{
+			name: "check sampler",
+			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
+				t.Helper()
+				sampler := newCheckSampler(10, false, false, 0, false, tags.NewStore(false, "test"), "test-check", tagger)
+				handle := &recordingHandle{}
+				sampler.SetObserverHandle(handle)
+				sampler.addSample(sample, matcher)
+				require.Len(t, handle.calls, 1)
+				return handle.calls[0]
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+			sample := &metrics.MetricSample{
+				Name:       "metric.origin",
+				Host:       "host-a",
+				Value:      1,
+				Mtype:      metrics.CounterType,
+				Tags:       []string{"service:web"},
+				SampleRate: 1,
+				OriginInfo: taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://container1", Cardinality: "low"},
+			}
+
+			resolved := tc.observe(t, setupTagger(t), sample, filterlist.NewNoopTagMatcher())
+			assert.Equal(t, "host-a", resolved.host)
+			assert.ElementsMatch(t, []string{"service:web", "env:prod", "image_name:image", "pod_name:thing1"}, resolved.tags)
+
+			filtered := tc.observe(t, setupTagger(t), sample, filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+				"metric.origin": {Tags: []string{"env", "pod_name"}, Action: "exclude"},
+			}, logmock.New(t)))
+			assert.Equal(t, "host-a", filtered.host)
+			assert.ElementsMatch(t, []string{"service:web", "image_name:image"}, filtered.tags)
+		})
+	}
 }
 
 // TestTimeSamplerObserverHandleNil verifies no panic when observerHandle is nil.
