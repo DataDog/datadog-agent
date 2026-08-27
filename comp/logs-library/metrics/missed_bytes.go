@@ -24,6 +24,11 @@ const (
 	// window.
 	missedBytesBucketSize = time.Hour
 
+	// missedBytesMaxBuckets caps the buckets one entry can hold. A bucket counts
+	// while any part of it overlaps the window, so the window covers at most one
+	// more bucket start than it is wide.
+	missedBytesMaxBuckets = int(missedBytesWindow/missedBytesBucketSize) + 1
+
 	// missedBytesMaxKeys caps distinct tracked tuples. Service is user-controlled
 	// free text, so the key space is not bounded by config size alone.
 	missedBytesMaxKeys = 200
@@ -53,11 +58,36 @@ type missedBytesBucket struct {
 }
 
 type missedBytesEntry struct {
-	// buckets is keyed by the bucket's start, as Unix nanoseconds.
+	// buckets is keyed by the bucket's start, as Unix nanoseconds. It holds at
+	// most missedBytesMaxBuckets entries: pruneAndSum runs on every record, and
+	// record is the only thing that adds a bucket.
 	buckets      map[int64]*missedBytesBucket
 	lastLossNano int64
 }
 
+// pruneAndSum drops the buckets that no longer overlap the window ending at
+// cutoffNano and returns the totals of those that remain. It is the only place
+// buckets are removed.
+func (e *missedBytesEntry) pruneAndSum(cutoffNano int64) (bytes, rotations int64) {
+	for start, bucket := range e.buckets {
+		if start+int64(missedBytesBucketSize) <= cutoffNano {
+			delete(e.buckets, start)
+			continue
+		}
+		bytes += bucket.bytes
+		rotations += bucket.rotations
+	}
+	return bytes, rotations
+}
+
+// missedBytesTracker holds the trailing window of loss per tuple.
+//
+// Its footprint is hard-bounded without needing anyone to read it: at most
+// missedBytesMaxKeys+1 entries (201, the cap plus the shared overflow key), each
+// holding at most missedBytesMaxBuckets buckets (25), is 5025 buckets of a
+// 16-byte struct behind a pointer in a map — a few hundred KB once map tables,
+// allocator rounding and the key strings are counted. Nothing here grows with
+// uptime, rotation rate, or how often the health check runs.
 type missedBytesTracker struct {
 	mu      sync.Mutex
 	clk     clock.Clock
@@ -95,6 +125,13 @@ func (t *missedBytesTracker) record(source, service string, bytes int64) {
 		}
 	}
 
+	// Prune here as well as in collectAndPrune. record runs on every rotation
+	// whether or not anything ever reads the tracker — the health check is off
+	// when health_platform.enabled is false — so this is what bounds the bucket
+	// count. It costs one pass over at most missedBytesMaxBuckets buckets on a
+	// path that runs at most once per closeTimeout per tailer.
+	entry.pruneAndSum(nowNano - int64(missedBytesWindow))
+
 	start := alignMissedBytesBucket(nowNano)
 	bucket, ok := entry.buckets[start]
 	if !ok {
@@ -106,10 +143,10 @@ func (t *missedBytesTracker) record(source, service string, bytes int64) {
 	entry.lastLossNano = nowNano
 }
 
-// snapshot returns one summary per tuple with loss inside the trailing window,
-// sorted for deterministic output. Buckets and tuples that have aged out are
-// dropped here, so a quiet agent returns to an empty tracker.
-func (t *missedBytesTracker) snapshot() []MissedBytesSummary {
+// collectAndPrune returns one summary per tuple with loss inside the trailing
+// window, sorted for deterministic output. It mutates: buckets and tuples that
+// have aged out are dropped, so a quiet agent returns to an empty tracker.
+func (t *missedBytesTracker) collectAndPrune() []MissedBytesSummary {
 	cutoff := t.clk.Now().UnixNano() - int64(missedBytesWindow)
 
 	t.mu.Lock()
@@ -117,15 +154,7 @@ func (t *missedBytesTracker) snapshot() []MissedBytesSummary {
 
 	summaries := make([]MissedBytesSummary, 0, len(t.entries))
 	for key, entry := range t.entries {
-		var bytes, rotations int64
-		for start, bucket := range entry.buckets {
-			if start+int64(missedBytesBucketSize) <= cutoff {
-				delete(entry.buckets, start)
-				continue
-			}
-			bytes += bucket.bytes
-			rotations += bucket.rotations
-		}
+		bytes, rotations := entry.pruneAndSum(cutoff)
 
 		if bytes <= 0 {
 			delete(t.entries, key)
@@ -180,7 +209,7 @@ func RecordMissedBytes(source, service string, bytes int64) {
 // MissedBytesSnapshot returns the tuples that lost bytes within the trailing
 // window, sorted by source then service.
 func MissedBytesSnapshot() []MissedBytesSummary {
-	return missedBytes.snapshot()
+	return missedBytes.collectAndPrune()
 }
 
 // MarkFileTailingActive records that the file launcher started in this process.
@@ -191,12 +220,4 @@ func MarkFileTailingActive() {
 // FileTailingActive reports whether the file launcher started in this process.
 func FileTailingActive() bool {
 	return fileTailingActive.Load()
-}
-
-// ResetMissedBytesForTest clears the process-wide tracker state. Test-only.
-// It mutates the existing tracker rather than replacing it, so it stays safe to
-// call while tailer goroutines hold a reference.
-func ResetMissedBytesForTest() {
-	missedBytes.reset()
-	fileTailingActive.Store(false)
 }
