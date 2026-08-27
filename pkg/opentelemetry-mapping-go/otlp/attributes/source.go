@@ -35,6 +35,7 @@ const (
 
 	attributeAzureResourceGroupName    = "azure.resource_group.name"
 	attributeAzureAppServiceInstanceID = "azure.app_service.instance.id"
+	attributeServiceInstanceID         = "service.instance.id"
 	cloudPlatformAzureAppService       = "azure.app_service"
 	cloudPlatformAzureAppServiceLegacy = "azure_app_service"
 )
@@ -56,6 +57,9 @@ func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceRe
 	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
 	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
 	instanceID, instanceIDOK := attrs.Get(attributeAzureAppServiceInstanceID)
+	if !instanceIDOK || instanceID.Str() == "" {
+		instanceID, instanceIDOK = attrs.Get(attributeServiceInstanceID)
+	}
 	if !nameOK || name.Str() == "" ||
 		!subscriptionIDOK || subscriptionID.Str() == "" ||
 		!resourceGroupOK || resourceGroup.Str() == "" ||
