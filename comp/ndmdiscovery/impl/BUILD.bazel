@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "chunks.go",
         "credentials.go",
+        "cursor.go",
         "rcconfig.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/ndmdiscovery/impl",
@@ -14,6 +15,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/structure",
         "//pkg/networkdevices/connectivity",
+        "//pkg/persistentcache",
     ],
 )
 
@@ -22,6 +24,7 @@ dd_agent_go_test(
     srcs = [
         "chunks_test.go",
         "credentials_test.go",
+        "cursor_test.go",
         "rcconfig_test.go",
     ],
     embed = [":impl"],
