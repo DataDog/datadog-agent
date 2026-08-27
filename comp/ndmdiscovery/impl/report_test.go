@@ -80,6 +80,11 @@ func TestReportDevicesSendsOneBatch(t *testing.T) {
 func TestReportDevicesSplitsAtBatchSize(t *testing.T) {
 	sender := &fakeSender{}
 	r := newTestReporter(t, sender)
+	var callCount int64
+	r.now = func() int64 {
+		callCount++
+		return 1700000000 + callCount
+	}
 
 	total := metadata.PayloadMetadataBatchSize*2 + 5
 	devices := make([]metadata.DiscoveredDeviceMetadata, 0, total)
@@ -95,6 +100,11 @@ func TestReportDevicesSplitsAtBatchSize(t *testing.T) {
 	assert.Len(t, got[0].DiscoveredDevices, metadata.PayloadMetadataBatchSize)
 	assert.Len(t, got[1].DiscoveredDevices, metadata.PayloadMetadataBatchSize)
 	assert.Len(t, got[2].DiscoveredDevices, 5)
+
+	// All batches from a single ReportDevices call must carry the same
+	// CollectTimestamp.
+	assert.Equal(t, got[0].CollectTimestamp, got[1].CollectTimestamp)
+	assert.Equal(t, got[0].CollectTimestamp, got[2].CollectTimestamp)
 
 	// Every device is sent exactly once, in order.
 	seen := 0

@@ -53,6 +53,9 @@ func newPayloadReporter(sender payloadSender, logger log.Component) *payloadRepo
 // metadata.PayloadMetadataBatchSize, matching every other NDM producer so the
 // existing intake limits hold.
 func (r *payloadReporter) ReportDevices(namespace string, devices []metadata.DiscoveredDeviceMetadata) error {
+	// One collect time for every batch of a single call, matching
+	// metadata.BatchDeviceScan, so the backend sees one coherent snapshot.
+	collectTime := r.now()
 	for start := 0; start < len(devices); start += metadata.PayloadMetadataBatchSize {
 		end := start + metadata.PayloadMetadataBatchSize
 		if end > len(devices) {
@@ -61,7 +64,7 @@ func (r *payloadReporter) ReportDevices(namespace string, devices []metadata.Dis
 		payload := metadata.NetworkDevicesMetadata{
 			Namespace:         namespace,
 			Integration:       integrations.SNMP,
-			CollectTimestamp:  r.now(),
+			CollectTimestamp:  collectTime,
 			DiscoveredDevices: devices[start:end],
 		}
 		if err := r.send(payload); err != nil {
