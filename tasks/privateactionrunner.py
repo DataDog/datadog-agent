@@ -6,6 +6,7 @@ from invoke.tasks import task
 from tasks.build_tags import get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import build_go_binary_with_bazel
 from tasks.libs.common.constants import REPO_PATH
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import bin_name, get_build_flags
@@ -23,7 +24,27 @@ def build(
     flavor=AgentFlavor.base.name,
     rebuild=False,
     go_mod="readonly",
+    enable_bazel=False,
 ):
+    """Build the privateactionrunner binary.
+
+    enable_bazel: build via `bazel build //cmd/privateactionrunner:privateactionrunner` instead of
+    `go build`, then copy the result to the same place. Developer opt-in only; defaults to off.
+
+    Not yet supported on Windows (ABLD-310): the bazel target does not embed the Windows
+    resources (rsrc.syso) that the legacy go_build() path produces via build_messagetable()/
+    build_rc(). See //cmd/privateactionrunner/windows_resources:rsrc.
+    """
+    if enable_bazel:
+        if sys.platform == 'win32':
+            raise NotImplementedError(
+                "enable_bazel is not yet supported on Windows for privateactionrunner: the bazel "
+                "target does not embed Windows resources (rsrc.syso) that the legacy go_build() "
+                "path produces. See //cmd/privateactionrunner/windows_resources:rsrc. (ABLD-310)"
+            )
+        build_go_binary_with_bazel("//cmd/privateactionrunner:privateactionrunner", BIN_PATH)
+        return
+
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path)
 
     if sys.platform == 'win32':

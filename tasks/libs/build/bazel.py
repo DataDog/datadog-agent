@@ -240,6 +240,28 @@ def bazel(
     return completed.stdout if capture_output else ""
 
 
+def build_go_binary_with_bazel(target: str, bin_path: str) -> None:
+    """Build a ``go_binary``/``dd_agent_go_binary`` Bazel target and copy its output to ``bin_path``.
+
+    This is the "opt-in" counterpart to ``go_build()`` for invoke tasks that grew an
+    ``--enable_bazel`` flag: it runs ``bazel build <target>`` and copies the resulting
+    binary from ``bazel-bin`` to wherever the legacy ``go_build()`` path would have put it,
+    so the rest of the invoke task (asset staging, etc.) doesn't need to know which path built it.
+    """
+    label = split_label(target)
+    if label.name is None:
+        raise ValueError(f"Bazel target {target!r} must include a target name (e.g. //cmd/foo:foo)")
+
+    bazel("build", target)
+    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
+    # rules_go go_binary outputs land in a `<name>_/` subdirectory alongside the package.
+    src = os.path.join(bazel_bin, label.package, f"{label.name}_", label.name)
+
+    os.makedirs(os.path.dirname(bin_path), exist_ok=True)
+    shutil.copy2(src, bin_path)
+    os.chmod(bin_path, 0o755)
+
+
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
     omnibus build environment variables.
