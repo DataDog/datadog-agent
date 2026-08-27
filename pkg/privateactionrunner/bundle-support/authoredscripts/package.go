@@ -92,6 +92,9 @@ func resolvePackageFile(root, path string) (string, error) {
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("path %q is not a regular file", path)
 	}
+	if info.Mode().Perm()&0o111 == 0 {
+		return "", fmt.Errorf("path %q is not executable", path)
+	}
 
 	return filepath.Join(root, path), nil
 }

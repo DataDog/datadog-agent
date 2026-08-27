@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "artifactstore",
+    srcs = ["store.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/artifactstore",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gofrs_flock//:flock"],
+)
