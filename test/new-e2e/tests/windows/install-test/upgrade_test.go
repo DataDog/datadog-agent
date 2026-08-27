@@ -64,7 +64,7 @@ func (s *testUpgradeSuite) TestUpgrade() {
 		s.T().FailNow()
 	}
 
-	// dd-procmgr-service runs as LocalSystem (#54731), so it stays enabled even when the
+	// dd-procmgr-service runs as LocalSystem (#55529), so it stays enabled even when the
 	// upgrade does not provide DDAGENTUSER_PASSWORD. Local accounts already behaved this way
 	// because the installer generates a password for the default ddagentuser.
 	s.Run("process manager stays enabled for a local account", func() {

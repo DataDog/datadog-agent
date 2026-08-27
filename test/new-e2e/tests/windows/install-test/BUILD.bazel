@@ -47,6 +47,7 @@ dd_agent_go_test(
         "install_test.go",
         "npm_test.go",
         "persisting_integrations_test.go",
+        "procmgr_localsystem_test.go",
         "upgrade_test.go",
     ],
     embed = [":install-test"],
