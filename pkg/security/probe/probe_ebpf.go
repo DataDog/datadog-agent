@@ -27,6 +27,8 @@ import (
 	"github.com/google/gopacket/layers"
 
 	lib "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
@@ -1173,7 +1175,7 @@ func (p *EBPFProbe) EventMarshallerCtorWithRule(event *model.Event, rule *rules.
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupContext *model.CGroupContext) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, cgroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.GoLabels, cgroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -1432,6 +1434,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// resolve process context
 	if !p.setProcessContext(eventType, event, cgroupContext) {
 		return
+	}
+
+	// fork and exec persist their span context on the process cache entry they
+	// created.
+	if eventType == model.ForkEventType || eventType == model.ExecEventType {
+		p.fieldHandlers.ResolveSpanContext(event)
 	}
 
 	// handle regular events
@@ -1943,6 +1951,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, offset int, dataLen uint64, cgroupContext model.CGroupContext) bool {
 	var err error
 	eventType := event.GetEventType()
+
 	switch eventType {
 	case model.ForkEventType:
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -2971,6 +2980,14 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.Probe.NetworkFlowMonitorEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "is_span_tracking_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.SpanTrackingEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "has_task_pt_regs_helper",
+			Value: utils.BoolTouint64(hasTaskPtRegsHelper()),
+		},
+		manager.ConstantEditor{
 			Name:  "send_signal",
 			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
 		},
@@ -3138,6 +3155,18 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(1),
 		})
 	}
+}
+
+// hasTaskPtRegsHelper reports whether the running kernel can resolve a task's
+// entry pt_regs from eBPF.
+func hasTaskPtRegsHelper() bool {
+	for _, fn := range []asm.BuiltinFunc{asm.FnGetCurrentTaskBtf, asm.FnTaskPtRegs} {
+		if err := features.HaveProgramHelper(lib.Kprobe, fn); err != nil {
+			seclog.Debugf("%s unavailable, Go pprof labels will not use the g register: %v", fn, err)
+			return false
+		}
+	}
+	return true
 }
 
 func (p *EBPFProbe) isSKStorageSupported() bool {
@@ -3730,6 +3759,18 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
 
+	if kv.Code >= kernel.Kernel4_7 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructThread, "struct task_struct", "thread")
+		// The field holding the TLS thread pointer is arch-exclusive, so only one
+		// of these resolves on any given kernel: fsbase on x86_64, uw.tp_value on
+		// arm64 (tp_value is the first member of uw, so uw's offset is tp_value's).
+		constantFetcher.AppendOffsetofRequestWithFallbacks(constantfetch.OffsetNameThreadStructTp,
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "fsbase"},
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "uw"},
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "tp_value"},
+		)
+	}
+
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs")
@@ -3933,6 +3974,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					dropActionFilter.CGroupPathKey = ev.ProcessContext.Process.CGroup.CGroupPathKey
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
+					if action.Def.NetworkFilter.Scope != "process" {
+						seclog.Warnf("unsupported scope '%s' for rule '%s'", action.Def.NetworkFilter.Scope, rule.ID)
+					}
 				}
 				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
@@ -3947,6 +3991,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				Policy: policy.String(),
 				rule:   rule,
 				Status: reportStatus,
+				Scope:  action.Def.NetworkFilter.Scope,
 			}
 
 			ev.ActionReports = append(ev.ActionReports, report)

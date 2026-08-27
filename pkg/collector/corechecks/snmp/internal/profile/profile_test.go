@@ -20,13 +20,13 @@ import (
 func Test_loadProfiles(t *testing.T) {
 	mockConfig := configmock.New(t)
 	tests := []struct {
-		name                      string
-		mockConfd                 string
-		profiles                  ProfileConfigMap
-		expectedProfileMetrics    []string
-		expectedProfileNames      []string
-		expectedHaveLegacyProfile bool
-		expectedErr               string
+		name                   string
+		mockConfd              string
+		profiles               ProfileConfigMap
+		expectedProfileMetrics []string
+		expectedProfileNames   []string
+		expectedLegacyProfiles []string
+		expectedErr            string
 	}{
 		{
 			name:      "OK Use init config profiles",
@@ -53,7 +53,7 @@ func Test_loadProfiles(t *testing.T) {
 			expectedProfileMetrics: []string{
 				"init_config_metric",
 			},
-			expectedHaveLegacyProfile: false,
+			expectedLegacyProfiles: nil,
 		},
 		{
 			name:      "OK init config contains invalid profiles with warnings logs",
@@ -69,8 +69,8 @@ func Test_loadProfiles(t *testing.T) {
 					},
 				},
 			},
-			expectedProfileNames:      []string(nil), // invalid profiles are skipped
-			expectedHaveLegacyProfile: false,
+			expectedProfileNames:   []string(nil), // invalid profiles are skipped
+			expectedLegacyProfiles: nil,
 		},
 		{
 			name:      "OK init config contains legacy profiles",
@@ -89,8 +89,8 @@ func Test_loadProfiles(t *testing.T) {
 					},
 				},
 			},
-			expectedProfileNames:      []string(nil),
-			expectedHaveLegacyProfile: true,
+			expectedProfileNames:   []string(nil),
+			expectedLegacyProfiles: []string{"my-init-config-profile"},
 		},
 		// yaml profiles
 		{
@@ -100,13 +100,13 @@ func Test_loadProfiles(t *testing.T) {
 				"another_profile",
 				"f5-big-ip",
 			},
-			expectedHaveLegacyProfile: false,
+			expectedLegacyProfiles: nil,
 		},
 		{
-			name:                      "OK contains yaml profiles with warning logs",
-			mockConfd:                 "does_not_exist.d",
-			expectedProfileNames:      []string(nil),
-			expectedHaveLegacyProfile: false,
+			name:                   "OK contains yaml profiles with warning logs",
+			mockConfd:              "does_not_exist.d",
+			expectedProfileNames:   []string(nil),
+			expectedLegacyProfiles: nil,
 		},
 		{
 			name:      "OK yaml profiles contains legacy profile (no OID)",
@@ -114,7 +114,7 @@ func Test_loadProfiles(t *testing.T) {
 			expectedProfileNames: []string{
 				"valid",
 			},
-			expectedHaveLegacyProfile: true,
+			expectedLegacyProfiles: []string{"legacy"},
 		},
 		{
 			name:      "OK yaml profiles contains legacy profile (string symbol type)",
@@ -122,7 +122,7 @@ func Test_loadProfiles(t *testing.T) {
 			expectedProfileNames: []string{
 				"valid",
 			},
-			expectedHaveLegacyProfile: true,
+			expectedLegacyProfiles: []string{"legacy"},
 		},
 	}
 	for _, tt := range tests {
@@ -131,7 +131,7 @@ func Test_loadProfiles(t *testing.T) {
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
 			mockConfig.SetInTest("confd_path", path)
 
-			actualProfiles, haveLegacyProfile, err := loadProfiles(tt.profiles)
+			actualProfiles, legacyProfiles, err := loadProfiles(tt.profiles)
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			}
@@ -153,7 +153,7 @@ func Test_loadProfiles(t *testing.T) {
 				assert.ElementsMatch(t, tt.expectedProfileMetrics, metricsNames)
 			}
 
-			assert.Equal(t, tt.expectedHaveLegacyProfile, haveLegacyProfile)
+			assert.Equal(t, tt.expectedLegacyProfiles, legacyProfiles)
 		})
 	}
 }
