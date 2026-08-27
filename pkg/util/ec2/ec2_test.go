@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
@@ -40,6 +41,7 @@ func resetPackageVars() {
 	publicIPv4Fetcher.Reset()
 	hostnameFetcher.Reset()
 	networkIDFetcher.Reset()
+	instanceTypeFetcher.Reset()
 }
 
 func setupDMIForEC2(t *testing.T) {
@@ -662,4 +664,50 @@ func TestMetadataSourceDMIPreventFallback(t *testing.T) {
 
 	assert.True(t, IsRunningOn(ctx))
 	assert.Equal(t, ec2internal.MetadataSourceDMI, ec2internal.CurrentMetadataSource)
+}
+
+func TestGetInstanceTypeSkipsIMDSOnECSFargate(t *testing.T) {
+	ctx := context.Background()
+	imdsCalled := false
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		imdsCalled = true
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	configmock.New(t)
+	defer resetPackageVars()
+	ec2internal.MetadataURL = ts.URL
+	env.SetFeatures(t, env.ECSFargate)
+
+	instanceType, err := GetInstanceType(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, instanceType)
+	assert.False(t, imdsCalled, "GetInstanceType must not query EC2 IMDS on ECS Fargate")
+}
+
+func TestGetInstanceTypeFromIMDS(t *testing.T) {
+	ctx := context.Background()
+	expected := "m5.large"
+	var lastRequest *http.Request
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastRequest = r
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, expected)
+	}))
+	defer ts.Close()
+
+	configmock.New(t)
+	defer resetPackageVars()
+	ec2internal.MetadataURL = ts.URL
+	env.ClearFeatures()
+
+	instanceType, err := GetInstanceType(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, expected, instanceType)
+	require.NotNil(t, lastRequest)
+	assert.Equal(t, "/instance-type", lastRequest.URL.Path)
 }
