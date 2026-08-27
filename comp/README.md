@@ -939,6 +939,14 @@ Package logonduration provides a component that monitors the duration of a user 
 
 Package metriclookback defines the metric lookback component.
 
+### [comp/ndmdiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmdiscovery)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package ndmdiscovery sweeps the IP ranges configured over Remote
+Configuration and reports the devices it finds to Network Device
+Monitoring. It never schedules a check: discovery is report-only.
+
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 
 *Datadog Team*: ndm-integrations

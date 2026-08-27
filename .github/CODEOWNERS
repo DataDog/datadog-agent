@@ -424,6 +424,7 @@
 /comp/languagedetection/client @DataDog/container-platform
 /comp/logonduration @DataDog/windows-products
 /comp/metriclookback @DataDog/q-branch
+/comp/ndmdiscovery @DataDog/network-device-monitoring-core
 /comp/networkconfigmanagement @DataDog/ndm-integrations
 /comp/networkdevices @DataDog/network-device-monitoring-core
 /comp/notableevents @DataDog/windows-products

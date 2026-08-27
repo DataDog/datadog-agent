@@ -134,6 +134,7 @@ go_library(
         "//comp/metadata/systemprobe/def",
         "//comp/metriclookback/def",
         "//comp/metriclookback/fx",
+        "//comp/ndmdiscovery/fx",
         "//comp/ndmtmp",
         "//comp/netflow",
         "//comp/netflow/server/def",
