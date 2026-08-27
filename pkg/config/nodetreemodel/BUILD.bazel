@@ -36,7 +36,6 @@ dd_agent_go_test(
         "compatibility_test.go",
         "config_test.go",
         "getter_test.go",
-        "inner_node_test.go",
         "node_test.go",
         "read_config_file_test.go",
         "reflection_node_test.go",

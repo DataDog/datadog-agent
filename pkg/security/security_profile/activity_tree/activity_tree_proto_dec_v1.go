@@ -41,7 +41,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		Children:       make([]*ProcessNode, 0, len(pan.Children)),
 		Files:          make(map[string]*FileNode, len(pan.Files)),
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
-		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode, len(pan.ImdsEvents)),
+		IMDSEvents:     make(map[IMDSInfo]*IMDSNode, len(pan.ImdsEvents)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
 		Syscalls:       make([]*SyscallNode, 0, len(pan.SyscallNodes)),
 		NodeBase:       NewNodeBase(),
@@ -73,7 +73,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 	for _, dns := range pan.DnsNames {
 		protoDecodedDNS := protoDecodeDNSNode(dns, getIDFromImageTag)
 		if len(protoDecodedDNS.Requests) != 0 {
-			name := protoDecodedDNS.Requests[0].Question.Name
+			name := protoDecodedDNS.Requests[0].Name
 			ppan.DNSNames[name] = protoDecodedDNS
 		}
 	}
@@ -128,16 +128,14 @@ func protoDecodeSyscallNode(sysc *adproto.SyscallNode, getIDFromImageTag func(im
 	return syscallNode
 }
 
-func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
+func protoDecodeProcessNode(p *adproto.ProcessInfo) ProcessInfo {
 	if p == nil {
-		return model.Process{}
+		return ProcessInfo{}
 	}
 
-	mp := model.Process{
-		PIDContext: model.PIDContext{
-			Pid: p.Pid,
-			Tid: p.Tid,
-		},
+	mp := ProcessInfo{
+		Pid:        p.Pid,
+		Tid:        p.Tid,
 		PPid:       p.Ppid,
 		Cookie:     p.Cookie64,
 		IsThread:   p.IsThread,
@@ -242,7 +240,7 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 	pfan := &FileNode{
 		MatchedRules:   make([]*model.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           fan.Name,
-		File:           protoDecodeFileEvent(fan.File),
+		File:           newFileInfo(protoDecodeFileEvent(fan.File)),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		Open:           protoDecodeOpenNode(fan.Open),
 		Children:       make(map[string]*FileNode, len(fan.Children)),
@@ -292,7 +290,7 @@ func protoDecodeDNSNode(dn *adproto.DNSNode, getIDFromImageTag func(string) uint
 
 	pdn := &DNSNode{
 		MatchedRules: make([]*model.MatchedRule, 0, len(dn.MatchedRules)),
-		Requests:     make([]model.DNSEvent, 0, len(dn.Requests)),
+		Requests:     make([]model.DNSQuestion, 0, len(dn.Requests)),
 		NodeBase:     NewNodeBase(),
 	}
 
@@ -409,28 +407,26 @@ func protoDecodeIMDSNode(in *adproto.IMDSNode, getIDFromImageTag func(string) ui
 	return node
 }
 
-func protoDecodeDNSInfo(ev *adproto.DNSInfo) model.DNSEvent {
+func protoDecodeDNSInfo(ev *adproto.DNSInfo) model.DNSQuestion {
 	if ev == nil {
-		return model.DNSEvent{}
+		return model.DNSQuestion{}
 	}
 
-	return model.DNSEvent{
-		Question: model.DNSQuestion{
-			Name:  ev.Name,
-			Type:  uint16(ev.Type),
-			Class: uint16(ev.Class),
-			Size:  uint16(ev.Size),
-			Count: uint16(ev.Count),
-		},
+	return model.DNSQuestion{
+		Name:  ev.Name,
+		Type:  uint16(ev.Type),
+		Class: uint16(ev.Class),
+		Size:  uint16(ev.Size),
+		Count: uint16(ev.Count),
 	}
 }
 
-func protoDecodeIMDSEvent(ie *adproto.IMDSEvent) model.IMDSEvent {
+func protoDecodeIMDSEvent(ie *adproto.IMDSEvent) IMDSInfo {
 	if ie == nil {
-		return model.IMDSEvent{}
+		return IMDSInfo{}
 	}
 
-	return model.IMDSEvent{
+	return IMDSInfo{
 		Type:          ie.Type,
 		CloudProvider: ie.CloudProvider,
 		URL:           ie.Url,
@@ -441,31 +437,28 @@ func protoDecodeIMDSEvent(ie *adproto.IMDSEvent) model.IMDSEvent {
 	}
 }
 
-func protoDecodeAWSIMDSEvent(aie *adproto.AWSIMDSEvent) model.AWSIMDSEvent {
+func protoDecodeAWSIMDSEvent(aie *adproto.AWSIMDSEvent) AWSIMDSInfo {
 	if aie == nil {
-		return model.AWSIMDSEvent{}
+		return AWSIMDSInfo{}
 	}
 
-	return model.AWSIMDSEvent{
+	return AWSIMDSInfo{
 		IsIMDSv2:            aie.IsImdsV2,
 		SecurityCredentials: protoDecodeAWSSecurityCredentials(aie.SecurityCredentials),
 	}
 }
 
-func protoDecodeAWSSecurityCredentials(creds *adproto.AWSSecurityCredentials) model.AWSSecurityCredentials {
+func protoDecodeAWSSecurityCredentials(creds *adproto.AWSSecurityCredentials) AWSSecurityCredentialsInfo {
 	if creds == nil {
-		return model.AWSSecurityCredentials{}
+		return AWSSecurityCredentialsInfo{}
 	}
 
-	expiration, _ := time.Parse(time.RFC3339, creds.ExpirationRaw)
-
-	return model.AWSSecurityCredentials{
+	return AWSSecurityCredentialsInfo{
 		Code:          creds.Code,
 		Type:          creds.Type,
 		AccessKeyID:   creds.AccessKeyId,
 		LastUpdated:   creds.LastUpdated,
 		ExpirationRaw: creds.ExpirationRaw,
-		Expiration:    expiration,
 	}
 }
 
