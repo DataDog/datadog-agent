@@ -825,6 +825,10 @@ func TestOTelSpan(t *testing.T) {
 			Expression: `open.file.path == "{{.Root}}/test-otel-span-null-ptr"`,
 		},
 		{
+			ID:         "test_otel_span_rule_exec_open",
+			Expression: `open.file.path == "{{.Root}}/test-otel-span-exec-open"`,
+		},
+		{
 			// Shared by all the exec sub-tests, which run sequentially.
 			ID:         "test_otel_span_rule_exec",
 			Expression: fmt.Sprintf(`exec.file.path in [ "/bin/touch", "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
@@ -1387,5 +1391,53 @@ func TestOTelSpan(t *testing.T) {
 				})
 			})
 		}
+	})
+
+	t.Run("exec_propagates_to_later_events", func(t *testing.T) {
+		// The exec sub-tests above assert the exec event itself. This one asserts
+		// what the exec'd image reports afterwards: touch, which publishes no
+		// record of its own, opening the watched file. The span reaches that open
+		// event through the process's own entry, which the exec stamped -- so the
+		// lineage the "dd" field is resolved from has to start at the event's own
+		// process and not at its ancestors.
+		//
+		// The statically linked tester is the one variant with no toolchain or
+		// runtime requirement of its own, and the access model the record was
+		// published through does not matter here.
+		test.RunMultiMode(t, "open", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-otel-span-exec-open")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := append([]string{"otel-span-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(negativeTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_otel_span_rule_exec_open")
+
+				// touch published no record, so the open event carries no span
+				// context of its own: what follows comes from the process entry.
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID,
+					"open event should not carry a span context: touch has no tracer")
+
+				expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
+				if !assert.True(t, ok, "splitTraceID") {
+					return
+				}
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, "204",
+						utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(), nil,
+						spanLocations{onTopLevelProcess: true})
+				}
+			}, "test_otel_span_rule_exec_open")
+		})
 	})
 }
