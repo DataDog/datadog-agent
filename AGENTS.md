@@ -145,10 +145,17 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 
 #### Fetching CI job logs locally
 
-`gitlab.ddbuild.io` is OAuth-gated, so `curl` can't fetch traces. Use
-`dda inv gitlab.print-job-trace <job_id>` (`dda` handles auth). The `<job_id>`
-is the trailing path of a `.../builds/<job_id>` URL, found in the `dd-gitlab/*`
-rows of `gh pr checks <pr_number>`. See `dda inv -l | grep gitlab` for more.
+Use `ddgl` for this: it can be found either in a `dda` dev env (`dda env dev ...`) or installed from [the repo](https://github.com/ddgl-cli) using uv:
+```bash
+uv tool install git+https://github.com/DataDog/ddgl-cli
+```
+
+For example:
+ - `ddgl logs --name <pattern>` will fetch all logs for jobs in the current ref's latest pipeline that match the pattern
+ - `ddgl logs --failed` will fetch all logs for _failed_ jobs in the current ref's latest pipeline
+ - `ddgl logs --job <some-id>` will fetch the logs for the job with the given ID
+
+ > Note these flags (e.g. `--name` and `--failed`) can be combined. Check `ddgl` help text for more info if needed.
 
 ### GitHub Actions
 Secondary CI: pull-request/repository-configuration checks and release automation.
