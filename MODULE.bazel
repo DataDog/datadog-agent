@@ -132,9 +132,9 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/toolchains_llvm/archive/ffe407ca2423f4d171b7a0f3897c23bbb7e40310.tar.gz"],
 )
 
-#################################
-## Tools that ship with the OS ##
-#################################
+##########################################
+## Tools that ship with the OS and we wrap
+##########################################
 
 find_macos_codesign = use_repo_rule("//bazel/toolchains/codesign:configure.bzl", "find_macos_codesign")
 
@@ -162,6 +162,12 @@ register_toolchains(
     "@macos_pkgbuild//:all",
     "@selinux_tools//:all",
     dev_dependency = True,
+)
+
+register_toolchains(
+    "//bazel/toolchains/dd_strip:linux_toolchain",
+    "//bazel/toolchains/dd_strip:macos_toolchain",
+    "//bazel/toolchains/dd_strip:windows_toolchain",
 )
 
 #########################
