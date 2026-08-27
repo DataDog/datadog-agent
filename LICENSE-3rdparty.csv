@@ -14,11 +14,11 @@ core,cloud.google.com/go/auth/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/compute,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/credsfile,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/jwt,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/regionalaccessboundary,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/retry,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/transport,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/transport/cert,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/transport/headers,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/auth/internal/trustboundary,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/oauth2adapt,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/apiv1,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/apiv1/computepb,Apache-2.0,Copyright 2019 Google LLC
