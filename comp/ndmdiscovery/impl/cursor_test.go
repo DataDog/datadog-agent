@@ -6,6 +6,7 @@
 package ndmdiscoveryimpl
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,10 @@ import (
 // use it as a fake cursorStore.
 var _ cursorStore = newMemCursorStore()
 
+// The scheduler drives one store from several per-range goroutines, so the
+// state is guarded.
 type memCursorStore struct {
+	mu     sync.Mutex
 	states map[string]cursorState
 	saves  int
 }
@@ -31,17 +35,23 @@ func newMemCursorStore() *memCursorStore {
 }
 
 func (m *memCursorStore) Load(id string) (cursorState, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	s, ok := m.states[id]
 	return s, ok
 }
 
 func (m *memCursorStore) Save(id string, s cursorState) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.saves++
 	m.states[id] = s
 	return nil
 }
 
 func (m *memCursorStore) Clear(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.states, id)
 	return nil
 }

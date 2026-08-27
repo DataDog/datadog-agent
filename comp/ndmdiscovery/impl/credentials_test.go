@@ -6,6 +6,7 @@
 package ndmdiscoveryimpl
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,15 +18,27 @@ import (
 
 // stubCredentialStore is a credentialStore backed by a map, used by the tests
 // in this package that need credentials without touching the agent config.
+// The scheduler reloads credentials from its per-range goroutines, so the call
+// count is guarded.
 type stubCredentialStore struct {
-	creds       map[string]connectivity.SNMPCredential
+	creds     map[string]connectivity.SNMPCredential
+	reloadErr error
+
+	mu          sync.Mutex
 	reloadCalls int
-	reloadErr   error
 }
 
 func (s *stubCredentialStore) Reload() error {
+	s.mu.Lock()
 	s.reloadCalls++
+	s.mu.Unlock()
 	return s.reloadErr
+}
+
+func (s *stubCredentialStore) reloads() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.reloadCalls
 }
 
 func (s *stubCredentialStore) Get(id string) (connectivity.SNMPCredential, bool) {
