@@ -11,8 +11,6 @@ use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
 use std::sync::Arc;
-#[cfg(windows)]
-use std::time::Instant;
 use tokio::sync::RwLock;
 use tonic::Status;
 
