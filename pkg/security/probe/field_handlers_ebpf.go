@@ -753,6 +753,40 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model
 	return int(e.IntArg3)
 }
 
+// ResolveSpanContext completes the parts of the event span context that the
+// kernel only left a reference to. Runs lazily during serialization or for fork and exec.
+func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
+	fh.resolveGoLabelsSpanContext(ev)
+
+	// fork and exec carry the span context over to the process they create.
+	if eventType := ev.GetEventType(); eventType == model.ForkEventType || eventType == model.ExecEventType {
+		if ev.ProcessCacheEntry != nil {
+			ev.ProcessCacheEntry.SetSpanContext(ev.SpanContext)
+		}
+	}
+
+	return &ev.SpanContext
+}
+
+// resolveGoLabelsSpanContext fills the span/trace ids from the Go pprof labels id.
+func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
+	// nothing to do once the lookup ran, when the kernel already filled the ids
+	// in, or when it captured no labels snapshot for this event
+	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 {
+		return
+	}
+	ev.GoLabels.Resolved = true
+
+	spanID, traceID, err := fh.resolvers.GoLabelsCtxResolver.Resolve(ev.GoLabels.ID)
+	if err != nil {
+		seclog.Tracef("unable to resolve the go labels span context: %s", err)
+		return
+	}
+
+	ev.SpanContext.SpanID = spanID
+	ev.SpanContext.TraceID = traceID
+}
+
 // ResolveOnDemandName resolves the on-demand event name
 func (fh *EBPFFieldHandlers) ResolveOnDemandName(_ *model.Event, e *model.OnDemandEvent) string {
 	if fh.onDemand == nil {

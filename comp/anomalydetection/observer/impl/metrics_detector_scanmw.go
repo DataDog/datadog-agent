@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"fmt"
 	"math"
-	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,10 +30,6 @@ type scanmwSeriesState struct {
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	// 0 initially (scan full history), advances to changepoint timestamp on fire.
 	segmentStartTime int64
-
-	// Reusable point buffer — grows once per series, reused across scans
-	// to avoid per-call allocation from GetSeriesRange.
-	buf []observer.Point
 }
 
 // ScanMWDetector detects changepoints by scanning all possible split points
@@ -76,6 +71,10 @@ type ScanMWDetector struct {
 
 	// per-series state keyed by ref+agg
 	series map[scanmwStateKey]*scanmwSeriesState
+	// scanBuf is shared by this single-writer detector instead of being retained
+	// once per live series and aggregation.
+	scanBuf   []observer.Point
+	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef
@@ -121,10 +120,6 @@ func (d *ScanMWDetector) Reset() {
 }
 
 // RemoveSeries drops segment-tracking state for refs that storage has freed.
-// Each per-series entry holds a reusable point buffer that grows to the
-// segment size, so without this teardown the map keeps growing with the
-// cumulative series count even after storage shrinks. Called by the engine
-// right after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
 func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
@@ -190,29 +185,30 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				continue
 			}
 
-			// Collect points into reusable buffer to avoid per-call allocation.
-			state.buf = state.buf[:0]
 			var seriesMeta *observer.Series
-			storage.ForEachPoint(ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
-				if seriesMeta == nil {
-					sCopy := *s
-					seriesMeta = &sCopy
+			seriesMeta, d.scanBuf = collectLastPoints(storage, ref, dataTime, d.MaxPoints, agg, d.scanBuf)
+			if state.segmentStartTime > 0 {
+				kept := d.scanBuf[:0]
+				for _, p := range d.scanBuf {
+					if p.Timestamp > state.segmentStartTime {
+						kept = append(kept, p)
+					}
 				}
-				state.buf = appendPointWindow(state.buf, d.MaxPoints, p)
-			})
+				d.scanBuf = kept
+			}
 
-			if seriesMeta == nil || len(state.buf) < d.MinPoints {
+			if seriesMeta == nil || len(d.scanBuf) < d.MinPoints {
 				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
 			d.ready = true
 
-			anomaly, changeIdx, found := d.scanMW(state.buf, seriesMeta, agg)
+			anomaly, changeIdx, found := d.scanMW(d.scanBuf, seriesMeta, agg)
 			if found {
 				anomaly.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 				allAnomalies = append(allAnomalies, anomaly)
-				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
+				state.segmentStartTime = d.scanBuf[changeIdx].Timestamp - 1
 			}
 
 			if activated {
@@ -232,13 +228,10 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
 
-	values := make([]float64, n)
-	for i, p := range points {
-		values[i] = p.Value
-	}
+	values := d.workspace.valuesFromPoints(points)
 
 	// Efficient O(n log n) scan: assign ranks once, then slide the split point.
-	ranks, tieCorrection := assignRanks(values)
+	ranks, tieCorrection := d.workspace.assignRanks(values)
 
 	minSeg := d.MinSegment
 	var R1 float64
@@ -309,9 +302,9 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	// Check robust deviation at best split.
 	preVals := values[:bestK]
 	postVals := values[bestK:]
-	preMedian := detectorMedian(preVals)
-	postMedian := detectorMedian(postVals)
-	preMAD := detectorMAD(preVals, preMedian, false)
+	preMedian := d.workspace.median(preVals)
+	postMedian := d.workspace.median(postVals)
+	preMAD := d.workspace.mad(preVals, preMedian)
 
 	denom := preMAD
 	if denom < 1e-10 {
@@ -343,7 +336,7 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 			seriesName, direction, preMedian, postMedian, bestPValue, effectSize, deviation),
 		Timestamp:           changePtTime,
 		Score:               &score,
-		SamplingIntervalSec: medianPointInterval(points),
+		SamplingIntervalSec: d.workspace.medianPointInterval(points),
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: preMedian,
 			BaselineMAD:    preMAD,
@@ -388,44 +381,4 @@ func (d *ScanMWDetector) ensureDefaults() {
 			observer.AggregateCount,
 		}
 	}
-}
-
-// assignRanks computes the average rank of each value in its original position.
-// Returns (ranks, tieCorrection) where tieCorrection = sum(t^3 - t) for tie groups.
-func assignRanks(values []float64) ([]float64, float64) {
-	n := len(values)
-
-	type indexedValue struct {
-		value float64
-		index int
-	}
-
-	indexed := make([]indexedValue, n)
-	for i, v := range values {
-		indexed[i] = indexedValue{value: v, index: i}
-	}
-
-	sort.Slice(indexed, func(i, j int) bool {
-		return indexed[i].value < indexed[j].value
-	})
-
-	ranks := make([]float64, n)
-	tieCorrection := 0.0
-
-	i := 0
-	for i < n {
-		j := i
-		for j < n && indexed[j].value == indexed[i].value {
-			j++
-		}
-		avgRank := float64(i+1+j) / 2.0
-		tieSize := float64(j - i)
-		for k := i; k < j; k++ {
-			ranks[indexed[k].index] = avgRank
-		}
-		tieCorrection += tieSize*tieSize*tieSize - tieSize
-		i = j
-	}
-
-	return ranks, tieCorrection
 }

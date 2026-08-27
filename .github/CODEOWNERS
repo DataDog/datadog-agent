@@ -37,6 +37,7 @@
 /.agents/skills/create-subcommand/SKILL.md      @DataDog/fleet-remediation
 /.agents/skills/locate-config-setting/SKILL.md  @DataDog/fleet-automation
 /.agents/skills/create-runtime-setting/SKILL.md @DataDog/agent-runtimes @DataDog/fleet-automation
+/.agents/skills/cws-btfhub-sync                 @DataDog/agent-security
 /.agents/skills/cws-iouring-coverage/           @DataDog/agent-security
 /.agents/skills/explain-lading-config           @DataDog/single-machine-performance
 /.agents/skills/injector-dev                    @Datadog/container-platform
@@ -180,8 +181,30 @@
 /.gitlab/deploy/deploy_packages/e2e.yml                                   @DataDog/agent-devx  @DataDog/fleet
 /.gitlab/.pre/deps_build/                                                 @DataDog/ebpf-platform @DataDog/agent-build @DataDog/windows-products
 /.gitlab/windows/test/e2e_install_packages/windows.yml                    @DataDog/windows-products
+/.gitlab/windows/test/e2e/windows_templates.yml                           @DataDog/agent-devx @DataDog/windows-products
+/.gitlab/windows/test/e2e/windows_agent.yml                               @DataDog/agent-configuration @DataDog/fleet-automation @DataDog/fleet-remediation @DataDog/agent-runtimes @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_products.yml                            @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_observability.yml                       @DataDog/cloud-network-monitoring @DataDog/network-path @DataDog/agent-log-pipelines @DataDog/agent-data-plane @DataDog/agent-security @DataDog/container-experiences @DataDog/universal-service-monitoring @DataDog/windows-products @DataDog/agent-devx
 /.gitlab/.pre/common/                                                     @DataDog/agent-devx
-/.gitlab/test/e2e/e2e.yml                                                 @DataDog/container-integrations @DataDog/agent-devx @DataDog/fleet
+/.gitlab/test/e2e/e2e_templates.yml                                       @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_devx.yml                                            @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_containers.yml                                      @DataDog/container-integrations @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_fleet.yml                                           @DataDog/fleet @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_npm.yml                                             @DataDog/cloud-network-monitoring @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_ssi.yml                                             @DataDog/injection-platform @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_otel.yml                                            @DataDog/opentelemetry-agent @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_security.yml                                        @DataDog/agent-security @DataDog/agent-cspm @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_agent_configuration.yml                             @DataDog/agent-configuration @DataDog/fleet-automation @DataDog/fleet-remediation @DataDog/remote-config @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_agent_runtimes.yml                                  @DataDog/agent-runtimes @DataDog/fleet-remediation @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_agent_health.yml                                    @DataDog/fleet-remediation @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_apm.yml                                             @DataDog/agent-apm @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_pipelines.yml                                       @DataDog/agent-metric-pipelines @DataDog/agent-log-pipelines @DataDog/agent-data-plane @DataDog/agent-anomaly-detection @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_orchestrator.yml                                    @DataDog/kubernetes-experiences @DataDog/container-autoscaling @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_process.yml                                         @DataDog/container-experiences @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_ndm.yml                                             @DataDog/network-device-monitoring-core @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_discovery.yml                                       @DataDog/agent-discovery @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_privateactionrunner.yml                             @DataDog/action-platform @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_ebpf.yml                                            @DataDog/ebpf-platform @DataDog/universal-service-monitoring @DataDog/agent-devx
 /.gitlab/deploy/container_build/fakeintake.yml                            @DataDog/agent-devx
 /.gitlab/build/binary_build/fakeintake.yml                                @DataDog/agent-devx
 /.gitlab/test/functional_test/oracle.yml                                  @DataDog/agent-devx @DataDog/database-monitoring
@@ -397,7 +420,7 @@
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/kubernetes-experiences
-/comp/logs/severityprovider @DataDog/agent-log-pipelines @DataDog/q-branch
+/comp/logs/severityprovider @DataDog/agent-log-pipelines @DataDog/agent-anomaly-detection
 /comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/network-device-monitoring-core
@@ -409,10 +432,10 @@
 /comp/trace-telemetry @DataDog/agent-runtimes
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
-/comp/anomalydetection/logssource @DataDog/q-branch
-/comp/anomalydetection/observer @DataDog/q-branch
-/comp/anomalydetection/recorder @DataDog/q-branch
-/comp/anomalydetection/reporter @DataDog/q-branch
+/comp/anomalydetection/logssource @DataDog/agent-anomaly-detection
+/comp/anomalydetection/observer @DataDog/agent-anomaly-detection
+/comp/anomalydetection/recorder @DataDog/agent-anomaly-detection
+/comp/anomalydetection/reporter @DataDog/agent-anomaly-detection
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability
@@ -473,6 +496,7 @@
 
 # pkg
 /pkg/                                                                 @DataDog/agent-runtimes
+/pkg/BUILD.bazel                                                      @DataDog/agent-build
 /pkg/metriclookback/                                                  @DataDog/q-branch
 /pkg/metriclookback/dogstatsd/                                        @DataDog/q-branch @DataDog/agent-metric-pipelines
 /pkg/api/                                                             @DataDog/agent-runtimes
@@ -801,6 +825,8 @@
 /comp/core/workloadmeta/collectors/internal/nvml                      @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
 /comp/core/workloadmeta/collectors/internal/podman                    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences @DataDog/container-platform
+/comp/core/workloadmeta/collectors/internal/remote/sbomcollector      @DataDog/agent-security
+/comp/core/workloadmeta/collectors/sbomutil                           @DataDog/agent-security
 /comp/core/tagger/collectors                                          @DataDog/container-platform @DataDog/container-integrations
 /comp/core/tagger/types/entity_id.go                                  @DataDog/container-platform @DataDog/agent-data-plane
 /pkg/sbom/                                                            @DataDog/agent-security @DataDog/container-integrations
@@ -822,8 +848,8 @@
 /tasks/bazel.py                                                 @DataDog/agent-build
 /tasks/build_tags.py                                            @DataDog/agent-build
 /tasks/build_tags.bzl                                           @DataDog/agent-build
-/tasks/anomalydetection.py                                      @DataDog/q-branch
-/tasks/unit_tests/anomalydetection*.py                          @DataDog/q-branch
+/tasks/anomalydetection.py                                      @DataDog/agent-anomaly-detection
+/tasks/unit_tests/anomalydetection*.py                          @DataDog/agent-anomaly-detection
 /tasks/loader.py                                                @DataDog/agent-runtimes
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
 /tasks/gotest.py                                                @DataDog/agent-devx @DataDog/agent-build
@@ -856,7 +882,7 @@
 /tasks/secret_generic_connector.py                              @DataDog/fleet-automation
 /tasks/security_agent.py                                        @DataDog/agent-security
 /tasks/sbomgen.py                                               @DataDog/agent-security
-/tasks/libs/anomalydetection/                                   @DataDog/q-branch
+/tasks/libs/anomalydetection/                                   @DataDog/agent-anomaly-detection
 /tasks/libs/build/                                              @DataDog/agent-build
 /tasks/libs/cws/                                                @DataDog/agent-security
 /tasks/libs/gpu/                                                @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
@@ -922,7 +948,7 @@
 /test/new-e2e/system-probe                                      @DataDog/ebpf-platform
 /test/new-e2e/system-probe/config/vmconfig-security-agent.json  @DataDog/ebpf-platform @DataDog/agent-security
 /test/new-e2e/scenarios/system-probe                            @DataDog/ebpf-platform
-/test/new-e2e/tests/anomalydetection                            @DataDog/q-branch
+/test/new-e2e/tests/anomalydetection                            @DataDog/agent-anomaly-detection
 /test/new-e2e/tests/agent-platform                              @DataDog/agent-devx
 /test/new-e2e/tests/agent-platform/common/agent_integration.go  @DataDog/agent-integrations
 /test/new-e2e/tests/agent-platform/tests/macos*                 @DataDog/windows-products
@@ -1015,7 +1041,9 @@
 
 /q_branch/              @DataDog/q-branch
 /internal/qbranch/      @DataDog/q-branch
-/comp/anomalydetection/ @DataDog/q-branch # Useful for AGENTS.md files etc. at the root of all AD components
+/internal/qbranch/anomalydetection-scorer/    @DataDog/agent-anomaly-detection
+/internal/qbranch/anomalydetection-testbench/ @DataDog/agent-anomaly-detection
+/comp/anomalydetection/ @DataDog/agent-anomaly-detection # Useful for AGENTS.md files etc. at the root of all AD components
 
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
 # Which bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
@@ -1030,5 +1058,4 @@
 
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
-/**/BUILD.bazel @DataDog/agent-build
 /**/*.bzl       @DataDog/agent-build

@@ -18,6 +18,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/autoscaling/datadogclient/def",
+        "//comp/core/telemetry/def",
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/autoscaling/custommetrics",
         "//pkg/clusteragent/instrumentation",

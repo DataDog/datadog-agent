@@ -247,7 +247,7 @@ func TestHoltResidual_RemoveSeries(t *testing.T) {
 
 	d.RemoveSeries([]observer.SeriesRef{ref})
 	assert.Empty(t, d.series, "RemoveSeries must drop per-series state for freed refs")
-	assert.Nil(t, d.cachedSeries, "RemoveSeries should invalidate the series cache")
+	assert.Nil(t, d.cachedRefs, "RemoveSeries should invalidate the series cache")
 }
 
 // TestHoltResidual_Reset confirms that Reset wipes per-series state.
@@ -261,7 +261,7 @@ func TestHoltResidual_Reset(t *testing.T) {
 
 	d.Reset()
 	assert.Empty(t, d.series, "Reset must clear per-series state")
-	assert.Nil(t, d.cachedSeries, "Reset must clear cached series")
+	assert.Nil(t, d.cachedRefs, "Reset must clear cached series")
 }
 
 // TestHoltResidual_DefaultsApplied confirms ensureDefaults populates a
@@ -504,17 +504,18 @@ func TestHoltResidual_ConfirmationStartsAfterWindowsReady(t *testing.T) {
 		valWin:   []float64{0, 0, 0},
 	}
 
-	_, fired := d.processPoint(state, observer.Point{Timestamp: 1, Value: 100}, observer.AggregateAverage, true)
+	series := &observer.Series{Name: "metric"}
+	_, fired := d.processPoint(state, series, observer.Point{Timestamp: 1, Value: 100}, observer.AggregateAverage, true)
 	require.False(t, fired)
 	assert.Zero(t, state.consecutivePos, "under-filled windows must not pre-arm confirmation")
 	assert.Zero(t, state.consecutiveNeg)
 
-	_, fired = d.processPoint(state, observer.Point{Timestamp: 2, Value: 100}, observer.AggregateAverage, true)
+	_, fired = d.processPoint(state, series, observer.Point{Timestamp: 2, Value: 100}, observer.AggregateAverage, true)
 	require.False(t, fired, "first ready-window breach should only arm confirmation")
 	assert.Equal(t, 1, state.consecutivePos)
 	assert.Zero(t, state.consecutiveNeg)
 
-	_, fired = d.processPoint(state, observer.Point{Timestamp: 3, Value: 100}, observer.AggregateAverage, true)
+	_, fired = d.processPoint(state, series, observer.Point{Timestamp: 3, Value: 100}, observer.AggregateAverage, true)
 	require.True(t, fired, "second ready-window breach should satisfy ConfirmM")
 }
 
