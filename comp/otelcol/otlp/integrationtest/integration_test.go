@@ -24,6 +24,7 @@ import (
 	"time"
 
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
@@ -115,7 +116,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			return cp
 		}),
 		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), "", params.ConfPaths)
+			c, err := agentConfig.NewConfigComponent(context.Background(), "", params.ConfPaths, &delegatedauthnooptypes.DelegatedAuthNoop{})
 			if err != nil {
 				return nil, err
 			}

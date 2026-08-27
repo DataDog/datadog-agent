@@ -25,6 +25,7 @@ dd_agent_go_test(
         "//comp/core/agenttelemetry/fx",
         "//comp/core/config",
         "//comp/core/delegatedauth/fx-noop",
+        "//comp/core/delegatedauth/noop-impl/types",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/ipc/fx",

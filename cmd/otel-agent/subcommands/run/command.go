@@ -169,8 +169,8 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
-			// Supply the real delegated auth component created above, instead of the noop.
-			fx.Supply(delegatedAuthComp),
+			// Provide the real delegated auth component created above, instead of the noop.
+			fx.Provide(func() delegatedauth.Component { return delegatedAuthComp }),
 			fx.Invoke(func(_ collectordef.Component, _ pid.Component) {
 			}),
 			fxinstrumentation.Module(),
@@ -179,18 +179,18 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 
 	if acfg.GetBool("otel_standalone") {
 		return fxutil.Run(
-			commonAgentFxOptions(ctx, params, acfg, uris, opts...),
+			commonAgentFxOptions(ctx, params, acfg, uris, delegatedAuthComp, opts...),
 			standaloneAgentFxOptions(params),
 		)
 	}
 	return fxutil.Run(
-		commonAgentFxOptions(ctx, params, acfg, uris, opts...),
+		commonAgentFxOptions(ctx, params, acfg, uris, delegatedAuthComp, opts...),
 		connectedAgentFxOptions(params),
 	)
 }
 
 // commonAgentFxOptions returns FX options shared by both standalone and connected agent modes.
-func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfig.Component, uris []string, opts ...fx.Option) fx.Option {
+func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfig.Component, uris []string, delegatedAuthComp delegatedauth.Component, opts ...fx.Option) fx.Option {
 	return fx.Options(
 		ForwarderBundle(),
 		logtracefx.Module(),
@@ -303,8 +303,8 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 		payloadmodifierfx.NilModule(),
 		traceagentfx.Module(),
 		agenttelemetryfx.Module(),
-		// Supply the real delegated auth component created above, instead of the noop.
-		fx.Supply(delegatedAuthComp),
+		// Provide the real delegated auth component created above, instead of the noop.
+		fx.Provide(func() delegatedauth.Component { return delegatedAuthComp }),
 		fxinstrumentation.Module(),
 	)
 }
