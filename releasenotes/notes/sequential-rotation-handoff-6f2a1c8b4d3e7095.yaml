@@ -1,0 +1,17 @@
+---
+fixes:
+  - |
+    File log sources that use direct fingerprint reads
+    (``fingerprint_config.open_flags``) now wait for a rotated tailer to
+    release its descriptor before reopening the same path. On CIFS/SMB
+    shares, opening a path while a previous descriptor on it is still open
+    can return a stale handle, which duplicated or lost log lines across a
+    rotation. Sources without ``open_flags`` keep tailing the rotated and
+    the new file as before.
+
+    The handoff ends once the rotated file has been quiet for two seconds,
+    rather than always waiting out ``logs_config.close_timeout``. If a
+    rotation logs a warning about bytes remaining unread, that wait can be
+    lengthened with ``DD_LOGS_CONFIG_ROTATION_HANDOFF_QUIET_PERIOD``, in
+    seconds; ``0`` waits for the full close timeout instead. Deployments
+    that do not see the warning have no reason to set it.
