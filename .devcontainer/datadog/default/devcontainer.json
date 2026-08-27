@@ -1,7 +1,7 @@
 // This devcontainer directs workspaces to use a pre-built image. To make
 // configuration changes, edit prebuild-devcontainer.json in this folder instead
 {
-  "image": "registry.ddbuild.io/workspaces/prebuilt/datadog/datadog-agent@sha256:5d8bf28b3e932c6e5e25cccc32f283a6cff9ddb475346f132c36b0a5ae81975d",
+  "image": "registry.ddbuild.io/workspaces/prebuilt/datadog/datadog-agent@sha256:c8d8fcdfff3c0832442f7b4d56275720c15db56aaa5ebbd8182a0a02fae0c61a",
   "runArgs": [
     "--pid=host",
     "--cgroupns=host",
