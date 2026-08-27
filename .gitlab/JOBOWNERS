@@ -98,6 +98,7 @@ deploy_rpm_testing*                  @DataDog/agent-delivery
 deploy_suse_rpm_testing*             @DataDog/agent-delivery
 deploy_windows_testing*              @DataDog/agent-delivery
 deploy_dmg_testing*                @DataDog/agent-delivery
+deploy_fips_proxy_testing*           @DataDog/agent-devx
 
 # Image build
 docker_build*                        @DataDog/agent-build
