@@ -16,7 +16,9 @@ Design principles:
 - Keep coupling to the shared inventory code minimal and *deliberate*.
 - Keep serverless-specific logic in `cmd/serverless-init`.
 - Do **not** drift from the normal agent metadata pipeline for the fields the
-  pipeline requires (see `PopulateCoreFields` below).
+  pipeline requires. Under Option C this is achieved by literally reusing the
+  component's existing `initData()` (see "Core fields under Option C" below),
+  not by extracting a shared helper.
 - Express serverless divergence as neutral, environmentally-justified
   capabilities on the shared component (Option C), not as serverless-shaped
   behavioral overrides; inject serverless fields through the public `Set` API.
@@ -60,44 +62,38 @@ Design principles:
    orders inventory after host-tags/host metadata. serverless-init pulls in
    none of that, so an effective delay of 0 with an early first send is sound.
 
-## Central shared seam: `PopulateCoreFields`
+## Core fields under Option C: reuse `initData()`, no shared seam
 
-To resist drift from the normal agent pipeline regardless of the reuse-vs-new
-decision, we extract a shared method in the `inventoryagent` component
-(`comp/metadata/inventoryagent/impl`) that populates **only** the fields
-required for a payload to be recognized and processed as an agent-metadata
-payload. Both the core-agent component and the serverless builder call it, and
-the core agent's `initData` is refactored to call it so there is a single
-source of truth. It must not pull in cross-process fetchers
-(security/process/trace/system-probe) or config dumps. We may relocate it to a
-shared helper package later; starting in the component keeps the refactor
-local.
+The A/B spikes extracted a shared `PopulateCoreFields` helper
+(`comp/metadata/internal/util`) so that both the core-agent component and a
+*separate* serverless payload builder could populate the core fields
+(`agent_version`, `package_version`, `agent_startup_time_ms`, `flavor`,
+`hostname_source`, `infrastructure_mode`, `install_method_*`) from one source.
+That extraction was motivated by **Option B's separate component**, which
+cannot call the core-agent component's `initData()` without importing its
+machinery, and was carried into Option A mostly for parity and because A was
+already editing `initData` to parameterize the flavor.
 
-Because `initData` sets `flavor` from `flavor.GetFlavor()` but serverless must
-emit `serverless-init` **without** changing the process-global flavor (see Key
-finding #4), `PopulateCoreFields` must take the flavor value as a parameter (or
-the caller overrides `data["flavor"]` afterward) rather than hardwiring
-`flavor.GetFlavor()`. The core agent passes `flavor.GetFlavor()`; serverless
-passes `"serverless-init"`.
+**Option C does not need it, and does not carry it.** Option C reuses the real
+`inventoryagent` component with `Enabled=true`, and `NewComponent` already calls
+`ia.initData()` in that case — so the core fields are populated for free by the
+existing, unmodified code path. Reusing `initData()` in place is a *stronger*
+anti-drift guarantee than a copied helper: it is literal reuse, not a second
+function that can diverge from `initData` over time.
 
-Candidate source of truth is today's `inventoryagent.initData()`, which already
-contains exactly the no-cross-process-dependency core fields: `agent_version`,
-`package_version`, `agent_startup_time_ms`, `flavor`, `hostname_source`,
-`infrastructure_mode`, `install_method_tool`, `install_method_tool_version`,
-`install_method_installer_version`. (`hostname_source` is set conditionally —
-only when a hostname provider resolves and it is not Fargate — so it may be
-absent; in serverless with no host it will typically be omitted.)
+The one thing that pushed A/B to parameterize `initData` was **flavor**:
+`initData` hardwires `flavor.GetFlavor()` (`"agent"`), but serverless must emit
+`serverless-init` in the payload without changing the process-global flavor
+(see Key finding #4). Under Option C this rides the public `Set` API instead —
+`initData` stays as-is, and serverless calls `Set("flavor", "serverless-init")`
+afterward to overwrite `data["flavor"]`. No flavor parameter, no shared helper.
 
-Open: the exact required set is a downstream contract to confirm with the
-pipeline owners (`PopulateCoreFields` should contain the minimal set the
-pipeline requires, not necessarily all of `initData`), and whether it is an
-exported method on the component or a package-level function operating on the
-`agent_metadata` map.
+Consequently, Option C does **not** add `comp/metadata/internal/util/core_fields.go`
+or refactor `initData()`; those artifacts belong only to the A/B spikes.
 
 ## Reuse vs. new component (Phase 1 decision)
 
-All options reuse `PopulateCoreFields` so none drifts on core fields. Options A
-and B were built to a "compiles + emits a payload to a local fakeintake" level
+Options A and B were built to a "compiles + emits a payload to a local fakeintake" level
 and compared (see spike results below). **Option C is currently being
 explored** (not decided): a capability-tier refactor of the shared
 `inventoryagent` that would keep serverless in the owners' component under
@@ -149,9 +145,10 @@ spikes that motivated exploring C.
 
 ### Option B — New serverless-init-local payload reusing `PopulateCoreFields` + `util.InventoryPayload`
 - Needs: a small builder in `cmd/serverless-init` that calls
-  `PopulateCoreFields`, layers serverless fields, embeds
-  `util.InventoryPayload` (or calls `SendMetadata` directly with our own
-  scheduling), and registers a periodic trigger.
+  `PopulateCoreFields` (the shared core-field helper this option's separate
+  component cannot avoid — see "Core fields under Option C"), layers serverless
+  fields, embeds `util.InventoryPayload` (or calls `SendMetadata` directly with
+  our own scheduling), and registers a periodic trigger.
 - Risks: we own any schema drift beyond the shared core fields.
 - Benefit: no changes to shared `inventoryagent` behavior; only serverless-
   relevant fields; simplest deps; logic stays in serverless-init. Best fit for
@@ -166,11 +163,12 @@ than to serverless. This is what keeps the inventory-agent owners engaged: they
 own two well-motivated knobs, not a foreign `if serverless` branch.
 
 The seam already exists structurally. `getPayload()` today runs three tiers in
-order: Tier 1 core fields (`initData` → `PopulateCoreFields`, no IO), Tier 2
-cross-process enrichment (`refreshMetadata()`), Tier 3 config dump
+order: Tier 1 core fields (populated by `initData()` at construction, no IO),
+Tier 2 cross-process enrichment (`refreshMetadata()`), Tier 3 config dump
 (`getConfigs()`, already gated off and absent from the serverless schema).
-Tier 1 below the Tier 2 call is already serverless-safe, so `refreshMetadata()`
-is the single "stop here" line.
+Tier 1 is already serverless-safe and reused as-is (no `PopulateCoreFields`
+extraction under Option C), so `refreshMetadata()` is the single "stop here"
+line.
 
 The two capabilities:
 
@@ -328,8 +326,10 @@ unknown-key warning.
 
 ## Flavor
 
-The payload's `flavor` field carries `serverless-init` (with the dash), injected
-locally via `PopulateCoreFields`' flavor parameter. We do **not** call
+The payload's `flavor` field carries `serverless-init` (with the dash). Under
+Option C it is injected via the public `Set("flavor", "serverless-init")` API
+after `initData()` has run (which sets `data["flavor"]` to `flavor.GetFlavor()`,
+i.e. `"agent"`); the `Set` call overwrites it. We do **not** call
 `flavor.SetFlavor` process-wide: the aggregator would otherwise rename the
 `datadog.<flavor>.running` / `.up` heartbeat metric and service check (Key
 finding #4), and `flavor=="agent"` gates elsewhere would change. Registering a
@@ -470,8 +470,11 @@ Confirms the schema and build-tag assumptions this plan relies on:
 
 ## Testing
 
-- Unit tests for the payload builder (field presence, flavor value, resource
-  id, enablement gating, `PopulateCoreFields` output).
+- Unit tests for the payload builder (field presence, core fields from the
+  reused `initData()`, flavor value overwritten via `Set`, resource id,
+  enablement gating).
+- A test that `refreshMetadata()` does not run when cross-process enrichment is
+  off, and that the payload uses the per-process uuid rather than the host GUID.
 - fakeintake e2e asserting the serverless payload lands with
   `flavor: serverless-init` and expected fields — across chosen platforms (at
   minimum Cloud Run; extend per `write-e2e` / `e2e-audit`).
@@ -482,8 +485,10 @@ Confirms the schema and build-tag assumptions this plan relies on:
 - `workload_type` mapping, `resource_id` / CCRID composition, and the
   gcp/azure deployment-type / hosting-plan / runtime derivations (CloudService
   methods, this team).
-- `PopulateCoreFields` contract (which fields the pipeline requires) and its
-  shape (method vs. package function).
+- The minimal core-field set the pipeline requires (a downstream contract with
+  the pipeline owners). Under Option C this is whatever `initData()` already
+  emits; the open question is only whether the pipeline needs more or fewer
+  than that, not the shape of a shared helper.
 - `full_configuration` include/exclude decision, i.e. whether the scrubbed
   config dump is useful/safe in serverless. Its gate
   `inventories_configuration_enabled` is full-agent-only and absent from the
@@ -499,6 +504,8 @@ Confirms the schema and build-tag assumptions this plan relies on:
    (see spike results below). Currently exploring Option C (capability tiers)
    as a third candidate; not yet decided.
 1. If Option C is chosen, implement it on the shared `inventoryagent`:
+   - Reuse the existing `initData()` for core fields as-is (no
+     `PopulateCoreFields` extraction, no `initData` refactor).
    - Two capabilities: cross-process enrichment (off for serverless → the
      `refreshMetadata()` tier is skipped) and immediate on-start submission
      (on for serverless → synchronous submit at startup, no 60s delay).
@@ -513,7 +520,7 @@ Confirms the schema and build-tag assumptions this plan relies on:
      stage, so schema YAML changes propagate to the binary), and update
      `TestServerlessConfigInit` / `TestAgentConfigInit`.
    - Real `GetInventoryData` per-platform derivations.
-2. Sign-offs in parallel: `PopulateCoreFields` contract with pipeline owners;
+2. Sign-offs in parallel: minimal core-field set with pipeline owners;
    finalize field list with the extractor team; `full_configuration`
    include/exclude decision.
 3. Tests (unit + e2e across platforms).
@@ -575,8 +582,9 @@ serverless divergence lands inside shared code that the full agent also runs:
   via a `Params` struct and taking on an unused IPC dependency. The blast
   radius is the full agent's own metadata hot path.
 - Option B keeps all serverless logic in serverless-owned code and touches
-  shared code only for the `PopulateCoreFields` extraction (which both options
-  want anyway), at the cost of one small new component.
+  shared code only for the `PopulateCoreFields` extraction (which A and B want,
+  but which Option C does not need — see "Core fields under Option C"), at the
+  cost of one small new component.
 - Both still need the same follow-up work regardless of choice: the config
   schema changes for real enablement gating (`inventories_*` +
   `serverless.inventory_enabled`), the real `GetInventoryData` derivations, and
@@ -599,7 +607,11 @@ serverless path) while shrinking the shared-code surface to two neutral,
 environmentally-justified capabilities plus one `uuid` param, and moving
 field/flavor injection onto the existing public `Set` API — thereby avoiding
 Option A's `ExtraFields`/`Flavor`/`SkipRemoteMetadata` knobs and Option B's
-whole separate component. This is a hypothesis to validate, not a decision. See
+whole separate component. A further simplification surfaced while exploring C:
+because it reuses the real component with `Enabled=true`, it runs the existing
+`initData()` for core fields and therefore does **not** need the
+`PopulateCoreFields` extraction the A/B spikes introduced (see "Core fields
+under Option C"). This is a hypothesis to validate, not a decision. See
 the Option C section above for the full shape. The A and B spike branches remain
 as reference:
 - Option A: `aleksandr.pasechnik/svls-9645-serverless-init-inventory-agent-spike`
