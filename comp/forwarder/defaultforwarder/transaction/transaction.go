@@ -385,6 +385,14 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 
 	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, client, pointCountTelemetry)
 
+	// A missing credential is not a permanent failure: the endpoint is unprovisioned, not broken.
+	// Suppress completion and return the error so the worker can requeue the transaction; it will
+	// be retried once the credential lands. Without this guard the completion handler fires now
+	// (reporting a failure) and again when the retried transaction finishes, sending stale data.
+	if errors.Is(err, ErrCredentialNotReady) {
+		return err
+	}
+
 	if err == nil || !t.Retryable {
 		t.CompletionHandler(t, statusCode, body, err)
 	}
@@ -392,13 +400,6 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 	// If the txn is retryable, return the error (if present) to the worker to allow it to be retried
 	// Otherwise, return nil so the txn won't be retried.
 	if t.Retryable {
-		return err
-	}
-
-	// A missing credential is not a permanent failure: the endpoint is unprovisioned, not broken.
-	// Return the error even for non-retryable transactions so the worker can requeue instead of
-	// silently dropping the payload.
-	if errors.Is(err, ErrCredentialNotReady) {
 		return err
 	}
 
