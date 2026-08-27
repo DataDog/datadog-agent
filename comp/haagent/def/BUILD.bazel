@@ -4,6 +4,7 @@ go_library(
     name = "def",
     srcs = [
         "component.go",
+        "rcpayload.go",
         "state.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/haagent/def",
