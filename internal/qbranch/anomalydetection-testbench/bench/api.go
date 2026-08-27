@@ -510,10 +510,6 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		agg = observerdef.AggregateCount
 	case "sum":
 		agg = observerdef.AggregateSum
-	case "min":
-		agg = observerdef.AggregateMin
-	case "max":
-		agg = observerdef.AggregateMax
 	default:
 		api.writeError(w, http.StatusBadRequest, "invalid aggregation suffix")
 		return
@@ -627,7 +623,6 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 	agg := observerdef.AggregateAverage
 	if idx := strings.LastIndex(nameWithAgg, ":"); idx != -1 {
 		suffix := nameWithAgg[idx+1:]
-		name = nameWithAgg[:idx]
 		switch suffix {
 		case "avg":
 			agg = observerdef.AggregateAverage
@@ -635,10 +630,13 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 			agg = observerdef.AggregateCount
 		case "sum":
 			agg = observerdef.AggregateSum
-		case "min":
-			agg = observerdef.AggregateMin
-		case "max":
-			agg = observerdef.AggregateMax
+		default:
+			// The colon may be part of the metric name rather than an aggregate
+			// suffix. Keep the full name and the default Average aggregate.
+			idx = -1
+		}
+		if idx != -1 {
+			name = nameWithAgg[:idx]
 		}
 	}
 
@@ -749,17 +747,15 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 	detectorFilter := r.URL.Query().Get("detector")
 
 	type debugInfoResponse struct {
-		BaselineStart  int64     `json:"baselineStart"`
-		BaselineEnd    int64     `json:"baselineEnd"`
-		BaselineMean   float64   `json:"baselineMean,omitempty"`
-		BaselineMedian float64   `json:"baselineMedian,omitempty"`
-		BaselineStddev float64   `json:"baselineStddev,omitempty"`
-		BaselineMAD    float64   `json:"baselineMAD,omitempty"`
-		Threshold      float64   `json:"threshold"`
-		SlackParam     float64   `json:"slackParam,omitempty"`
-		CurrentValue   float64   `json:"currentValue"`
-		DeviationSigma float64   `json:"deviationSigma"`
-		CUSUMValues    []float64 `json:"cusumValues,omitempty"`
+		BaselineStart  int64   `json:"baselineStart"`
+		BaselineEnd    int64   `json:"baselineEnd"`
+		BaselineMean   float64 `json:"baselineMean,omitempty"`
+		BaselineMedian float64 `json:"baselineMedian,omitempty"`
+		BaselineStddev float64 `json:"baselineStddev,omitempty"`
+		BaselineMAD    float64 `json:"baselineMAD,omitempty"`
+		Threshold      float64 `json:"threshold"`
+		CurrentValue   float64 `json:"currentValue"`
+		DeviationSigma float64 `json:"deviationSigma"`
 	}
 
 	type anomalyResponse struct {
@@ -812,10 +808,8 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 				BaselineStddev: a.DebugInfo.BaselineStddev,
 				BaselineMAD:    a.DebugInfo.BaselineMAD,
 				Threshold:      a.DebugInfo.Threshold,
-				SlackParam:     a.DebugInfo.SlackParam,
 				CurrentValue:   a.DebugInfo.CurrentValue,
 				DeviationSigma: a.DebugInfo.DeviationSigma,
-				CUSUMValues:    a.DebugInfo.CUSUMValues,
 			}
 		}
 		return resp

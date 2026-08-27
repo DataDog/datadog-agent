@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
@@ -56,7 +56,7 @@ jobs:
           fi
 
       - name: Checkout branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
         with:
           ref: ${{ inputs.branch }}
@@ -136,7 +136,7 @@ jobs:
           commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
           branch: ${{ inputs.branch }}
           sign-commits: true
-          title: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
+          title: ${{ github.ref_name == 'main' && steps.update_build_images.outputs.MESSAGE || format('[Backport {0}] {1}', github.ref_name, steps.update_build_images.outputs.MESSAGE) }}
           body: ${{ steps.update_build_images.outputs.BODY }}
           draft: true
           labels: go-update,team/agent-runtimes

@@ -15,14 +15,14 @@ members = [
 [workspace.package]
 edition = "2024"
 license = "Apache-2.0"
-rust-version = "1.91"
+rust-version = "1.94"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
 cap-std = "4.0"
 # Keep only the `dd-sds` feature and disable default features so we pull in just
 # the necessary dependencies and avoid shipping the third-party checkers.
-dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260803-1e4349aada52", default-features = false, features = ["dd-sds"] }
+dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260807-dd8be015454d", default-features = false, features = ["dd-sds"] }
 caps = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
@@ -65,8 +65,8 @@ tonic-reflection = "0.14"
 ureq = { version = "3.0", default-features = false, features = ["json"] }
 uzers = "0.12"
 walkdir = "2"
-saphyr-parser = "0.0.11"
-yaml-rust2 = "0.11"
+saphyr-parser = "0.0.12"
+yaml-rust2 = "0.12"
 zip = { version = "8.0", default-features = false, features = ["deflate"] }
 flate2 = "1.1"
 
