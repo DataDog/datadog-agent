@@ -14,7 +14,6 @@ from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
-    'github.com/golangci/golangci-lint/v2/cmd/golangci-lint',
     'github.com/goware/modvendor',
     'github.com/vektra/mockery/v3',
     'github.com/wadey/gocovmerge',
