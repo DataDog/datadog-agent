@@ -293,14 +293,14 @@ func GetFileVersionInfoStrings(executablePath string) (FileVersionInfo, error) {
 
 	var langCodePagePtr *uint16
 	var langCodePageLen uint32
-	ret, _, err := procVerQueryValue.Call(
+	ret, _, _ := procVerQueryValue.Call(
 		uintptr(unsafe.Pointer(&data[0])),
 		uintptr(unsafe.Pointer(translationPtr)),
 		uintptr(unsafe.Pointer(&langCodePagePtr)),
 		uintptr(unsafe.Pointer(&langCodePageLen)),
 	)
 	if ret == 0 || langCodePageLen < 4 {
-		return info, err
+		return info, nil
 	}
 
 	pair := (*[2]uint16)(unsafe.Pointer(langCodePagePtr))

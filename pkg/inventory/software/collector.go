@@ -53,8 +53,8 @@ func warnf(format string, args ...interface{}) *Warning {
 // and system-specific information.
 type Entry struct {
 	// Source indicates the type or source of the software installation
-	// (e.g., Windows: "desktop", "msstore", "os_update", "driver"; MacOS: "app",
-	// "pkg", "homebrew", "mas", "kext", "sysext", "os_update"). This field helps
+	// (e.g., Windows: "desktop", "msstore", "os", "driver"; MacOS: "app",
+	// "pkg", "homebrew", "mas", "kext", "sysext", "os"). This field helps
 	// categorize software by its installation method or distribution channel.
 	// Placed first for easy identification when scanning JSON output.
 	Source string `json:"software_type"`
