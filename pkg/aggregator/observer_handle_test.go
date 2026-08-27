@@ -239,6 +239,30 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 	assert.Equal(t, 8192.0, handle.calls[1].value)
 }
 
+func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	store := tags.NewStore(false, "test")
+	cs := newCheckSampler(10, false, false, 0, false, store, "test-check", nooptagger.NewComponent())
+	handle := &recordingHandle{}
+	cs.SetObserverHandle(handle)
+
+	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+		"metric.filtered": {Tags: []string{"env"}, Action: "exclude"},
+	}, logmock.New(t))
+	cs.addSample(&metrics.MetricSample{
+		Name:       "metric.filtered",
+		Host:       "host-a",
+		Value:      1,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:prod", "service:web"},
+		SampleRate: 1,
+	}, matcher)
+
+	require.Len(t, handle.calls, 1)
+	assert.Equal(t, "host-a", handle.calls[0].host)
+	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
+}
+
 // TestCheckSamplerObserverHandleNil verifies no panic when observerHandle is nil.
 func TestCheckSamplerObserverHandleNil(t *testing.T) {
 	store := tags.NewStore(false, "test")
