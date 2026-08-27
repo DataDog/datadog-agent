@@ -52,8 +52,9 @@ Every metric carries the following base tags.
 - **Description:** Info-style metric that exposes the DPA apply mode for each enabled
   autoscaling dimension. Value is always `1`. The `dpa_mode` tag is `apply` when
   `spec.applyPolicy.mode` is unset, empty, or `Apply`; it is `preview` when the mode is
-  `Preview`. The `dpa_dimension` tag is `horizontal` or `vertical`; disabled dimensions are not
-  emitted. Use this metric when you need to count or filter DPAs by preview/apply mode.
+  `Preview`. The `dpa_dimension` tag is emitted for each enabled dimension (`horizontal`,
+  `vertical`, or both); disabled dimensions are not emitted. Use this metric when you need to count
+  or filter DPAs by preview/apply mode.
 
 ---
 
@@ -193,7 +194,7 @@ memory values are in **bytes**.
 
 #### `datadog.cluster_agent.autoscaling.workload.vertical_scaling.controlled_resources`
 - **Type:** Gauge
-- **Tags:** base tags + `kube_container_name` + `resource_name` + `dpa_dimension`
+- **Tags:** base tags + `kube_container_name` + `resource_name`
 - **Description:** Info-style metric that exposes which container resources are controlled by
   vertical autoscaling. Value is always `1`. One point is emitted per controlled resource, so the
   same DPA/container can emit multiple `resource_name` tag values, such as `cpu` and `memory`.
@@ -204,7 +205,7 @@ memory values are in **bytes**.
   emits both `resource_name:cpu` and `resource_name:memory` for that container constraint. If
   `controlledResources` is an empty list or the container constraint has `enabled: false`, no point
   is emitted for that container constraint. A wildcard container constraint named `*` is emitted as
-  `kube_container_name:all`. The `dpa_dimension` tag is always `vertical`.
+  `kube_container_name:all`.
 
 ---
 

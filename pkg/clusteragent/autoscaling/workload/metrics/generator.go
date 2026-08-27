@@ -86,7 +86,7 @@ func controlledResourceTags(baseTags []string, containerName string, resource co
 	if containerName == "*" {
 		containerName = allContainersTagValue
 	}
-	return append(baseTags, taggerTags.KubeContainerName+":"+containerName, resourceNameTagKey+":"+string(resource), dpaDimensionTagKey+":"+dpaDimensionVertical)
+	return append(baseTags, taggerTags.KubeContainerName+":"+containerName, resourceNameTagKey+":"+string(resource))
 }
 
 func applyModeTagValue(spec *datadoghq.DatadogPodAutoscalerSpec) string {

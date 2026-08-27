@@ -141,7 +141,7 @@ func assertControlledResourcesMetrics(t *testing.T, metrics metricsstore.Structu
 			continue
 		}
 		assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
-		assert.Contains(t, m.Tags, dpaDimensionTagKey+":"+dpaDimensionVertical)
+		assert.Empty(t, tagValue(m.Tags, dpaDimensionTagKey))
 		container := tagValue(m.Tags, "kube_container_name")
 		resourceName := tagValue(m.Tags, resourceNameTagKey)
 		actual[container+"/"+resourceName] = m.Value
