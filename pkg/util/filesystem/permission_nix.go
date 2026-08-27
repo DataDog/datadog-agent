@@ -145,8 +145,10 @@ const agentIdentityMarker = "/opt/datadog-agent/.dd-agent-identity"
 // GetAgentUserGroupIDs returns the UID and primary GID of the agent service
 // account ("dd-agent" on Linux, "_dd-agent" on macOS). The GID is the
 // user's primary group (e.g. "root" in the standard container, where no
-// same-named group exists), not a separately-named group. ok is false if the
-// user does not exist on the system.
+// same-named group exists), not a separately-named group. If looking up the
+// service user fails, the identity marker is consulted as a fallback. ok is
+// false if neither the service user nor a valid identity marker can provide
+// the UID and GID.
 func GetAgentUserGroupIDs() (uid, gid int, ok bool) {
 	u, err := user.Lookup(agentUsername())
 	if err != nil {
