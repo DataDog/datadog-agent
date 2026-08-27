@@ -7,18 +7,20 @@
 #include "helpers/bpf.h"
 #include "helpers/discarders.h"
 #include "helpers/process.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/approvers.h"
 
-__attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cache_t *syscall) {
-    struct bpf_event_t event = {
-        .syscall.retval = syscall->bpf.retval,
-        .cmd = syscall->bpf.cmd,
-    };
+__attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct bpf_event_t *event = SPAN_FILL_EVENT(struct bpf_event_t, EVENT_BPF);
+    if (!event) {
+        return;
+    }
+    event->syscall.retval = syscall->bpf.retval;
+    event->cmd = syscall->bpf.cmd;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
     u32 id = 0;
 
@@ -27,7 +29,7 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
         id = syscall->bpf.map_id;
         struct bpf_map_t *map = bpf_map_lookup_elem(&bpf_maps, &id);
         if (map != NULL) {
-            event.map = *map;
+            event->map = *map;
         }
     }
 
@@ -36,17 +38,17 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
         id = syscall->bpf.prog_id;
         struct bpf_prog_t *prog = bpf_map_lookup_elem(&bpf_progs, &id);
         if (prog != NULL) {
-            event.prog = *prog;
+            event->prog = *prog;
         }
     }
 
-    if (event.cmd == BPF_PROG_LOAD || event.cmd == BPF_MAP_CREATE) {
+    if (event->cmd == BPF_PROG_LOAD || event->cmd == BPF_MAP_CREATE) {
         // fill metadata from syscall arguments
-        fill_from_syscall_args(syscall, &event);
+        fill_from_syscall_args(syscall, event);
     }
 
-    // send event
-    send_event(ctx, EVENT_BPF, event);
+    // fill span context and send event
+    span_fill_tail_call(ctx, prog_type);
 }
 
 HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size) {
@@ -68,7 +70,7 @@ HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int,
     return 0;
 }
 
-__attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
+__attribute__((always_inline)) int sys_bpf_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_BPF);
     if (!syscall) {
         return 0;
@@ -89,8 +91,12 @@ __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
     populate_map_id_and_prog_id(syscall);
 
     // send monitoring event
-    send_bpf_event(ctx, syscall);
+    send_bpf_event(ctx, syscall, prog_type);
     return 0;
+}
+
+__attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
+    return sys_bpf_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(bpf) {
@@ -181,7 +187,7 @@ int hook_check_helper_call(ctx_t *ctx) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_bpf_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_bpf_ret(args, args->ret);
+    return sys_bpf_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 #endif
