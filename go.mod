@@ -271,7 +271,6 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/fatih/structtag v1.2.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
-	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344
 	github.com/glaslos/ssdeep v1.0.0
 	github.com/go-delve/delve v1.27.1
 	github.com/go-jose/go-jose/v4 v4.1.4
