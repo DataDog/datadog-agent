@@ -321,6 +321,7 @@ func (a *SBOMAPIServer) collectSBOMS() {
 			case a.sboms <- sbom:
 				seclog.Debugf("SBOM for %s sent to APIServer channel", sbom.RequestID)
 			default:
+				sbomResolver.CountEnrichedSBOMForwardDropped()
 				seclog.Warnf("dropping SBOM event")
 			}
 		}); err != nil {
