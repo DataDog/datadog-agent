@@ -3892,8 +3892,8 @@
   
 
 
-<h1 id="agent-components">Agent components<a class="headerlink" href="#agent-components" title="Permanent link">&para;</a></h1>
-<h2 id="agent-binaries">Agent binaries<a class="headerlink" href="#agent-binaries" title="Permanent link">&para;</a></h2>
+<h1 id="agent-components">Agent components</h1>
+<h2 id="agent-binaries">Agent binaries</h2>
 <p>The "Agent" is not distributed as a single binary. Instead, running an Agent on a given host will usually involve multiple processes communicating with each other, spawned from different binaries.</p>
 <p>These binaries have a good amount of code shared between them, but are all buildable individually. Here is the exhaustive list:</p>
 <ul>
@@ -3911,7 +3911,7 @@
 <p class="admonition-title">Info</p>
 <p>Every binary is built from the same codebase. By leveraging <a href="https://pkg.go.dev/cmd/go#hdr-Build_constraints">Go build constraints</a>, we end up compiling different parts of the source code for each binary.</p>
 </div>
-<h2 id="agent-features">Agent "features"<a class="headerlink" href="#agent-features" title="Permanent link">&para;</a></h2>
+<h2 id="agent-features">Agent "features"</h2>
 <p>The Agent codebase makes heavy use of <a href="https://pkg.go.dev/cmd/go#hdr-Build_constraints">Go build constraints</a> to dynamically include or exclude some parts of the source code during the build process.</p>
 <p>Here is a list of usable "tags" that you can pass during the build process to customize your build. <strong>This list is <em>not</em> exhaustive !</strong></p>
 <!-- Should we make it exhaustive ? -->
