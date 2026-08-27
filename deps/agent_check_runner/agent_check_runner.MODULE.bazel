@@ -38,22 +38,28 @@ filegroup(
 )
 """
 
-# The repo name suffix is the hash key with "-" replaced by "_".
-_ARTIFACTS = [
-    "linux-amd64",
-    "linux-arm64",
-]
+# Written as two literal http_archive calls rather than a comprehension over an _ARTIFACTS dict,
+# which is what agent_data_plane.MODULE.bazel does.
+#
+# Revisit if ACR ever gains FIPS, macOS or Windows artifacts: at that point the loop earns its
+# keep, and it must be a dict for the coverage check to see through it.
 
-[
-    http_archive(
-        name = "agent_check_runner_{}".format(hash_key.replace("-", "_")),
-        build_file_content = _BUILD_FILE_CONTENT,
-        sha256 = HASHES[hash_key],
-        url = "{base}/agent-check-runner-{version}-{target}.tar.gz".format(
-            base = SOURCE_URL_BASE,
-            target = hash_key,
-            version = VERSION,
-        ),
-    )
-    for hash_key in _ARTIFACTS
-]
+http_archive(
+    name = "agent_check_runner_linux_amd64",
+    build_file_content = _BUILD_FILE_CONTENT,
+    sha256 = HASHES["linux-amd64"],
+    url = "{base}/agent-check-runner-{version}-linux-amd64.tar.gz".format(
+        base = SOURCE_URL_BASE,
+        version = VERSION,
+    ),
+)
+
+http_archive(
+    name = "agent_check_runner_linux_arm64",
+    build_file_content = _BUILD_FILE_CONTENT,
+    sha256 = HASHES["linux-arm64"],
+    url = "{base}/agent-check-runner-{version}-linux-arm64.tar.gz".format(
+        base = SOURCE_URL_BASE,
+        version = VERSION,
+    ),
+)
