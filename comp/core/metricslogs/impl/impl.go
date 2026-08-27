@@ -8,7 +8,7 @@ package metricslogsimpl
 
 import (
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	metricslogs "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/def"
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
 )
 
 // Requires defines the dependencies for the metricslogs component.

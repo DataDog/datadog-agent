@@ -8,7 +8,7 @@ package metricslogsimpl
 import (
 	"encoding/json"
 
-	metricslogs "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/def"
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
 )
 
 // LogMetrics writes a batch of metrics as one structured JSON line to the

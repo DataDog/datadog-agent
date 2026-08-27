@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	metricslogs "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/def"
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
 )
 
 // recordingLog is a minimal logcomp.Component test double that records

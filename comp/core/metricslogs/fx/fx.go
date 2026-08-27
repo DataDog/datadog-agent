@@ -7,7 +7,7 @@
 package fx
 
 import (
-	metricslogsimpl "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/impl"
+	metricslogsimpl "github.com/DataDog/datadog-agent/comp/core/metricslogs/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
