@@ -145,9 +145,9 @@ func (c *checkImpl) Configure(senderManager sender.SenderManager, digest uint64,
 			counter := registeredCounter{object: object, def: definition}
 			if object.multiple {
 				if definition.optional {
-					counter.multi = c.query.AddOptionalEnglishMultiInstanceCounter(object.object, definition.counter, nil)
+					counter.multi = c.query.AddOptionalEnglishMultiInstanceCounter(object.object, definition.counter, isNotTotal)
 				} else {
-					counter.multi = c.query.AddEnglishMultiInstanceCounter(object.object, definition.counter, nil)
+					counter.multi = c.query.AddEnglishMultiInstanceCounter(object.object, definition.counter, isNotTotal)
 				}
 			} else {
 				if definition.optional {
@@ -340,12 +340,12 @@ func indexSessionIDs(provider vdimodel.ProviderInventory, fresh bool) map[string
 	return sessions
 }
 
+func isNotTotal(instance string) bool {
+	return !strings.EqualFold(instance, "_Total")
+}
+
 func (c *checkImpl) tagsForInstance(objectName, instance string, connections map[connectionKey]vdimodel.Connection, sessionIDs map[string]struct{}) ([]string, *connectionKey) {
 	tags := c.baseTags()
-	if strings.EqualFold(instance, "_Total") {
-		return append(tags, "vdi_aggregation:total"), nil
-	}
-
 	switch objectName {
 	case "DCV Server Processes":
 		tags = append(tags, "dcv_process:"+instance)
