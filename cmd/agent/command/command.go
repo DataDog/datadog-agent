@@ -9,11 +9,9 @@ package command
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -89,8 +87,16 @@ monitoring and performance data.`,
 		SilenceUsage: true,
 	}
 
-	RegisterGlobalFlags(agentCmd.PersistentFlags(), &globalParams)
+	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	agentCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", []string{}, "specify additional configuration files to be loaded sequentially after the main datadog.yaml")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
 	_ = agentCmd.PersistentFlags().MarkHidden("fleetcfgpath")
+
+	// github.com/fatih/color sets its global color.NoColor to a default value based on
+	// whether the process is running in a tty.  So, we only want to override that when
+	// the value is true.
+	agentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
 	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
 		if globalParams.NoColor {
 			color.NoColor = true
@@ -105,51 +111,6 @@ monitoring and performance data.`,
 	}
 
 	return agentCmd
-}
-
-// RegisterGlobalFlags registers the Agent flags shared by normal Cobra dispatch and remote command pre-dispatch.
-func RegisterGlobalFlags(flags *pflag.FlagSet, params *GlobalParams) {
-	flags.StringVarP(&params.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	flags.StringArrayVarP(&params.ExtraConfFilePath, "extracfgpath", "E", []string{}, "specify additional configuration files to be loaded sequentially after the main datadog.yaml")
-	flags.StringVarP(&params.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
-	flags.StringVarP(&params.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
-	flags.BoolVarP(&params.NoColor, "no-color", "n", false, "disable color output")
-}
-
-// ParseGlobalFlags parses recognized root flags without consuming provider-specific arguments.
-func ParseGlobalFlags(args []string, params *GlobalParams) error {
-	flags := pflag.NewFlagSet("agent", pflag.ContinueOnError)
-	RegisterGlobalFlags(flags, params)
-
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		if arg == "--" {
-			break
-		}
-		if !strings.HasPrefix(arg, "-") {
-			continue
-		}
-
-		name, value, hasValue := strings.Cut(strings.TrimLeft(arg, "-"), "=")
-		flag := flags.Lookup(name)
-		if flag == nil {
-			continue
-		}
-		if !hasValue {
-			if flag.NoOptDefVal != "" {
-				value = flag.NoOptDefVal
-			} else if index+1 < len(args) {
-				index++
-				value = args[index]
-			} else {
-				return pflag.ErrHelp
-			}
-		}
-		if err := flags.Set(flag.Name, value); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // LogLevelDefaultOff is used only for commands where logs are disabled by default.

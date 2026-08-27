@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -66,7 +67,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 type providerDiscovery func(remote *cobra.Command, params *command.GlobalParams, args []string) error
 
-// Prepare discovers active command providers only when Cobra has resolved the static remote parent.
+// Prepare attaches provider commands before Cobra resolves an `agent remote` invocation, avoiding discovery for other commands.
 func Prepare(root *cobra.Command, args []string) error {
 	return prepare(root, args, discoverProviders)
 }
@@ -81,7 +82,7 @@ func prepare(root *cobra.Command, args []string, discover providerDiscovery) err
 		return errors.New("remote command was not initialized")
 	}
 	params := globalParams.(*command.GlobalParams)
-	if err := command.ParseGlobalFlags(args, params); err != nil {
+	if err := applyGlobalFlags(root, args); err != nil {
 		return err
 	}
 	return discover(remote, params, args)
@@ -113,6 +114,37 @@ func discoverProviders(remote *cobra.Command, globalParams *command.GlobalParams
 			return executeProviderCommand(globalParams, providerName, commandPath, arguments, stdout, stderr)
 		})
 	}, fx.Supply(command.GetDefaultCoreBundleParams(globalParams)), core.Bundle(), ipcfx.ModuleReadOnly())
+}
+
+// applyGlobalFlags applies root persistent flags through Cobra's authoritative flag set without consuming provider flags.
+func applyGlobalFlags(root *cobra.Command, args []string) error {
+	flags := root.PersistentFlags()
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		if arg == "--" || !strings.HasPrefix(arg, "-") {
+			continue
+		}
+
+		name, value, hasValue := strings.Cut(strings.TrimLeft(arg, "-"), "=")
+		flag := flags.Lookup(name)
+		if flag == nil {
+			continue
+		}
+		if !hasValue {
+			if flag.NoOptDefVal != "" {
+				value = flag.NoOptDefVal
+			} else if index+1 < len(args) {
+				index++
+				value = args[index]
+			} else {
+				return pflag.ErrHelp
+			}
+		}
+		if err := flags.Set(flag.Name, value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func executeProviderCommand(globalParams *command.GlobalParams, providerName string, commandPath []string, arguments *structpb.Struct, stdout, stderr io.Writer) error {
@@ -180,24 +212,24 @@ func AttachCommandProviders(remote *cobra.Command, providers []*pb.CommandProvid
 	if remote == nil {
 		return errors.New("remote command is required")
 	}
-	for _, provider := range providers {
-		if provider == nil {
+	for _, providerGroup := range providers {
+		if providerGroup == nil {
 			continue
 		}
-		if provider.GetName() == "" {
+		if providerGroup.GetName() == "" {
 			return errors.New("command provider name is required")
 		}
-		providerCmd := &cobra.Command{
-			Use:          provider.GetName(),
-			Short:        provider.GetDescription(),
+		providerCommand := &cobra.Command{
+			Use:          providerGroup.GetName(),
+			Short:        providerGroup.GetDescription(),
 			SilenceUsage: true,
 		}
-		for _, providerCommand := range provider.GetCommands() {
-			if err := addCommand(providerCmd, provider.GetName(), nil, nil, providerCommand, execute); err != nil {
+		for _, commandDefinition := range providerGroup.GetCommands() {
+			if err := addCommand(providerCommand, providerGroup.GetName(), nil, nil, commandDefinition, execute); err != nil {
 				return err
 			}
 		}
-		remote.AddCommand(providerCmd)
+		remote.AddCommand(providerCommand)
 	}
 	return nil
 }

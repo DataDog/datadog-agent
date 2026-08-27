@@ -421,8 +421,6 @@ type ExecuteCommandRequest struct {
 	ProviderName  string                 `protobuf:"bytes,1,opt,name=provider_name,json=providerName,proto3" json:"provider_name,omitempty"`
 	CommandPath   []string               `protobuf:"bytes,2,rep,name=command_path,json=commandPath,proto3" json:"command_path,omitempty"`
 	Arguments     *structpb.Struct       `protobuf:"bytes,3,opt,name=arguments,proto3" json:"arguments,omitempty"`
-	JsonOutput    bool                   `protobuf:"varint,4,opt,name=json_output,json=jsonOutput,proto3" json:"json_output,omitempty"`
-	Verbose       bool                   `protobuf:"varint,5,opt,name=verbose,proto3" json:"verbose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -476,20 +474,6 @@ func (x *ExecuteCommandRequest) GetArguments() *structpb.Struct {
 		return x.Arguments
 	}
 	return nil
-}
-
-func (x *ExecuteCommandRequest) GetJsonOutput() bool {
-	if x != nil {
-		return x.JsonOutput
-	}
-	return false
-}
-
-func (x *ExecuteCommandRequest) GetVerbose() bool {
-	if x != nil {
-		return x.Verbose
-	}
-	return false
 }
 
 type ExecuteCommandResponse struct {
@@ -638,14 +622,11 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12C\n" +
 	"\bcommands\x18\x03 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands\"e\n" +
 	"\x14ListCommandsResponse\x12M\n" +
-	"\tproviders\x18\x01 \x03(\v2/.datadog.remoteagent.command.v1.CommandProviderR\tproviders\"\xd1\x01\n" +
+	"\tproviders\x18\x01 \x03(\v2/.datadog.remoteagent.command.v1.CommandProviderR\tproviders\"\x96\x01\n" +
 	"\x15ExecuteCommandRequest\x12#\n" +
 	"\rprovider_name\x18\x01 \x01(\tR\fproviderName\x12!\n" +
 	"\fcommand_path\x18\x02 \x03(\tR\vcommandPath\x125\n" +
-	"\targuments\x18\x03 \x01(\v2\x17.google.protobuf.StructR\targuments\x12\x1f\n" +
-	"\vjson_output\x18\x04 \x01(\bR\n" +
-	"jsonOutput\x12\x18\n" +
-	"\averbose\x18\x05 \x01(\bR\averbose\"\x9b\x01\n" +
+	"\targuments\x18\x03 \x01(\v2\x17.google.protobuf.StructR\targuments\"\x9b\x01\n" +
 	"\x16ExecuteCommandResponse\x12\x18\n" +
 	"\x06stdout\x18\x01 \x01(\tH\x00R\x06stdout\x12\x18\n" +
 	"\x06stderr\x18\x02 \x01(\tH\x00R\x06stderr\x12%\n" +
