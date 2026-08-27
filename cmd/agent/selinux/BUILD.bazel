@@ -1,0 +1,21 @@
+# Compiles the SELinux system-probe policy source (.te) into a packaged
+# policy module (.pp), mirroring `dda inv selinux.compile-system-probe-policy-file`
+# (see tasks/selinux.py).
+#
+# NOTE: this shells out to `checkmodule` and `semodule_package` found on
+# PATH. These are the SELinux userspace policy tools (package `checkpolicy`
+# and `policycoreutils` on most distros); this repo does not currently
+# provide a hermetic Bazel toolchain for them, so this genrule is only
+# expected to succeed on a Linux host/container with those tools installed
+# (e.g. CI). It cannot be built or tested on macOS.
+genrule(
+    name = "system_probe_policy_pp",
+    srcs = ["system_probe_policy.te"],
+    outs = ["system_probe_policy.pp"],
+    cmd = """
+        checkmodule -M -m -c 19 -o $@.mod $(location system_probe_policy.te)
+        semodule_package -o $@ -m $@.mod
+    """,
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
