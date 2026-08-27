@@ -41,6 +41,7 @@ const (
 	testAzureSubscriptionID       = "example-subscription"
 	testAzureResourceGroup        = "example-resource-group"
 	testAzureAppServiceInstanceID = "example-instance"
+	testServiceInstanceID         = "example-service-instance"
 )
 
 func TestSourceFromAttrs(t *testing.T) {
@@ -115,6 +116,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
 				attributeAzureResourceGroupName:       testAzureResourceGroup,
 				attributeAzureAppServiceInstanceID:    testAzureAppServiceInstanceID,
+				attributeServiceInstanceID:            testServiceInstanceID,
 				string(conventions.HostIDKey):         testHostID,
 			}),
 			ok:  true,
@@ -131,6 +133,18 @@ func TestSourceFromAttrs(t *testing.T) {
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.AzureAppServiceKind, Identifier: testAzureAppServiceInstanceID},
+		},
+		{
+			name: "Azure App Service service instance fallback",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+				string(conventions.ServiceNameKey):    testAzureAppServiceName,
+				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+				attributeAzureResourceGroupName:       testAzureResourceGroup,
+				attributeServiceInstanceID:            testServiceInstanceID,
+			}),
+			ok:  true,
+			src: source.Source{Kind: source.AzureAppServiceKind, Identifier: testServiceInstanceID},
 		},
 		{
 			name: "GCP",
