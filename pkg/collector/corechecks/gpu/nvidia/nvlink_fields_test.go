@@ -43,19 +43,29 @@ func TestNVLinkFieldsCollectorQueriesAllConfiguredPorts(t *testing.T) {
 			fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS,
 			metricType:   metrics.GaugeType,
 		},
+		nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS: {
+			name:         "nvlink.errors.rx",
+			fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS,
+			metricType:   metrics.GaugeType,
+		},
 	})
 	require.NoError(t, err)
 	_, err = collector.Collect()
 	require.NoError(t, err)
 
 	require.Len(t, requests, 4, "one initialization request per port plus one batched collection request")
-	var requestedScopes []uint32
+	var requestedFieldsAndScopes [][2]uint32
 	for _, request := range requests[3] {
-		if request.FieldId == nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS {
-			requestedScopes = append(requestedScopes, request.ScopeId)
-		}
+		requestedFieldsAndScopes = append(requestedFieldsAndScopes, [2]uint32{request.FieldId, request.ScopeId})
 	}
-	require.Equal(t, []uint32{0, 1, 2}, requestedScopes)
+	require.ElementsMatch(t, [][2]uint32{
+		{nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS, 0},
+		{nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS, 1},
+		{nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS, 2},
+		{nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS, 0},
+		{nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS, 1},
+		{nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS, 2},
+	}, requestedFieldsAndScopes)
 }
 
 func TestNVLinkFieldsCollectorQueriesForcedScopeForEachPort(t *testing.T) {
@@ -168,6 +178,8 @@ func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 	var dataRXValues []float64
 	var rawTXValues []float64
 	var discardValues []float64
+	var dataRXTotalCount int
+	var rawTXTotalCount int
 	for _, metric := range collected {
 		switch metric.Name {
 		case "nvlink.throughput.data.rx":
@@ -177,10 +189,12 @@ func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 		case "nvlink.tx.discards":
 			discardValues = append(discardValues, metric.Value)
 		case "nvlink.throughput.data.rx.total":
+			dataRXTotalCount++
 			require.Equal(t, 60.0, metric.Value)
 			require.Equal(t, metrics.GaugeType, metric.Type)
 			require.Equal(t, PerSecondRateCalculation, metric.RateCalculationMode)
 		case "nvlink.throughput.raw.tx.total":
+			rawTXTotalCount++
 			require.Equal(t, 6.0, metric.Value)
 			require.Equal(t, metrics.GaugeType, metric.Type)
 			require.Equal(t, PerSecondRateCalculation, metric.RateCalculationMode)
@@ -192,6 +206,8 @@ func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 	require.ElementsMatch(t, []float64{10, 20, 30}, dataRXValues)
 	require.ElementsMatch(t, []float64{1, 2, 3}, rawTXValues)
 	require.ElementsMatch(t, []float64{100, 200, 300}, discardValues)
+	require.Equal(t, 1, dataRXTotalCount, "expected exactly one data RX total metric")
+	require.Equal(t, 1, rawTXTotalCount, "expected exactly one raw TX total metric")
 }
 
 func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
@@ -242,19 +258,18 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 }
 
 func TestNVLinkFieldsCollectorReturnsErrorsForUnsupportedCollectedFields(t *testing.T) {
-	var calls int
+	collecting := false
 	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			if len(fv) == 0 {
 				panic("GetFieldValues called with empty fields")
 			}
-			calls++
 			for i := range fv {
 				if fv[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
 					testutil.ApplyMockFieldValue(&fv[i], testutil.NewFieldValue(2))
 					continue
 				}
-				if calls > 3 {
+				if collecting {
 					fv[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
 					continue
 				}
@@ -272,11 +287,16 @@ func TestNVLinkFieldsCollectorReturnsErrorsForUnsupportedCollectedFields(t *test
 		},
 	})
 	require.NoError(t, err)
+	collecting = true
+
+	var collected []*Metric
 	var collectErr error
 	require.NotPanics(t, func() {
-		_, collectErr = collector.Collect()
+		collected, collectErr = collector.Collect()
 	})
-	require.ErrorContains(t, collectErr, "failed to get field value nvlink.tx.discards for port")
+	require.Empty(t, collected)
+	require.ErrorContains(t, collectErr, "failed to get field value nvlink.tx.discards for ports [1]")
+	require.ErrorContains(t, collectErr, "failed to get field value nvlink.tx.discards for ports [2]")
 }
 
 func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
