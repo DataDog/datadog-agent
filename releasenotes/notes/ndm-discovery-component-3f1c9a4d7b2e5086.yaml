@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added a network device discovery component that sweeps configured IP ranges
+    for SNMP devices and reports what it finds to Network Device Monitoring.
+    The ranges to scan are delivered over Remote Configuration, and the SNMP
+    credentials they reference are supplied in the Agent configuration under
+    ``network_devices.discovery``. The component reports discovered devices and
+    the status of each discovery run as ``network-devices-metadata`` payloads.
+    It does not schedule any check: devices it discovers are reported for
+    review, not monitored automatically.
+
+    The component is disabled by default and is turned on with
+    ``network_devices.discovery.enabled``.
