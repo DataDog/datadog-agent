@@ -166,7 +166,9 @@ anomalies and correlator events directly. `StorageConfig.TrackAnomalyHistory` is
 false by default and is enabled only by testbench/replay configuration so
 `StateView.Anomalies` can display the complete finite replay. Do not couple a new
 production consumer to raw anomaly history; add an explicitly bounded diagnostic
-surface if that use case emerges.
+surface if that use case emerges. Route every storage-series removal through the
+engine cleanup path so ref-backed dedup entries are removed too; dedup eviction is
+reported by `observer.anomaly_dedup.evicted{reason}`.
 
 ## Common Pitfalls
 

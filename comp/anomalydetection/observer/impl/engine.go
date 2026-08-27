@@ -29,20 +29,37 @@ type anomalyDedupKey struct {
 	title           string
 }
 
-const maxLiveAnomalyDedupEntries = 50_000
+const (
+	maxLiveAnomalyDedupEntries         = 50_000
+	anomalyDedupEvictionReasonAge      = "age"
+	anomalyDedupEvictionReasonCapacity = "capacity"
+	anomalyDedupEvictionReasonSeries   = "series_evicted"
+	noAnomalyDedupQueueIndex           = -1
+)
 
 type anomalyDedupQueueEntry struct {
-	key    anomalyDedupKey
-	seenAt int64
+	key     anomalyDedupKey
+	seenAt  int64
+	refPrev int
+	refNext int
+	active  bool
+}
+
+type anomalyDedupAcceptResult struct {
+	accepted        bool
+	ageEvicted      int
+	capacityEvicted int
 }
 
 // anomalyDeduper suppresses detector outputs that are re-emitted across
 // consecutive advances. Live mode bounds it by both data time and cardinality;
 // testbench history mode intentionally leaves it unbounded for finite replays.
 type anomalyDeduper struct {
-	entries        map[anomalyDedupKey]struct{}
+	entries        map[anomalyDedupKey]int // key to queue index; -1 in unbounded replay mode
 	queue          []anomalyDedupQueueEntry
+	refHeads       map[observerdef.SeriesRef]int
 	head           int
+	inactive       int
 	maxAgeSecs     int64
 	maxEntries     int
 	latestDataTime int64
@@ -50,7 +67,7 @@ type anomalyDeduper struct {
 
 func newAnomalyDeduper(maxAgeSecs int64, maxEntries int) anomalyDeduper {
 	return anomalyDeduper{
-		entries:    make(map[anomalyDedupKey]struct{}),
+		entries:    make(map[anomalyDedupKey]int),
 		maxAgeSecs: maxAgeSecs,
 		maxEntries: maxEntries,
 	}
@@ -73,62 +90,166 @@ func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
 }
 
 func (d *anomalyDeduper) accept(key anomalyDedupKey, dataTime int64) bool {
+	return d.acceptWithEvictions(key, dataTime).accepted
+}
+
+func (d *anomalyDeduper) acceptWithEvictions(key anomalyDedupKey, dataTime int64) anomalyDedupAcceptResult {
 	if dataTime < d.latestDataTime {
 		dataTime = d.latestDataTime
 	} else {
 		d.latestDataTime = dataTime
 	}
-	d.evictExpired(dataTime)
+	result := anomalyDedupAcceptResult{ageEvicted: d.evictExpired(dataTime)}
 
 	if _, duplicate := d.entries[key]; duplicate {
-		return false
+		return result
 	}
 	for d.maxEntries > 0 && len(d.entries) >= d.maxEntries {
-		d.evictOldest()
+		if d.evictOldest() {
+			result.capacityEvicted++
+		}
 	}
 	d.compactQueue()
 
-	d.entries[key] = struct{}{}
+	queueIndex := noAnomalyDedupQueueIndex
 	if d.maxAgeSecs > 0 || d.maxEntries > 0 {
-		d.queue = append(d.queue, anomalyDedupQueueEntry{key: key, seenAt: dataTime})
+		queueIndex = len(d.queue)
+		d.queue = append(d.queue, anomalyDedupQueueEntry{
+			key:     key,
+			seenAt:  dataTime,
+			refPrev: noAnomalyDedupQueueIndex,
+			refNext: noAnomalyDedupQueueIndex,
+			active:  true,
+		})
+		d.linkSourceRef(queueIndex)
 	}
+	d.entries[key] = queueIndex
+	result.accepted = true
+	return result
+}
+
+func (d *anomalyDeduper) evictExpired(dataTime int64) int {
+	if d.maxAgeSecs <= 0 {
+		return 0
+	}
+	cutoff := dataTime - d.maxAgeSecs
+	evicted := 0
+	for d.head < len(d.queue) {
+		entry := d.queue[d.head]
+		if !entry.active {
+			d.head++
+			continue
+		}
+		if entry.seenAt >= cutoff {
+			break
+		}
+		if d.evictOldest() {
+			evicted++
+		}
+	}
+	d.compactQueue()
+	return evicted
+}
+
+func (d *anomalyDeduper) evictOldest() bool {
+	for d.head < len(d.queue) && !d.queue[d.head].active {
+		d.head++
+	}
+	if d.head >= len(d.queue) {
+		return false
+	}
+	index := d.head
+	d.head++
+	return d.removeQueueEntry(index)
+}
+
+func (d *anomalyDeduper) removeQueueEntry(index int) bool {
+	if index < 0 || index >= len(d.queue) || !d.queue[index].active {
+		return false
+	}
+	key := d.queue[index].key
+	delete(d.entries, key)
+	if key.hasSourceRef {
+		prev := d.queue[index].refPrev
+		next := d.queue[index].refNext
+		if prev != noAnomalyDedupQueueIndex {
+			d.queue[prev].refNext = next
+		} else if next != noAnomalyDedupQueueIndex {
+			d.refHeads[key.sourceRef] = next
+		} else {
+			delete(d.refHeads, key.sourceRef)
+		}
+		if next != noAnomalyDedupQueueIndex {
+			d.queue[next].refPrev = prev
+		}
+	}
+	d.queue[index] = anomalyDedupQueueEntry{}
+	d.inactive++
 	return true
 }
 
-func (d *anomalyDeduper) evictExpired(dataTime int64) {
-	if d.maxAgeSecs <= 0 {
+func (d *anomalyDeduper) linkSourceRef(index int) {
+	key := d.queue[index].key
+	if !key.hasSourceRef {
 		return
 	}
-	cutoff := dataTime - d.maxAgeSecs
-	for d.head < len(d.queue) && d.queue[d.head].seenAt < cutoff {
-		d.evictOldest()
+	if d.refHeads == nil {
+		d.refHeads = make(map[observerdef.SeriesRef]int)
 	}
-	d.compactQueue()
+	if previousHead, ok := d.refHeads[key.sourceRef]; ok {
+		d.queue[index].refNext = previousHead
+		d.queue[previousHead].refPrev = index
+	}
+	d.refHeads[key.sourceRef] = index
 }
 
-func (d *anomalyDeduper) evictOldest() {
-	if d.head >= len(d.queue) {
-		return
+// removeSourceRefs discards live dedup entries for storage series that no
+// longer exist. Replay mode is intentionally unbounded and has no queue index;
+// its finite input retains complete dedup history.
+func (d *anomalyDeduper) removeSourceRefs(refs []observerdef.SeriesRef) int {
+	removed := 0
+	for _, ref := range refs {
+		index, exists := d.refHeads[ref]
+		for exists {
+			next := d.queue[index].refNext
+			if d.removeQueueEntry(index) {
+				removed++
+			}
+			index = next
+			exists = index != noAnomalyDedupQueueIndex
+		}
 	}
-	entry := d.queue[d.head]
-	delete(d.entries, entry.key)
-	d.queue[d.head] = anomalyDedupQueueEntry{}
-	d.head++
+	d.compactQueue()
+	return removed
 }
 
 func (d *anomalyDeduper) compactQueue() {
-	if d.head == len(d.queue) {
+	if d.inactive == len(d.queue) {
 		d.queue = nil
+		d.refHeads = nil
 		d.head = 0
+		d.inactive = 0
 		return
 	}
-	if d.head < 1024 || d.head*2 < len(d.queue) {
+	if d.inactive < 1024 || d.inactive*2 < len(d.queue) {
 		return
 	}
-	remaining := make([]anomalyDedupQueueEntry, len(d.queue)-d.head)
-	copy(remaining, d.queue[d.head:])
-	d.queue = remaining
+	oldQueue := d.queue
+	d.queue = make([]anomalyDedupQueueEntry, 0, len(oldQueue)-d.inactive)
+	d.refHeads = nil
+	for _, entry := range oldQueue {
+		if !entry.active {
+			continue
+		}
+		entry.refPrev = noAnomalyDedupQueueIndex
+		entry.refNext = noAnomalyDedupQueueIndex
+		index := len(d.queue)
+		d.queue = append(d.queue, entry)
+		d.entries[entry.key] = index
+		d.linkSourceRef(index)
+	}
 	d.head = 0
+	d.inactive = 0
 }
 
 func anomalyDedupBounds(storageCfg StorageConfig, trackHistory bool) (int64, int) {
@@ -213,6 +334,7 @@ type engine struct {
 	// Optional callbacks for direct telemetry emission.
 	onStorageSeriesEvicted func(reason string, count int)
 	onStorageCapacityHit   func()
+	onAnomalyDedupEvicted  func(reason string, count int)
 	onAdvanceSkipped       func(reason string)
 	onProcessingTime       func(detectorTag string, durationNs float64)
 	onDetectorEmission     func(detector, severity string)
@@ -531,6 +653,7 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 // taking their own locks. Adding a new caller of this function from a
 // different goroutine would break that invariant for every detector.
 func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
+	e.removeAnomalyDedupSourceRefs(refs)
 	e.mu.RLock()
 	detectors := e.detectors
 	e.mu.RUnlock()
@@ -697,6 +820,7 @@ func (e *engine) evictInactiveSeries(upToSec int64, detectors []observerdef.Dete
 	if e.onStorageSeriesEvicted != nil {
 		e.onStorageSeriesEvicted("inactive", len(freed))
 	}
+	e.removeAnomalyDedupSourceRefs(freed)
 	fanOutSeriesRemoval(detectors, freed)
 }
 
@@ -861,14 +985,10 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 // Returns true if the anomaly was new, false if it was a duplicate.
 func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly, dataTime int64) bool {
 	e.rawAnomalyMu.Lock()
-	defer e.rawAnomalyMu.Unlock()
-
 	e.totalAnomalyCount++
 
-	if !e.anomalyDeduper.accept(anomalyDedupKeyFor(anomaly), dataTime) {
-		return false
-	}
-	if e.trackAnomalyHistory {
+	result := e.anomalyDeduper.acceptWithEvictions(anomalyDedupKeyFor(anomaly), dataTime)
+	if result.accepted && e.trackAnomalyHistory {
 		if e.uniqueAnomalySources == nil {
 			e.uniqueAnomalySources = make(map[string]bool)
 		}
@@ -878,7 +998,27 @@ func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly, dataTime int64) bool
 		}
 		e.rawAnomalies = append(e.rawAnomalies, anomaly)
 	}
-	return true
+	e.rawAnomalyMu.Unlock()
+
+	e.recordAnomalyDedupEviction(anomalyDedupEvictionReasonAge, result.ageEvicted)
+	e.recordAnomalyDedupEviction(anomalyDedupEvictionReasonCapacity, result.capacityEvicted)
+	return result.accepted
+}
+
+func (e *engine) removeAnomalyDedupSourceRefs(refs []observerdef.SeriesRef) {
+	if len(refs) == 0 {
+		return
+	}
+	e.rawAnomalyMu.Lock()
+	removed := e.anomalyDeduper.removeSourceRefs(refs)
+	e.rawAnomalyMu.Unlock()
+	e.recordAnomalyDedupEviction(anomalyDedupEvictionReasonSeries, removed)
+}
+
+func (e *engine) recordAnomalyDedupEviction(reason string, count int) {
+	if count > 0 && e.onAnomalyDedupEvicted != nil {
+		e.onAnomalyDedupEvicted(reason, count)
+	}
 }
 
 // RawAnomalies returns replay/debug history when anomaly history is enabled.
