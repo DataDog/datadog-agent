@@ -93,6 +93,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Version:                     version.AgentVersion,
 		MetricsClient:               metricsClient,
 		ActionsAllowlist:            makeActionsAllowlist(config),
+		AuthoredScriptsEnabled:      config.GetBool(setup.PARAuthoredScriptsEnabled),
 		Allowlist:                   config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:           config.GetBool(setup.PARHttpAllowImdsEndpoint),
 		RShellAllowedPaths:          rshellAllowedPaths(config),

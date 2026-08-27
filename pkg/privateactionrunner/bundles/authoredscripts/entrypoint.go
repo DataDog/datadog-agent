@@ -6,16 +6,20 @@
 package com_datadoghq_authoredscripts
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
+
+var errAuthoredScriptExecutionNotImplemented = errors.New("authored script execution is not implemented")
 
 type AuthoredScripts struct {
 	runAuthoredScript types.Action
 }
 
-func NewAuthoredScripts() *AuthoredScripts {
+func NewAuthoredScripts(enabled bool) *AuthoredScripts {
 	return &AuthoredScripts{
-		runAuthoredScript: NewRunAuthoredScriptHandler(),
+		runAuthoredScript: NewRunAuthoredScriptHandler(enabled),
 	}
 }
 

@@ -67,6 +67,20 @@ properties:
       When true, a set of default actions are automatically
       allowed without needing to be listed in actions_allowlist.
       Set to false to disable these default actions.
+  authored_scripts:
+    node_type: section
+    type: object
+    visibility: undocumented
+    comment: Internal controls for authored-script development and rollout.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: undocumented
+        env_vars:
+        - DD_INTERNAL_PAR_ENABLE_AUTHORED_SCRIPTS
+        description: Enables the experimental authored-script execution implementation.
   http_timeout_seconds:
     node_type: setting
     type: integer

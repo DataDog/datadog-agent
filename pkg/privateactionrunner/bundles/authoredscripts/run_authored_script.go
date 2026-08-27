@@ -3,27 +3,95 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build !windows
+
 package com_datadoghq_authoredscripts
 
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type RunAuthoredScriptHandler struct {
+	catalog authoredscripts.Catalog
+	enabled bool
 }
 
-func NewRunAuthoredScriptHandler() *RunAuthoredScriptHandler {
-	return &RunAuthoredScriptHandler{}
+func NewRunAuthoredScriptHandler(enabled bool) *RunAuthoredScriptHandler {
+	return &RunAuthoredScriptHandler{
+		catalog: authoredscripts.NewStaticCatalog(),
+		enabled: enabled,
+	}
+}
+
+// RunAuthoredScriptOutputs contains the process result returned by an authored action.
+type RunAuthoredScriptOutputs struct {
+	ExitCode       int    `json:"exitCode"`
+	Stdout         string `json:"stdout"`
+	Stderr         string `json:"stderr"`
+	DurationMillis int    `json:"durationMillis"`
 }
 
 func (h *RunAuthoredScriptHandler) Run(
-	_ context.Context,
-	_ *types.Task,
+	ctx context.Context,
+	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
-) (interface{}, error) {
-	return nil, errors.New("authored script execution is not implemented")
+) (output interface{}, err error) {
+	if h == nil || h.catalog == nil {
+		return nil, errors.New("authored-script handler is not configured")
+	}
+	if !h.enabled {
+		return nil, errAuthoredScriptExecutionNotImplemented
+	}
+	if task == nil || task.Data.Attributes == nil {
+		return nil, errors.New("authored-script task is required")
+	}
+	fqn := task.GetFQN()
+	descriptor, err := h.catalog.Lookup(fqn)
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve authored-script package %q: %w", fqn, err)
+	}
+
+	store, err := authoredscripts.NewUserCacheStore()
+	if err != nil {
+		return nil, err
+	}
+	artifact, err := store.Open(descriptor)
+	if err != nil {
+		return nil, fmt.Errorf("could not open authored-script package %q: %w", fqn, err)
+	}
+	scriptPackage, err := authoredscripts.LoadPackage(fqn, descriptor, artifact)
+	if err != nil {
+		return nil, err
+	}
+	session, err := authoredscripts.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if cleanupErr := session.Cleanup(); cleanupErr != nil {
+			output = nil
+			err = errors.Join(err, cleanupErr)
+		}
+	}()
+	cmd, err := authoredscripts.NewCommand(ctx, scriptPackage, session, task.Data.Attributes.Inputs)
+	if err != nil {
+		return nil, err
+	}
+	result, err := authoredscripts.ExecuteCommand(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RunAuthoredScriptOutputs{
+		ExitCode:       result.ExitCode,
+		Stdout:         result.Stdout,
+		Stderr:         result.Stderr,
+		DurationMillis: int(result.Duration.Milliseconds()),
+	}, nil
 }

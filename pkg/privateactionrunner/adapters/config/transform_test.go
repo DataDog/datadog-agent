@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -273,6 +274,34 @@ func TestFromDDConfigMetricsClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFromDDConfigAuthoredScriptsEnabled(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest(setup.PARPrivateKey, "")
+			mockConfig.SetInTest(setup.PARUrn, "")
+			mockConfig.SetInTest(setup.PARAuthoredScriptsEnabled, enabled)
+
+			cfg, err := FromDDConfig(mockConfig, nil)
+
+			require.NoError(t, err)
+			assert.Equal(t, enabled, cfg.AuthoredScriptsEnabled)
+		})
+	}
+}
+
+func TestAuthoredScriptsInternalEnvironmentVariable(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_ENABLE_AUTHORED_SCRIPTS", "true")
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+
+	require.NoError(t, err)
+	assert.True(t, cfg.AuthoredScriptsEnabled)
 }
 
 func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {

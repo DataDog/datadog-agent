@@ -75,7 +75,7 @@ type Registry struct {
 func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, _ kubeactions.Component) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
-			"com.datadoghq.authoredscripts":                      com_datadoghq_authoredscripts.NewAuthoredScripts(),
+			"com.datadoghq.authoredscripts":                      com_datadoghq_authoredscripts.NewAuthoredScripts(configuration.AuthoredScriptsEnabled),
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":                       com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":              com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),

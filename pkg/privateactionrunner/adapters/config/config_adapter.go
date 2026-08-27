@@ -21,6 +21,7 @@ import (
 
 type Config struct {
 	ActionsAllowlist            map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
+	AuthoredScriptsEnabled      bool
 	Allowlist                   []string
 	AllowIMDSEndpoint           bool
 	RShellAllowedPaths          []string

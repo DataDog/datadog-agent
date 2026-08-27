@@ -3,14 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package authoredscripts
+
+import "errors"
+
+// ErrPackageNotConfigured is returned when an authored-script package is not in the catalog.
+var ErrPackageNotConfigured = errors.New("authored-script package is not configured")
 
 // Descriptor identifies an immutable published artifact variant.
 type Descriptor struct {
-	Package string
-	Version string
-	URL     string
-	SHA256  string
+	Package string `json:"package"`
+	Version string `json:"version"`
+	URL     string `json:"url"`
+	SHA256  string `json:"sha256"`
+}
+
+// Catalog finds the authorized artifact for an authored-script key.
+type Catalog interface {
+	Lookup(key string) (Descriptor, error)
 }

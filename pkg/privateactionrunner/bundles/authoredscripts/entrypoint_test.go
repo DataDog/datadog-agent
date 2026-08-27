@@ -6,16 +6,27 @@
 package com_datadoghq_authoredscripts
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAuthoredScriptsGetAction(t *testing.T) {
-	bundle := NewAuthoredScripts()
+	bundle := NewAuthoredScripts(false)
 	handler := bundle.GetAction("addRepo")
 
 	assert.IsType(t, &RunAuthoredScriptHandler{}, handler)
 	assert.Same(t, handler, bundle.GetAction("restartService"))
 	assert.Nil(t, bundle.GetAction(""))
+}
+
+func TestRunAuthoredScriptDisabled(t *testing.T) {
+	bundle := NewAuthoredScripts(false)
+
+	output, err := bundle.GetAction("addRepo").Run(context.Background(), nil, nil)
+
+	require.ErrorIs(t, err, errAuthoredScriptExecutionNotImplemented)
+	assert.Nil(t, output)
 }
