@@ -110,10 +110,19 @@ jobs:
             change should be backported to any of the active release branches listed in
             `active_release_branches`, per the Datadog Agent backport guidelines below.
 
+            You do not have access to the contents of the release branches themselves, and that's
+            fine — fixes always land on `main` first, including for bugs that also affect a release
+            branch, so judge backport need from the nature of the change on `main` (is this a fix
+            for a bug, regression, or issue that plausibly also exists on older release lines?), not
+            by trying to diff against each branch. If a change only touches code added after the
+            oldest active release branch diverged from main, it can't need a backport there — but
+            when in doubt, judge from the diff and description rather than guessing about branch
+            history.
+
             ## Backport guidelines (Agent release process)
             - New features generally do NOT need a backport — they ship in the next minor release.
             - Bug fixes, regressions, security fixes, and CI/build resilience fixes are backport
-              candidates when the same bug is present in a still-supported release branch.
+              candidates when the same bug is plausibly present in a still-supported release branch.
             - Weigh customer impact and risk: a fix that is itself risky, invasive, or touches
               widely-used code paths may not be worth backporting even if it fixes a real bug —
               backports are held to a higher bar than the fix landing on main, since they ship
