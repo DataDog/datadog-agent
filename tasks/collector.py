@@ -206,7 +206,7 @@ def generate(ctx):
             print(f"Downloaded to {binary_path}")
         except Exception as e:
             raise Exit(
-                color_message("Error: Failed to download the binary", Color.RED),
+                color_message(f"Error: Failed to download the binary from {binary_url}: {e}", Color.RED),
                 code=1,
             ) from e
 

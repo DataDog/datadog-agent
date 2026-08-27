@@ -56,7 +56,7 @@ func createGenericConfig(t *testing.T) model.Config {
 	mockConfig.SetInTest("process_config.expvar_port", port)
 	mockConfig.SetInTest("security_agent.expvar_port", port)
 
-	mockConfig.SetInTest("process_config.enabled", false)
+	mockConfig.SetInTest("process_config.enabled", "false")
 	mockConfig.SetInTest("process_config.container_collection.enabled", false)
 	mockConfig.SetInTest("process_config.process_collection.enabled", false)
 	mockConfig.SetInTest("apm_config.enabled", false)
