@@ -13,8 +13,8 @@ genrule(
     srcs = ["system_probe_policy.te"],
     outs = ["system_probe_policy.pp"],
     cmd = """
-        checkmodule -M -m -c 19 -o $@.mod $(location system_probe_policy.te)
-        semodule_package -o $@ -m $@.mod
+        /usr/bin/checkmodule -M -m -c 19 -o $@.mod $(location system_probe_policy.te)
+        /usr/sbin/semodule_package -o $@ -m $@.mod
     """,
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
