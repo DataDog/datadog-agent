@@ -93,8 +93,34 @@ impl RuntimeContext {
 impl RuntimeReceivers {
     pub(in crate::manager) async fn drain_pending_commands(&mut self) {
         let status = Status::unavailable("dd-procmgrd is shutting down");
-        while let Ok(cmd) = self.cmd_rx.try_recv() {
-            cmd.reject(status.clone());
+        reject_pending_commands(&mut self.cmd_rx, &status);
+    }
+
+    pub(in crate::manager) async fn drain_commands_during_grpc_shutdown(
+        &mut self,
+        grpc_handle: &mut JoinHandle<anyhow::Result<()>>,
+    ) {
+        self.drain_pending_commands().await;
+        let status = Status::unavailable("dd-procmgrd is shutting down");
+        loop {
+            tokio::select! {
+                biased;
+                result = &mut *grpc_handle => {
+                    reject_pending_commands(&mut self.cmd_rx, &status);
+                    match result {
+                        Ok(Err(e)) => warn!("gRPC server error: {e}"),
+                        Err(e) => warn!("gRPC server task panicked: {e}"),
+                        Ok(Ok(())) => {}
+                    }
+                    return;
+                }
+                cmd = self.cmd_rx.recv() => {
+                    match cmd {
+                        Some(cmd) => cmd.reject(status.clone()),
+                        None => return,
+                    }
+                }
+            }
         }
     }
 
@@ -163,6 +189,12 @@ impl RuntimeReceivers {
     const EXIT_DRAIN_IDLE: std::time::Duration = std::time::Duration::from_millis(100);
 }
 
+fn reject_pending_commands(cmd_rx: &mut mpsc::Receiver<Command>, status: &Status) {
+    while let Ok(cmd) = cmd_rx.try_recv() {
+        cmd.reject(status.clone());
+    }
+}
+
 #[cfg(all(test, unix))]
 pub(crate) fn spawn_command_loop_for_tests(
     manager: ProcessManager,
@@ -227,6 +259,42 @@ mod tests {
             .await
             .expect("reply channel should receive rejection")
             .expect_err("queued command should be rejected during shutdown");
+        assert_eq!(err.code(), tonic::Code::Unavailable);
+    }
+
+    #[tokio::test]
+    async fn drain_commands_during_grpc_shutdown_rejects_late_commands() {
+        use crate::command::Command;
+        use tokio::sync::oneshot;
+
+        let (cmd_tx, cmd_rx) = mpsc::channel(64);
+        let lifecycle = Lifecycle::new();
+        lifecycle.begin_stopping();
+        let (_ctx, mut rx) = RuntimeContext::with_cmd(lifecycle, cmd_tx.clone(), cmd_rx);
+
+        let mut grpc_handle = tokio::spawn(async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let (reply_tx, reply_rx) = oneshot::channel();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            let _ = cmd_tx
+                .send(Command::Start {
+                    name_or_uuid: "svc".to_string(),
+                    reply: reply_tx,
+                })
+                .await;
+        });
+
+        rx.drain_commands_during_grpc_shutdown(&mut grpc_handle)
+            .await;
+
+        let err = reply_rx
+            .await
+            .expect("reply channel should receive rejection")
+            .expect_err("late command should be rejected while gRPC shuts down");
         assert_eq!(err.code(), tonic::Code::Unavailable);
     }
 
