@@ -18,7 +18,13 @@
     - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
     # 63 is the k8s label value cap. Only the base is trimmed: suffixes identify distinct images.
     - |
-      tag_budget=$(( 63 - 5 - ${#CI_COMMIT_SHORT_SHA} - ${#RELEASE_TAG_SUFFIX} - ${#RELEASE_TAG_COMPRESSION_SUFFIX} ))
+      # tag_overhead must stay in sync with the per-bucket RELEASE_TAG shapes assigned below
+      case "$BUCKET_BRANCH" in
+        dev) tag_overhead=$(( 5 + ${#CI_COMMIT_SHORT_SHA} )) ;;
+        nightly) tag_overhead=$(( 1 + ${#CI_COMMIT_SHORT_SHA} )) ;;
+        *) tag_overhead=0 ;;
+      esac
+      tag_budget=$(( 63 - tag_overhead - ${#RELEASE_TAG_SUFFIX} - ${#RELEASE_TAG_COMPRESSION_SUFFIX} ))
       if [ "${#BASE_RELEASE_TAG}" -gt "${tag_budget}" ]; then
         BASE_RELEASE_TAG=$(printf '%s' "${BASE_RELEASE_TAG}" | cut -c"1-${tag_budget}" | sed 's/[-._]*$//')
         echo "branch name is too long for a 63 character image tag, trimmed base to '${BASE_RELEASE_TAG}'"
