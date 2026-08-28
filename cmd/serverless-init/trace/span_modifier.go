@@ -6,7 +6,6 @@
 package trace
 
 import (
-	"encoding/binary"
 	"fmt"
 	"sync"
 
@@ -90,7 +89,7 @@ func (m *CloudRunJobsSpanModifier) ModifySpanV1(chunk *idx.InternalTraceChunk, s
 	}
 
 	traceIDLow := chunk.LegacyTraceID()
-	traceIDHigh := binary.BigEndian.Uint64(chunk.TraceID[:8])
+	traceIDHigh := chunk.TraceIDHigh()
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
