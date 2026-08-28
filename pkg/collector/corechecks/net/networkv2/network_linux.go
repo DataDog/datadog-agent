@@ -870,7 +870,7 @@ type conntrackStat struct {
 	ChainTooLong  float64
 }
 
-func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) []*conntrackStat {
+func addConntrackStatsMetrics(conntrackPath string, useSudoConntrack bool) []*conntrackStat {
 	if conntrackPath == "" {
 		return nil
 	}
@@ -1011,14 +1011,14 @@ func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) 
 			stats = append(stats, stat)
 		}
 
-		lineNum += 1
+		lineNum++
 	}
 
 	return stats, nil
 }
 
 func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
-	stats := addConntrackStatsMetrics(sender, conntrackPath, useSudo)
+	stats := addConntrackStatsMetrics(conntrackPath, useSudo)
 	procStats, err := addConntrackStatsFromProcFile(procfsPath)
 	if err != nil {
 		log.Debugf("Unable to acquire conntrack stats from procfile: %v", err)

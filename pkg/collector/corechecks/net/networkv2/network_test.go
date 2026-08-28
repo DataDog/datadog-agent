@@ -1232,8 +1232,8 @@ ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
 TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342
 `, nil
 	}
-	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
-	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
+	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 drop=1 early_drop=0 search_restart=39936711
+	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 drop=1 early_drop=0 search_restart=36983181`, nil
 }
 
 func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
@@ -2186,17 +2186,24 @@ conntrack_path: "/usr/bin/conntrack"
 
 	filesystem = afero.NewMemMapFs()
 	fs := filesystem
-	err := afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_insert", []byte(
+	err := afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_ignore_this", []byte(
 		`13`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_count", []byte(
+		`42`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_max", []byte(
+		`42`),
 		0644)
 	assert.Nil(t, err)
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	expectedTags := []string{"cpu:0"}
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.conntrack.count", float64(42), "", expectedTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.conntrack.max", float64(42), "", expectedTags)
-	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.count", float64(42), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.max", float64(42), "", []string{})
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestConntrackPathAllowlist(t *testing.T) {
