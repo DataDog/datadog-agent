@@ -644,8 +644,10 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 // kube_endpoint_address_not_ready metrics were removed and replaced by
 // kube_endpoint_address with a "ready" label ("true" or "false").
 // As of v2.14 KSM only emits a row for addresses that exist in that ready
-// state, so a healthy endpoint has no ready="false" sample at all. Emit the
-// other metric as 0 so both series still report instead of going sparse.
+// state, so a healthy endpoint has no ready="false" sample and a fully
+// unready endpoint has no ready="true" sample. Emit the other metric as 0
+// so both address_available and address_not_ready still report instead of
+// going sparse.
 func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	ready, found := metric.Labels["ready"]
 	if !found {

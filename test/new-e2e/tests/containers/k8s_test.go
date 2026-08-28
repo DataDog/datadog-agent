@@ -1158,7 +1158,8 @@ func (suite *k8sSuite) TestCPU() {
 func (suite *k8sSuite) TestKSM() {
 	// After KSM v2.14, kube_endpoint_address is emitted only for addresses that
 	// exist in that ready state. The transformer must still submit the opposite
-	// series as 0 so healthy endpoints keep reporting address_not_ready=0.
+	// series as 0 so both address_available and address_not_ready keep reporting
+	// (this healthy nginx endpoint should include address_not_ready=0).
 	suite.testKSMEndpointAddressZeros("workload-nginx", "nginx")
 
 	// Test VPA metrics for nginx
