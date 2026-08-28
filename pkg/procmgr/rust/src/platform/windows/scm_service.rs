@@ -24,7 +24,7 @@ use windows_sys::Win32::System::Services::{
 
 use crate::config::YamlConfigLoader;
 use crate::manager::ProcessManager;
-use crate::manager::deferred_cleanup::join_deferred_spawn_tasks;
+use crate::manager::join_deferred_spawn_tasks;
 use crate::shutdown::ShutdownBudget;
 use crate::uuid_gen::V4UuidGenerator;
 
