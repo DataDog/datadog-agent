@@ -240,6 +240,27 @@ def bazel(
     return completed.stdout if capture_output else ""
 
 
+def build_binary_with_bazel(target: str, bin_path: str = None) -> None:
+    """Build a Bazel target and copy its output to bin_path.
+
+    Args:
+        target: Bazel target
+        bin_path: directory to copy the binary to. None for no copy.
+    """
+    bazel("build", target)
+    # We need cquery to find the output path that has the configuration hash in it.
+    output = bazel("cquery", "--output=files", target, capture_output=True).strip()
+    outputs = [line for line in output.splitlines() if line]
+    if len(outputs) != 1:
+        raise SystemExit(f"Expected exactly one output file for Bazel target {target!r}, got: {outputs!r}")
+    src = os.path.join(get_repo_root(), outputs[0])
+
+    if bin_path:
+        os.makedirs(os.path.dirname(bin_path), exist_ok=True)
+        shutil.copy2(src, bin_path)
+        os.chmod(bin_path, 0o755)
+
+
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
     omnibus build environment variables.
@@ -260,31 +281,3 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     # insert flags right after the bazel command, preserving startup options before it and subcommand arguments after it
     index = next((i for i, a in enumerate(args, 1) if not a.startswith("-")), len(args))
     return (*args[:index], *flags, *args[index:])
-
-
-def build_go_binary_with_bazel(target: str, bin_path: str) -> None:
-    """Build a ``go_binary``/``dd_agent_go_binary`` Bazel target and copy its output to ``bin_path``.
-
-    This is the "opt-in" counterpart to ``go_build()`` for invoke tasks that grew an
-    ``--enable_bazel`` flag: it runs ``bazel build <target>`` and copies the resulting
-    binary from ``bazel-bin`` to wherever the legacy ``go_build()`` path would have put it,
-    so the rest of the invoke task (asset staging, etc.) doesn't need to know which path built it.
-    """
-    label = split_label(target)
-    if label.name is None:
-        raise ValueError(f"Bazel target {target!r} must include a target name (e.g. //cmd/foo:foo)")
-
-    bazel("build", target)
-
-    # Don't derive the output path from `bazel info bazel-bin` + the target's package/name:
-    # some targets go through a Starlark transition (e.g. because one of their dependencies
-    # does), which puts their outputs under a `bazel-out/<cpu>-<mode>-ST-<hash>/...` directory
-    # that differs from the top-level `bazel-bin` convenience path. `cquery --output=files`
-    # reports the actual output path for the target as it was just built.
-    output = bazel("cquery", "--output=files", target, capture_output=True).strip().splitlines()[-1]
-    execution_root = bazel("info", "execution_root", capture_output=True).strip()
-    src = os.path.join(execution_root, output)
-
-    os.makedirs(os.path.dirname(bin_path), exist_ok=True)
-    shutil.copy2(src, bin_path)
-    os.chmod(bin_path, 0o755)

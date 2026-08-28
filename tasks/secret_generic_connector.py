@@ -10,7 +10,7 @@ from invoke import task
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import build_go_binary_with_bazel
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING, REPO_PATH
 from tasks.libs.common.go import go_build
@@ -54,7 +54,7 @@ def build(
                 "orange",
             )
         )
-        build_go_binary_with_bazel("//cmd/secret-generic-connector:secret-generic-connector", BIN_PATH)
+        build_binary_with_bazel("//cmd/secret-generic-connector:secret-generic-connector", BIN_PATH)
         return
 
     version = get_version(ctx, include_git=True)
