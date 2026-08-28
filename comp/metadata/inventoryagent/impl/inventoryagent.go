@@ -88,10 +88,10 @@ type inventoryagent struct {
 	data         agentMetadata
 	hostname     string
 	client       ipc.HTTPClient
-	// crossProcessEnrichment gates the refreshMetadata() tier (fetching config
-	// from the other agent processes). Defaults to true (full-agent behavior);
-	// an embedder can turn it off via Capabilities.
-	crossProcessEnrichment bool
+	// skipCrossProcessEnrichment turns off the refreshMetadata() tier (fetching
+	// config from the other agent processes). Zero value false is full-agent
+	// behavior (enrichment on); an embedder can turn it on via Capabilities.
+	skipCrossProcessEnrichment bool
 	// payloadUUID overrides the payload uuid. Empty means use the host GUID.
 	payloadUUID string
 }
@@ -133,14 +133,11 @@ func NewComponent(deps Requires) Provides {
 		hostname:     hname,
 		data:         make(agentMetadata),
 		client:       deps.IPCClient,
-		// Full-agent default: run the cross-process enrichment tier. An embedder
-		// can turn it off below via Capabilities.
-		crossProcessEnrichment: true,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if deps.Capabilities != nil {
-		ia.crossProcessEnrichment = deps.Capabilities.CrossProcessEnrichment
+		ia.skipCrossProcessEnrichment = deps.Capabilities.SkipCrossProcessEnrichment
 		ia.payloadUUID = deps.Capabilities.PayloadUUID
 	}
 
@@ -551,7 +548,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
 
-	if ia.crossProcessEnrichment {
+	if !ia.skipCrossProcessEnrichment {
 		ia.refreshMetadata()
 	}
 
