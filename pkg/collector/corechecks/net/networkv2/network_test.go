@@ -2201,8 +2201,8 @@ conntrack_path: "/usr/bin/conntrack"
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.count", float64(42), "", nil)
-	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.max", float64(42), "", nil)
+	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.count", float64(42), "", []string(nil))
+	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.max", float64(42), "", []string(nil))
 	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
 }
 
