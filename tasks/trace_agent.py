@@ -8,7 +8,7 @@ from tasks.build_tags import (
 )
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
-from tasks.libs.build.bazel import build_go_binary_with_bazel
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.schema.generate import schema_codegen
@@ -48,7 +48,7 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --install-path.")
 
         agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
-        build_go_binary_with_bazel(BAZEL_TARGET, agent_bin)
+        build_binary_with_bazel(BAZEL_TARGET, agent_bin)
         return
 
     # TODO: remove once Bazel is used to build the Agent
