@@ -363,6 +363,9 @@ def dict_to_gotype(inp):
         return f"[]{dict_to_gotype(inp.get('items'))}"
     elif inp.get('type') == 'object':
         return f"map[string]{dict_to_gotype(inp.get('additionalProperties'))}"
+    # No 'type', for instance a 'oneOf' of several types: the setting holds
+    # whatever the config layer decoded.
+    return 'interface{}'
 
 
 def to_vartype(node, setting_default):

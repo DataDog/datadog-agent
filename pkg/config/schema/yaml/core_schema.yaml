@@ -8509,8 +8509,21 @@ properties:
     node_type: setting
     type: array
     default: []
+    env_parser: json_list_or_space_separated
     items:
-      type: string
+      oneOf:
+      - type: string
+      - type: object
+        required:
+        - metric_name
+        additionalProperties: false
+        properties:
+          metric_name:
+            type: string
+          except:
+            type: array
+            items:
+              type: string
     tags:
     - full-agent-only:true
     comment: |-
@@ -8519,6 +8532,22 @@ properties:
       name starts with `foo.bar.` (including `foo.bar.` itself), while `foo.bar`
       only drops that exact name. A `*` anywhere else in an entry is matched
       literally, and a metric name ending with a literal `*` cannot be expressed.
+
+      An entry can also be written as an object to attach exceptions to it, which
+      is only useful for a prefix:
+
+        metric_filterlist:
+          - redis.*                     # drop everything under redis.
+          - metric_name: postgresql.*   # drop everything under postgresql.
+            except:                     # except these, which are kept
+              - postgresql.connections
+              - postgresql.locks.*
+
+      Exceptions belong to the entry that declares them: a metric excepted by one
+      entry is still dropped if another entry of the list matches it.
+
+      The DD_METRIC_FILTERLIST environment variable only takes plain metric
+      names, as a space-separated or JSON list; exceptions need the config file.
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
@@ -9375,7 +9404,8 @@ properties:
     - full-agent-only:true
     comment: |-
       Deprecated: use metric_filterlist, which takes precedence when set.
-      Entries support the same per-entry `*` prefix suffix as metric_filterlist.
+      Entries support the same per-entry `*` prefix suffix as metric_filterlist,
+      but not its per-entry exceptions: those need metric_filterlist.
   statsd_metric_blocklist_match_prefix:
     node_type: setting
     type: boolean

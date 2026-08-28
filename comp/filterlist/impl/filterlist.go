@@ -37,7 +37,7 @@ type Provides struct {
 }
 
 type localFilterListConfig struct {
-	metricNames   []string
+	metricRules   []utilstrings.Rule
 	matchPrefix   bool
 	tagFilterList []MetricTagListEntry
 }
@@ -71,10 +71,10 @@ type FilterList struct {
 // the packages that use FilterList.
 func NewFilterList(log log.Component, config config.Component, telemetryComp telemetry.Component) *FilterList {
 	// init the metric names filterlist
-	filterlist := config.GetStringSlice("metric_filterlist")
+	filterlist := loadMetricFilterList(config, log, "metric_filterlist")
 	filterlistPrefix := config.GetBool("metric_filterlist_match_prefix")
 	if len(filterlist) == 0 {
-		filterlist = config.GetStringSlice("statsd_metric_blocklist")
+		filterlist = loadMetricFilterList(config, log, "statsd_metric_blocklist")
 		filterlistPrefix = config.GetBool("statsd_metric_blocklist_match_prefix")
 	}
 
@@ -87,7 +87,7 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 	}
 
 	localFilterListConfig := localFilterListConfig{
-		metricNames:   filterlist,
+		metricRules:   filterlist,
 		matchPrefix:   filterlistPrefix,
 		tagFilterList: tagFilterListEntries,
 	}
@@ -118,7 +118,7 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 	compiledTag := loadTagFilterList(localFilterListConfig.tagFilterList, log)
 	fl.setTagFilterList(compiledTag)
 
-	fl.SetMetricFilterList(localFilterListConfig.metricNames, localFilterListConfig.matchPrefix)
+	fl.SetMetricFilterRules(localFilterListConfig.metricRules, localFilterListConfig.matchPrefix)
 
 	return fl
 }
@@ -196,9 +196,11 @@ func (fl *FilterList) GetHistoFilterList() utilstrings.Matcher {
 	return fl.histoFilterList
 }
 
-// create a list based on all `metricNames` but only containing entries that can
-// match a metric name with a histogram aggregate suffix.
-func (fl *FilterList) createHistogramsFilterList(metricNames []string, matchPrefix bool) []string {
+// create a list based on all `metricRules` but only containing the rules that
+// can match a metric name with a histogram aggregate suffix. A kept rule keeps
+// its exceptions, so that a name excepted before aggregation is still excepted
+// after it.
+func (fl *FilterList) createHistogramsFilterList(metricRules []utilstrings.Rule, matchPrefix bool) []utilstrings.Rule {
 	aggrs := fl.config.GetStringSlice("histogram_aggregates")
 
 	percentiles := metrics.ParsePercentiles(fl.config.GetStringSlice("histogram_percentiles"))
@@ -207,12 +209,14 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string, matchPref
 		percentileAggrs[i] = fmt.Sprintf("%dpercentile", percentile)
 	}
 
-	var histoMetricNames []string
-	for _, metricName := range metricNames {
+	var histoMetricRules []utilstrings.Rule
+	for _, rule := range metricRules {
+		metricName := rule.Pattern
+
 		// A prefix entry can match any name starting with it, including the
 		// aggregates derived from a histogram, so it always has to be kept.
 		if matchPrefix || strings.HasSuffix(metricName, utilstrings.PrefixSuffix) {
-			histoMetricNames = append(histoMetricNames, metricName)
+			histoMetricRules = append(histoMetricRules, rule)
 			continue
 		}
 
@@ -220,19 +224,19 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string, matchPref
 		if slices.ContainsFunc(aggrs, func(aggr string) bool {
 			return strings.HasSuffix(metricName, "."+aggr)
 		}) {
-			histoMetricNames = append(histoMetricNames, metricName)
+			histoMetricRules = append(histoMetricRules, rule)
 			continue
 		}
 		// metric names ending with a percentile
 		if slices.ContainsFunc(percentileAggrs, func(percentileAggr string) bool {
 			return strings.HasSuffix(metricName, "."+percentileAggr)
 		}) {
-			histoMetricNames = append(histoMetricNames, metricName)
+			histoMetricRules = append(histoMetricRules, rule)
 		}
 	}
 
-	fl.log.Debugf("SetMetricFilterList created a histograms subset of %d metric names", len(histoMetricNames))
-	return histoMetricNames
+	fl.log.Debugf("SetMetricFilterList created a histograms subset of %d metric names", len(histoMetricRules))
+	return histoMetricRules
 }
 
 // SetTagFilterList takes a map of metric names to tag configuration, hashes the
@@ -262,28 +266,52 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 // SetMetricFilterList updates the metric names filter on all running worker.
 // A metric name ending with `*` is a prefix, matching every name starting with
 // the rest of the entry. `matchPrefix` turns every entry into a prefix.
+//
+// Use `SetMetricFilterRules` for entries carrying exceptions.
 func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool) {
-	fl.log.Debugf("SetMetricFilterList with %d metrics", len(metricNames))
+	rules := make([]utilstrings.Rule, 0, len(metricNames))
+	for _, name := range metricNames {
+		rules = append(rules, utilstrings.Rule{Pattern: name})
+	}
+	fl.SetMetricFilterRules(rules, matchPrefix)
+}
 
-	// A lone `*`, or any empty entry in prefix mode, is a prefix matching every
-	// metric name: worth a warning since it silently drops all metrics.
-	if slices.ContainsFunc(metricNames, func(name string) bool {
-		return name == utilstrings.PrefixSuffix || (matchPrefix && name == "")
-	}) {
-		fl.log.Warn("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
+// SetMetricFilterRules updates the metric names filter on all running worker.
+// Each rule is a metric name, matched as a prefix when it ends with `*` or when
+// `matchPrefix` is set, plus the exceptions that are kept even though the name
+// matches that rule.
+func (fl *FilterList) SetMetricFilterRules(metricRules []utilstrings.Rule, matchPrefix bool) {
+	fl.log.Debugf("SetMetricFilterList with %d metrics", len(metricRules))
+
+	for _, rule := range metricRules {
+		isPrefix := matchPrefix || strings.HasSuffix(rule.Pattern, utilstrings.PrefixSuffix)
+
+		// A lone `*`, or any empty entry in prefix mode, is a prefix matching
+		// every metric name: worth a warning since it silently drops all
+		// metrics. With exceptions it is an allow-list, which is intentional.
+		if isPrefix && len(rule.Except) == 0 &&
+			(rule.Pattern == utilstrings.PrefixSuffix || rule.Pattern == "") {
+			fl.log.Warn("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
+		}
+
+		// Exceptions narrow a prefix. On an exact name they can only cancel the
+		// entry outright, which is never what a filterlist means to express.
+		if !isPrefix && len(rule.Except) > 0 {
+			fl.log.Warnf("the metric filterlist entry %q is an exact metric name, not a `*` prefix: its exceptions have no effect", rule.Pattern)
+		}
 	}
 
 	// we will use two different filterlists:
-	// - one with all the metrics names, with all values from `metricNames`
+	// - one with all the metrics names, with all values from `metricRules`
 	// - one with only the metric names ending with histogram aggregates suffixes
 
 	// only histogram metric names (including their aggregates suffixes)
-	histoMetricNames := fl.createHistogramsFilterList(metricNames, matchPrefix)
-	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
-	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+	histoMetricRules := fl.createHistogramsFilterList(metricRules, matchPrefix)
+	filterList := utilstrings.NewRuleMatcher(metricRules, matchPrefix)
+	histoFilterList := utilstrings.NewRuleMatcher(histoMetricRules, matchPrefix)
 
-	// Report the compiled size: with prefix matching, NewMatcher compacts
-	// redundant sub-prefixes, so len(metricNames) can overcount.
+	// Report the compiled size: with prefix matching, NewRuleMatcher compacts
+	// redundant sub-prefixes, so len(metricRules) can overcount.
 	fl.tlmMetricFilterListUpdates.Inc()
 	fl.tlmMetricFilterListSize.Set(float64(filterList.Len()))
 
@@ -303,8 +331,8 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 func (fl *FilterList) restoreMetricFilterListFromLocalConfig() {
 	fl.log.Debug("Restoring metric filterlist with local config.")
 
-	fl.SetMetricFilterList(
-		fl.localFilterListConfig.metricNames,
+	fl.SetMetricFilterRules(
+		fl.localFilterListConfig.metricRules,
 		fl.localFilterListConfig.matchPrefix,
 	)
 }

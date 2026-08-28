@@ -1,5 +1,6 @@
 # Mixed metric_filterlist scaling experiment -- tier: 10k entries
-# (5,000 prefix `<name>*` entries + 5,000 exact entries).
+# (5,000 prefix `<name>*` entries, each with 8 exceptions, + 5,000
+# exact entries).
 #
 # GENERATED, then copied. Source of truth is the smp-playground harness at
 # experiments/regression/agent/metric_filterlist_scaling, via
@@ -14,24 +15,29 @@
 # whose bounds have not been established, so they deliberately carry no
 # `checks:` block.
 #
-# WHAT IT MEASURES: the cost of a metric_filterlist that is HALF PREFIX RULES.
-# This branch gave `pkg/util/strings.Matcher` a second arm -- `prefixes`,
-# scanned by testPrefixes + strings.HasPrefix -- alongside the sorted `exact`
-# arm. A hit pays for one arm; a miss pays for both. Read the three tiers
-# against EACH OTHER: 10k vs 50k vs 100k differ only in rule count, because
-# lading/lading.yaml is byte-identical across them.
+# WHAT IT MEASURES: the cost of a metric_filterlist that is HALF PREFIX RULES,
+# every one of them carrying EXCEPTIONS. This branch gave
+# `pkg/util/strings.Matcher` two arms beyond the sorted `exact` one:
+# `prefixes` (unconditional, testPrefixes + strings.HasPrefix) and `guarded`
+# (prefixes with exceptions, searched the same way then checked against that
+# entry's own exception matcher). Since every prefix entry here has exceptions,
+# `prefixes` is empty and the prefix half is entirely `guarded` -- the worst
+# layout for the feature. Read the three tiers against EACH OTHER: 10k vs 50k
+# vs 100k differ only in rule count, because lading/lading.yaml is
+# byte-identical across them.
 #
 # NOTE ON THE BASELINE SIDE: the Regression Detector compares this commit's
-# image against the merge base of the base branch, which has no prefix support
-# and reads every `foo.bar.*` entry as a literal metric name. The baseline
-# therefore filters only the exact half and does strictly less work, so a
-# comparison-vs-baseline delta on these cases is "feature off vs on" rather
-# than a like-for-like regression.
+# image against the merge base of the base branch, which has neither prefix nor
+# exception support and cannot even parse the object form of an entry. The
+# baseline therefore filters only the exact half and does strictly less work,
+# so a comparison-vs-baseline delta on these cases is "feature off vs on"
+# rather than a like-for-like regression.
 #
 # lading drives the two arms separately, 60 MiB/s total:
 #
 #   background  48 MiB/s  random names, evaluated then forwarded
-#   prefix_hit   4 MiB/s  ...bench.prefix.<idx><pad>.hit -> prefix arm, dropped
+#   prefix_hit   4 MiB/s  ...bench.prefix.<idx><pad>.hit -> guarded arm, dropped
+#                          (pays a full exception-matcher miss on every hit)
 #   exact_hit    4 MiB/s  ...bench.exact.<idx><pad>      -> exact arm, dropped
 #   miss         4 MiB/s  ...bench.nomatch.<idx><pad>    -> both arms, forwarded
 #
@@ -46,6 +52,12 @@ erratic: false
 
 target:
   name: datadog-agent
+  # NOTE: exceptions add ~2 MiB (10k) to ~21 MiB (100k) of config file that the
+  # Agent parses at startup and holds in the config layer, on top of the
+  # per-entry exception matchers. With optimization_goal: memory that lands in
+  # the signal, so a tier-over-tier memory delta is matcher cost AND config
+  # cost, not matcher cost alone.
+  #
   # Inherited from the smp-playground sweep, where 8192 MiB was reached by
   # three successive increases after replicates crashed at 200 MiB/s of
   # DogStatsD traffic. This sweep offers 60 MiB/s, where local measurement of
