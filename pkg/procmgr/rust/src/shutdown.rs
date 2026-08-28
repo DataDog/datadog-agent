@@ -95,12 +95,23 @@ pub(crate) async fn wait_graceful_or_shutdown<T, F: std::future::Future<Output =
 ) -> Result<T, tokio::time::error::Elapsed> {
     #[cfg(windows)]
     {
+        let notified = crate::platform::shutdown_notify().notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+        let budget = if crate::platform::shutdown_requested() {
+            ShutdownBudget::remaining_service_stop_cap(graceful_budget).unwrap_or(graceful_budget)
+        } else {
+            graceful_budget
+        };
+        if budget.is_zero() {
+            return tokio::time::timeout(Duration::ZERO, std::future::pending::<T>()).await;
+        }
         tokio::select! {
             biased;
-            _ = crate::platform::wait_for_shutdown() => {
+            _ = notified => {
                 tokio::time::timeout(Duration::ZERO, std::future::pending::<T>()).await
             }
-            result = tokio::time::timeout(graceful_budget, fut) => result,
+            result = tokio::time::timeout(budget, fut) => result,
         }
     }
     #[cfg(not(windows))]
