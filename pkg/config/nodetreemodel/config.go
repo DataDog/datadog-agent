@@ -237,9 +237,9 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
-			log.Errorf("set value for unknown key '%s'", key)
+			_ = log.ErrorfStackDepth(2, "set value for unknown key '%s'", key)
 		} else {
-			log.Errorf("could not set '%s' unknown key", key)
+			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
 			c.Unlock()
 			return
 		}
@@ -258,9 +258,9 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 				typePair := fmt.Sprintf("%T->%T", newValue, converted)
 				isIntWidthConversion := typePair == "int64->int" || typePair == "int->int64"
 				if isIntWidthConversion && c.setTypeWarnings[typePair] {
-					log.Debugf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					log.DebugfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
 				} else {
-					log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					log.WarnfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
 					if isIntWidthConversion {
 						c.setTypeWarnings[typePair] = true
 					}
@@ -278,7 +278,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
-		log.Errorf("could not insert value: %s", err)
+		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
 		c.Unlock()
 		return
 	} else if newTree != nil {
@@ -909,6 +909,9 @@ func (c *ntmConfig) nodeAtPathFromNode(key string, curr *nodeImpl) *nodeImpl {
 
 // GetNode returns a *nodeImpl for the given key
 func (c *ntmConfig) GetNode(key string) (Node, error) {
+	c.RLock()
+	defer c.RUnlock()
+
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
 	}

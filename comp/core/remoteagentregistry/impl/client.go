@@ -46,8 +46,8 @@ type remoteAgentClient struct {
 	remoteagentregistry.RegisteredAgent
 
 	// health tracking
-	unhealthy       bool  // marks agent for removal during next cleanup cycle
-	unhealthyReason error // stores the reason the agent was marked unhealthy (for logging)
+	unhealthyReason error      // non-nil marks agent for removal during next cleanup cycle
+	unhealthyMu     sync.Mutex // guards unhealthyReason
 
 	// gRPC relative
 	pb.FlareProviderClient
@@ -243,13 +243,17 @@ func callAgentsForService[PbType any, StructuredType any](
 
 	wg.Add(agentsLen)
 	for _, remoteAgent := range filteredAgents {
+		// Snapshot the RegisteredAgent value under the lock so the goroutines
+		// don't race with RefreshRemoteAgent writing LastSeen. The gRPC
+		// client methods on remoteAgent use the conn, not RegisteredAgent.
+		registeredAgent := remoteAgent.RegisteredAgent
 		go func() {
 			start := time.Now()
 			defer func() {
 				wg.Done()
 				registry.telemetryStore.remoteAgentActionDuration.Observe(
 					time.Since(start).Seconds(),
-					remoteAgent.RegisteredAgent.SanitizedDisplayName,
+					registeredAgent.SanitizedDisplayName,
 					service,
 				)
 			}()
@@ -259,23 +263,24 @@ func callAgentsForService[PbType any, StructuredType any](
 			resp, err := grpcCall(ctx, remoteAgent, grpc.WaitForReady(true), grpc.Header(&responseHeader))
 
 			if err != nil {
-				registry.telemetryStore.remoteAgentActionError.Inc(remoteAgent.RegisteredAgent.SanitizedDisplayName, service, grpcErrorMessage(err))
+				registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, grpcErrorMessage(err))
 			} else {
 				// Validate session ID if no error occurred
 				if validationErr := remoteAgent.validateSessionID(responseHeader); validationErr != nil {
 					// wrap error in gRPC status
 					err = validationErr
-					registry.telemetryStore.remoteAgentActionError.Inc(remoteAgent.RegisteredAgent.SanitizedDisplayName, service, sessionIDMismatch)
+					registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, sessionIDMismatch)
 
 					// Mark agent as unhealthy for removal during next cleanup cycle
-					remoteAgent.unhealthy = true
+					remoteAgent.unhealthyMu.Lock()
 					remoteAgent.unhealthyReason = validationErr
+					remoteAgent.unhealthyMu.Unlock()
 				}
 			}
 
 			// Append the result to the result slice
 			resultLock.Lock()
-			resultSlice = append(resultSlice, resultProcessor(remoteAgent.RegisteredAgent, resp, err))
+			resultSlice = append(resultSlice, resultProcessor(registeredAgent, resp, err))
 			resultLock.Unlock()
 		}()
 	}

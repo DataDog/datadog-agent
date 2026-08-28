@@ -149,7 +149,8 @@ func (c *Credentials) Equals(o *Credentials) bool {
 }
 
 // SetSpanContext attaches the captured APM correlation span context to the
-// process. Used by AddForkEntry to persist the parent's span across fork.
+// process. Used by ResolveSpanContext to persist the span a fork or an exec
+// captured onto the process it created.
 // Carries SpanID, TraceID, ExtraAttrsID and any extra Attributes.
 func (p *Process) SetSpanContext(sc SpanContext) {
 	p.Tracer.Trace = sc
@@ -412,6 +413,9 @@ func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event, _ *Process
 // ResolveSyscallCtxArgs resolves syscall context
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgs(_ *Event, _ *SyscallContext) {}
 
+// ResolveSpanContext resolves the span context of the event
+func (dfh *FakeFieldHandlers) ResolveSpanContext(ev *Event) *SpanContext { return &ev.SpanContext }
+
 // SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32
 
@@ -431,4 +435,5 @@ type ExtraFieldHandlers interface {
 	ResolveK8SUserSessionContext(event *Event, evtCtx *K8SSessionContext)
 	ResolveAWSSecurityCredentials(event *Event, process *Process) []AWSSecurityCredentials
 	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
+	ResolveSpanContext(ev *Event) *SpanContext
 }

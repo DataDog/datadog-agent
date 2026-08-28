@@ -204,7 +204,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -236,7 +236,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -279,7 +279,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -311,7 +311,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -341,7 +341,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
@@ -377,7 +377,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
@@ -422,7 +422,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		protectedNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
@@ -433,7 +433,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		expiredNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
@@ -485,7 +485,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/multi-tag",
 				},
@@ -544,7 +544,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		node1 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node1",
 				},
@@ -555,7 +555,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		node2 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node2",
 				},
@@ -578,4 +578,50 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, 2, evicted, "Expected 2 nodes to be evicted")
 		assert.Empty(t, tree.ProcessNodes, "Expected all process nodes to be removed from tree")
 	})
+}
+
+func TestProcessInfoMatches(t *testing.T) {
+	node := ProcessNode{
+		Process: ProcessInfo{
+			FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+			Argv0:     "curl",
+			Argv:      []string{"-s", "https://example.com"},
+		},
+	}
+
+	same := ProcessInfo{
+		FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+		Argv0:     "curl",
+		Argv:      []string{"-s", "https://example.com"},
+	}
+	assert.True(t, node.MatchesProcessInfo(&same, false, false))
+	assert.True(t, node.MatchesProcessInfo(&same, true, false))
+	assert.True(t, node.Process.Matches(&same, true, false))
+
+	differentPath := same
+	differentPath.FileEvent.PathnameStr = "/usr/bin/wget"
+	assert.False(t, node.MatchesProcessInfo(&differentPath, false, false))
+
+	differentArgs := same
+	differentArgs.Argv = []string{"-v", "https://example.com"}
+	assert.True(t, node.MatchesProcessInfo(&differentArgs, false, false))
+	assert.False(t, node.MatchesProcessInfo(&differentArgs, true, false))
+
+	busybox := ProcessNode{
+		Process: ProcessInfo{
+			FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"},
+			Argv0:     "sh",
+		},
+	}
+	busyboxSame := ProcessInfo{FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"}, Argv0: "sh"}
+	busyboxOther := ProcessInfo{FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"}, Argv0: "ls"}
+	assert.True(t, busybox.MatchesProcessInfo(&busyboxSame, false, false))
+	assert.False(t, busybox.MatchesProcessInfo(&busyboxOther, false, false))
+
+	entry := &model.Process{
+		FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+		Argv0:     "curl",
+		Argv:      []string{"-s", "https://example.com"},
+	}
+	assert.True(t, node.Matches(entry, true, false))
 }

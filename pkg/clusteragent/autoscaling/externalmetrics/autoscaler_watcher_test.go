@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
 	kube_informer "k8s.io/client-go/informers"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 )
 
 const (
@@ -80,13 +82,18 @@ func (f *autoscalerFixture) newAutoscalerWatcher(selector labels.Selector) (*Aut
 	}
 	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
 
+	hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(kubeClient)
+	if err != nil {
+		return nil, nil, nil
+	}
+
 	for _, wpa := range f.wpaLister {
 		f.wpaObjects = append(f.wpaObjects, wpa)
 	}
 	wpaClient := fake.NewSimpleDynamicClient(scheme, f.wpaObjects...)
 	wpaInformer := dynamic_informer.NewDynamicSharedInformerFactory(wpaClient, noResyncPeriodFunc())
 
-	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", selector, kubeClient, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", selector, hpaGVR, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -686,4 +693,17 @@ func TestAutoscalerAutogenLabelSelectorFiltering(t *testing.T) {
 
 	// wpa1 should be excluded — no label match, no datadogmetric@ reference
 	assert.False(t, foundWpa1Ref, "wpa1 should be excluded (no label match and no datadogmetric@ reference)")
+}
+
+// TestNewAutoscalerWatcherDoesNotDiscoverHPA verifies the watcher does not perform live HPA discovery.
+func TestNewAutoscalerWatcherDoesNotDiscoverHPA(t *testing.T) {
+	f := newAutoscalerFixture(t)
+
+	kubeClient := kube_fake.NewSimpleClientset()
+	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
+
+	hpaGVR := schema.GroupVersionResource{Group: "autoscaling", Version: "v2beta1", Resource: "horizontalpodautoscalers"}
+
+	_, err := NewAutoscalerWatcher(0, true, 1, "default", labels.Everything(), hpaGVR, kubeInformer, nil, getIsLeaderFunction(true), &f.store)
+	assert.NoError(t, err)
 }
