@@ -1,7 +1,0 @@
----
-issues:
-  - |
-    GPU Monitoring: 7.83 and previous versions could see longer check run times under
-    specific workloads on A100 GPUs. If GPU metrics are appearing delayed, set
-    ``gpu.disabled_collectors: [nvlink_fields]`` to mitigate the issue. This will be
-    fixed in a future release.
