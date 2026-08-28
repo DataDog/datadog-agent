@@ -130,7 +130,7 @@ var DefaultFieldValues = map[uint32]MockFieldValue{
 	nvml.FI_DEV_MEMORY_TEMP:                                  NewFieldValue(42),
 	nvml.FI_DEV_PCIE_REPLAY_COUNTER:                          NewFieldValue(7),
 	nvml.FI_DEV_PERF_POLICY_THERMAL:                          NewFieldValue(85),
-	nvml.FI_DEV_NVLINK_LINK_COUNT:                            NewFieldValue(2),
+	nvml.FI_DEV_NVLINK_LINK_COUNT:                            NewFieldValue(0),
 	nvml.FI_DEV_C2C_LINK_COUNT:                               NewFieldValue(0),
 	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX:                    NewFieldValue(1000),
 	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX:                    NewFieldValue(2000),
@@ -587,6 +587,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return nvml.FEATURE_DISABLED, nvml.SUCCESS
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
+		},
+		GetNvLinkVersionFunc: func(link int) (uint32, nvml.Return) {
+			if isMIGUnsupported || !opts.nvlinkSupported() || link >= opts.nvlinkLinkCount {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return uint32(opts.nvlinkGeneration), nvml.SUCCESS
 		},
 		GetNvLinkUtilizationCounterFunc: func(_, _ int) (uint64, uint64, nvml.Return) {
 			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {

@@ -23,6 +23,7 @@ profiles:
       - name: health_platform.issues_detected
         preserve_tags:
           - issue_type
+          - severity
   schedule:
     start_after: 30
     iterations: 0
@@ -440,6 +441,11 @@ profiles:
         preserve_tags:
           - owner_kind
           - status
+      - name: instrumentation_controller.resources
+      - name: instrumentation_controller.reconciliations
+        preserve_tags:
+          - section
+          - status
       - name: workloadmeta.stored_entities
         preserve_tags:
           - kind
@@ -567,15 +573,15 @@ profiles:
           - finding
       - name: data_plane.preflight_mode_duration_seconds
   schedule:
-    # Preflight mode runs once at startup for preflightModeDuration (90s, see
+    # Preflight mode runs once at startup, for at least minPreflightModeDuration (90s, see
     # comp/dataplane/preflightmode/impl), so the first flush is delayed past that window;
     # otherwise it would report an empty run.
     #
-    # The schedule stays recurring (iterations: 0) so that raising that window cannot strand
-    # the outcome: a flush landing mid-run finds nothing, and with iterations: 1 there would be
-    # no later collection. Recurring costs nothing — the counters are delta-converted, so the
-    # increment ships on whichever flush first observes it and later flushes send zero, which
-    # zero_metric drops.
+    # The schedule stays recurring (iterations: 0) so that a window extended past this via
+    # data_plane.preflight_mode_duration cannot strand the outcome: a flush landing mid-run finds
+    # nothing, and with iterations: 1 there would be no later collection. Recurring costs
+    # nothing — the counters are delta-converted, so the increment ships on whichever flush first
+    # observes it and later flushes send zero, which zero_metric drops.
     start_after: 120 # 2 minutes
     iterations: 0
     period: 900

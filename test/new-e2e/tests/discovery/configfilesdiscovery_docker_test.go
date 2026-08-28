@@ -39,6 +39,7 @@ const (
 	redisConfigDir               = "/tmp/configfilesdiscovery-redis"
 	redisExplicitContainerName   = "redis-configfilesdiscovery-explicit"
 	redisDefaultContainerName    = "redis-configfilesdiscovery-default"
+	redisEnvContainerName        = "redis-env-configfilesdiscovery"
 	redisExplicitContainerPath   = "/configfilesdiscovery/redis-explicit.conf"
 	redisDefaultContainerPath    = "/etc/redis/redis.conf"
 	redisExplicitConfigFileName  = "redis-explicit.conf"
@@ -48,6 +49,7 @@ const (
 	redisExplicitConfigSentinel  = "configfilesdiscovery-explicit-e2e-sentinel"
 	redisDefaultConfigSentinel   = "configfilesdiscovery-default-e2e-sentinel"
 	redisIntegrationName         = "redisdb"
+	redisTLSCertFile             = "/etc/redis/tls.crt"
 )
 
 const (
@@ -62,11 +64,22 @@ const (
 	kafkaTokenEndpoint    = "https://identity.example/oauth2/token"
 )
 
+const (
+	postgresConfigDir       = "/tmp/configfilesdiscovery-postgres"
+	postgresContainerName   = "postgres-configfilesdiscovery"
+	postgresIntegrationName = "postgres"
+	postgresDBName          = "configfilesdiscovery"
+	postgresUser            = "configfilesdiscovery"
+)
+
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-redis.yaml
 var redisComposeTemplate string
 
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml
 var kafkaCompose string
+
+//go:embed testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml
+var postgresCompose string
 
 const redisExplicitConfig = `port 6379
 appendonly no
@@ -150,6 +163,7 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_STARTUP_JITTER", pulumi.StringPtr("0s")),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-redis", pulumi.String(redisCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-kafka", pulumi.String(kafkaCompose)),
+		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-postgres", pulumi.String(postgresCompose)),
 		dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
 			"CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR": pulumi.String(redisConfigDir),
 			"CONFIG_FILES_DISCOVERY_KAFKA_CONFIG_DIR": pulumi.String(kafkaConfigDir),
@@ -274,7 +288,7 @@ func (s *configFilesDiscoveryDockerSuite) TestKafkaEnvVarsDiscoveredWithoutConfi
 		if !assert.NoError(c, err) {
 			return
 		}
-		kafkaPayloads := findKafkaEnvPayloads(payloads)
+		kafkaPayloads := findEnvPayloads(payloads, kafkaIntegrationName)
 		if !assert.NotEmpty(c, kafkaPayloads, "no kafka env payloads found in %+v", payloads) {
 			return
 		}
@@ -294,6 +308,96 @@ func (s *configFilesDiscoveryDockerSuite) TestKafkaEnvVarsDiscoveredWithoutConfi
 			assert.NotContains(c, envVars, "KAFKA_CFG_OAUTH_ACCESS_TOKEN")
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for kafka env var discovery payload")
+}
+
+func (s *configFilesDiscoveryDockerSuite) TestRedisEnvVarsDiscoveredWithoutConfigFile() {
+	t := s.T()
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName: redisIntegrationName,
+		configDir:       redisConfigDir,
+		containerNames: []string{
+			redisExplicitContainerName,
+			redisDefaultContainerName,
+			redisEnvContainerName,
+		},
+		startContainerNames: []string{redisEnvContainerName},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), redisIntegrationName))
+
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		redisPayloads := findEnvPayloads(payloads, redisIntegrationName)
+		if !assert.NotEmpty(c, redisPayloads, "no redis env payloads found in %+v", payloads) {
+			return
+		}
+
+		for _, payload := range redisPayloads {
+			assertAgentDiscoveryPayload(c, payload, redisIntegrationName)
+			assert.Empty(c, payload.ConfigFiles)
+
+			envVars := make(map[string]string, len(payload.EnvVars))
+			for _, envVar := range payload.EnvVars {
+				envVars[envVar.Name] = envVar.Value
+			}
+			assert.Equal(c, "yes", envVars["REDIS_AOF_ENABLED"])
+			assert.Equal(c, "6380", envVars["REDIS_PORT_NUMBER"])
+			assert.Equal(c, redisTLSCertFile, envVars["REDIS_TLS_CERT_FILE"])
+			assert.NotContains(c, envVars, "REDIS_PASSWORD")
+			assert.NotContains(c, envVars, "REDIS_REQUIREPASS")
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for redis env var discovery payload")
+}
+
+func (s *configFilesDiscoveryDockerSuite) TestPostgresEnvVarsDiscovered() {
+	t := s.T()
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName: postgresIntegrationName,
+		configDir:       postgresConfigDir,
+		containerNames:  []string{postgresContainerName},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), postgresIntegrationName))
+
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		postgresPayloads := findEnvPayloads(payloads, postgresIntegrationName)
+		if !assert.NotEmpty(c, postgresPayloads, "no postgres env payloads found in %+v", payloads) {
+			return
+		}
+
+		for _, payload := range postgresPayloads {
+			assertAgentDiscoveryPayload(c, payload, postgresIntegrationName)
+			assert.Empty(c, payload.ConfigFiles)
+
+			envVars := make(map[string]string, len(payload.EnvVars))
+			for _, envVar := range payload.EnvVars {
+				envVars[envVar.Name] = envVar.Value
+			}
+			assert.Equal(c, "/var/lib/postgresql/data/configfilesdiscovery", envVars["PGDATA"])
+			assert.Equal(c, "5432", envVars["PGPORT"])
+			assert.Equal(c, postgresDBName, envVars["POSTGRES_DB"])
+			assert.Equal(c, postgresUser, envVars["POSTGRES_USER"])
+			assert.Equal(c, "/bitnami/postgresql/data/configfilesdiscovery", envVars["POSTGRESQL_DATA_DIR"])
+			assert.Equal(c, "configfilesdiscovery-bitnami", envVars["POSTGRESQL_DATABASE"])
+			assert.Equal(c, "configfilesdiscovery-bitnami", envVars["POSTGRESQL_USERNAME"])
+			assert.Equal(c, "/bitnami/postgresql/wal", envVars["POSTGRESQL_INITDB_WAL_DIR"])
+			assert.Equal(c, "200", envVars["POSTGRESQL_MAX_CONNECTIONS"])
+			assert.Equal(c, "scram-sha-256", envVars["POSTGRESQL_PASSWORD_ENCRYPTION"])
+			assert.Equal(c, "no", envVars["POSTGRESQL_ENABLE_TLS"])
+			assert.Equal(c, "master", envVars["POSTGRESQL_REPLICATION_MODE"])
+			assert.NotContains(c, envVars, "POSTGRES_PASSWORD")
+			assert.NotContains(c, envVars, "POSTGRESQL_PASSWORD")
+			assert.NotContains(c, envVars, "POSTGRESQL_PASSWORD_FILE")
+			assert.NotContains(c, envVars, "POSTGRESQL_LDAP_URL")
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres env var discovery payload")
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestKafkaDefaultConfigFileDiscovered() {
@@ -369,7 +473,9 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilesDiscoveredAndHeart
 		containerNames: []string{
 			redisExplicitContainerName,
 			redisDefaultContainerName,
+			redisEnvContainerName,
 		},
+		startContainerNames: []string{redisExplicitContainerName, redisDefaultContainerName},
 	})
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -495,14 +601,14 @@ func findConfigFilePayloads(payloads []*aggregator.AgentDiscoveryPayload, integr
 	return configFilePayloads
 }
 
-func findKafkaEnvPayloads(payloads []*aggregator.AgentDiscoveryPayload) []*aggregator.AgentDiscoveryPayload {
-	var kafkaPayloads []*aggregator.AgentDiscoveryPayload
+func findEnvPayloads(payloads []*aggregator.AgentDiscoveryPayload, integrationName string) []*aggregator.AgentDiscoveryPayload {
+	var envPayloads []*aggregator.AgentDiscoveryPayload
 	for _, payload := range payloads {
-		if payload.Integration == kafkaIntegrationName && payload.Runtime == dockerRuntime && len(payload.EnvVars) > 0 {
-			kafkaPayloads = append(kafkaPayloads, payload)
+		if payload.Integration == integrationName && payload.Runtime == dockerRuntime && len(payload.EnvVars) > 0 {
+			envPayloads = append(envPayloads, payload)
 		}
 	}
-	return kafkaPayloads
+	return envPayloads
 }
 
 func (s *configFilesDiscoveryDockerSuite) logConfigFilesDiscoveryDebug(t *testing.T) {

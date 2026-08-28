@@ -29,10 +29,20 @@ import (
 
 const (
 	HelmVersion = "3.225.1"
+
+	// legacyBaseName is the base name every single-Agent installation used before
+	// per-installation resource names existed. Child resources keep their historical
+	// names for it, so pre-existing stacks do not churn their URNs.
+	legacyBaseName = "dda"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
 type HelmInstallationArgs struct {
+	// BaseName is the base name used to derive the Helm release and Pulumi resource
+	// names. It is required. Set it to a unique value per installation to install
+	// multiple Agents in the same cluster without resource name collisions;
+	// kubernetesagentparams defaults it to "dda", which keeps the historical names.
+	BaseName string
 	// KubeProvider is the Kubernetes provider to use
 	KubeProvider *kubernetes.Provider
 	// Namespace is the namespace in which to install the agent
@@ -51,6 +61,12 @@ type HelmInstallationArgs struct {
 	AgentFullImagePath string
 	// ClusterAgentFullImagePath is used to specify the full image path for the cluster agent
 	ClusterAgentFullImagePath string
+	// AgentImageTag overrides the agent image tag (e.g. a version like "7.55.0") when
+	// no full image path is given. Ignored when AgentFullImagePath is set.
+	AgentImageTag string
+	// ClusterAgentImageTag overrides the cluster agent image tag when no full image
+	// path is given. Ignored when ClusterAgentFullImagePath is set.
+	ClusterAgentImageTag string
 	// DisableLogsContainerCollectAll is used to disable the collection of logs from all containers by default
 	DisableLogsContainerCollectAll bool
 	// DualShipping is used to disable dual-shipping
@@ -95,17 +111,29 @@ type HelmComponent struct {
 func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi.ResourceOption) (*HelmComponent, error) {
 	apiKey := e.AgentAPIKey()
 	appKey := e.AgentAPPKey()
-	baseName := "dda"
+	baseName := args.BaseName
 	opts = append(opts, pulumi.Providers(args.KubeProvider), e.WithProviders(config.ProviderRandom), pulumi.DeletedWith(args.KubeProvider))
 
+	// Pulumi builds a resource's URN from its parent *type* chain plus its own name
+	// (the parent component's name is not part of the URN), so per-installation child
+	// resources must carry unique names for several Agents to coexist in one cluster.
+	// For the legacy base name we keep the historical names to avoid churning the
+	// URNs of existing single-Agent stacks.
+	tokenResourceName := "datadog-cluster-agent-token"
+	credentialsResourceName := "datadog-credentials"
+	if baseName != legacyBaseName {
+		tokenResourceName = baseName + "-" + tokenResourceName
+		credentialsResourceName = baseName + "-" + credentialsResourceName
+	}
+
 	helmComponent := &HelmComponent{}
-	if err := e.Ctx().RegisterComponentResource("dd:agent", "dda", helmComponent, opts...); err != nil {
+	if err := e.Ctx().RegisterComponentResource("dd:agent", baseName, helmComponent, opts...); err != nil {
 		return nil, err
 	}
 	opts = append(opts, pulumi.Parent(helmComponent))
 
 	// Create fixed cluster agent token
-	randomClusterAgentToken, err := random.NewRandomString(e.Ctx(), "datadog-cluster-agent-token", &random.RandomStringArgs{
+	randomClusterAgentToken, err := random.NewRandomString(e.Ctx(), tokenResourceName, &random.RandomStringArgs{
 		Lower:   pulumi.Bool(true),
 		Upper:   pulumi.Bool(true),
 		Length:  pulumi.Int(32),
@@ -157,7 +185,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	}
 
 	// Create secret if necessary
-	secret, err := corev1.NewSecret(e.Ctx(), "datadog-credentials", &corev1.SecretArgs{
+	secret, err := corev1.NewSecret(e.Ctx(), credentialsResourceName, &corev1.SecretArgs{
 		Metadata: metav1.ObjectMetaArgs{
 			Namespace: ns.Metadata.Name(),
 			Name:      pulumi.Sprintf("%s-datadog-credentials", baseName),
@@ -183,13 +211,13 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	}
 
 	// Compute some values
-	agentImagePath := dockerAgentFullImagePath(e, "", "", args.OTelAgent, args.FIPS, args.JMX, args.WindowsImage)
+	agentImagePath := dockerAgentFullImagePath(e, "", args.AgentImageTag, args.OTelAgent, args.FIPS, args.JMX, args.WindowsImage)
 	if args.AgentFullImagePath != "" {
 		agentImagePath = args.AgentFullImagePath
 	}
 	agentImagePath, agentImageTag := utils.ParseImageReference(agentImagePath)
 
-	clusterAgentImagePath := dockerClusterAgentFullImagePath(e, "", args.FIPS)
+	clusterAgentImagePath := dockerClusterAgentFullImagePath(e, "", args.ClusterAgentImageTag, args.FIPS)
 	if args.ClusterAgentFullImagePath != "" {
 		clusterAgentImagePath = args.ClusterAgentFullImagePath
 	}
@@ -856,6 +884,19 @@ func BuildOpenShiftHelmValues() HelmValues {
 				},
 			},
 		},
+		"clusterChecksRunner": pulumi.Map{
+			"enabled": pulumi.Bool(true),
+			"resources": pulumi.StringMapMap{
+				"limits": pulumi.StringMap{
+					"cpu":    pulumi.String("300m"),
+					"memory": pulumi.String("400Mi"),
+				},
+				"requests": pulumi.StringMap{
+					"cpu":    pulumi.String("150m"),
+					"memory": pulumi.String("300Mi"),
+				},
+			},
+		},
 	}
 }
 
@@ -1124,8 +1165,6 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 
 	// Configure the Private Action Runner sidecar to route OPMS calls through fakeintake.
 	// This is a no-op when PAR is not deployed — the Helm chart ignores unknown container configs.
-	// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION bypasses signed-envelope validation so PAR can talk
-	// to fakeintake over plain HTTP instead of the real OPMS backend.
 	if agents, ok := values["agents"].(pulumi.Map); ok {
 		containers, ok := agents["containers"].(pulumi.Map)
 		if !ok {
@@ -1143,7 +1182,7 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			par["envDict"] = parEnvDict
 		}
 		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fi.URL)
-		parEnvDict["DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"] = pulumi.String("true")
+		parEnvDict["DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS"] = pulumi.String("true")
 	}
 
 	return nil

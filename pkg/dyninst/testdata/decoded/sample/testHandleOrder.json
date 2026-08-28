@@ -1,0 +1,273 @@
+[
+  {
+    "service": "sample",
+    "dd.trace_id": "0000000000000000fedcba9876543210",
+    "dd.span_id": "18364758544493064720",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.(*Server).handleOrder",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.(*Server).handleOrder",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
+            "lineNumber": 33
+          },
+          {
+            "function": "main.executeServerFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
+            "lineNumber": 41
+          },
+          {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 60
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 40
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testHandleOrder",
+          "location": {
+            "method": "main.(*Server).handleOrder"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "s": {
+                "type": "*main.Server",
+                "address": "[addr]",
+                "fields": {
+                  "name": {
+                    "type": "string",
+                    "value": "orders"
+                  }
+                }
+              },
+              "ctx": {
+                "type": "context.Context",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "span_id"
+                    },
+                    {
+                      "type": "uint64",
+                      "value": "18364758544493064720"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "trace_id"
+                    },
+                    {
+                      "type": "big.Int",
+                      "value": "18364758544493064720"
+                    }
+                  ]
+                ]
+              },
+              "req": {
+                "type": "*main.Request",
+                "address": "[addr]",
+                "fields": {
+                  "ID": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "Customer": {
+                    "type": "string",
+                    "value": "Alice"
+                  },
+                  "Total": {
+                    "type": "float64",
+                    "value": "42.5"
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "@return": {
+                "type": "error",
+                "isNull": true
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "{ID: 1, Customer: Alice, Total: 42.5}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "sample",
+    "dd.trace_id": "0000000000000000fedcba9876543210",
+    "dd.span_id": "18364758544493064720",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.(*Server).handleOrder",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.(*Server).handleOrder",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
+            "lineNumber": 30
+          },
+          {
+            "function": "main.executeServerFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
+            "lineNumber": 42
+          },
+          {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 60
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 40
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testHandleOrder",
+          "location": {
+            "method": "main.(*Server).handleOrder"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "s": {
+                "type": "*main.Server",
+                "address": "[addr]",
+                "fields": {
+                  "name": {
+                    "type": "string",
+                    "value": "orders"
+                  }
+                }
+              },
+              "ctx": {
+                "type": "context.Context",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "span_id"
+                    },
+                    {
+                      "type": "uint64",
+                      "value": "18364758544493064720"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "trace_id"
+                    },
+                    {
+                      "type": "big.Int",
+                      "value": "18364758544493064720"
+                    }
+                  ]
+                ]
+              },
+              "req": {
+                "type": "*main.Request",
+                "address": "[addr]",
+                "fields": {
+                  "ID": {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  "Customer": {
+                    "type": "string",
+                    "value": "Bob"
+                  },
+                  "Total": {
+                    "type": "float64",
+                    "value": "-1"
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "@return": {
+                "type": "error",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "server orders: order 2 for Bob has negative total -1"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "{ID: 2, Customer: Bob, Total: -1}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]
