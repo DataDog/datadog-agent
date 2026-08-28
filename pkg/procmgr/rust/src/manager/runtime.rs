@@ -15,6 +15,28 @@ use tokio::task::JoinHandle;
 use tonic::Status;
 
 #[derive(Clone, Default)]
+pub(in crate::manager) struct CommandHandlers {
+    handles: Arc<Mutex<Vec<JoinHandle<()>>>>,
+}
+
+impl CommandHandlers {
+    pub(in crate::manager) fn track(&self, handle: JoinHandle<()>) {
+        self.handles.lock().unwrap().push(handle);
+    }
+
+    pub(in crate::manager) async fn join_all(&self) {
+        let handles = std::mem::take(&mut *self.handles.lock().unwrap());
+        for handle in handles {
+            match handle.await {
+                Ok(()) => {}
+                Err(error) if error.is_cancelled() => {}
+                Err(error) => warn!("command handler failed: {error}"),
+            }
+        }
+    }
+}
+
+#[derive(Clone, Default)]
 pub(in crate::manager) struct BackgroundSpawns {
     handles: Arc<Mutex<Vec<JoinHandle<()>>>>,
 }
@@ -42,6 +64,7 @@ pub(crate) struct RuntimeContext {
     pub(in crate::manager) exit_tx: mpsc::Sender<ExitEvent>,
     pub(in crate::manager) restart_tx: mpsc::Sender<PendingRestart>,
     pub(in crate::manager) lifecycle: Lifecycle,
+    pub(in crate::manager) command_handlers: CommandHandlers,
     pub(in crate::manager) background_spawns: BackgroundSpawns,
 }
 
@@ -65,6 +88,7 @@ impl RuntimeContext {
                 exit_tx,
                 restart_tx,
                 lifecycle,
+                command_handlers: CommandHandlers::default(),
                 background_spawns: BackgroundSpawns::default(),
             },
             RuntimeReceivers {
@@ -139,9 +163,10 @@ impl RuntimeReceivers {
                 Some(cmd) = self.cmd_rx.recv() => {
                     let manager = manager.clone();
                     let ctx = ctx.clone();
-                    tokio::spawn(async move {
+                    let command_handlers = ctx.command_handlers.clone();
+                    command_handlers.track(tokio::spawn(async move {
                         manager.handle_command(&ctx, cmd).await;
-                    });
+                    }));
                 }
                 Some(event) = self.exit_rx.recv() => {
                     manager.handle_exit(event, ctx).await;
@@ -296,6 +321,41 @@ mod tests {
             .expect("reply channel should receive rejection")
             .expect_err("late command should be rejected while gRPC shuts down");
         assert_eq!(err.code(), tonic::Code::Unavailable);
+    }
+
+    #[tokio::test]
+    async fn command_handlers_join_waits_for_in_flight_handlers() {
+        use tokio::sync::oneshot;
+
+        let command_handlers = CommandHandlers::default();
+        let (started_tx, started_rx) = oneshot::channel();
+        let (release_tx, release_rx) = oneshot::channel::<()>();
+
+        command_handlers.track(tokio::spawn(async move {
+            let _ = started_tx.send(());
+            let _ = release_rx.await;
+        }));
+
+        started_rx.await.expect("handler should start");
+
+        let mut join_task = tokio::spawn({
+            let command_handlers = command_handlers.clone();
+            async move {
+                command_handlers.join_all().await;
+            }
+        });
+
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut join_task)
+                .await
+                .is_err(),
+            "join_all should wait for in-flight command handlers"
+        );
+
+        drop(release_tx);
+        join_task
+            .await
+            .expect("join task should complete after handler releases");
     }
 
     #[tokio::test]

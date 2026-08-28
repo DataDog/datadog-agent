@@ -48,6 +48,7 @@ impl Supervisor {
         rx.drain_commands_during_grpc_shutdown(&mut grpc_handle)
             .await;
 
+        ctx.command_handlers.join_all().await;
         ctx.background_spawns.join_all().await;
 
         rx.drain_exits_during(&self.manager, &ctx, self.manager.shutdown())
