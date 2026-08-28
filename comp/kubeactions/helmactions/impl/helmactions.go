@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
@@ -26,11 +27,12 @@ import (
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 
-	Log       log.Component
-	Config    config.Component
-	Hostname  hostnameinterface.Component
-	APIClient *apiserver.APIClient
-	Params    helmactions.Params
+	Log         log.Component
+	Config      config.Component
+	Hostname    hostnameinterface.Component
+	APIClient   *apiserver.APIClient
+	Params      helmactions.Params
+	KubeActions kubeactions.Component
 }
 
 // Provides defines the output of the helmactions component.
@@ -48,6 +50,8 @@ type helmactionsImpl struct {
 	// store might be not needed for helm related actions TODO
 	store      *ActionStore
 	jobWatcher *jobWatcher
+	// ka is used for reporting the status over to EVP
+	ka kubeactions.Component
 }
 
 // NewComponent creates a new helmactions component.
@@ -81,6 +85,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		params:      reqs.Params,
 		store:       store,
 		jobWatcher:  newJobWatcher(reqs.APIClient.Cl, store),
+		ka:          reqs.KubeActions,
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})

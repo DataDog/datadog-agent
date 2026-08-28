@@ -75,3 +75,5 @@ func (o RollbackInputs) Validate() error {
 	}
 	return nil
 }
+
+const HelmRollbackAction = "helm_rollback"
