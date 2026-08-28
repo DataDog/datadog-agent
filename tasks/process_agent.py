@@ -52,7 +52,7 @@ def build(
         if sys.platform != 'linux':
             raise NotImplementedError("--enable-bazel is only supported on Linux.")
 
-        build_binary_with_bazel(BAZEL_TARGET, BIN_PATH)
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(
