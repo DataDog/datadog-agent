@@ -6231,6 +6231,36 @@ properties:
             node_type: setting
             type: integer
             default: 1
+  check_runner:
+    node_type: section
+    type: object
+    comment: |-
+      Agent Check Runner (ACR) is an optional out-of-process check executor that
+      registers with the Datadog Agent as a remote agent.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      standalone_mode:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: When true, ACR runs without registering with the Core Agent and loads its
+          configuration from the config file directly.
+      api_listen_address:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5200
+        comment: Unprivileged API listen address. Must include a URL scheme (e.g. "tcp://").
+      secure_api_listen_address:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5201
+        comment: Privileged API listen address, served with the Core Agent IPC TLS config.
+          Must include a URL scheme (e.g. "tcp://").
+    tags:
+    - full-agent-only:true
   data_plane:
     node_type: section
     type: object
