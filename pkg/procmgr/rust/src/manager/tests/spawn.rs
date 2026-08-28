@@ -180,6 +180,71 @@ async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> any
     Ok(())
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn test_stale_spawn_commit_does_not_steal_newer_reservation() -> anyhow::Result<()> {
+    let _guard = super::test_manager_lock().await;
+    crate::platform::reset_shutdown_state_for_test();
+    let _gate = super::super::spawn::close_spawn_gate_for_test();
+
+    let mgr = ProcessManager::new(loader(vec![sleep_def("token-svc")]), uuid_gen());
+    let (handles, _rx) = test_runtime_context();
+
+    let catalog = mgr.catalog.clone();
+    let ctx = handles.clone();
+    let stale_spawn = tokio::spawn(async move {
+        super::super::spawn::spawn_process(catalog, 0, &ctx, super::super::spawn::SpawnKind::Manual)
+            .await
+    });
+
+    tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            if mgr.processes().await[0].state() == ProcessState::Starting {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("timed out waiting for in-flight spawn reservation");
+
+    mgr.handle_stop("token-svc").await?;
+    assert_eq!(mgr.processes().await[0].state(), ProcessState::Stopped);
+
+    let newer_spawn = tokio::spawn({
+        let mgr = mgr.clone();
+        let handles = handles.clone();
+        async move { mgr.handle_start("token-svc", &handles).await }
+    });
+
+    tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            if mgr.processes().await[0].state() == ProcessState::Starting {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("timed out waiting for newer spawn reservation");
+
+    drop(_gate);
+
+    let stale_outcome = stale_spawn.await??;
+    assert_eq!(
+        stale_outcome,
+        super::super::spawn::SpawnProcessOutcome::NotStarted
+    );
+
+    let start_result = newer_spawn.await??;
+    assert_eq!(start_result.state, ProcessState::Running);
+    assert!(start_result.pid.is_some());
+
+    test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
+    crate::platform::reset_shutdown_state_for_test();
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_start_returns_committed_snapshot_after_immediate_exit() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;

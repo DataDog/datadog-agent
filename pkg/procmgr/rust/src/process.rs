@@ -24,6 +24,9 @@ pub(crate) struct ProcessExit {
     pub status: std::process::ExitStatus,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SpawnReservationToken(u64);
+
 struct RestartTracker {
     count: u32,
     timestamps: VecDeque<Instant>,
@@ -167,6 +170,8 @@ pub struct ManagedProcess {
     watcher_handle: Option<JoinHandle<Option<std::process::ExitStatus>>>,
     restarts: RestartTracker,
     spawn_seq: u64,
+    reservation_seq: u64,
+    spawn_reservation: Option<SpawnReservationToken>,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
     #[cfg(windows)]
@@ -201,6 +206,8 @@ impl ManagedProcess {
             watcher_handle: None,
             restarts,
             spawn_seq: 0,
+            reservation_seq: 0,
+            spawn_reservation: None,
             origin,
             last_exit_status: None,
             #[cfg(windows)]
@@ -340,7 +347,7 @@ impl ManagedProcess {
         self.restart_eligibility().is_allowed() && self.may_respawn()
     }
 
-    pub(crate) fn begin_spawn_reservation(&mut self) -> Result<()> {
+    pub(crate) fn begin_spawn_reservation(&mut self) -> Result<SpawnReservationToken> {
         if !self.state.can_transition_to(ProcessState::Starting) {
             bail!(
                 "[{}] cannot begin spawn: invalid state {}",
@@ -348,14 +355,26 @@ impl ManagedProcess {
                 self.state
             );
         }
+        self.reservation_seq = self.reservation_seq.wrapping_add(1);
+        let token = SpawnReservationToken(self.reservation_seq);
+        self.spawn_reservation = Some(token);
         self.transition_to(ProcessState::Starting);
-        Ok(())
+        Ok(token)
+    }
+
+    pub(crate) fn may_commit_spawn_reservation(&self, token: SpawnReservationToken) -> bool {
+        self.spawn_reservation == Some(token)
     }
 
     pub(crate) fn cancel_spawn_reservation(&mut self) {
+        self.clear_spawn_reservation_token();
         if self.state == ProcessState::Starting && !self.has_child_handle() {
             self.transition_to(ProcessState::Stopped);
         }
+    }
+
+    fn clear_spawn_reservation_token(&mut self) {
+        self.spawn_reservation = None;
     }
 
     pub(crate) fn commit_spawn_from_outcome(
@@ -373,9 +392,11 @@ impl ManagedProcess {
         if let Err(e) = self.apply_managed_child_spawn(outcome) {
             #[cfg(windows)]
             self.clear_windows_spawn_resources();
+            self.clear_spawn_reservation_token();
             self.transition_to(ProcessState::Failed);
             return Err(e);
         }
+        self.clear_spawn_reservation_token();
         self.attach_exit_watcher(exit_tx);
         Ok(())
     }
@@ -417,6 +438,7 @@ impl ManagedProcess {
     }
 
     pub(crate) fn mark_spawn_failed(&mut self) {
+        self.clear_spawn_reservation_token();
         if self.state.can_transition_to(ProcessState::Starting) {
             self.transition_to(ProcessState::Starting);
         }
@@ -648,6 +670,7 @@ impl ManagedProcess {
             }
             ProcessState::Starting if !self.has_child_handle() => {
                 info!("[{}] cancelling in-flight spawn", self.name);
+                self.clear_spawn_reservation_token();
                 self.transition_to(ProcessState::Stopped);
             }
             ProcessState::Stopping => {

@@ -7,7 +7,7 @@ use super::catalog::ProcessCatalog;
 use super::{PendingRestart, RuntimeContext, enqueue_pending_restart};
 use crate::config::ProcessConfig;
 use crate::platform;
-use crate::process::{ManagedChildSpawn, ManagedProcess};
+use crate::process::{ManagedChildSpawn, ManagedProcess, SpawnReservationToken};
 use crate::state::ProcessState;
 use anyhow::Result;
 use log::{info, warn};
@@ -90,6 +90,12 @@ enum PendingRestartSkip {
     PolicyOrConditions,
 }
 
+struct InFlightSpawn {
+    name: String,
+    config: ProcessConfig,
+    reservation: SpawnReservationToken,
+}
+
 fn pending_restart_matches(proc: &ManagedProcess, pending: &PendingRestart) -> bool {
     proc.uuid() == pending.uuid && proc.spawn_seq() == pending.spawn_seq
 }
@@ -134,24 +140,33 @@ pub(in crate::manager) async fn spawn_process(
         if !kind.may_begin_spawn(proc) {
             return Ok(SpawnProcessOutcome::NotStarted);
         }
-        proc.begin_spawn_reservation()
+        let reservation = proc
+            .begin_spawn_reservation()
             .map_err(|e| anyhow::anyhow!("{e:#}"))?;
-        (proc.name().to_owned(), proc.config().clone())
+        InFlightSpawn {
+            name: proc.name().to_owned(),
+            config: proc.config().clone(),
+            reservation,
+        }
     };
 
     if !ctx.lifecycle.spawns_allowed() {
-        cancel_spawn_reservation(&catalog, idx).await;
+        cancel_spawn_reservation(&catalog, idx, snapshot.reservation).await;
         return Ok(SpawnProcessOutcome::NotStarted);
     }
 
-    let (name, config) = snapshot;
+    let InFlightSpawn {
+        name,
+        config,
+        reservation,
+    } = snapshot;
     let spawn_name = name.clone();
     let spawn_result =
         tokio::task::spawn_blocking(move || spawn_managed_child_sync(&spawn_name, &config))
             .await
             .map_err(|e| anyhow::anyhow!("spawn worker join failed: {e}"))?;
 
-    commit_spawn(catalog, idx, &name, spawn_result, ctx, &kind).await
+    commit_spawn(catalog, idx, &name, reservation, spawn_result, ctx, &kind).await
 }
 
 pub(in crate::manager) fn spawn_process_background(
@@ -173,9 +188,15 @@ fn spawn_managed_child_sync(name: &str, config: &ProcessConfig) -> Result<Manage
     platform::spawn_managed_child(name, config)
 }
 
-async fn cancel_spawn_reservation(catalog: &ProcessCatalog, idx: usize) {
+async fn cancel_spawn_reservation(
+    catalog: &ProcessCatalog,
+    idx: usize,
+    token: SpawnReservationToken,
+) {
     let mut procs = catalog.write_processes().await;
-    if let Some(proc) = procs.get_mut(idx) {
+    if let Some(proc) = procs.get_mut(idx)
+        && proc.may_commit_spawn_reservation(token)
+    {
         proc.cancel_spawn_reservation();
     }
 }
@@ -184,6 +205,7 @@ async fn commit_spawn(
     catalog: Arc<ProcessCatalog>,
     idx: usize,
     name: &str,
+    reservation: SpawnReservationToken,
     spawn_result: Result<ManagedChildSpawn>,
     ctx: &RuntimeContext,
     kind: &SpawnKind,
@@ -194,8 +216,15 @@ async fn commit_spawn(
         return Ok(SpawnProcessOutcome::NotStarted);
     };
 
+    if !proc.may_commit_spawn_reservation(reservation) {
+        drop(procs);
+        abort_uncommitted(spawn_result, name).await;
+        return Ok(SpawnProcessOutcome::NotStarted);
+    }
+
     if !ctx.lifecycle.spawns_allowed() || !kind.may_commit_spawn(proc) {
         proc.cancel_spawn_reservation();
+        drop(procs);
         abort_uncommitted(spawn_result, name).await;
         return Ok(SpawnProcessOutcome::NotStarted);
     }
