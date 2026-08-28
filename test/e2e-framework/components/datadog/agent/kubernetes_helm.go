@@ -884,6 +884,19 @@ func BuildOpenShiftHelmValues() HelmValues {
 				},
 			},
 		},
+		"clusterChecksRunner": pulumi.Map{
+			"enabled": pulumi.Bool(true),
+			"resources": pulumi.StringMapMap{
+				"limits": pulumi.StringMap{
+					"cpu":    pulumi.String("300m"),
+					"memory": pulumi.String("400Mi"),
+				},
+				"requests": pulumi.StringMap{
+					"cpu":    pulumi.String("150m"),
+					"memory": pulumi.String("300Mi"),
+				},
+			},
+		},
 	}
 }
 
