@@ -6,6 +6,7 @@
 package cloudservice
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -73,6 +74,61 @@ func TestGetWindowsAppServiceTags(t *testing.T) {
 		"aas.site.type":                 "app",
 		"aas.subscription.id":           "",
 	}, tags)
+}
+
+func TestAppServiceGetInventoryData(t *testing.T) {
+	service := &AppService{}
+
+	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
+	t.Setenv("REGION_NAME", "eastus")
+	t.Setenv("WEBSITE_OWNER_NAME", "test_subscription_id+resourcegroup-EastUSwebspace")
+	t.Setenv("WEBSITE_RESOURCE_GROUP", "test_resource_group")
+	t.Setenv("WEBSITE_STACK", "NODE")
+	os.Unsetenv("FUNCTIONS_WORKER_RUNTIME")
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, InventoryData{
+		WorkloadType:        workloadTypeAzureAppService,
+		ResourceID:          "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.web/sites/test_site_name",
+		ResourceName:        "test_site_name",
+		Region:              "eastus",
+		AzureSubscriptionID: "test_subscription_id",
+		AzureResourceGroup:  "test_resource_group",
+		Runtime:             "Node.js",
+	}, inv)
+}
+
+func TestAppServiceGetInventoryDataFunctionApp(t *testing.T) {
+	service := &AppService{}
+
+	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
+	t.Setenv("REGION_NAME", "eastus")
+	t.Setenv("WEBSITE_OWNER_NAME", "test_subscription_id+resourcegroup-EastUSwebspace")
+	t.Setenv("WEBSITE_RESOURCE_GROUP", "test_resource_group")
+	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "node")
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, workloadTypeAzureFunction, inv.WorkloadType)
+	assert.Equal(t, "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.web/sites/test_site_name", inv.ResourceID)
+}
+
+func TestAppServiceGetInventoryDataWithoutAzureIDs(t *testing.T) {
+	service := &AppService{}
+
+	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
+	t.Setenv("REGION_NAME", "eastus")
+	os.Unsetenv("WEBSITE_OWNER_NAME")
+	os.Unsetenv("WEBSITE_RESOURCE_GROUP")
+	os.Unsetenv("FUNCTIONS_WORKER_RUNTIME")
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, workloadTypeAzureAppService, inv.WorkloadType)
+	assert.Empty(t, inv.ResourceID)
+	assert.Equal(t, "test_site_name", inv.ResourceName)
+	assert.Equal(t, "eastus", inv.Region)
 }
 
 func TestAppServiceShutdownEmitsMetrics(t *testing.T) {

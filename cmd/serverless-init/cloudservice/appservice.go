@@ -60,17 +60,46 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
+// GetInventoryData derives the inventory metadata fields for Azure App
+// Service. It reuses traceutil.GetAppServicesTags as the single source of truth
+// for the CCRID, subscription id, resource group, and runtime, so it does not
+// depend on GetTags having run first. All facts are env-derived (no metadata
+// fetch), so no caching is needed.
+//
+// Function apps (FUNCTIONS_WORKER_RUNTIME set) report azure_function; plain web
+// apps report azure_app_service. App Service has no revision-style parent or
+// deployment id, so those fields stay empty. The CCRID is empty when the
+// subscription id, resource group, or site name is missing, matching GetTags.
+func (a *AppService) GetInventoryData() InventoryData {
+	aasTags := traceutil.GetAppServicesTags()
+
+	workloadType := workloadTypeAzureAppService
+	if _, isFunctionApp := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME"); isFunctionApp {
+		workloadType = workloadTypeAzureFunction
+	}
+
+	return InventoryData{
+		WorkloadType:        workloadType,
+		ResourceID:          aasTags[traceutil.AASResourceID],
+		ResourceName:        os.Getenv(WebsiteName),
+		Region:              os.Getenv(RegionName),
+		AzureSubscriptionID: aasTags[traceutil.AASSubscriptionID],
+		AzureResourceGroup:  aasTags[traceutil.AASResourceGroup],
+		Runtime:             aasTags[traceutil.AASRuntime],
+	}
+}
+
 func (a *AppService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"name":            tagValueOrUnknown(tags["app_name"]),
 		"origin":          tagValueOrUnknown(tags["origin"]),
 		"region":          tagValueOrUnknown(tags["region"]),
-		"resource_group":  tagValueOrUnknown(tags["aas.resource.group"]),
-		"subscription_id": tagValueOrUnknown(tags["aas.subscription.id"]),
+		"resource_group":  tagValueOrUnknown(tags[traceutil.AASResourceGroup]),
+		"subscription_id": tagValueOrUnknown(tags[traceutil.AASSubscriptionID]),
 	}
 
 	usageTags := maps.Clone(baseTags)
-	usageTags["instance"] = tagValueOrUnknown(tags["aas.environment.instance_name"])
+	usageTags["instance"] = tagValueOrUnknown(tags[traceutil.AASInstanceName])
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
