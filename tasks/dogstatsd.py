@@ -52,7 +52,7 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --static.")
         if build_include is not None or build_exclude is not None:
             raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
-        build_binary_with_bazel("//cmd/dogstatsd:dogstatsd", os.path.join(bin_path, bin_name("dogstatsd")))
+        build_binary_with_bazel("//cmd/dogstatsd:dogstatsd", bin_path=os.path.join(bin_path, bin_name("dogstatsd")))
     else:
         build_tags = compute_build_tags_for_flavor(
             build="dogstatsd", flavor=AgentFlavor.dogstatsd, build_include=build_include, build_exclude=build_exclude
