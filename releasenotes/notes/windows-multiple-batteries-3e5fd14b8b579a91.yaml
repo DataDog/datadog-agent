@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix the battery check to report every Windows system battery instead of
+    only the first one. Battery metrics now include a ``battery_slot`` tag,
+    with ``battery_slot:total`` providing host-level capacity and charge
+    totals even on single-battery systems. Per-battery series also include
+    ``battery_serial`` and ``battery_device_name`` tags.

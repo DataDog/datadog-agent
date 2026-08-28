@@ -54,6 +54,7 @@ dd_agent_go_test(
     srcs = [
         "battery_darwin_conversion_test.go",
         "battery_test.go",
+        "battery_windows_test.go",
     ],
     embed = [":battery"],
     deps = select({

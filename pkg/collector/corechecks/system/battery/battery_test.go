@@ -28,8 +28,8 @@ func setupMocks(hasBattery bool, info *batteryInfo) func() {
 		return hasBattery, nil
 	}
 	originalGetBatteryInfo := getBatteryInfoFunc
-	getBatteryInfoFunc = func() (*batteryInfo, error) {
-		return info, nil
+	getBatteryInfoFunc = func() ([]batteryInfo, error) {
+		return []batteryInfo{*info}, nil
 	}
 	return func() {
 		hasBatteryAvailableFunc = originalHasBattery
@@ -143,9 +143,9 @@ func TestBatteryMultipleRuns(t *testing.T) {
 
 	callCount := 0
 	originalFunc := getBatteryInfoFunc
-	getBatteryInfoFunc = func() (*batteryInfo, error) {
+	getBatteryInfoFunc = func() ([]batteryInfo, error) {
 		callCount++
-		return &batteryInfo{
+		return []batteryInfo{{
 			cycleCount:         option.New(150.0),
 			designedCapacity:   option.New(100000.0),
 			maximumCapacity:    option.New(95000.0),
@@ -154,7 +154,7 @@ func TestBatteryMultipleRuns(t *testing.T) {
 			voltage:            option.New(12300 - float64(callCount*50)),
 			chargeRate:         option.New(-2000 - float64(callCount*100)),
 			powerState:         []string{"power_state:battery_discharging"},
-		}, nil
+		}}, nil
 	}
 	defer func() { getBatteryInfoFunc = originalFunc }()
 
@@ -251,12 +251,12 @@ func TestBatteryDischargeSimulation(t *testing.T) {
 	currentIndex := 0
 
 	originalFunc := getBatteryInfoFunc
-	getBatteryInfoFunc = func() (*batteryInfo, error) {
+	getBatteryInfoFunc = func() ([]batteryInfo, error) {
 		charge := charges[currentIndex]
 		if currentIndex < len(charges)-1 {
 			currentIndex++
 		}
-		return &batteryInfo{
+		return []batteryInfo{{
 			cycleCount:         option.New(150.0),
 			designedCapacity:   option.New(50000.0),
 			maximumCapacity:    option.New(48000.0),
@@ -265,7 +265,7 @@ func TestBatteryDischargeSimulation(t *testing.T) {
 			voltage:            option.New(12500 - (charge * 5)),
 			chargeRate:         option.New(-1500 - (charge * 2)),
 			powerState:         []string{"power_state:battery_discharging"},
-		}, nil
+		}}, nil
 	}
 	defer func() { getBatteryInfoFunc = originalFunc }()
 
@@ -363,4 +363,49 @@ func TestBatteryPowerStates(t *testing.T) {
 				tt.expectedValue, "", tt.expectedTags)
 		})
 	}
+}
+
+func TestBatteryCheckReportsPerBatteryAndTotalTags(t *testing.T) {
+	originalHasBattery := hasBatteryAvailableFunc
+	originalGetBatteryInfo := getBatteryInfoFunc
+	hasBatteryAvailableFunc = func() (bool, error) { return true, nil }
+	getBatteryInfoFunc = func() ([]batteryInfo, error) {
+		return []batteryInfo{
+			{
+				designedCapacity: optFloat64(6000),
+				powerState:       []string{"power_state:battery_discharging"},
+				tags: []string{
+					"battery_slot:1",
+					"battery_serial:serial-1",
+					"battery_device_name:simbatt_one",
+				},
+			},
+			{
+				designedCapacity: optFloat64(6000),
+				powerState:       []string{"power_state:battery_discharging"},
+				tags:             []string{"battery_slot:total"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() {
+		hasBatteryAvailableFunc = originalHasBattery
+		getBatteryInfoFunc = originalGetBatteryInfo
+	})
+
+	batteryCheck := &Check{}
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	require.NoError(t, batteryCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(batteryCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+	require.NoError(t, batteryCheck.Run())
+
+	physicalTags := []string{"battery_slot:1", "battery_serial:serial-1", "battery_device_name:simbatt_one"}
+	mockSender.AssertMetric(t, "Gauge", "system.battery.designed_capacity", 6000, "", physicalTags)
+	powerStateTags := append(append([]string{}, physicalTags...), "power_state:battery_discharging")
+	mockSender.AssertMetric(t, "Gauge", "system.battery.power_state", 1, "", powerStateTags)
+	mockSender.AssertMetric(t, "Gauge", "system.battery.designed_capacity", 6000, "", []string{"battery_slot:total"})
+	mockSender.AssertMetric(t, "Gauge", "system.battery.power_state", 1, "", []string{"battery_slot:total", "power_state:battery_discharging"})
+	mockSender.AssertNumberOfCalls(t, "Gauge", 4)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
