@@ -53,6 +53,14 @@ func linksByID(links []aggregator.TopologyLinkMetadata) map[string]aggregator.To
 	return byID
 }
 
+func linkIDs(links []aggregator.TopologyLinkMetadata) []string {
+	ids := make([]string, 0, len(links))
+	for _, link := range links {
+		ids = append(ids, link.ID)
+	}
+	return ids
+}
+
 func (v *snmpTopologySuite) TestCDPRemoteDeviceName() {
 	vm := v.Env().RemoteHost
 	fakeIntake := v.Env().FakeIntake
@@ -68,9 +76,10 @@ func (v *snmpTopologySuite) TestCDPRemoteDeviceName() {
 		require.Len(c, ndmPayload.Links, 2)
 
 		byID := linksByID(ndmPayload.Links)
+		ids := linkIDs(ndmPayload.Links)
 
 		withoutSysName, found := byID["default:127.0.0.1:7.1"]
-		require.True(c, found, "no link for the neighbour advertising no cdpCacheSysName, got %v", ndmPayload.Links)
+		require.True(c, found, "no link for the neighbour advertising no cdpCacheSysName, got links %v", ids)
 		assert.Equal(c, "cdp", withoutSysName.SourceType)
 		assert.Equal(c, "snmp", withoutSysName.Integration)
 		assert.Equal(c, "default:127.0.0.1", withoutSysName.Local.Device.DDID)
@@ -82,7 +91,7 @@ func (v *snmpTopologySuite) TestCDPRemoteDeviceName() {
 		assert.Equal(c, "interface_name", withoutSysName.Remote.Interface.IDType)
 
 		withSysName, found := byID["default:127.0.0.1:8.1"]
-		require.True(c, found, "no link for the neighbour advertising a cdpCacheSysName, got %v", ndmPayload.Links)
+		require.True(c, found, "no link for the neighbour advertising a cdpCacheSysName, got links %v", ids)
 		assert.Equal(c, "FDO12345ABC", withSysName.Remote.Device.ID)
 		assert.Equal(c, "spine-01.lab.internal", withSysName.Remote.Device.Name)
 	}, 6*time.Minute, 10*time.Second)
