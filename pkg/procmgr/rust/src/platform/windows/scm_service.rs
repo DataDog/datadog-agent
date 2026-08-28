@@ -25,7 +25,6 @@ use windows_sys::Win32::System::Services::{
 use crate::config::YamlConfigLoader;
 use crate::manager::ProcessManager;
 use crate::manager::deferred_cleanup::join_deferred_spawn_tasks;
-use crate::manager::deferred_cleanup::join_offloaded_cleanup_threads;
 use crate::shutdown::ShutdownBudget;
 use crate::uuid_gen::V4UuidGenerator;
 
@@ -164,9 +163,7 @@ fn run_service_inner() -> Result<()> {
     runtime.block_on(join_deferred_spawn_tasks(shutdown_budget));
 
     let runtime_shutdown_cap = shutdown_budget.remaining_cap(Duration::from_secs(30));
-    let offloaded_cleanup_cap = shutdown_budget.remaining_cap(Duration::from_secs(10));
     runtime.shutdown_timeout(runtime_shutdown_cap);
-    join_offloaded_cleanup_threads(offloaded_cleanup_cap);
 
     result
 }

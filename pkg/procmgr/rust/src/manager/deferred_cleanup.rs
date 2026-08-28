@@ -5,14 +5,11 @@
 
 use crate::shutdown::ShutdownBudget;
 use log::warn;
-use std::future::Future;
 use std::sync::Mutex;
-use std::thread::{self, JoinHandle as ThreadJoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::task::JoinHandle;
 
 static DEFERRED_SPAWN_JOINS: Mutex<Vec<JoinHandle<()>>> = Mutex::new(Vec::new());
-static OFFLOADED_CLEANUP_THREADS: Mutex<Vec<ThreadJoinHandle<()>>> = Mutex::new(Vec::new());
 
 pub(in crate::manager) fn register_deferred_spawn_join(handle: JoinHandle<()>) {
     DEFERRED_SPAWN_JOINS.lock().unwrap().push(handle);
@@ -32,11 +29,12 @@ pub(crate) async fn join_deferred_spawn_tasks(budget: ShutdownBudget) {
 
 async fn join_deferred_spawn_task(handle: JoinHandle<()>, budget: &ShutdownBudget) {
     let cap = budget.remaining_cap(Duration::MAX);
+
     if budget.is_bounded() && cap.is_zero() {
         warn!(
-            "deferred spawn cleanup budget exhausted before runtime shutdown; offloading cleanup thread"
+            "deferred spawn cleanup budget exhausted before runtime shutdown; aborting deferred spawn"
         );
-        offload_spawn_join(handle);
+        handle.abort();
         return;
     }
 
@@ -45,80 +43,15 @@ async fn join_deferred_spawn_task(handle: JoinHandle<()>, budget: &ShutdownBudge
         return;
     }
 
-    let mut monitor = Some(tokio::spawn(handle));
+    let abort = handle.abort_handle();
     tokio::select! {
-        result = async {
-            monitor
-                .take()
-                .expect("deferred spawn monitor should be present")
-                .await
-        } => log_monitor_result(result),
+        result = handle => log_join_result(result),
         _ = tokio::time::sleep(cap) => {
             warn!(
-                "timed out waiting for deferred spawn cleanup ({cap:?} left before runtime shutdown); offloading cleanup thread"
+                "timed out waiting for deferred spawn cleanup ({cap:?} left before runtime shutdown); aborting deferred spawn"
             );
-            if let Some(monitor) = monitor.take() {
-                offload_spawn_monitor(monitor);
-            }
+            abort.abort();
         }
-    }
-}
-
-fn offload_cleanup<F>(cleanup: F)
-where
-    F: Future<Output = ()> + Send + 'static,
-{
-    let runtime_handle = tokio::runtime::Handle::current();
-    OFFLOADED_CLEANUP_THREADS
-        .lock()
-        .unwrap()
-        .push(thread::spawn(move || {
-            runtime_handle.block_on(cleanup);
-        }));
-}
-
-fn offload_spawn_join(handle: JoinHandle<()>) {
-    offload_cleanup(async move {
-        log_join_result(handle.await);
-    });
-}
-
-fn offload_spawn_monitor(monitor: JoinHandle<Result<(), tokio::task::JoinError>>) {
-    offload_cleanup(async move {
-        log_monitor_result(monitor.await);
-    });
-}
-
-/// Wait for cleanup threads offloaded from the service runtime.
-#[cfg_attr(not(windows), allow(dead_code))]
-pub(crate) fn join_offloaded_cleanup_threads(timeout: Duration) {
-    let threads = std::mem::take(&mut *OFFLOADED_CLEANUP_THREADS.lock().unwrap());
-    let deadline = Instant::now() + timeout;
-    for thread in threads {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            warn!("offloaded spawn cleanup budget exhausted; abandoning remaining cleanup threads");
-            break;
-        }
-        if !wait_thread_join(thread, remaining) {
-            warn!("timed out waiting for offloaded spawn cleanup thread");
-        }
-    }
-}
-
-fn wait_thread_join(thread: ThreadJoinHandle<()>, timeout: Duration) -> bool {
-    let (done_tx, done_rx) = std::sync::mpsc::sync_channel(0);
-    thread::spawn(move || {
-        let _ = thread.join();
-        let _ = done_tx.send(());
-    });
-    done_rx.recv_timeout(timeout).is_ok()
-}
-
-fn log_monitor_result(result: Result<Result<(), tokio::task::JoinError>, tokio::task::JoinError>) {
-    match result {
-        Ok(inner) => log_join_result(inner),
-        Err(error) => warn!("deferred spawn monitor failed: {error}"),
     }
 }
 
@@ -133,18 +66,16 @@ fn log_join_result(result: Result<(), tokio::task::JoinError>) {
 #[cfg(test)]
 pub(in crate::manager) fn clear_deferred_spawn_joins_for_test() {
     DEFERRED_SPAWN_JOINS.lock().unwrap().clear();
-    OFFLOADED_CLEANUP_THREADS.lock().unwrap().clear();
-}
-
-#[cfg(test)]
-pub(in crate::manager) fn offloaded_cleanup_thread_count_for_test() -> usize {
-    OFFLOADED_CLEANUP_THREADS.lock().unwrap().len()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::OnceLock;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
     use std::time::Instant;
 
     async fn test_lock() -> tokio::sync::MutexGuard<'static, ()> {
@@ -178,12 +109,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn zero_budget_offloads_cleanup_thread() {
+    async fn zero_budget_aborts_deferred_spawn() {
         let _guard = test_lock().await;
         clear_deferred_spawn_joins_for_test();
-        let (release_tx, release_rx) = tokio::sync::oneshot::channel::<()>();
+        let completed = Arc::new(AtomicBool::new(false));
+        let completed_flag = Arc::clone(&completed);
         register_deferred_spawn_join(tokio::spawn(async move {
-            release_rx.await.ok();
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            completed_flag.store(true, Ordering::SeqCst);
         }));
 
         let budget = ShutdownBudget::with_deadline(
@@ -191,12 +124,10 @@ mod tests {
             Instant::now(),
         );
         join_deferred_spawn_tasks(budget).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(
-            offloaded_cleanup_thread_count_for_test() > 0,
-            "zero budget should offload cleanup instead of dropping handle"
+            !completed.load(Ordering::SeqCst),
+            "zero budget should abort deferred spawn instead of letting it run"
         );
-
-        release_tx.send(()).unwrap();
-        join_offloaded_cleanup_threads(Duration::from_secs(1));
     }
 }

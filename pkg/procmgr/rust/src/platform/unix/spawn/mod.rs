@@ -6,4 +6,4 @@
 mod managed;
 mod stdio;
 
-pub(crate) use managed::{abort_uncommitted_spawn, spawn_managed_child};
+pub(crate) use managed::spawn_managed_child;

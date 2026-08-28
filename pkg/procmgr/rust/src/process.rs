@@ -143,18 +143,140 @@ enum ForceKillWaitTarget<'a> {
 #[cfg(windows)]
 const DEFERRED_SPAWN_USER: &str = "unknown";
 
+const JOB_DRAIN_TIMEOUT: Duration = Duration::from_secs(10);
+
+pub(crate) struct ManagedChildSpawnData {
+    process_name: String,
+    handle: ProcessHandle,
+    intended_user: String,
+    #[cfg(windows)]
+    job_object: platform::JobObject,
+    #[cfg(windows)]
+    user_profile: Option<platform::UserProfileGuard>,
+}
+
+impl ManagedChildSpawnData {
+    #[cfg(unix)]
+    pub(crate) fn uncommitted(
+        process_name: &str,
+        handle: ProcessHandle,
+        intended_user: String,
+    ) -> Self {
+        Self {
+            process_name: process_name.to_owned(),
+            handle,
+            intended_user,
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn uncommitted(
+        process_name: &str,
+        handle: ProcessHandle,
+        intended_user: String,
+        job_object: platform::JobObject,
+        user_profile: Option<platform::UserProfileGuard>,
+    ) -> Self {
+        Self {
+            process_name: process_name.to_owned(),
+            handle,
+            intended_user,
+            job_object,
+            user_profile,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pid(&self) -> Option<u32> {
+        self.handle.id()
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn abort_uncommitted_sync(self) {
+        let Self {
+            process_name,
+            handle,
+            intended_user: _,
+        } = self;
+
+        if let Err(e) = handle.sync_abort_teardown() {
+            warn!("[{process_name}] failed to terminate uncommitted spawn: {e:#}");
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn abort_uncommitted_sync(self) {
+        let Self {
+            process_name,
+            handle,
+            intended_user: _,
+            job_object,
+            user_profile,
+        } = self;
+
+        if let Err(e) = job_object.terminate() {
+            warn!("[{process_name}] failed to terminate uncommitted spawn job: {e:#}");
+        }
+        let pid = handle.id().unwrap_or(0);
+        if let Err(e) = handle.sync_abort_teardown() {
+            warn!("[{process_name}] failed to terminate uncommitted spawn (pid={pid}): {e:#}");
+        }
+
+        let timeout = JOB_DRAIN_TIMEOUT;
+        if !job_object.wait_until_empty(timeout) {
+            warn!(
+                "[{process_name}] timed out waiting for uncommitted spawn job to drain before releasing profile"
+            );
+        }
+
+        drop(user_profile);
+    }
+
+    pub(crate) fn commit_into(self, proc: &mut ManagedProcess) {
+        proc.pid = self.handle.id();
+        proc.user = self.intended_user;
+        #[cfg(windows)]
+        {
+            proc.wait_control = Some(self.handle.wait_control());
+            proc.job_object = Some(self.job_object);
+            proc.user_profile = self.user_profile;
+        }
+        proc.handle = Some(self.handle);
+    }
+}
+
 pub(crate) struct ManagedChildSpawn {
-    pub(crate) handle: ProcessHandle,
-    pub(crate) intended_user: String,
-    #[cfg(windows)]
-    pub(crate) job_object: platform::JobObject,
-    #[cfg(windows)]
-    pub(crate) user_profile: Option<platform::UserProfileGuard>,
+    inner: Option<ManagedChildSpawnData>,
+}
+
+impl From<ManagedChildSpawnData> for ManagedChildSpawn {
+    fn from(data: ManagedChildSpawnData) -> Self {
+        Self { inner: Some(data) }
+    }
 }
 
 impl ManagedChildSpawn {
-    pub(crate) async fn abort(self, process_name: &str) {
-        platform::abort_uncommitted_spawn(self, process_name).await;
+    #[cfg(test)]
+    pub(crate) fn pid(&self) -> Option<u32> {
+        self.inner.as_ref()?.pid()
+    }
+
+    pub(crate) fn drain(mut self) -> Option<ManagedChildSpawnData> {
+        self.inner.take()
+    }
+
+    pub(crate) fn abort(mut self) {
+        if let Some(data) = self.inner.take() {
+            data.abort_uncommitted_sync();
+        }
+    }
+}
+
+impl Drop for ManagedChildSpawn {
+    fn drop(&mut self) {
+        if let Some(data) = self.inner.take() {
+            data.abort_uncommitted_sync();
+        }
     }
 }
 
@@ -181,7 +303,7 @@ pub struct ManagedProcess {
 }
 
 impl ManagedProcess {
-    pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
+    pub(crate) const FORCE_KILL_TIMEOUT: Duration = JOB_DRAIN_TIMEOUT;
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -416,15 +538,10 @@ impl ManagedProcess {
     }
 
     pub(crate) fn apply_managed_child_spawn(&mut self, outcome: ManagedChildSpawn) -> Result<()> {
-        self.pid = outcome.handle.id();
-        self.user = outcome.intended_user;
-        #[cfg(windows)]
-        {
-            self.wait_control = Some(outcome.handle.wait_control());
-            self.job_object = Some(outcome.job_object);
-            self.user_profile = outcome.user_profile;
-        }
-        self.handle = Some(outcome.handle);
+        let Some(outcome) = outcome.drain() else {
+            bail!("managed child spawn already consumed");
+        };
+        outcome.commit_into(self);
         info!(
             "[{}] spawned (pid={}, cmd={})",
             self.name,
@@ -1578,5 +1695,30 @@ runtime_success_sec: 5
             ProcessState::Failed,
             "non-zero exit without Stopping state should be Failed"
         );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn managed_child_spawn_drop_aborts_uncommitted_child() {
+        use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
+        use nix::unistd::Pid;
+        use std::time::Duration;
+
+        let (cmd, args) = test_helpers::sleep_cmd(120);
+        let cfg = test_helpers::make_config(cmd, args);
+        let spawn =
+            crate::platform::spawn_managed_child("drop-abort-test", &cfg).expect("spawn child");
+        let pid = spawn.pid().expect("spawned child should have a pid");
+        drop(spawn);
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        match waitpid(Pid::from_raw(pid as i32), Some(WaitPidFlag::WNOHANG)) {
+            Ok(WaitStatus::StillAlive) => {
+                panic!("drop should abort an unconsumed ManagedChildSpawn (pid={pid})")
+            }
+            Ok(_) => {}
+            Err(nix::errno::Errno::ECHILD) => {}
+            Err(e) => panic!("waitpid failed for pid={pid}: {e}"),
+        }
     }
 }

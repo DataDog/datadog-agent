@@ -230,17 +230,111 @@ impl ProcessHandle {
             raw_terminate_process(self.process_handle.get())
         }
     }
+
+    /// Force-kill the process group and reap without tokio (runtime may be shutting down).
+    /// Normal async [`Self::kill`] targets the child only; this path uses group SIGKILL on Unix.
+    pub(crate) fn sync_abort_teardown(mut self) -> Result<()> {
+        let result = self.kill_sync();
+        self.wait_sync();
+        #[cfg(not(windows))]
+        std::mem::forget(self);
+        result
+    }
+
+    #[cfg(not(windows))]
+    fn kill_sync(&mut self) -> Result<()> {
+        if let Some(pid) = self.child.id() {
+            crate::platform::send_force_kill(pid)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    fn wait_sync(&mut self) {
+        use std::time::{Duration, Instant};
+
+        const SYNC_WAIT_TIMEOUT: Duration = Duration::from_secs(5);
+
+        let Some(pid) = self.child.id() else {
+            return;
+        };
+        use nix::sys::wait::{WaitPidFlag, waitpid};
+        use nix::unistd::Pid;
+
+        let pid = Pid::from_raw(pid as i32);
+        let deadline = Instant::now() + SYNC_WAIT_TIMEOUT;
+        loop {
+            match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
+                Ok(_) => return,
+                Err(nix::errno::Errno::ECHILD) => return,
+                Err(_) if Instant::now() >= deadline => return,
+                Err(_) => std::thread::sleep(Duration::from_millis(50)),
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    fn kill_sync(&mut self) -> Result<()> {
+        raw_terminate_process(self.process_handle.get())
+    }
+
+    #[cfg(windows)]
+    fn wait_sync(&mut self) {
+        sync_wait_process(&self.wait_control);
+    }
+}
+
+#[cfg(windows)]
+mod windows_wait {
+    pub(super) const WAIT_OBJECT_0: u32 = 0;
+    pub(super) const WAIT_TIMEOUT: u32 = 0x0000_0102;
+    pub(super) const WAIT_FAILED: u32 = 0xFFFF_FFFF;
+    pub(super) const WAIT_SLICE_MS: u32 = 500;
+}
+
+#[cfg(windows)]
+enum ProcessWaitPoll {
+    Signaled,
+    Timeout,
+    Failed(std::io::Error),
+    Unexpected(u32),
+}
+
+#[cfg(windows)]
+fn poll_process_wait(process_handle: HANDLE, slice_ms: u32) -> ProcessWaitPoll {
+    use windows_sys::Win32::System::Threading::WaitForSingleObject;
+    use windows_wait::{WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT};
+
+    match unsafe { WaitForSingleObject(process_handle, slice_ms) } {
+        WAIT_OBJECT_0 => ProcessWaitPoll::Signaled,
+        WAIT_TIMEOUT => ProcessWaitPoll::Timeout,
+        WAIT_FAILED => ProcessWaitPoll::Failed(std::io::Error::last_os_error()),
+        status => ProcessWaitPoll::Unexpected(status),
+    }
+}
+
+#[cfg(windows)]
+fn sync_wait_process(wait_control: &ProcessWaitControl) {
+    use windows_wait::WAIT_SLICE_MS;
+
+    let process_handle = wait_control.wait_handle();
+    loop {
+        match poll_process_wait(process_handle, WAIT_SLICE_MS) {
+            ProcessWaitPoll::Signaled
+            | ProcessWaitPoll::Failed(_)
+            | ProcessWaitPoll::Unexpected(_) => {
+                return;
+            }
+            ProcessWaitPoll::Timeout => {}
+        }
+    }
 }
 
 #[cfg(windows)]
 async fn raw_wait_exit_code(wait_control: Arc<ProcessWaitControl>) -> Result<ExitStatus> {
     use std::os::windows::process::ExitStatusExt;
-    use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
-
-    const WAIT_OBJECT_0: u32 = 0;
-    const WAIT_TIMEOUT: u32 = 0x0000_0102;
-    const WAIT_FAILED: u32 = 0xFFFF_FFFF;
-    const WAIT_SLICE_MS: u32 = 500;
+    use windows_sys::Win32::System::Threading::GetExitCodeProcess;
+    use windows_wait::WAIT_SLICE_MS;
 
     let wc = Arc::clone(&wait_control);
     let exit_code = tokio::task::spawn_blocking(move || -> Result<u32> {
@@ -250,28 +344,29 @@ async fn raw_wait_exit_code(wait_control: Arc<ProcessWaitControl>) -> Result<Exi
                 return Err(std::io::Error::other("process wait cancelled").into());
             }
 
-            let wait_result = unsafe { WaitForSingleObject(process_handle, WAIT_SLICE_MS) };
-            if wait_result == WAIT_OBJECT_0 {
-                let mut exit_code: u32 = 0;
-                let ok = unsafe { GetExitCodeProcess(process_handle, &mut exit_code) };
-                if ok == 0 {
-                    return Err(std::io::Error::last_os_error().into());
+            match poll_process_wait(process_handle, WAIT_SLICE_MS) {
+                ProcessWaitPoll::Signaled => {
+                    let mut exit_code: u32 = 0;
+                    let ok = unsafe { GetExitCodeProcess(process_handle, &mut exit_code) };
+                    if ok == 0 {
+                        return Err(std::io::Error::last_os_error().into());
+                    }
+                    return Ok(exit_code);
                 }
-                return Ok(exit_code);
-            }
-            if wait_result == WAIT_TIMEOUT {
-                continue;
-            }
-            if wait_result == WAIT_FAILED {
-                if wc.is_cancelled() {
-                    return Err(std::io::Error::other("process wait cancelled").into());
+                ProcessWaitPoll::Timeout => {}
+                ProcessWaitPoll::Failed(error) => {
+                    if wc.is_cancelled() {
+                        return Err(std::io::Error::other("process wait cancelled").into());
+                    }
+                    return Err(error.into());
                 }
-                return Err(std::io::Error::last_os_error().into());
+                ProcessWaitPoll::Unexpected(status) => {
+                    return Err(std::io::Error::other(format!(
+                        "WaitForSingleObject returned unexpected status: {status}"
+                    ))
+                    .into());
+                }
             }
-            return Err(std::io::Error::other(format!(
-                "WaitForSingleObject returned unexpected status: {wait_result}"
-            ))
-            .into());
         }
     })
     .await??;

@@ -4,12 +4,11 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::{info, warn};
-use tokio::process::Command;
+use log::info;
 
 use crate::config::ProcessConfig;
 use crate::handle::ProcessHandle;
-use crate::process::ManagedChildSpawn;
+use crate::process::{ManagedChildSpawn, ManagedChildSpawnData};
 use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 use crate::spawn_context;
 
@@ -21,29 +20,7 @@ pub(crate) fn spawn_managed_child(
     let request = SpawnRequest::from_config(process_name, config, profile)?;
     let intended_user = super::super::spawn_user_for_supervisor();
     let handle = spawn_child(process_name, request, profile)?;
-    Ok(ManagedChildSpawn {
-        handle,
-        intended_user,
-    })
-}
-
-pub(crate) async fn abort_uncommitted_spawn(spawn: ManagedChildSpawn, process_name: &str) {
-    let ManagedChildSpawn {
-        mut handle,
-        intended_user: _,
-    } = spawn;
-    let pid = handle.id().unwrap_or(0);
-
-    let group_killed = match handle.id() {
-        Some(pid) => super::super::send_force_kill(pid).is_ok(),
-        None => false,
-    };
-    if !group_killed && let Err(e) = handle.kill().await {
-        warn!("[{process_name}] failed to terminate uncommitted spawn: {e:#}");
-    }
-    if let Err(e) = handle.wait().await {
-        warn!("[{process_name}] failed to reap uncommitted spawn (pid={pid}): {e:#}");
-    }
+    Ok(ManagedChildSpawnData::uncommitted(process_name, handle, intended_user).into())
 }
 
 fn spawn_child(
@@ -61,7 +38,7 @@ fn spawn_child(
         stderr_setting,
     } = request;
 
-    let mut cmd = Command::new(&command);
+    let mut cmd = tokio::process::Command::new(&command);
     cmd.args(&args);
     cmd.env_clear();
     for (k, v) in env {

@@ -265,20 +265,20 @@ async fn commit_spawn(
 ) -> Result<SpawnProcessOutcome> {
     let mut procs = catalog.write_processes().await;
     let Some(proc) = procs.get_mut(idx) else {
-        abort_uncommitted(spawn_result, name).await;
+        abort_uncommitted(spawn_result);
         return Ok(SpawnProcessOutcome::NotStarted);
     };
 
     if !proc.may_commit_spawn_reservation(reservation) {
         drop(procs);
-        abort_uncommitted(spawn_result, name).await;
+        abort_uncommitted(spawn_result);
         return Ok(SpawnProcessOutcome::NotStarted);
     }
 
     if !ctx.lifecycle.spawns_allowed() || !kind.may_commit_spawn(proc) {
         proc.cancel_spawn_reservation();
         drop(procs);
-        abort_uncommitted(spawn_result, name).await;
+        abort_uncommitted(spawn_result);
         return Ok(SpawnProcessOutcome::NotStarted);
     }
 
@@ -310,9 +310,9 @@ async fn commit_spawn(
     }
 }
 
-async fn abort_uncommitted(spawn_result: Result<ManagedChildSpawn>, name: &str) {
-    if let Ok(outcome) = spawn_result {
-        outcome.abort(name).await;
+fn abort_uncommitted(spawn_result: Result<ManagedChildSpawn>) {
+    if let Ok(spawn) = spawn_result {
+        spawn.abort();
     }
 }
 

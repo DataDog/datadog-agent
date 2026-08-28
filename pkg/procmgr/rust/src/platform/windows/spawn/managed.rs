@@ -4,10 +4,10 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::{info, warn};
+use log::info;
 
 use crate::config::ProcessConfig;
-use crate::process::{ManagedChildSpawn, ManagedProcess};
+use crate::process::{ManagedChildSpawn, ManagedChildSpawnData};
 use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 
 use super::super::JobObject;
@@ -41,42 +41,12 @@ pub(crate) fn spawn_managed_child(
         .supervise(process_name, job)
         .with_context(|| format!("[{process_name}] start supervised child"))?;
 
-    Ok(ManagedChildSpawn {
+    Ok(ManagedChildSpawnData::uncommitted(
+        process_name,
         handle,
         intended_user,
         job_object,
         user_profile,
-    })
-}
-
-pub(crate) async fn abort_uncommitted_spawn(spawn: ManagedChildSpawn, process_name: &str) {
-    let ManagedChildSpawn {
-        mut handle,
-        intended_user: _,
-        job_object,
-        user_profile,
-    } = spawn;
-
-    if let Err(e) = job_object.terminate() {
-        warn!("[{process_name}] failed to terminate uncommitted spawn job: {e:#}");
-    }
-    let pid = handle.id().unwrap_or(0);
-    if let Err(e) = handle.kill().await {
-        warn!("[{process_name}] failed to terminate uncommitted spawn (pid={pid}): {e:#}");
-    }
-    if let Err(e) = handle.wait().await {
-        warn!("[{process_name}] failed to wait for uncommitted spawn (pid={pid}): {e:#}");
-    }
-
-    let timeout = ManagedProcess::FORCE_KILL_TIMEOUT;
-    let drained = tokio::task::spawn_blocking(move || job_object.wait_until_empty(timeout))
-        .await
-        .unwrap_or(false);
-    if !drained {
-        warn!(
-            "[{process_name}] timed out waiting for uncommitted spawn job to drain before releasing profile"
-        );
-    }
-
-    drop(user_profile);
+    )
+    .into())
 }

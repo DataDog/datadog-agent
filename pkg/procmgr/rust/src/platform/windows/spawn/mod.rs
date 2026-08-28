@@ -17,4 +17,4 @@ pub(crate) mod win32;
 
 #[cfg(any(test, feature = "test-helpers"))]
 pub(crate) use credential::SpawnCredential;
-pub(crate) use managed::{abort_uncommitted_spawn, spawn_managed_child};
+pub(crate) use managed::spawn_managed_child;
