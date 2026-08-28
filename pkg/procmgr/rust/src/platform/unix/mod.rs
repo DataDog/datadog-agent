@@ -110,6 +110,9 @@ pub fn stderr_inheritable() -> bool {
 }
 
 pub(crate) async fn wait_for_shutdown() {
+    let notified = shutdown_notify().notified();
+    tokio::pin!(notified);
+    notified.as_mut().enable();
     if shutdown_requested() {
         return;
     }
@@ -125,7 +128,7 @@ pub(crate) async fn wait_for_shutdown() {
             mark_shutdown_requested();
             log::info!("received SIGINT");
         }
-        _ = shutdown_notify().notified() => {
+        _ = notified => {
             mark_shutdown_requested();
         }
     }

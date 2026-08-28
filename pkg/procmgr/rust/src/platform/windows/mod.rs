@@ -406,6 +406,9 @@ fn default_stable_fleet_policies_dir() -> Option<PathBuf> {
 }
 
 pub(crate) async fn wait_for_shutdown() {
+    let notified = shutdown_notify().notified();
+    tokio::pin!(notified);
+    notified.as_mut().enable();
     if shutdown_requested() {
         return;
     }
@@ -415,7 +418,7 @@ pub(crate) async fn wait_for_shutdown() {
             SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
             log::info!("received Ctrl+C");
         }
-        _ = shutdown_notify().notified() => {
+        _ = notified => {
             SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
             log::info!("received service stop request");
         }
