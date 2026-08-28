@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/credential"
 )
 
-// team: credential-management
+// team: credential-management delegated-auth-login
 
 // Provider is an alias for credential.Provider, the canonical interface declared in
 // pkg/credential. The alias keeps existing imports of delegatedauth.Provider working
