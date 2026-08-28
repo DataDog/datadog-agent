@@ -17,26 +17,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 // resetClient wraps a test server's client in the ResetClient the sender expects.
 func resetClient(c *http.Client) *config.ResetClient {
 	return config.NewResetClient(0, func() *http.Client { return c })
-}
-
-// stubProvider is a CredentialProvider whose readiness the test controls.
-type stubProvider struct {
-	key   string
-	ready atomic.Bool
-}
-
-func (p *stubProvider) Authorize(h http.Header) bool {
-	if !p.ready.Load() {
-		return false
-	}
-	h.Set("DD-Api-Key", p.key)
-	return true
 }
 
 // An endpoint with a plain API key must be unaffected by any of this.
@@ -50,8 +37,8 @@ func TestAuthorizeStampsThePlainAPIKeyWhenThereIsNoProvider(t *testing.T) {
 
 // A provider replaces the API key entirely - the endpoint has no key of its own to fall back to.
 func TestAuthorizeUsesTheProviderWhenOneIsSet(t *testing.T) {
-	p := &stubProvider{key: "delegated-key"}
-	p.ready.Store(true)
+	p := &delegatedauthmock.StubProvider{Key: "delegated-key"}
+	p.SetReady(true)
 	m := &apiKeyManager{provider: p}
 
 	h := http.Header{}
@@ -60,7 +47,7 @@ func TestAuthorizeUsesTheProviderWhenOneIsSet(t *testing.T) {
 }
 
 func TestAuthorizeReportsNotReadyWhileTheCredentialIsResolving(t *testing.T) {
-	m := &apiKeyManager{provider: &stubProvider{key: "delegated-key"}}
+	m := &apiKeyManager{provider: &delegatedauthmock.StubProvider{Key: "delegated-key"}}
 
 	h := http.Header{}
 	assert.False(t, m.Authorize(h))
@@ -79,7 +66,7 @@ func TestDoDoesNotSendWithoutACredential(t *testing.T) {
 
 	s := &sender{
 		cfg:           &senderConfig{client: resetClient(srv.Client()), userAgent: "test"},
-		apiKeyManager: &apiKeyManager{provider: &stubProvider{key: "delegated-key"}},
+		apiKeyManager: &apiKeyManager{provider: &delegatedauthmock.StubProvider{Key: "delegated-key"}},
 	}
 	req, err := http.NewRequest(http.MethodPost, srv.URL, http.NoBody)
 	require.NoError(t, err)
@@ -100,7 +87,7 @@ func TestDoSendsOnceTheCredentialArrives(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := &stubProvider{key: "delegated-key"}
+	p := &delegatedauthmock.StubProvider{Key: "delegated-key"}
 	s := &sender{
 		cfg:           &senderConfig{client: resetClient(srv.Client()), userAgent: "test"},
 		apiKeyManager: &apiKeyManager{provider: p},
@@ -110,7 +97,7 @@ func TestDoSendsOnceTheCredentialArrives(t *testing.T) {
 	require.NoError(t, err)
 	require.IsType(t, &credentialNotReadyError{}, s.do(req))
 
-	p.ready.Store(true)
+	p.SetReady(true)
 
 	req, err = http.NewRequest(http.MethodPost, srv.URL, http.NoBody)
 	require.NoError(t, err)
@@ -129,7 +116,7 @@ func TestWaitingForACredentialDoesNotExhaustRetries(t *testing.T) {
 
 	s := &sender{
 		cfg:           &senderConfig{client: resetClient(srv.Client()), userAgent: "test", url: mustParseURL(t, srv.URL), recorder: &mockRecorder{}},
-		apiKeyManager: &apiKeyManager{provider: &stubProvider{key: "delegated-key"}},
+		apiKeyManager: &apiKeyManager{provider: &delegatedauthmock.StubProvider{Key: "delegated-key"}},
 		maxRetries:    3,
 		inflight:      atomic.NewInt32(0),
 		enabled:       atomic.NewBool(true),
@@ -147,7 +134,7 @@ func TestWaitingForACredentialDoesNotExhaustRetries(t *testing.T) {
 func TestPayloadIsReleasedWhenTheSenderClosesWhileWaiting(t *testing.T) {
 	s := &sender{
 		cfg:           &senderConfig{client: resetClient(http.DefaultClient), userAgent: "test", url: mustParseURL(t, "http://localhost:0"), recorder: &mockRecorder{}},
-		apiKeyManager: &apiKeyManager{provider: &stubProvider{key: "delegated-key"}},
+		apiKeyManager: &apiKeyManager{provider: &delegatedauthmock.StubProvider{Key: "delegated-key"}},
 		maxRetries:    3,
 		closed:        true,
 		inflight:      atomic.NewInt32(0),
@@ -183,7 +170,7 @@ func TestAuthorizeRefusesWhenThereIsNeitherProviderNorKey(t *testing.T) {
 func TestPushDoesNotBlockOnASenderAwaitingACredential(t *testing.T) {
 	s := &sender{
 		cfg:           &senderConfig{maxQueued: 1},
-		apiKeyManager: &apiKeyManager{provider: &stubProvider{key: "delegated-key"}},
+		apiKeyManager: &apiKeyManager{provider: &delegatedauthmock.StubProvider{Key: "delegated-key"}},
 		queue:         make(chan *payload, 1),
 		inflight:      atomic.NewInt32(0),
 		enabled:       atomic.NewBool(true),
@@ -231,4 +218,14 @@ func TestPushStillBlocksForAnOrdinaryFullSender(t *testing.T) {
 	}
 	<-s.queue // unblock the goroutine
 	<-pushed
+}
+
+// An endpoint with an ENC[...] key resolved by the secrets backend must be unaffected by the
+// provider path. The apiKeyManager has no provider set, so Authorize stamps the resolved key.
+func TestAuthorizeStampsResolvedEncKeyWhenThereIsNoProvider(t *testing.T) {
+	m := &apiKeyManager{apiKey: "resolved-enc-key"}
+
+	h := http.Header{}
+	require.True(t, m.Authorize(h))
+	assert.Equal(t, "resolved-enc-key", h.Get("DD-Api-Key"))
 }
