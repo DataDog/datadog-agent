@@ -2297,7 +2297,7 @@
         },
         "metadata": {
           "$ref": "#/$defs/TracerMetadata",
-          "description": "Metadata from APM tracer instrumentation (for example, schema version, language,\nversion, or thread-local attribute keys)."
+          "description": "Metadata from APM tracer instrumentation (for example, schema version,\nlanguage, or version)."
         }
       },
       "additionalProperties": false,
@@ -2338,12 +2338,6 @@
         },
         "logs_collected": {
           "type": "boolean"
-        },
-        "threadlocal_attribute_keys": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
         }
       },
       "additionalProperties": false,
