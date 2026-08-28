@@ -15,7 +15,8 @@ pub(crate) async fn run(
     ctx: RuntimeContext,
     shutdown: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<()> {
-    let svc = ProcessManagerService::new(mgr, ctx.cmd_tx);
+    let lifecycle = ctx.lifecycle();
+    let svc = ProcessManagerService::new(mgr, ctx.cmd_tx, lifecycle);
     let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
     let reflection = tonic_reflection::server::Builder::configure()

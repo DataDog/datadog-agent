@@ -14,12 +14,12 @@ enum Phase {
 }
 
 #[derive(Clone)]
-pub(in crate::manager) struct Lifecycle {
+pub(crate) struct Lifecycle {
     phase: Arc<AtomicU8>,
 }
 
 impl Lifecycle {
-    pub(in crate::manager) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             phase: Arc::new(AtomicU8::new(phase_to_u8(Phase::Starting))),
         }
@@ -29,7 +29,7 @@ impl Lifecycle {
         u8_to_phase(self.phase.load(Ordering::Acquire))
     }
 
-    pub(in crate::manager) fn begin_running(&self) {
+    pub(crate) fn begin_running(&self) {
         self.phase
             .store(phase_to_u8(Phase::Running), Ordering::Release);
     }
@@ -45,6 +45,10 @@ impl Lifecycle {
 
     pub(in crate::manager) fn is_stopping(&self) -> bool {
         self.phase() == Phase::Stopping
+    }
+
+    pub(crate) fn is_running(&self) -> bool {
+        self.phase() == Phase::Running
     }
 }
 

@@ -139,6 +139,10 @@ pub(crate) struct RuntimeReceivers {
 }
 
 impl RuntimeContext {
+    pub(crate) fn lifecycle(&self) -> Lifecycle {
+        self.lifecycle.clone()
+    }
+
     fn with_senders(
         lifecycle: Lifecycle,
         cmd_tx: mpsc::Sender<Command>,

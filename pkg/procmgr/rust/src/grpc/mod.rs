@@ -16,10 +16,11 @@ pub mod proto {
 mod tests {
     use super::proto;
     use super::proto::process_manager_client::ProcessManagerClient;
+    use super::proto::process_manager_server::ProcessManager as ProcessManagerRpc;
     use super::service::ProcessManagerService;
     use crate::command::Command;
     use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
-    use crate::manager::ProcessManager;
+    use crate::manager::{Lifecycle, ProcessManager};
     use std::sync::Arc;
     use tokio::net::UnixListener;
     use tokio::sync::mpsc;
@@ -44,7 +45,9 @@ mod tests {
             Arc::new(StaticConfigLoader::new(defs)),
             Arc::new(crate::uuid_gen::V4UuidGenerator),
         );
-        let svc = ProcessManagerService::new(mgr.clone(), cmd_tx.clone());
+        let lifecycle = Lifecycle::new();
+        lifecycle.begin_running();
+        let svc = ProcessManagerService::new(mgr.clone(), cmd_tx.clone(), lifecycle);
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
@@ -185,6 +188,30 @@ mod tests {
 
         assert_eq!(status.code(), tonic::Code::NotFound);
         assert_eq!(status.message(), "process 'nonexistent' not found");
+    }
+
+    #[tokio::test]
+    async fn test_get_status_not_ready_during_startup() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd_tx, _cmd_rx) = mpsc::channel::<Command>(64);
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::new(vec![ProcessDefinition {
+                name: "boot-svc".to_string(),
+                config: ProcessConfig {
+                    command: cmd.to_string(),
+                    args,
+                    ..Default::default()
+                },
+            }])),
+            Arc::new(crate::uuid_gen::V4UuidGenerator),
+        );
+        let svc = ProcessManagerService::new(mgr, cmd_tx, Lifecycle::new());
+        let resp =
+            ProcessManagerRpc::get_status(&svc, tonic::Request::new(proto::GetStatusRequest {}))
+                .await
+                .unwrap()
+                .into_inner();
+        assert!(!resp.ready);
     }
 
     #[tokio::test]

@@ -17,6 +17,7 @@ mod supervisor;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use lifecycle::Lifecycle;
 pub(crate) use runtime::RuntimeContext;
 
 use crate::process::ManagedProcess;

@@ -9,7 +9,7 @@ use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::caller_auth::require_mutating_pipe_client;
 use crate::grpc::proto;
-use crate::manager::ProcessManager;
+use crate::manager::{Lifecycle, ProcessManager};
 use crate::platform;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
@@ -21,14 +21,16 @@ pub struct ProcessManagerService {
     mgr: ProcessManager,
     started_at: Instant,
     cmd_tx: mpsc::Sender<Command>,
+    lifecycle: Lifecycle,
 }
 
 impl ProcessManagerService {
-    pub fn new(mgr: ProcessManager, cmd_tx: mpsc::Sender<Command>) -> Self {
+    pub(crate) fn new(mgr: ProcessManager, cmd_tx: mpsc::Sender<Command>, lifecycle: Lifecycle) -> Self {
         Self {
             mgr,
             started_at: Instant::now(),
             cmd_tx,
+            lifecycle,
         }
     }
 }
@@ -89,7 +91,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         }
 
         Ok(Response::new(proto::GetStatusResponse {
-            ready: true,
+            ready: self.lifecycle.is_running(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             uptime_seconds: self.started_at.elapsed().as_secs(),
             total_processes: total,
