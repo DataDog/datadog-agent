@@ -18,12 +18,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/config",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/delegatedauth/def",
         "//comp/logs-library/utils/tls",
         "//pkg/config/model",
         "//pkg/config/setup/constants",
         "//pkg/config/structure",
         "//pkg/config/utils",
+        "//pkg/credential",
         "//pkg/logs/types",
         "//pkg/util/log",
         "//pkg/util/scrubber",
@@ -47,6 +47,7 @@ dd_agent_go_test(
     embed = [":config"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/mock",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/setup/constants",

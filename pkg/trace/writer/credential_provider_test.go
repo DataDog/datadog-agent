@@ -219,3 +219,13 @@ func TestPushStillBlocksForAnOrdinaryFullSender(t *testing.T) {
 	<-s.queue // unblock the goroutine
 	<-pushed
 }
+
+// An endpoint with an ENC[...] key resolved by the secrets backend must be unaffected by the
+// provider path. The apiKeyManager has no provider set, so Authorize stamps the resolved key.
+func TestAuthorizeStampsResolvedEncKeyWhenThereIsNoProvider(t *testing.T) {
+	m := &apiKeyManager{apiKey: "resolved-enc-key"}
+
+	h := http.Header{}
+	require.True(t, m.Authorize(h))
+	assert.Equal(t, "resolved-enc-key", h.Get("DD-Api-Key"))
+}

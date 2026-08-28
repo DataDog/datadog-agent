@@ -83,14 +83,23 @@ func TestStaticKeysUnaffectedByAPendingProvider(t *testing.T) {
 // An out-of-range slot is an error rather than a silent unauthenticated send. On-disk transactions
 // serialized when more slots existed can land here after a restart.
 func TestAuthorizeRejectsOutOfRangeSlot(t *testing.T) {
-	r := resolverWithProvider(t, []string{"static-key"}, func() *delegatedauthmock.StubProvider {
-		p := &delegatedauthmock.StubProvider{}
-		p.SetReady(true)
-		return p
-	}())
+	p := &delegatedauthmock.StubProvider{Key: "k"}
+	p.SetReady(true)
+	r := resolverWithProvider(t, []string{"static-key"}, p)
 	log := logmock.New(t)
 
 	h := http.Header{}
 	require.Error(t, r.Authorize(99, h, log))
 	assert.Empty(t, h)
+}
+
+// An ENC[...] key resolved by the secrets backend is a normal static key from the resolver's
+// perspective. The provider path must not interfere with it.
+func TestResolvedEncKeyUnaffectedByProvider(t *testing.T) {
+	r := resolverWithProvider(t, []string{"resolved-enc-key"}, &delegatedauthmock.StubProvider{})
+	log := logmock.New(t)
+
+	h := http.Header{}
+	require.NoError(t, r.Authorize(1, h, log), "the ENC[] key slot must authorize independently of the provider")
+	assert.Equal(t, "resolved-enc-key", h.Get("DD-Api-Key"))
 }

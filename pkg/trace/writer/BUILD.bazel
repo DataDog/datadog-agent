@@ -41,6 +41,7 @@ dd_agent_go_test(
     ],
     embed = [":writer"],
     deps = [
+        "//comp/core/delegatedauth/mock",
         "//comp/trace/compression/def",
         "//comp/trace/compression/impl-gzip",
         "//comp/trace/compression/impl-zstd",

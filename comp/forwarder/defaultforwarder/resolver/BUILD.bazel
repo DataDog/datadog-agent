@@ -11,12 +11,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/delegatedauth/def",
         "//comp/core/log/def",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/model",
         "//pkg/config/utils",
+        "//pkg/credential",
         "//pkg/util/scrubber",
     ],
 )
@@ -29,6 +29,7 @@ dd_agent_go_test(
     ],
     embed = [":resolver"],
     deps = [
+        "//comp/core/delegatedauth/mock",
         "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/transaction",

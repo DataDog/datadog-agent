@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
-
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/credential"
 )
@@ -29,12 +28,10 @@ func TestAuthorizeStampsTheConfiguredKey(t *testing.T) {
 
 // A provider replaces the API key entirely: a delegated-auth endpoint has no key of its own.
 func TestAuthorizeUsesTheProviderWhenSet(t *testing.T) {
+	p := &delegatedauthmock.StubProvider{Key: "delegated-key"}
+	p.SetReady(true)
 	e := NewEndpoint("", "logs_config.additional_endpoints", "host", 0, "", false)
-	e.SetCredentialProvider(func() *delegatedauthmock.StubProvider {
-		p := &delegatedauthmock.StubProvider{Key: "delegated-key"}
-		p.SetReady(true)
-		return p
-	}())
+	e.SetCredentialProvider(p)
 
 	h := http.Header{}
 	require.True(t, e.Authorize(h))
@@ -207,16 +204,24 @@ func TestADirectiveInTheAPIKeyIsStillNeverStamped(t *testing.T) {
 
 // A resolved provider still wins over whatever apiKey happens to hold.
 func TestProviderStillWinsWhenTheKeyHoldsADirective(t *testing.T) {
+	p := &delegatedauthmock.StubProvider{Key: "org2-key"}
+	p.SetReady(true)
 	e := NewEndpoint("", "logs_config.additional_endpoints", "org2.datadoghq.com", 0, "", false)
 	e.credentialDirective = "DELA(org-uuid-2, aws)"
 	e.apiKey.Store("DELA(org-uuid-2, aws)")
-	e.SetCredentialProvider(func() *delegatedauthmock.StubProvider {
-		p := &delegatedauthmock.StubProvider{Key: "org2-key"}
-		p.SetReady(true)
-		return p
-	}())
+	e.SetCredentialProvider(p)
 
 	h := http.Header{}
 	require.True(t, e.Authorize(h))
 	assert.Equal(t, "org2-key", h.Get("DD-API-KEY"))
+}
+
+// An endpoint with an ENC[...] key resolved by the secrets backend must be unaffected by the
+// provider path. It behaves like a plain key from the endpoint's perspective.
+func TestAuthorizeStampsResolvedEncKey(t *testing.T) {
+	e := NewEndpoint("resolved-enc-key", "logs_config.api_key", "host", 0, "", false)
+
+	h := http.Header{}
+	require.True(t, e.Authorize(h))
+	assert.Equal(t, "resolved-enc-key", h.Get("DD-API-KEY"))
 }
