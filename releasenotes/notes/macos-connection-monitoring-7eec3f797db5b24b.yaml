@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add an opt-in macOS Network Performance Monitoring backend that uses
+    event-driven NStat connection data with optional packet and process
+    enrichment. The existing eBPF-less backend remains the default, and the
+    new backend automatically falls back when NStat is unavailable.
