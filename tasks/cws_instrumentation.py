@@ -47,7 +47,8 @@ def build(
     `go build`, then copy the result to the same place. Developer opt-in only; defaults to off.
     """
     if enable_bazel:
-        build_binary_with_bazel("//cmd/cws-instrumentation:cws-instrumentation", BIN_PATH)
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel("//cmd/cws-instrumentation:cws-instrumentation", args=bazel_args, bin_path=BIN_PATH)
         return
 
     if build_tags is None:
