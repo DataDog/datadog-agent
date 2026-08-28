@@ -14,6 +14,8 @@ use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
 use std::collections::VecDeque;
 use std::pin::Pin;
+use std::sync::Arc;
+use tokio::sync::Notify;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
@@ -158,7 +160,45 @@ pub(crate) enum StopWaitResult {
     WatcherTimedOut(JoinHandle<Option<std::process::ExitStatus>>),
     ChildTimedOut(ProcessHandle),
     JoinFailed,
-    NoHandles,
+}
+
+impl StopWaitResult {
+    /// Drop a wait outcome that no longer matches the owning child generation.
+    fn drop_if_unowned(self) {
+        match self {
+            Self::Exited(_) | Self::JoinFailed => {}
+            Self::WatcherTimedOut(handle) => {
+                handle.abort();
+            }
+            Self::ChildTimedOut(handle) => {
+                drop(handle);
+            }
+        }
+    }
+}
+
+/// Child generation that owns an in-flight stop wait.
+///
+/// Duplicate `Stop` RPCs coalesce on [`Notify`] (see [`coalesced_run_stop_wait`]).
+/// The generation stamp prevents a stale watcher from mutating a replacement child
+/// when `Start` commits before the old wait finishes.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct StopWaitGeneration(Option<u64>);
+
+impl StopWaitGeneration {
+    fn claim(&mut self, spawn_seq: u64) {
+        if self.0.is_none() {
+            self.0 = Some(spawn_seq);
+        }
+    }
+
+    fn owns(&self, spawn_seq: u64) -> bool {
+        self.0 == Some(spawn_seq)
+    }
+
+    fn clear(&mut self) {
+        self.0 = None;
+    }
 }
 
 impl StopWaitPlan {
@@ -344,6 +384,8 @@ pub struct ManagedProcess {
     watcher_handle: Option<JoinHandle<Option<std::process::ExitStatus>>>,
     restarts: RestartTracker,
     spawn_seq: u64,
+    stop_wait_generation: StopWaitGeneration,
+    stop_wait_notify: Arc<Notify>,
     reservation_seq: u64,
     spawn_reservation: Option<SpawnReservationToken>,
     origin: ProcessOrigin,
@@ -380,6 +422,8 @@ impl ManagedProcess {
             watcher_handle: None,
             restarts,
             spawn_seq: 0,
+            stop_wait_generation: StopWaitGeneration::default(),
+            stop_wait_notify: Arc::new(Notify::new()),
             reservation_seq: 0,
             spawn_reservation: None,
             origin,
@@ -448,6 +492,10 @@ impl ManagedProcess {
         self.spawn_seq
     }
 
+    pub(crate) fn stop_wait_notify(&self) -> Arc<Notify> {
+        Arc::clone(&self.stop_wait_notify)
+    }
+
     fn inc_spawn_seq(&mut self) {
         self.spawn_seq += 1;
     }
@@ -478,7 +526,11 @@ impl ManagedProcess {
             }
             return;
         }
+        let notify_coalesced_waiters = self.state.awaiting_stop() && !next.awaiting_stop();
         self.state = next;
+        if notify_coalesced_waiters {
+            self.stop_wait_notify.notify_waiters();
+        }
     }
 
     fn condition_path_exists_met(&self) -> bool {
@@ -712,7 +764,12 @@ impl ManagedProcess {
 
     fn mark_stopped(&mut self) {
         #[cfg(windows)]
-        self.clear_windows_spawn_resources();
+        {
+            self.cancel_process_wait();
+            self.wait_control = None;
+            self.clear_windows_spawn_resources();
+        }
+        self.stop_wait_generation.clear();
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
     }
@@ -729,12 +786,13 @@ impl ManagedProcess {
     }
 
     pub(crate) fn plan_stop_wait(&mut self, budget: ShutdownBudget) -> Option<StopWaitPlan> {
-        if !matches!(self.state, ProcessState::Running | ProcessState::Stopping) {
+        if !self.state.awaiting_stop() {
             return None;
         }
 
         let graceful_budget = budget.graceful_budget(self.stop_timeout());
         if let Some(handle) = self.watcher_handle.take() {
+            self.stop_wait_generation.claim(self.spawn_seq);
             return Some(StopWaitPlan::Watcher {
                 name: self.name.clone(),
                 handle,
@@ -743,6 +801,7 @@ impl ManagedProcess {
         }
 
         if let Some(handle) = self.take_handle() {
+            self.stop_wait_generation.claim(self.spawn_seq);
             return Some(StopWaitPlan::Child {
                 name: self.name.clone(),
                 handle,
@@ -758,15 +817,15 @@ impl ManagedProcess {
         result: StopWaitResult,
         budget: ShutdownBudget,
     ) -> bool {
+        if !self.stop_wait_generation.owns(self.spawn_seq) {
+            result.drop_if_unowned();
+            return false;
+        }
+
         let graceful_budget = budget.graceful_budget(self.stop_timeout());
         match result {
             StopWaitResult::Exited(status) => self.apply_stop_exit(status),
             StopWaitResult::JoinFailed => {
-                if self.state.is_alive() {
-                    self.mark_stopped();
-                }
-            }
-            StopWaitResult::NoHandles => {
                 if self.state.is_alive() {
                     self.mark_stopped();
                 }
@@ -801,12 +860,15 @@ impl ManagedProcess {
                 }
             }
         }
-        matches!(self.state, ProcessState::Running | ProcessState::Stopping)
+        self.state.awaiting_stop()
     }
 
     pub(crate) async fn complete_stop_wait(&mut self, budget: ShutdownBudget) {
-        self.finalize_stop_wait(StopWaitResult::NoHandles, budget)
-            .await;
+        if self.state.awaiting_stop() && self.stop_wait_generation.owns(self.spawn_seq) {
+            self.mark_stopped();
+        } else {
+            self.stop_wait_generation.clear();
+        }
         self.release_stop_wait_resources(budget).await;
     }
 
@@ -816,10 +878,9 @@ impl ManagedProcess {
     }
 
     pub(crate) async fn wait_for_stop_since(&mut self, budget: ShutdownBudget) {
-        if matches!(self.state, ProcessState::Running | ProcessState::Stopping) {
-            run_stop_wait(self, budget).await;
+        if coalesced_run_stop_wait(self, budget).await {
+            self.complete_stop_wait(budget).await;
         }
-        self.complete_stop_wait(budget).await;
     }
 
     pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
@@ -828,6 +889,7 @@ impl ManagedProcess {
         #[cfg(windows)]
         self.clear_windows_spawn_resources();
         if self.state == ProcessState::Stopping {
+            self.stop_wait_generation.clear();
             self.transition_to(ProcessState::Stopped);
         } else if status.success() {
             self.transition_to(ProcessState::Exited);
@@ -1027,21 +1089,60 @@ impl ManagedProcess {
 }
 
 pub(crate) trait StopWaitContext {
+    async fn stop_wait_active(&mut self) -> bool;
+
+    async fn await_stop_progress(&mut self) -> bool;
+
     async fn plan_stop(&mut self, budget: ShutdownBudget) -> Option<StopWaitPlan>;
 
     async fn finalize_stop(&mut self, result: StopWaitResult, budget: ShutdownBudget) -> bool;
 }
 
-pub(crate) async fn run_stop_wait<C: StopWaitContext>(ctx: &mut C, budget: ShutdownBudget) {
+pub(crate) async fn run_stop_wait<C: StopWaitContext>(ctx: &mut C, budget: ShutdownBudget) -> bool {
+    let mut participated = false;
     while let Some(plan) = ctx.plan_stop(budget).await {
+        participated = true;
         let result = plan.execute().await;
         if !ctx.finalize_stop(result, budget).await {
             break;
         }
     }
+    participated
+}
+
+/// Runs stop wait, coalescing duplicate waiters until one owns the handles.
+///
+/// Returns `true` when this caller owned the stop and should run final cleanup.
+pub(crate) async fn coalesced_run_stop_wait<C: StopWaitContext>(
+    ctx: &mut C,
+    budget: ShutdownBudget,
+) -> bool {
+    loop {
+        if !ctx.stop_wait_active().await {
+            return false;
+        }
+        if run_stop_wait(ctx, budget).await {
+            return true;
+        }
+        if !ctx.await_stop_progress().await {
+            return false;
+        }
+    }
 }
 
 impl StopWaitContext for ManagedProcess {
+    async fn stop_wait_active(&mut self) -> bool {
+        self.state.awaiting_stop()
+    }
+
+    async fn await_stop_progress(&mut self) -> bool {
+        if !self.state.awaiting_stop() {
+            return false;
+        }
+        self.stop_wait_notify.notified().await;
+        self.state.awaiting_stop()
+    }
+
     async fn plan_stop(&mut self, budget: ShutdownBudget) -> Option<StopWaitPlan> {
         self.plan_stop_wait(budget)
     }

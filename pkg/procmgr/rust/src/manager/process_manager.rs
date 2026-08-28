@@ -14,6 +14,7 @@ use super::{
 use crate::command::{Command, CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader};
 use crate::process::ManagedProcess;
+use crate::state::ProcessState;
 #[cfg(windows)]
 use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
@@ -240,7 +241,14 @@ impl ProcessManager {
                 )));
             }
             let uuid = proc.uuid().to_owned();
-            proc.request_stop();
+            if proc.state() == ProcessState::Stopping {
+                debug!(
+                    "[{}] Stop coalesced onto in-flight stop request",
+                    proc.name()
+                );
+            } else {
+                proc.request_stop();
+            }
             (idx, uuid)
         };
 

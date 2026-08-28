@@ -4,16 +4,43 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::catalog::ProcessCatalog;
-use crate::process::{StopWaitContext, run_stop_wait};
+use crate::process::{StopWaitContext, coalesced_run_stop_wait};
 use crate::shutdown::ShutdownBudget;
-use crate::state::ProcessState;
+use std::sync::Arc;
+use tokio::sync::Notify;
+
+struct StopWaitSnapshot {
+    active: bool,
+    notify: Arc<Notify>,
+}
 
 struct CatalogProcessStopWait<'a> {
     catalog: &'a ProcessCatalog,
     idx: usize,
 }
 
+async fn stop_wait_snapshot(catalog: &ProcessCatalog, idx: usize) -> StopWaitSnapshot {
+    let procs = catalog.read_processes().await;
+    StopWaitSnapshot {
+        active: procs[idx].state().awaiting_stop(),
+        notify: procs[idx].stop_wait_notify(),
+    }
+}
+
 impl StopWaitContext for CatalogProcessStopWait<'_> {
+    async fn stop_wait_active(&mut self) -> bool {
+        stop_wait_snapshot(self.catalog, self.idx).await.active
+    }
+
+    async fn await_stop_progress(&mut self) -> bool {
+        let snapshot = stop_wait_snapshot(self.catalog, self.idx).await;
+        if !snapshot.active {
+            return false;
+        }
+        snapshot.notify.notified().await;
+        stop_wait_snapshot(self.catalog, self.idx).await.active
+    }
+
     async fn plan_stop(&mut self, budget: ShutdownBudget) -> Option<crate::process::StopWaitPlan> {
         let mut procs = self.catalog.write_processes().await;
         procs[self.idx].plan_stop_wait(budget)
@@ -34,14 +61,9 @@ pub(in crate::manager) async fn wait_for_process_stop(
     idx: usize,
     budget: ShutdownBudget,
 ) {
-    if matches!(
-        catalog.read_processes().await[idx].state(),
-        ProcessState::Running | ProcessState::Stopping
-    ) {
-        let mut ctx = CatalogProcessStopWait { catalog, idx };
-        run_stop_wait(&mut ctx, budget).await;
+    let mut ctx = CatalogProcessStopWait { catalog, idx };
+    if coalesced_run_stop_wait(&mut ctx, budget).await {
+        let mut procs = catalog.write_processes().await;
+        procs[idx].complete_stop_wait(budget).await;
     }
-
-    let mut procs = catalog.write_processes().await;
-    procs[idx].complete_stop_wait(budget).await;
 }

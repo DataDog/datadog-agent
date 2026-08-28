@@ -24,6 +24,10 @@ impl ProcessState {
         )
     }
 
+    pub(crate) fn awaiting_stop(self) -> bool {
+        matches!(self, ProcessState::Running | ProcessState::Stopping)
+    }
+
     pub(crate) fn can_transition_to(self, next: ProcessState) -> bool {
         use ProcessState::*;
         matches!(

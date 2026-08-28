@@ -462,3 +462,43 @@ async fn test_stop_completes_while_exit_channel_is_full() -> anyhow::Result<()> 
     crate::platform::reset_shutdown_state_for_test();
     Ok(())
 }
+
+#[tokio::test]
+async fn test_concurrent_stop_waiters_coalesce() -> anyhow::Result<()> {
+    let _guard = super::test_manager_lock().await;
+    crate::platform::reset_shutdown_state_for_test();
+
+    let mgr = ProcessManager::new(loader(vec![sleep_def("dup-stop-svc")]), uuid_gen());
+    let (ctx, mut rx) = test_runtime_context();
+
+    let pending = std::future::pending::<()>();
+    tokio::pin!(pending);
+    super::super::startup::run(&mgr, &ctx, pending.as_mut()).await;
+    wait_until_running(&mgr, "dup-stop-svc").await;
+
+    let mgr_loop = mgr.clone();
+    let ctx_loop = ctx.clone();
+    let loop_task = tokio::spawn(async move {
+        let pending = std::future::pending::<()>();
+        tokio::pin!(pending);
+        rx.run_with(&mgr_loop, &ctx_loop, pending).await;
+    });
+
+    let mgr_a = mgr.clone();
+    let mgr_b = mgr.clone();
+    let (stop_a, stop_b) = tokio::join!(
+        mgr_a.handle_stop("dup-stop-svc"),
+        mgr_b.handle_stop("dup-stop-svc"),
+    );
+
+    stop_a.map_err(|status| anyhow::anyhow!("stop A failed: {status}"))?;
+    stop_b.map_err(|status| anyhow::anyhow!("stop B failed: {status}"))?;
+
+    let proc = &mgr.processes().await[0];
+    assert_eq!(proc.state(), ProcessState::Stopped);
+    assert!(proc.pid().is_none());
+
+    loop_task.abort();
+    crate::platform::reset_shutdown_state_for_test();
+    Ok(())
+}
