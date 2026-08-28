@@ -16,6 +16,30 @@
 #include "span_go.h"
 
 
+// Reads the thread context of the current thread with the reader its runtime
+// calls for, and reports the outcome. Returns 1 when the span was filled.
+static int __attribute__((always_inline)) fill_span_context_thread_ctx(struct span_context_t *span) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+
+    struct otel_tls_t *otls = bpf_map_lookup_elem(&otel_tls, &tgid);
+    if (!otls) {
+        return 0;
+    }
+
+    u32 status;
+    switch (otls->runtime) {
+    case OTEL_RUNTIME_NATIVE:
+        status = fill_span_context_otel(span, otls);
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_OTEL, status);
+        return status == SPAN_CTX_EVENT_OK;
+    }
+
+    // Go publishes through pprof labels instead, and an unknown runtime is one
+    // this agent is too old to read.
+    return 0;
+}
+
 // --- Unified span context fill ---
 //
 // fill_span_context is the single entry point every hook calls to attach a span
@@ -34,14 +58,12 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
         return;
     }
 
-    u32 status = fill_span_context_otel(span);
-    monitor_span_ctx_event(SPAN_CTX_EVENT_READER_OTEL, status);
-    if (status == SPAN_CTX_EVENT_OK) {
+    if (fill_span_context_thread_ctx(span)) {
         return;
     }
 
     if (go_labels) {
-        status = collect_go_labels(&go_labels->id);
+        u32 status = collect_go_labels(&go_labels->id);
         monitor_span_ctx_event(SPAN_CTX_EVENT_READER_GO_LABELS, status);
     }
 }
