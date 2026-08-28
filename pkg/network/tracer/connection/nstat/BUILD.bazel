@@ -23,6 +23,7 @@ go_library(
 dd_agent_go_test(
     name = "nstat_test",
     srcs = [
+        "control_functional_test.go",
         "control_test.go",
         "parser_test.go",
     ],
@@ -30,9 +31,11 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:darwin": [
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
