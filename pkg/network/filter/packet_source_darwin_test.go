@@ -36,6 +36,26 @@ func newTestInterfaceHandle(ifaceName string, linkType layers.LinkType, localAdd
 	}
 }
 
+func TestDarwinPacketSourceInterfaceMatrix(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		flags    net.Flags
+		eligible bool
+	}{
+		{name: "lo0", flags: net.FlagLoopback, eligible: false},
+		{name: "en0", eligible: true},
+		{name: "en7", eligible: true},
+		{name: "utun0", eligible: true},
+		{name: "bridge0", eligible: false},
+		{name: "vlan0", eligible: false},
+		{name: "vmenet0", eligible: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.eligible, isEligibleInterface(net.Interface{Name: tc.name, Flags: tc.flags}))
+		})
+	}
+}
+
 // buildIPv4Packet constructs an Ethernet + IPv4 packet using gopacket.
 // srcIP and dstIP are 4-byte IPv4 addresses.
 func buildIPv4Packet(srcIP, dstIP [4]byte) []byte {
