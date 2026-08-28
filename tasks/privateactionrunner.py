@@ -30,7 +30,7 @@ def build(
     if enable_bazel:
         if sys.platform == 'win32':
             raise NotImplementedError("--enable-bazel does not support Windows.")
-        build_binary_with_bazel("//cmd/privateactionrunner:privateactionrunner", BIN_PATH)
+        build_binary_with_bazel("//cmd/privateactionrunner:privateactionrunner", bin_path=BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path)
