@@ -23,34 +23,40 @@ import (
 // Uninstall calls and returns canned results.
 type fakeServiceManager struct {
 	installerPath     string
+	tmpfsCompatible   bool
 	serviceFileExists bool
 	setupErr          error
+	setupCalls        int
 	uninstallCalls    int
 }
 
 func (f *fakeServiceManager) InstallerPath() string             { return f.installerPath }
+func (f *fakeServiceManager) TmpfsCompatible() bool             { return f.tmpfsCompatible }
 func (f *fakeServiceManager) ServiceFileExists() bool           { return f.serviceFileExists }
-func (f *fakeServiceManager) Setup(_ context.Context) error     { return f.setupErr }
+func (f *fakeServiceManager) Setup(_ context.Context) error     { f.setupCalls++; return f.setupErr }
 func (f *fakeServiceManager) Uninstall(_ context.Context) error { f.uninstallCalls++; return nil }
 
-// TestSetupSystemdPreloadUnit covers the fallback branches: the function must
-// return true (use the tmpfs link) only when an installer is present AND Setup
-// succeeds, and must clean up the unit on every failure path so a unit that
-// cannot start is never left enabled.
+// TestSetupSystemdPreloadUnit covers the fallback branches: the function uses
+// tmpfs only when setup succeeds with a compatible installer, keeps a
+// successfully started service on version mismatch, and cleans up the unit
+// when setup fails so a unit that cannot start is never left enabled.
 func TestSetupSystemdPreloadUnit(t *testing.T) {
 	tests := []struct {
 		name              string
 		installerPath     string
 		serviceFileExists bool
 		setupErr          error
-		wantRunning       bool
+		tmpfsCompatible   bool
+		wantUseTmpfs      bool
+		wantSetup         int
 		wantRollback      bool
 		wantUninstall     int
 	}{
 		{
 			name:          "no supported installer, nothing to clean up",
 			installerPath: "",
-			wantRunning:   false,
+			wantUseTmpfs:  false,
+			wantSetup:     0,
 			wantRollback:  false,
 			wantUninstall: 0,
 		},
@@ -58,23 +64,36 @@ func TestSetupSystemdPreloadUnit(t *testing.T) {
 			name:              "no supported installer, stale unit removed",
 			installerPath:     "",
 			serviceFileExists: true,
-			wantRunning:       false,
+			wantUseTmpfs:      false,
+			wantSetup:         0,
 			wantRollback:      false,
 			wantUninstall:     1,
 		},
 		{
-			name:          "setup succeeds, rollback registered",
-			installerPath: "/usr/bin/datadog-installer",
-			wantRunning:   true,
-			wantRollback:  true,
-			wantUninstall: 0,
+			name:            "setup succeeds, rollback registered",
+			installerPath:   "/usr/bin/datadog-installer",
+			tmpfsCompatible: true,
+			wantUseTmpfs:    true,
+			wantSetup:       1,
+			wantRollback:    true,
+			wantUninstall:   0,
+		},
+		{
+			name:            "pre-tmpfs installer keeps service with persistent preload",
+			installerPath:   "/usr/bin/datadog-installer",
+			tmpfsCompatible: false,
+			wantUseTmpfs:    false,
+			wantSetup:       1,
+			wantRollback:    true,
+			wantUninstall:   0,
 		},
 		{
 			name:              "setup fails, unit cleaned up and falls back",
 			installerPath:     "/usr/bin/datadog-installer",
 			serviceFileExists: true,
 			setupErr:          errors.New("start failed"),
-			wantRunning:       false,
+			wantUseTmpfs:      false,
+			wantSetup:         1,
 			wantRollback:      false,
 			wantUninstall:     1,
 		},
@@ -84,14 +103,16 @@ func TestSetupSystemdPreloadUnit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := &fakeServiceManager{
 				installerPath:     tt.installerPath,
+				tmpfsCompatible:   tt.tmpfsCompatible,
 				serviceFileExists: tt.serviceFileExists,
 				setupErr:          tt.setupErr,
 			}
 			a := &InjectorInstaller{}
 
-			running := a.setupSystemdPreloadUnit(context.TODO(), fake)
+			useTmpfs := a.setupSystemdPreloadUnit(context.TODO(), fake)
 
-			assert.Equal(t, tt.wantRunning, running, "serviceRunning return")
+			assert.Equal(t, tt.wantUseTmpfs, useTmpfs, "useTmpfs return")
+			assert.Equal(t, tt.wantSetup, fake.setupCalls, "Setup call count")
 			assert.Equal(t, tt.wantUninstall, fake.uninstallCalls, "Uninstall call count")
 			if tt.wantRollback {
 				assert.Len(t, a.rollbacks, 1, "a rollback must be registered when the unit is running")

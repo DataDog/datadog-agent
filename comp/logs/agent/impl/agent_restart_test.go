@@ -330,6 +330,10 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 }
 
 func (suite *RestartTestSuite) TestPartialStop_StopsTransientComponentsOnly() {
+	// This test doesn't call startPipeline, so the components can't stop
+	// gracefully; use a zero grace period to avoid waiting.
+	suite.configOverrides["logs_config.stop_grace_period"] = 0
+
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 	endpoint := tcp.AddrToEndPoint(l.Addr())

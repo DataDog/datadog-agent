@@ -2,6 +2,8 @@ import ast
 import os
 import re
 
+from tasks.libs.types.version import Version
+
 file_header_template = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -21,128 +23,51 @@ constant_header = """//
 """
 
 
-class BufferedSetting:
-    def __init__(self, path, sourcecode):
-        self.path = path
-        self.sourcecode = sourcecode
-        self.done = False
+def render_settings_file(funcs):
+    """Render a settings file: header, the imports its body needs, then each function.
 
-
-class CodeGeneratorTarget:
-    def __init__(self):
-        self.buffer = None
-        self.output_full_agent = []
-        self.output_common_base = []
-        self.header_text = None
-        self.filesystem = None
-
-    def add_header(self, text):
-        self.header_text = text
-
-    def add(self, path, schema, sourcecode):
-        if self.buffer is None:
-            if retrieve_output_mode(path.split('.'), schema) == 'full-agent-only':
-                self.output_full_agent += sourcecode
-            else:
-                self.output_common_base += sourcecode
-            return
-        self.buffer[path] = BufferedSetting(path, sourcecode)
-
-    def _add_imports(self, need_pkgconfighelper, need_time):
-        sourcecode = ['import (']
-        if need_time:
-            sourcecode += ['\t"time"']
-            sourcecode += ['']
-        if need_pkgconfighelper:
-            sourcecode += ['\tpkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"']
-        sourcecode += ['\tpkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"']
-        sourcecode += [')', '']
-        return sourcecode
-
-    def output_result_for_all_settings(self, filename_filter):
-        if filename_filter("system_probe_settings.go"):
-            return self.output_result_for_sysprobe_settings()
-        return self.output_result_for_core_agent_settings()
-
-    def output_result_for_sysprobe_settings(self):
-        res = self.header_text.split('\n')
-        res += self._add_imports(False, contains_import(self.output_common_base, 'time'))
-        res += ['func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {']
-        res += self.output_common_base
-        res += ['}']
-        self.filesystem = {'system_probe_settings.go': res}
-
-    def output_result_for_core_agent_settings(self):
-        res = self.header_text.split('\n')
-        res += self._add_imports(True, contains_import(self.output_full_agent, 'time'))
-        res += ['func initCoreAgentFull(config pkgconfigmodel.Setup) {']
-        res += self.output_full_agent
-        res += ['}', '']
-        res += ['func initCommonBase(config pkgconfigmodel.Setup) {']
-        res += self.output_common_base
-        res += ['}']
-        self.filesystem = {'all_settings.go': res}
-
-    def write_to_directory(self, out_dir, filename_filter):
-        for filename in self.filesystem:
-            if filename_filter and not filename_filter(filename):
-                print('Skipping %s' % filename)
-                continue
-            print('Output %s' % filename)
-            out_filename = os.path.join(out_dir, filename)
-            _write_uniform_lines(out_filename, self.filesystem[filename])
-
-
-def _write_uniform_lines(path, lines):
+    funcs - list of (Go function declaration line, body lines)
     """
-    Write lines to path, one per line, so the bytes never depend on the host platform.
+    body = []
+    for declaration, lines in funcs:
+        if body:
+            body.append('')
+        body += [declaration, *lines, '}']
 
-    Text mode would otherwise translate newlines to os.linesep, yielding CRLF on Windows.
+    imports = ['import (']
+    if any('time.' in line for line in body):
+        imports += ['\t"time"', '']
+    if any('pkgconfighelper.' in line for line in body):
+        imports += ['\tpkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"']
+    imports += ['\tpkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"', ')', '']
+
+    return file_header.split('\n') + imports + body
+
+
+def walk_settings(schema, prefix='', full_agent_only=False):
+    """Yield (dotted path, node, full_agent_only) for every setting in the schema.
+
+    full_agent_only is True when the setting, or one of its parent sections, is
+    tagged `full-agent-only:true`.
     """
-    with open(path, "w", newline="\n") as f:
-        for line in lines:
-            print(line, file=f)
+    for field, node in schema['properties'].items():
+        path = f"{prefix}.{field}" if prefix else field
+        tagged = full_agent_only or 'full-agent-only:true' in (node.get('tags') or [])
+        node_type = node.get('node_type', 'setting')
+        if node_type == 'setting':
+            yield path, node, tagged
+        elif node_type == 'section':
+            yield from walk_settings(node, path, tagged)
 
 
-def join_key(prefix, field):
-    if prefix == '':
-        return field
-    if prefix.endswith('.'):
-        return f"{prefix}{field}"
-    return f"{prefix}.{field}"
-
-
-def contains_import(sourcecode, symbol):
-    if not isinstance(sourcecode, list) and not isinstance(sourcecode[0], str):
-        raise RuntimeError('sourcecode must be a list of strings')
-    needle = f"{symbol}."
-    for line in sourcecode:
-        if needle in line:
-            return True
-    return False
-
-
-def _is_node_leaf(node):
-    if 'node_type' not in node:
-        return True
-    return node['node_type'] == 'setting'
-
-
-def _is_node_section(node):
-    if 'node_type' not in node:
-        return False
-    return node['node_type'] == 'section'
-
-
-def walk_schema(schema, curr_path, callback):
-    child_nodes = schema['properties']
-    for field in child_nodes:
-        next_path = join_key(curr_path, field)
-        node = child_nodes[field]
-        if _is_node_leaf(node):
-            callback(next_path)
-        elif _is_node_section(node):
-            walk_schema(node, next_path, callback)
+def walk_sections(schema, prefix=''):
+    """Yield (dotted path, node) for every section in the schema."""
+    for field, node in schema['properties'].items():
+        if node.get('node_type') != 'section':
+            continue
+        path = f"{prefix}.{field}" if prefix else field
+        yield path, node
+        yield from walk_sections(node, path)
 
 
 def try_parse_duration(text):
@@ -186,13 +111,9 @@ def value_to_gostr(obj):
         return f"`{obj}`"
     if isinstance(obj, str):
         return f"\"{obj}\""
-    if isinstance(obj, bool) and obj:
-        return 'true'
-    if isinstance(obj, bool) and not obj:
-        return 'false'
-    if isinstance(obj, int):
-        return str(obj)
-    return obj
+    if isinstance(obj, bool):
+        return 'true' if obj else 'false'
+    return str(obj)
 
 
 def as_go_value(text, split_lines=False):
@@ -208,29 +129,14 @@ def as_go_value(text, split_lines=False):
         for elem in obj:
             res.append(value_to_gostr(elem))
     else:  # assume dict/map
-        indent_size = calc_indent_size(obj)
+        width = max((len(value_to_gostr(k)) for k in obj), default=0)
         for k, v in obj.items():
-            key = value_to_gostr(k)
-            val = value_to_gostr(v)
-            pad_space = calc_pad_space(key, indent_size)
-            res.append(f"{key}:{' ' * pad_space} {val}")
+            key = value_to_gostr(k) + ':'
+            res.append(f"{key.ljust(width + 1)} {value_to_gostr(v)}")
 
     if split_lines:
         return f"{{\n\t\t{',\n\t\t'.join(res)},\n\t}}"
     return f"{{{', '.join(res)}}}"
-
-
-def calc_indent_size(obj):
-    max_size = 0
-    for k in obj.keys():
-        key = value_to_gostr(k)
-        if len(key) > max_size:
-            max_size = len(key)
-    return max_size
-
-
-def calc_pad_space(lhs, indent_size):
-    return max(indent_size - len(lhs), 0)
 
 
 def get_golang_type_tag(curr):
@@ -239,114 +145,52 @@ def get_golang_type_tag(curr):
         return None
     for t in tags:
         if ':' in t:
-            (k, v) = t.split(':')
+            (k, v) = t.split(':', 1)
             if k == 'golang_type':
                 return v
     return None
 
 
-def get_node(keypath, schema):
-    curr = schema
-    for k in keypath:
-        curr = curr['properties']
-        curr = curr[k]
-    return curr
-
-
-def retrieve_output_mode(keypath, schema):
-    for i in range(0, len(keypath)):
-        # Iterate the keypath bottom-up, for example 'a.b.c' -> ['a.b.c', 'a.b', 'a']
-        subpath = keypath[0 : len(keypath) - i]
-        node = get_node(subpath, schema)
-        tags = node.get('tags')
-        if tags and 'full-agent-only:true' in tags:
-            return 'full-agent-only'
-    return None
-
-
-def retrieve_default_value(keypath, schema):
-    node = get_node(keypath, schema)
+def retrieve_default_value(node, name):
     settingDefault = node.get('default')
     settingType = node.get('type')
-    if settingType is None:
-        return 'nil'
 
     if node.get('platform_default'):
         platform_default = as_go_value(node['platform_default'], split_lines=True)
         return f"getPlatformDefault(map[string]interface{{}}{platform_default})"
 
-    if settingType == 'array' or settingType == 'object':
+    if settingType in ('array', 'object'):
         return to_vartype(node, as_go_value(settingDefault))
 
-    elif settingType == 'boolean':
-        if settingDefault:
-            return 'true'
-        return 'false'
+    if settingType == 'boolean':
+        return 'true' if settingDefault else 'false'
 
-    elif settingType == 'integer':
+    if settingType == 'integer':
         if get_golang_type_tag(node) == 'int64':
             return f"int64({settingDefault})"
-        if get_golang_type_tag(node) == 'float64':
-            return f"float64({settingDefault})"
-        durationValue = try_parse_duration(settingDefault)
-        if durationValue is not None:
-            return str(durationValue)
-        if settingDefault is None:
-            return '0'
         return str(settingDefault)
 
-    elif settingType == 'number':
-        if get_golang_type_tag(node) == 'int64':
-            return f"int64({settingDefault})"
-        if get_golang_type_tag(node) == 'float64':
-            return f"float64({settingDefault})"
-        durationValue = try_parse_duration(settingDefault)
-        if durationValue is not None:
-            return str(durationValue)
-        if settingDefault is None:
-            return '0'
+    if settingType == 'number':
         if isinstance(settingDefault, float):
             textDefault = str(settingDefault)
             if '.' in textDefault:
                 return str(settingDefault)
             return f"float64({settingDefault}.0)"
         if isinstance(settingDefault, int):
-            return str(settingDefault)
+            return f"{settingDefault}.0"
 
-    elif settingType == 'string':
+    if settingType == 'string':
         if node.get('format') == 'duration':
             # time.Duration are specially rendered
             durationValue = try_parse_duration(settingDefault)
             if durationValue is not None:
-                return str(durationValue)
-        if settingDefault is None:
-            return '""'
+                return durationValue
         if isinstance(settingDefault, str):
             return f"\"{settingDefault}\""
 
-    elif settingType == 'object':
-        textDefault = str(settingDefault)
-        add = node.get('additionalProperties')
-        if add is not None:
-            if add.get('type') == 'string':
-                return f"map[string]string{as_go_value(settingDefault)}"
-            if add.get('type') == 'array' and add.get('items').get('type') == 'string':
-                return f"map[string][]string{as_go_value(settingDefault)}"
-        return f"map[string]interface{{}}{as_go_value(settingDefault)}"
     raise RuntimeError(
-        f"setting {keypath}: cant handle settingType: '{settingType}', settingDefault: '{settingDefault}' of {type(settingDefault)}"
+        f"setting {name}: cant handle settingType: '{settingType}', settingDefault: '{settingDefault}' of {type(settingDefault)}"
     )
-
-
-def retrieve_envvars(keypath, schema):
-    node = get_node(keypath, schema)
-    envvars = node.get('env_vars')
-    return envvars
-
-
-def retrieve_env_parser(keypath, schema):
-    node = get_node(keypath, schema)
-    return node.get('env_parser')
 
 
 def dict_to_gotype(inp):
@@ -374,130 +218,79 @@ def to_vartype(node, setting_default):
     return f"{dict_to_gotype(node)}{setting_default}"
 
 
-def retrieve_method_to_declare(keypath, schema):
-    node = get_node(keypath, schema)
-    tags = node.get('tags')
-    if tags:
-        if 'no-env' in tags:
-            return 'SetDefault'
-    return 'BindEnvAndSetDefault'
+# env_parser value -> (Go function, call shape). Call shapes:
+#   'config'  -> config.<func>(key)
+#   'vartype' -> config.<func>(key, <zero value of the setting's Go type>)
+#   'helper'  -> pkgconfighelper.<func>(key, config)
+ENV_PARSERS = {
+    'comma_separated': ('ParseEnvSplitComma', 'config'),
+    'space_separated': ('ParseEnvSplitSpace', 'config'),
+    'json': ('ParseEnvJSON', 'vartype'),
+    'comma_and_space_separated': ('ParseEnvSplitCommaAndSpace', 'helper'),
+    'traces_span': ('ParseEnvTraceSpan', 'helper'),
+    'csv_comma_separated': ('ParseEnvCSVSplit', 'helper'),
+    'comma_then_space_separated': ('ParseEnvSplitCommaThenSpace', 'helper'),
+    'json_list_or_comma_separated': ('ParseEnvJSONOrComma', 'helper'),
+    'json_list_or_space_separated': ('ParseEnvJSONOrSpace', 'helper'),
+}
 
 
-def env_parser_to_func_call(name, env_parser, get_vartype):
-    parser_func = None
-    is_method_key_vartype = False
-    is_helper_key_config = False
-
-    if env_parser == 'comma_separated':
-        parser_func = 'ParseEnvSplitComma'
-    elif env_parser == 'space_separated':
-        parser_func = 'ParseEnvSplitSpace'
-    elif env_parser == 'json':
-        parser_func = 'ParseEnvJSON'
-        is_method_key_vartype = True
-    elif env_parser == 'comma_and_space_separated':
-        parser_func = 'ParseEnvSplitCommaAndSpace'
-        is_helper_key_config = True
-    elif env_parser == 'traces_span':
-        parser_func = 'ParseEnvTraceSpan'
-        is_helper_key_config = True
-    elif env_parser == 'csv_comma_separated':
-        parser_func = 'ParseEnvCSVSplit'
-        is_helper_key_config = True
-    elif env_parser == 'comma_then_space_separated':
-        parser_func = 'ParseEnvSplitCommaThenSpace'
-        is_helper_key_config = True
-    elif env_parser == 'json_list_or_comma_separated':
-        parser_func = 'ParseEnvJSONOrComma'
-        is_helper_key_config = True
-    elif env_parser == 'json_list_or_space_separated':
-        parser_func = 'ParseEnvJSONOrSpace'
-        is_helper_key_config = True
-
-    if is_helper_key_config:
+def env_parser_to_func_call(name, env_parser, node):
+    parser_func, shape = ENV_PARSERS[env_parser]
+    if shape == 'helper':
         return f"\tpkgconfighelper.{parser_func}(\"{name}\", config)"
-    if is_method_key_vartype:
-        var_type = get_vartype()
-        return f"\tconfig.{parser_func}(\"{name}\", {var_type})"
+    if shape == 'vartype':
+        return f"\tconfig.{parser_func}(\"{name}\", {to_vartype(node, '{}')})"
     return f"\tconfig.{parser_func}(\"{name}\")"
 
 
-# Create source code for a single setting, add to the target
-def output_single_setting(name, internal_comment, schema, target):
-    sourcecode = []
+def deprecated_names(node):
+    """Return the former names of a setting, oldest deprecation first.
 
-    # basic info: name, default value, env vars
+    'renamed_from' maps each former name to the Agent version that deprecated it. The config gives
+    former names priority over the canonical one, oldest first, so the emitted order matters.
+    """
+    renamed_from = node.get('renamed_from') or {}
+    return sorted(renamed_from, key=lambda name: (Version.from_tag(renamed_from[name]), name))
+
+
+def setting_sourcecode(name, node):
+    """Return the Go lines declaring a single setting."""
     settingname = '"%s"' % name
-    defaultval = retrieve_default_value(name.split('.'), schema)
-    envsuffix = ''
-    envvars = retrieve_envvars(name.split('.'), schema)
-    if envvars is not None and len(envvars) > 0:
-        envvars = ['"%s"' % ev for ev in envvars]
-        envsuffix = ', ' + ', '.join(envvars)
+    defaultval = retrieve_default_value(node, name)
+    envsuffix = ''.join(', "%s"' % ev for ev in node.get('env_vars') or [])
 
-    # get env parser function, don't output yet
-    env_parser = retrieve_env_parser(name.split('.'), schema)
-
-    # internal-only comments for the setting
-    if internal_comment:
-        for text in internal_comment.split('\n'):
-            sourcecode.append('\t// %s' % text)
-
-    # method name to use for declaring the setting
-    method_name = retrieve_method_to_declare(name.split('.'), schema)
-    if method_name == 'BindEnvAndSetDefault':
-        line = f"\tconfig.BindEnvAndSetDefault({settingname}, {defaultval}{envsuffix})"
-    elif method_name == 'SetDefault':
+    # method used to declare the setting
+    tags = node.get('tags', [])
+    renamed_from = deprecated_names(node)
+    if 'no-env' in tags:
         line = f"\tconfig.SetDefault({settingname}, {defaultval})"
+    elif renamed_from:
+        deprecated = ', '.join('"%s"' % n for n in renamed_from)
+        line = f"\tconfig.BindEnvAndSetDefaultWithDeprecation({settingname}, {defaultval}, []string{{{deprecated}}}{envsuffix})"
     else:
-        raise RuntimeError(f"unknown method name {method_name} for setting {name}")
+        line = f"\tconfig.BindEnvAndSetDefault({settingname}, {defaultval}{envsuffix})"
 
-    # the line of code that defines the setting
-    sourcecode.append(line)
+    sourcecode = [line]
 
     # only after the setting is defined should the env parser appear
+    env_parser = node.get('env_parser')
     if env_parser:
+        sourcecode.append(env_parser_to_func_call(name, env_parser, node))
 
-        def get_vartype():
-            node = get_node(name.split('.'), schema)
-            return to_vartype(node, '{}')
-
-        line = env_parser_to_func_call(name, env_parser, get_vartype)
-        sourcecode.append(line)
-
-    # write to our target
-    target.add(name, schema, sourcecode)
+    return sourcecode
 
 
 def gen_delegated_auth_map(core_schema, system_probe_schema, outputs):
     """
-    Constant generator: appends the delegated auth map to the relevant buffers.
+    Constant generator: appends the delegated auth map to the `core` output.
 
     core_schema           - loaded core schema object
     system_probe_schema  - loaded system-probe schema object, unused
     outputs               - map of output name (see `constant_outputs`) to its Go source lines
     """
-
-    def collect_delegated_auth_keys(schema):
-        keys = []
-
-        # Visitor for each setting
-        def visit(curr_path, node):
-            if node.get("node_type") == "setting":
-                return
-
-            for name, child in node["properties"].items():
-                if name == "delegated_auth":
-                    keys.append(curr_path)
-                else:
-                    path = curr_path + "." + name if curr_path else name
-                    visit(path, child)
-
-        visit("", schema)
-        return keys
-
-    def emit(out, keys):
-        out.append("""type delegatedAuthConfig struct {
+    out = outputs["core"]
+    out.append("""type delegatedAuthConfig struct {
 	apiKeyPath        string
 	delegatedAuthPath string
 	description       string
@@ -507,23 +300,18 @@ def gen_delegated_auth_map(core_schema, system_probe_schema, outputs):
 // This list is used to fully initialize authentication through cloud provider instead of API key
 var delegatedAuthKeys = []delegatedAuthConfig{""")
 
-        for key in keys:
-            parent_section_name = key.rsplit(".")[0]
-            parent_section = key.rsplit(".")[0]
-
-            if parent_section != "":
-                parent_section += "."
-            if parent_section_name == "":
-                parent_section_name = "global"
-
-            out.append(f"""	{{
-		apiKeyPath:        "{parent_section}api_key",
-		delegatedAuthPath: "{parent_section}delegated_auth",
-		description:       "{parent_section_name}",
+    for path, _ in walk_sections(core_schema):
+        if path.split('.')[-1] != 'delegated_auth':
+            continue
+        # the section holding this delegated_auth, '' for the root one
+        parent = path.rsplit('.', 1)[0] if '.' in path else ''
+        prefix = f"{parent}." if parent else ""
+        out.append(f"""	{{
+		apiKeyPath:        "{prefix}api_key",
+		delegatedAuthPath: "{prefix}delegated_auth",
+		description:       "{parent or 'global'}",
 	}},""")
-        out.append("}")
-
-    emit(outputs["core"], collect_delegated_auth_keys(core_schema))
+    out.append("}")
 
 
 GENERATE_CONST_PREFIX = "generate_const:"
@@ -549,13 +337,12 @@ def gen_generate_const(core_schema, system_probe_schema, outputs):
     consts = {}
 
     def collect(schema):
-        def visit(keyname):
-            node = get_node(keyname.split('.'), schema)
+        for keyname, node, _ in walk_settings(schema):
             for tag in node.get('tags') or []:
                 if not isinstance(tag, str) or not tag.startswith(GENERATE_CONST_PREFIX):
                     continue
                 name = tag[len(GENERATE_CONST_PREFIX) :]
-                value = retrieve_default_value(keyname.split('.'), schema)
+                value = retrieve_default_value(node, keyname)
                 existing = consts.get(name)
                 if existing is not None and existing['value'] != value:
                     raise RuntimeError(
@@ -567,8 +354,6 @@ def gen_generate_const(core_schema, system_probe_schema, outputs):
                 if existing is None:
                     consts[name] = {'value': value, 'source': keyname}
 
-        walk_schema(schema, '', visit)
-
     collect(core_schema)
     collect(system_probe_schema)
 
@@ -579,10 +364,9 @@ def gen_generate_const(core_schema, system_probe_schema, outputs):
     out.append("// Constants generated from settings tagged with a `generate_const:<name>` label.")
     out.append("// Each constant's value is the default of its associated setting.")
     out.append("const (")
-    magic_value = calc_const_indent(consts)
+    width = max(len(name) for name in consts)
     for name in sorted(consts):
-        pad_space = magic_value - len(name)
-        out.append(f"\t{name}{' ' * pad_space} = {consts[name]['value']}")
+        out.append(f"\t{name.ljust(width)} = {consts[name]['value']}")
     out.append(")")
 
 
@@ -592,7 +376,6 @@ def gen_generate_const(core_schema, system_probe_schema, outputs):
 # each file has to be copied.
 constant_outputs = {
     "core": ("generated.go", file_header),
-    "system_probe": ("system_probe_generated.go", file_header),
     "constants": (os.path.join("constants", "generated.go"), constants_file_header),
 }
 
@@ -604,14 +387,6 @@ constant_generators = [
     gen_delegated_auth_map,
     gen_generate_const,
 ]
-
-
-def calc_const_indent(list_names):
-    max_size = 0
-    for name in list_names:
-        if len(name) > max_size:
-            max_size = len(name)
-    return max_size
 
 
 def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
@@ -646,23 +421,45 @@ def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
         _write_uniform_lines(out_filename, sourcecode)
 
 
-def run_codegen(schema, filename_filter, outsource_dir):
+def _write_uniform_lines(path, lines):
+    """
+    Write lines to path, one per line, so the bytes never depend on the host platform.
+
+    Text mode would otherwise translate newlines to os.linesep, yielding CRLF on Windows.
+    """
+    with open(path, "w", newline="\n") as f:
+        for line in lines:
+            print(line, file=f)
+
+
+def run_codegen(schema, outsource_dir, sysprobe=False):
     """
     Entry point for code generation.
-    schema          - loaded schema object (dict with schema['properities'])
-    filename_filter - optional function to filter output filenames (or None)
-    outsource_dir   - the directory to output source code to
+    schema        - loaded schema object (dict with schema['properties'])
+    outsource_dir - the directory to output source code to
+    sysprobe      - generate the system-probe file instead of the core-agent one
     """
-    target = CodeGeneratorTarget()
-    target.add_header(file_header)
+    output_full_agent = []
+    output_common_base = []
+    for path, node, full_agent_only in walk_settings(schema):
+        if full_agent_only:
+            output_full_agent += setting_sourcecode(path, node)
+        else:
+            output_common_base += setting_sourcecode(path, node)
 
-    # Visitor for each setting
-    def process_single_setting(keyname):
-        internal_comment = []
-        output_single_setting(keyname, internal_comment, schema, target)
+    if sysprobe:
+        filename = 'system_probe_settings.go'
+        sourcecode = render_settings_file(
+            [('func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {', output_common_base)]
+        )
+    else:
+        filename = 'all_settings.go'
+        sourcecode = render_settings_file(
+            [
+                ('func initCoreAgentFull(config pkgconfigmodel.Setup) {', output_full_agent),
+                ('func initCommonBase(config pkgconfigmodel.Setup) {', output_common_base),
+            ]
+        )
 
-    # walk the schema to generate code
-    walk_schema(schema, '', process_single_setting)
-    target.output_result_for_all_settings(filename_filter)
-
-    target.write_to_directory(outsource_dir, filename_filter)
+    print('Output %s' % filename)
+    _write_uniform_lines(os.path.join(outsource_dir, filename), sourcecode)

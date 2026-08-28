@@ -6,11 +6,6 @@
 package privateactionrunner
 
 import (
-	"crypto/ed25519"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"strings"
 	"testing"
@@ -31,20 +26,10 @@ const (
 	privateActionRunnerBinary     = "/opt/datadog-agent/embedded/bin/privateactionrunner"
 	privateActionRunnerConfigPath = "/etc/datadog-agent/datadog.yaml"
 	executorSocketPath            = "/opt/datadog-agent/run/par-executor.sock"
-	coreAgentServiceName          = "datadog-agent"
 
 	executorListeningLogLine = "Private action runner executor listening on"
 	executorReadyLogLine     = "Private action runner executor ready to accept actions"
-
-	// pkg/remoteconfig/state.ProductActionPlatformRunnerKeys
-	runnerKeysRCProduct = "AP_RUNNER_KEYS"
 )
-
-// mirrors pkg/privateactionrunner/types.RawKey's JSON shape
-type rawRCKey struct {
-	KeyType string `json:"keyType"`
-	Key     []byte `json:"key"`
-}
 
 type linuxPrivateActionRunnerExecutorSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -62,24 +47,6 @@ func TestLinuxPrivateActionRunnerExecutorSuite(t *testing.T) {
 			),
 		),
 	))
-}
-
-func (s *linuxPrivateActionRunnerExecutorSuite) pushFakeRunnerKeysConfig() {
-	t := s.T()
-
-	pub, _, err := ed25519.GenerateKey(rand.Reader)
-	require.NoError(t, err, "failed to generate fake runner key")
-
-	pubDER, err := x509.MarshalPKIXPublicKey(pub)
-	require.NoError(t, err, "failed to marshal fake runner public key")
-
-	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})
-
-	payload, err := json.Marshal(rawRCKey{KeyType: "ED25519", Key: pubPEM})
-	require.NoError(t, err, "failed to marshal fake runner key config payload")
-
-	err = s.Env().FakeIntake.Client().RCAddConfig("", runnerKeysRCProduct, "fake-runner-key", "fake-runner-key", payload)
-	require.NoError(t, err, "failed to push fake runner key config to fakeintake")
 }
 
 // TestExecutorStartsAndListens launches the on-demand executor subcommand and
@@ -103,7 +70,7 @@ func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 		require.Error(c, statusErr)
 	}, 30*time.Second, time.Second, "core Agent should be stopped")
 
-	s.pushFakeRunnerKeysConfig()
+	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
 	// run-executor is a foreground subcommand, not the packaged systemd service.
 	// Launch it detached as dd-agent so it can bind its socket under
