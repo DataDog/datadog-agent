@@ -43,6 +43,8 @@ impl Supervisor {
             rx.run_with(&self.manager, &ctx, shutdown).await;
         }
 
+        rx.drain_pending_commands().await;
+
         info!("dd-procmgrd shutting down");
 
         let _ = grpc_shutdown_tx.send(());

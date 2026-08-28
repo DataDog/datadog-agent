@@ -10,6 +10,7 @@ use log::warn;
 use std::future::Future;
 use std::pin::{Pin, pin};
 use tokio::sync::mpsc;
+use tonic::Status;
 
 #[derive(Clone)]
 pub(crate) struct RuntimeContext {
@@ -64,6 +65,13 @@ impl RuntimeContext {
 }
 
 impl RuntimeReceivers {
+    pub(in crate::manager) async fn drain_pending_commands(&mut self) {
+        let status = Status::unavailable("dd-procmgrd is shutting down");
+        while let Ok(cmd) = self.cmd_rx.try_recv() {
+            cmd.reject(status.clone());
+        }
+    }
+
     pub(in crate::manager) async fn run_with(
         &mut self,
         manager: &ProcessManager,
@@ -166,6 +174,34 @@ mod tests {
         let lifecycle = Lifecycle::new();
         lifecycle.begin_running();
         RuntimeContext::new(lifecycle)
+    }
+
+    #[tokio::test]
+    async fn drain_pending_commands_rejects_queued_mutations() {
+        use crate::command::Command;
+        use tokio::sync::{mpsc, oneshot};
+
+        let (cmd_tx, cmd_rx) = mpsc::channel(64);
+        let lifecycle = Lifecycle::new();
+        lifecycle.begin_stopping();
+        let (_ctx, mut rx) = RuntimeContext::with_cmd(lifecycle, cmd_tx.clone(), cmd_rx);
+
+        let (reply_tx, reply_rx) = oneshot::channel();
+        cmd_tx
+            .send(Command::Start {
+                name_or_uuid: "svc".to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .expect("command send should succeed");
+
+        rx.drain_pending_commands().await;
+
+        let err = reply_rx
+            .await
+            .expect("reply channel should receive rejection")
+            .expect_err("queued command should be rejected during shutdown");
+        assert_eq!(err.code(), tonic::Code::Unavailable);
     }
 
     #[tokio::test]

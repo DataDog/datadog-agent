@@ -42,3 +42,19 @@ pub enum Command {
         reply: oneshot::Sender<Result<StopResult, Status>>,
     },
 }
+
+impl Command {
+    pub(crate) fn reject(self, status: Status) {
+        match self {
+            Self::Create { reply, .. } => {
+                let _ = reply.send(Err(status));
+            }
+            Self::Start { reply, .. } => {
+                let _ = reply.send(Err(status));
+            }
+            Self::Stop { reply, .. } => {
+                let _ = reply.send(Err(status));
+            }
+        }
+    }
+}
