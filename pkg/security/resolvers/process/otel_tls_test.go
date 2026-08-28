@@ -20,12 +20,11 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"unsafe"
 
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
-	"go.opentelemetry.io/ebpf-profiler/remotememory"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	"github.com/stretchr/testify/require"
 )
@@ -325,15 +324,6 @@ func TestDynValue(t *testing.T) {
 	require.False(t, isExecutable(ef))
 }
 
-func TestReadRemoteUint64(t *testing.T) {
-	var probe uint64 = 0x1122334455667788
-
-	rm := remotememory.NewProcessVirtualMemory(libpf.PID(os.Getpid()))
-	got, err := readRemoteUint64(rm, uint64(uintptr(unsafe.Pointer(&probe))))
-	require.NoError(t, err)
-	require.Equal(t, probe, got)
-}
-
 // TestELFLoadBias checks the bias against an independent ground truth: an
 // object's PT_LOAD segment at file offset 0 carries the ELF header, so once
 // biased, its vaddr must point at the ELF magic in the live process. A bias off
@@ -347,7 +337,10 @@ func TestELFLoadBias(t *testing.T) {
 	grouped, order, err := target.groupedReadableFileMaps()
 	require.NoError(t, err)
 
-	rm := remotememory.NewProcessVirtualMemory(libpf.PID(self))
+	mem, err := procfs.OpenMem(self)
+	require.NoError(t, err)
+	defer mem.Close()
+
 	checked := 0
 	for _, path := range order {
 		headerVaddr, ok := elfHeaderVaddr(t, target.fsPath(path))
@@ -361,7 +354,7 @@ func TestELFLoadBias(t *testing.T) {
 		elfFile.Close()
 		require.NoError(t, err, "load bias of %s", path)
 
-		word, err := readRemoteUint64(rm, bias+headerVaddr)
+		word, err := mem.ReadUint64(bias + headerVaddr)
 		require.NoError(t, err, "%s: nothing mapped at bias %#x + %#x", path, bias, headerVaddr)
 		// Little-endian only, which openOTelELF already enforces.
 		require.Equal(t, uint32(0x464c457f), uint32(word), "%s: no ELF header at bias %#x", path, bias)

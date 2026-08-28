@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/libc"
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
-	"go.opentelemetry.io/ebpf-profiler/remotememory"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -329,15 +328,22 @@ func findOTelTLSSymbolByName(syms []safeelf.Symbol) *safeelf.Symbol {
 // process and produces the final tls_offset, module_id and dtv_info handed to
 // eBPF.
 func attachOTelTLS(target *otelTargetProcess, bias uint64, d *data) (otelTLSResolution, error) {
-	rm := remotememory.NewProcessVirtualMemory(libpf.PID(target.pid))
+	// Local-exec offsets are final at link time, so this model resolves without
+	// reading the target at all.
+	if d.access == accessLocalExec {
+		return otelTLSResolution{tlsOffset: int64(d.offset)}, nil
+	}
+
+	mem, err := procfs.OpenMem(target.pid)
+	if err != nil {
+		return otelTLSResolution{}, err
+	}
+	defer mem.Close()
 
 	switch d.access {
-	case accessLocalExec:
-		return otelTLSResolution{tlsOffset: int64(d.offset)}, nil
-
 	case accessInitialExec:
 		// The GOT slot holds the variable's TP-relative offset directly.
-		v, err := readRemoteUint64(rm, bias+uint64(d.elfAddr))
+		v, err := mem.ReadUint64(bias + uint64(d.elfAddr))
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
@@ -345,11 +351,11 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *data) (otelTLSReso
 
 	case accessGlobalDynamic:
 		// The GOT holds a tls_index {module_id, offset} pair.
-		moduleID, err := readRemoteUint64(rm, bias+uint64(d.elfAddr))
+		moduleID, err := mem.ReadUint64(bias + uint64(d.elfAddr))
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
-		tlsOffset, err := readRemoteUint64(rm, bias+uint64(d.elfAddr)+8)
+		tlsOffset, err := mem.ReadUint64(bias + uint64(d.elfAddr) + 8)
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
@@ -357,7 +363,7 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *data) (otelTLSReso
 
 	case accessLocalDynamic:
 		// The GOT holds the module_id; the in-module offset is the symbol value.
-		moduleID, err := readRemoteUint64(rm, bias+uint64(d.elfAddr))
+		moduleID, err := mem.ReadUint64(bias + uint64(d.elfAddr))
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
@@ -365,7 +371,7 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *data) (otelTLSReso
 
 	case accessTLSDesc:
 		// The second word of the descriptor holds the resolved argument.
-		arg, err := readRemoteUint64(rm, bias+uint64(d.elfAddr)+8)
+		arg, err := mem.ReadUint64(bias + uint64(d.elfAddr) + 8)
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
@@ -374,11 +380,11 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *data) (otelTLSReso
 		// offsets are negative on x86_64 and small positive on aarch64, so a
 		// large positive value means dynamic.
 		if int64(arg) > 0xffffffff {
-			moduleID, err := readRemoteUint64(rm, arg)
+			moduleID, err := mem.ReadUint64(arg)
 			if err != nil {
 				return otelTLSResolution{}, err
 			}
-			tlsOffset, err := readRemoteUint64(rm, arg+8)
+			tlsOffset, err := mem.ReadUint64(arg + 8)
 			if err != nil {
 				return otelTLSResolution{}, err
 			}
@@ -405,19 +411,6 @@ func newDynamicOTelTLS(target *otelTargetProcess, moduleID, tlsOffset uint64) (o
 		moduleID:  uint32(moduleID),
 		dtvInfo:   dtv,
 	}, nil
-}
-
-// readRemoteUint64 reads one 8-byte native-endian word at addr out of the
-// target's memory. RemoteMemory.Uint64 reports a failed read as a zero value,
-// which is indistinguishable from a legitimately zero GOT slot, so go through
-// Read. The target can exit between symbol resolution and this read, so errors
-// here are expected resolution failures, not bugs.
-func readRemoteUint64(rm remotememory.RemoteMemory, addr uint64) (uint64, error) {
-	var buf [8]byte
-	if err := rm.Read(libpf.Address(addr), buf[:]); err != nil {
-		return 0, fmt.Errorf("read 8 bytes at %#x: %w", addr, err)
-	}
-	return binary.NativeEndian.Uint64(buf[:]), nil
 }
 
 // dtvInfo derives the DTV layout of this process's libc, by disassembling its
