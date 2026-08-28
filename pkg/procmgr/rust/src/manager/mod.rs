@@ -19,6 +19,7 @@ mod tracked_join;
 #[cfg(test)]
 mod tests;
 
+#[cfg(windows)]
 pub(crate) use deferred_cleanup::join_deferred_spawn_tasks;
 pub(crate) use lifecycle::Lifecycle;
 pub(crate) use runtime::RuntimeContext;
