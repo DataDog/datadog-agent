@@ -267,12 +267,12 @@ func TestTopAnomalyBuffer_ContributorsAggregateSharesAndLimitResults(t *testing.
 	buffer := newTopAnomalyBuffer(10)
 	average := observer.QueryHandle{Ref: 10, Aggregate: observer.AggregateAverage}
 	count := observer.QueryHandle{Ref: 20, Aggregate: observer.AggregateCount}
-	maximum := observer.QueryHandle{Ref: 30, Aggregate: observer.AggregateMax}
+	total := observer.QueryHandle{Ref: 30, Aggregate: observer.AggregateSum}
 	buffer.entries = []topAnomaly{
 		{handle: average, weight: 3},
 		{handle: average, weight: 2},
 		{handle: count, weight: 3},
-		{handle: maximum, weight: 2},
+		{handle: total, weight: 2},
 	}
 
 	contributors := buffer.contributors(2)

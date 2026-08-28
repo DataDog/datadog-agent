@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -55,7 +56,7 @@ func newTestProfileWithNodes(name string, nodeCount int) *profile.Profile {
 	for i := 0; i < nodeCount; i++ {
 		p.ActivityTree.ProcessNodes = append(p.ActivityTree.ProcessNodes, &activity_tree.ProcessNode{
 			NodeBase: activity_tree.NewNodeBase(),
-			Process: model.Process{
+			Process: activity_tree.ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/proc",
 					BasenameStr: "proc",
@@ -121,9 +122,11 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 
 	maxSize := 1 << 20
 	m := &ManagerV2{
-		statsdClient: &statsd.NoOpClient{},
-		resolvers:    &resolvers.EBPFResolvers{CGroupResolver: cgr},
-		profiles:     make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		statsdClient:         &statsd.NoOpClient{},
+		resolvers:            &resolvers.EBPFResolvers{CGroupResolver: cgr},
+		profiles:             make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		evictionRuns:         atomic.NewUint64(0),
+		evictionNodesEvicted: atomic.NewUint64(0),
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
 				SecurityProfileNodeEvictionTimeout: time.Hour,
