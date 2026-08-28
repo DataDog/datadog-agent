@@ -146,7 +146,7 @@ Package configsync implements synchronizing the configuration using the core age
 
 ### [comp/core/delegatedauth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/delegatedauth)
 
-*Datadog Team*: credential-management
+*Datadog Team*: credential-management delegated-auth-login
 
 Package delegatedauth manages cloud-based delegated authentication for the agent.
 It fetches and refreshes Datadog API keys from cloud providers and writes them

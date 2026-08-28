@@ -70,13 +70,13 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 func Test_loadYamlProfiles(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 	SetGlobalProfileConfigMap(nil)
-	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
+	defaultProfiles, legacyProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
-	defaultProfiles2, haveLegacyProfile2, err := loadYamlProfiles()
+	defaultProfiles2, legacyProfiles2, err := loadYamlProfiles()
 	assert.Nil(t, err)
 
 	assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
-	assert.Equal(t, haveLegacyProfile, haveLegacyProfile2)
+	assert.Equal(t, legacyProfiles, legacyProfiles2)
 }
 
 func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
@@ -85,12 +85,12 @@ func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
 	SetGlobalProfileConfigMap(nil)
 	mockConfig.SetInTest("confd_path", defaultTestConfdPath)
 
-	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
+	defaultProfiles, legacyProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
 
 	assert.Len(t, defaultProfiles, 6)
 	assert.NotNil(t, defaultProfiles)
-	assert.False(t, haveLegacyProfile)
+	assert.Empty(t, legacyProfiles)
 
 	p1 := defaultProfiles["p1"].Definition // user p1 overrides datadog p1
 	p2 := defaultProfiles["p2"].Definition // datadog p2
@@ -117,10 +117,10 @@ func Test_loadYamlProfiles_invalidDir(t *testing.T) {
 	mockConfig.SetInTest("confd_path", invalidPath)
 	SetGlobalProfileConfigMap(nil)
 
-	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
+	defaultProfiles, legacyProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
 	assert.Len(t, defaultProfiles, 0)
-	assert.False(t, haveLegacyProfile)
+	assert.Empty(t, legacyProfiles)
 }
 
 func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
@@ -131,12 +131,12 @@ func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
 	mockConfig.SetInTest("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
-	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
+	defaultProfiles, legacyProfiles, err := loadYamlProfiles()
 	require.NoError(t, err)
 
 	logs.AssertPresent(t, "failed to expand profile \"f5-big-ip\"")
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
-	assert.False(t, haveLegacyProfile)
+	assert.Empty(t, legacyProfiles)
 
 	expVarEntry := profileExpVar.Get("f5-big-ip")
 	require.NotNil(t, expVarEntry, "expected f5-big-ip error in snmpProfileErrors expvar")
@@ -151,7 +151,7 @@ func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T)
 	mockConfig.SetInTest("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
-	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
+	defaultProfiles, legacyProfiles, err := loadYamlProfiles()
 	require.NoError(t, err)
 
 	logs.AssertPresent(t,
@@ -160,7 +160,7 @@ func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T)
 	)
 
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
-	assert.False(t, haveLegacyProfile)
+	assert.Empty(t, legacyProfiles)
 }
 
 func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
@@ -172,7 +172,7 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 	mockConfig.SetInTest("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
-	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
+	defaultProfiles, legacyProfiles, err := loadYamlProfiles()
 	require.NoError(t, err)
 
 	for _, profile := range defaultProfiles {
@@ -183,7 +183,7 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 
 	assert.Contains(t, defaultProfiles, "f5-big-ip")
 	assert.NotContains(t, defaultProfiles, "f5-invalid")
-	assert.True(t, haveLegacyProfile)
+	assert.Equal(t, []string{"f5-invalid"}, legacyProfiles)
 
 	expVarEntry := profileExpVar.Get("f5-invalid")
 	require.NotNil(t, expVarEntry, "expected f5-invalid error in snmpProfileErrors expvar")
@@ -197,23 +197,23 @@ func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
 	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
 	mockConfig.SetInTest("confd_path", legacyNoOIDProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
-	defaultProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	defaultProfiles, legacyProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	assert.Len(t, defaultProfiles, 2)
 	assert.Contains(t, defaultProfiles, "legacy")
 	assert.Contains(t, defaultProfiles, "valid")
-	assert.True(t, haveLegacyProfile)
+	assert.Equal(t, []string{"legacy"}, legacyProfiles)
 	legacyNoOIDLogs.AssertPresent(t, "found legacy metrics in profile")
 
 	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
 	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
 	mockConfig.SetInTest("confd_path", legacySymbolTypeProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
-	defaultProfiles, haveLegacyProfile, err = getProfileDefinitions(userProfilesFolder, true)
+	defaultProfiles, legacyProfiles, err = getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	assert.Len(t, defaultProfiles, 1)
 	assert.Contains(t, defaultProfiles, "valid")
-	assert.True(t, haveLegacyProfile)
+	assert.Equal(t, []string{"legacy"}, legacyProfiles)
 	legacySymbolTypeLogs.AssertPresent(t, "found legacy symbol type in profile")
 }
 
@@ -224,21 +224,40 @@ func Test_loadYamlProfiles_legacyProfiles(t *testing.T) {
 	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
 	mockConfig.SetInTest("confd_path", legacyNoOIDProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
-	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
+	defaultProfiles, legacyProfiles, err := loadYamlProfiles()
 	require.NoError(t, err)
 	assert.Len(t, defaultProfiles, 1)
 	assert.Contains(t, defaultProfiles, "valid")
-	assert.True(t, haveLegacyProfile)
+	assert.Equal(t, []string{"legacy"}, legacyProfiles)
 	legacyNoOIDLogs.AssertPresent(t, "found legacy metrics in profile")
 
 	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
 	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
 	mockConfig.SetInTest("confd_path", legacySymbolTypeProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
-	defaultProfiles, haveLegacyProfile, err = loadYamlProfiles()
+	defaultProfiles, legacyProfiles, err = loadYamlProfiles()
 	require.NoError(t, err)
 	assert.Len(t, defaultProfiles, 1)
 	assert.Contains(t, defaultProfiles, "valid")
-	assert.True(t, haveLegacyProfile)
+	assert.Equal(t, []string{"legacy"}, legacyProfiles)
 	legacySymbolTypeLogs.AssertPresent(t, "found legacy symbol type in profile")
+}
+
+func Test_loadYamlProfiles_legacyProfilesAreCached(t *testing.T) {
+	// Profiles are read from disk once and cached for every subsequent check instance.
+	// The legacy profile names must be cached alongside them, otherwise only the instance
+	// that happened to populate the cache would be sent to the Python loader.
+	mockConfig := configmock.New(t)
+
+	legacyProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
+	mockConfig.SetInTest("confd_path", legacyProfilesConfdPath)
+	SetGlobalProfileConfigMap(nil)
+
+	_, legacyProfiles, err := loadYamlProfiles()
+	require.NoError(t, err)
+	require.Equal(t, []string{"legacy"}, legacyProfiles)
+
+	_, cachedLegacyProfiles, err := loadYamlProfiles()
+	require.NoError(t, err)
+	assert.Equal(t, legacyProfiles, cachedLegacyProfiles)
 }

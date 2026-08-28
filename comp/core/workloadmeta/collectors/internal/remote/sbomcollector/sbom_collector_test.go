@@ -225,7 +225,13 @@ func TestMergeRuntimeProperties_EpochNormalization(t *testing.T) {
 func TestMergeRuntimeProperties_DefaultsLastSeenRunningToZero(t *testing.T) {
 	existing := &cyclonedx_v1_4.Bom{
 		Components: []*cyclonedx_v1_4.Component{
-			component("bash", "5.1"),
+			{
+				Name:    "bash",
+				Version: "5.1",
+				// An OS package: in the runtime scanner's scope, so the runtime
+				// properties are defaulted even without a match in newBom.
+				Purl: pointer.Ptr("pkg:deb/debian/bash@5.1?arch=amd64"),
+			},
 		},
 	}
 	// No match in newBom.
@@ -247,6 +253,105 @@ func TestMergeRuntimeProperties_DefaultsLastSeenRunningToZero(t *testing.T) {
 
 	// HasSetSuidBit / RunningAsRoot are defaulted to "false" too, so consumers can
 	// distinguish "not in use" from "unknown".
+	v, ok = findProp(c, HasSetSuidBitProperty)
+	assert.True(t, ok)
+	assert.Equal(t, "false", v)
+	v, ok = findProp(c, RunningAsRootProperty)
+	assert.True(t, ok)
+	assert.Equal(t, "false", v)
+}
+
+func TestMergeRuntimeProperties_LeavesOutOfScopeComponentsUnset(t *testing.T) {
+	// The runtime scanner reads the dpkg, rpm and apk databases, so these
+	// components stay out of its scope and keep the properties absent.
+	tests := []struct {
+		name      string
+		component *cyclonedx_v1_4.Component
+	}{
+		{
+			name: "language library",
+			component: &cyclonedx_v1_4.Component{
+				Type:    cyclonedx_v1_4.Classification_CLASSIFICATION_LIBRARY,
+				Name:    "lodash",
+				Version: "4.17.21",
+				Purl:    pointer.Ptr("pkg:npm/lodash@4.17.21"),
+			},
+		},
+		{
+			name: "operating system",
+			component: &cyclonedx_v1_4.Component{
+				Type:    cyclonedx_v1_4.Classification_CLASSIFICATION_OPERATING_SYSTEM,
+				Name:    "debian",
+				Version: "12.5",
+			},
+		},
+		{
+			name: "lockfile application",
+			component: &cyclonedx_v1_4.Component{
+				Type: cyclonedx_v1_4.Classification_CLASSIFICATION_APPLICATION,
+				Name: "app/Gemfile.lock",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// An OS package alongside it, which the merge must still default.
+			osPackage := &cyclonedx_v1_4.Component{
+				Name:    "bash",
+				Version: "5.1",
+				Purl:    pointer.Ptr("pkg:deb/debian/bash@5.1?arch=amd64"),
+			}
+			existing := &cyclonedx_v1_4.Bom{
+				Components: []*cyclonedx_v1_4.Component{test.component, osPackage},
+			}
+			newBom := &cyclonedx_v1_4.Bom{
+				Components: []*cyclonedx_v1_4.Component{
+					component("zsh", "5.9", prop(LastAccessProperty, "1700000000")),
+				},
+			}
+
+			merged := mergeRuntimeProperties(existing, newBom)
+
+			// The merge rebuilds the component list in order.
+			require.Len(t, merged.Components, 2)
+			require.Equal(t, test.component.Name, merged.Components[0].Name)
+			require.Equal(t, osPackage.Name, merged.Components[1].Name)
+
+			for _, name := range []string{LastAccessProperty, HasSetSuidBitProperty, RunningAsRootProperty} {
+				_, ok := findProp(merged.Components[0], name)
+				assert.Falsef(t, ok, "%s must stay absent on an out-of-scope component", name)
+			}
+
+			v, ok := findProp(merged.Components[1], LastAccessProperty)
+			assert.True(t, ok, "the OS package in the same BOM must still be defaulted")
+			assert.Equal(t, "0", v)
+		})
+	}
+}
+
+func TestMergeRuntimeProperties_DefaultsReportedComponentWithPartialProperties(t *testing.T) {
+	// The report puts a component in scope whatever its purl says, so the
+	// properties it left out are defaulted too.
+	existing := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			component("openssl", "1.1.1k"),
+		},
+	}
+	newBom := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			component("openssl", "1.1.1k", prop(LastAccessProperty, "1700000000")),
+		},
+	}
+
+	merged := mergeRuntimeProperties(existing, newBom)
+
+	require.Len(t, merged.Components, 1)
+	c := merged.Components[0]
+
+	v, ok := findProp(c, LastAccessProperty)
+	assert.True(t, ok)
+	assert.Equal(t, "1700000000", v)
 	v, ok = findProp(c, HasSetSuidBitProperty)
 	assert.True(t, ok)
 	assert.Equal(t, "false", v)

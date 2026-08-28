@@ -8,6 +8,7 @@
 package trace
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -19,12 +20,30 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
+
+// newTestServerlessTraceAgent builds a minimal serverlessTraceAgent backed by
+// a real *agent.Agent and spanModifier, without starting the agent's Run loop.
+func newTestServerlessTraceAgent(t *testing.T) (*serverlessTraceAgent, *config.AgentConfig) {
+	t.Helper()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	ta := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	ta.SpanModifier = &spanModifier{ddOrigin: "lambda"}
+	return &serverlessTraceAgent{ta: ta, cancel: cancel}, cfg
+}
 
 func setupTraceAgentTest(t *testing.T) {
 	// ensure a free port is used for starting the trace agent
@@ -246,4 +265,54 @@ func TestServerlessTraceAgentDisableTraceStats(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestServerlessTraceAgentSetTagsUpdatesGlobalTagsAndSpanModifier verifies
+// that the synchronous SetTags path (used once at startup, before the trace
+// agent starts processing spans) still updates both GlobalTags and the span
+// modifier, as it did before this fix.
+func TestServerlessTraceAgentSetTagsUpdatesGlobalTagsAndSpanModifier(t *testing.T) {
+	sta, cfg := newTestServerlessTraceAgent(t)
+
+	sta.SetTags(map[string]string{"lambda_microvm_id": "vm-1"})
+
+	assert.Equal(t, map[string]string{"lambda_microvm_id": "vm-1"}, cfg.GlobalTags)
+
+	sm, ok := sta.ta.SpanModifier.(*spanModifier)
+	require.True(t, ok)
+	got := sm.tags.Load()
+	require.NotNil(t, got)
+	assert.Equal(t, map[string]string{"lambda_microvm_id": "vm-1"}, *got)
+}
+
+// TestServerlessTraceAgentUpdateRuntimeTagsDoesNotTouchGlobalTags is the core
+// regression test for the fix: UpdateRuntimeTags (used by MicroVM's async
+// /run hook) must only update the span modifier and must never write to
+// GlobalTags, since GlobalTags is read unsynchronized by the trace agent's
+// span-processing hot path.
+func TestServerlessTraceAgentUpdateRuntimeTagsDoesNotTouchGlobalTags(t *testing.T) {
+	sta, cfg := newTestServerlessTraceAgent(t)
+	cfg.GlobalTags = map[string]string{"env": "prod"}
+
+	sta.UpdateRuntimeTags(map[string]string{"lambda_microvm_id": "vm-2"})
+
+	assert.Equal(t, map[string]string{"env": "prod"}, cfg.GlobalTags)
+
+	sm, ok := sta.ta.SpanModifier.(*spanModifier)
+	require.True(t, ok)
+	got := sm.tags.Load()
+	require.NotNil(t, got)
+	assert.Equal(t, map[string]string{"lambda_microvm_id": "vm-2"}, *got)
+}
+
+// TestServerlessTraceAgentUpdateRuntimeTagsNoSpanModifier verifies
+// UpdateRuntimeTags is safe to call when SpanModifier doesn't implement
+// taggable (e.g. nil, or some other SpanModifier set via SetSpanModifier).
+func TestServerlessTraceAgentUpdateRuntimeTagsNoSpanModifier(t *testing.T) {
+	sta, _ := newTestServerlessTraceAgent(t)
+	sta.ta.SpanModifier = nil
+
+	assert.NotPanics(t, func() {
+		sta.UpdateRuntimeTags(map[string]string{"lambda_microvm_id": "vm-3"})
+	})
 }

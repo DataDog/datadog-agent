@@ -1,6 +1,8 @@
 [
   {
     "service": "sample",
+    "dd.trace_id": "0000000000000000fedcba9876543210",
+    "dd.span_id": "18364758544493064720",
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
@@ -18,12 +20,12 @@
           {
             "function": "main.(*Server).handleOrder",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
-            "lineNumber": 31
+            "lineNumber": 33
           },
           {
             "function": "main.executeServerFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
-            "lineNumber": 39
+            "lineNumber": 41
           },
           {
             "function": "main.runAll",
@@ -65,6 +67,31 @@
                   }
                 }
               },
+              "ctx": {
+                "type": "context.Context",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "span_id"
+                    },
+                    {
+                      "type": "uint64",
+                      "value": "18364758544493064720"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "trace_id"
+                    },
+                    {
+                      "type": "big.Int",
+                      "value": "18364758544493064720"
+                    }
+                  ]
+                ]
+              },
               "req": {
                 "type": "*main.Request",
                 "address": "[addr]",
@@ -104,6 +131,8 @@
   },
   {
     "service": "sample",
+    "dd.trace_id": "0000000000000000fedcba9876543210",
+    "dd.span_id": "18364758544493064720",
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
@@ -121,12 +150,12 @@
           {
             "function": "main.(*Server).handleOrder",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
-            "lineNumber": 28
+            "lineNumber": 30
           },
           {
             "function": "main.executeServerFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go",
-            "lineNumber": 40
+            "lineNumber": 42
           },
           {
             "function": "main.runAll",
@@ -167,6 +196,31 @@
                     "value": "orders"
                   }
                 }
+              },
+              "ctx": {
+                "type": "context.Context",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "span_id"
+                    },
+                    {
+                      "type": "uint64",
+                      "value": "18364758544493064720"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "trace_id"
+                    },
+                    {
+                      "type": "big.Int",
+                      "value": "18364758544493064720"
+                    }
+                  ]
+                ]
               },
               "req": {
                 "type": "*main.Request",

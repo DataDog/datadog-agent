@@ -41,7 +41,7 @@ The shared library will be created in `target/release` under the name `lib<check
 Checks are built and staged into `checks.d` with Bazel (Linux only). Each check
 provides a `BUILD.bazel` with a `rust_shared_library` (the cdylib) and a
 `pkg_files` target named `checks_d_files` (renames the cdylib to
-`libdatadog-agent-<check>.so` and sets owner-only `0500` perms).
+`libdatadog-agent-<check>.so` and sets root/root-group-only `0550` perms).
 
 To ship a check with the Agent, add its `checks_d_files` target to
 `ENABLED_CHECKS` in this folder's `BUILD.bazel`. The `:install` target
