@@ -1,16 +1,25 @@
 {
   "context_servers": {
     "dd-api": {
-      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=all"
+      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=all",
     },
     "dd-ci": {
-      "url": "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp"
+      "url": "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp",
     },
     "dd-google-workspace": {
-      "url": "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp"
+      "url": "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp",
     },
     "dd-atlassian": {
-      "url": "https://mcp.atlassian.com/v1/mcp/authv2"
-    }
-  }
+      "url": "https://mcp.atlassian.com/v1/mcp/authv2",
+    },
+  },
+  "lsp": {
+    "gopls": {
+      "initialization_options": {
+        "buildFlags": [
+          "-tags=python docker zlib datadog.no_waf zstd trivy_no_javadb orchestrator oracle etcd otlp ec2 kubelet bundle_installer grpcnotrace consul kubeapiserver jmx fargateprocess bundle_agent zk test containerd clusterchecks",
+        ],
+      },
+    },
+  },
 }

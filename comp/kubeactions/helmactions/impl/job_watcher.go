@@ -21,7 +21,8 @@ import (
 )
 
 const (
-	jobStuckDurationLimit     = 5 * time.Minute
+	jobStuckDurationLimit = 5 * time.Minute
+	// TODO: remove in prod before commit
 	jobStuckLimitDurationTest = 60 * time.Second
 )
 
