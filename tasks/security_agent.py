@@ -14,7 +14,7 @@ from invoke.tasks import task
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import bazel, build_go_binary_with_bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
@@ -78,7 +78,7 @@ def build(
         if fips_mode:
             raise NotImplementedError("--enable-bazel does not support --fips-mode.")
 
-        build_go_binary_with_bazel(BAZEL_TARGET, BIN_PATH)
+        build_binary_with_bazel(BAZEL_TARGET, BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
