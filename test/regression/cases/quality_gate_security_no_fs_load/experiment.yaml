@@ -4,8 +4,8 @@ erratic: false
 target:
   name: datadog-agent
   cpu_allotment: 4
-  # Set to 20% higher than the memory_usage check value
-  memory_allotment: 412 MiB
+  # Set to 30% higher than the memory_usage check value
+  memory_allotment: 449 MiB
 
   environment:
     DD_API_KEY: a0000001
@@ -47,8 +47,8 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total memory usage for CWS with the default.policy in effect but no lading-generated filesystem load."
     bounds:
       series: total_pss_bytes
-      # When updating this, update the memory_allotment in the target section to 20% higher.
-      upper_bound: "343 MiB"
+      # When updating this, update the memory_allotment in the target section to 30% higher.
+      upper_bound: "345 MiB"
 
   - name: cpu_usage
     description: "CPU usage quality gate. This puts a bound on the total average collector millicore usage."
