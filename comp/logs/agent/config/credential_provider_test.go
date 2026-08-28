@@ -29,6 +29,8 @@ func (p *stubProvider) Authorize(h http.Header) bool {
 	return true
 }
 
+func (p *stubProvider) Refresh() bool { return false }
+
 // An ordinary endpoint must be completely unaffected by any of this.
 func TestAuthorizeStampsTheConfiguredKey(t *testing.T) {
 	e := NewEndpoint("plain-key", "logs_config.api_key", "host", 0, "", false)

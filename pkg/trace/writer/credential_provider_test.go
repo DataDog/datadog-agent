@@ -39,6 +39,8 @@ func (p *stubProvider) Authorize(h http.Header) bool {
 	return true
 }
 
+func (p *stubProvider) Refresh() bool { return false }
+
 // An endpoint with a plain API key must be unaffected by any of this.
 func TestAuthorizeStampsThePlainAPIKeyWhenThereIsNoProvider(t *testing.T) {
 	m := &apiKeyManager{apiKey: "plain-key"}
