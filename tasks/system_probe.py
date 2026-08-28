@@ -22,7 +22,7 @@ from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import bazel, build_go_binary_with_bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
@@ -266,7 +266,7 @@ def build_sysprobe_binary(
         if sys.platform != 'linux':
             raise NotImplementedError("--enable-bazel is only supported on Linux.")
 
-        build_go_binary_with_bazel(BAZEL_TARGET, binary)
+        build_binary_with_bazel(BAZEL_TARGET, binary)
         return
 
     ldflags, gcflags, env = get_build_flags(
