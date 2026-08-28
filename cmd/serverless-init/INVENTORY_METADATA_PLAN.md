@@ -286,6 +286,35 @@ providers lazily, so `run()` has to request `runner.Component` (or a value that
 depends on it) or the runner — and the grouped inventory provider — are never
 instantiated and nothing is scheduled.
 
+### MicroVM lifecycle: submit on start and resume, not on build (TODO)
+
+The "enqueue synchronously early in `run()`" model above assumes the process
+starts once, per production container. AWS MicroVM breaks that assumption and
+needs its own submission triggers — details to be worked out, captured here so
+they are not lost:
+
+- **The Agent's `run()` executes during image build**, when the platform boots
+  the VM to snapshot it (`/ready` → snapshot, `/validate` → post-snapshot smoke
+  test on an ephemeral test VM). A payload enqueued in `run()` would therefore
+  be a *build-time* submission, not a production one. **Inventory should be
+  submitted on MicroVM start and resume, not on build.**
+- Production lifecycle hooks live in `cmd/serverless-init/lifecycle`
+  (`server.go`): `/run` (VM starting — cold start or from snapshot) and
+  `/resume` (resuming from a suspended snapshot) are the natural submission
+  points; `/suspend` / `/terminate` are drain points, and `/ready` / `/validate`
+  are build-time only and must be excluded.
+- A snapshot-restored process resumes mid-execution and does **not** re-run
+  `run()`, so the synchronous-in-`run()` path never re-fires on start/resume of
+  a production VM. Submission for MicroVM must hang off the lifecycle hook
+  dispatch (e.g. `handleRun` / `handleResume`) rather than the one-shot startup
+  path used by the other platforms.
+- Some inventory fields (notably the instance/`lambda_microvm_id`) are only
+  known once `/run` delivers them in its request body — another reason the
+  MicroVM payload cannot be finalized at build time.
+- Open question: whether a single submission per start is enough or whether
+  resume should re-submit (the payload is otherwise static across sends). Decide
+  alongside the MicroVM `GetInventoryData` derivation.
+
 ## Config / enablement
 
 Requirements: (1) disabled by default initially, flipped to enabled-by-default
@@ -365,7 +394,20 @@ first; `setOverride` sets a value, not schema membership.
 ## Platform coverage
 
 All supported serverless-init platforms/modes: Cloud Run, Cloud Run Jobs,
-Container Apps, App Service; init and sidecar modes.
+Container Apps, App Service, AWS MicroVM; init and sidecar modes.
+
+AWS MicroVM (Firecracker) is a `CloudService` where the Agent runs as the init
+process inside the microVM; it was added to the interface layer alongside the
+other platforms and detected in `GetCloudServiceType` via `isMicroVM()`. Its
+`GetInventoryData` is an empty stub for now (see "Open items"): the MicroVM
+`workload_type` value is pending the downstream decoder allowlist, so we do not
+invent one in this pass. MicroVM also needs lifecycle-aware submission triggers
+(submit on start/resume, not on build) — see "MicroVM lifecycle" under
+"Scheduling / early send / shutdown".
+
+The `CloudService` interface carries this plan's `GetInventoryData()` alongside
+MicroVM's `Run(modeConf, logConfig)` method; both are neutral additions and do
+not interact.
 
 serverless-init is Linux-only. Windows-based Azure environments are not
 supported by serverless-init (a different instrumentation mechanism covers
@@ -419,6 +461,15 @@ derivation, settled while wiring each platform:
 - **`deployment_id` / `azure_resource_group`** are accepted downstream; emit
   per platform when the CloudService struct can derive them, otherwise omit
   (both nullable).
+- **AWS MicroVM `GetInventoryData` derivation.** `MicroVM.GetInventoryData`
+  currently returns an empty struct. Its `workload_type` value depends on the
+  downstream decoder allowlist (fixed for this pass and not yet including a
+  MicroVM entry); derive `resource_id`, `region`, and the workload type once
+  that allowlist is settled.
+- **AWS MicroVM submission triggers.** Submit on `/run` (start) and `/resume`,
+  not on build-time `/ready` / `/validate`; hang submission off the lifecycle
+  hook dispatch rather than the synchronous-in-`run()` startup path. See the
+  "MicroVM lifecycle" subsection under "Scheduling / early send / shutdown".
 
 ## Phasing
 
