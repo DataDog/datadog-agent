@@ -38,7 +38,6 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//comp/logs-library/kubehealth/mock",
         "//comp/logs/agent/config",
-        "//pkg/logs/message",
         "//pkg/logs/sources",
         "//pkg/logs/types",
         "@com_github_stretchr_testify//assert",

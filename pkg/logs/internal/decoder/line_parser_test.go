@@ -240,7 +240,6 @@ func TestMultilineParserFlushesOnlyExpiredStream(t *testing.T) {
 	flushed := <-lineHandler.ch
 	assert.Equal(t, "stderr", string(flushed.GetContent()))
 	assert.Equal(t, message.StreamStderr, flushed.ParsingExtra.Stream)
-	assert.Zero(t, flushed.RawDataLenForCheckpoint())
 	select {
 	case msg := <-lineHandler.ch:
 		t.Fatalf("unexpected unexpired stream flush: %q", msg.GetContent())
@@ -251,7 +250,6 @@ func TestMultilineParserFlushesOnlyExpiredStream(t *testing.T) {
 	remaining := <-lineHandler.ch
 	assert.Equal(t, "stdout", string(remaining.GetContent()))
 	assert.Equal(t, message.StreamStdout, remaining.ParsingExtra.Stream)
-	assert.Equal(t, 12, remaining.RawDataLenForCheckpoint())
 }
 
 func TestMultilineParserLimitIsIndependentPerStream(t *testing.T) {
@@ -279,7 +277,6 @@ func TestMultilineParserLimitIsIndependentPerStream(t *testing.T) {
 	assert.Equal(t, message.StreamStderr, truncated.ParsingExtra.Stream)
 	assert.True(t, truncated.ParsingExtra.IsTruncated)
 	assert.Equal(t, 6, truncated.RawDataLen)
-	assert.Zero(t, truncated.RawDataLenForCheckpoint())
 
 	stdout = message.NewMessage([]byte("b"), nil, "", 0)
 	stdout.ParsingExtra.Stream = message.StreamStdout
@@ -290,7 +287,6 @@ func TestMultilineParserLimitIsIndependentPerStream(t *testing.T) {
 	assert.Equal(t, message.StreamStdout, complete.ParsingExtra.Stream)
 	assert.False(t, complete.ParsingExtra.IsTruncated)
 	assert.Equal(t, 2, complete.RawDataLen)
-	assert.Equal(t, 8, complete.RawDataLenForCheckpoint())
 }
 
 func TestMultilineParserLimit(t *testing.T) {

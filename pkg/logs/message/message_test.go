@@ -25,18 +25,6 @@ func TestMessage(t *testing.T) {
 	assert.Equal(t, StatusInfo, message.GetStatus())
 }
 
-func TestRawDataLenForCheckpoint(t *testing.T) {
-	msg := NewMessage([]byte("hello"), nil, "", 0)
-	assert.Equal(t, msg.RawDataLen, msg.RawDataLenForCheckpoint())
-
-	msg.SetRawDataLenForCheckpoint(0)
-	assert.Zero(t, msg.RawDataLenForCheckpoint())
-	assert.Equal(t, len("hello"), msg.RawDataLen)
-
-	msg.SetRawDataLenForCheckpoint(42)
-	assert.Equal(t, 42, msg.RawDataLenForCheckpoint())
-}
-
 func TestHasContent(t *testing.T) {
 	t.Run("unstructured with content", func(t *testing.T) {
 		msg := NewMessage([]byte("hello"), nil, "", 0)

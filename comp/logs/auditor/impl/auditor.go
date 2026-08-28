@@ -48,11 +48,6 @@ type JSONRegistry struct {
 	Registry map[string]RegistryEntry
 }
 
-type payloadSequenceState struct {
-	next    uint64
-	pending map[uint64]*message.Payload
-}
-
 // A registryAuditor is storing the Auditor information using a registry.
 type registryAuditor struct {
 	health              *health.Handle
@@ -70,7 +65,6 @@ type registryAuditor struct {
 	done                chan struct{}
 	messageChannelSize  int
 	registryWriter      auditor.RegistryWriter
-	payloadSequences    map[uint64]*payloadSequenceState
 
 	log log.Component
 }
@@ -131,7 +125,6 @@ func (a *registryAuditor) Start() {
 
 	a.createChannels()
 	a.registry = a.recoverRegistry()
-	a.payloadSequences = make(map[uint64]*payloadSequenceState)
 	go a.run()
 }
 
@@ -294,7 +287,14 @@ func (a *registryAuditor) run() {
 				// inputChan has been closed, no need to update the registry anymore
 				return
 			}
-			a.processPayload(payload)
+			// update the registry with the new entry
+			for _, msg := range payload.MessageMetas {
+				var fingerprint types.Fingerprint
+				if msg.Origin.Fingerprint != nil {
+					fingerprint = *msg.Origin.Fingerprint
+				}
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprint)
+			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry
 			a.cleanupRegistry()
@@ -315,7 +315,13 @@ func (a *registryAuditor) run() {
 			for i := 0; i < n; i++ {
 				select {
 				case payload := <-a.inputChan:
-					a.processPayload(payload)
+					for _, msg := range payload.MessageMetas {
+						var fingerprint types.Fingerprint
+						if msg.Origin.Fingerprint != nil {
+							fingerprint = *msg.Origin.Fingerprint
+						}
+						a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprint)
+					}
 				default:
 				}
 			}
@@ -324,61 +330,6 @@ func (a *registryAuditor) run() {
 			}
 			close(responseChan)
 		}
-	}
-}
-
-// processPayload updates checkpoints in sender input order. A destination may
-// complete concurrent HTTP requests out of order, and multiple reliable
-// destinations may report the same payload. Waiting for the next sequence keeps
-// the persisted registry behind every payload that has not yet been acknowledged;
-// a crash can therefore cause replay, but not a skipped log range.
-func (a *registryAuditor) processPayload(payload *message.Payload) {
-	if payload.AuditStream == 0 || payload.AuditSequence == 0 {
-		a.updateRegistryFromPayload(payload)
-		return
-	}
-
-	if a.payloadSequences == nil {
-		a.payloadSequences = make(map[uint64]*payloadSequenceState)
-	}
-	state, found := a.payloadSequences[payload.AuditStream]
-	if !found {
-		state = &payloadSequenceState{
-			next:    1,
-			pending: make(map[uint64]*message.Payload),
-		}
-		a.payloadSequences[payload.AuditStream] = state
-	}
-
-	if payload.AuditSequence < state.next {
-		return
-	}
-	if payload.AuditSequence > state.next {
-		if _, exists := state.pending[payload.AuditSequence]; !exists {
-			state.pending[payload.AuditSequence] = payload
-		}
-		return
-	}
-
-	for {
-		a.updateRegistryFromPayload(payload)
-		state.next++
-		var exists bool
-		payload, exists = state.pending[state.next]
-		if !exists {
-			return
-		}
-		delete(state.pending, state.next)
-	}
-}
-
-func (a *registryAuditor) updateRegistryFromPayload(payload *message.Payload) {
-	for _, msg := range payload.MessageMetas {
-		var fingerprint types.Fingerprint
-		if msg.Origin.Fingerprint != nil {
-			fingerprint = *msg.Origin.Fingerprint
-		}
-		a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprint)
 	}
 }
 

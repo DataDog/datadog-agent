@@ -17,15 +17,12 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"go.uber.org/atomic"
 )
 
 var (
 	tlmPayloadsDropped = telemetryimpl.GetCompatComponent().NewCounterWithOpts("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped", telemetry.Options{DefaultMetric: true})
 	tlmMessagesDropped = telemetryimpl.GetCompatComponent().NewCounterWithOpts("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped", telemetry.Options{DefaultMetric: true})
 	tlmSendWaitTime    = telemetryimpl.GetCompatComponent().NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
-	nextAuditStreamID  atomic.Uint64
 )
 
 // worker sends logs to different destinations. Destinations can be either
@@ -47,8 +44,6 @@ type worker struct {
 	flushWg        *sync.WaitGroup
 	sink           Sink
 	workerID       string
-	auditStreamID  uint64
-	auditSequence  uint64
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -82,7 +77,6 @@ func newWorker(
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		workerID:       workerID,
-		auditStreamID:  nextAuditStreamID.Inc(),
 
 		// Telemetry
 		pipelineMonitor: pipelineMonitor,
@@ -117,9 +111,6 @@ func (s *worker) run() {
 	for continueLoop {
 		select {
 		case payload := <-s.inputChan:
-			s.auditSequence++
-			payload.AuditStream = s.auditStreamID
-			payload.AuditSequence = s.auditSequence
 			s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 			s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
 			s.utilization.Start()

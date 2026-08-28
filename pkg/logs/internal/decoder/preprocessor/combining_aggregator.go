@@ -19,10 +19,9 @@ type bucket struct {
 	tagMultiLineLogs bool
 	maxContentSize   int
 
-	originalDataLen   int
-	checkpointDataLen int
-	contentLen        int
-	lines             []AggregatedMessageWithTokens
+	originalDataLen int
+	contentLen      int
+	lines           []AggregatedMessageWithTokens
 	// shouldTruncate carries truncation state between emitted frames of one oversized
 	// single-line log.
 	shouldTruncate bool
@@ -40,7 +39,6 @@ func (b *bucket) add(msg *message.Message, tokens BorrowedTokens) {
 	b.contentLen += len(msg.GetContent())
 	b.lines = append(b.lines, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
 	b.originalDataLen += msg.RawDataLen
-	b.checkpointDataLen += msg.RawDataLenForCheckpoint()
 }
 
 func (b *bucket) isEmpty() bool {
@@ -51,7 +49,6 @@ func (b *bucket) reset() {
 	b.lines = nil
 	b.contentLen = 0
 	b.originalDataLen = 0
-	b.checkpointDataLen = 0
 }
 
 // applyTruncation applies the shared single-line truncation behavior used by both
@@ -117,7 +114,6 @@ func (b *bucket) flush() AggregatedMessageWithTokens {
 	content, isTruncated := b.applyTruncation(msg, content, b.contentLen >= b.maxContentSize, truncatedReason)
 	msg.SetContent(content)
 	msg.RawDataLen = b.originalDataLen
-	msg.SetRawDataLenForCheckpoint(b.checkpointDataLen)
 	tlmTags := []string{"false", "single_line"}
 
 	if lineCount > 1 {

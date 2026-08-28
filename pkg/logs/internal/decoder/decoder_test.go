@@ -390,18 +390,6 @@ func TestDecoderWithInterleavedPartialStreams(t *testing.T) {
 				require.Equal(t, test.expectedStatus[i], outputs[i].Status)
 				require.Equal(t, test.expectedTime[i], outputs[i].ParsingExtra.Timestamp)
 			}
-
-			// The first completed stream is physically preceded by a record that
-			// remains buffered, so it must not advance the file checkpoint. Once
-			// the other stream completes, the checkpoint can cover every input
-			// record. A crash between those outputs therefore causes duplication,
-			// never a skipped partial message.
-			require.Zero(t, outputs[0].RawDataLenForCheckpoint())
-			totalRawDataLen := 0
-			for _, line := range test.lines {
-				totalRawDataLen += len(line)
-			}
-			require.Equal(t, totalRawDataLen, outputs[len(outputs)-1].RawDataLenForCheckpoint())
 		})
 	}
 }

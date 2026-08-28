@@ -33,7 +33,6 @@ type jsonAggregator struct {
 	decoder         *IncrementalJSONValidator
 	messageBuf      []*message.Message
 	currentSize     int
-	checkpointSize  int
 	tagCompleteJSON bool
 	maxContentSize  int
 	inBuf           *bytes.Buffer
@@ -66,7 +65,6 @@ func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 
 	r.messageBuf = append(r.messageBuf, msg)
 	r.currentSize += msg.RawDataLen
-	r.checkpointSize += msg.RawDataLenForCheckpoint()
 
 	// Flush if we've exceeded the max size
 	if r.currentSize > r.maxContentSize {
@@ -83,7 +81,6 @@ func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 		if len(r.messageBuf) == 1 {
 			r.messageBuf = r.messageBuf[:0]
 			r.currentSize = 0
-			r.checkpointSize = 0
 			return []*message.Message{msg}
 		}
 
@@ -106,9 +103,7 @@ func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 		r.messageBuf = r.messageBuf[:0]
 		msg.SetContent(r.outBuf.Bytes())
 		msg.RawDataLen = r.currentSize
-		msg.SetRawDataLenForCheckpoint(r.checkpointSize)
 		r.currentSize = 0
-		r.checkpointSize = 0
 
 		return []*message.Message{msg}
 	case Invalid:
@@ -127,7 +122,6 @@ func (r *jsonAggregator) Flush() []*message.Message {
 	msgs := r.messageBuf
 	r.messageBuf = r.messageBuf[:0]
 	r.currentSize = 0
-	r.checkpointSize = 0
 	return msgs
 }
 

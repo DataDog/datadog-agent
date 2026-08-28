@@ -54,14 +54,13 @@ type StackTraceAggregator interface {
 // them into a single message when the trace ends or a non-continuation line
 // arrives. Language-specific recognition is delegated to the StackTraceParser.
 type stackTraceAggregator struct {
-	parser            StackTraceParser
-	messageBuf        []*message.Message
-	buffer            *bytes.Buffer
-	rawDataLen        int
-	checkpointDataLen int
-	maxContentSize    int
-	tagMultiLine      bool
-	collected         []*message.Message
+	parser         StackTraceParser
+	messageBuf     []*message.Message
+	buffer         *bytes.Buffer
+	rawDataLen     int
+	maxContentSize int
+	tagMultiLine   bool
+	collected      []*message.Message
 }
 
 // NewStackTraceAggregator creates a new StackTraceAggregator using the given
@@ -155,7 +154,6 @@ func (s *stackTraceAggregator) startBuffering(msg *message.Message) {
 	s.buffer.Reset()
 	s.buffer.Write(msg.GetContent())
 	s.rawDataLen = msg.RawDataLen
-	s.checkpointDataLen = msg.RawDataLenForCheckpoint()
 	s.parser.Reset()
 }
 
@@ -164,7 +162,6 @@ func (s *stackTraceAggregator) appendToBuffer(msg *message.Message) {
 	s.buffer.Write(message.EscapedLineFeed)
 	s.buffer.Write(msg.GetContent())
 	s.rawDataLen += msg.RawDataLen
-	s.checkpointDataLen += msg.RawDataLenForCheckpoint()
 }
 
 func (s *stackTraceAggregator) resolve() {
@@ -192,14 +189,12 @@ func (s *stackTraceAggregator) resolve() {
 func (s *stackTraceAggregator) rebuildBuffer() {
 	s.buffer.Reset()
 	s.rawDataLen = 0
-	s.checkpointDataLen = 0
 	for i, m := range s.messageBuf {
 		if i > 0 {
 			s.buffer.Write(message.EscapedLineFeed)
 		}
 		s.buffer.Write(m.GetContent())
 		s.rawDataLen += m.RawDataLen
-		s.checkpointDataLen += m.RawDataLenForCheckpoint()
 	}
 }
 
@@ -210,7 +205,6 @@ func (s *stackTraceAggregator) combine() {
 	out := s.messageBuf[0]
 	out.SetContent(combined)
 	out.RawDataLen = s.rawDataLen
-	out.SetRawDataLenForCheckpoint(s.checkpointDataLen)
 	out.ParsingExtra.IsMultiLine = true
 	if s.tagMultiLine {
 		out.ParsingExtra.Tags = append(out.ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"))
@@ -242,7 +236,6 @@ func (s *stackTraceAggregator) resetBuffer() {
 	s.messageBuf = s.messageBuf[:0]
 	s.buffer.Reset()
 	s.rawDataLen = 0
-	s.checkpointDataLen = 0
 }
 
 // ---------------------------------------------------------------------------

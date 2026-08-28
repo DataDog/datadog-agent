@@ -75,14 +75,6 @@ func TestSender(t *testing.T) {
 
 	assert.True(t, ok)
 	assert.Equal(t, message, expectedMessage)
-	assert.NotZero(t, message.AuditStream)
-	assert.Equal(t, uint64(1), message.AuditSequence)
-
-	nextMessage := newMessage([]byte("next line"), source, "")
-	input <- nextMessage
-	nextAudited := <-auditor.output
-	assert.Equal(t, message.AuditStream, nextAudited.AuditStream)
-	assert.Equal(t, uint64(2), nextAudited.AuditSequence)
 
 	worker.stop()
 	destinationsCtx.Stop()
