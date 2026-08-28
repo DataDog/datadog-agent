@@ -137,6 +137,138 @@ func TestRCConfigurationsServesSignedMetas(t *testing.T) {
 	}
 }
 
+func TestRCConfigurationsServesSignedMetadataWithoutConfigs(t *testing.T) {
+	ts, fi := newRCTestServer(t)
+
+	body, err := proto.Marshal(&core.LatestConfigsRequest{
+		Hostname: "host", AgentVersion: "test", Products: []string{"AP_RUNNER_KEYS"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpReq, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v0.1/configurations", bytes.NewReader(body))
+	httpReq.Header.Set("DD-Api-Key", "test-api-key")
+	httpReq.Header.Set("Content-Type", "application/x-protobuf")
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		t.Fatalf("status %d: %s", resp.StatusCode, b)
+	}
+	respBytes, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	out := &core.LatestConfigsResponse{}
+	if err := proto.Unmarshal(respBytes, out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(out.GetTargetFiles()) != 0 {
+		t.Fatalf("expected no target files, got %d", len(out.GetTargetFiles()))
+	}
+
+	pub := fi.rc.signing.Public().(ed25519.PublicKey)
+	for name, top := range map[string]*core.TopMeta{
+		"root":      out.GetConfigMetas().GetRoots()[0],
+		"timestamp": out.GetConfigMetas().GetTimestamp(),
+		"snapshot":  out.GetConfigMetas().GetSnapshot(),
+		"targets":   out.GetConfigMetas().GetTopTargets(),
+	} {
+		if err := rcstore.VerifyEnvelope(pub, top.Raw); err != nil {
+			t.Fatalf("verify %s: %v", name, err)
+		}
+	}
+}
+
+func TestRCConfigurationsRecordsApplyStates(t *testing.T) {
+	ts, _ := newRCTestServer(t)
+
+	body, err := proto.Marshal(&core.LatestConfigsRequest{
+		ActiveClients: []*core.Client{{
+			Id: "par-client",
+			State: &core.ClientState{ConfigStates: []*core.ConfigState{{
+				Id: "fake-runner-key", Product: "AP_RUNNER_KEYS", Version: 2, ApplyState: 2,
+			}}},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.Post(ts.URL+"/api/v0.1/configurations", "application/x-protobuf", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+
+	resp, err = http.Get(ts.URL + "/fakeintake/rc/stats")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var stats api.RCStats
+	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
+		t.Fatal(err)
+	}
+	if len(stats.ApplyStates) != 1 || stats.ApplyStates[0].ConfigID != "fake-runner-key" || stats.ApplyStates[0].ApplyState != 2 {
+		t.Fatalf("unexpected apply states: %+v", stats.ApplyStates)
+	}
+}
+
+func TestRCConfigurationsIgnoresRequestedProducts(t *testing.T) {
+	ts, fi := newRCTestServer(t)
+
+	fi.rc.addConfig(rcstore.Config{
+		OrgID: "42", Product: "AP_RUNNER_KEYS",
+		ConfigID: "fake-runner-key", ConfigName: "key",
+		Data: []byte(`{"k":"v"}`),
+	})
+
+	poll := func(products ...string) *core.LatestConfigsResponse {
+		t.Helper()
+		body, err := proto.Marshal(&core.LatestConfigsRequest{
+			Hostname: "host", AgentVersion: "test", Products: products,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		httpReq, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v0.1/configurations", bytes.NewReader(body))
+		httpReq.Header.Set("Content-Type", "application/x-protobuf")
+		resp, err := http.DefaultClient.Do(httpReq)
+		if err != nil {
+			t.Fatal(err)
+		}
+		respBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status %d: %s", resp.StatusCode, respBytes)
+		}
+		out := &core.LatestConfigsResponse{}
+		if err := proto.Unmarshal(respBytes, out); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		return out
+	}
+
+	first := poll("AGENT_CONFIG")
+	second := poll("AGENT_CONFIG", "AP_RUNNER_KEYS")
+
+	for name, out := range map[string]*core.LatestConfigsResponse{"first": first, "second": second} {
+		if len(out.GetTargetFiles()) != 1 ||
+			out.GetTargetFiles()[0].GetPath() != "datadog/42/AP_RUNNER_KEYS/fake-runner-key/key" {
+			t.Fatalf("%s poll: unexpected target files %+v", name, out.GetTargetFiles())
+		}
+	}
+	if v := second.GetDirectorMetas().GetTargets().GetVersion(); v != first.GetDirectorMetas().GetTargets().GetVersion() {
+		t.Fatalf("targets version changed without a config change: %d then %d",
+			first.GetDirectorMetas().GetTargets().GetVersion(), v)
+	}
+}
+
 func TestRCDisabledReturns404(t *testing.T) {
 	ready := make(chan bool, 1)
 	fi := NewServer(WithReadyChannel(ready))

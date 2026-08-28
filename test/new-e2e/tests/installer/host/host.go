@@ -167,18 +167,29 @@ func assertTelemetryGaugeTrue(c *assert.CollectT, output, metric string, labels 
 }
 
 func (h *Host) setSystemdVersion() {
-	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
-	version, err := strconv.Atoi(strVersion)
+	output := h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'")
+	version, err := parseSystemdVersion(output)
 	require.NoError(h.t(), err)
 	h.systemdVersion = version
+}
+
+func parseSystemdVersion(output string) (int, error) {
+	for _, line := range strings.Split(output, "\n") {
+		version, err := strconv.Atoi(strings.TrimSpace(line))
+		if err == nil {
+			return version, nil
+		}
+	}
+	return 0, fmt.Errorf("could not parse systemd version from %q", output)
 }
 
 // ConfigureAptMirrors hardens apt against package-mirror outages on apt-based hosts.
 // It bounds apt's per-request timeout and retries so an unreachable mirror fails within
 // minutes instead of hanging until the CI job's 2h timeout, and on Ubuntu rewrites the apt
 // sources to a "mirror+file" list so apt fails over to the global archive.ubuntu.com /
-// ports.ubuntu.com mirrors when the regional EC2 mirror is down. This mirrors the pattern
-// used in Dockerfiles/agent/Dockerfile. See incident 58780.
+// ports.ubuntu.com mirrors when the regional EC2 mirror is down. The source rewrite is skipped
+// on releases whose apt lacks the "mirror+file" method driver (apt < 1.6, e.g. Ubuntu 16.04).
+// This mirrors the pattern used in Dockerfiles/agent/Dockerfile. See incidents 58780 and 59571.
 func (h *Host) ConfigureAptMirrors() {
 	if h.pkgManager != "apt" {
 		return
@@ -187,6 +198,14 @@ func (h *Host) ConfigureAptMirrors() {
 	h.remote.MustExecute(`printf 'Acquire::Retries "2";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99datadog-e2e-fail-fast`)
 	// Ubuntu EC2 AMIs point at a single regional mirror with no fallback; add global mirrors.
 	if h.os.Flavor != e2eos.Ubuntu {
+		return
+	}
+	// The "mirror+file" transport used below only exists in apt >= 1.6 (Ubuntu >= 18.04). On
+	// older releases (e.g. Ubuntu 16.04, which ships apt 1.2) the method driver is absent, so
+	// rewriting the sources to "mirror+file:" makes every subsequent apt operation fail with
+	// "The method driver /usr/lib/apt/methods/mirror+file could not be found". Skip the source
+	// rewrite there; the Acquire retry/timeout hardening above still applies. See incident 59571.
+	if _, err := h.remote.Execute("test -e /usr/lib/apt/methods/mirror+file"); err != nil {
 		return
 	}
 	h.remote.MustExecute(`printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)

@@ -9,6 +9,7 @@ package apminject
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -191,6 +192,31 @@ func TestSupportsInstrumentSubcommands(t *testing.T) {
 	assert.False(t, supportsInstrumentSubcommands(older))
 
 	assert.False(t, supportsInstrumentSubcommands(filepath.Join(tmpDir, "does-not-exist")))
+}
+
+func TestInstallerSupportsTmpfs(t *testing.T) {
+	tmpDir := t.TempDir()
+	tests := []struct {
+		version string
+		want    bool
+	}{
+		{version: "7.80.4", want: false},
+		{version: "7.81.1", want: false},
+		{version: "7.81.2", want: true},
+		{version: "7.81.2-rc.1", want: true},
+		{version: "7.81.3-installer-0.14.12", want: true},
+		{version: "7.82.0", want: true},
+		{version: "7.84.0-devel+git.367.9b4d660", want: true},
+		{version: "not-a-version", want: false},
+	}
+	for i, tt := range tests {
+		installer := filepath.Join(tmpDir, fmt.Sprintf("installer-%d", i))
+		script := fmt.Sprintf("#!/bin/sh\necho 'loader diagnostic' >&2\necho '%s'\n", tt.version)
+		require.NoError(t, os.WriteFile(installer, []byte(script), 0755))
+		assert.Equal(t, tt.want, installerSupportsTmpfs(installer), tt.version)
+	}
+
+	assert.False(t, installerSupportsTmpfs(filepath.Join(tmpDir, "missing")))
 }
 
 func alwaysSupported(string) bool { return true }

@@ -576,7 +576,7 @@ network_devices:
 	assert.Equal(t, "legacySnmpVersion", legacyConfig.Version)
 	assert.Equal(t, "127.2.0.0/30", legacyConfig.Network)
 	warnings := corecfg.Warnings()
-	assert.Equal(t, 0, warnings.Count())
+	assert.Equal(t, 0, len(warnings))
 }
 
 func Test_NamespaceConfig(t *testing.T) {

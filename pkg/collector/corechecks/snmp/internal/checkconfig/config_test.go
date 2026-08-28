@@ -1948,6 +1948,8 @@ func TestHaveLegacyProfile(t *testing.T) {
 		rawInitConfig             []byte
 		mockConfd                 string
 		expectedHaveLegacyProfile bool
+		// expectedLegacySource is the part of the error naming what uses the legacy syntax
+		expectedLegacySource string
 	}{
 		{
 			name: "legacy custom profile (no oid) with loader specified should not fallback to Python",
@@ -2045,6 +2047,7 @@ profile: legacy
 			rawInitConfig:             []byte(``),
 			mockConfd:                 "legacy_no_oid.d",
 			expectedHaveLegacyProfile: true,
+			expectedLegacySource:      "profile(s) legacy",
 		},
 		{
 			name: "legacy custom profile (string symbol type) without loader specified should fallback to Python",
@@ -2059,6 +2062,7 @@ profile: legacy
 			rawInitConfig:             []byte(``),
 			mockConfd:                 "legacy_symbol_type.d",
 			expectedHaveLegacyProfile: true,
+			expectedLegacySource:      "profile(s) legacy",
 		},
 		{
 			name: "legacy init config profile without loader specified should fallback to Python",
@@ -2082,6 +2086,7 @@ profiles:
 `),
 			mockConfd:                 "conf.d",
 			expectedHaveLegacyProfile: true,
+			expectedLegacySource:      "profile(s) legacy-init-config",
 		},
 		{
 			name: "legacy instance config profile without loader specified should fallback to Python",
@@ -2110,6 +2115,7 @@ metrics:
 			rawInitConfig:             []byte(``),
 			mockConfd:                 "conf.d",
 			expectedHaveLegacyProfile: true,
+			expectedLegacySource:      "the instance metrics",
 		},
 	}
 
@@ -2121,7 +2127,8 @@ metrics:
 
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			if tt.expectedHaveLegacyProfile {
-				assert.EqualError(t, err, "legacy profile detected with no loader specified, falling back to the Python loader")
+				require.ErrorContains(t, err, "legacy profile detected with no loader specified, falling back to the Python loader")
+				assert.ErrorContains(t, err, tt.expectedLegacySource)
 			} else {
 				assert.NoError(t, err)
 			}

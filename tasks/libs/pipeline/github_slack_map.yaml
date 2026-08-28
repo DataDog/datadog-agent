@@ -288,15 +288,15 @@
     id: 'C09FX078WH2'
 '@datadog/fleet':
   notification:
-    name: '#fleet-automation-monitoring'
-    id: 'C06TZ0APY6Q'
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
 '@datadog/fleet-automation':
   notification:
-    name: '#fleet-automation-monitoring'
-    id: 'C06TZ0APY6Q'
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
@@ -434,6 +434,13 @@
     name: '#universal-service-monitoring'
     id: 'C01R6Q0HQDD'
 '@datadog/q-branch':
+  notification:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
+  review:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
+'@datadog/agent-anomaly-detection':
   notification:
     name: '#agent-anomaly-detection'
     id: 'C0ABFN05CMU'
