@@ -8,9 +8,11 @@ use super::runtime::RuntimeContext;
 use super::{ProcessManager, startup};
 use crate::grpc;
 use crate::platform;
+use crate::shutdown::ShutdownBudget;
 use anyhow::Result;
 use log::info;
 use std::pin::pin;
+use std::time::Instant;
 use tokio::sync::oneshot;
 
 pub struct Supervisor {
@@ -49,7 +51,12 @@ impl Supervisor {
             .await;
 
         ctx.command_handlers.join_all().await;
-        ctx.background_spawns.join_all().await;
+        let background_spawn_budget = platform::service_stop_signal_time()
+            .map(ShutdownBudget::service_stop)
+            .unwrap_or_else(|| ShutdownBudget::unlimited(Instant::now()));
+        ctx.background_spawns
+            .join_all_with_budget(background_spawn_budget)
+            .await;
 
         rx.drain_exits_during(&self.manager, &ctx, self.manager.shutdown())
             .await;

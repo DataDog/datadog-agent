@@ -42,7 +42,7 @@ impl ShutdownBudget {
     }
 
     #[cfg(test)]
-    fn with_deadline(signal_time: Instant, deadline: Instant) -> Self {
+    pub(crate) fn with_deadline(signal_time: Instant, deadline: Instant) -> Self {
         Self {
             signal_time,
             deadline: Some(deadline),
@@ -59,6 +59,10 @@ impl ShutdownBudget {
         self.deadline
             .map(|deadline| cap.min(deadline.saturating_duration_since(Instant::now())))
             .unwrap_or(cap)
+    }
+
+    pub(crate) fn is_bounded(&self) -> bool {
+        self.deadline.is_some()
     }
 }
 

@@ -6,10 +6,12 @@
 use super::lifecycle::Lifecycle;
 use super::{ExitEvent, PendingRestart, ProcessManager};
 use crate::command::Command;
+use crate::shutdown::ShutdownBudget;
 use log::warn;
 use std::future::Future;
 use std::pin::{Pin, pin};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tonic::Status;
@@ -46,14 +48,77 @@ impl BackgroundSpawns {
         self.handles.lock().unwrap().push(handle);
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(in crate::manager) async fn join_all(&self) {
+        self.join_all_with_budget(ShutdownBudget::unlimited(Instant::now()))
+            .await;
+    }
+
+    pub(in crate::manager) async fn join_all_with_budget(&self, budget: ShutdownBudget) {
         let handles = std::mem::take(&mut *self.handles.lock().unwrap());
         for handle in handles {
-            match handle.await {
-                Ok(()) => {}
-                Err(error) if error.is_cancelled() => {}
-                Err(error) => warn!("background task failed: {error}"),
+            Self::join_tracked_handle(handle, &budget).await;
+        }
+    }
+
+    async fn join_tracked_handle(handle: JoinHandle<()>, budget: &ShutdownBudget) {
+        let cap = budget.remaining_cap(Duration::MAX);
+        if budget.is_bounded() && cap.is_zero() {
+            warn!("background spawn join budget exhausted; deferring task to runtime shutdown");
+            Self::defer_tracked_handle(handle);
+            return;
+        }
+
+        if !budget.is_bounded() {
+            Self::log_tracked_join_result(handle.await);
+            return;
+        }
+
+        let mut monitor = Some(tokio::spawn(handle));
+        tokio::select! {
+            result = async {
+                monitor
+                    .take()
+                    .expect("background spawn monitor should be present")
+                    .await
+            } => Self::log_tracked_monitor_result(result),
+            _ = tokio::time::sleep(cap) => {
+                warn!(
+                    "timed out waiting for background spawn ({cap:?} left in service shutdown budget); deferring to runtime shutdown"
+                );
+                if let Some(monitor) = monitor.take() {
+                    Self::defer_tracked_monitor(monitor);
+                }
             }
+        }
+    }
+
+    fn defer_tracked_handle(handle: JoinHandle<()>) {
+        tokio::spawn(async move {
+            Self::log_tracked_join_result(handle.await);
+        });
+    }
+
+    fn defer_tracked_monitor(monitor: JoinHandle<Result<(), tokio::task::JoinError>>) {
+        tokio::spawn(async move {
+            Self::log_tracked_monitor_result(monitor.await);
+        });
+    }
+
+    fn log_tracked_monitor_result(
+        result: Result<Result<(), tokio::task::JoinError>, tokio::task::JoinError>,
+    ) {
+        match result {
+            Ok(inner) => Self::log_tracked_join_result(inner),
+            Err(error) => warn!("background task monitor failed: {error}"),
+        }
+    }
+
+    fn log_tracked_join_result(result: Result<(), tokio::task::JoinError>) {
+        match result {
+            Ok(()) => {}
+            Err(error) if error.is_cancelled() => {}
+            Err(error) => warn!("background task failed: {error}"),
         }
     }
 }
@@ -356,6 +421,35 @@ mod tests {
         join_task
             .await
             .expect("join task should complete after handler releases");
+    }
+
+    #[tokio::test]
+    async fn background_spawns_join_all_with_budget_times_out() {
+        let background_spawns = BackgroundSpawns::default();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel::<()>();
+        background_spawns.track(tokio::spawn(async move {
+            let _ = release_rx.await;
+        }));
+
+        let budget = ShutdownBudget::with_deadline(
+            Instant::now(),
+            Instant::now() + Duration::from_millis(50),
+        );
+        let mut join_task = tokio::spawn({
+            let background_spawns = background_spawns.clone();
+            async move {
+                background_spawns.join_all_with_budget(budget).await;
+            }
+        });
+
+        tokio::time::timeout(Duration::from_millis(200), &mut join_task)
+            .await
+            .expect("join_all_with_budget should return before blocked task completes")
+            .expect("join task should succeed");
+
+        release_tx
+            .send(())
+            .expect("deferred background task should still be running");
     }
 
     #[tokio::test]
