@@ -209,6 +209,7 @@ export interface Correlation {
     title: string;
     description: string;
     timestamp: number;
+    host?: string;
     tags: string[];
   }[];
   firstSeen: number;

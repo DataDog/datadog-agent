@@ -1029,6 +1029,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 		Description string   `json:"description"`
 		Timestamp   int64    `json:"timestamp"`
 		Score       *float64 `json:"score,omitempty"`
+		Host        string   `json:"host,omitempty"`
 		Tags        []string `json:"tags"`
 	}
 
@@ -1056,6 +1057,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
 				Score:       a.Score,
+				Host:        a.Source.Host,
 				Tags:        tgs,
 			}
 		}
