@@ -26,7 +26,6 @@ import (
 	k8sclient "k8s.io/client-go/kubernetes"
 	scaleclient "k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
@@ -406,7 +405,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		podAutoscalerInternal.ClearCurrentReplicas()
 		podAutoscalerInternal.ClearHorizontalState()
 		podAutoscalerInternal.ClearVerticalState()
-		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUpsert(ctx, item, ns, name, nil, podAutoscalerInternal, podAutoscaler)
+		return c.updateAutoscalerStatusAndUpsert(ctx, item, ns, name, nil, podAutoscalerInternal, podAutoscaler)
 	}
 
 	// Validate autoscaler requirements
@@ -449,7 +448,8 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	podAutoscalerInternal.SetCurrentReplicas(int32(currentReplicas))
 
 	// Update status based on latest state
-	return result, c.updateAutoscalerStatusAndUpsert(ctx, item, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
+	statusResult, statusErr := c.updateAutoscalerStatusAndUpsert(ctx, item, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
+	return result.Merge(statusResult), statusErr
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner, scale *autoscalingv1.Scale, gr schema.GroupResource, scaleErr error) (autoscaling.ProcessResult, error) {
@@ -523,140 +523,74 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 }
 
 func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) (int64, error) {
-	ns := podAutoscalerInternal.Namespace()
-	name := podAutoscalerInternal.Name()
-	log.Infof("Updating PodAutoscaler Spec: %s/%s", ns, name)
+	log.Infof("Updating PodAutoscaler Spec: %s/%s", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name())
+	autoscalerObj := &datadoghq.DatadogPodAutoscaler{
+		TypeMeta:   podAutoscalerMeta,
+		ObjectMeta: podAutoscaler.ObjectMeta,
+		Spec:       *podAutoscalerInternal.Spec().DeepCopy(),
+	}
 
-	// buildObj assembles the object to send from a given ObjectMeta. The ObjectMeta
-	// is deep-copied by the caller so we never mutate the informer cache object when
-	// applying the profile-managed labels/annotations below.
-	buildObj := func(objectMeta metav1.ObjectMeta) *datadoghq.DatadogPodAutoscaler {
-		autoscalerObj := &datadoghq.DatadogPodAutoscaler{
-			TypeMeta:   podAutoscalerMeta,
-			ObjectMeta: objectMeta,
-			Spec:       *podAutoscalerInternal.Spec().DeepCopy(),
+	if podAutoscalerInternal.IsProfileManaged() {
+		if autoscalerObj.Labels == nil {
+			autoscalerObj.Labels = make(map[string]string)
 		}
+		autoscalerObj.Labels[model.ProfileLabelKey] = podAutoscalerInternal.ProfileName()
 
-		if podAutoscalerInternal.IsProfileManaged() {
-			if autoscalerObj.Labels == nil {
-				autoscalerObj.Labels = make(map[string]string)
-			}
-			autoscalerObj.Labels[model.ProfileLabelKey] = podAutoscalerInternal.ProfileName()
-
-			if h := podAutoscalerInternal.DesiredProfileTemplateHash(); h != "" {
-				if autoscalerObj.Annotations == nil {
-					autoscalerObj.Annotations = make(map[string]string)
-				}
-				autoscalerObj.Annotations[model.ProfileTemplateHashAnnotation] = h
-			}
+		if h := podAutoscalerInternal.DesiredProfileTemplateHash(); h != "" {
 			if autoscalerObj.Annotations == nil {
 				autoscalerObj.Annotations = make(map[string]string)
 			}
-			// Forward preview annotation from the profile transparently.
-			if raw := podAutoscalerInternal.PreviewAnnotation(); raw != "" {
-				autoscalerObj.Annotations[model.PreviewAnnotationKey] = raw
-			} else {
-				delete(autoscalerObj.Annotations, model.PreviewAnnotationKey)
-			}
+			autoscalerObj.Annotations[model.ProfileTemplateHashAnnotation] = h
 		}
-
-		return autoscalerObj
+		if autoscalerObj.Annotations == nil {
+			autoscalerObj.Annotations = make(map[string]string)
+		}
+		// Forward preview annotation from the profile transparently.
+		if raw := podAutoscalerInternal.PreviewAnnotation(); raw != "" {
+			autoscalerObj.Annotations[model.PreviewAnnotationKey] = raw
+		} else {
+			delete(autoscalerObj.Annotations, model.PreviewAnnotationKey)
+		}
 	}
 
-	// The first attempt reuses the object read from the informer cache. On a conflict
-	// (the cached resourceVersion is stale), we re-read the object live from the API
-	// server and retry with the current resourceVersion.
-	current := podAutoscaler
-	var updatedGeneration int64
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		obj, err := autoscaling.ToUnstructured(buildObj(*current.ObjectMeta.DeepCopy()))
-		if err != nil {
-			return err
-		}
-
-		updatedObj, err := c.Client.Resource(podAutoscalerGVR).Namespace(ns).Update(ctx, obj, metav1.UpdateOptions{})
-		if err != nil {
-			if k8serrors.IsConflict(err) {
-				live, getErr := c.getPodAutoscaler(ctx, ns, name)
-				if getErr != nil {
-					return getErr
-				}
-				current = live
-			}
-			return err
-		}
-
-		updatedGeneration = updatedObj.GetGeneration()
-		return nil
-	})
-	if retryErr != nil {
-		return 0, fmt.Errorf("Unable to update PodAutoscaler Spec: %s/%s, err: %w", ns, name, retryErr)
+	obj, err := autoscaling.ToUnstructured(autoscalerObj)
+	if err != nil {
+		return 0, err
 	}
 
-	return updatedGeneration, nil
+	updatedObj, err := c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Update(ctx, obj, metav1.UpdateOptions{})
+	if err != nil {
+		return 0, fmt.Errorf("Unable to update PodAutoscaler Spec: %s/%s, err: %w", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
+	}
+
+	return updatedObj.GetGeneration(), nil
 }
 
 func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
-	ns := podAutoscalerInternal.Namespace()
-	name := podAutoscalerInternal.Name()
+	newStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status)
 
-	// The first attempt reuses the object read from the informer cache to avoid an
-	// extra API call on the happy path. On a conflict (the cached resourceVersion is
-	// stale, e.g. the informer cache has not caught up with a concurrent write), we
-	// re-read the object live from the API server and retry with the current
-	// resourceVersion and status. Without the live re-read, a stale cache combined
-	// with the periodic informer resync (which re-delivers the cached object without
-	// re-listing) can turn a transient conflict into a permanent one.
-	current := podAutoscaler
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		newStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &current.Status)
-		if autoscaling.Semantic.DeepEqual(current.Status, newStatus) {
-			return nil
-		}
+	if autoscaling.Semantic.DeepEqual(podAutoscaler.Status, newStatus) {
+		return nil
+	}
 
-		log.Debugf("Updating PodAutoscaler Status: %s/%s", ns, name)
-		autoscalerObj := &datadoghq.DatadogPodAutoscaler{
-			TypeMeta:   podAutoscalerMeta,
-			ObjectMeta: current.ObjectMeta,
-			Status:     newStatus,
-		}
+	log.Debugf("Updating PodAutoscaler Status: %s/%s", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name())
+	autoscalerObj := &datadoghq.DatadogPodAutoscaler{
+		TypeMeta:   podAutoscalerMeta,
+		ObjectMeta: podAutoscaler.ObjectMeta,
+		Status:     newStatus,
+	}
 
-		obj, err := autoscaling.ToUnstructured(autoscalerObj)
-		if err != nil {
-			return err
-		}
-
-		_, err = c.Client.Resource(podAutoscalerGVR).Namespace(ns).UpdateStatus(ctx, obj, metav1.UpdateOptions{})
-		if err != nil && k8serrors.IsConflict(err) {
-			live, getErr := c.getPodAutoscaler(ctx, ns, name)
-			if getErr != nil {
-				return getErr
-			}
-			current = live
-		}
+	obj, err := autoscaling.ToUnstructured(autoscalerObj)
+	if err != nil {
 		return err
-	})
-	if retryErr != nil {
-		return fmt.Errorf("Unable to update PodAutoscaler Status: %s/%s, err: %w", ns, name, retryErr)
+	}
+
+	_, err = c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).UpdateStatus(ctx, obj, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("Unable to update PodAutoscaler Status: %s/%s, err: %w", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
 	}
 
 	return nil
-}
-
-// getPodAutoscaler reads a DatadogPodAutoscaler live from the API server (bypassing
-// the informer cache) and decodes it into the typed struct.
-func (c *Controller) getPodAutoscaler(ctx context.Context, ns, name string) (*datadoghq.DatadogPodAutoscaler, error) {
-	obj, err := c.Client.Resource(podAutoscalerGVR).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	podAutoscaler := &datadoghq.DatadogPodAutoscaler{}
-	if err := autoscaling.FromUnstructured(obj, podAutoscaler); err != nil {
-		return nil, fmt.Errorf("Unable to parse PodAutoscaler from API server: %s/%s, err: %w", ns, name, err)
-	}
-
-	return podAutoscaler, nil
 }
 
 func (c *Controller) deletePodAutoscaler(ns, name string) error {
@@ -705,11 +639,19 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	return nil
 }
 
-func (c *Controller) updateAutoscalerStatusAndUpsert(ctx context.Context, item *autoscalingstore.LockedItem[model.PodAutoscalerInternal], ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+func (c *Controller) updateAutoscalerStatusAndUpsert(ctx context.Context, item *autoscalingstore.LockedItem[model.PodAutoscalerInternal], ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) (autoscaling.ProcessResult, error) {
 	// Update status based on latest state
+	result := autoscaling.NoRequeue
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
 	if statusErr != nil {
 		log.Errorf("Failed to update status for PodAutoscaler: %s/%s, err: %v", ns, name, statusErr)
+
+		// Requeue so a subsequent reconcile restarts the full process: it re-reads the
+		// object from the informer cache (which will have observed the concurrent write
+		// that caused a conflict) and retries the status update with a fresh
+		// resourceVersion. The workqueue rate-limiter backs off between attempts and
+		// Process() caps them at maxRetry.
+		result = autoscaling.Requeue
 
 		// We want to return the status error if none to count in the requeue retries.
 		if err == nil {
@@ -718,7 +660,7 @@ func (c *Controller) updateAutoscalerStatusAndUpsert(ctx context.Context, item *
 	}
 
 	item.Upsert(podAutoscalerInternal, c.ID)
-	return err
+	return result, err
 }
 
 func (c *Controller) updateLocalFallbackEnabled(_ *model.PodAutoscalerInternal, activeHorizontalSource *datadoghqcommon.DatadogPodAutoscalerValueSource) {

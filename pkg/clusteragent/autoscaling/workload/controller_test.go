@@ -1718,10 +1718,10 @@ func condition(conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, 
 	}
 }
 
-// newStatusRetryController builds a workload Controller wired to a fake dynamic
-// client for directly exercising the status/spec write helpers, bypassing the
+// newStatusTestController builds a workload Controller wired to a fake dynamic
+// client for directly exercising the status-write / upsert helpers, bypassing the
 // full reconcile/action-assertion machinery.
-func newStatusRetryController(t *testing.T, testTime time.Time, objects ...runtime.Object) (*Controller, *fake.FakeDynamicClient) {
+func newStatusTestController(t *testing.T, testTime time.Time, objects ...runtime.Object) (*Controller, *fake.FakeDynamicClient) {
 	t.Helper()
 	require.NoError(t, datadoghq.AddToScheme(kscheme.Scheme))
 
@@ -1748,7 +1748,7 @@ func newStatusRetryController(t *testing.T, testTime time.Time, objects ...runti
 	return c, fakeClient
 }
 
-func retryTestSpec() datadoghq.DatadogPodAutoscalerSpec {
+func statusTestSpec() datadoghq.DatadogPodAutoscalerSpec {
 	return datadoghq.DatadogPodAutoscalerSpec{
 		TargetRef: autoscalingv2.CrossVersionObjectReference{
 			Kind:       "Deployment",
@@ -1759,140 +1759,57 @@ func retryTestSpec() datadoghq.DatadogPodAutoscalerSpec {
 	}
 }
 
-// TestUpdatePodAutoscalerStatusRetriesOnConflict reproduces the reported scenario:
-// the status write hits a 409 because the resourceVersion carried from the informer
-// cache is stale. The controller must re-read the object live from the API server
-// and retry, ultimately succeeding instead of surfacing the conflict.
-func TestUpdatePodAutoscalerStatusRetriesOnConflict(t *testing.T) {
+// TestUpdateAutoscalerStatusAndUpsertRequeuesOnConflict reproduces the reported
+// scenario: the status write hits a 409 because the resourceVersion carried from the
+// informer cache is stale. The reconcile must requeue (and surface the error) so a
+// subsequent pass restarts the full process with a fresh object from the cache,
+// instead of silently dropping the update.
+func TestUpdateAutoscalerStatusAndUpsertRequeuesOnConflict(t *testing.T) {
 	testTime := time.Now()
 	ns, name := "default", "dpa-0"
-	spec := retryTestSpec()
+	key := ns + "/" + name
+	spec := statusTestSpec()
 	_, dpaTyped := newFakePodAutoscaler(ns, name, 1, testTime, spec, datadoghqcommon.DatadogPodAutoscalerStatus{})
 
-	c, fakeClient := newStatusRetryController(t, testTime, dpaTyped)
-
-	var statusUpdates, gets int
+	c, fakeClient := newStatusTestController(t, testTime, dpaTyped)
 	fakeClient.PrependReactor("update", "datadogpodautoscalers", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		if action.GetSubresource() != "status" {
 			return false, nil, nil
 		}
-		statusUpdates++
-		if statusUpdates == 1 {
-			return true, nil, k8serrors.NewConflict(podAutoscalerGVR.GroupResource(), name, errors.New("stale resourceVersion"))
-		}
-		return false, nil, nil
-	})
-	fakeClient.PrependReactor("get", "datadogpodautoscalers", func(k8stesting.Action) (bool, runtime.Object, error) {
-		gets++
-		return false, nil, nil
-	})
-
-	internal := model.FakePodAutoscalerInternal{Namespace: ns, Name: name, Spec: &spec}.Build()
-	err := c.updatePodAutoscalerStatus(context.Background(), internal, dpaTyped)
-
-	require.NoError(t, err, "controller should recover from a single conflict")
-	assert.Equal(t, 2, statusUpdates, "expected one conflicting attempt followed by one successful retry")
-	assert.Equal(t, 1, gets, "expected exactly one live re-read triggered by the conflict")
-}
-
-// TestUpdatePodAutoscalerStatusConflictExhausted verifies that a persistent conflict
-// (e.g. a frozen informer cache that never advances) is retried a bounded number of
-// times and then surfaced as an error so the reconcile requeues, rather than looping
-// forever inside a single sync.
-func TestUpdatePodAutoscalerStatusConflictExhausted(t *testing.T) {
-	testTime := time.Now()
-	ns, name := "default", "dpa-0"
-	spec := retryTestSpec()
-	_, dpaTyped := newFakePodAutoscaler(ns, name, 1, testTime, spec, datadoghqcommon.DatadogPodAutoscalerStatus{})
-
-	c, fakeClient := newStatusRetryController(t, testTime, dpaTyped)
-
-	var statusUpdates, gets int
-	fakeClient.PrependReactor("update", "datadogpodautoscalers", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		if action.GetSubresource() != "status" {
-			return false, nil, nil
-		}
-		statusUpdates++
 		return true, nil, k8serrors.NewConflict(podAutoscalerGVR.GroupResource(), name, errors.New("stale resourceVersion"))
 	})
-	fakeClient.PrependReactor("get", "datadogpodautoscalers", func(k8stesting.Action) (bool, runtime.Object, error) {
-		gets++
-		return false, nil, nil
-	})
 
 	internal := model.FakePodAutoscalerInternal{Namespace: ns, Name: name, Spec: &spec}.Build()
-	err := c.updatePodAutoscalerStatus(context.Background(), internal, dpaTyped)
+	item, _ := c.store.Get(key)
+	defer item.Release()
 
-	require.Error(t, err, "a persistent conflict must surface as an error to requeue")
-	assert.GreaterOrEqual(t, statusUpdates, 2, "expected multiple bounded retries")
-	assert.Positive(t, gets, "expected a live re-read on each conflict")
+	result, err := c.updateAutoscalerStatusAndUpsert(context.Background(), item, ns, name, nil, internal, dpaTyped)
+
+	require.Error(t, err, "the status conflict must be surfaced so Process() counts the retry")
+	assert.True(t, result.ShouldRequeue(), "a status-update conflict must requeue the reconcile")
+	// The latest recommendation is still persisted to the store despite the failed
+	// status write, so scaling keeps honoring the configured metric.
+	_, found := c.store.Peek(key)
+	assert.True(t, found, "internal state should be upserted even when the status write fails")
 }
 
-// TestUpdatePodAutoscalerStatusNoDiffSkipsUpdate ensures the conflict-safe path keeps
-// the existing idempotency guarantee: when the freshly built status matches the
-// current one, no write and no extra live read are performed (no added API load).
-func TestUpdatePodAutoscalerStatusNoDiffSkipsUpdate(t *testing.T) {
+// TestUpdateAutoscalerStatusAndUpsertNoConflict verifies that a successful (or no-op)
+// status write does not requeue, preserving the steady-state behavior.
+func TestUpdateAutoscalerStatusAndUpsertNoConflict(t *testing.T) {
 	testTime := time.Now()
 	ns, name := "default", "dpa-0"
-	spec := retryTestSpec()
-
-	internal := model.FakePodAutoscalerInternal{Namespace: ns, Name: name, Spec: &spec}.Build()
-	// Seed the cached object with the exact status the controller would build, so
-	// the DeepEqual guard short-circuits.
-	currentStatus := internal.BuildStatus(metav1.NewTime(testTime), nil)
-	_, dpaTyped := newFakePodAutoscaler(ns, name, 1, testTime, spec, currentStatus)
-
-	c, fakeClient := newStatusRetryController(t, testTime, dpaTyped)
-
-	var updates, gets int
-	fakeClient.PrependReactor("update", "datadogpodautoscalers", func(k8stesting.Action) (bool, runtime.Object, error) {
-		updates++
-		return false, nil, nil
-	})
-	fakeClient.PrependReactor("get", "datadogpodautoscalers", func(k8stesting.Action) (bool, runtime.Object, error) {
-		gets++
-		return false, nil, nil
-	})
-
-	err := c.updatePodAutoscalerStatus(context.Background(), internal, dpaTyped)
-
-	require.NoError(t, err)
-	assert.Zero(t, updates, "no status update expected when there is no diff")
-	assert.Zero(t, gets, "no live re-read expected on the happy path")
-}
-
-// TestUpdatePodAutoscalerSpecRetriesOnConflict verifies the spec write path shares the
-// same conflict-safe behavior: on a 409 it re-reads live and retries, returning the
-// updated generation on success.
-func TestUpdatePodAutoscalerSpecRetriesOnConflict(t *testing.T) {
-	testTime := time.Now()
-	ns, name := "default", "dpa-0"
-	spec := retryTestSpec()
+	key := ns + "/" + name
+	spec := statusTestSpec()
 	_, dpaTyped := newFakePodAutoscaler(ns, name, 1, testTime, spec, datadoghqcommon.DatadogPodAutoscalerStatus{})
 
-	c, fakeClient := newStatusRetryController(t, testTime, dpaTyped)
+	c, _ := newStatusTestController(t, testTime, dpaTyped)
 
-	var specUpdates, gets int
-	fakeClient.PrependReactor("update", "datadogpodautoscalers", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		if action.GetSubresource() != "" {
-			return false, nil, nil
-		}
-		specUpdates++
-		if specUpdates == 1 {
-			return true, nil, k8serrors.NewConflict(podAutoscalerGVR.GroupResource(), name, errors.New("stale resourceVersion"))
-		}
-		return false, nil, nil
-	})
-	fakeClient.PrependReactor("get", "datadogpodautoscalers", func(k8stesting.Action) (bool, runtime.Object, error) {
-		gets++
-		return false, nil, nil
-	})
+	internal := model.FakePodAutoscalerInternal{Namespace: ns, Name: name, Spec: &spec}.Build()
+	item, _ := c.store.Get(key)
+	defer item.Release()
 
-	internal := model.FakePodAutoscalerInternal{Namespace: ns, Name: name, Generation: 1, Spec: &spec}.Build()
-	gen, err := c.updatePodAutoscalerSpec(context.Background(), internal, dpaTyped)
+	result, err := c.updateAutoscalerStatusAndUpsert(context.Background(), item, ns, name, nil, internal, dpaTyped)
 
-	require.NoError(t, err, "controller should recover from a single conflict")
-	assert.Equal(t, int64(1), gen)
-	assert.Equal(t, 2, specUpdates, "expected one conflicting attempt followed by one successful retry")
-	assert.Equal(t, 1, gets, "expected exactly one live re-read triggered by the conflict")
+	require.NoError(t, err)
+	assert.False(t, result.ShouldRequeue(), "a successful status write must not requeue")
 }
