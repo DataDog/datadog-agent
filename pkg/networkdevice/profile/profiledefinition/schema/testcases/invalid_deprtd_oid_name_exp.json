@@ -1,6 +1,6 @@
 {
   "error_patterns": [
-    "MetricsConfig/additionalProperties] additionalProperties .*'OID'.* not allowed",
-    "MetricsConfig/additionalProperties] additionalProperties .*'name'.* not allowed"
+    "MetricsConfig/additionalProperties\\]: additional properties .*'OID'.* not allowed",
+    "MetricsConfig/additionalProperties\\]: additional properties .*'name'.* not allowed"
   ]
 }

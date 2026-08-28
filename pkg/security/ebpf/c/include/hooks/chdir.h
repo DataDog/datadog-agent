@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
@@ -107,7 +108,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_chdir_exit, struct tracepoint_raw_syscalls_s
     return sys_chdir_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_chdir_callback(void *ctx) {
+int __attribute__((always_inline)) dr_chdir_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHDIR);
     if (!syscall) {
         return 0;
@@ -124,27 +125,28 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx) {
         return 0;
     }
 
-    struct chdir_event_t event = {
-        .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .file = syscall->chdir.file,
-    };
+    struct chdir_event_t *event = SPAN_FILL_EVENT(struct chdir_event_t, EVENT_CHDIR);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->file = syscall->chdir.file;
 
-    fill_file(syscall->chdir.dentry, &event.file);
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_file(syscall->chdir.dentry, &event->file);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_CHDIR, event);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
 }
 
 TAIL_CALL_FNC(dr_chdir_callback, ctx_t *ctx) {
-    return dr_chdir_callback(ctx);
+    return dr_chdir_callback(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
 TAIL_CALL_TRACEPOINT_FNC(dr_chdir_callback, struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_chdir_callback(args);
+    return dr_chdir_callback(args, TRACEPOINT_TYPE);
 }
 
 #endif
