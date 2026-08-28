@@ -39,7 +39,7 @@ const (
 // profilingEndpoints returns the profiling intake urls and their corresponding
 // api keys based on agent configuration. Unless the main endpoint is skipped
 // via MainEndpointMode, it is returned as the first element in the slice.
-func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []string, err error) {
+func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, endpoints []config.Endpoint, err error) {
 	if conf.ProfilingProxy.MainEndpointMode == config.ProfilingMainEndpointSend {
 		main := mainProfilingURL(conf)
 		u, err := url.Parse(main)
@@ -48,7 +48,7 @@ func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []st
 			return nil, nil, fmt.Errorf("error parsing main profiling intake URL %s: %v", main, err)
 		}
 		urls = append(urls, u)
-		apiKeys = append(apiKeys, conf.APIKey())
+		endpoints = append(endpoints, config.Endpoint{Host: u.String(), APIKey: conf.APIKey(), ConfigSettingPath: "api_key"})
 	}
 
 	if extra := conf.ProfilingProxy.AdditionalEndpoints; extra != nil {
@@ -57,27 +57,29 @@ func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []st
 		// response from index 0 to the client; without sorting, when the main
 		// endpoint is skipped the "primary" additional endpoint would be picked
 		// at random from Go's map iteration order.
-		endpoints := make([]string, 0, len(extra))
+		epKeys := make([]string, 0, len(extra))
 		for endpoint := range extra {
-			endpoints = append(endpoints, endpoint)
+			epKeys = append(epKeys, endpoint)
 		}
-		sort.Strings(endpoints)
-		for _, endpoint := range endpoints {
+		sort.Strings(epKeys)
+		for _, endpoint := range epKeys {
 			u, err := url.Parse(endpoint)
 			if err != nil {
 				log.Errorf("Error parsing additional profiling intake URL %s: %v", endpoint, err)
 				continue
 			}
 			for _, key := range extra[endpoint] {
+				ep := config.Endpoint{Host: u.String(), APIKey: key}
+				resolveCredentialProvider(conf, &ep, key, "apm_config.profiling.additional_endpoints")
 				urls = append(urls, u)
-				apiKeys = append(apiKeys, key)
+				endpoints = append(endpoints, ep)
 			}
 		}
 	}
 	if len(urls) == 0 {
 		return nil, nil, errors.New("profiling proxy has no valid endpoints configured")
 	}
-	return urls, apiKeys, nil
+	return urls, endpoints, nil
 }
 
 // mainProfilingURL returns the main profiling intake URL, preferring an
@@ -101,7 +103,7 @@ func mainProfilingURL(conf *config.AgentConfig) string {
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
-	targets, keys, err := profilingEndpoints(r.conf)
+	targets, endpoints, err := profilingEndpoints(r.conf)
 	if err != nil {
 		return errorHandler(err)
 	}
@@ -116,7 +118,7 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tags.WriteString(fmt.Sprintf(",%s:%s", k, v))
 	}
 
-	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
+	return newProfileProxy(r.conf, targets, endpoints, tags.String(), r.statsd)
 }
 
 func errorHandler(err error) http.Handler {
@@ -162,7 +164,7 @@ func isRetryableBodyReadError(err error) bool {
 //
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
-func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
+func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, endpoints []config.Endpoint, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	cidProvider := NewContainerIDProviderFromConfig(conf)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
@@ -196,7 +198,7 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	return &httputil.ReverseProxy{
 		Director:     director,
 		ErrorLog:     stdlog.New(logger, "profiling.Proxy: ", 0),
-		Transport:    &multiTransport{rt: ptransport, targets: targets, keys: keys, maxRequestBytes: conf.ProfilingProxy.MaxRequestBytes},
+		Transport:    &multiTransport{rt: ptransport, targets: targets, endpoints: endpoints, maxRequestBytes: conf.ProfilingProxy.MaxRequestBytes},
 		ErrorHandler: handleProxyError,
 	}
 }
@@ -267,15 +269,15 @@ func handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
 type multiTransport struct {
 	rt              http.RoundTripper
 	targets         []*url.URL
-	keys            []string
+	endpoints       []config.Endpoint
 	maxRequestBytes int64
 }
 
 func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
-	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
+	setTarget := func(r *http.Request, u *url.URL, e config.Endpoint) bool {
 		r.Host = u.Host
 		r.URL = u
-		r.Header.Set("DD-API-KEY", apiKey)
+		return authorizeEndpoint(e, r.Header)
 	}
 	defer func() {
 		// Hack for backwards-compatibility
@@ -288,7 +290,9 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		}
 	}()
 	if len(m.targets) == 1 {
-		setTarget(req, m.targets[0], m.keys[0])
+		if !setTarget(req, m.targets[0], m.endpoints[0]) {
+			return nil, fmt.Errorf("no credential available for endpoint %q", m.endpoints[0].Host)
+		}
 		rresp, rerr = m.rt.RoundTrip(req)
 		// Avoid sub-sequent requests from getting a use of closed network connection error
 		if rerr != nil && req.Body != nil {
@@ -304,7 +308,9 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
-		setTarget(newreq, u, m.keys[i])
+		if !setTarget(newreq, u, m.endpoints[i]) {
+			continue
+		}
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error

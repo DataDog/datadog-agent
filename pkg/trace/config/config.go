@@ -60,6 +60,11 @@ type Endpoint struct {
 
 	// IsMRF determines whether this is a Multi-Region Failover endpoint.
 	IsMRF bool `mapstructure:"-" json:"-"`
+
+	// CredentialProvider, when set, supplies the credential for this endpoint at request
+	// time. Resolved from AgentConfig.CredentialProviderFn at construction. When nil, the
+	// endpoint uses its static APIKey.
+	CredentialProvider CredentialProvider `mapstructure:"-" json:"-"`
 }
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.

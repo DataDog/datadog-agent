@@ -49,10 +49,12 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	endpoints := []config.Endpoint{{Host: endpoint, APIKey: apiKey}} // main endpoint
 	for host, keys := range conf.EVPProxy.AdditionalEndpoints {
 		for _, key := range keys {
-			endpoints = append(endpoints, config.Endpoint{
+			ep := config.Endpoint{
 				Host:   host,
 				APIKey: key,
-			})
+			}
+			resolveCredentialProvider(conf, &ep, key, "apm_config.evp_proxy.additional_endpoints")
+			endpoints = append(endpoints, ep)
 		}
 	}
 	return endpoints
@@ -185,16 +187,18 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	// Set target URL and API key header (per domain)
 	req.URL.Scheme = "https"
-	setTarget := func(r *http.Request, host, apiKey string) {
-		targetHost := subdomain + "." + host
+	setTarget := func(r *http.Request, e config.Endpoint) bool {
+		targetHost := subdomain + "." + e.Host
 		r.Host = targetHost
 		r.URL.Host = targetHost
-		r.Header.Set("DD-API-KEY", apiKey)
+		return authorizeEndpoint(e, r.Header)
 	}
 
 	// Shortcut if we only have one endpoint
 	if len(t.endpoints) == 1 {
-		setTarget(req, t.endpoints[0].Host, t.endpoints[0].APIKey)
+		if !setTarget(req, t.endpoints[0]) {
+			return nil, fmt.Errorf("no credential available for endpoint %q", t.endpoints[0].Host)
+		}
 		return t.transport.RoundTrip(req)
 	}
 
@@ -212,7 +216,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		if slurp != nil {
 			newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 		}
-		setTarget(newreq, endpointDomain.Host, endpointDomain.APIKey)
+		if !setTarget(newreq, endpointDomain) {
+			continue
+		}
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error

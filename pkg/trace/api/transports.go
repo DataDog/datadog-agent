@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -56,8 +57,8 @@ func (m *measuringTransport) RoundTrip(req *http.Request) (rres *http.Response, 
 // slice are dropped. Errors on additional endpoints will be logged.
 type forwardingTransport struct {
 	rt              http.RoundTripper
+	endpoints       []config.Endpoint
 	targets         []*url.URL
-	keys            []string
 	logger          *log.ThrottledLogger
 	maxRequestBytes int64
 }
@@ -69,37 +70,44 @@ func newForwardingTransport(
 	rt http.RoundTripper,
 	mainEndpoint *url.URL,
 	mainEndpointKey string,
+	mainConfigPath string,
 	additionalEndpoints map[string][]string,
+	additionalConfigPath string,
+	conf *config.AgentConfig,
 	maxRequestBytes int64,
 ) *forwardingTransport {
+	endpoints := []config.Endpoint{{Host: mainEndpoint.String(), APIKey: mainEndpointKey, ConfigSettingPath: mainConfigPath}}
 	targets := []*url.URL{mainEndpoint}
-	apiKeys := []string{mainEndpointKey}
-	for endpoint, keys := range additionalEndpoints {
-		u, err := url.Parse(endpoint)
+	for endpointURL, keys := range additionalEndpoints {
+		u, err := url.Parse(endpointURL)
 		if err != nil {
-			log.Errorf("Error parsing additional intake URL %s: %v", endpoint, err)
+			log.Errorf("Error parsing additional intake URL %s: %v", endpointURL, err)
 			continue
 		}
 		for _, key := range keys {
+			ep := config.Endpoint{Host: u.String(), APIKey: strings.TrimSpace(key)}
+			resolveCredentialProvider(conf, &ep, key, additionalConfigPath)
+			endpoints = append(endpoints, ep)
 			targets = append(targets, u)
-			apiKeys = append(apiKeys, strings.TrimSpace(key))
 		}
 	}
-	return &forwardingTransport{rt: rt, targets: targets, keys: apiKeys, logger: log.NewThrottled(10, 10*time.Second), maxRequestBytes: maxRequestBytes}
+	return &forwardingTransport{rt: rt, endpoints: endpoints, targets: targets, logger: log.NewThrottled(10, 10*time.Second), maxRequestBytes: maxRequestBytes}
 }
 
 // RoundTrip makes an HTTP round trip forwarding one request to multiple
 // additional endpoints.
 func (m *forwardingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
+	setTarget := func(r *http.Request, u *url.URL, e config.Endpoint) bool {
 		q := r.URL.Query()
 		u.RawQuery = q.Encode()
 		r.Host = u.Host
 		r.URL = u
-		r.Header.Set("DD-API-KEY", apiKey)
+		return authorizeEndpoint(e, r.Header)
 	}
 	if len(m.targets) == 1 {
-		setTarget(req, m.targets[0], m.keys[0])
+		if !setTarget(req, m.targets[0], m.endpoints[0]) {
+			return nil, fmt.Errorf("no credential available for endpoint %q", m.endpoints[0].Host)
+		}
 		return m.rt.RoundTrip(req)
 	}
 
@@ -134,14 +142,18 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		if body != nil {
 			newreq.Body = io.NopCloser(bytes.NewReader(body))
 		}
-		setTarget(newreq, u, m.keys[i])
+		if !setTarget(newreq, u, m.endpoints[i]) {
+			continue
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			roundTripAdditional(newreq)
 		}()
 	}
-	setTarget(req, m.targets[0], m.keys[0])
+	if !setTarget(req, m.targets[0], m.endpoints[0]) {
+		return nil, fmt.Errorf("no credential available for endpoint %q", m.endpoints[0].Host)
+	}
 	if body != nil {
 		req.Body = io.NopCloser(bytes.NewReader(body))
 	}
@@ -155,12 +167,15 @@ func newMeasuringForwardingTransport(
 	rt http.RoundTripper,
 	mainEndpoint *url.URL,
 	mainEndpointKey string,
+	mainConfigPath string,
 	additionalEndpoints map[string][]string,
+	additionalConfigPath string,
+	conf *config.AgentConfig,
 	maxRequestBytes int64,
 	metricPrefix string,
 	metricTags []string,
 	statsd statsd.ClientInterface,
 ) http.RoundTripper {
-	forwardingTransport := newForwardingTransport(rt, mainEndpoint, mainEndpointKey, additionalEndpoints, maxRequestBytes)
+	forwardingTransport := newForwardingTransport(rt, mainEndpoint, mainEndpointKey, mainConfigPath, additionalEndpoints, additionalConfigPath, conf, maxRequestBytes)
 	return newMeasuringTransport(forwardingTransport, metricPrefix, metricTags, statsd)
 }
