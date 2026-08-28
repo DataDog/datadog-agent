@@ -2530,3 +2530,31 @@ func TestOnUnsetReportsEveryLayerRemoval(t *testing.T) {
 		assert.Empty(t, *updates)
 	})
 }
+
+func TestSetNotifiesOnlyWhenTheResolvedValueChanges(t *testing.T) {
+	type notification struct {
+		source model.Source
+		value  any
+	}
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("shadowed", "default")
+	cfg.BuildSchema()
+	cfg.Set("shadowed", "from_cli", model.SourceCLI)
+
+	var got []notification
+	cfg.OnUpdate(func(_ string, source model.Source, _, newValue any, _ uint64) {
+		got = append(got, notification{source, newValue})
+	})
+
+	// CLI outranks file, so nothing a receiver can observe has changed.
+	cfg.Set("shadowed", "from_file", model.SourceFile)
+	assert.Empty(t, got, "a write that loses the merge is not a change")
+	assert.Equal(t, "from_cli", cfg.Get("shadowed"))
+
+	// The write was still recorded, so clearing CLI surfaces it, named by the layer it came from.
+	cfg.UnsetForSource("shadowed", model.SourceCLI)
+	require.Len(t, got, 1)
+	assert.Equal(t, model.SourceFile, got[0].source)
+	assert.Equal(t, "from_file", got[0].value)
+}

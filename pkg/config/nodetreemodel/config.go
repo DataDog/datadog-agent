@@ -295,8 +295,14 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	receivers := slices.Clone(c.notificationReceivers)
 
+	// Read back rather than trusting newValue: a write to a layer that loses the merge changes
+	// nothing that resolves, and receivers are told what the setting is, not what was stored.
+	resolved := c.leafAtPathFromNode(key, c.root)
+	resolvedValue := resolved.Get()
+	resolvedSource := resolved.Source()
+
 	// if no value has changed we don't notify
-	if reflect.DeepEqual(previousValue, newValue) {
+	if reflect.DeepEqual(previousValue, resolvedValue) {
 		c.Unlock()
 		return
 	}
@@ -309,7 +315,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, sequenceID)
+		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID)
 	}
 }
 
