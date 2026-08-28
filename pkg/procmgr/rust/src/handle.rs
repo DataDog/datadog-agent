@@ -321,10 +321,16 @@ fn poll_process_wait(process_handle: HANDLE, slice_ms: u32) -> ProcessWaitPoll {
 
 #[cfg(windows)]
 fn sync_wait_process(wait_control: &ProcessWaitControl) {
+    use std::time::{Duration, Instant};
     use windows_wait::WAIT_SLICE_MS;
 
+    const SYNC_WAIT_TIMEOUT: Duration = Duration::from_secs(5);
+    let deadline = Instant::now() + SYNC_WAIT_TIMEOUT;
     let process_handle = wait_control.wait_handle();
     loop {
+        if Instant::now() >= deadline {
+            return;
+        }
         match poll_process_wait(process_handle, WAIT_SLICE_MS) {
             ProcessWaitPoll::Signaled
             | ProcessWaitPoll::Failed(_)
