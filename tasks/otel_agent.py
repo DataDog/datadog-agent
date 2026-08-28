@@ -8,7 +8,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import build_go_binary_with_bazel
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -56,7 +56,7 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
         os.remove(bin_path)
 
     if enable_bazel:
-        build_go_binary_with_bazel("//cmd/otel-agent:otel-agent", bin_path)
+        build_binary_with_bazel("//cmd/otel-agent:otel-agent", bin_path)
     else:
         flavor = AgentFlavor[flavor]
         env = {"GO111MODULE": "on"}
