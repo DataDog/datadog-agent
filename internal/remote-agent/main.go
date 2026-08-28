@@ -211,6 +211,8 @@ func streamConfigEvents(ctx context.Context, agentIpcAddress, agentAuthToken, ag
 			log.Printf("Config snapshot received: %d settings (seq=%d)", len(e.Snapshot.GetSettings()), e.Snapshot.GetSequenceId())
 		case *pbcore.ConfigEvent_Update:
 			log.Printf("Config update received: seq=%d", e.Update.GetSequenceId())
+		case *pbcore.ConfigEvent_Unset:
+			log.Printf("Config unset received: seq=%d key=%s cleared_source=%s", e.Unset.GetSequenceId(), e.Unset.GetKey(), e.Unset.GetSource())
 		}
 	}
 }
