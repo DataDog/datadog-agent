@@ -142,13 +142,24 @@ enum ForceKillWaitTarget<'a> {
     Child,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct StopWaitOwner(u64);
+
+impl StopWaitOwner {
+    fn capture(spawn_seq: u64) -> Self {
+        Self(spawn_seq)
+    }
+}
+
 pub(crate) enum StopWaitPlan {
     Watcher {
+        owner: StopWaitOwner,
         name: String,
         handle: JoinHandle<Option<std::process::ExitStatus>>,
         graceful_budget: Duration,
     },
     Child {
+        owner: StopWaitOwner,
         name: String,
         handle: ProcessHandle,
         graceful_budget: Duration,
@@ -183,17 +194,21 @@ impl StopWaitResult {
 /// The generation stamp prevents a stale watcher from mutating a replacement child
 /// when `Start` commits before the old wait finishes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct StopWaitGeneration(Option<u64>);
+struct StopWaitGeneration(Option<StopWaitOwner>);
 
 impl StopWaitGeneration {
-    fn claim(&mut self, spawn_seq: u64) {
+    fn claim(&mut self, owner: StopWaitOwner) {
         if self.0.is_none() {
-            self.0 = Some(spawn_seq);
+            self.0 = Some(owner);
         }
     }
 
-    fn owns(&self, spawn_seq: u64) -> bool {
-        self.0 == Some(spawn_seq)
+    fn owns(&self, owner: StopWaitOwner) -> bool {
+        self.0 == Some(owner)
+    }
+
+    fn claimed_owner(&self) -> Option<StopWaitOwner> {
+        self.0
     }
 
     fn clear(&mut self) {
@@ -206,12 +221,19 @@ impl StopWaitGeneration {
 }
 
 impl StopWaitPlan {
+    pub(crate) fn owner(&self) -> StopWaitOwner {
+        match self {
+            Self::Watcher { owner, .. } | Self::Child { owner, .. } => *owner,
+        }
+    }
+
     pub(crate) async fn execute(self) -> StopWaitResult {
         match self {
             Self::Watcher {
                 name,
                 mut handle,
                 graceful_budget,
+                ..
             } => match time::timeout(graceful_budget, &mut handle).await {
                 Ok(Ok(status)) => StopWaitResult::Exited(status),
                 Ok(Err(error)) => {
@@ -224,6 +246,7 @@ impl StopWaitPlan {
                 name,
                 mut handle,
                 graceful_budget,
+                ..
             } => match time::timeout(graceful_budget, handle.wait()).await {
                 Ok(Ok(status)) => StopWaitResult::Exited(Some(status)),
                 Ok(Err(error)) => {
@@ -796,8 +819,11 @@ impl ManagedProcess {
 
         let graceful_budget = budget.graceful_budget(self.stop_timeout());
         if let Some(handle) = self.watcher_handle.take() {
-            self.stop_wait_generation.claim(self.spawn_seq);
+            let owner = StopWaitOwner::capture(self.spawn_seq);
+            self.stop_wait_generation.claim(owner);
+            debug_assert!(self.stop_wait_generation.owns(owner));
             return Some(StopWaitPlan::Watcher {
+                owner,
                 name: self.name.clone(),
                 handle,
                 graceful_budget,
@@ -805,8 +831,11 @@ impl ManagedProcess {
         }
 
         if let Some(handle) = self.take_handle() {
-            self.stop_wait_generation.claim(self.spawn_seq);
+            let owner = StopWaitOwner::capture(self.spawn_seq);
+            self.stop_wait_generation.claim(owner);
+            debug_assert!(self.stop_wait_generation.owns(owner));
             return Some(StopWaitPlan::Child {
+                owner,
                 name: self.name.clone(),
                 handle,
                 graceful_budget,
@@ -818,10 +847,11 @@ impl ManagedProcess {
 
     pub(crate) async fn finalize_stop_wait(
         &mut self,
+        owner: StopWaitOwner,
         result: StopWaitResult,
         budget: ShutdownBudget,
     ) -> bool {
-        if !self.stop_wait_generation.owns(self.spawn_seq) {
+        if !self.stop_wait_generation.owns(owner) {
             result.drop_if_unowned();
             return false;
         }
@@ -867,8 +897,15 @@ impl ManagedProcess {
         self.state.awaiting_stop()
     }
 
-    pub(crate) async fn complete_stop_wait(&mut self, budget: ShutdownBudget) {
-        if self.state.awaiting_stop() && self.stop_wait_generation.owns(self.spawn_seq) {
+    pub(crate) async fn complete_stop_wait(
+        &mut self,
+        owner: StopWaitOwner,
+        budget: ShutdownBudget,
+    ) {
+        if !self.stop_wait_generation.owns(owner) {
+            return;
+        }
+        if self.state.awaiting_stop() {
             self.mark_stopped();
         } else {
             self.stop_wait_generation.clear();
@@ -887,11 +924,14 @@ impl ManagedProcess {
         if !self.has_orphaned_stop_wait() {
             return;
         }
+        let Some(owner) = self.stop_wait_generation.claimed_owner() else {
+            return;
+        };
         warn!(
             "[{}] finalizing orphaned stop wait after handler abort",
             self.name
         );
-        self.complete_stop_wait(budget).await;
+        self.complete_stop_wait(owner, budget).await;
     }
 
     async fn release_stop_wait_resources(&mut self, _budget: ShutdownBudget) {
@@ -900,8 +940,8 @@ impl ManagedProcess {
     }
 
     pub(crate) async fn wait_for_stop_since(&mut self, budget: ShutdownBudget) {
-        if coalesced_run_stop_wait(self, budget).await {
-            self.complete_stop_wait(budget).await;
+        if let Some(owner) = coalesced_run_stop_wait(self, budget).await {
+            self.complete_stop_wait(owner, budget).await;
         }
     }
 
@@ -1117,37 +1157,45 @@ pub(crate) trait StopWaitContext {
 
     async fn plan_stop(&mut self, budget: ShutdownBudget) -> Option<StopWaitPlan>;
 
-    async fn finalize_stop(&mut self, result: StopWaitResult, budget: ShutdownBudget) -> bool;
+    async fn finalize_stop(
+        &mut self,
+        owner: StopWaitOwner,
+        result: StopWaitResult,
+        budget: ShutdownBudget,
+    ) -> bool;
 }
 
-pub(crate) async fn run_stop_wait<C: StopWaitContext>(ctx: &mut C, budget: ShutdownBudget) -> bool {
-    let mut participated = false;
+pub(crate) async fn run_stop_wait<C: StopWaitContext>(
+    ctx: &mut C,
+    budget: ShutdownBudget,
+) -> Option<StopWaitOwner> {
+    let mut owner_needing_complete = None;
     while let Some(plan) = ctx.plan_stop(budget).await {
-        participated = true;
+        let owner = plan.owner();
         let result = plan.execute().await;
-        if !ctx.finalize_stop(result, budget).await {
-            break;
+        if ctx.finalize_stop(owner, result, budget).await {
+            owner_needing_complete = Some(owner);
+        } else {
+            return None;
         }
     }
-    participated
+    owner_needing_complete
 }
 
 /// Runs stop wait, coalescing duplicate waiters until one owns the handles.
-///
-/// Returns `true` when this caller owned the stop and should run final cleanup.
 pub(crate) async fn coalesced_run_stop_wait<C: StopWaitContext>(
     ctx: &mut C,
     budget: ShutdownBudget,
-) -> bool {
+) -> Option<StopWaitOwner> {
     loop {
         if !ctx.stop_wait_active().await {
-            return false;
+            return None;
         }
-        if run_stop_wait(ctx, budget).await {
-            return true;
+        if let Some(owner) = run_stop_wait(ctx, budget).await {
+            return Some(owner);
         }
         if !ctx.await_stop_progress().await {
-            return false;
+            return None;
         }
     }
 }
@@ -1170,8 +1218,13 @@ impl StopWaitContext for ManagedProcess {
         self.plan_stop_wait(budget)
     }
 
-    async fn finalize_stop(&mut self, result: StopWaitResult, budget: ShutdownBudget) -> bool {
-        self.finalize_stop_wait(result, budget).await
+    async fn finalize_stop(
+        &mut self,
+        owner: StopWaitOwner,
+        result: StopWaitResult,
+        budget: ShutdownBudget,
+    ) -> bool {
+        self.finalize_stop_wait(owner, result, budget).await
     }
 }
 
@@ -1896,13 +1949,42 @@ runtime_success_sec: 5
         proc.request_stop();
 
         let plan = proc.plan_stop_wait(ShutdownBudget::unlimited(Instant::now().into()));
-        assert!(plan.is_some(), "stop wait should claim the watcher");
+        assert!(plan.is_some());
         drop(plan);
 
         assert!(proc.has_orphaned_stop_wait());
         proc.finalize_orphaned_stop_wait(ShutdownBudget::unlimited(Instant::now().into()))
             .await;
         assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn complete_stop_wait_ignores_stale_owner_after_replacement_claim() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut proc = ManagedProcess::new_config(
+            "svc".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        let budget = ShutdownBudget::unlimited(Instant::now().into());
+        proc.spawn().unwrap();
+        proc.request_stop();
+        let plan = proc.plan_stop_wait(budget).expect("stop wait plan");
+        let stale_owner = plan.owner();
+        drop(plan);
+        assert!(proc.has_orphaned_stop_wait());
+        proc.finalize_orphaned_stop_wait(budget).await;
+        assert_eq!(proc.state(), ProcessState::Stopped);
+
+        proc.spawn().unwrap();
+        proc.request_stop();
+        let replacement_plan = proc.plan_stop_wait(budget).expect("stop wait plan");
+        let replacement_owner = replacement_plan.owner();
+
+        proc.complete_stop_wait(stale_owner, budget).await;
+
+        assert_eq!(proc.state(), ProcessState::Stopping);
+        assert!(proc.stop_wait_generation.owns(replacement_owner));
     }
 
     #[tokio::test]

@@ -48,11 +48,14 @@ impl StopWaitContext for CatalogProcessStopWait<'_> {
 
     async fn finalize_stop(
         &mut self,
+        owner: crate::process::StopWaitOwner,
         result: crate::process::StopWaitResult,
         budget: ShutdownBudget,
     ) -> bool {
         let mut procs = self.catalog.write_processes().await;
-        procs[self.idx].finalize_stop_wait(result, budget).await
+        procs[self.idx]
+            .finalize_stop_wait(owner, result, budget)
+            .await
     }
 }
 
@@ -62,9 +65,9 @@ pub(in crate::manager) async fn wait_for_process_stop(
     budget: ShutdownBudget,
 ) {
     let mut ctx = CatalogProcessStopWait { catalog, idx };
-    if coalesced_run_stop_wait(&mut ctx, budget).await {
+    if let Some(owner) = coalesced_run_stop_wait(&mut ctx, budget).await {
         let mut procs = catalog.write_processes().await;
-        procs[idx].complete_stop_wait(budget).await;
+        procs[idx].complete_stop_wait(owner, budget).await;
     }
 }
 
@@ -104,12 +107,9 @@ mod tests {
         let still_waiting =
             tokio::time::timeout(Duration::from_millis(100), ctx.await_stop_progress())
                 .await
-                .expect("await_stop_progress should not hang after stop completes");
+                .unwrap();
 
-        assert!(
-            !still_waiting,
-            "coalesced waiter should observe completed stop without sleeping on notify"
-        );
+        assert!(!still_waiting);
     }
 
     #[tokio::test]
@@ -139,7 +139,7 @@ mod tests {
             );
         })
         .await
-        .expect("concurrent stop waits should complete");
+        .unwrap();
 
         let procs = catalog.read_processes().await;
         assert_eq!(procs[0].state(), ProcessState::Stopped);

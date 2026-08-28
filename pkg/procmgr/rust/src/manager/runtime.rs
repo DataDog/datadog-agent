@@ -491,7 +491,7 @@ mod tests {
             procs[0].spawn().unwrap();
             procs[0].request_stop();
             let plan = procs[0].plan_stop_wait(ShutdownBudget::unlimited(Instant::now()));
-            assert!(plan.is_some(), "stop wait should claim the watcher");
+            assert!(plan.is_some());
             drop(plan);
             assert!(procs[0].has_orphaned_stop_wait());
         }
@@ -517,25 +517,15 @@ mod tests {
 
         {
             let procs = catalog.read_processes().await;
-            assert_eq!(
-                procs[0].state(),
-                ProcessState::Stopping,
-                "in-flight handler must not trigger orphan finalize before abort"
-            );
+            assert_eq!(procs[0].state(), ProcessState::Stopping);
         }
 
         drop(release_tx);
-        join_task
-            .await
-            .expect("join task should complete after handler releases");
+        join_task.await.unwrap();
 
         {
             let procs = catalog.read_processes().await;
-            assert_eq!(
-                procs[0].state(),
-                ProcessState::Stopping,
-                "completed handler join without abort must not orphan-finalize"
-            );
+            assert_eq!(procs[0].state(), ProcessState::Stopping);
         }
     }
 
@@ -562,7 +552,7 @@ mod tests {
             procs[0].spawn().unwrap();
             procs[0].request_stop();
             let plan = procs[0].plan_stop_wait(ShutdownBudget::unlimited(Instant::now()));
-            assert!(plan.is_some(), "stop wait should claim the watcher");
+            assert!(plan.is_some());
             drop(plan);
             assert!(procs[0].has_orphaned_stop_wait());
         }
@@ -582,11 +572,7 @@ mod tests {
             .await;
 
         let procs = catalog.read_processes().await;
-        assert_eq!(
-            procs[0].state(),
-            ProcessState::Stopped,
-            "orphan finalize should run only after handler abort"
-        );
+        assert_eq!(procs[0].state(), ProcessState::Stopped);
     }
 
     #[tokio::test]
