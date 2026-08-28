@@ -29,6 +29,8 @@ func (p *stubProvider) Authorize(h http.Header) bool {
 	return true
 }
 
+func (p *stubProvider) Refresh() bool { return false }
+
 func resolverWithProvider(t *testing.T, staticKeys []string, p CredentialProvider) DomainResolver {
 	t.Helper()
 	r, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
