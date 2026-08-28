@@ -92,6 +92,9 @@ func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.Conn
 	for _, encoder := range usmEncoders {
 		encoderStaticTags, encoderDynamicTags := encoder.EncodeConnection(nc, builder)
 		staticTags |= encoderStaticTags
+		if dynamicTags == nil {
+			dynamicTags = make(map[string]struct{})
+		}
 		maps.Copy(dynamicTags, encoderDynamicTags)
 	}
 
