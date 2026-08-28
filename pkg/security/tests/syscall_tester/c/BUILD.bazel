@@ -1,11 +1,13 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load(":otel_tls.bzl", "otel_tls_dsos")
+load(":otel_tls.bzl", "otel_nodejs_dso", "otel_tls_dsos")
 
-# The OTel TLS testers, one per access model a tracer can publish
-# otel_thread_ctx_v1 through. Built here rather than by the ninja/invoke path so
-# they link against the hermetic crosstool-NG sysroot: its glibc is older than
-# every KMT host and than the ubuntu:20.04 image RunMultiMode's docker leg uses,
-# which is what lets the dynamically linked variants run there at all.
+# The OTel thread context testers: the native ones, one per access model a
+# tracer can publish otel_thread_ctx_v1 through, and the Node.js one, which
+# publishes through otel_thread_ctx_nodejs_v1 instead. Built here rather than by
+# the ninja/invoke path so they link against the hermetic crosstool-NG sysroot:
+# its glibc is older than every KMT host and than the ubuntu:20.04 image
+# RunMultiMode's docker leg uses, which is what lets the dynamically linked
+# variants run there at all.
 
 filegroup(
     name = "otel_tls_headers",
@@ -13,6 +15,16 @@ filegroup(
         "otel_process_ctx_common.h",
         "otel_tls_common.h",
         "otel_tls_lib.h",
+    ],
+)
+
+filegroup(
+    name = "otel_nodejs_headers",
+    srcs = [
+        "otel_nodejs_common.h",
+        "otel_nodejs_lib.h",
+        "otel_process_ctx_common.h",
+        "otel_tls_common.h",
     ],
 )
 
@@ -60,11 +72,30 @@ cc_binary(
     visibility = ["//visibility:public"],
 )
 
+# The dlopen driver for the Node.js tester: same shape as the native one above,
+# minus the startup-link and fully-static variants, which a Node addon has no
+# equivalent of.
+cc_binary(
+    name = "otel_nodejs_dlopen_glibc",
+    srcs = [
+        "otel_nodejs_driver.c",
+        ":otel_nodejs_headers",
+    ],
+    defines = ["USE_DLOPEN"],
+    linkopts = ["-ldl"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
 otel_tls_dsos(name = "otel_tls_dso_artifacts")
+
+otel_nodejs_dso(name = "otel_nodejs_dso_artifacts")
 
 filegroup(
     name = "otel_tls_artifacts",
     srcs = [
+        ":otel_nodejs_dlopen_glibc",
+        ":otel_nodejs_dso_artifacts",
         ":otel_tls_dlopen_glibc",
         ":otel_tls_dso_artifacts",
         ":otel_tls_exe_glibc",

@@ -279,7 +279,9 @@ OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifact
 # 2.17 symbols end up referenced. The host toolchain would link them against the
 # build image's glibc instead, which is newer than every KMT host and than the
 # ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
-# linked variant would then be skipped outside the newest legs.
+# linked variant would then be skipped outside the newest legs. The Node.js
+# tester is Bazel-built the same way, alongside the native one; it is glibc-only,
+# so there is no musl counterpart to build.
 #
 # musl is covered by TestResolveOTelTLSMuslDTV in
 # pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
