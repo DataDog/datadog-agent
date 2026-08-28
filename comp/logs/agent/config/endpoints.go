@@ -197,7 +197,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 		// verbatim, so a directive here would be written to the wire in cleartext - including any
 		// fallback=<key> it carries - and would authenticate nothing. There is no Authorize gate on
 		// this path to hold the payload instead, so the endpoint is dropped rather than built.
-		if isDelaDirective(e.APIKey) {
+		if credential.IsDirective(e.APIKey) {
 			log.Warnf("Additional endpoint %q at %q uses delegated auth, which is not supported over TCP; this endpoint is disabled. Set logs_config.force_use_http to use it.", e.Host, configKeyUsed)
 			continue
 		}
@@ -249,7 +249,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 	for idx, e := range additionals {
 		apiKey := e.APIKey
 		var directive string
-		if isDelaDirective(apiKey) {
+		if credential.IsDirective(apiKey) {
 			// The directive is a placeholder, not a key. The endpoint is still built so a provider
 			// has somewhere to deliver; until one is attached it simply cannot authorize.
 			directive, apiKey = apiKey, ""
@@ -311,12 +311,6 @@ func (e *Endpoint) GetAPIKey() string {
 	return e.apiKey.Load()
 }
 
-// isDelaDirective reports whether a configured api_key is a delegated-auth placeholder rather than
-// a real key. Delegates to credential.IsDirective so there is one canonical check.
-func isDelaDirective(value string) bool {
-	return credential.IsDirective(value)
-}
-
 // CredentialProvider supplies the credential for one destination. It is an alias for
 // credential.Provider so consumers that import this package get the canonical interface
 // without a separate import.
@@ -334,19 +328,15 @@ func (e *Endpoint) SetCredentialProvider(p CredentialProvider) {
 // credential yet; the caller must then retry rather than send. An endpoint with an ordinary API
 // key always authorizes, so nothing about the existing path changes.
 func (e *Endpoint) Authorize(h http.Header) bool {
-	if e.credentialProvider != nil {
-		return e.credentialProvider.Authorize(h)
-	}
-	if e.credentialDirective != "" {
-		// Built from a directive that never produced an instance - an unsupported cloud provider,
-		// say. There is no credential to send, and whatever apiKey holds is not one: the config
-		// still contains the directive text, so a config update can put it back into apiKey (see
-		// onConfigUpdateAdditionalEndpoints). Refuse on the directive rather than on the key being
-		// empty, so that cannot turn into stamping the directive as a credential.
+	// A directive that never produced an instance has no credential to send. Whatever apiKey
+	// holds is not a real key — the config still contains the directive text, so a config update
+	// can put it back into apiKey (see onConfigUpdateAdditionalEndpoints). Refuse on the
+	// directive rather than on the key being empty, so that cannot turn into stamping the
+	// directive as a credential.
+	if e.credentialDirective != "" && e.credentialProvider == nil {
 		return false
 	}
-	h.Set("DD-API-KEY", e.GetAPIKey())
-	return true
+	return credential.StampAuth(h, e.credentialProvider, e.GetAPIKey())
 }
 
 // UseSSL returns the useSSL config setting
@@ -447,7 +437,7 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 		}
 
 		newAPIKey := newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey
-		if isDelaDirective(newAPIKey) {
+		if credential.IsDirective(newAPIKey) {
 			// SkipConfigWriteback leaves the directive in the config tree permanently, so every
 			// update re-reads it here. Storing it would put the directive text back into apiKey,
 			// where it would be stamped onto requests as if it were a credential.
