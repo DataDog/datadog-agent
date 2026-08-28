@@ -12,24 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
-
-// stubProvider is a CredentialProvider whose readiness the test controls.
-type stubProvider struct {
-	key   string
-	ready bool
-}
-
-func (p *stubProvider) Authorize(h http.Header) bool {
-	if !p.ready {
-		return false
-	}
-	h.Set("DD-API-KEY", p.key)
-	return true
-}
-
-func (p *stubProvider) Refresh() bool { return false }
 
 // Normal API keys in evp_proxy endpoints must be unaffected by the provider path.
 // The endpoint has no CredentialProvider, so authorizeEndpoint stamps the static key.
@@ -73,7 +58,9 @@ func TestEVPProxyMixedKeysAndDirective(t *testing.T) {
 		"https://additional.com": {"DELA(org-uuid, aws)"},
 	}
 	conf.CredentialProviderFn = func(_, _, _ string) config.CredentialProvider {
-		return &stubProvider{key: "delegated-key", ready: true}
+		p := &delegatedauthmock.StubProvider{Key: "delegated-key"}
+		p.SetReady(true)
+		return p
 	}
 
 	endpoints := evpProxyEndpointsFromConfig(conf)
