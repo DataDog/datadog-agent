@@ -527,11 +527,16 @@ func start(log log.Component,
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
-			defaultRCClient := rcClients.DefaultClient()
-			subscribeAgentConfig(defaultRCClient, config)
-			subscribeAgentTask(defaultRCClient, config, statusComponent, diagnoseComp, ipc)
-			defaultRCClient.Start()
-			defer rcClients.Close()
+			defaultRCClient, err := rcClients.DefaultClient()
+			if err != nil {
+				log.Errorf("Failed to start remote-configuration: %v", err)
+				rcClients = nil
+			} else {
+				subscribeAgentConfig(defaultRCClient, config)
+				subscribeAgentTask(defaultRCClient, config, statusComponent, diagnoseComp, ipc)
+				defaultRCClient.Start()
+				defer rcClients.Close()
+			}
 		}
 	}
 

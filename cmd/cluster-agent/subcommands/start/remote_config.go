@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -49,11 +50,27 @@ type additionalRemoteConfigClientSpec struct {
 }
 
 type remoteConfigClientRegistry struct {
-	defaultClient *rcclient.Client
-	clients       []*rcclient.Client
-	services      []*remoteconfig.CoreAgentService
-	byProduct     map[string]*rcclient.Client
-	productOwners map[string]string
+	mu sync.Mutex
+
+	cfg            config.Component
+	defaultService rccomp.Component
+	hostnameGetter hostnameinterface.Component
+	clusterName    string
+	clusterID      string
+
+	defaultInstance *remoteConfigClientInstance
+	byProduct       map[string]*remoteConfigClientInstance
+	clients         []*rcclient.Client
+	services        []*remoteconfig.CoreAgentService
+}
+
+type remoteConfigClientInstance struct {
+	name     string
+	spec     additionalRemoteConfigClientSpec
+	products []string
+
+	client  *rcclient.Client
+	service *remoteconfig.CoreAgentService
 }
 
 type remoteConfigClientRoots struct {
@@ -90,51 +107,40 @@ func initializeRemoteConfigClients(
 		}
 	}
 
-	defaultClient, err := initializeRemoteConfigClientWithRoots(defaultService, defaultRemoteConfigClientRoots(cfg), clusterName, clusterID, defaultProducts...)
-	if err != nil {
-		return nil, err
-	}
-
 	registry := &remoteConfigClientRegistry{
-		defaultClient: defaultClient,
-		clients:       []*rcclient.Client{defaultClient},
-		byProduct:     make(map[string]*rcclient.Client),
-		productOwners: make(map[string]string),
+		cfg:            cfg,
+		defaultService: defaultService,
+		hostnameGetter: hostnameGetter,
+		clusterName:    clusterName,
+		clusterID:      clusterID,
+		defaultInstance: &remoteConfigClientInstance{
+			name:     "default",
+			products: defaultProducts,
+		},
+		byProduct: make(map[string]*remoteConfigClientInstance),
 	}
 
 	for _, spec := range specs {
-		service, err := newAdditionalRemoteConfigService(cfg, hostnameGetter, spec)
-		if err != nil {
-			registry.Close()
-			return nil, err
+		instance := &remoteConfigClientInstance{
+			name:     spec.Name,
+			spec:     spec,
+			products: spec.Products,
 		}
-
-		client, err := initializeRemoteConfigClientWithRoots(service, additionalRemoteConfigClientRoots(cfg, spec), clusterName, clusterID, spec.Products...)
-		if err != nil {
-			_ = service.Stop()
-			registry.Close()
-			return nil, err
-		}
-
-		service.Start()
-		client.Start()
-
-		registry.services = append(registry.services, service)
-		registry.clients = append(registry.clients, client)
 		for _, product := range spec.Products {
-			registry.byProduct[product] = client
-			registry.productOwners[product] = spec.Name
+			registry.byProduct[product] = instance
 		}
 	}
 
 	return registry, nil
 }
 
-func (r *remoteConfigClientRegistry) DefaultClient() *rcclient.Client {
+func (r *remoteConfigClientRegistry) DefaultClient() (*rcclient.Client, error) {
 	if r == nil {
-		return nil
+		return nil, nil
 	}
-	return r.defaultClient
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.clientForInstanceLocked(r.defaultInstance)
 }
 
 func (r *remoteConfigClientRegistry) ClientForProducts(products ...string) (*rcclient.Client, error) {
@@ -142,41 +148,84 @@ func (r *remoteConfigClientRegistry) ClientForProducts(products ...string) (*rcc
 		return nil, nil
 	}
 	if len(products) == 0 {
-		return r.defaultClient, nil
+		return r.DefaultClient()
 	}
 
-	var selectedClient *rcclient.Client
-	selectedOwner := "default"
+	var selectedInstance *remoteConfigClientInstance
 	for _, product := range products {
 		// Products without an explicit additional endpoint stay on the default
 		// client, and therefore share the default remote-config service cache DB.
-		productClient := r.defaultClient
-		productOwner := "default"
-		if client, found := r.byProduct[product]; found {
-			productClient = client
-			productOwner = r.productOwners[product]
+		productInstance := r.defaultInstance
+		if instance, found := r.byProduct[product]; found {
+			productInstance = instance
 		}
-		if selectedClient == nil {
-			selectedClient = productClient
-			selectedOwner = productOwner
+		if selectedInstance == nil {
+			selectedInstance = productInstance
 			continue
 		}
-		if selectedClient != productClient {
-			return nil, fmt.Errorf("remote config products %v are routed to different clients (%q and %q); configure products used by one subsystem on the same %s entry", products, selectedOwner, productOwner, additionalRemoteConfigClientsConfig)
+		if selectedInstance != productInstance {
+			return nil, fmt.Errorf("remote config products %v are routed to different clients (%q and %q); configure products used by one subsystem on the same %s entry", products, selectedInstance.name, productInstance.name, additionalRemoteConfigClientsConfig)
 		}
 	}
 
-	return selectedClient, nil
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.clientForInstanceLocked(selectedInstance)
+}
+
+func (r *remoteConfigClientRegistry) clientForInstanceLocked(instance *remoteConfigClientInstance) (*rcclient.Client, error) {
+	if instance == nil {
+		return nil, nil
+	}
+	if instance.client != nil {
+		return instance.client, nil
+	}
+
+	if instance == r.defaultInstance {
+		client, err := initializeRemoteConfigClientWithRoots(r.defaultService, defaultRemoteConfigClientRoots(r.cfg), r.clusterName, r.clusterID, instance.products...)
+		if err != nil {
+			return nil, err
+		}
+		instance.client = client
+		r.clients = append(r.clients, client)
+		return client, nil
+	}
+
+	service, err := newAdditionalRemoteConfigService(r.cfg, r.hostnameGetter, instance.spec)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := initializeRemoteConfigClientWithRoots(service, additionalRemoteConfigClientRoots(r.cfg, instance.spec), r.clusterName, r.clusterID, instance.products...)
+	if err != nil {
+		_ = service.Stop()
+		return nil, err
+	}
+
+	service.Start()
+	client.Start()
+
+	instance.service = service
+	instance.client = client
+	r.services = append(r.services, service)
+	r.clients = append(r.clients, client)
+	return client, nil
 }
 
 func (r *remoteConfigClientRegistry) Close() {
 	if r == nil {
 		return
 	}
-	for _, client := range r.clients {
+
+	r.mu.Lock()
+	clients := append([]*rcclient.Client(nil), r.clients...)
+	services := append([]*remoteconfig.CoreAgentService(nil), r.services...)
+	r.mu.Unlock()
+
+	for _, client := range clients {
 		client.Close()
 	}
-	for _, service := range r.services {
+	for _, service := range services {
 		if err := service.Stop(); err != nil {
 			pkglog.Errorf("unable to stop additional remote config service: %s", err)
 		}

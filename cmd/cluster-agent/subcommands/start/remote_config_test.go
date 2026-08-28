@@ -110,16 +110,43 @@ func TestAdditionalRemoteConfigClientRootsDefaultToGlobalSite(t *testing.T) {
 	assert.Equal(t, "extra-director-root", roots.directorRoot)
 }
 
+func TestInitializeRemoteConfigClientsIsLazy(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
+		"actions": map[string]interface{}{
+			"api_key":   "api-key",
+			"rc_dd_url": "https://config.extra.datadoghq.com",
+			"products":  []string{state.ProductK8SActions},
+		},
+	})
+
+	registry, err := initializeRemoteConfigClients(nil, cfg, nil, "cluster-name", "cluster-id", state.ProductAgentConfig, state.ProductK8SActions)
+	require.NoError(t, err)
+	require.NotNil(t, registry)
+	assert.Empty(t, registry.clients)
+	assert.Empty(t, registry.services)
+
+	require.NotNil(t, registry.defaultInstance)
+	assert.Nil(t, registry.defaultInstance.client)
+	assert.Nil(t, registry.defaultInstance.service)
+	assert.Equal(t, []string{state.ProductAgentConfig}, registry.defaultInstance.products)
+
+	extraInstance := registry.byProduct[state.ProductK8SActions]
+	require.NotNil(t, extraInstance)
+	assert.Nil(t, extraInstance.client)
+	assert.Nil(t, extraInstance.service)
+	assert.Equal(t, []string{state.ProductK8SActions}, extraInstance.products)
+}
+
 func TestRemoteConfigClientRegistryRoutesProducts(t *testing.T) {
 	defaultClient := &rcclient.Client{}
 	extraClient := &rcclient.Client{}
+	defaultInstance := &remoteConfigClientInstance{name: "default", client: defaultClient}
+	extraInstance := &remoteConfigClientInstance{name: "actions", client: extraClient}
 	registry := &remoteConfigClientRegistry{
-		defaultClient: defaultClient,
-		byProduct: map[string]*rcclient.Client{
-			state.ProductK8SActions: extraClient,
-		},
-		productOwners: map[string]string{
-			state.ProductK8SActions: "actions",
+		defaultInstance: defaultInstance,
+		byProduct: map[string]*remoteConfigClientInstance{
+			state.ProductK8SActions: extraInstance,
 		},
 	}
 
@@ -135,17 +162,14 @@ func TestRemoteConfigClientRegistryRoutesProducts(t *testing.T) {
 func TestRemoteConfigClientRegistryRoutesProductsWithoutEndpointOverrideToDefaultClient(t *testing.T) {
 	defaultClient := &rcclient.Client{}
 	autoscalingClient := &rcclient.Client{}
+	defaultInstance := &remoteConfigClientInstance{name: "default", client: defaultClient}
+	autoscalingInstance := &remoteConfigClientInstance{name: "autoscaling", client: autoscalingClient}
 	registry := &remoteConfigClientRegistry{
-		defaultClient: defaultClient,
-		byProduct: map[string]*rcclient.Client{
-			state.ProductContainerAutoscalingSettings: autoscalingClient,
-			state.ProductContainerAutoscalingValues:   autoscalingClient,
-			state.ProductClusterAutoscalingValues:     autoscalingClient,
-		},
-		productOwners: map[string]string{
-			state.ProductContainerAutoscalingSettings: "autoscaling",
-			state.ProductContainerAutoscalingValues:   "autoscaling",
-			state.ProductClusterAutoscalingValues:     "autoscaling",
+		defaultInstance: defaultInstance,
+		byProduct: map[string]*remoteConfigClientInstance{
+			state.ProductContainerAutoscalingSettings: autoscalingInstance,
+			state.ProductContainerAutoscalingValues:   autoscalingInstance,
+			state.ProductClusterAutoscalingValues:     autoscalingInstance,
 		},
 	}
 
@@ -161,13 +185,12 @@ func TestRemoteConfigClientRegistryRoutesProductsWithoutEndpointOverrideToDefaul
 func TestRemoteConfigClientRegistryRejectsMixedProductOwnership(t *testing.T) {
 	defaultClient := &rcclient.Client{}
 	extraClient := &rcclient.Client{}
+	defaultInstance := &remoteConfigClientInstance{name: "default", client: defaultClient}
+	extraInstance := &remoteConfigClientInstance{name: "autoscaling", client: extraClient}
 	registry := &remoteConfigClientRegistry{
-		defaultClient: defaultClient,
-		byProduct: map[string]*rcclient.Client{
-			state.ProductContainerAutoscalingSettings: extraClient,
-		},
-		productOwners: map[string]string{
-			state.ProductContainerAutoscalingSettings: "autoscaling",
+		defaultInstance: defaultInstance,
+		byProduct: map[string]*remoteConfigClientInstance{
+			state.ProductContainerAutoscalingSettings: extraInstance,
 		},
 	}
 
@@ -178,15 +201,13 @@ func TestRemoteConfigClientRegistryRejectsMixedProductOwnership(t *testing.T) {
 func TestRemoteConfigClientRegistryRejectsMixedAutoscalingProductOwnership(t *testing.T) {
 	defaultClient := &rcclient.Client{}
 	extraClient := &rcclient.Client{}
+	defaultInstance := &remoteConfigClientInstance{name: "default", client: defaultClient}
+	autoscalingInstance := &remoteConfigClientInstance{name: "autoscaling", client: extraClient}
 	registry := &remoteConfigClientRegistry{
-		defaultClient: defaultClient,
-		byProduct: map[string]*rcclient.Client{
-			state.ProductContainerAutoscalingSettings: extraClient,
-			state.ProductContainerAutoscalingValues:   extraClient,
-		},
-		productOwners: map[string]string{
-			state.ProductContainerAutoscalingSettings: "autoscaling",
-			state.ProductContainerAutoscalingValues:   "autoscaling",
+		defaultInstance: defaultInstance,
+		byProduct: map[string]*remoteConfigClientInstance{
+			state.ProductContainerAutoscalingSettings: autoscalingInstance,
+			state.ProductContainerAutoscalingValues:   autoscalingInstance,
 		},
 	}
 
