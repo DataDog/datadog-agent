@@ -29,6 +29,7 @@ dd_agent_go_test(
     ],
     embed = [":resolver"],
     deps = [
+        "//comp/core/delegatedauth/mock",
         "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/transaction",
