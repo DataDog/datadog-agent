@@ -148,6 +148,8 @@ func (r *remoteConfigClientRegistry) ClientForProducts(products ...string) (*rcc
 	var selectedClient *rcclient.Client
 	selectedOwner := "default"
 	for _, product := range products {
+		// Products without an explicit additional endpoint stay on the default
+		// client, and therefore share the default remote-config service cache DB.
 		productClient := r.defaultClient
 		productOwner := "default"
 		if client, found := r.byProduct[product]; found {

@@ -132,6 +132,32 @@ func TestRemoteConfigClientRegistryRoutesProducts(t *testing.T) {
 	assert.Same(t, defaultClient, client)
 }
 
+func TestRemoteConfigClientRegistryRoutesProductsWithoutEndpointOverrideToDefaultClient(t *testing.T) {
+	defaultClient := &rcclient.Client{}
+	autoscalingClient := &rcclient.Client{}
+	registry := &remoteConfigClientRegistry{
+		defaultClient: defaultClient,
+		byProduct: map[string]*rcclient.Client{
+			state.ProductContainerAutoscalingSettings: autoscalingClient,
+			state.ProductContainerAutoscalingValues:   autoscalingClient,
+			state.ProductClusterAutoscalingValues:     autoscalingClient,
+		},
+		productOwners: map[string]string{
+			state.ProductContainerAutoscalingSettings: "autoscaling",
+			state.ProductContainerAutoscalingValues:   "autoscaling",
+			state.ProductClusterAutoscalingValues:     "autoscaling",
+		},
+	}
+
+	client, err := registry.ClientForProducts(state.ProductK8SActions, state.ProductAPMTracing, state.ProductApmPolicies)
+	require.NoError(t, err)
+	assert.Same(t, defaultClient, client)
+
+	client, err = registry.ClientForProducts()
+	require.NoError(t, err)
+	assert.Same(t, defaultClient, client)
+}
+
 func TestRemoteConfigClientRegistryRejectsMixedProductOwnership(t *testing.T) {
 	defaultClient := &rcclient.Client{}
 	extraClient := &rcclient.Client{}
