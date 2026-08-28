@@ -135,9 +135,7 @@ async fn join_in_flight_spawn(
                 warn!(
                     "startup: timed out waiting for in-flight auto-start ({cap:?} left in SCM budget); deferring to supervisor teardown"
                 );
-                ctx.background_spawns.track(tokio::spawn(async move {
-                    log_spawn_monitor_result(handle.await);
-                }));
+                super::spawn::defer_spawn_join_handle(&ctx.background_spawns, handle);
             }
         }
         return;
