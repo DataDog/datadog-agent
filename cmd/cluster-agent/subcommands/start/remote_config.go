@@ -56,6 +56,11 @@ type remoteConfigClientRegistry struct {
 	productOwners map[string]string
 }
 
+type remoteConfigClientRoots struct {
+	site         string
+	directorRoot string
+}
+
 func initializeRemoteConfigClients(
 	defaultService rccomp.Component,
 	cfg config.Component,
@@ -85,7 +90,7 @@ func initializeRemoteConfigClients(
 		}
 	}
 
-	defaultClient, err := initializeRemoteConfigClient(defaultService, cfg, clusterName, clusterID, defaultProducts...)
+	defaultClient, err := initializeRemoteConfigClientWithRoots(defaultService, defaultRemoteConfigClientRoots(cfg), clusterName, clusterID, defaultProducts...)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +109,7 @@ func initializeRemoteConfigClients(
 			return nil, err
 		}
 
-		client, err := initializeRemoteConfigClient(service, cfg, clusterName, clusterID, spec.Products...)
+		client, err := initializeRemoteConfigClientWithRoots(service, additionalRemoteConfigClientRoots(cfg, spec), clusterName, clusterID, spec.Products...)
 		if err != nil {
 			_ = service.Stop()
 			registry.Close()
@@ -225,8 +230,9 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 		if err := validateAdditionalRemoteConfigProducts(spec); err != nil {
 			return nil, err
 		}
-		if spec.DatabaseFileName == "" {
-			spec.DatabaseFileName = fmt.Sprintf("remote-config-%s.db", safeRemoteConfigInstanceName(spec.Name))
+		spec.DatabaseFileName, err = normalizeAdditionalRemoteConfigDatabaseFileName(spec.Name, spec.DatabaseFileName)
+		if err != nil {
+			return nil, err
 		}
 		if owner, found := databaseFileOwners[spec.DatabaseFileName]; found {
 			return nil, fmt.Errorf("%s.%s.database_file_name %q is already used by %q", additionalRemoteConfigClientsConfig, spec.Name, spec.DatabaseFileName, owner)
@@ -252,6 +258,16 @@ func validateAdditionalRemoteConfigProducts(spec additionalRemoteConfigClientSpe
 	return nil
 }
 
+func normalizeAdditionalRemoteConfigDatabaseFileName(specName, databaseFileName string) (string, error) {
+	if databaseFileName == "" {
+		databaseFileName = fmt.Sprintf("remote-config-%s.db", safeRemoteConfigInstanceName(specName))
+	}
+	if databaseFileName == "." || databaseFileName == ".." || strings.ContainsAny(databaseFileName, `/\`) {
+		return "", fmt.Errorf("%s.%s.database_file_name must be a basename, got %q", additionalRemoteConfigClientsConfig, specName, databaseFileName)
+	}
+	return databaseFileName, nil
+}
+
 func newAdditionalRemoteConfigService(
 	cfg config.Component,
 	hostnameGetter hostnameinterface.Component,
@@ -266,10 +282,7 @@ func newAdditionalRemoteConfigService(
 		return nil, fmt.Errorf("%s.%s API key is empty", additionalRemoteConfigClientsConfig, spec.Name)
 	}
 
-	site := spec.Site
-	if site == "" {
-		site = cfg.GetString("site")
-	}
+	site := additionalRemoteConfigClientRoots(cfg, spec).site
 
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(apiKey),
@@ -297,6 +310,24 @@ func newAdditionalRemoteConfigService(
 	}
 
 	return service, nil
+}
+
+func defaultRemoteConfigClientRoots(cfg config.Component) remoteConfigClientRoots {
+	return remoteConfigClientRoots{
+		site:         cfg.GetString("site"),
+		directorRoot: cfg.GetString("remote_configuration.director_root"),
+	}
+}
+
+func additionalRemoteConfigClientRoots(cfg config.Component, spec additionalRemoteConfigClientSpec) remoteConfigClientRoots {
+	site := spec.Site
+	if site == "" {
+		site = cfg.GetString("site")
+	}
+	return remoteConfigClientRoots{
+		site:         site,
+		directorRoot: spec.DirectorRoot,
+	}
 }
 
 func getClusterAgentRemoteConfigTags(cfg config.Component) func() []string {

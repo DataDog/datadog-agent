@@ -53,6 +53,21 @@ func TestAdditionalRemoteConfigClientSpecsRejectDuplicateDatabaseFiles(t *testin
 	require.ErrorContains(t, err, "database_file_name")
 }
 
+func TestAdditionalRemoteConfigClientSpecsRejectDatabaseFileNamePaths(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
+		"first": map[string]interface{}{
+			"api_key":            "api-key",
+			"rc_dd_url":          "https://config.extra.datadoghq.com",
+			"products":           []string{state.ProductK8SActions},
+			"database_file_name": "x/../remote-config.db",
+		},
+	})
+
+	_, err := getAdditionalRemoteConfigClientSpecs(cfg)
+	require.ErrorContains(t, err, "must be a basename")
+}
+
 func TestAdditionalRemoteConfigClientSpecsRejectProcessLevelProducts(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
@@ -65,6 +80,34 @@ func TestAdditionalRemoteConfigClientSpecsRejectProcessLevelProducts(t *testing.
 
 	_, err := getAdditionalRemoteConfigClientSpecs(cfg)
 	require.ErrorContains(t, err, "process-level product")
+}
+
+func TestAdditionalRemoteConfigClientRoots(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("site", "datadoghq.com")
+	cfg.SetInTest("remote_configuration.director_root", "global-director-root")
+
+	defaultRoots := defaultRemoteConfigClientRoots(cfg)
+	assert.Equal(t, "datadoghq.com", defaultRoots.site)
+	assert.Equal(t, "global-director-root", defaultRoots.directorRoot)
+
+	extraRoots := additionalRemoteConfigClientRoots(cfg, additionalRemoteConfigClientSpec{
+		Site:         "datadoghq.eu",
+		DirectorRoot: "extra-director-root",
+	})
+	assert.Equal(t, "datadoghq.eu", extraRoots.site)
+	assert.Equal(t, "extra-director-root", extraRoots.directorRoot)
+}
+
+func TestAdditionalRemoteConfigClientRootsDefaultToGlobalSite(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("site", "datadoghq.com")
+
+	roots := additionalRemoteConfigClientRoots(cfg, additionalRemoteConfigClientSpec{
+		DirectorRoot: "extra-director-root",
+	})
+	assert.Equal(t, "datadoghq.com", roots.site)
+	assert.Equal(t, "extra-director-root", roots.directorRoot)
 }
 
 func TestRemoteConfigClientRegistryRoutesProducts(t *testing.T) {
@@ -103,5 +146,28 @@ func TestRemoteConfigClientRegistryRejectsMixedProductOwnership(t *testing.T) {
 	}
 
 	_, err := registry.ClientForProducts(state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+	require.ErrorContains(t, err, "different clients")
+}
+
+func TestRemoteConfigClientRegistryRejectsMixedAutoscalingProductOwnership(t *testing.T) {
+	defaultClient := &rcclient.Client{}
+	extraClient := &rcclient.Client{}
+	registry := &remoteConfigClientRegistry{
+		defaultClient: defaultClient,
+		byProduct: map[string]*rcclient.Client{
+			state.ProductContainerAutoscalingSettings: extraClient,
+			state.ProductContainerAutoscalingValues:   extraClient,
+		},
+		productOwners: map[string]string{
+			state.ProductContainerAutoscalingSettings: "autoscaling",
+			state.ProductContainerAutoscalingValues:   "autoscaling",
+		},
+	}
+
+	_, err := registry.ClientForProducts(
+		state.ProductContainerAutoscalingSettings,
+		state.ProductContainerAutoscalingValues,
+		state.ProductClusterAutoscalingValues,
+	)
 	require.ErrorContains(t, err, "different clients")
 }

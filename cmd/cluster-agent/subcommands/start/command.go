@@ -495,7 +495,6 @@ func start(log log.Component,
 	}
 
 	// Initialize and start remote configuration client
-	var rcClient *rcclient.Client
 	var rcClients *remoteConfigClientRegistry
 	rcserv, isSet := rcService.Get()
 	rcEnabled := configUtils.IsRemoteConfigEnabled(config)
@@ -528,10 +527,10 @@ func start(log log.Component,
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
-			rcClient = rcClients.DefaultClient()
-			subscribeAgentConfig(rcClient, config)
-			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
-			rcClient.Start()
+			defaultRCClient := rcClients.DefaultClient()
+			subscribeAgentConfig(defaultRCClient, config)
+			subscribeAgentTask(defaultRCClient, config, statusComponent, diagnoseComp, ipc)
+			defaultRCClient.Start()
 			defer rcClients.Close()
 		}
 	}
@@ -584,21 +583,32 @@ func start(log log.Component,
 
 	// Autoscaling Product
 	var pp workload.PodPatcher
-	if config.GetBool("autoscaling.workload.enabled") {
-		if rcClient == nil {
+	var autoscalingRCClient *rcclient.Client
+	if config.GetBool("autoscaling.workload.enabled") || config.GetBool("autoscaling.cluster.enabled") {
+		if rcClients == nil {
 			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
 		}
 
+		autoscalingProducts := []string{}
+		if config.GetBool("autoscaling.workload.enabled") {
+			autoscalingProducts = append(autoscalingProducts, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+		}
+		if config.GetBool("autoscaling.cluster.enabled") {
+			autoscalingProducts = append(autoscalingProducts, state.ProductClusterAutoscalingValues)
+		}
+
+		var err error
+		autoscalingRCClient, err = rcClients.ClientForProducts(autoscalingProducts...)
+		if err != nil {
+			return err
+		}
+	}
+	if config.GetBool("autoscaling.workload.enabled") {
 		if !config.GetBool("admission_controller.enabled") {
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		workloadRCClient, err := rcClients.ClientForProducts(state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
-		if err != nil {
-			return err
-		}
-
-		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, workloadRCClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
+		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, autoscalingRCClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
 			pp = patcher
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
@@ -606,16 +616,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("autoscaling.cluster.enabled") {
-		if rcClient == nil {
-			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
-		}
-
-		clusterRCClient, err := rcClients.ClientForProducts(state.ProductClusterAutoscalingValues)
-		if err != nil {
-			return err
-		}
-
-		if err := cluster.StartClusterAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, clusterRCClient, demultiplexer); err != nil {
+		if err := cluster.StartClusterAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, autoscalingRCClient, demultiplexer); err != nil {
 			return fmt.Errorf("Error while starting cluster autoscaling: %w", err)
 		}
 	}
@@ -632,7 +633,7 @@ func start(log log.Component,
 	// Kubernetes Actions
 	var kubeactionsRetriever *kubeactions.ConfigRetriever
 	if config.GetBool("kubeactions.enabled") {
-		if rcClient == nil {
+		if rcClients == nil {
 			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
 		}
 		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
@@ -919,7 +920,7 @@ func startPrivateActionRunner(
 	}, nil
 }
 
-func initializeRemoteConfigClient(rcService rccomp.Component, config config.Component, clusterName, clusterID string, products ...string) (*rcclient.Client, error) {
+func initializeRemoteConfigClientWithRoots(rcService rccomp.Component, roots remoteConfigClientRoots, clusterName, clusterID string, products ...string) (*rcclient.Client, error) {
 	if clusterName == "" {
 		pkglog.Warn("cluster-name won't be set for remote-config client")
 	}
@@ -931,7 +932,7 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 	rcClient, err := rcclient.NewClient(rcService,
 		rcclient.WithAgent("cluster-agent", version.AgentVersion),
 		rcclient.WithCluster(clusterName, clusterID),
-		rcclient.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
+		rcclient.WithDirectorRootOverride(roots.site, roots.directorRoot),
 		rcclient.WithProducts(products...),
 		rcclient.WithPollInterval(5*time.Second),
 	)

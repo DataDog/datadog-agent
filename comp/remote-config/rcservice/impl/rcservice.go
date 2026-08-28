@@ -32,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const defaultAPIKeySetting = "api_key"
+
 var (
 	rcExpvars              = expvar.NewMap("remoteConfigStartup")
 	rcStartupFailureReason = expvar.String{}
@@ -85,8 +87,8 @@ func NewComponent(deps Dependencies) Provides {
 
 // newRemoteConfigService creates and configures a new remote config service
 func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
-	apiKey := deps.Cfg.GetString("api_key")
-	apiKeyUpdateSetting := "api_key"
+	apiKey := deps.Cfg.GetString(defaultAPIKeySetting)
+	apiKeyUpdateSetting := defaultAPIKeySetting
 	if deps.Cfg.IsConfigured("remote_configuration.api_key") {
 		apiKey = deps.Cfg.GetString("remote_configuration.api_key")
 		apiKeyUpdateSetting = "remote_configuration.api_key"
