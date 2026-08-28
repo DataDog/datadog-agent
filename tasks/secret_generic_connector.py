@@ -41,8 +41,6 @@ def build(
     Build the secret-generic-connector binary.
     """
     if enable_bazel:
-        if fips_mode:
-            raise NotImplementedError("--enable-bazel does not support fips_mode.")
         if sys.platform == 'win32':
             raise NotImplementedError("--enable-bazel does not support Windows.")
         if output_bin is not None or arch_suffix is not False:
@@ -54,7 +52,10 @@ def build(
                 "orange",
             )
         )
-        build_binary_with_bazel("//cmd/secret-generic-connector:secret-generic-connector", BIN_PATH)
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel(
+            "//cmd/secret-generic-connector:secret-generic-connector", args=bazel_args, bin_path=BIN_PATH
+        )
         return
 
     version = get_version(ctx, include_git=True)
