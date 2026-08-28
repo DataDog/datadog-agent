@@ -50,6 +50,8 @@
         git clone "$AIX_GIT_REMOTE" "$AIX_AGENT_SRC"
       fi
       cd "$AIX_AGENT_SRC"
+      git clean -df
+      git reset --hard
       git fetch origin
       # The commit under test may not be reachable from origin yet (e.g. a
       # brand-new branch push); fetch the branch ref as a fallback.
