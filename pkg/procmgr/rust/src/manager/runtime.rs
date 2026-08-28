@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use super::deferred_cleanup;
 use super::lifecycle::Lifecycle;
 use super::{ExitEvent, PendingRestart, ProcessManager};
 use crate::command::Command;
@@ -94,15 +95,13 @@ impl BackgroundSpawns {
     }
 
     fn defer_tracked_handle(handle: JoinHandle<()>) {
-        tokio::spawn(async move {
-            Self::log_tracked_join_result(handle.await);
-        });
+        deferred_cleanup::register_deferred_spawn_join(handle);
     }
 
     fn defer_tracked_monitor(monitor: JoinHandle<Result<(), tokio::task::JoinError>>) {
-        tokio::spawn(async move {
+        deferred_cleanup::register_deferred_spawn_join(tokio::spawn(async move {
             Self::log_tracked_monitor_result(monitor.await);
-        });
+        }));
     }
 
     fn log_tracked_monitor_result(

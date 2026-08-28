@@ -24,6 +24,8 @@ use windows_sys::Win32::System::Services::{
 
 use crate::config::YamlConfigLoader;
 use crate::manager::ProcessManager;
+use crate::manager::deferred_cleanup::join_deferred_spawn_tasks;
+use crate::shutdown::ShutdownBudget;
 use crate::uuid_gen::V4UuidGenerator;
 
 const SERVICE_NAME: &str = "dd-procmgr-service";
@@ -155,11 +157,12 @@ fn run_service_inner() -> Result<()> {
         std::thread::sleep(remaining);
     }
 
-    let runtime_shutdown_cap = super::service_stop_signal_time()
-        .map(|signal_time| {
-            service_shutdown_deadline(signal_time).saturating_duration_since(Instant::now())
-        })
-        .unwrap_or(Duration::from_secs(30));
+    let shutdown_budget = super::service_stop_signal_time()
+        .map(ShutdownBudget::service_stop)
+        .unwrap_or_else(|| ShutdownBudget::unlimited(Instant::now()));
+    runtime.block_on(join_deferred_spawn_tasks(shutdown_budget));
+
+    let runtime_shutdown_cap = shutdown_budget.remaining_cap(Duration::from_secs(30));
     runtime.shutdown_timeout(runtime_shutdown_cap);
 
     result
