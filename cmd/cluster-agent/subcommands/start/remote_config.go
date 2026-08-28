@@ -35,6 +35,56 @@ const (
 	defaultRemoteConfigStatusInstance = "Remote Config"
 )
 
+// remoteConfigClientPresets gives well-known client names a default product
+// set, so a client that serves a whole subsystem does not have to spell out
+// every product. An explicit "products" list always wins.
+//
+// Names match the configuration that enables each subsystem, and each preset
+// covers exactly the products that subsystem resolves through
+// ClientForProducts. Products with no such consumer are deliberately absent:
+// an extra client is only created when something asks for one of its products,
+// so giving it an unconsumed product would leave that product subscribed
+// nowhere. K8S_INJECTION_DD is the current example -- it is subscribed via the
+// default client only, and must stay there.
+//
+// The autoscaling preset deliberately includes the cluster autoscaling product:
+// command.go resolves all enabled autoscaling products through a single
+// ClientForProducts call, so leaving CLUSTER_AUTOSCALING_VALUES on the default
+// client would split the subsystem across two clients and fail at startup the
+// moment autoscaling.cluster.enabled is turned on.
+var remoteConfigClientPresets = map[string][]string{
+	// autoscaling.workload.enabled / autoscaling.cluster.enabled
+	"autoscaling": {
+		state.ProductContainerAutoscalingSettings,
+		state.ProductContainerAutoscalingValues,
+		state.ProductClusterAutoscalingValues,
+	},
+	// kubeactions.enabled
+	"kubeactions": {
+		state.ProductK8SActions,
+	},
+	// private_action_runner.enabled
+	"private_action_runner": {
+		state.ProductActionPlatformRunnerKeys,
+	},
+	// admission_controller.auto_instrumentation.patcher.enabled and
+	// apm_config.instrumentation.on_demand. These are resolved by separate
+	// ClientForProducts calls, so grouping them cannot split a subsystem.
+	"apm_instrumentation": {
+		state.ProductAPMTracing,
+		state.ProductApmPolicies,
+	},
+}
+
+func remoteConfigClientPresetNames() []string {
+	names := make([]string, 0, len(remoteConfigClientPresets))
+	for name := range remoteConfigClientPresets {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 var processLevelRemoteConfigProducts = map[string]struct{}{
 	state.ProductAgentConfig: {},
 	state.ProductAgentTask:   {},
@@ -286,13 +336,9 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 			DirectorRoot:     stringFromConfigMap(rawSpec, "director_root"),
 			Key:              stringFromConfigMap(rawSpec, "key"),
 			DatabaseFileName: stringFromConfigMap(rawSpec, "database_file_name"),
-			Products:         stringSliceFromConfigMap(rawSpec, "products"),
 		}
 		if spec.Name == "" {
 			return nil, fmt.Errorf("%s contains an empty client name", additionalRemoteConfigClientsConfig)
-		}
-		if spec.Name == defaultRemoteConfigStatusInstance {
-			return nil, fmt.Errorf("%s.%s is reserved for the default client, pick another name", additionalRemoteConfigClientsConfig, spec.Name)
 		}
 		if spec.RCDDURL == "" {
 			return nil, fmt.Errorf("%s.%s.rc_dd_url must be set", additionalRemoteConfigClientsConfig, spec.Name)
@@ -300,9 +346,15 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 		if spec.APIKey == "" && spec.APIKeySetting == "" {
 			return nil, fmt.Errorf("%s.%s must set api_key or api_key_setting", additionalRemoteConfigClientsConfig, spec.Name)
 		}
-		if len(spec.Products) == 0 {
-			return nil, fmt.Errorf("%s.%s.products must contain at least one product", additionalRemoteConfigClientsConfig, spec.Name)
+		// The client name selects the products it owns. There is no per-client
+		// product list: a client that owned nothing would never be selected, and
+		// routing an arbitrary product to a private endpoint is not something any
+		// Cluster Agent subsystem asks for.
+		preset, found := remoteConfigClientPresets[spec.Name]
+		if !found {
+			return nil, fmt.Errorf("%s.%s is not a known client name (known: %v)", additionalRemoteConfigClientsConfig, spec.Name, remoteConfigClientPresetNames())
 		}
+		spec.Products = append([]string(nil), preset...)
 		if err := validateAdditionalRemoteConfigProducts(spec); err != nil {
 			return nil, err
 		}
@@ -458,35 +510,6 @@ func stringFromConfigMap(raw map[string]interface{}, key string) string {
 		return strings.TrimSpace(stringValue)
 	}
 	return strings.TrimSpace(fmt.Sprint(value))
-}
-
-func stringSliceFromConfigMap(raw map[string]interface{}, key string) []string {
-	value, found := raw[key]
-	if !found || value == nil {
-		return nil
-	}
-
-	var rawValues []string
-	switch typed := value.(type) {
-	case []string:
-		rawValues = typed
-	case []interface{}:
-		rawValues = make([]string, 0, len(typed))
-		for _, entry := range typed {
-			rawValues = append(rawValues, fmt.Sprint(entry))
-		}
-	default:
-		rawValues = []string{fmt.Sprint(typed)}
-	}
-
-	values := make([]string, 0, len(rawValues))
-	for _, rawValue := range rawValues {
-		value := strings.TrimSpace(rawValue)
-		if value != "" {
-			values = append(values, value)
-		}
-	}
-	return values
 }
 
 type noopRemoteConfigTelemetryReporter struct{}

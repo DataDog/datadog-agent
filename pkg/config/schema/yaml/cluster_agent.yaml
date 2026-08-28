@@ -126,7 +126,11 @@ properties:
         node_type: setting
         type: object
         default: {}
-        description: Additional Cluster Agent remote configuration clients keyed by instance name.
+        description: |-
+          Internal: additional Cluster Agent remote configuration clients, keyed
+          by client name. The name selects the products the client owns and must
+          be one of "autoscaling", "kubeactions", "private_action_runner" or
+          "apm_instrumentation".
         additionalProperties:
           type: object
           properties:
@@ -155,11 +159,6 @@ properties:
             database_file_name:
               type: string
               default: ''
-            products:
-              type: array
-              default: []
-              items:
-                type: string
   allow_legacy_tls:
     node_type: setting
     type: boolean

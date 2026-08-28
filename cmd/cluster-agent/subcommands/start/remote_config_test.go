@@ -21,30 +21,28 @@ import (
 func TestAdditionalRemoteConfigClientSpecs(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
-		"actions": map[string]interface{}{
+		"kubeactions": map[string]interface{}{
 			"api_key":   " api-key ",
 			"rc_dd_url": "https://config.extra.datadoghq.com",
-			"products":  []interface{}{state.ProductK8SActions},
 		},
 	})
 
 	specs, err := getAdditionalRemoteConfigClientSpecs(cfg)
 	require.NoError(t, err)
 	require.Len(t, specs, 1)
-	assert.Equal(t, "actions", specs[0].Name)
+	assert.Equal(t, "kubeactions", specs[0].Name)
 	assert.Equal(t, "api-key", specs[0].APIKey)
 	assert.Equal(t, "https://config.extra.datadoghq.com", specs[0].RCDDURL)
-	assert.Equal(t, "remote-config-actions.db", specs[0].DatabaseFileName)
+	assert.Equal(t, "remote-config-kubeactions.db", specs[0].DatabaseFileName)
 	assert.Equal(t, []string{state.ProductK8SActions}, specs[0].Products)
 }
 
 func TestAdditionalRemoteConfigClientSpecsRejectDuplicateDatabaseFiles(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
-		"first": map[string]interface{}{
+		"kubeactions": map[string]interface{}{
 			"api_key":            "api-key",
 			"rc_dd_url":          "https://config.extra.datadoghq.com",
-			"products":           []string{state.ProductK8SActions},
 			"database_file_name": defaultRemoteConfigDatabaseFileName,
 		},
 	})
@@ -56,30 +54,15 @@ func TestAdditionalRemoteConfigClientSpecsRejectDuplicateDatabaseFiles(t *testin
 func TestAdditionalRemoteConfigClientSpecsRejectDatabaseFileNamePaths(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
-		"first": map[string]interface{}{
+		"kubeactions": map[string]interface{}{
 			"api_key":            "api-key",
 			"rc_dd_url":          "https://config.extra.datadoghq.com",
-			"products":           []string{state.ProductK8SActions},
 			"database_file_name": "x/../remote-config.db",
 		},
 	})
 
 	_, err := getAdditionalRemoteConfigClientSpecs(cfg)
 	require.ErrorContains(t, err, "must be a basename")
-}
-
-func TestAdditionalRemoteConfigClientSpecsRejectProcessLevelProducts(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
-		"process": map[string]interface{}{
-			"api_key":   "api-key",
-			"rc_dd_url": "https://config.extra.datadoghq.com",
-			"products":  []string{state.ProductAgentConfig},
-		},
-	})
-
-	_, err := getAdditionalRemoteConfigClientSpecs(cfg)
-	require.ErrorContains(t, err, "process-level product")
 }
 
 func TestAdditionalRemoteConfigClientRoots(t *testing.T) {
@@ -113,10 +96,9 @@ func TestAdditionalRemoteConfigClientRootsDefaultToGlobalSite(t *testing.T) {
 func TestInitializeRemoteConfigClientsIsLazy(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
-		"actions": map[string]interface{}{
+		"kubeactions": map[string]interface{}{
 			"api_key":   "api-key",
 			"rc_dd_url": "https://config.extra.datadoghq.com",
-			"products":  []string{state.ProductK8SActions},
 		},
 	})
 
@@ -219,19 +201,83 @@ func TestRemoteConfigClientRegistryRejectsMixedAutoscalingProductOwnership(t *te
 	require.ErrorContains(t, err, "different clients")
 }
 
-// TestAdditionalRemoteConfigClientSpecsRejectReservedName ensures an extra
-// client cannot take the status key used by the default client, which would
-// make the two share a status entry.
-func TestAdditionalRemoteConfigClientSpecsRejectReservedName(t *testing.T) {
+// TestAdditionalRemoteConfigClientSpecsPresetProducts checks that a client
+// named after a known subsystem does not need an explicit products list.
+func TestAdditionalRemoteConfigClientSpecsPresetProducts(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
-		defaultRemoteConfigStatusInstance: map[string]interface{}{
+		"autoscaling": map[string]interface{}{
 			"api_key":   "api-key",
 			"rc_dd_url": "https://config.extra.datadoghq.com",
-			"products":  []string{state.ProductK8SActions},
 		},
 	})
 
-	_, err := getAdditionalRemoteConfigClientSpecs(cfg)
-	require.ErrorContains(t, err, "reserved for the default client")
+	specs, err := getAdditionalRemoteConfigClientSpecs(cfg)
+	require.NoError(t, err)
+	require.Len(t, specs, 1)
+	// Cluster autoscaling must be included, otherwise enabling it would split
+	// the autoscaling subsystem across two clients.
+	assert.ElementsMatch(t, []string{
+		state.ProductContainerAutoscalingSettings,
+		state.ProductContainerAutoscalingValues,
+		state.ProductClusterAutoscalingValues,
+	}, specs[0].Products)
+}
+
+// TestRemoteConfigClientPresetsMatchConsumers guards the preset table against
+// drift: every preset product must be one the Cluster Agent actually resolves
+// through ClientForProducts, and no product may appear in two presets.
+func TestRemoteConfigClientPresetsMatchConsumers(t *testing.T) {
+	// Products the Cluster Agent resolves via ClientForProducts (command.go).
+	consumed := map[string]struct{}{
+		state.ProductContainerAutoscalingSettings: {},
+		state.ProductContainerAutoscalingValues:   {},
+		state.ProductClusterAutoscalingValues:     {},
+		state.ProductK8SActions:                   {},
+		state.ProductActionPlatformRunnerKeys:     {},
+		state.ProductAPMTracing:                   {},
+		state.ProductApmPolicies:                  {},
+	}
+
+	owner := map[string]string{}
+	for name, products := range remoteConfigClientPresets {
+		require.NotEmpty(t, products, "preset %q must not be empty", name)
+		for _, product := range products {
+			_, isConsumed := consumed[product]
+			assert.True(t, isConsumed,
+				"preset %q lists %q, which no subsystem resolves via ClientForProducts; it would be subscribed nowhere", name, product)
+			_, isProcessLevel := processLevelRemoteConfigProducts[product]
+			assert.False(t, isProcessLevel, "preset %q lists process-level product %q", name, product)
+			if previous, duplicated := owner[product]; duplicated {
+				t.Errorf("product %q is in both preset %q and %q", product, previous, name)
+			}
+			owner[product] = name
+		}
+	}
+
+	// A preset name must never collide with the reserved default status entry.
+	_, reserved := remoteConfigClientPresets[defaultRemoteConfigStatusInstance]
+	assert.False(t, reserved)
+}
+
+// TestAdditionalRemoteConfigClientSpecsRejectUnknownName checks that a client
+// name without a preset is rejected. The name is the only thing selecting the
+// products a client owns, so an unrecognised one would own nothing and never
+// be used. This also covers the default client's status key, which is not a
+// preset name and so cannot be taken by an additional client.
+func TestAdditionalRemoteConfigClientSpecsRejectUnknownName(t *testing.T) {
+	for _, name := range []string{"something-else", defaultRemoteConfigStatusInstance} {
+		t.Run(name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
+				name: map[string]interface{}{
+					"api_key":   "api-key",
+					"rc_dd_url": "https://config.extra.datadoghq.com",
+				},
+			})
+
+			_, err := getAdditionalRemoteConfigClientSpecs(cfg)
+			require.ErrorContains(t, err, "is not a known client name")
+		})
+	}
 }
