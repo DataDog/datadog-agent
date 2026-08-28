@@ -1158,10 +1158,11 @@ impl StopWaitContext for ManagedProcess {
     }
 
     async fn await_stop_progress(&mut self) -> bool {
+        let notified = self.stop_wait_notify.notified();
         if !self.state.awaiting_stop() {
             return false;
         }
-        self.stop_wait_notify.notified().await;
+        notified.await;
         self.state.awaiting_stop()
     }
 
