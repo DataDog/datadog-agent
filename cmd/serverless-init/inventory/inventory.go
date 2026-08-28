@@ -97,11 +97,8 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf) map[string]in
 		"gcp_project_id":        inv.GCPProjectID,
 		"azure_subscription_id": inv.AzureSubscriptionID,
 
-		"deployment_model":      deploymentModel(modeConf),
-		"gcp_deployment_type":   inv.GCPDeploymentType,
-		"azure_hosting_plan":    inv.AzureHostingPlan,
-		"azure_deployment_type": inv.AzureDeploymentType,
-		"workload_runtime":      inv.WorkloadRuntime,
+		"deployment_model": deploymentModel(modeConf),
+		"runtime":          inv.Runtime,
 	}
 }
 
