@@ -29,6 +29,8 @@ func (p *stubProvider) Authorize(h http.Header) bool {
 	return true
 }
 
+func (p *stubProvider) Refresh() bool { return false }
+
 // Normal API keys in evp_proxy endpoints must be unaffected by the provider path.
 // The endpoint has no CredentialProvider, so authorizeEndpoint stamps the static key.
 func TestEVPProxyNormalAPIKeyUnaffected(t *testing.T) {
