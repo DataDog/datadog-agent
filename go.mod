@@ -280,7 +280,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gobwas/glob v0.2.3
-	github.com/goccy/go-yaml v1.19.2
 	github.com/gocomply/scap v0.1.3
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/godror/godror v0.50.0
@@ -720,6 +719,7 @@ require (
 	github.com/go-test/deep v1.1.1 // indirect
 	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/gocql/gocql v1.6.0 // indirect
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/godror/knownpb v0.3.0 // indirect

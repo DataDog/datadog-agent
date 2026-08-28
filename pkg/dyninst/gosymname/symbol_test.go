@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 )
 
 // ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ func TestSymbols(t *testing.T) {
 				Output: formatTestOutput(&s),
 			})
 		}
-		out, err := yaml.MarshalWithOptions(cases, yaml.IndentSequence(true))
+		out, err := yaml.Marshal(cases)
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(path, out, 0644))
 		t.Logf("rewrote %s with %d cases", path, len(cases))
