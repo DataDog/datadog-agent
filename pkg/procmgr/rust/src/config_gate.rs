@@ -2438,15 +2438,21 @@ process_config:
                 "DD_FLEET_POLICIES_DIR",
                 fleet_dir.to_string_lossy().as_ref(),
             );
+            let met = condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe));
             #[cfg(windows)]
             assert!(
-                !condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe)),
+                !met,
                 "fleet software_inventory.enabled=false should beat the retained EUD default"
             );
             #[cfg(target_os = "macos")]
             assert!(
-                condition_config_any_met(&process_agent_windows_conditions(agent, sysprobe)),
+                met,
                 "retained EUD notable_events should keep the gate open when fleet disables software_inventory only"
+            );
+            #[cfg(not(any(windows, target_os = "macos")))]
+            assert!(
+                !met,
+                "Linux has no EUD software_inventory / notable_events modules"
             );
         });
     }
