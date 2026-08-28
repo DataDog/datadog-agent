@@ -221,8 +221,15 @@
     name: '#dal-ops'
     id: 'C0AQHTYTVAA'
   review:
-    name: '#aaa-auth-identity-help'
-    id: 'C0AA7D5117D'
+    name: '#workload-identity-federation'
+    id: 'C08GB70HTV4'
+'@datadog/delegated-auth-login':
+  notification:
+    name: '#dal-ops'
+    id: 'C0AQHTYTVAA'
+  review:
+    name: '#workload-identity-federation'
+    id: 'C08GB70HTV4'
 '@datadog/data-observability':
   notification:
     name: '#data-observability-ops'
@@ -288,15 +295,15 @@
     id: 'C09FX078WH2'
 '@datadog/fleet':
   notification:
-    name: '#fleet-automation-monitoring'
-    id: 'C06TZ0APY6Q'
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
 '@datadog/fleet-automation':
   notification:
-    name: '#fleet-automation-monitoring'
-    id: 'C06TZ0APY6Q'
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
@@ -434,6 +441,13 @@
     name: '#universal-service-monitoring'
     id: 'C01R6Q0HQDD'
 '@datadog/q-branch':
+  notification:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
+  review:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
+'@datadog/agent-anomaly-detection':
   notification:
     name: '#agent-anomaly-detection'
     id: 'C0ABFN05CMU'

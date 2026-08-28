@@ -12,7 +12,7 @@ package observer
 
 import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 
-// team: q-branch
+// team: agent-anomaly-detection
 
 // Component is the central observer that receives data via handles.
 type Component interface {
