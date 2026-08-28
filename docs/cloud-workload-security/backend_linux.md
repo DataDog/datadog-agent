@@ -2308,7 +2308,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "metadata": {
                     "$ref": "#/$defs/TracerMetadata",
-                    "description": "Metadata from APM tracer instrumentation (for example, schema version, language,\nversion, or thread-local attribute keys)."
+                    "description": "Metadata from APM tracer instrumentation (for example, schema version,\nlanguage, or version)."
                 }
             },
             "additionalProperties": false,
@@ -2349,12 +2349,6 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "logs_collected": {
                     "type": "boolean"
-                },
-                "threadlocal_attribute_keys": {
-                    "items": {
-                        "type": "string"
-                    },
-                    "type": "array"
                 }
             },
             "additionalProperties": false,
@@ -6038,7 +6032,7 @@ ancestor lineage to find the same value. |
         },
         "metadata": {
             "$ref": "#/$defs/TracerMetadata",
-            "description": "Metadata from APM tracer instrumentation (for example, schema version, language,\nversion, or thread-local attribute keys)."
+            "description": "Metadata from APM tracer instrumentation (for example, schema version,\nlanguage, or version)."
         }
     },
     "additionalProperties": false,
@@ -6051,8 +6045,8 @@ ancestor lineage to find the same value. |
 | Field | Description |
 | ----- | ----------- |
 | `trace` | Captured APM span context for this process. |
-| `metadata` | Metadata from APM tracer instrumentation (for example, schema version, language,
-version, or thread-local attribute keys). |
+| `metadata` | Metadata from APM tracer instrumentation (for example, schema version,
+language, or version). |
 
 | References |
 | ---------- |
@@ -6097,12 +6091,6 @@ version, or thread-local attribute keys). |
         },
         "logs_collected": {
             "type": "boolean"
-        },
-        "threadlocal_attribute_keys": {
-            "items": {
-                "type": "string"
-            },
-            "type": "array"
         }
     },
     "additionalProperties": false,

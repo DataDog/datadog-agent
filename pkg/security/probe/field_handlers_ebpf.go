@@ -815,20 +815,20 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 }
 
 // otelAttributeKeyNames returns the ordered key names the process published, which
-// the key indices of a record index into. An exec event's own entry carries no
-// tracer metadata (the exec'd image never sealed a tracer-info memfd), so the key
-// list has to be looked up on an ancestor.
+// the key indices of a record index into. The list lands on the cache entry that
+// was current when the process published its context, so an entry created by a
+// later exec carries none and the lookup has to walk up to an ancestor.
 func otelAttributeKeyNames(ev *model.Event) []string {
 	if ev.ProcessContext == nil {
 		return nil
 	}
 
-	if keyNames := ev.ProcessContext.Process.Tracer.Metadata.ThreadlocalAttributeKeys; len(keyNames) > 0 {
+	if keyNames := ev.ProcessContext.Process.Tracer.ThreadlocalAttributeKeys; len(keyNames) > 0 {
 		return keyNames
 	}
 
 	for pce := ev.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
-		if keyNames := pce.Process.Tracer.Metadata.ThreadlocalAttributeKeys; len(keyNames) > 0 {
+		if keyNames := pce.Process.Tracer.ThreadlocalAttributeKeys; len(keyNames) > 0 {
 			return keyNames
 		}
 	}

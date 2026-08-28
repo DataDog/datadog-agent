@@ -1236,9 +1236,6 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
-		// The attribute key map is not the tracer metadata's to carry: it comes
-		// from the process context.
-		tmeta.ThreadlocalAttributeKeys = entry.Tracer.Metadata.ThreadlocalAttributeKeys
 		entry.Tracer.Metadata = tmeta
 	}
 	p.Unlock()
@@ -1282,10 +1279,9 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) error {
 		return err
 	}
 
-	// The process context is the only thing that publishes the attribute key map.
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
-		entry.Tracer.Metadata.ThreadlocalAttributeKeys = res.attributeKeys
+		entry.Tracer.ThreadlocalAttributeKeys = res.attributeKeys
 	}
 	p.Unlock()
 

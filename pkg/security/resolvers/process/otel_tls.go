@@ -77,7 +77,7 @@ type otelTLSResolution struct {
 	// dtvInfo locates the DTV for dynamic TLS (unused when moduleID == 0).
 	dtvInfo otelDTVInfo
 	// attributeKeys is used to name the attribute in the thread context record.
-	// This is used to fill Tracer.Metadata.ThreadlocalAttributeKeys
+	// This is used to fill Tracer.ThreadlocalAttributeKeys
 	attributeKeys []string
 }
 
