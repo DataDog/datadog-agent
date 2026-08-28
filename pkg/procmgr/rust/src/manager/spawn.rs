@@ -13,6 +13,12 @@ use anyhow::Result;
 use log::{info, warn};
 use std::sync::Arc;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::manager) enum SpawnProcessOutcome {
+    Committed,
+    NotStarted,
+}
+
 pub(in crate::manager) enum SpawnKind {
     BootAutoStart,
     CreateAutoStart,
@@ -108,18 +114,18 @@ pub(in crate::manager) async fn spawn_process(
     idx: usize,
     ctx: &RuntimeContext,
     kind: SpawnKind,
-) -> Result<()> {
+) -> Result<SpawnProcessOutcome> {
     if !ctx.lifecycle.spawns_allowed() {
-        return Ok(());
+        return Ok(SpawnProcessOutcome::NotStarted);
     }
 
     let snapshot = {
         let mut procs = catalog.write_processes().await;
         let Some(proc) = procs.get_mut(idx) else {
-            return Ok(());
+            return Ok(SpawnProcessOutcome::NotStarted);
         };
         if !kind.may_begin_spawn(proc) {
-            return Ok(());
+            return Ok(SpawnProcessOutcome::NotStarted);
         }
         proc.begin_spawn_reservation()
             .map_err(|e| anyhow::anyhow!("{e:#}"))?;
@@ -128,7 +134,7 @@ pub(in crate::manager) async fn spawn_process(
 
     if !ctx.lifecycle.spawns_allowed() {
         cancel_spawn_reservation(&catalog, idx).await;
-        return Ok(());
+        return Ok(SpawnProcessOutcome::NotStarted);
     }
 
     let (name, config) = snapshot;
@@ -174,22 +180,23 @@ async fn commit_spawn(
     spawn_result: Result<ManagedChildSpawn>,
     ctx: &RuntimeContext,
     kind: &SpawnKind,
-) -> Result<()> {
+) -> Result<SpawnProcessOutcome> {
     let mut procs = catalog.write_processes().await;
     let Some(proc) = procs.get_mut(idx) else {
         abort_uncommitted(spawn_result, name).await;
-        return Ok(());
+        return Ok(SpawnProcessOutcome::NotStarted);
     };
 
     if !ctx.lifecycle.spawns_allowed() || !kind.may_commit_spawn(proc) {
         proc.cancel_spawn_reservation();
         abort_uncommitted(spawn_result, name).await;
-        return Ok(());
+        return Ok(SpawnProcessOutcome::NotStarted);
     }
 
     match spawn_result {
         Ok(outcome) => proc
             .commit_spawn_from_outcome(outcome, ctx.exit_tx.clone())
+            .map(|()| SpawnProcessOutcome::Committed)
             .map_err(|e| {
                 warn!("[{name}] spawn failed: {e:#}");
                 if kind.retry_on_failure() && ctx.lifecycle.spawns_allowed() {

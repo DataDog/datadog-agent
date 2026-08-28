@@ -7,8 +7,8 @@ use super::catalog::ProcessCatalog;
 use super::{
     ExitEvent, PendingRestart, RuntimeContext, Supervisor, enqueue_pending_restart, resolve_index,
     spawn::{
-        SpawnKind, log_skipped_pending_restart, pending_restart_still_valid, spawn_process,
-        spawn_process_background,
+        SpawnKind, SpawnProcessOutcome, log_skipped_pending_restart, pending_restart_still_valid,
+        spawn_process, spawn_process_background,
     },
 };
 use crate::command::{Command, CreateResult, StartResult, StopResult};
@@ -16,6 +16,7 @@ use crate::config::{self, ConfigLoader};
 use crate::process::ManagedProcess;
 #[cfg(windows)]
 use crate::shutdown;
+use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
 use log::{debug, info, warn};
 use std::sync::Arc;
@@ -187,22 +188,35 @@ impl ProcessManager {
             (idx, name)
         };
 
-        spawn_process(Arc::clone(&self.catalog), idx, ctx, SpawnKind::Manual)
+        let outcome = spawn_process(Arc::clone(&self.catalog), idx, ctx, SpawnKind::Manual)
             .await
             .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
 
         let procs = self.catalog.read_processes().await;
         let proc = &procs[idx];
-        if !proc.is_running() {
-            return Err(Status::internal(format!(
-                "failed to start '{name}': process is not running"
-            )));
+        match outcome {
+            SpawnProcessOutcome::NotStarted => Err(Status::failed_precondition(format!(
+                "process '{name}' is already starting or running",
+            ))),
+            SpawnProcessOutcome::Committed => {
+                let Some(pid) = proc.pid() else {
+                    return Err(Status::internal(format!(
+                        "failed to start '{name}': committed spawn has no pid",
+                    )));
+                };
+                if proc.state() != ProcessState::Running {
+                    return Err(Status::internal(format!(
+                        "failed to start '{name}': expected Running, got {}",
+                        proc.state()
+                    )));
+                }
+                Ok(StartResult {
+                    uuid: proc.uuid().to_owned(),
+                    pid: Some(pid),
+                    state: proc.state(),
+                })
+            }
         }
-        Ok(StartResult {
-            uuid: proc.uuid().to_owned(),
-            pid: proc.pid(),
-            state: proc.state(),
-        })
     }
 
     pub(in crate::manager) async fn handle_stop(

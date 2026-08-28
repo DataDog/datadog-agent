@@ -77,15 +77,16 @@ async fn log_startup_plan(manager: &ProcessManager, order: &[usize]) {
     );
 }
 
-fn log_spawn_result(result: Result<(), anyhow::Error>, name: &str) {
-    if let Err(e) = result {
-        warn!("[{name}] auto-start failed: {e:#}");
+fn log_spawn_result(result: Result<super::spawn::SpawnProcessOutcome, anyhow::Error>, name: &str) {
+    match result {
+        Ok(_) => {}
+        Err(e) => warn!("[{name}] auto-start failed: {e:#}"),
     }
 }
 
 async fn join_in_flight_spawn<F>(mut spawn_fut: Pin<&mut F>)
 where
-    F: Future<Output = anyhow::Result<()>>,
+    F: Future<Output = anyhow::Result<super::spawn::SpawnProcessOutcome>>,
 {
     #[cfg(windows)]
     if let Some(signal_time) = platform::service_stop_signal_time() {
@@ -96,7 +97,7 @@ where
             return;
         }
         match tokio::time::timeout(cap, spawn_fut.as_mut()).await {
-            Ok(Ok(())) => {}
+            Ok(Ok(_)) => {}
             Ok(Err(e)) => warn!("startup: in-flight auto-start failed: {e:#}"),
             Err(_) => warn!(
                 "startup: timed out waiting for in-flight auto-start ({cap:?} left in SCM budget)"
