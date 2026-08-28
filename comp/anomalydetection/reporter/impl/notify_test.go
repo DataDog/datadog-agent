@@ -308,6 +308,25 @@ func TestBuildEventTags_DimensionalTagsFromSourceTags(t *testing.T) {
 	assert.NotContains(t, tags, "version:1.0") // non-dimensional tags not propagated
 }
 
+func TestBuildEventTags_DimensionalHostFromSource(t *testing.T) {
+	c := observerdef.ActiveCorrelation{
+		Pattern: "p",
+		Anomalies: []observerdef.Anomaly{
+			{
+				Type: observerdef.AnomalyTypeMetric,
+				Source: observerdef.SeriesDescriptor{
+					Namespace: "dogstatsd",
+					Host:      "web-1",
+					Tags:      []string{"service:web", "env:prod"},
+				},
+			},
+		},
+	}
+
+	tags := BuildEventTags(c)
+	assert.Contains(t, tags, "host:web-1")
+}
+
 func TestBuildEventTags_DimensionalTagsFromSplitTags(t *testing.T) {
 	// Log-derived anomalies carry dimensional info in Context.SplitTags.
 	c := observerdef.ActiveCorrelation{

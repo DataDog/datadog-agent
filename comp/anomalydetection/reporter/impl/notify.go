@@ -443,6 +443,9 @@ func BuildEventTags(c observerdef.ActiveCorrelation) []string {
 				}
 			}
 		}
+		if a.Source.Host != "" {
+			dimensionSet["host:"+a.Source.Host] = struct{}{}
+		}
 		// For log-derived anomalies, dimensional info lives in Context.SplitTags
 		// (set by the log tagged pattern clusterer).
 		if a.Context != nil {
