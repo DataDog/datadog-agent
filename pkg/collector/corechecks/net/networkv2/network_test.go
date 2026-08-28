@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -3050,3 +3051,54 @@ func emptyConnectionStateEntry() *connectionStateEntry {
 		sendQ: []uint64{},
 	}
 }
+
+// TestAddConntrackStatsFromProcFileHexParsing documents the current behavior of
+// addConntrackStatsFromProcFile against a real-shaped /proc/net/stat/nf_conntrack
+// sample (double-spaced header, matching the format in the function's own comment).
+func TestAddConntrackStatsFromProcFileHexParsing(t *testing.T) {
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	err := afero.WriteFile(fs, "/mocked/procfs/net/stat/nf_conntrack", []byte(
+		`entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+00000015  0000027b 00000000 00000000 00000001 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000001 00000002 00000003 00000004 00000005 00000006 00000007 00000008 00000009 0000000a 0000000b 0000000c  0000000d 0000000e 0000000f 00000010`),
+		0644)
+	assert.Nil(t, err)
+
+	stats, err := addConntrackStatsFromProcFile("/mocked/procfs")
+	assert.Nil(t, err)
+	assert.Len(t, stats, 8)
+
+	assert.Equal(t, "0", stats[0].cpuID)
+	assert.Equal(t, float64(0), stats[0].Found)
+	assert.Equal(t, float64(1), stats[0].Invalid)
+	assert.Equal(t, float64(0), stats[0].Ignore)
+	assert.Equal(t, float64(0), stats[0].Insert)
+	assert.Equal(t, float64(0), stats[0].InsertFailed)
+	assert.Equal(t, float64(0), stats[0].Drop)
+	assert.Equal(t, float64(0), stats[0].EarlyDrop)
+	assert.Equal(t, float64(0), stats[0].Error)
+	assert.Equal(t, float64(0), stats[0].SearchRestart)
+	assert.Equal(t, float64(635), stats[0].ClashResolve)
+	assert.Equal(t, float64(0), stats[0].ChainTooLong)
+
+	assert.Equal(t, "7", stats[7].cpuID)
+	assert.Equal(t, float64(2), stats[0].Found)
+	assert.Equal(t, float64(3), stats[0].Invalid)
+	assert.Equal(t, float64(4), stats[0].Ignore)
+	assert.Equal(t, float64(8), stats[0].Insert)
+	assert.Equal(t, float64(9), stats[0].InsertFailed)
+	assert.Equal(t, float64(10), stats[0].Drop)
+	assert.Equal(t, float64(11), stats[0].EarlyDrop)
+	assert.Equal(t, float64(12), stats[0].Error)
+	assert.Equal(t, float64(16), stats[0].SearchRestart)
+	assert.Equal(t, float64(1), stats[0].ClashResolve)
+	assert.Equal(t, float64(7), stats[0].ChainTooLong)
+}
+
