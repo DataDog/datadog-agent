@@ -8,6 +8,17 @@
         API Key: {{ if .apiKeyScoped }}Authorized{{ else }}Not authorized{{ end }}
         Feature: {{ if .orgEnabled }}Enabled{{ else }}Disabled{{ end }}
         Last error: {{ if .lastError }}{{ .lastError }}{{ else }}None{{ end }}
+        {{- /* Skip the default client: it is already rendered above. Name must
+               match defaultStatusInstance in pkg/config/remote/service/service.go. */ -}}
+        {{ range $name, $instance := .instances }}{{ if ne $name "Remote Config" }}
+        <br>Additional client "{{ $name }}"
+        {{- if $instance.endpoint }}
+        <br>&nbsp;&nbsp;Endpoint: {{ $instance.endpoint }}
+        {{- end }}
+        <br>&nbsp;&nbsp;API Key: {{ if and $instance.apiKeyScoped (eq $instance.apiKeyScoped "true") }}Authorized{{ else }}Not authorized{{ end }}
+        <br>&nbsp;&nbsp;Feature: {{ if and $instance.orgEnabled (eq $instance.orgEnabled "true") }}Enabled{{ else }}Disabled{{ end }}
+        <br>&nbsp;&nbsp;Last error: {{ if $instance.lastError }}{{ $instance.lastError }}{{ else }}None{{ end }}
+        {{ end }}{{ end }}
       {{ end }}
     {{ else }}
       Remote Configuration is disabled

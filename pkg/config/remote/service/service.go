@@ -78,12 +78,16 @@ var (
 	statusExpvars           = make(map[string]*remoteConfigStatus)
 )
 
+// defaultStatusInstance names the status entry for the process default RC
+// client. The status templates in comp/remote-config/rcstatus/impl match on
+// this literal to avoid listing the default client twice, so keep them in sync.
 const defaultStatusInstance = "Remote Config"
 
 type remoteConfigStatus struct {
 	orgEnabled    expvar.String
 	keyAuthorized expvar.String
 	lastUpdateErr expvar.String
+	endpoint      expvar.String
 }
 
 func getRemoteConfigStatus(instance string) *remoteConfigStatus {
@@ -106,12 +110,14 @@ func getRemoteConfigStatus(instance string) *remoteConfigStatus {
 	instanceMap.Set("orgEnabled", &status.orgEnabled)
 	instanceMap.Set("apiKeyScoped", &status.keyAuthorized)
 	instanceMap.Set("lastError", &status.lastUpdateErr)
+	instanceMap.Set("endpoint", &status.endpoint)
 	exportedStatusInstances.Set(instance, instanceMap)
 
 	if instance == defaultStatusInstance {
 		exportedMapStatus.Set("orgEnabled", &status.orgEnabled)
 		exportedMapStatus.Set("apiKeyScoped", &status.keyAuthorized)
 		exportedMapStatus.Set("lastError", &status.lastUpdateErr)
+		exportedMapStatus.Set("endpoint", &status.endpoint)
 	}
 
 	return status
@@ -687,6 +693,12 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	now := clock.Now().UTC()
 	status := getRemoteConfigStatus(options.statusInstance)
+	// Record the endpoint so `status` can show where each instance points.
+	// rc_dd_url is user-supplied and could embed credentials, so strip any
+	// userinfo before it reaches the status output.
+	displayURL := *baseURL
+	displayURL.User = nil
+	status.endpoint.Set(displayURL.String())
 	cas := &CoreAgentService{
 		api:                   http,
 		rcType:                rcType,
