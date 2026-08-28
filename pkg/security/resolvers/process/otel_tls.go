@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -413,6 +414,20 @@ func newDynamicOTelTLS(target *otelTargetProcess, moduleID, tlsOffset uint64) (o
 	}, nil
 }
 
+// legacyGlibcLoader matches the loader name glibc used before 2.34, which
+// libc.IsPotentialLibcDSO does not: its pattern only knows ld-linux* and
+// ld-musl*, while glibc up to 2.33 installs the loader as ld-<version>.so and
+// /proc/pid/maps reports that real name rather than the ld-linux-*.so.1
+// symlink. __tls_get_addr lives in the loader, so without this every
+// pre-2.34 distro -- RHEL/CentOS 7 and 8, Ubuntu 18.04 and 20.04, Amazon
+// Linux 2, Debian 10 and 11 -- resolves no DTV at all, and any span published
+// through general-dynamic or local-dynamic TLS is silently dropped there.
+var legacyGlibcLoader = regexp.MustCompile(`/ld-\d+\.\d+\.so$`)
+
+func isPotentialLibcDSO(path string) bool {
+	return libc.IsPotentialLibcDSO(path) || legacyGlibcLoader.MatchString(path)
+}
+
 // dtvInfo derives the DTV layout of this process's libc, by disassembling its
 // __tls_get_addr through the OTel eBPF profiler's libc package -- the same
 // extraction the profiler relies on, rather than a hardcoded table of per-libc,
@@ -424,7 +439,7 @@ func (p *otelTargetProcess) dtvInfo() (otelDTVInfo, error) {
 	}
 
 	for _, path := range order {
-		if !libc.IsPotentialLibcDSO(path) {
+		if !isPotentialLibcDSO(path) {
 			continue
 		}
 		if info, ok := extractDTVInfo(p.fsPath(path)); ok {
