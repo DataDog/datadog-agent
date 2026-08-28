@@ -27,14 +27,67 @@ impl CommandHandlers {
         self.handles.lock().unwrap().push(handle);
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(in crate::manager) async fn join_all(&self) {
+        self.join_all_with_budget(ShutdownBudget::unlimited(Instant::now()))
+            .await;
+    }
+
+    pub(in crate::manager) async fn join_all_with_budget(&self, budget: ShutdownBudget) {
         let handles = std::mem::take(&mut *self.handles.lock().unwrap());
         for handle in handles {
-            match handle.await {
-                Ok(()) => {}
-                Err(error) if error.is_cancelled() => {}
-                Err(error) => warn!("command handler failed: {error}"),
+            Self::join_tracked_handle(handle, &budget).await;
+        }
+    }
+
+    async fn join_tracked_handle(handle: JoinHandle<()>, budget: &ShutdownBudget) {
+        let cap = budget.remaining_cap(Duration::MAX);
+        if budget.is_bounded() && cap.is_zero() {
+            warn!("command handler join budget exhausted; deferring task to runtime shutdown");
+            deferred_cleanup::register_deferred_spawn_join(handle);
+            return;
+        }
+
+        if !budget.is_bounded() {
+            Self::log_tracked_join_result(handle.await);
+            return;
+        }
+
+        let mut monitor = Some(tokio::spawn(handle));
+        tokio::select! {
+            result = async {
+                monitor
+                    .take()
+                    .expect("command handler monitor should be present")
+                    .await
+            } => Self::log_tracked_monitor_result(result),
+            _ = tokio::time::sleep(cap) => {
+                warn!(
+                    "timed out waiting for command handler ({cap:?} left in service shutdown budget); deferring to runtime shutdown"
+                );
+                if let Some(monitor) = monitor.take() {
+                    deferred_cleanup::register_deferred_spawn_join(tokio::spawn(async move {
+                        Self::log_tracked_monitor_result(monitor.await);
+                    }));
+                }
             }
+        }
+    }
+
+    fn log_tracked_monitor_result(
+        result: Result<Result<(), tokio::task::JoinError>, tokio::task::JoinError>,
+    ) {
+        match result {
+            Ok(inner) => Self::log_tracked_join_result(inner),
+            Err(error) => warn!("command handler monitor failed: {error}"),
+        }
+    }
+
+    fn log_tracked_join_result(result: Result<(), tokio::task::JoinError>) {
+        match result {
+            Ok(()) => {}
+            Err(error) if error.is_cancelled() => {}
+            Err(error) => warn!("command handler failed: {error}"),
         }
     }
 }
@@ -191,25 +244,65 @@ impl RuntimeReceivers {
     pub(in crate::manager) async fn drain_commands_during_grpc_shutdown(
         &mut self,
         grpc_handle: &mut JoinHandle<anyhow::Result<()>>,
+        budget: ShutdownBudget,
     ) {
         self.drain_pending_commands().await;
         let status = Status::unavailable("dd-procmgrd is shutting down");
         loop {
-            tokio::select! {
-                biased;
-                result = &mut *grpc_handle => {
+            if budget.is_bounded() {
+                let cap = budget.remaining_cap(Duration::MAX);
+                if cap.is_zero() {
+                    warn!(
+                        "gRPC shutdown budget exhausted; aborting graceful drain and rejecting queued commands"
+                    );
                     reject_pending_commands(&mut self.cmd_rx, &status);
-                    match result {
-                        Ok(Err(e)) => warn!("gRPC server error: {e}"),
-                        Err(e) => warn!("gRPC server task panicked: {e}"),
-                        Ok(Ok(())) => {}
-                    }
+                    grpc_handle.abort();
                     return;
                 }
-                cmd = self.cmd_rx.recv() => {
-                    match cmd {
-                        Some(cmd) => cmd.reject(status.clone()),
-                        None => return,
+
+                tokio::select! {
+                    biased;
+                    result = &mut *grpc_handle => {
+                        reject_pending_commands(&mut self.cmd_rx, &status);
+                        match result {
+                            Ok(Err(e)) => warn!("gRPC server error: {e}"),
+                            Err(e) => warn!("gRPC server task panicked: {e}"),
+                            Ok(Ok(())) => {}
+                        }
+                        return;
+                    }
+                    cmd = self.cmd_rx.recv() => {
+                        match cmd {
+                            Some(cmd) => cmd.reject(status.clone()),
+                            None => return,
+                        }
+                    }
+                    _ = tokio::time::sleep(cap) => {
+                        warn!(
+                            "timed out waiting for gRPC shutdown ({cap:?} left in service shutdown budget); aborting graceful drain"
+                        );
+                        reject_pending_commands(&mut self.cmd_rx, &status);
+                        grpc_handle.abort();
+                        return;
+                    }
+                }
+            } else {
+                tokio::select! {
+                    biased;
+                    result = &mut *grpc_handle => {
+                        reject_pending_commands(&mut self.cmd_rx, &status);
+                        match result {
+                            Ok(Err(e)) => warn!("gRPC server error: {e}"),
+                            Err(e) => warn!("gRPC server task panicked: {e}"),
+                            Ok(Ok(())) => {}
+                        }
+                        return;
+                    }
+                    cmd = self.cmd_rx.recv() => {
+                        match cmd {
+                            Some(cmd) => cmd.reject(status.clone()),
+                            None => return,
+                        }
                     }
                 }
             }
@@ -381,14 +474,74 @@ mod tests {
                 .await;
         });
 
-        rx.drain_commands_during_grpc_shutdown(&mut grpc_handle)
-            .await;
+        rx.drain_commands_during_grpc_shutdown(
+            &mut grpc_handle,
+            ShutdownBudget::unlimited(Instant::now()),
+        )
+        .await;
 
         let err = reply_rx
             .await
             .expect("reply channel should receive rejection")
             .expect_err("late command should be rejected while gRPC shuts down");
         assert_eq!(err.code(), tonic::Code::Unavailable);
+    }
+
+    #[tokio::test]
+    async fn drain_commands_during_grpc_shutdown_respects_budget() {
+        let (cmd_tx, cmd_rx) = mpsc::channel(64);
+        let lifecycle = Lifecycle::new();
+        lifecycle.begin_stopping();
+        let (_ctx, mut rx) = RuntimeContext::with_cmd(lifecycle, cmd_tx, cmd_rx);
+
+        let mut grpc_handle = tokio::spawn(async {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let budget = ShutdownBudget::with_deadline(
+            Instant::now(),
+            Instant::now() + Duration::from_millis(50),
+        );
+        let started = Instant::now();
+        rx.drain_commands_during_grpc_shutdown(&mut grpc_handle, budget)
+            .await;
+        assert!(
+            started.elapsed() < Duration::from_millis(200),
+            "grpc drain should return within the service shutdown budget, took {:?}",
+            started.elapsed()
+        );
+    }
+
+    #[tokio::test]
+    async fn command_handlers_join_all_with_budget_times_out() {
+        use tokio::sync::oneshot;
+
+        let command_handlers = CommandHandlers::default();
+        let (release_tx, release_rx) = oneshot::channel::<()>();
+        command_handlers.track(tokio::spawn(async move {
+            let _ = release_rx.await;
+        }));
+
+        let budget = ShutdownBudget::with_deadline(
+            Instant::now(),
+            Instant::now() + Duration::from_millis(50),
+        );
+        let mut join_task = tokio::spawn({
+            let command_handlers = command_handlers.clone();
+            async move {
+                command_handlers.join_all_with_budget(budget).await;
+            }
+        });
+
+        tokio::time::timeout(Duration::from_millis(200), &mut join_task)
+            .await
+            .expect("join_all_with_budget should return before blocked handler completes")
+            .expect("join task should succeed");
+
+        release_tx
+            .send(())
+            .expect("deferred command handler should still be running");
     }
 
     #[tokio::test]

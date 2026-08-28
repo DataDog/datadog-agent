@@ -46,16 +46,19 @@ impl Supervisor {
         }
 
         info!("dd-procmgrd shutting down");
-        let _ = grpc_shutdown_tx.send(());
-        rx.drain_commands_during_grpc_shutdown(&mut grpc_handle)
-            .await;
-
-        ctx.command_handlers.join_all().await;
-        let background_spawn_budget = platform::service_stop_signal_time()
+        let shutdown_budget = platform::service_stop_signal_time()
             .map(ShutdownBudget::service_stop)
             .unwrap_or_else(|| ShutdownBudget::unlimited(Instant::now()));
+
+        let _ = grpc_shutdown_tx.send(());
+        rx.drain_commands_during_grpc_shutdown(&mut grpc_handle, shutdown_budget)
+            .await;
+
+        ctx.command_handlers
+            .join_all_with_budget(shutdown_budget)
+            .await;
         ctx.background_spawns
-            .join_all_with_budget(background_spawn_budget)
+            .join_all_with_budget(shutdown_budget)
             .await;
 
         rx.drain_exits_during(&self.manager, &ctx, self.manager.shutdown())
