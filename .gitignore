@@ -249,6 +249,9 @@ AUTO_JIRA.md
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
+# Pi subagents (local development, not for repo)
+.pi-subagents/
+
 # Codex (commit the shared MCP config; ignore everything else Codex writes)
 .codex/*
 !.codex/config.toml

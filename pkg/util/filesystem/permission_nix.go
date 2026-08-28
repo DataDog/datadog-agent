@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"os/user"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"syscall"
@@ -67,7 +68,17 @@ func (p *Permission) RestrictAccessToUser(path string) error {
 		return fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
 	}
 
-	if err = os.Chown(path, usrID, grpID); err != nil {
+	dir, name, err := splitDirBase(path)
+	if err != nil {
+		return fmt.Errorf("couldn't restrict access to %s: %w", path, err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return fmt.Errorf("couldn't open parent directory of %s: %w", path, err)
+	}
+	defer root.Close()
+
+	if err = root.Lchown(name, usrID, grpID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			log.Infof("Cannot change owner of '%s', permission denied", path)
 			return nil
@@ -85,13 +96,35 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	// We first try to set other and group to "dd-agent" when possible
 	_ = p.RestrictAccessToUser(path)
 
-	fperm, err := os.Stat(path)
+	dir, name, err := splitDirBase(path)
+	if err != nil {
+		return fmt.Errorf("couldn't restrict access to %s: %w", path, err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return fmt.Errorf("couldn't open parent directory of %s: %w", path, err)
+	}
+	defer root.Close()
+
+	fperm, err := root.Lstat(name)
 	if err != nil {
 		return err
 	}
 	// We keep the original 'user' rights but set 'group' and 'other' to zero.
 	newPerm := fperm.Mode().Perm() & 0700
-	return os.Chmod(path, fs.FileMode(newPerm))
+	return root.Chmod(name, fs.FileMode(newPerm))
+}
+
+// splitDirBase returns the parent directory and base name of path, with any
+// trailing separators removed so that e.g. "/tmp/work/" splits into
+// "/tmp" and "work" instead of "/tmp/work" and "work". An empty path
+// is rejected, matching the error behavior of the previous os.Chown/Chmod.
+func splitDirBase(path string) (dir, base string, err error) {
+	if path == "" {
+		return "", "", errors.New("path is empty")
+	}
+	cleaned := filepath.Clean(path)
+	return filepath.Dir(cleaned), filepath.Base(cleaned), nil
 }
 
 func getDatadogUserUID() (uint32, error) {
@@ -105,6 +138,27 @@ func getDatadogUserUID() (uint32, error) {
 
 	// agent user not found, fall back to the current user
 	return uint32(os.Getuid()), nil
+}
+
+// GetAgentUserGroupIDs returns the UID and primary GID of the agent service
+// account ("dd-agent" on Linux, "_dd-agent" on macOS). The GID is the
+// user's primary group (e.g. "root" in the standard container, where no
+// same-named group exists), not a separately-named group. ok is false if the
+// user does not exist on the system.
+func GetAgentUserGroupIDs() (uid, gid int, ok bool) {
+	u, err := user.Lookup(agentUsername())
+	if err != nil {
+		return 0, 0, false
+	}
+	uid, err = strconv.Atoi(u.Uid)
+	if err != nil {
+		return 0, 0, false
+	}
+	gid, err = strconv.Atoi(u.Gid)
+	if err != nil {
+		return 0, 0, false
+	}
+	return uid, gid, true
 }
 
 // isRootOrAgentUID reports whether uid is root (0) or the dd-agent service account.
