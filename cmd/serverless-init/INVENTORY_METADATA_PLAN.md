@@ -1,10 +1,5 @@
 # Plan: serverless-init inventory metadata collection
 
-Status: planning — no implementation started. **Option C (capability tiers on
-the shared `inventoryagent`) is the chosen approach**; the A/B spikes are
-retained below as the exploration that motivated it. See "Reuse vs. new
-component" and "Spike results" below.
-
 ## Goal
 
 Emit `inventoryagent`-style metadata from serverless-init to the existing
@@ -16,160 +11,26 @@ separate serverless tables.
 Design principles:
 - Keep coupling to the shared inventory code minimal and *deliberate*.
 - Keep serverless-specific logic in `cmd/serverless-init`.
-- Do **not** drift from the normal agent metadata pipeline for the fields the
-  pipeline requires. Under Option C this is achieved by literally reusing the
-  component's existing `initData()` (see "Core fields under Option C" below),
+- Do **not** drift from the normal agent metadata pipeline for the core fields.
+  This is achieved by literally reusing the component's existing `initData()`,
   not by extracting a shared helper.
 - Express serverless divergence as neutral, environmentally-justified
-  capabilities on the shared component (Option C), not as serverless-shaped
-  behavioral overrides; inject serverless fields through the public `Set` API.
+  capabilities on the shared component, not as serverless-shaped behavioral
+  overrides; inject serverless fields through the public `Set` API.
 
-## Key findings that constrain the design
+## Approach: capability tiers on the shared `inventoryagent`
 
-1. **Submission plumbing already exists.** serverless-init wires a forwarder +
-   demultiplexer, so `demux.Serializer().SendMetadata(payload)` is available
-   today. No new transport work.
-2. **The metadata runner and `inventoryagent` are not wired into
-   serverless-init.** Whatever we build must supply its own periodic trigger
-   (or reuse `comp/metadata/runner`).
-3. **Config-schema split.** `inventories_enabled`,
-   `inventories_first_run_delay`, `inventories_min_interval`,
-   `inventories_max_interval` are tagged `full-agent-only:true` and are
-   generated only into `initCoreAgentFull`. serverless-init's config init
-   (`pkg/config/setup/config_init_serverless.go`) calls **only
-   `initCommonBase`**, so those keys **do not exist in the serverless config
-   schema**. `enable_metadata_collection` **is** in the common base and present;
-   `inventories_configuration_enabled` is also tagged `full-agent-only:true`
-   and is therefore **absent** from the serverless schema too.
-   Reading a key absent from the serverless schema logs `config key <x> is
-   unknown` and returns the zero value, so any key we rely on must be declared
-   in the serverless schema. `fixupInitServerlessOnlyComponents` documents an
-   explicit philosophy: *"the same config must be compatible with any Agent no
-   matter its version."* Serverless-only config additions are reviewed against
-   this rule.
-4. **Flavor is process-global, set once at startup** via
-   `flavor.SetFlavor(...)`. serverless-init never calls it (defaults to
-   `"agent"`), and `serverless-init` is not a registered flavor constant (only
-   `serverless_agent` exists). Crucially, `NewBufferedAggregator` captures
-   `flavor.GetFlavor()` **once at construction** and uses it for the
-   `datadog.<flavor>.running` / `datadog.<flavor>.up` heartbeat metric and
-   service check (`pkg/aggregator/aggregator.go`). Calling
-   `SetFlavor("serverless-init")` process-wide would rename those to
-   `datadog.serverless-init.running` / `.up` (a dash in a metric name, and a
-   break in agent-host identification / existing monitors). So we must NOT set
-   the flavor process-wide; the payload's `flavor` value is injected locally
-   instead (see Flavor section).
-5. **First-run delay rationale.** The 60s `inventories_first_run_delay` default
-   orders inventory after host-tags/host metadata. serverless-init pulls in
-   none of that, so an effective delay of 0 with an early first send is sound.
-
-## Core fields under Option C: reuse `initData()`, no shared seam
-
-The A/B spikes extracted a shared `PopulateCoreFields` helper
-(`comp/metadata/internal/util`) so that both the core-agent component and a
-*separate* serverless payload builder could populate the core fields
-(`agent_version`, `package_version`, `agent_startup_time_ms`, `flavor`,
-`hostname_source`, `infrastructure_mode`, `install_method_*`) from one source.
-That extraction was motivated by **Option B's separate component**, which
-cannot call the core-agent component's `initData()` without importing its
-machinery, and was carried into Option A mostly for parity and because A was
-already editing `initData` to parameterize the flavor.
-
-**Option C does not need it, and does not carry it.** Option C reuses the real
-`inventoryagent` component with `Enabled=true`, and `NewComponent` already calls
-`ia.initData()` in that case — so the core fields are populated for free by the
-existing, unmodified code path. Reusing `initData()` in place is a *stronger*
-anti-drift guarantee than a copied helper: it is literal reuse, not a second
-function that can diverge from `initData` over time.
-
-The one thing that pushed A/B to parameterize `initData` was **flavor**:
-`initData` hardwires `flavor.GetFlavor()` (`"agent"`), but serverless must emit
-`serverless-init` in the payload without changing the process-global flavor
-(see Key finding #4). Under Option C this rides the public `Set` API instead —
-`initData` stays as-is, and serverless calls `Set("flavor", "serverless-init")`
-afterward to overwrite `data["flavor"]`. No flavor parameter, no shared helper.
-
-Consequently, Option C does **not** add `comp/metadata/internal/util/core_fields.go`
-or refactor `initData()`; those artifacts belong only to the A/B spikes.
-
-## Reuse vs. new component (Phase 1 decision)
-
-Options A and B were built to a "compiles + emits a payload to a local fakeintake" level
-and compared (see spike results below). **Option C is the chosen approach**: a
-capability-tier refactor of the shared `inventoryagent` that keeps serverless in
-the owners' component under neutral, well-motivated names — avoiding both
-Option A's serverless-shaped behavioral `Params` bag and Option B's fully
-separate component that the owners never touch. Options A and B are retained
-below as the
-spikes that motivated exploring C.
-
-### Option A — Reuse the existing `inventoryagent` component
-- Needs (fx graph): three of the six `Requires` are NOT in the serverless-init
-  graph today and would fail construction:
-  - `serializer.MetricSerializer` is only reachable via `demux.Serializer()`,
-    not as an fx type — needs an adapter
-    `fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() })`.
-  - `ipc.HTTPClient` is not provided — pulls in IPC auth-token/cert
-    bootstrapping serverless-init does not set up.
-  - `option.Option[sysprobeconfig.Component]` needs an explicit
-    `option.None[...]()` provider (the wrapper does not make it optional).
-- Needs (behavior): wire `comp/metadata/runner` (nothing calls `collect()`
-  otherwise), and add the `inventories_*` keys to the serverless schema.
-- Risks:
-  - **Cached enablement ignores the ramp gate.** `CreateInventoryPayload`
-    caches `Enabled = InventoryEnabled(conf)` at construction and `collect()`
-    never re-checks. The stock component never consults
-    `serverless.inventory_enabled`, so Option A would emit **by default**
-    (both underlying keys default true), violating disabled-by-default.
-    Bespoke gating would be needed, eroding the reuse benefit.
-  - **`refreshMetadata()` is meaningless (and unsafe) in serverless, not
-    slow.** All of its cross-process fetchers (security/process/trace/
-    system-probe) target agent processes that do not exist alongside
-    serverless-init, so each fails and `getCorrectConfig` silently falls back
-    to local config. Two corrections to earlier assumptions, both verified:
-    (1) the trace fetcher's target — the APM debug port (5012) — is a
-    `//go:build serverless` **no-op `DebugServer` that never listens** (see
-    `pkg/trace/api/debug_server_serverless.go`; the serverless-init image
-    EXPOSEs nothing and runs distroless with a single entrypoint), so there is
-    **no real round trip** — it fails like the others, not with added latency;
-    (2) the cost is therefore *semantic noise* (meaningless full-agent fields
-    like `feature_cws_enabled`, `config_apm_dd_url` landing in the serverless
-    table), plus a **nil-client hazard**: with `ipcfx-none`, `GetClient()`
-    returns `nil`, so the fetchers must not run at all. `SkipRemoteMetadata` is
-    thus a safety requirement, not an optimization. Gating requires shared-code
-    edits inside `refreshMetadata`/the fetchers.
-  - **Per-process uuid / empty hostname** require editing the shared
-    `getPayload`/`Payload` struct (it hardcodes `uuid.GetUUID()`), a shared-code
-    hook.
-  - Serverless fields still injected via `Set(...)`; more shared-code coupling.
-- Benefit: automatic parity with future core-agent inventory fields.
-
-### Option B — New serverless-init-local payload reusing `PopulateCoreFields` + `util.InventoryPayload`
-- Needs: a small builder in `cmd/serverless-init` that calls
-  `PopulateCoreFields` (the shared core-field helper this option's separate
-  component cannot avoid — see "Core fields under Option C"), layers serverless
-  fields, embeds `util.InventoryPayload` (or calls `SendMetadata` directly with
-  our own scheduling), and registers a periodic trigger.
-- Risks: we own any schema drift beyond the shared core fields.
-- Benefit: no changes to shared `inventoryagent` behavior; only serverless-
-  relevant fields; simplest deps; logic stays in serverless-init. Best fit for
-  "minimal hooks."
-
-### Option C — Capability tiers on the shared `inventoryagent` (chosen)
-
-Instead of encoding "serverless-ness" as a bag of behavioral overrides (Option
-A) or forking a whole component (Option B), Option C gives the shared component
-two **neutral capabilities**, each tied to an *environmental property* rather
-than to serverless. This is what keeps the inventory-agent owners engaged: they
-own two well-motivated knobs, not a foreign `if serverless` branch.
+Give the shared `inventoryagent` component two **neutral capabilities**, each
+tied to an *environmental property* rather than to serverless. This keeps the
+inventory-agent owners engaged: they own two well-motivated knobs, not a
+foreign `if serverless` branch.
 
 The seam already exists structurally. `getPayload()` today runs three tiers in
 order: Tier 1 core fields (populated by `initData()` at construction, no IO),
 Tier 2 cross-process enrichment (`refreshMetadata()`), Tier 3 config dump
 (`getConfigs()`, already gated off and absent from the serverless schema).
-Tier 1 is already serverless-safe and reused as-is (no `PopulateCoreFields`
-extraction under Option C), so `refreshMetadata()` is the single "stop here"
-line.
+Tier 1 is already serverless-safe and reused as-is, so `refreshMetadata()` is
+the single "stop here" line.
 
 The two capabilities:
 
@@ -181,77 +42,74 @@ The two capabilities:
 **Flag polarity: the Go zero value must equal full-agent behavior.** A naive
 `CrossProcessEnrichment bool` traps us — its zero value (`false`) would disable
 enrichment, but the full agent (which supplies no capability struct) needs it
-**on**, so an unset field would silently break the full agent and any doc saying
-"zero value = full-agent behavior" would be wrong. Name the field for the
-divergence instead, e.g. `SkipCrossProcessEnrichment` (zero value `false` = do
-not skip = full-agent behavior; serverless sets it `true`). Same rule for the
-second capability: default-off matches the full agent, serverless opts in.
-Carry no capability field that is only ever set once and never read against its
-zero value — drop dead flags rather than leave them as confusing surface.
+**on**, so an unset field would silently break the full agent. Name the field
+for the divergence instead, e.g. `SkipCrossProcessEnrichment` (zero value
+`false` = do not skip = full-agent behavior; serverless sets it `true`). Same
+rule for the second capability: default-off matches the full agent, serverless
+opts in. Carry no capability field that is only ever set once and never read
+against its zero value — drop dead flags rather than leave confusing surface.
 
 The second capability is the exact inverse of the 60s
 `inventories_first_run_delay`'s reason for existing. `collect()` documents that
 the delay orders inventory *after* host metadata to avoid a backend
 host-creation race across endpoints. serverless-init pulls in no host-metadata
 component, so immediate submission is not merely an optimization — it is *safe
-because* that component is absent. Any future hostless embedder flips the same
-flag for the same reason. This is the `ForceCollect`-at-startup idea the plan
-previously rejected, now readmitted as a named, host-metadata-justified
-capability rather than a serverless kludge, and it dissolves the
-short-lived-container race (the payload is enqueued synchronously at startup,
-not left to a runner goroutine that may never be scheduled).
+because* that component is absent. It also dissolves the short-lived-container
+race (the payload is enqueued synchronously at startup, not left to a runner
+goroutine that may never be scheduled).
 
-What Option C collapses from Option A's 5-knob `Params`:
-- `ExtraFields` → **gone.** Serverless fields go through the component's public
-  `Set(name, value)` API, which the README documents as *the* way for the rest
-  of the codebase to add payload fields (cf. `connectivitychecker.Set("diagnostics", ...)`,
-  `ssistatus.Set("feature_auto_instrumentation_enabled", ...)`). serverless-init
-  calls `Set("serverless_resource_id", ...)` etc. from its own code, keeping the
-  per-platform derivation in `cmd/serverless-init`.
-- `Flavor` → **gone as a param.** `Set` overwrites `data[name]`, so the payload
-  flavor can be set via `Set("flavor", "serverless-init")` after init. (We still
-  do NOT touch the process-global `flavor.SetFlavor`; see the Flavor section.)
-- `SkipRemoteMetadata` → **reframed** as the cross-process-enrichment capability
-  (skipped for serverless), named for the divergence so its zero value matches
-  full-agent behavior (see "Flag polarity" above). This also removes the
-  nil-`ipcfx-none`-client hazard: the enrichment tier never runs, so the nil
-  client is never dereferenced.
-- `Enabled` → **stays** (the serverless ramp gate); normal.
+### Core fields: reuse `initData()`, no shared helper
 
-Residual shared-code coupling Option C does *not* eliminate:
+Reuse the real `inventoryagent` component with `Enabled=true`. `NewComponent`
+already calls `ia.initData()` in that case, so the core fields
+(`agent_version`, `package_version`, `agent_startup_time_ms`, `flavor`,
+`hostname_source`, `infrastructure_mode`, `install_method_*`) are populated for
+free by the existing, unmodified code path. Reusing `initData()` in place is a
+strong anti-drift guarantee: literal reuse, not a second function that can
+diverge over time.
+
+The one field `initData` hardwires wrongly for serverless is **flavor**:
+`initData` sets `data["flavor"]` to `flavor.GetFlavor()` (`"agent"`).
+Serverless overwrites it afterward via the public `Set("flavor",
+"serverless-init")` API — no flavor parameter, no shared helper (see Flavor
+section). We do **not** touch the process-global `flavor.SetFlavor`.
+
+### Serverless field injection via the public `Set` API
+
+Serverless fields go through the component's public `Set(name, value)` API,
+which the README documents as *the* way for the rest of the codebase to add
+payload fields (cf. `connectivitychecker.Set("diagnostics", ...)`,
+`ssistatus.Set("feature_auto_instrumentation_enabled", ...)`). serverless-init
+calls `Set("serverless_resource_id", ...)` etc. from its own code, keeping the
+per-platform derivation in `cmd/serverless-init`.
+
+### Residual shared-code coupling
+
 - **Per-process `uuid`.** `Set` only writes `agent_metadata` keys; the payload
   `uuid`/`hostname` live on the `Payload` envelope outside that map, built in
   `getPayload`. `hostname` is free (serverless build's `Hostname.Get()` returns
   `""`). The per-process `uuid` (vs. host GUID `uuid.GetUUID()`) is handled by a
-  **small construction param** on the component — the agreed starting point.
-  This is the one genuine envelope override left after `Set` absorbs the field
-  injection.
+  **small construction param** on the component. This is the one genuine
+  envelope override left after `Set` absorbs field injection.
 
-Shared-code surface of Option C = two capability flags + one uuid param, with
-serverless fields and flavor riding the existing public `Set` API. Materially
-smaller and better-motivated than Option A's `Params`, and unlike Option B the
-split lives in the owners' component under neutral names.
+Total shared-code surface: two capability flags + one uuid param, with
+serverless fields and flavor riding the existing public `Set` API.
 
-Open (ordering): because `Set` is a no-op when `!Enabled` and triggers an async
-`Refresh()`, the immediate on-start submission must be a **synchronous submit**
-sequenced *after* the serverless `Set` calls (enable → `Set` core+serverless
-fields → synchronous submit), or the first payload would miss the serverless
-fields. Exact shape of the synchronous-submit entry point (method on the
-component vs. on `util.InventoryPayload`) is a Phase-1 detail.
+### Submission ordering
 
-`forceRefresh` reset: a reviewer flagged that `util.InventoryPayload.Submit()`
-does not reset `forceRefresh` the way `collect()` does. With
-`inventories_first_run_delay` forced to `0`, an unreset `forceRefresh` makes the
-runner's very next tick resend the same payload immediately. Since the plan
-requires only one successful send per process, the synchronous-submit path must
-leave `forceRefresh` cleared (or otherwise guard the runner from re-sending on
-every tick). This is a shared-code line to get right, not just a serverless
-detail.
+Because `Set` is a no-op when `!Enabled` and triggers an async `Refresh()`, the
+immediate on-start submission must be a **synchronous submit** sequenced
+*after* the serverless `Set` calls (enable → `Set` core+serverless fields →
+synchronous submit), or the first payload would miss the serverless fields. The
+exact shape of the synchronous-submit entry point (method on the component vs.
+on `util.InventoryPayload`) is an implementation detail.
 
-Each sketch must answer: (a) enablement/intervals given the missing config
-keys, (b) how the `serverless-init` flavor is set, (c) how serverless fields +
-resource id are injected, (d) how first-send/scheduling works, (e) exactly
-which lines of shared code change.
+`forceRefresh` reset: `util.InventoryPayload.Submit()` does not reset
+`forceRefresh` the way `collect()` does. With `inventories_first_run_delay`
+forced to `0`, an unreset `forceRefresh` makes the runner's very next tick
+resend the same payload immediately. Since only one successful send per process
+is required, the synchronous-submit path must leave `forceRefresh` cleared (or
+otherwise guard the runner from re-sending on every tick).
 
 ## Serverless field derivation: delegate to the CloudService structs
 
@@ -290,9 +148,7 @@ payload `timestamp`.
 - `hostname`: empty, and this happens **for free** in serverless builds —
   `pkg/util/hostname/providers_serverless.go` (`//go:build serverless`) makes
   `Hostname.Get()` return `""` regardless of `DD_HOSTNAME=none`, so the payload
-  serializes `"hostname": ""` with no extra work. Emitting JSON `null` instead
-  would require a pointer/omit field in the payload struct (only ours to change
-  cleanly under Option B); the extractor's preference is still open.
+  serializes `"hostname": ""` with no extra work.
 - `uuid`: a per-process UUID generated at startup (`uuid.New().String()`), not
   the shared `uuid.GetUUID()` (that returns the cached host machine GUID, which
   is not per-process and is meaningless across serverless containers).
@@ -312,15 +168,12 @@ payload `timestamp`.
   composition/format to be specified. Multiple agents may share a resource id
   where the rest of the data is identical.
   - **Keep the payload key named `resource_id`; do NOT rename it to
-    `CanonicalCloudResourceID`.** A reviewer suggested matching
-    `inventoryhost`'s `CanonicalCloudResourceID` field
-    (`comp/metadata/inventoryhost/impl/inventoryhost.go`), but the downstream
-    serverless decoder (dd-go `createServerlessAgentResource`) reads a flat key
-    literally named `resource_id` (from `serverless_resource_id` after prefix
-    stripping) and keys the per-flavor table on it. `inventoryhost` is a
-    different table the serverless decoder does not consult, and its component
-    is not wired into serverless-init. Aligning the key name to the actual
-    downstream contract wins over cosmetic parity with an unused path.
+    `CanonicalCloudResourceID`.** The downstream serverless decoder (dd-go
+    `createServerlessAgentResource`) reads a flat key literally named
+    `resource_id` (from `serverless_resource_id` after prefix stripping) and
+    keys the per-flavor table on it. `inventoryhost`'s
+    `CanonicalCloudResourceID` field is a different table the serverless decoder
+    does not consult, and its component is not wired into serverless-init.
 - `parent_resource_id` (nullable) <- CloudService. Stable service CCRID for
   revision-capable workloads (e.g. a Cloud Run service behind its revisions).
   Accepted downstream as a discrete key.
@@ -331,8 +184,7 @@ payload `timestamp`.
   (`cloud_run_service`, `cloud_run_job`, `cloud_function_gen2`,
   `azure_container_app`, `azure_app_service`), incl. gen2 and Azure types.
 
-**Location:** emit these as **discrete keys**, not derived from the CCRID. A
-reviewer suggested extracting them from the `resource_id` string, but the
+**Location:** emit these as **discrete keys**, not derived from the CCRID. The
 downstream decoder reads each as an independent payload key and does no CCRID
 parsing, so the agent must send them explicitly.
 - `region` <- CloudService (GCP or Azure region).
@@ -369,16 +221,18 @@ unknown-key warning.
 
 ## Flavor
 
-The payload's `flavor` field carries `serverless-init` (with the dash). Under
-Option C it is injected via the public `Set("flavor", "serverless-init")` API
-after `initData()` has run (which sets `data["flavor"]` to `flavor.GetFlavor()`,
-i.e. `"agent"`); the `Set` call overwrites it. We do **not** call
-`flavor.SetFlavor` process-wide: the aggregator would otherwise rename the
-`datadog.<flavor>.running` / `.up` heartbeat metric and service check (Key
-finding #4), and `flavor=="agent"` gates elsewhere would change. Registering a
-`serverless-init` constant in `pkg/util/flavor` is optional/cosmetic (only
-affects `GetHumanReadableFlavor`, which would otherwise show "Unknown Agent")
-and is not required for the payload.
+The payload's `flavor` field carries `serverless-init` (with the dash),
+injected via the public `Set("flavor", "serverless-init")` API after
+`initData()` has run. We do **not** call `flavor.SetFlavor` process-wide:
+`NewBufferedAggregator` captures `flavor.GetFlavor()` **once at construction**
+and uses it for the `datadog.<flavor>.running` / `.up` heartbeat metric and
+service check (`pkg/aggregator/aggregator.go`). Setting the flavor process-wide
+would rename those to `datadog.serverless-init.running` / `.up` (a dash in a
+metric name, and a break in agent-host identification / existing monitors), and
+`flavor=="agent"` gates elsewhere would change. Registering a `serverless-init`
+constant in `pkg/util/flavor` is optional/cosmetic (only affects
+`GetHumanReadableFlavor`, which would otherwise show "Unknown Agent") and is not
+required for the payload.
 
 ## Scheduling / early send / shutdown
 
@@ -392,11 +246,10 @@ per process lifetime is sufficient.
   `serializer.SendMetadata` only *enqueues* a transaction; the HTTP POST is
   async and is drained at shutdown.
 
-Short-lived-container race (verified, supersedes the earlier "runner + drain is
-enough" stance): the metadata runner starts each collector in a **goroutine**
-from an Fx `OnStart` hook (`comp/metadata/runner/impl/runner.go`). `collect()`
-does fire immediately with no initial wait, and with `firstRunDelay=0` it
-enqueues on the first call. **But** `run()` can return and begin deferred
+Short-lived-container race: the metadata runner starts each collector in a
+**goroutine** from an Fx `OnStart` hook (`comp/metadata/runner/impl/runner.go`).
+`collect()` fires immediately with no initial wait, and with `firstRunDelay=0`
+it enqueues on the first call. **But** `run()` can return and begin deferred
 teardown before that goroutine is scheduled, so for a workload that exits in a
 few hundred ms the payload may **never be enqueued** — and the forwarder
 shutdown drain (`forwarder_stop_timeout`, default 2s) then has nothing to send.
@@ -405,24 +258,19 @@ already-enqueued payload (main.go defer LIFO: trace stop 2.5s → logs 1.5s →
 demux 2s → `SharedForwarder.Stop()` HTTP drain 2s); the gap is purely getting
 the payload enqueued before the workload finishes.
 
-Trigger mechanism (revised): the payload must be **enqueued synchronously,
-early in `run()`** (once the forwarder/demux is up and the cloud service is
-detected), rather than relying on the runner goroutine as the primary delivery
-mechanism. Because `SendMetadata` is a cheap non-blocking enqueue, this does
-not hold up the customer workload, and the normal shutdown drain then delivers
-it. This is the `ForceCollect`-at-startup idea the plan previously rejected;
-the "even a *very* short-lived container" requirement reverses that call. The
-runner (`comp/metadata/runner`, `inventories_first_run_delay` forced to `0` via
-`setOverride`) can still exist for the rare long-lived-container refresh, but it
-cannot be the *only* path. If the runner is kept as a backup it must be
+**Primary delivery: enqueue synchronously, early in `run()`** (once the
+forwarder/demux is up and the cloud service is detected), rather than relying on
+the runner goroutine. Because `SendMetadata` is a cheap non-blocking enqueue,
+this does not hold up the customer workload, and the normal shutdown drain then
+delivers it.
+
+The runner (`comp/metadata/runner`, `inventories_first_run_delay` forced to `0`
+via `setOverride`) can still exist for the rare long-lived-container refresh,
+but it cannot be the *only* path. If the runner is kept as a backup it must be
 **consumed by the Fx one-shot graph, not merely registered**: Fx constructs
 providers lazily, so `run()` has to request `runner.Component` (or a value that
-depends on it) or the runner—and the grouped inventory provider—are never
-instantiated and nothing is scheduled (the same lazy-construction gap a reviewer
-flagged on the Option B spike). This is another reason the synchronous startup
-submit is the *primary* path. Open: whether the early synchronous enqueue is a
-shared `InventoryPayload` hook (reuse path) or a serverless-owned call to
-`SendMetadata` (new-component path) — see the seam discussion below.
+depends on it) or the runner — and the grouped inventory provider — are never
+instantiated and nothing is scheduled.
 
 ## Config / enablement
 
@@ -446,19 +294,26 @@ Enablement gate (parity key + serverless ramp gate):
 - Emission = `util.InventoryEnabled(conf) && conf.GetBool("serverless.inventory_enabled")`.
   The stock component's `Enabled` is cached once in `CreateInventoryPayload`
   and never re-checked, and it never consults `serverless.inventory_enabled` at
-  all — so reusing that cached path (Option A) would emit **by default**,
-  violating disabled-by-default. Our builder must evaluate the gate itself.
-  (Remote Config is not supported in serverless-init today, so live RC toggling
-  is not a requirement; a config/env value read at startup is sufficient.)
+  all — so our builder must evaluate the gate itself. (Remote Config is not
+  supported in serverless-init today, so a config/env value read at startup is
+  sufficient.)
+
+**Config-schema split.** `inventories_enabled`, `inventories_first_run_delay`,
+`inventories_min_interval`, `inventories_max_interval` are tagged
+`full-agent-only:true` and generated only into `initCoreAgentFull`.
+serverless-init's config init (`pkg/config/setup/config_init_serverless.go`)
+calls **only `initCommonBase`**, so those keys **do not exist in the serverless
+config schema**. Reading a key absent from the serverless schema logs `config
+key <x> is unknown` and returns the zero value, so any key we rely on must be
+declared in the serverless schema.
 
 Schema-codegen consequences of adding the `inventories_*` keys to serverless:
 the only lever is removing `full-agent-only:true` from each key in
 `core_schema.yaml` (codegen has no serverless-init-only bucket; it is binary
 full-agent vs common-base). This does not change full-agent behavior (the full
 agent still runs `initCommonBase`). `cmd/serverless-init` is the only binary in
-this repo built with the `serverless` tag (the AWS Lambda extension moved off
-this codebase over a year ago), so nothing else is affected. It does break the
-split assertions in `TestServerlessConfigInit` / `TestAgentConfigInit`
+this repo built with the `serverless` tag, so nothing else is affected. It does
+break the split assertions in `TestServerlessConfigInit` / `TestAgentConfigInit`
 (`pkg/config/setup/config_test.go`), which must be updated, and requires
 regenerating `all_settings.go` via `dda inv schema.codegen` (the generated file
 is not hand-edited).
@@ -476,13 +331,11 @@ Intervals / first-run delay: `inventories_min_interval`,
 the serverless schema at the shared defaults (0 / 0 / 60), and the serverless
 value is forced via the existing `preloadEarly` / `setOverride` pattern (e.g.
 `setOverride("inventories_first_run_delay", 0)`). `setOverride` writes at
-`SourceAgentRuntime`, which outranks env vars and yaml (`SourceEnvVar` /
-`SourceFile`) while the schema default stays identical across flavors. This
-gets delay=0 for the runner backup path even while reusing
-`CreateInventoryPayload`. Under Option C the primary delivery is the immediate
-synchronous on-start submission (which does not depend on the runner or the
-delay at all); delay=0 only affects how promptly the runner backup would fire
-for a long-lived container.
+`SourceAgentRuntime`, which outranks env vars and yaml while the schema default
+stays identical across flavors. Primary delivery is the immediate synchronous
+on-start submission (which does not depend on the runner or the delay); delay=0
+only affects how promptly the runner backup would fire for a long-lived
+container.
 
 `setOverride` outranks env/yaml, so it is appropriate for values we always
 force (delay=0), not for the enablement ramp gate — that stays a real config
@@ -498,13 +351,11 @@ serverless-init is Linux-only. Windows-based Azure environments are not
 supported by serverless-init (a different instrumentation mechanism covers
 them), so no Windows build path is required here. ECS Fargate is not a
 supported serverless-init platform, so `fetchECSFargateAgentMetadata`'s
-5s-timeout ECS-metadata call (the one genuinely slow op in `refreshMetadata`)
-never fires — it is guarded by `env.IsECSFargate()`, false on all supported
-platforms.
+5s-timeout ECS-metadata call never fires — it is guarded by
+`env.IsECSFargate()`, false on all supported platforms.
 
 ## Build reality (verified in `serverless-init-ci`)
 
-Confirms the schema and build-tag assumptions this plan relies on:
 - The binary is built from `cmd/serverless-init` with build tags
   `serverless otlp zlib zstd` — the **`serverless` tag is on**, so the
   `//go:build serverless` files (empty hostname provider, no-op trace
@@ -550,9 +401,8 @@ Confirms the schema and build-tag assumptions this plan relies on:
   are separate keys — so CCRID composition only has to yield a stable string,
   not an extractable structure.
 - The minimal core-field set the pipeline requires (a downstream contract with
-  the pipeline owners). Under Option C this is whatever `initData()` already
-  emits; the open question is only whether the pipeline needs more or fewer
-  than that, not the shape of a shared helper.
+  the pipeline owners). This is whatever `initData()` already emits; the open
+  question is only whether the pipeline needs more or fewer than that.
 - `full_configuration` include/exclude decision, i.e. whether the scrubbed
   config dump is useful/safe in serverless. Its gate
   `inventories_configuration_enabled` is full-agent-only and absent from the
@@ -563,13 +413,9 @@ Confirms the schema and build-tag assumptions this plan relies on:
 
 ## Phasing
 
-0. Spikes: built Options A and B to local-fakeintake level, sharing
-   `PopulateCoreFields` and the `cloudservice.GetInventoryData` seam; compared
-   (see spike results below). Explored Option C (capability tiers) as a third
-   candidate and chose it.
-1. Implement Option C on the shared `inventoryagent`:
-   - Reuse the existing `initData()` for core fields as-is (no
-     `PopulateCoreFields` extraction, no `initData` refactor).
+1. Implement the capability tiers on the shared `inventoryagent`:
+   - Reuse the existing `initData()` for core fields as-is (no shared-helper
+     extraction, no `initData` refactor).
    - Two capabilities named for the divergence so their zero value equals
      full-agent behavior (see "Flag polarity"): cross-process enrichment
      (skipped for serverless → the `refreshMetadata()` tier is skipped) and
@@ -581,108 +427,15 @@ Confirms the schema and build-tag assumptions this plan relies on:
    - A small construction param for the per-process `uuid` (the one residual
      envelope override).
    - Serverless fields + flavor injected via the public `Set` API from
-     `cmd/serverless-init` (no `ExtraFields`/`Flavor` params).
+     `cmd/serverless-init`.
    - Enablement gate disabled-by-default.
    - Config schema: remove `full-agent-only:true` from the `inventories_*`
      keys, add `serverless.inventory_enabled`, regenerate `all_settings.go`
-     (`dda inv schema.codegen` — the serverless-init image build runs this
-     stage, so schema YAML changes propagate to the binary), and update
-     `TestServerlessConfigInit` / `TestAgentConfigInit`.
+     (`dda inv schema.codegen`), and update `TestServerlessConfigInit` /
+     `TestAgentConfigInit`.
    - Real `GetInventoryData` per-platform derivations.
 2. Sign-offs in parallel: minimal core-field set with pipeline owners;
    finalize field list with the extractor team; `full_configuration`
    include/exclude decision.
 3. Tests (unit + e2e across platforms).
 4. Rollout (validate volume, then flip default to enabled).
-
-## Spike results: Option A (reuse `inventoryagent`) vs Option B (new component)
-
-Both spikes were built to the same "compiles + wired, emission gated off by
-default" bar, sharing `PopulateCoreFields` and the `cloudservice.GetInventoryData`
-per-platform seam. Option B lives on
-`aleksandr.pasechnik/svls-9645-serverless-init-inventory-component-spike`;
-Option A is on this branch.
-
-### What each option touched
-
-| Concern | Option A (reuse) | Option B (new component) |
-|---|---|---|
-| New component | none | `comp/metadata/serverlessinventory` (def/fx/impl, ~250 lines) |
-| Shared `inventoryagent` code changed | **yes** — `Requires` gains `compdef.In` + optional `Params`; struct gains 4 fields; `NewComponent`/`getPayload`/`initData` learn about params | none beyond the shared `PopulateCoreFields` extraction |
-| serverless-init fx graph additions | `serializer` adapter, `ipcfx-none` + `ipc.HTTPClient` adapter, `option.None[sysprobeconfig]`, `runnerfx`, `inventoryagentfx`, `Params` provider | `serializer` adapter, `runnerfx`, `serverlessinventoryfx`, `FieldProvider` provider |
-| Flavor injection | `Params.Flavor` → `initData` (shared code) | payload-local constant (component-local) |
-| Per-process uuid | `Params.UUID` → `getPayload` (shared code) | own `Payload` struct (component-local) |
-| Empty hostname | inherited from shared `getPayload` (`hostname` from `Hostname.Get`, empty in serverless build) | own `Payload` struct, explicit `""` |
-| Skip cross-process fetch (IPC/localhost; targets never listen in serverless, and the nil `ipcfx-none` client must not be dereferenced) | `Params.SkipRemoteMetadata` guard in shared `getPayload` | never had it — component only builds core + serverless fields |
-| Serverless field injection | `Params.ExtraFields`, merged in shared `getPayload` | typed `Fields` flattened in component |
-| Enablement gate | `Params.Enabled` pointer overrides the cached `util.InventoryEnabled` | `Enabled` reassigned after `CreateInventoryPayload` |
-
-### Cost of reuse (Option A), concretely
-
-The shared `inventoryagent` needed a new optional **`Params` seam** (following
-the metadata/resources `Params`/`Disabled()` and rcclient `Params` convention:
-a construction-time struct supplied by the binary and received with
-`optional:"true"`, built via `inventoryagent.NewServerlessParams`) because every
-serverless divergence lands inside shared code that the full agent also runs:
-
-- `initData` hardwired `flavor.GetFlavor()`; `getPayload` hardwired
-  `uuid.GetUUID()`, `ia.hostname`, and an unconditional `refreshMetadata()` that
-  fetches from security/process/trace/system-probe. None of that is right for
-  serverless, and none of it is reachable via the existing `Set(...)` API (which
-  only adds keys, and only after `Enabled`). So the reuse path requires editing
-  the shared component's hot path (`getPayload`) and its init, guarded by an
-  optional dependency so the full agent is unaffected.
-- The IPC dependency is dead weight: serverless has no agent processes to query,
-  so we wire `ipcfx-none` (whose `GetClient()` returns `nil`) purely to satisfy
-  the graph, then set `SkipRemoteMetadata` so the nil client is never
-  dereferenced. Option B never takes on the dependency at all.
-- `Params` is 5 knobs (`Enabled`, `Flavor`, `UUID`, `ExtraFields`,
-  `SkipRemoteMetadata`). Each exists solely to bend full-agent behavior for
-  serverless. That surface is the ongoing maintenance tax of reuse: future
-  changes to `getPayload`/`initData` must keep the param branches correct,
-  and the full-agent payload now carries an `optional` dependency it never uses.
-  (The convention keeps `resources`/`rcclient` `Params` mostly plain data;
-  ours carries more behavioral surface, which is the honest cost signal.)
-
-### Read
-
-- Option A adds **no new component** (the stated long-term preference) but pays
-  for it by threading serverless-specific behavior through the shared component
-  via a `Params` struct and taking on an unused IPC dependency. The blast
-  radius is the full agent's own metadata hot path.
-- Option B keeps all serverless logic in serverless-owned code and touches
-  shared code only for the `PopulateCoreFields` extraction (which A and B want,
-  but which Option C does not need — see "Core fields under Option C"), at the
-  cost of one small new component.
-- Both still need the same follow-up work regardless of choice: the config
-  schema changes for real enablement gating (`inventories_*` +
-  `serverless.inventory_enabled`), the real `GetInventoryData` derivations, and
-  the `PopulateCoreFields` contract sign-off. Neither spike did the schema work;
-  both hardcode enablement to `false`.
-
-Decision heuristic: if the `Params` seam stays at ~5 stable knobs, Option A's
-"no new component" wins. If serverless divergence keeps growing (more envelope
-differences, `hostname: null`, force-send at shutdown, RC toggling), each new
-divergence is another branch in shared full-agent code — and Option B's
-component isolation becomes the cheaper long-term maintenance story.
-
-### Why explore Option C
-
-The spikes surfaced that Option A's cost is concentrated in *how* it expresses
-the divergence (a 5-knob behavioral `Params` bag threaded through the full
-agent's hot path), not in the divergence itself. Option C was chosen because it
-keeps Option A's win (no new component; owners keep seeing the serverless path)
-while shrinking the shared-code surface to two neutral,
-environmentally-justified capabilities plus one `uuid` param, and moving
-field/flavor injection onto the existing public `Set` API — thereby avoiding
-Option A's `ExtraFields`/`Flavor`/`SkipRemoteMetadata` knobs and Option B's
-whole separate component. A further simplification surfaced while exploring C:
-because it reuses the real component with `Enabled=true`, it runs the existing
-`initData()` for core fields and therefore does **not** need the
-`PopulateCoreFields` extraction the A/B spikes introduced (see "Core fields
-under Option C"). See the Option C section above for the full shape. The A and
-B spike branches remain
-as reference:
-- Option A: `aleksandr.pasechnik/svls-9645-serverless-init-inventory-agent-spike`
-- Option B: `aleksandr.pasechnik/svls-9645-serverless-init-inventory-component-spike`
-- Option C (this work): `aleksandr.pasechnik/svls-9645-serverless-init-inventory-capability-tiers`
