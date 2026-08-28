@@ -55,6 +55,49 @@ func TestGetContainerAppTags(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestContainerAppGetInventoryData(t *testing.T) {
+	service := NewContainerApp()
+
+	t.Setenv("CONTAINER_APP_NAME", "Test_App_Name")
+	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
+	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
+	t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
+
+	inv := service.GetInventoryData()
+
+	appCCRID := "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app_name"
+	assert.Equal(t, InventoryData{
+		WorkloadType:        workloadTypeAzureContainerApp,
+		ResourceID:          appCCRID + "/revisions/test_revision",
+		ParentResourceID:    appCCRID,
+		ResourceName:        "Test_App_Name",
+		Region:              "eastus",
+		AzureSubscriptionID: "test_subscription_id",
+		AzureResourceGroup:  "test_resource_group",
+		DeploymentID:        "test_revision",
+	}, inv)
+}
+
+func TestContainerAppGetInventoryDataWithoutAzureIDs(t *testing.T) {
+	service := NewContainerApp()
+
+	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
+	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
+	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+	os.Unsetenv("DD_AZURE_SUBSCRIPTION_ID")
+	os.Unsetenv("DD_AZURE_RESOURCE_GROUP")
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, InventoryData{
+		WorkloadType: workloadTypeAzureContainerApp,
+		ResourceName: "test_app_name",
+		Region:       "eastus",
+		DeploymentID: "test_revision",
+	}, inv)
+}
+
 func TestGetContainerAppTagsBeforeInit(t *testing.T) {
 	// This test demonstrates that GetTags can be called before Init
 	// and will correctly fall back to environment variables for subscription_id and resource_group
