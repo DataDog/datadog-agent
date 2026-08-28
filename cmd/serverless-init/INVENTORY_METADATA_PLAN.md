@@ -66,7 +66,8 @@ already calls `ia.initData()` in that case, so the core fields
 `hostname_source`, `infrastructure_mode`, `install_method_*`) are populated for
 free by the existing, unmodified code path. Reusing `initData()` in place is a
 strong anti-drift guarantee: literal reuse, not a second function that can
-diverge over time.
+diverge over time. This is exactly the core-field set we emit — we do not add
+or drop fields; if the pipeline later needs more or fewer, we adjust then.
 
 The one field `initData` hardwires wrongly for serverless is **flavor**:
 `initData` sets `data["flavor"]` to `flavor.GetFlavor()` (`"agent"`).
@@ -148,7 +149,9 @@ payload `timestamp`.
 - `hostname`: empty, and this happens **for free** in serverless builds —
   `pkg/util/hostname/providers_serverless.go` (`//go:build serverless`) makes
   `Hostname.Get()` return `""` regardless of `DD_HOSTNAME=none`, so the payload
-  serializes `"hostname": ""` with no extra work.
+  serializes `"hostname": ""` with no extra work. Empty string (not null) is
+  the intended wire value, so no serverless-owned payload struct with a pointer
+  field is needed.
 - `uuid`: a per-process UUID generated at startup (`uuid.New().String()`), not
   the shared `uuid.GetUUID()` (that returns the cached host machine GUID, which
   is not per-process and is meaningless across serverless containers).
@@ -164,9 +167,12 @@ payload `timestamp`.
   a real value, so no defensive handling is needed here.
 
 **Identity / composite key:**
-- `resource_id` (REQUIRED CCRID, first key component) <- CloudService. CCRID
-  composition/format to be specified. Multiple agents may share a resource id
-  where the rest of the data is identical.
+- `resource_id` (REQUIRED CCRID, first key component) <- CloudService. The
+  decoder reads it as a flat string and keys the per-flavor table on it (no
+  CCRID parsing downstream), so composition only has to yield a stable string;
+  the exact format is left alone for now and the builder emits whatever the
+  CloudService structs derive. Multiple agents may share a resource id where
+  the rest of the data is identical.
   - **Keep the payload key named `resource_id`; do NOT rename it to
     `CanonicalCloudResourceID`.** The downstream serverless decoder (dd-go
     `createServerlessAgentResource`) reads a flat key literally named
@@ -318,6 +324,11 @@ break the split assertions in `TestServerlessConfigInit` / `TestAgentConfigInit`
 regenerating `all_settings.go` via `dda inv schema.codegen` (the generated file
 is not hand-edited).
 
+`full_configuration` (the scrubbed config dump) is out of scope for this pass:
+its gate `inventories_configuration_enabled` is `full-agent-only:true` and
+absent from the serverless schema, so shipping the dump would require declaring
+that key in serverless too. We are not adding it.
+
 Rejected alternatives: single shared `inventories_enabled` with a serverless
 default of `false` (per-flavor default divergence on a shared key — the exact
 thing the philosophy warns against); a pure serverless-only key ignoring
@@ -379,37 +390,31 @@ supported serverless-init platform, so `fetchECSFargateAgentMetadata`'s
   `flavor: serverless-init` and expected fields — across chosen platforms (at
   minimum Cloud Run; extend per `write-e2e` / `e2e-audit`).
 
-## Open items
+## Open items (reconciled as we implement)
 
-- Finalize the field list with the extractor team, reconciling the architect's
-  table against the current decoder branch (dd-go
-  `createServerlessAgentResource`). Known divergences to settle:
-  - `workload_runtime` (table) vs. `runtime` (decoder wire key).
+The field list and per-platform derivations are our own implementation work,
+settled while wiring each platform rather than blocking on external sign-off.
+
+- **Field list — best crack now, reconcile against the decoder per platform.**
+  We emit the fields in the table above and adjust against the decoder branch
+  (dd-go `createServerlessAgentResource`) as we wire each platform. Divergences
+  to settle while implementing:
+  - `workload_runtime` (table) vs. `runtime` (decoder wire key) — pick the wire
+    key the decoder actually reads.
   - `gcp_deployment_type` / `azure_deployment_type` / `azure_hosting_plan`:
-    listed in the table, but the decoder branch comment marks them "removed
-    per RFC." Confirm whether these ship.
+    listed in the table but marked "removed per RFC" in the decoder branch —
+    drop if the decoder ignores them.
   - `deployment_id` / `azure_resource_group`: accepted by the decoder, not in
-    the table — confirm whether the agent should emit them.
-  - Vocabulary is wider downstream than this plan lists:
-    `validServerlessWorkloadTypes` also allows `azure_function` and
-    `gcp_cloud_function_gen1`; `validServerlessDeploymentModels` =
-    `in-container`, `in-process`, `sidecar`, `extension`.
-- `workload_type` mapping, `resource_id` / CCRID composition, and the
-  gcp/azure deployment-type / hosting-plan / runtime derivations (CloudService
-  methods, this team). Confirmed with the decoder: `resource_id` is a flat
-  string keyed on directly (no CCRID parsing downstream), and location fields
-  are separate keys — so CCRID composition only has to yield a stable string,
-  not an extractable structure.
-- The minimal core-field set the pipeline requires (a downstream contract with
-  the pipeline owners). This is whatever `initData()` already emits; the open
-  question is only whether the pipeline needs more or fewer than that.
-- `full_configuration` include/exclude decision, i.e. whether the scrubbed
-  config dump is useful/safe in serverless. Its gate
-  `inventories_configuration_enabled` is full-agent-only and absent from the
-  serverless schema, so including the dump would require declaring that key in
-  serverless too.
-- Whether the downstream extractor prefers `hostname: null` over empty string
-  (would push toward a serverless-owned payload struct with a pointer field).
+    the table — add if useful.
+  - Wider downstream vocabulary: `validServerlessWorkloadTypes` also allows
+    `azure_function` and `gcp_cloud_function_gen1`;
+    `validServerlessDeploymentModels` = `in-container`, `in-process`,
+    `sidecar`, `extension`.
+- **`workload_type` mapping and the gcp/azure deployment-type / hosting-plan /
+  runtime derivations** (CloudService methods, this team). The source enum
+  already exists (`cloudservice/service.go`: `CloudRunType` =
+  service/function/job); the `GetInventoryData` stubs in
+  `cloudservice/inventory.go` are filled in per platform as we implement.
 
 ## Phasing
 
@@ -434,8 +439,8 @@ supported serverless-init platform, so `fetchECSFargateAgentMetadata`'s
      (`dda inv schema.codegen`), and update `TestServerlessConfigInit` /
      `TestAgentConfigInit`.
    - Real `GetInventoryData` per-platform derivations.
-2. Sign-offs in parallel: minimal core-field set with pipeline owners;
-   finalize field list with the extractor team; `full_configuration`
-   include/exclude decision.
+2. Reconcile the field list against the decoder branch as each platform is
+   wired (see "Open items"); adjust wire keys and drop/add fields to match what
+   the decoder actually reads.
 3. Tests (unit + e2e across platforms).
 4. Rollout (validate volume, then flip default to enabled).
