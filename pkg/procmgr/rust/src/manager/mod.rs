@@ -12,6 +12,7 @@ mod process_manager;
 mod runtime;
 mod spawn;
 mod startup;
+mod stop_wait;
 mod supervisor;
 mod tracked_join;
 

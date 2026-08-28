@@ -5,7 +5,7 @@
 
 use super::super::*;
 use super::{loader, sleep_def, test_runtime_context, uuid_gen, wait_until_running};
-use crate::config::ProcessConfig;
+use crate::config::{ProcessConfig, ProcessDefinition};
 use crate::state::ProcessState;
 use crate::test_helpers;
 use std::time::Duration;
@@ -403,5 +403,62 @@ async fn test_defer_spawn_join_handle_waits_for_completion() -> anyhow::Result<(
 
     release_tx.send(()).ok();
     join_task.await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_stop_completes_while_exit_channel_is_full() -> anyhow::Result<()> {
+    let _guard = super::test_manager_lock().await;
+    crate::platform::reset_shutdown_state_for_test();
+
+    let (cmd, args) = test_helpers::sleep_cmd(30);
+    let mgr = ProcessManager::new(
+        loader(vec![ProcessDefinition {
+            name: "stop-svc".to_string(),
+            config: ProcessConfig {
+                command: cmd.to_string(),
+                args,
+                stop_timeout: Some(2),
+                ..Default::default()
+            },
+        }]),
+        uuid_gen(),
+    );
+    let (ctx, mut rx) = test_runtime_context();
+
+    let pending = std::future::pending::<()>();
+    tokio::pin!(pending);
+    super::super::startup::run(&mgr, &ctx, pending.as_mut()).await;
+    wait_until_running(&mgr, "stop-svc").await;
+
+    let mgr_loop = mgr.clone();
+    let ctx_loop = ctx.clone();
+    let loop_task = tokio::spawn(async move {
+        let pending = std::future::pending::<()>();
+        tokio::pin!(pending);
+        rx.run_with(&mgr_loop, &ctx_loop, pending).await;
+    });
+
+    tokio::task::yield_now().await;
+
+    for i in 0..256 {
+        ctx.exit_tx
+            .try_send(ExitEvent {
+                name: format!("flood-{i}"),
+                pid: i as u32,
+                status: test_helpers::exit_status(0),
+            })
+            .expect("exit channel should accept prefilled events");
+    }
+
+    tokio::time::timeout(Duration::from_secs(10), mgr.handle_stop("stop-svc"))
+        .await
+        .expect("stop should complete while exit channel is full")
+        .map_err(|status| anyhow::anyhow!("stop failed: {status}"))?;
+
+    assert_eq!(mgr.processes().await[0].state(), ProcessState::Stopped);
+
+    loop_task.abort();
+    crate::platform::reset_shutdown_state_for_test();
     Ok(())
 }

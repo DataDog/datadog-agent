@@ -99,9 +99,16 @@ impl ProcessCatalog {
             crate::platform::service_stop_signal_time().unwrap_or_else(std::time::Instant::now);
         let budget = shutdown::ShutdownBudget::service_stop(signal_time);
         for &idx in &order {
-            let mut procs = self.processes.write().await;
-            procs[idx].wait_for_stop_since(budget).await;
+            super::stop_wait::wait_for_process_stop(self, idx, budget).await;
         }
+    }
+
+    pub(in crate::manager) async fn wait_for_process_stop(
+        &self,
+        idx: usize,
+        budget: shutdown::ShutdownBudget,
+    ) {
+        super::stop_wait::wait_for_process_stop(self, idx, budget).await;
     }
 
     fn append_runtime_process(

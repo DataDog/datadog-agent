@@ -140,6 +140,58 @@ enum ForceKillWaitTarget<'a> {
     Child,
 }
 
+pub(crate) enum StopWaitPlan {
+    Watcher {
+        name: String,
+        handle: JoinHandle<Option<std::process::ExitStatus>>,
+        graceful_budget: Duration,
+    },
+    Child {
+        name: String,
+        handle: ProcessHandle,
+        graceful_budget: Duration,
+    },
+}
+
+pub(crate) enum StopWaitResult {
+    Exited(Option<std::process::ExitStatus>),
+    WatcherTimedOut(JoinHandle<Option<std::process::ExitStatus>>),
+    ChildTimedOut(ProcessHandle),
+    JoinFailed,
+    NoHandles,
+}
+
+impl StopWaitPlan {
+    pub(crate) async fn execute(self) -> StopWaitResult {
+        match self {
+            Self::Watcher {
+                name,
+                mut handle,
+                graceful_budget,
+            } => match time::timeout(graceful_budget, &mut handle).await {
+                Ok(Ok(status)) => StopWaitResult::Exited(status),
+                Ok(Err(error)) => {
+                    warn!("[{name}] watcher join failed during stop: {error:#}");
+                    StopWaitResult::JoinFailed
+                }
+                Err(_) => StopWaitResult::WatcherTimedOut(handle),
+            },
+            Self::Child {
+                name,
+                mut handle,
+                graceful_budget,
+            } => match time::timeout(graceful_budget, handle.wait()).await {
+                Ok(Ok(status)) => StopWaitResult::Exited(Some(status)),
+                Ok(Err(error)) => {
+                    warn!("[{name}] wait failed during stop: {error:#}");
+                    StopWaitResult::JoinFailed
+                }
+                Err(_) => StopWaitResult::ChildTimedOut(handle),
+            },
+        }
+    }
+}
+
 #[cfg(windows)]
 const DEFERRED_SPAWN_USER: &str = "unknown";
 
@@ -665,6 +717,111 @@ impl ManagedProcess {
         self.pid = None;
     }
 
+    fn apply_stop_exit(&mut self, status: Option<std::process::ExitStatus>) {
+        if !self.state.is_alive() {
+            return;
+        }
+        if let Some(status) = status {
+            self.set_last_status(status);
+        } else {
+            self.mark_stopped();
+        }
+    }
+
+    pub(crate) fn plan_stop_wait(&mut self, budget: ShutdownBudget) -> Option<StopWaitPlan> {
+        if !matches!(self.state, ProcessState::Running | ProcessState::Stopping) {
+            return None;
+        }
+
+        let graceful_budget = budget.graceful_budget(self.stop_timeout());
+        if let Some(handle) = self.watcher_handle.take() {
+            return Some(StopWaitPlan::Watcher {
+                name: self.name.clone(),
+                handle,
+                graceful_budget,
+            });
+        }
+
+        if let Some(handle) = self.take_handle() {
+            return Some(StopWaitPlan::Child {
+                name: self.name.clone(),
+                handle,
+                graceful_budget,
+            });
+        }
+
+        None
+    }
+
+    pub(crate) async fn finalize_stop_wait(
+        &mut self,
+        result: StopWaitResult,
+        budget: ShutdownBudget,
+    ) -> bool {
+        let graceful_budget = budget.graceful_budget(self.stop_timeout());
+        match result {
+            StopWaitResult::Exited(status) => self.apply_stop_exit(status),
+            StopWaitResult::JoinFailed => {
+                if self.state.is_alive() {
+                    self.mark_stopped();
+                }
+            }
+            StopWaitResult::NoHandles => {
+                if self.state.is_alive() {
+                    self.mark_stopped();
+                }
+            }
+            StopWaitResult::WatcherTimedOut(handle) => {
+                if self.state.is_alive() {
+                    tokio::pin!(handle);
+                    if self
+                        .force_kill_and_wait(
+                            graceful_budget,
+                            budget,
+                            ForceKillWaitTarget::Watcher(&mut handle),
+                        )
+                        .await
+                        .is_none()
+                        && self.state.is_alive()
+                    {
+                        self.mark_stopped();
+                    }
+                }
+            }
+            StopWaitResult::ChildTimedOut(handle) => {
+                self.handle = Some(handle);
+                if self.state.is_alive()
+                    && self
+                        .force_kill_and_wait(graceful_budget, budget, ForceKillWaitTarget::Child)
+                        .await
+                        .is_none()
+                    && self.state.is_alive()
+                {
+                    self.mark_stopped();
+                }
+            }
+        }
+        matches!(self.state, ProcessState::Running | ProcessState::Stopping)
+    }
+
+    pub(crate) async fn complete_stop_wait(&mut self, budget: ShutdownBudget) {
+        self.finalize_stop_wait(StopWaitResult::NoHandles, budget)
+            .await;
+        self.release_stop_wait_resources(budget).await;
+    }
+
+    async fn release_stop_wait_resources(&mut self, _budget: ShutdownBudget) {
+        #[cfg(windows)]
+        self.ensure_windows_spawn_resources_released(_budget).await;
+    }
+
+    pub(crate) async fn wait_for_stop_since(&mut self, budget: ShutdownBudget) {
+        if matches!(self.state, ProcessState::Running | ProcessState::Stopping) {
+            run_stop_wait(self, budget).await;
+        }
+        self.complete_stop_wait(budget).await;
+    }
+
     pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
         self.last_exit_status = Some(status);
         self.pid = None;
@@ -732,52 +889,6 @@ impl ManagedProcess {
         }
     }
 
-    async fn wait_for_stop_exit(&mut self, budget: ShutdownBudget) -> bool {
-        let graceful_budget = budget.graceful_budget(self.stop_timeout());
-        if let Some(handle) = self.watcher_handle.take() {
-            tokio::pin!(handle);
-            let status = match time::timeout(graceful_budget, &mut handle).await {
-                Ok(Ok(status)) => status,
-                Ok(Err(e)) => {
-                    warn!("[{}] watcher join failed: {e:#}", self.name);
-                    None
-                }
-                Err(_) => {
-                    self.force_kill_and_wait(
-                        graceful_budget,
-                        budget,
-                        ForceKillWaitTarget::Watcher(&mut handle),
-                    )
-                    .await
-                }
-            };
-            return status.is_some_and(|status| {
-                self.set_last_status(status);
-                true
-            });
-        }
-
-        if self.has_child_handle() {
-            let status = match time::timeout(graceful_budget, self.wait()).await {
-                Ok(Ok(status)) => Some(status),
-                Ok(Err(e)) => {
-                    warn!("[{}] wait failed during stop: {e:#}", self.name);
-                    None
-                }
-                Err(_) => {
-                    self.force_kill_and_wait(graceful_budget, budget, ForceKillWaitTarget::Child)
-                        .await
-                }
-            };
-            return status.is_some_and(|status| {
-                self.set_last_status(status);
-                true
-            });
-        }
-
-        false
-    }
-
     pub fn request_stop(&mut self) {
         match self.state {
             ProcessState::Running => {
@@ -800,18 +911,6 @@ impl ManagedProcess {
     pub async fn wait_for_stop(&mut self) {
         self.wait_for_stop_since(ShutdownBudget::unlimited(Instant::now().into()))
             .await;
-    }
-
-    pub(crate) async fn wait_for_stop_since(&mut self, budget: ShutdownBudget) {
-        let _ = budget;
-        match self.state {
-            ProcessState::Running | ProcessState::Stopping => {
-                if !self.wait_for_stop_exit(budget).await {
-                    self.mark_stopped();
-                }
-            }
-            _ => {}
-        }
     }
 
     pub async fn stop(&mut self) {
@@ -924,6 +1023,31 @@ impl ManagedProcess {
         self.restarts
             .next_restart_delay(&self.config, &self.name)
             .map(|(delay, _)| delay)
+    }
+}
+
+pub(crate) trait StopWaitContext {
+    async fn plan_stop(&mut self, budget: ShutdownBudget) -> Option<StopWaitPlan>;
+
+    async fn finalize_stop(&mut self, result: StopWaitResult, budget: ShutdownBudget) -> bool;
+}
+
+pub(crate) async fn run_stop_wait<C: StopWaitContext>(ctx: &mut C, budget: ShutdownBudget) {
+    while let Some(plan) = ctx.plan_stop(budget).await {
+        let result = plan.execute().await;
+        if !ctx.finalize_stop(result, budget).await {
+            break;
+        }
+    }
+}
+
+impl StopWaitContext for ManagedProcess {
+    async fn plan_stop(&mut self, budget: ShutdownBudget) -> Option<StopWaitPlan> {
+        self.plan_stop_wait(budget)
+    }
+
+    async fn finalize_stop(&mut self, result: StopWaitResult, budget: ShutdownBudget) -> bool {
+        self.finalize_stop_wait(result, budget).await
     }
 }
 

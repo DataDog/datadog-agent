@@ -80,6 +80,15 @@ impl ProcessManager {
             return;
         };
 
+        if proc.pid() == Some(event.pid) && proc.state() == crate::state::ProcessState::Stopping {
+            debug!(
+                "[{}] ignoring exit event during stop wait (pid={})",
+                proc.name(),
+                event.pid
+            );
+            return;
+        }
+
         if proc.pid() == Some(event.pid) && proc.state().is_alive() {
             info!("[{}] exited with {}", proc.name(), event.status);
             proc.set_last_status(event.status);
@@ -219,19 +228,30 @@ impl ProcessManager {
         &self,
         name_or_uuid: &str,
     ) -> Result<StopResult, Status> {
-        let mut procs = self.catalog.write_processes().await;
-        let idx = resolve_index(&procs, name_or_uuid)?;
-        let proc = &mut procs[idx];
+        let (idx, uuid) = {
+            let mut procs = self.catalog.write_processes().await;
+            let idx = resolve_index(&procs, name_or_uuid)?;
+            let proc = &mut procs[idx];
 
-        if !proc.is_running() {
-            return Err(Status::failed_precondition(format!(
-                "process '{}' is not running",
-                proc.name()
-            )));
-        }
-        let uuid = proc.uuid().to_owned();
-        proc.stop().await;
-        let state = proc.state();
+            if !proc.is_running() {
+                return Err(Status::failed_precondition(format!(
+                    "process '{}' is not running",
+                    proc.name()
+                )));
+            }
+            let uuid = proc.uuid().to_owned();
+            proc.request_stop();
+            (idx, uuid)
+        };
+
+        self.catalog
+            .wait_for_process_stop(
+                idx,
+                crate::shutdown::ShutdownBudget::unlimited(std::time::Instant::now()),
+            )
+            .await;
+
+        let state = self.catalog.read_processes().await[idx].state();
         Ok(StopResult { uuid, state })
     }
 
