@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"strconv"
 	"sync"
@@ -549,9 +548,9 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	// The first snapshot seeds a config nothing has read yet; a later one replaces a config the
 	// process is already running on, so its changes have to be broadcast.
 	if c.ready.Load() {
-		configstreambootstrap.ApplyStreamedSettingsAndNotify(settings)
+		configstreambootstrap.Config().DirectBulkSetAndNotify(settings)
 	} else {
-		configstreambootstrap.ApplyStreamedSettings(settings)
+		configstreambootstrap.Config().DirectBulkSet(settings)
 	}
 	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
@@ -576,20 +575,13 @@ func toDirectSetting(setting *pb.ConfigSetting) pkgconfigmodel.DirectSetting {
 	}
 }
 
-// pbValueToGo converts a protobuf Value to a Go value. It preserves integer types that structpb widens to float64.
-// Bounded to |x| <= 2^53 — beyond that float64 loses integer precision.
+// pbValueToGo converts a protobuf Value to a Go value. structpb has no integer type, so numbers
+// arrive as float64; narrowing is left to the declared default type.
 func pbValueToGo(v *structpb.Value) any {
 	if v == nil {
 		return nil
 	}
-	result := v.AsInterface()
-	if f, ok := result.(float64); ok {
-		const maxExactInt = 1 << 53
-		if !math.IsNaN(f) && !math.IsInf(f, 0) && f >= -maxExactInt && f <= maxExactInt && f == math.Trunc(f) {
-			return int64(f)
-		}
-	}
-	return result
+	return v.AsInterface()
 }
 
 func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {

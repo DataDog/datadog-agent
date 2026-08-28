@@ -2068,6 +2068,7 @@ func TestDirectBulkSet(t *testing.T) {
 	cfg.SetDefault("from_file", 0)
 	cfg.SetDefault("coerced", "")
 	cfg.SetDefault("outranked", 0)
+	cfg.SetDefault("a_float", 0.0)
 	cfg.BuildSchema()
 
 	cfg.Set("outranked", 9, model.SourceAgentRuntime)
@@ -2075,17 +2076,14 @@ func TestDirectBulkSet(t *testing.T) {
 	var notified int
 	cfg.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { notified++ })
 
-	setter, ok := cfg.(interface {
-		DirectBulkSet(settings []model.DirectSetting)
-	})
-	require.True(t, ok)
-
 	// Set would reject the env var layer outright.
-	setter.DirectBulkSet([]model.DirectSetting{
+	cfg.DirectBulkSet([]model.DirectSetting{
 		{Key: "from_env", Value: 1, Source: model.SourceEnvVar},
 		{Key: "from_file", Value: 2, Source: model.SourceFile},
 		{Key: "coerced", Value: 3, Source: model.SourceEnvVar},
 		{Key: "outranked", Value: 4, Source: model.SourceFile},
+		{Key: "undeclared", Value: 5, Source: model.SourceEnvVar},
+		{Key: "a_float", Value: float64(5), Source: model.SourceEnvVar},
 	})
 
 	assert.Equal(t, 1, cfg.Get("from_env"))
@@ -2098,6 +2096,12 @@ func TestDirectBulkSet(t *testing.T) {
 	// A lower-priority layer written in bulk must not overtake a higher-priority one.
 	assert.Equal(t, 9, cfg.Get("outranked"))
 	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("outranked"))
+
+	// A key absent from this process's schema is still stored, so the config mirrors the sender.
+	assert.Equal(t, 5, cfg.Get("undeclared"))
+
+	// An integral float64 must not collapse to int.
+	assert.Equal(t, float64(5), cfg.Get("a_float"))
 
 	assert.Zero(t, notified, "notifications should not fire")
 }

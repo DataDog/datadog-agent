@@ -225,6 +225,13 @@ type Writer interface {
 	Set(key string, value interface{}, source Source)
 	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
+	// DirectBulkSet writes settings already resolved by another config, keeping each one in the
+	// source layer it came from so the result mirrors the sender. It exists for config streaming
+	// and nothing else should call it: unlike Set it accepts SourceEnvVar and skips notifications,
+	// which makes it unfit for applying a live change.
+	DirectBulkSet(settings []DirectSetting)
+	// DirectBulkSetAndNotify is DirectBulkSet plus notifications, for a snapshot replacing a config the process already runs on.
+	DirectBulkSetAndNotify(settings []DirectSetting)
 }
 
 // ReaderWriter is a subset of Config that allows reading and writing the configuration

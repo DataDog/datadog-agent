@@ -315,8 +315,8 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	return tree, err
 }
 
-// DirectBulkSet seeds a config wholesale from an already-resolved one. Unlike Set it accepts
-// SourceEnvVar and skips notifications, so it is unfit for applying a live change.
+// DirectBulkSet implements model.Writer. Keys are assumed already lowercased, which holds for
+// anything enumerated from another config.
 func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
 	c.directBulkSet(settings, false)
 }
@@ -340,10 +340,13 @@ func (c *ntmConfig) directBulkSet(settings []model.DirectSetting, notify bool) {
 	var changes []change
 
 	for _, setting := range settings {
-		key := strings.ToLower(setting.Key)
-		if !c.isKnownKey(key) && !c.allowDynamicSchema.Load() {
-			log.Errorf("could not set '%s' unknown key", key)
-			continue
+		key := setting.Key
+		// Stored anyway, as the YAML loader does, so the client mirrors the sender. Reconnects
+		// resend the whole snapshot, hence warn once.
+		if !c.isKnownKey(key) {
+			if _, alreadySeen := c.unknownKeys.LoadOrStore(key, struct{}{}); !alreadySeen {
+				log.Warnf("unknown key from config stream: %s", key)
+			}
 		}
 
 		declaredNode := c.nodeAtPathFromNode(key, c.defaults)
@@ -352,11 +355,11 @@ func (c *ntmConfig) directBulkSet(settings []model.DirectSetting, notify bool) {
 			continue
 		}
 
+		// structpb collapses every number to float64, so a value still needs coercing back to the
+		// declared type. Unknown keys have no default, for which this is a no-op.
 		value := setting.Value
-		if declaredNode.IsLeafNode() {
-			if converted, err := basic.ConvertToDefaultType(value, declaredNode.Get(), false); err == nil {
-				value = converted
-			}
+		if converted, err := basic.ConvertToDefaultType(value, declaredNode.Get(), false); err == nil {
+			value = converted
 		}
 
 		if notify {
