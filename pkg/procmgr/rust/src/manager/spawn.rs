@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::catalog::ProcessCatalog;
+use super::runtime::BackgroundSpawns;
 use super::{PendingRestart, RuntimeContext, enqueue_pending_restart};
 use crate::config::ProcessConfig;
 use crate::platform;
@@ -216,6 +217,20 @@ pub(in crate::manager) fn spawn_process_background(
         let _ = spawn_process(catalog, idx, &ctx, kind, pre_reserved).await;
     });
     background_spawns.track(handle);
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(in crate::manager) fn defer_spawn_join_handle(
+    background_spawns: &BackgroundSpawns,
+    handle: tokio::task::JoinHandle<Result<SpawnProcessOutcome>>,
+) {
+    background_spawns.track(tokio::spawn(async move {
+        match handle.await {
+            Ok(Ok(_)) => {}
+            Ok(Err(e)) => warn!("deferred spawn failed: {e:#}"),
+            Err(e) => warn!("deferred spawn task failed: {e}"),
+        }
+    }));
 }
 
 fn spawn_managed_child_sync(name: &str, config: &ProcessConfig) -> Result<ManagedChildSpawn> {

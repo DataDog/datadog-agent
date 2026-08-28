@@ -46,20 +46,25 @@ pub(in crate::manager) async fn run(
         );
 
         let catalog = manager.catalog.clone();
-        let ctx = ctx.clone();
-        let spawn_fut = spawn_process(catalog, idx, &ctx, SpawnKind::BootAutoStart, None);
-        tokio::pin!(spawn_fut);
+        let ctx_spawn = ctx.clone();
+        let (spawn_done_tx, spawn_done_rx) = tokio::sync::oneshot::channel();
+        let spawn_handle = tokio::spawn(async move {
+            let result =
+                spawn_process(catalog, idx, &ctx_spawn, SpawnKind::BootAutoStart, None).await;
+            let _ = spawn_done_tx.send(());
+            result
+        });
 
         tokio::select! {
             biased;
             _ = shutdown.as_mut() => {
                 ctx.lifecycle.begin_stopping();
                 info!("startup: shutdown signaled, skipping remaining auto-starts");
-                join_in_flight_spawn(spawn_fut.as_mut()).await;
+                join_in_flight_spawn(ctx, spawn_handle).await;
                 return;
             }
-            result = spawn_fut.as_mut() => {
-                log_spawn_result(result, &name);
+            _ = spawn_done_rx => {
+                log_spawn_task_result(spawn_handle.await, &name);
             }
         }
     }
@@ -84,29 +89,68 @@ fn log_spawn_result(result: Result<super::spawn::SpawnProcessOutcome, anyhow::Er
     }
 }
 
-async fn join_in_flight_spawn<F>(mut spawn_fut: Pin<&mut F>)
-where
-    F: Future<Output = anyhow::Result<super::spawn::SpawnProcessOutcome>>,
-{
+fn log_spawn_task_result(
+    result: Result<anyhow::Result<super::spawn::SpawnProcessOutcome>, tokio::task::JoinError>,
+    name: &str,
+) {
+    match result {
+        Ok(spawn_result) => log_spawn_result(spawn_result, name),
+        Err(e) => warn!("[{name}] auto-start task failed: {e}"),
+    }
+}
+
+#[cfg(windows)]
+fn log_spawn_monitor_result(
+    result: Result<anyhow::Result<super::spawn::SpawnProcessOutcome>, tokio::task::JoinError>,
+) {
+    match result {
+        Ok(spawn_result) => {
+            if let Err(e) = spawn_result {
+                warn!("startup: in-flight auto-start failed: {e:#}");
+            }
+        }
+        Err(e) => warn!("startup: in-flight auto-start task failed: {e}"),
+    }
+}
+
+async fn join_in_flight_spawn(
+    ctx: &RuntimeContext,
+    handle: tokio::task::JoinHandle<anyhow::Result<super::spawn::SpawnProcessOutcome>>,
+) {
     #[cfg(windows)]
     if let Some(signal_time) = platform::service_stop_signal_time() {
         let budget = shutdown::ShutdownBudget::service_stop(signal_time);
         let cap = budget.remaining_cap(Duration::from_secs(180));
         if cap.is_zero() {
-            warn!("startup: SCM shutdown budget exhausted; not waiting for in-flight auto-start");
+            warn!(
+                "startup: SCM shutdown budget exhausted; deferring in-flight auto-start to supervisor teardown"
+            );
+            super::spawn::defer_spawn_join_handle(&ctx.background_spawns, handle);
             return;
         }
-        match tokio::time::timeout(cap, spawn_fut.as_mut()).await {
-            Ok(Ok(_)) => {}
-            Ok(Err(e)) => warn!("startup: in-flight auto-start failed: {e:#}"),
-            Err(_) => warn!(
-                "startup: timed out waiting for in-flight auto-start ({cap:?} left in SCM budget)"
-            ),
+
+        let monitor = tokio::spawn(async move { handle.await });
+        tokio::select! {
+            result = monitor => log_spawn_monitor_result(result),
+            _ = tokio::time::sleep(cap) => {
+                warn!(
+                    "startup: timed out waiting for in-flight auto-start ({cap:?} left in SCM budget); deferring to supervisor teardown"
+                );
+                ctx.background_spawns.track(tokio::spawn(async move {
+                    log_spawn_monitor_result(monitor.await);
+                }));
+            }
         }
         return;
     }
 
-    if let Err(e) = spawn_fut.as_mut().await {
-        warn!("startup: in-flight auto-start failed: {e:#}");
+    let _ = ctx;
+    match handle.await {
+        Ok(spawn_result) => {
+            if let Err(e) = spawn_result {
+                warn!("startup: in-flight auto-start failed: {e:#}");
+            }
+        }
+        Err(e) => warn!("startup: in-flight auto-start task failed: {e}"),
     }
 }

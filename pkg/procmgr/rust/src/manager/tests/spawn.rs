@@ -378,3 +378,30 @@ async fn test_background_spawn_joined_before_teardown() -> anyhow::Result<()> {
     crate::platform::reset_shutdown_state_for_test();
     Ok(())
 }
+
+#[tokio::test]
+async fn test_defer_spawn_join_handle_waits_for_completion() -> anyhow::Result<()> {
+    let (handles, _rx) = test_runtime_context();
+    let (release_tx, release_rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        release_rx.await.ok();
+        Ok(super::super::spawn::SpawnProcessOutcome::NotStarted)
+    });
+
+    super::super::spawn::defer_spawn_join_handle(&handles.background_spawns, handle);
+
+    let mut join_task = tokio::spawn(async move {
+        handles.background_spawns.join_all().await;
+    });
+    let timed_out = tokio::time::timeout(Duration::from_millis(50), &mut join_task)
+        .await
+        .is_err();
+    assert!(
+        timed_out,
+        "join_all should block until deferred spawn completes"
+    );
+
+    release_tx.send(()).ok();
+    join_task.await?;
+    Ok(())
+}
