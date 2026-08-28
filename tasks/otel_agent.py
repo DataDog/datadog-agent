@@ -41,12 +41,6 @@ def byoc_release(ctx, version: str):
 def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
     """
     Build the otel agent
-
-    enable_bazel: build via `bazel build //cmd/otel-agent:otel-agent` instead of `go build`,
-    then copy the result to the same place. The Bazel target does not currently thread through
-    the version/BYOC ldflags or generate Windows resources that the legacy `go_build()` path
-    does, so this is only intended for local non-Windows, non-byoc builds. Developer opt-in
-    only; defaults to off.
     """
 
     # When cross-compiling for Windows on Linux, bin_name() returns "otel-agent"
