@@ -22,6 +22,15 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// endpointKeys extracts the API keys from a slice of config.Endpoint for test assertions.
+func endpointKeys(eps []config.Endpoint) []string {
+	keys := make([]string, len(eps))
+	for i, ep := range eps {
+		keys[i] = ep.APIKey
+	}
+	return keys
+}
+
 func makeURLs(t *testing.T, ss ...string) []*url.URL {
 	var urls []*url.URL
 	for _, s := range ss {
@@ -65,7 +74,7 @@ func TestProfileProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc}
-	newProfileProxy(c, []*url.URL{u}, []string{"123"}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
+	newProfileProxy(c, []*url.URL{u}, []config.Endpoint{{APIKey: "123"}}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
@@ -84,29 +93,29 @@ func TestProfilingEndpoints(t *testing.T) {
 		cfg.ProfilingProxy = config.ProfilingProxyConfig{
 			DDURL: "https://intake.profile.datadoghq.fr/api/v2/profile",
 		}
-		urls, keys, err := profilingEndpoints(cfg)
+		urls, endpoints, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.fr/api/v2/profile"))
-		assert.Equal(t, keys, []string{"test_api_key"})
+		assert.Equal(t, endpointKeys(endpoints), []string{"test_api_key"})
 	})
 
 	t.Run("site", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test_api_key"
 		cfg.Site = "datadoghq.eu"
-		urls, keys, err := profilingEndpoints(cfg)
+		urls, endpoints, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.eu/api/v2/profile"))
-		assert.Equal(t, keys, []string{"test_api_key"})
+		assert.Equal(t, endpointKeys(endpoints), []string{"test_api_key"})
 	})
 
 	t.Run("default", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test_api_key"
-		urls, keys, err := profilingEndpoints(cfg)
+		urls, endpoints, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.com/api/v2/profile"))
-		assert.Equal(t, keys, []string{"test_api_key"})
+		assert.Equal(t, endpointKeys(endpoints), []string{"test_api_key"})
 	})
 
 	t.Run("multiple", func(t *testing.T) {
@@ -119,7 +128,7 @@ func TestProfilingEndpoints(t *testing.T) {
 				"https://dd.datad0g.com":          {"api_key_3"},
 			},
 		}
-		urls, keys, err := profilingEndpoints(cfg)
+		urls, endpoints, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		expectedURLs := makeURLs(t,
 			"https://intake.profile.datadoghq.jp/api/v2/profile",
@@ -128,19 +137,20 @@ func TestProfilingEndpoints(t *testing.T) {
 			"https://dd.datad0g.com",
 		)
 		expectedKeys := []string{"api_key_0", "api_key_1", "api_key_2", "api_key_3"}
+		endpointKeySlice := endpointKeys(endpoints)
 
 		// Because we're using a map to mock the config we can't assert on the
 		// order of the endpoints. We check the main endpoints separately.
 		assert.Equal(t, urls[0], expectedURLs[0], "The main endpoint should be the first in the slice")
-		assert.Equal(t, keys[0], expectedKeys[0], "The main api key should be the first in the slice")
+		assert.Equal(t, endpointKeySlice[0], expectedKeys[0], "The main api key should be the first in the slice")
 
 		assert.ElementsMatch(t, urls, expectedURLs, "All urls from the config should be returned")
-		assert.ElementsMatch(t, keys, keys, "All keys from the config should be returned")
+		assert.ElementsMatch(t, endpointKeySlice, expectedKeys, "All keys from the config should be returned")
 
 		// check that we have the correct pairing between urls and api keys
-		for i := range keys {
+		for i := range endpointKeySlice {
 			for j := range expectedKeys {
-				if keys[i] == expectedKeys[j] {
+				if endpointKeySlice[i] == expectedKeys[j] {
 					assert.Equal(t, urls[i], expectedURLs[j])
 				}
 			}
@@ -157,19 +167,19 @@ func TestProfilingEndpoints(t *testing.T) {
 				"https://ddstaging.datadoghq.com": {"api_key_1", "api_key_2"},
 			},
 		}
-		urls, keys, err := profilingEndpoints(cfg)
+		urls, endpoints, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, makeURLs(t, "https://ddstaging.datadoghq.com", "https://ddstaging.datadoghq.com"), urls)
-		assert.Equal(t, []string{"api_key_1", "api_key_2"}, keys)
+		assert.Equal(t, []string{"api_key_1", "api_key_2"}, endpointKeys(endpoints))
 	})
 
 	t.Run("skip_main_endpoint_without_additional_endpoints", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "main_api_key"
 		cfg.ProfilingProxy = config.ProfilingProxyConfig{MainEndpointMode: config.ProfilingMainEndpointSkip}
-		urls, keys, err := profilingEndpoints(cfg)
+		urls, endpoints, err := profilingEndpoints(cfg)
 		assert.Nil(t, urls)
-		assert.Nil(t, keys)
+		assert.Nil(t, endpoints)
 		assert.EqualError(t, err, "profiling proxy has no valid endpoints configured")
 	})
 
@@ -190,7 +200,7 @@ func TestProfilingEndpoints(t *testing.T) {
 					"https://intake.mmm.example.com": {"key_m1", "key_m2"},
 				},
 			}
-			urls, keys, err := profilingEndpoints(cfg)
+			urls, endpoints, err := profilingEndpoints(cfg)
 			assert.NoError(t, err)
 			assert.Equal(t, makeURLs(t,
 				"https://intake.aaa.example.com",
@@ -198,7 +208,7 @@ func TestProfilingEndpoints(t *testing.T) {
 				"https://intake.mmm.example.com",
 				"https://intake.zzz.example.com",
 			), urls)
-			assert.Equal(t, []string{"key_a", "key_m1", "key_m2", "key_z"}, keys)
+			assert.Equal(t, []string{"key_a", "key_m1", "key_m2", "key_z"}, endpointKeys(endpoints))
 		}
 	})
 }

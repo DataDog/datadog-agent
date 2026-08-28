@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 // trackingBody is an io.ReadCloser that tracks whether Close was called.
@@ -43,7 +45,7 @@ func TestSingleTargetClosesBodyOnError(t *testing.T) {
 	mt := &multiTransport{
 		rt:      errorRoundTripper{},
 		targets: []*url.URL{u},
-		keys:    []string{"dummy"},
+		endpoints: []config.Endpoint{{APIKey: "dummy"}},
 	}
 
 	// Request with a tracking body.
