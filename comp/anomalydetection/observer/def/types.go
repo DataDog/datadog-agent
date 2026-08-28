@@ -79,8 +79,8 @@ type LogObserver interface {
 }
 
 // MetricOutput is a timeseries value derived from log analysis.
-// The storage keeps full summaries (min/max/sum/count) so aggregation
-// is specified at read time, not write time.
+// The storage keeps sum/count summaries so aggregation is specified at read
+// time, not write time.
 type MetricOutput struct {
 	Name    string
 	Value   float64
@@ -482,8 +482,6 @@ const (
 	AggregateAverage
 	AggregateSum
 	AggregateCount
-	AggregateMin
-	AggregateMax
 )
 
 // AggregateString returns a short string label for the aggregation type.
@@ -497,10 +495,6 @@ func AggregateString(agg Aggregate) string {
 		return "sum"
 	case AggregateCount:
 		return "count"
-	case AggregateMin:
-		return "min"
-	case AggregateMax:
-		return "max"
 	default:
 		return "unknown"
 	}

@@ -12,6 +12,8 @@ go_library(
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/config/env",
+        "//pkg/config/helper",
+        "//pkg/config/setup",
         "//pkg/errors",
         "//pkg/util/containers/metrics/provider",
         "//pkg/util/kubernetes/kubelet",

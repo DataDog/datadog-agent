@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -86,6 +87,7 @@ type Controller struct {
 	localSender sender.Sender
 
 	isFallbackEnabled bool
+	fallbackMu        sync.Mutex // guards isFallbackEnabled
 
 	metricsStore *metricsstore.MetricsStore[*model.PodAutoscalerInternal]
 }
@@ -657,7 +659,11 @@ func (c *Controller) updateLocalFallbackEnabled(_ *model.PodAutoscalerInternal, 
 		return
 	}
 
-	// Logic when local fallback is activated/deactivated for horizontal scaling
+	// Logic when local fallback is activated/deactivated for horizontal scaling.
+	// Multiple worker goroutines call Process() concurrently, so guard the
+	// read-modify-write of isFallbackEnabled.
+	c.fallbackMu.Lock()
+	defer c.fallbackMu.Unlock()
 	if c.isFallbackEnabled && *activeHorizontalSource == datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource {
 		log.Debugf("Product horizontal scaling values are no longer stale, deactivating local fallback")
 		c.isFallbackEnabled = false
