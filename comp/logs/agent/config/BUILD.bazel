@@ -47,6 +47,7 @@ dd_agent_go_test(
     embed = [":config"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/mock",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/setup/constants",
