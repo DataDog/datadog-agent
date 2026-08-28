@@ -162,19 +162,13 @@ impl ProcessManager {
         if config.command.is_empty() {
             return Err(Status::invalid_argument("command must not be empty"));
         }
-        let (uuid, auto_start_idx, auto_start) = {
+        let (uuid, auto_start_idx, auto_start, warnings) = {
             let mut procs = self.processes.write().await;
-            if find_index_by_name(&procs, &name).is_some() {
-                return Err(Status::already_exists(format!(
-                    "process '{name}' already exists"
-                )));
-            }
-            let proc = ManagedProcess::new_runtime(name.clone(), self.uuid_gen.generate(), config);
-            let uuid = proc.uuid().to_owned();
-            let auto_start = proc.may_auto_start();
-            info!("[{name}] created via RPC (uuid={uuid})");
-            procs.push(proc);
-            (uuid, procs.len() - 1, auto_start)
+            let mut startup_order = self.startup_order.write().await;
+            let (uuid, auto_start_idx, auto_start) =
+                self.append_runtime_process(&mut procs, &name, config)?;
+            let warnings = self.sync_startup_order(&procs, &mut startup_order);
+            (uuid, auto_start_idx, auto_start, warnings)
         };
         if auto_start {
             spawn_process_background(
@@ -184,7 +178,6 @@ impl ProcessManager {
                 SpawnKind::CreateAutoStart,
             );
         }
-        let warnings = self.update_startup_order().await;
         Ok(CreateResult { uuid, warnings })
     }
 
@@ -245,12 +238,6 @@ impl ProcessManager {
         Ok(StopResult { uuid, state })
     }
 
-    pub(in crate::manager) async fn update_startup_order(&self) -> Vec<String> {
-        let result = recompute_startup_order(&self.processes.read().await);
-        *self.startup_order.write().await = result.order;
-        result.warnings
-    }
-
     pub(in crate::manager) async fn shutdown(&self) {
         let order: Vec<usize> = self
             .startup_order
@@ -262,6 +249,35 @@ impl ProcessManager {
             .collect();
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
+    }
+
+    fn append_runtime_process(
+        &self,
+        procs: &mut Vec<ManagedProcess>,
+        name: &str,
+        config: config::ProcessConfig,
+    ) -> Result<(String, usize, bool), Status> {
+        if find_index_by_name(procs, name).is_some() {
+            return Err(Status::already_exists(format!(
+                "process '{name}' already exists"
+            )));
+        }
+        let proc = ManagedProcess::new_runtime(name.to_string(), self.uuid_gen.generate(), config);
+        let uuid = proc.uuid().to_owned();
+        let auto_start = proc.may_auto_start();
+        info!("[{name}] created via RPC (uuid={uuid})");
+        procs.push(proc);
+        Ok((uuid, procs.len() - 1, auto_start))
+    }
+
+    fn sync_startup_order(
+        &self,
+        procs: &[ManagedProcess],
+        startup_order: &mut Vec<usize>,
+    ) -> Vec<String> {
+        let result = recompute_startup_order(procs);
+        *startup_order = result.order;
+        result.warnings
     }
 }
 
@@ -303,5 +319,56 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
     StartupOrderResult {
         order: result.order,
         warnings: result.warnings,
+    }
+}
+
+#[cfg(test)]
+mod startup_order_tests {
+    use super::*;
+    use crate::config::{ProcessConfig, StaticConfigLoader};
+    use crate::test_helpers;
+    use crate::uuid_gen::V4UuidGenerator;
+    use std::sync::Arc;
+
+    fn named_config(name: &str) -> ManagedProcess {
+        let (cmd, args) = test_helpers::true_cmd();
+        ManagedProcess::new_config(
+            name.to_string(),
+            format!("uuid-{name}"),
+            ProcessConfig {
+                command: cmd.to_string(),
+                args,
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn sync_startup_order_matches_process_count() {
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::new(vec![])),
+            Arc::new(V4UuidGenerator),
+        );
+        let procs = vec![named_config("alpha"), named_config("bravo")];
+        let mut order = vec![0];
+
+        let _warnings = mgr.sync_startup_order(&procs, &mut order);
+
+        assert_eq!(order.len(), procs.len());
+        assert_eq!(order.iter().copied().collect::<std::collections::HashSet<_>>().len(), procs.len());
+    }
+
+    #[test]
+    fn stale_order_write_drops_process_from_shutdown_plan() {
+        let procs = vec![named_config("alpha"), named_config("bravo")];
+        let fresh = recompute_startup_order(&procs).order;
+        let stale = vec![0];
+
+        assert_eq!(fresh.len(), 2);
+        assert_eq!(stale.len(), 1);
+        assert!(
+            !stale.contains(&1),
+            "stale order omits bravo and would skip it during shutdown"
+        );
     }
 }

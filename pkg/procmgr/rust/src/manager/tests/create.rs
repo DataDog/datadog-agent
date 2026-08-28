@@ -219,3 +219,46 @@ async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn test_concurrent_create_preserves_startup_order() -> anyhow::Result<()> {
+    let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+    let (handles, _rx) = test_runtime_context();
+    const CREATE_COUNT: usize = 16;
+    let mut tasks = Vec::with_capacity(CREATE_COUNT);
+
+    for i in 0..CREATE_COUNT {
+        let mgr = mgr.clone();
+        let handles = handles.clone();
+        let (cmd, args) = test_helpers::true_cmd();
+        tasks.push(tokio::spawn(async move {
+            mgr.handle_create(
+                format!("svc-{i}"),
+                ProcessConfig {
+                    command: cmd.to_string(),
+                    args,
+                    auto_start: false,
+                    ..Default::default()
+                },
+                &handles,
+            )
+            .await
+        }));
+    }
+
+    for task in tasks {
+        task.await??;
+    }
+
+    let order = mgr.startup_order.read().await;
+    let procs = mgr.processes().await;
+    assert_eq!(procs.len(), CREATE_COUNT);
+    assert_eq!(order.len(), CREATE_COUNT);
+
+    let mut seen = std::collections::HashSet::new();
+    for &idx in order.iter() {
+        assert!(idx < procs.len());
+        assert!(seen.insert(idx), "duplicate startup index {idx}");
+    }
+    Ok(())
+}
