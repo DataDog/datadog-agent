@@ -44,19 +44,19 @@
     # scratch each run. The clone includes packaging/aix/ci/*.sh, so the host
     # has the scripts the job later runs.
     - |
-      ssh -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST bash -s <<EOF
-      set -eu
+      ssh -tt -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST bash -s <<EOF
+      set -eux
       export PATH=/opt/freeware/bin:/usr/bin:\$PATH
       if [ ! -d "$AIX_AGENT_SRC/.git" ]; then
-        git clone "$AIX_GIT_REMOTE" "$AIX_AGENT_SRC"
+        git clone --progress "$AIX_GIT_REMOTE" "$AIX_AGENT_SRC"
       fi
       cd "$AIX_AGENT_SRC"
       git clean -df
       git reset --hard
-      git fetch origin
+      git fetch --progress origin
       # The commit under test may not be reachable from origin yet (e.g. a
       # brand-new branch push); fetch the branch ref as a fallback.
-      git fetch origin "$CI_COMMIT_REF_NAME" 2>/dev/null || true
+      git fetch --progress origin "$CI_COMMIT_REF_NAME" 2>/dev/null || true
       git checkout "$CI_COMMIT_SHA"
       EOF
   script:
