@@ -255,15 +255,26 @@ func (s *sweeper) reportRun(r sweepRequest, run metadata.AutodiscoveryRunMetadat
 }
 
 // toDiscoveredDevices converts one chunk's probe results into report
-// documents. Every probed address is reported, answering or not, so the
-// backend can show the whole range. A check that did not run leaves its status
-// empty rather than claiming the address is unreachable.
+// documents. Only addresses that answered a check are reported: a silent
+// address is absent from the run rather than reported as unreachable, and the
+// backend reads that absence against the run ID. Reporting every probed
+// address instead would put 65536 documents on the metadata stream per /16
+// cycle to say that almost all of them are empty.
+//
+// One answered check is enough. An address that answers ping but refuses SNMP
+// is a device the range's credentials do not open, which is exactly what the
+// approval UI has to tell apart from an empty address.
 func toDiscoveredDevices(autodiscoveryID, runID string, res connectivity.Result) []metadata.DiscoveredDeviceMetadata {
 	devices := make([]metadata.DiscoveredDeviceMetadata, 0, len(res.Devices))
 	for _, d := range res.Devices {
 		if d.IPAddress == "" {
 			// The engine pre-allocates its result slice, so an interrupted run
 			// can leave zero-value holes.
+			continue
+		}
+		pingAnswered := d.PingResult != nil && d.PingResult.Success
+		snmpAnswered := d.SNMPResult != nil && d.SNMPResult.Success
+		if !pingAnswered && !snmpAnswered {
 			continue
 		}
 

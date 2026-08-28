@@ -133,7 +133,9 @@ func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
 	assert.Equal(t, int64(1700000000000), final.FinishedAtMs)
 	assert.Empty(t, final.Error)
 
-	assert.Len(t, reporter.devices, 256)
+	// answerAll answers on the first target of each chunk only, so one /24 is
+	// 256 addresses scanned and one device reported.
+	assert.Len(t, reporter.devices, 1, "a silent address is absent from the run, not reported unreachable")
 	_, ok := cursors.Load("ad-1")
 	assert.False(t, ok, "a completed cycle clears its cursor")
 }
@@ -146,7 +148,7 @@ func TestSweepReportsPerChunkNotAtTheEnd(t *testing.T) {
 	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/22", nil)))
 
 	assert.Equal(t, 4, reporter.batches, "one report per chunk, so memory stays bounded")
-	assert.Len(t, reporter.devices, 1024)
+	assert.Len(t, reporter.devices, 4, "one answering address per chunk")
 	assert.Len(t, checker.recorded(), 4)
 }
 
@@ -158,7 +160,7 @@ func TestSweepCountsIgnoredAddressesTowardsProgress(t *testing.T) {
 
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, int64(256), final.AddressesScanned, "ignored addresses still count, so progress reaches 100%")
-	assert.Len(t, reporter.devices, 254, "but they are not reported as probed devices")
+	assert.Len(t, reporter.devices, 1, "scanned counts every address; reported counts only the answers")
 }
 
 func TestSweepFullyIgnoredChunkHasNoTargets(t *testing.T) {
@@ -492,19 +494,46 @@ func TestToDiscoveredDevices(t *testing.T) {
 	}}
 
 	got := toDiscoveredDevices("ad-1", "run-1", res)
-	require.Len(t, got, 3)
+	require.Len(t, got, 1, "only addresses that answered a check are reported")
 
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
 		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.1",
 		Name: "router-1", PingStatus: "reachable", SNMPStatus: "reachable", SNMPCredID: "cred-a",
 	}, got[0])
+}
+
+func TestToDiscoveredDevicesReportsAddressesThatAnswerOnlyOneCheck(t *testing.T) {
+	res := connectivity.Result{Devices: []connectivity.DeviceResult{
+		{
+			// A device is there, but the range's credentials do not open it.
+			// This is the case the approval UI most needs to tell apart from
+			// an empty address, so it must be reported.
+			IPAddress:  "10.0.0.1",
+			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true}},
+			SNMPResult: &connectivity.SNMPResult{CheckResult: connectivity.CheckResult{Success: false}},
+		},
+		{
+			// Ping is blocked but SNMP answers. Still a discovered device.
+			IPAddress:  "10.0.0.2",
+			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: false}},
+			SNMPResult: &connectivity.SNMPResult{
+				CheckResult: connectivity.CheckResult{Success: true},
+				CredID:      "cred-a",
+				SysName:     "switch-1",
+			},
+		},
+	}}
+
+	got := toDiscoveredDevices("ad-1", "run-1", res)
+	require.Len(t, got, 2)
+
+	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
+		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.1",
+		PingStatus: "reachable", SNMPStatus: "unreachable",
+	}, got[0], "a ping-only answer still carries the wrong-credentials signal")
 
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
 		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.2",
-		PingStatus: "unreachable", SNMPStatus: "unreachable",
+		Name: "switch-1", PingStatus: "unreachable", SNMPStatus: "reachable", SNMPCredID: "cred-a",
 	}, got[1])
-
-	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
-		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.3",
-	}, got[2], "an unprobed check leaves its status empty rather than claiming unreachable")
 }
