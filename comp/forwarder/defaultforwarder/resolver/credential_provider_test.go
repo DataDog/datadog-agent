@@ -103,3 +103,14 @@ func TestAuthorizeRejectsOutOfRangeSlot(t *testing.T) {
 	require.Error(t, r.Authorize(99, h, log))
 	assert.Empty(t, h)
 }
+
+// An ENC[...] key resolved by the secrets backend is a normal static key from the resolver's
+// perspective. The provider path must not interfere with it.
+func TestResolvedEncKeyUnaffectedByProvider(t *testing.T) {
+	r := resolverWithProvider(t, []string{"resolved-enc-key"}, &stubProvider{ready: false})
+	log := logmock.New(t)
+
+	h := http.Header{}
+	require.NoError(t, r.Authorize(1, h, log), "the ENC[] key slot must authorize independently of the provider")
+	assert.Equal(t, "resolved-enc-key", h.Get("DD-Api-Key"))
+}

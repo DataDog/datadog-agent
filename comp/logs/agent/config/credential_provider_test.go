@@ -223,3 +223,13 @@ func TestProviderStillWinsWhenTheKeyHoldsADirective(t *testing.T) {
 	require.True(t, e.Authorize(h))
 	assert.Equal(t, "org2-key", h.Get("DD-API-KEY"))
 }
+
+// An endpoint with an ENC[...] key resolved by the secrets backend must be unaffected by the
+// provider path. It behaves like a plain key from the endpoint's perspective.
+func TestAuthorizeStampsResolvedEncKey(t *testing.T) {
+	e := NewEndpoint("resolved-enc-key", "logs_config.api_key", "host", 0, "", false)
+
+	h := http.Header{}
+	require.True(t, e.Authorize(h))
+	assert.Equal(t, "resolved-enc-key", h.Get("DD-API-KEY"))
+}
