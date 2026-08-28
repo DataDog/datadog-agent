@@ -78,48 +78,10 @@ platforms):
   required env vars via `os.LookupEnv` presence checks. (Established while
   removing ContainerApp's `SubscriptionId`/`ResourceGroup` fields.)
 
-**CloudRun (service + function): done** (`cloudrun.go`, tests in
-`cloudrun_test.go`). Decisions baked in:
-- Service `resource_id` is the revision-level CCRID
-  (`.../services/{svc}/revisions/{K_REVISION}`); `parent_resource_id` is the
-  stable service CCRID. Function `resource_id` is the function CCRID
-  (`.../services/{svc}/functions/{target}`), which already nests under the
-  service path; `parent_resource_id` is that same service CCRID.
-- `resource_name` is the service name (`K_SERVICE`), stable across revisions.
-- `deployment_id` is `K_REVISION`; `runtime` stays empty (not derivable in
-  sidecar mode).
-
-**CloudRunJobs: done** (`cloudrun_jobs.go`, test in `cloudrun_jobs_test.go`).
-Decisions baked in:
-- `resource_id` is the job-level CCRID (`.../jobs/{job}`); the job is the stable
-  top-level resource so `parent_resource_id` is left empty.
-- `deployment_id` is the execution (`CLOUD_RUN_EXECUTION`), the runtime instance.
-- Metadata fetch is cached on the struct via `resolveMetadata`/`sync.Once`, so
-  `GetTags` and `GetInventoryData` share exactly one metadata-service fetch.
-
-**ContainerApp: done** (`containerapp.go`, tests in `containerapp_test.go`).
-Decisions baked in:
-- `resource_id` is the revision-level CCRID
-  (`.../containerapps/{app}/revisions/{CONTAINER_APP_REVISION}`);
-  `parent_resource_id` is the stable app-level CCRID. Mirrors CloudRun service.
-- `resource_name` is the app name (`CONTAINER_APP_NAME`, lowercased in the CCRID
-  to match the existing tag format); `deployment_id` is `CONTAINER_APP_REVISION`.
-- `azure_subscription_id` / `azure_resource_group` come from
-  `DD_AZURE_SUBSCRIPTION_ID` / `DD_AZURE_RESOURCE_GROUP`; `region` is parsed from
-  `CONTAINER_APP_ENV_DNS_SUFFIX` (fallback `unknown`). CCRIDs require both sub id
-  and resource group and are left empty otherwise, matching `GetTags`.
-- No metadata-service fetch (all env-derived), so no `sync.Once`. Removed the
-  now-redundant `SubscriptionId`/`ResourceGroup` struct fields (see the
-  read-env-directly convention above).
-
-Still TODO — AppService returns an empty struct.
-For AppService, derive `workload_type`, `resource_id` (CCRID), `resource_name`,
-`region`, the platform id (`azure_subscription_id`), plus the nullable fields
-where derivable:
-- `parent_resource_id` — stable parent CCRID for revision-capable workloads.
-- `deployment_id`.
-- `azure_resource_group` — from Azure env/tags (subscription id already surfaces
-  in `serverlessProfileTags`).
+**Done: CloudRun (service + function), CloudRunJobs, ContainerApp, AppService.**
+Each platform's field mapping (CCRID shape, `parent_resource_id` /
+`deployment_id` choices, env-var sources) lives in its `*.go` + `*_test.go`,
+which are now the source of truth. MicroVM is the only remaining derivation.
 
 ### 2. AWS MicroVM
 

@@ -12,6 +12,8 @@ const (
 	workloadTypeCloudFunctionGen2 = "cloud_function_gen2"
 	workloadTypeCloudRunJob       = "cloud_run_job"
 	workloadTypeAzureContainerApp = "azure_container_app"
+	workloadTypeAzureAppService   = "azure_app_service"
+	workloadTypeAzureFunction     = "azure_function"
 )
 
 // InventoryData holds the per-platform serverless fields that feed the
@@ -66,12 +68,6 @@ type InventoryData struct {
 //
 // TODO(SVLS): derive real per-platform inventory fields.
 func (l *LocalService) GetInventoryData() InventoryData { return InventoryData{} }
-
-// GetInventoryData returns the inventory metadata fields for Azure App Service.
-//
-// TODO(SVLS): derive azure_app_service workload_type, CCRID, region, and
-// subscription id.
-func (a *AppService) GetInventoryData() InventoryData { return InventoryData{} }
 
 // GetInventoryData returns the inventory metadata fields for AWS MicroVM.
 //
