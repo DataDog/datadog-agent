@@ -115,7 +115,7 @@ otherwise guard the runner from re-sending on every tick).
 ## Serverless field derivation: delegate to the CloudService structs
 
 The per-platform serverless fields (workload_type, resource_id, resource_name,
-region, gcp/azure specifics, workload_runtime, deployment types) are derived
+region, gcp/azure specifics, runtime) are derived
 inside the `cmd/serverless-init/cloudservice` implementations rather than in the
 payload builder. Each platform already has its own struct (CloudRun,
 CloudRunJobs, ContainerApp, AppService, ...) that knows how to read its
@@ -127,7 +127,7 @@ existing tag logic and keeps the payload builder thin.
   churn the interface. The payload builder calls it and maps the result into
   `agent_metadata`.
 - `workload_type`, `resource_id` (CCRID), and the workload-specific fields
-  (gcp/azure deployment type, hosting plan, runtime) all live on the struct
+  (region, project/subscription/resource-group ids, runtime) all live on the struct
   that owns that platform's environment.
 
 ## Field set
@@ -142,8 +142,9 @@ All serverless fields sit as flat keys in the `agent_metadata` map, each with a
 duplicates the core `agent_version` value into the prefixed key; the init
 version is intentionally double-prefixed as `serverless_serverless_init_version`.
 
-`last_seen_at` is not an agent field: it is derived downstream from the existing
-payload `timestamp`.
+`last_seen_at` is not an agent field: it is derived downstream from the Kafka
+event timestamp (the payload `timestamp` is used downstream only for a latency
+histogram).
 
 **Payload envelope** (the `Payload` fields outside `agent_metadata`):
 - `hostname`: empty, and this happens **for free** in serverless builds —
@@ -166,6 +167,14 @@ payload `timestamp`.
   (`currentExtensionVersion`). The serverless-init build system always injects
   a real value, so no defensive handling is needed here.
 
+**Report reason (telemetry only):**
+- `report_reason` <- constant. The decoder consumes `serverless_report_reason`
+  as a bounded metric dimension (vocabulary `startup` / `periodic` / `refresh`;
+  anything else is bucketed as `unknown`) and logs it in sampled debug output.
+  It is **not** persisted to the downstream row. Set it to `startup` for the
+  primary synchronous on-start send; if the runner-backup path ever re-sends,
+  it uses `periodic` / `refresh`.
+
 **Identity / composite key:**
 - `resource_id` (REQUIRED CCRID, first key component) <- CloudService. The
   decoder reads it as a flat string and keys the per-flavor table on it (no
@@ -183,6 +192,8 @@ payload `timestamp`.
 - `parent_resource_id` (nullable) <- CloudService. Stable service CCRID for
   revision-capable workloads (e.g. a Cloud Run service behind its revisions).
   Accepted downstream as a discrete key.
+- `deployment_id` (nullable) <- CloudService. Accepted downstream as a discrete
+  key; emit when a platform's struct can derive it, otherwise omit.
 - `resource_name` (REQUIRED) <- CloudService display name (app/job/revision).
   Never substitute `dd_service`.
 - `workload_type` (REQUIRED) <- CloudService method. Existing `CloudRunType`
@@ -197,17 +208,13 @@ parsing, so the agent must send them explicitly.
 - `gcp_project_id` (nullable) <- GCP env; NULL for Azure.
 - `azure_subscription_id` (nullable) <- Azure env/tags (subscription id already
   surfaces in `serverlessProfileTags`); NULL for GCP.
+- `azure_resource_group` (nullable) <- Azure env/tags; NULL for GCP. Accepted
+  downstream as a discrete key; emit when derivable, otherwise omit.
 
 **Deployment shape:**
 - `deployment_model` <- `mode.Conf.SidecarMode` -> `sidecar` / `in-container`.
-- `gcp_deployment_type` (nullable) <- CloudService (Function|Source|Container|Repo).
-- `azure_hosting_plan` (nullable) <- CloudService (Consumption|Flex).
-- `azure_deployment_type` (nullable) <- CloudService (Code|Container).
-- `workload_runtime` (nullable) <- CloudService; likely NULL for sidecar.
-  **Name mismatch to reconcile:** the decoder branch reads the un-prefixed key
-  `runtime` (i.e. it expects `serverless_runtime` on the wire), while the
-  architect's table calls the column `workload_runtime`. Confirm the wire key
-  with the extractor team before implementing (see Open items).
+- `runtime` (nullable) <- CloudService; likely NULL for sidecar. The wire key
+  is `serverless_runtime` (the decoder reads the un-prefixed `runtime`).
 - `wrapped_command` (nullable, internal only) <- wrapped workload command
   (`os.Args[1:]` in init mode); NULL in sidecar mode.
 
@@ -392,29 +399,23 @@ supported serverless-init platform, so `fetchECSFargateAgentMetadata`'s
 
 ## Open items (reconciled as we implement)
 
-The field list and per-platform derivations are our own implementation work,
-settled while wiring each platform rather than blocking on external sign-off.
+The field list is reconciled against the decoder branch (dd-go
+`createServerlessAgentResource`, its `stringFields` list, and
+`validServerlessWorkloadTypes` / `validServerlessDeploymentModels` allowlists).
+Remaining implementation work is the per-platform derivation, settled while
+wiring each platform:
 
-- **Field list — best crack now, reconcile against the decoder per platform.**
-  We emit the fields in the table above and adjust against the decoder branch
-  (dd-go `createServerlessAgentResource`) as we wire each platform. Divergences
-  to settle while implementing:
-  - `workload_runtime` (table) vs. `runtime` (decoder wire key) — pick the wire
-    key the decoder actually reads.
-  - `gcp_deployment_type` / `azure_deployment_type` / `azure_hosting_plan`:
-    listed in the table but marked "removed per RFC" in the decoder branch —
-    drop if the decoder ignores them.
-  - `deployment_id` / `azure_resource_group`: accepted by the decoder, not in
-    the table — add if useful.
-  - Wider downstream vocabulary: `validServerlessWorkloadTypes` also allows
-    `azure_function` and `gcp_cloud_function_gen1`;
-    `validServerlessDeploymentModels` = `in-container`, `in-process`,
-    `sidecar`, `extension`.
-- **`workload_type` mapping and the gcp/azure deployment-type / hosting-plan /
-  runtime derivations** (CloudService methods, this team). The source enum
-  already exists (`cloudservice/service.go`: `CloudRunType` =
-  service/function/job); the `GetInventoryData` stubs in
-  `cloudservice/inventory.go` are filled in per platform as we implement.
+- **`workload_type` mapping and the per-platform `runtime` derivation**
+  (CloudService methods, this team). The source enum already exists
+  (`cloudservice/service.go`: `CloudRunType` = service/function/job); the
+  `GetInventoryData` stubs in `cloudservice/inventory.go` are filled in per
+  platform as we implement. Emit only workload_type values in the decoder's
+  allowlist (`cloud_run_service`, `cloud_run_job`, `cloud_function_gen2`,
+  `azure_container_app`, `azure_app_service`, `azure_function`,
+  `gcp_cloud_function_gen1`).
+- **`deployment_id` / `azure_resource_group`** are accepted downstream; emit
+  per platform when the CloudService struct can derive them, otherwise omit
+  (both nullable).
 
 ## Phasing
 
@@ -438,9 +439,6 @@ settled while wiring each platform rather than blocking on external sign-off.
      keys, add `serverless.inventory_enabled`, regenerate `all_settings.go`
      (`dda inv schema.codegen`), and update `TestServerlessConfigInit` /
      `TestAgentConfigInit`.
-   - Real `GetInventoryData` per-platform derivations.
-2. Reconcile the field list against the decoder branch as each platform is
-   wired (see "Open items"); adjust wire keys and drop/add fields to match what
-   the decoder actually reads.
-3. Tests (unit + e2e across platforms).
-4. Rollout (validate volume, then flip default to enabled).
+   - Real `GetInventoryData` per-platform derivations (see "Open items").
+2. Tests (unit + e2e across platforms).
+3. Rollout (validate volume, then flip default to enabled).
