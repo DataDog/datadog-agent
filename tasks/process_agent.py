@@ -36,41 +36,21 @@ def build(
 ):
     """
     Build the process agent
-
-    enable_bazel: build via `bazel build //cmd/process-agent:process-agent` instead of
-    `go build`, then copy the resulting binary to the usual bin path. Developer opt-in
-    only; defaults to off. Only supported for the default (base, non-FIPS) flavor, the
-    default build tags, non-race builds, no custom install path, and on Linux -- see
-    ABLD-310.
     """
 
     flavor = AgentFlavor[flavor]
 
     if enable_bazel:
         if race:
-            raise NotImplementedError("process-agent.build --enable-bazel does not support --race yet (ABLD-310)")
+            raise NotImplementedError("--enable-bazel does not support --race.")
         if build_include is not None or build_exclude is not None:
-            raise NotImplementedError(
-                "process-agent.build --enable-bazel does not support --build-include/--build-exclude yet: "
-                "the Bazel target always builds with a fixed set of gotags (ABLD-310)"
-            )
+            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
         if flavor != AgentFlavor.base:
-            raise NotImplementedError(
-                f"process-agent.build --enable-bazel does not support flavor={flavor.name} yet: the Bazel "
-                "target does not thread flavor-specific build tags (e.g. FIPS) through (ABLD-310)"
-            )
+            raise NotImplementedError(f"--enable-bazel does not support flavor={flavor.name}.")
         if install_path is not None:
-            raise NotImplementedError(
-                "process-agent.build --enable-bazel does not support --install-path yet: the Bazel target "
-                "has no equivalent to the defaultpaths.defaultInstallPath ldflag (ABLD-310)"
-            )
+            raise NotImplementedError("--enable-bazel does not support --install-path.")
         if sys.platform != 'linux':
-            raise NotImplementedError(
-                "process-agent.build --enable-bazel is only supported on Linux for now: //pkg/ebpf (a "
-                "transitive dependency pulled in unconditionally, independent of gotags) is marked "
-                "target_compatible_with linux-only in Bazel, so the target cannot be analyzed on other "
-                "platforms yet (ABLD-310)"
-            )
+            raise NotImplementedError("--enable-bazel is only supported on Linux.")
 
         build_go_binary_with_bazel(BAZEL_TARGET, BIN_PATH)
         return
