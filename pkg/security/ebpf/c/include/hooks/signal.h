@@ -3,6 +3,7 @@
 
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
@@ -66,15 +67,16 @@ int rethook_check_kill_permission(ctx_t *ctx) {
     }
 
     /* constuct and send the event */
-    struct signal_event_t event = {
-        .syscall.retval = retval,
-        .pid = syscall->signal.pid,
-        .type = syscall->signal.type,
-    };
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
-    send_event(ctx, EVENT_SIGNAL, event);
+    struct signal_event_t *event = SPAN_FILL_EVENT(struct signal_event_t, EVENT_SIGNAL);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->pid = syscall->signal.pid;
+    event->type = syscall->signal.type;
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
+    bpf_tail_call_compat(ctx, &span_fill_progs, 0);
     return 0;
 }
 
