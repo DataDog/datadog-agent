@@ -239,6 +239,8 @@ func getLabelToMatchForKind(kind string) []string {
 		return []string{"node"}
 	case "persistentvolume": // persistent volumes are not namespaced
 		return []string{"persistentvolume"}
+	case "namespace": // the `namespace` label already matches on its own, no need to duplicate it
+		return []string{"namespace"}
 	default:
 		return []string{kind, "namespace"}
 	}

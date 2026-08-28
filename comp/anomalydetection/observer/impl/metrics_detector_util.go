@@ -14,6 +14,121 @@ import (
 
 const scanMaxPoints = 120
 
+// scanDetectorWorkspace is bounded detector-local scratch space for scan
+// statistics. Detectors are single-writer, so a workspace can be reused across
+// series and aggregations instead of allocating proportional to every scan.
+type scanDetectorWorkspace struct {
+	values      []float64
+	ranks       []float64
+	indexed     []scanIndexedValue
+	sortScratch []float64
+	intervals   []int64
+}
+
+type scanIndexedValue struct {
+	value float64
+	index int
+}
+
+func (w *scanDetectorWorkspace) valuesFromPoints(points []observer.Point) []float64 {
+	w.values = reuseFloat64(w.values, len(points))
+	for i, point := range points {
+		w.values[i] = point.Value
+	}
+	return w.values
+}
+
+func (w *scanDetectorWorkspace) assignRanks(values []float64) ([]float64, float64) {
+	n := len(values)
+	w.indexed = reuseScanIndexedValues(w.indexed, n)
+	for i, value := range values {
+		w.indexed[i] = scanIndexedValue{value: value, index: i}
+	}
+	sort.Slice(w.indexed, func(i, j int) bool {
+		return w.indexed[i].value < w.indexed[j].value
+	})
+
+	w.ranks = reuseFloat64(w.ranks, n)
+	tieCorrection := 0.0
+	for i := 0; i < n; {
+		j := i
+		for j < n && w.indexed[j].value == w.indexed[i].value {
+			j++
+		}
+		avgRank := float64(i+1+j) / 2.0
+		tieSize := float64(j - i)
+		for k := i; k < j; k++ {
+			w.ranks[w.indexed[k].index] = avgRank
+		}
+		tieCorrection += tieSize*tieSize*tieSize - tieSize
+		i = j
+	}
+	return w.ranks, tieCorrection
+}
+
+func (w *scanDetectorWorkspace) median(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	w.sortScratch = reuseFloat64(w.sortScratch, len(values))
+	copy(w.sortScratch, values)
+	sort.Float64s(w.sortScratch)
+	n := len(w.sortScratch)
+	if n%2 == 0 {
+		return (w.sortScratch[n/2-1] + w.sortScratch[n/2]) / 2
+	}
+	return w.sortScratch[n/2]
+}
+
+func (w *scanDetectorWorkspace) mad(values []float64, median float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	w.sortScratch = reuseFloat64(w.sortScratch, len(values))
+	for i, value := range values {
+		w.sortScratch[i] = math.Abs(value - median)
+	}
+	sort.Float64s(w.sortScratch)
+	n := len(w.sortScratch)
+	if n%2 == 0 {
+		return (w.sortScratch[n/2-1] + w.sortScratch[n/2]) / 2
+	}
+	return w.sortScratch[n/2]
+}
+
+func (w *scanDetectorWorkspace) medianPointInterval(points []observer.Point) int64 {
+	if len(points) < 2 {
+		return 0
+	}
+	w.intervals = reuseInt64(w.intervals, len(points)-1)
+	for i := 1; i < len(points); i++ {
+		w.intervals[i-1] = points[i].Timestamp - points[i-1].Timestamp
+	}
+	sort.Slice(w.intervals, func(i, j int) bool { return w.intervals[i] < w.intervals[j] })
+	return w.intervals[len(w.intervals)/2]
+}
+
+func reuseFloat64(dst []float64, size int) []float64 {
+	if cap(dst) < size {
+		return make([]float64, size)
+	}
+	return dst[:size]
+}
+
+func reuseInt64(dst []int64, size int) []int64 {
+	if cap(dst) < size {
+		return make([]int64, size)
+	}
+	return dst[:size]
+}
+
+func reuseScanIndexedValues(dst []scanIndexedValue, size int) []scanIndexedValue {
+	if cap(dst) < size {
+		return make([]scanIndexedValue, size)
+	}
+	return dst[:size]
+}
+
 // appendPointWindow retains the newest maxPoints points in buf.
 func appendPointWindow(buf []observer.Point, maxPoints int, point observer.Point) []observer.Point {
 	if len(buf) < maxPoints {
@@ -45,10 +160,6 @@ func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
 		return observer.AggregateSum, true
 	case "count":
 		return observer.AggregateCount, true
-	case "min":
-		return observer.AggregateMin, true
-	case "max":
-		return observer.AggregateMax, true
 	default:
 		return 0, false
 	}

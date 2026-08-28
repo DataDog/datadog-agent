@@ -11,11 +11,13 @@ ENABLED_CHECKS = {
 }
 
 # Stage every enabled cdylib into checks.d with the loader naming convention
-# (libdatadog-agent-<check_name>.so) and owner-only perms.
+# (libdatadog-agent-<check_name>.so). Root + root-group read/exec, no "other" —
+# group-readable so init containers can copy them on OpenShift, where
+# containers run with a random UID in the root group.
 pkg_files(
     name = "enabled_checks",
     srcs = ENABLED_CHECKS.values(),
-    attributes = pkg_attributes(mode = "0500"),
+    attributes = pkg_attributes(mode = "0550"),
     prefix = "checks.d",
     renames = {target: "libdatadog-agent-" + check_name + ".so" for check_name, target in ENABLED_CHECKS.items()},
     target_compatible_with = _LINUX,
@@ -23,7 +25,7 @@ pkg_files(
 )
 
 # `bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=<dir>`
-# stages every enabled check into <dir>/checks.d with owner-only (0500) perms.
+# stages every enabled check into <dir>/checks.d with root/root-group-only (0550) perms.
 pkg_install(
     name = "install",
     srcs = [":enabled_checks"],

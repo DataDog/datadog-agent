@@ -176,7 +176,7 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 	// Fill the `labelsToAdd` on the leaf node.
 	if config.getAllLabels {
 		if current.labelsToAdd == nil {
-			current.labelsToAdd = make([]label, 0, len(metric.Labels)-len(config.labelsToMatch))
+			current.labelsToAdd = make([]label, 0, max(0, len(metric.Labels)-len(config.labelsToMatch)))
 		}
 
 		for labelName, labelValue := range metric.Labels {

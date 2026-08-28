@@ -49,6 +49,10 @@ type timeSamplerWorker struct {
 	samplesChan chan []metrics.MetricSample
 	// samplesDrained is closed after last sample is read from samplesChan
 	samplesDrained chan struct{}
+	// drainChan requests a synchronous drain of samplesChan. Unlike
+	// shutdown/samplesDrained, it's repeatable and doesn't touch the worker's
+	// lifecycle.
+	drainChan chan chan struct{}
 	// use this chan to trigger a flush of the time sampler
 	flushChan chan flushTrigger
 	// use this chan to trigger a filterList reconfiguration
@@ -83,6 +87,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 
 		samplesChan:          make(chan []metrics.MetricSample, bufferSize),
 		samplesDrained:       make(chan struct{}),
+		drainChan:            make(chan chan struct{}),
 		stopChan:             make(chan struct{}),
 		flushChan:            make(chan flushTrigger),
 		dumpChan:             make(chan dumpTrigger),
@@ -112,15 +117,7 @@ func (w *timeSamplerWorker) run() {
 				close(w.samplesDrained)
 				continue
 			}
-
-			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
-			tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
-			t := timeNowNano()
-
-			for i := 0; i < len(ms); i++ {
-				w.sampler.sample(&ms[i], t, w.tagFilterList)
-			}
-			w.metricSamplePool.PutBatch(ms)
+			w.processBatch(ms)
 		case matcher := <-w.metricFilterListChan:
 			w.flushFilterList = matcher
 		case matcher := <-w.tagFilterListChan:
@@ -130,8 +127,38 @@ func (w *timeSamplerWorker) run() {
 			w.tagsStore.Shrink()
 		case trigger := <-w.dumpChan:
 			trigger.done <- w.sampler.dumpContexts(trigger.dest)
+		case done := <-w.drainChan:
+			// select doesn't order drainChan against samplesChan, so drain
+			// whatever's already buffered before acking.
+		drainLoop:
+			for {
+				select {
+				case ms := <-w.samplesChan:
+					if ms == nil {
+						close(w.samplesDrained)
+						continue
+					}
+					w.processBatch(ms)
+				default:
+					break drainLoop
+				}
+			}
+			close(done)
 		}
 	}
+}
+
+// processBatch samples ms, called from run()'s normal loop or from a drain.
+func (w *timeSamplerWorker) processBatch(ms []metrics.MetricSample) {
+	shard := w.sampler.idString
+	aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
+	tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
+	t := timeNowNano()
+
+	for i := 0; i < len(ms); i++ {
+		w.sampler.sample(&ms[i], t, w.tagFilterList)
+	}
+	w.metricSamplePool.PutBatch(ms)
 }
 
 // Set a new filterlist, ensuring we also clear the context resolver strip cache
@@ -177,4 +204,12 @@ func (w *timeSamplerWorker) waitForShutdown(ctx context.Context) {
 	case <-w.samplesDrained:
 	case <-ctx.Done():
 	}
+}
+
+// waitForPendingSamples blocks until samples enqueued before this call have
+// been processed. Safe to call repeatedly, unlike shutdown/waitForShutdown.
+func (w *timeSamplerWorker) waitForPendingSamples() {
+	done := make(chan struct{})
+	w.drainChan <- done
+	<-done
 }

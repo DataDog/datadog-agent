@@ -109,8 +109,9 @@ type ActionStore struct {
 	jobs     map[types.UID]JobRecord
 	pods     map[types.UID]PodRecord
 	// mu guards above mentioned
-	mu     sync.RWMutex
-	stopCh chan struct{}
+	mu       sync.RWMutex
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 // NewActionStore creates a new ActionStore and starts the background cleanup goroutine.
@@ -412,6 +413,7 @@ func (s *ActionStore) RunCleanup(ctx context.Context) {
 
 // Stop shuts down the cleanup goroutine.
 func (s *ActionStore) StopCleanup() {
-	close(s.stopCh)
-	s.stopCh = nil
+	s.stopOnce.Do(func() {
+		close(s.stopCh)
+	})
 }

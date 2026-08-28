@@ -134,6 +134,13 @@ enum TC_RAWPACKET_KEYS {
 #define MAX_SYSCALL_ARG_MAX_SIZE 128
 #define MAX_SYSCALL_CTX_SIZE MAX_SYSCALL_ARG_MAX_SIZE * 3 + 4 + 1 // id + types octet + 3 args
 
+// Go pprof-label context: raw key/value pairs are dumped into the go_labels_ctx
+// ring by eBPF.
+#define GO_LABELS_CTX_KEY_SIZE 32
+#define GO_LABELS_CTX_VAL_SIZE 64
+#define GO_LABELS_CTX_MAX_PAIRS 10
+#define GO_LABELS_CTX_MAX_ENTRIES 4096
+
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
     u64 cgroup_activity_dumps_enabled;
     LOAD_CONSTANT("cgroup_activity_dumps_enabled", cgroup_activity_dumps_enabled);
@@ -256,6 +263,12 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
     u64 is_network_flow_monitor_enabled;
     LOAD_CONSTANT("is_network_flow_monitor_enabled", is_network_flow_monitor_enabled);
     return is_network_flow_monitor_enabled;
+}
+
+static __attribute__((always_inline)) u64 is_span_tracking_enabled() {
+    u64 is_span_tracking_enabled;
+    LOAD_CONSTANT("is_span_tracking_enabled", is_span_tracking_enabled);
+    return is_span_tracking_enabled;
 }
 
 #define SYSCTL_OK 1

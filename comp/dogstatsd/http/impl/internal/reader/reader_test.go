@@ -223,3 +223,71 @@ func TestEmpty(t *testing.T) {
 	require.False(t, r.HaveMorePoints())
 	require.Error(t, r.NextPoint())
 }
+
+func TestTagCardinality(t *testing.T) {
+	// Every entry is a gauge with flagNoIndex set, so the cardinality nibble
+	// must not pick up the flag bits sitting below it.
+	md := &pb.MetricData{
+		DictNameStr:        []byte("\x03foo"),
+		Types:              []uint64{0x103, 0x1103, 0x2103, 0x3103, 0x4103},
+		NameRefs:           []int64{1, 0, 0, 0, 0},
+		TagsetRefs:         []int64{0, 0, 0, 0, 0},
+		ResourcesRefs:      []int64{0, 0, 0, 0, 0},
+		Intervals:          []uint64{0, 0, 0, 0, 0},
+		NumPoints:          []uint64{0, 0, 0, 0, 0},
+		SourceTypeNameRefs: []int64{0, 0, 0, 0, 0},
+		OriginInfoRefs:     []int64{0, 0, 0, 0, 0},
+	}
+
+	r := NewMetricDataReader(md)
+	require.NoError(t, r.Initialize())
+
+	for _, want := range []pb.TagCardinality{
+		pb.TagCardinality_Unset,
+		pb.TagCardinality_None,
+		pb.TagCardinality_Low,
+		pb.TagCardinality_Orch,
+		pb.TagCardinality_High,
+	} {
+		require.True(t, r.HaveMoreMetrics())
+		require.NoError(t, r.NextMetric())
+		require.Equal(t, want, r.TagCardinality())
+		require.Equal(t, pb.MetricType_Gauge, r.Type())
+		require.Equal(t, pb.ValueType_Zero, r.ValueType())
+	}
+
+	require.False(t, r.HaveMoreMetrics())
+}
+
+func TestCardinalityTagsAreFiltered(t *testing.T) {
+	// Tagset 1 is {ook, dd.internal.card:high}, tagset 2 inherits tagset 1 and
+	// adds eek, tagset 3 holds nothing but cardinality tags.
+	md := &pb.MetricData{
+		DictNameStr:        []byte("\x03foo"),
+		DictTagStr:         []byte("\x03ook\x15dd.internal.card:high\x03eek\x14dd.internal.card:low"),
+		DictTagsets:        []int64{2, 1, 1, 2, -1, 4, 2, 2, 2},
+		Types:              []uint64{0x3, 0x3, 0x3},
+		NameRefs:           []int64{1, 0, 0},
+		TagsetRefs:         []int64{1, 1, 1},
+		ResourcesRefs:      []int64{0, 0, 0},
+		Intervals:          []uint64{0, 0, 0},
+		NumPoints:          []uint64{0, 0, 0},
+		SourceTypeNameRefs: []int64{0, 0, 0},
+		OriginInfoRefs:     []int64{0, 0, 0},
+	}
+
+	r := NewMetricDataReader(md)
+	require.NoError(t, r.Initialize())
+
+	require.NoError(t, r.NextMetric())
+	require.Equal(t, []string{"ook"}, r.Tags())
+
+	// The inherited tagset must pick up the already filtered version.
+	require.NoError(t, r.NextMetric())
+	require.Equal(t, []string{"ook", "eek"}, r.Tags())
+
+	require.NoError(t, r.NextMetric())
+	require.Empty(t, r.Tags())
+
+	require.False(t, r.HaveMoreMetrics())
+}

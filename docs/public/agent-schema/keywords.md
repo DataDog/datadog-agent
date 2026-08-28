@@ -572,10 +572,9 @@ Existing tags:
 - `golang_type`: flag that this setting should use a different type when generating go code. Usage of `golang_type` tag
   is often a sign of an issue. The agent code should be easily configurable from YAML types.
   - `golang_type:duration`: will use a `time.duration`.
-  - `golang_type:float64`: will use a `float64`.
+  - `golang_type:int64`: will use a `int64` (only available for `type: integer`).
   - `golang_type:map[string]float64`: will used a `map[string]float64{}`.
   - `golang_type:map[string]interface{}`: will used a `golang_type:map[string]interface{}{}`.
-  - `golang_type:nil`: will use `nil` from Go (should not be used for any new setting).
 - `no-env`: mark the settings as not configurable through en vars (should not be used by new settings).
 - `generate_const:<name>`: generate a Go constant from this setting's default value.
 

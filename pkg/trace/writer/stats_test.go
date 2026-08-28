@@ -39,7 +39,8 @@ const (
 	testEnv      = "testing"
 )
 
-func assertPayload(assert *assert.Assertions, testSets []*pb.StatsPayload, payloads []*payload) {
+func assertPayload(t *testing.T, testSets []*pb.StatsPayload, payloads []*payload) {
+	t.Helper()
 	expectedHeaders := map[string]string{
 		"X-Datadog-Reported-Languages": strings.Join(info.Languages(), "|"),
 		"Content-Type":                 "application/msgpack",
@@ -50,11 +51,11 @@ func assertPayload(assert *assert.Assertions, testSets []*pb.StatsPayload, paylo
 	for _, p := range payloads {
 		var statsPayload pb.StatsPayload
 		r, err := gzip.NewReader(p.body)
-		assert.NoError(err)
-		err = msgp.Decode(r, &statsPayload)
-		assert.NoError(err)
+		require.NoError(t, err, "payload body is not valid gzip")
+		require.NoError(t, msgp.Decode(r, &statsPayload))
+		require.NoError(t, r.Close())
 		for k, v := range expectedHeaders {
-			assert.Equal(v, p.headers[k])
+			assert.Equal(t, v, p.headers[k])
 		}
 		decoded = append(decoded, &statsPayload)
 	}
@@ -63,13 +64,12 @@ func assertPayload(assert *assert.Assertions, testSets []*pb.StatsPayload, paylo
 		return decoded[i].AgentEnv < decoded[j].AgentEnv
 	})
 	for i, p := range decoded {
-		assert.Equal(testSets[i].String(), p.String())
+		assert.Equal(t, testSets[i].String(), p.String())
 	}
 }
 
 func TestStatsWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		assert := assert.New(t)
 		sw, srv := testStatsWriter()
 		go sw.Run()
 
@@ -106,7 +106,7 @@ func TestStatsWriter(t *testing.T) {
 		sw.Write(testSets[0])
 		sw.Write(testSets[1])
 		sw.Stop()
-		assertPayload(assert, testSets, srv.Payloads())
+		assertPayload(t, testSets, srv.Payloads())
 	})
 
 	t.Run("race", func(_ *testing.T) {
@@ -378,11 +378,10 @@ func TestStatsSyncWriter(t *testing.T) {
 		assert.Nil(err)
 		sw.Stop()
 		srv.Close()
-		assertPayload(assert, testSets, srv.Payloads())
+		assertPayload(t, testSets, srv.Payloads())
 	})
 
 	t.Run("stop", func(t *testing.T) {
-		assert := assert.New(t)
 		sw, srv := testStatsSyncWriter()
 		go sw.Run()
 
@@ -414,7 +413,7 @@ func TestStatsSyncWriter(t *testing.T) {
 		sw.Write(testSets[1])
 		sw.Stop()
 		srv.Close()
-		assertPayload(assert, testSets, srv.Payloads())
+		assertPayload(t, testSets, srv.Payloads())
 	})
 }
 
@@ -485,7 +484,7 @@ func TestStatsWriterInfo(t *testing.T) {
 	err := sw.FlushSync()
 	assert.Nil(err)
 
-	assertPayload(assert, testSets, srv.Payloads())
+	assertPayload(t, testSets, srv.Payloads())
 
 	assert.NotEmpty(sw.statsLastMinute.Bytes.Load())
 	assert.Empty(sw.statsLastMinute.Errors.Load())

@@ -837,7 +837,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", commonRegistry)
 				mockConfig.SetInTest("cluster_agent.cmd_port", 12345)
 				mockConfig.SetInTest("cluster_agent.kubernetes_service_name", "test-service-name")
-				mockConfig.SetInTest("language_detection.enabled", "false")
+				mockConfig.SetInTest("language_detection.enabled", false)
 				return mockConfig
 			},
 			expectedEnvVars: []corev1.EnvVar{

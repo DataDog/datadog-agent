@@ -77,10 +77,4 @@ union selinux_write_payload_t {
     } status;
 };
 
-struct span_tls_t {
-    u64 format;
-    u64 max_threads;
-    void *base;
-};
-
 #endif

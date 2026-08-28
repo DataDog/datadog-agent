@@ -11,16 +11,16 @@ import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
 
-const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
+const AGGREGATION_TYPES = ['avg', 'count', 'sum'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
 
 function getBaseMetricName(name: string): string {
-  const match = name.match(/^(.+):(avg|sum|count|min|max)$/);
+  const match = name.match(/^(.+):(avg|sum|count)$/);
   return match ? match[1] : name;
 }
 
 function getAggregationType(name: string): AggregationType | null {
-  const match = name.match(/:(avg|sum|count|min|max)$/);
+  const match = name.match(/:(avg|sum|count)$/);
   return match ? (match[1] as AggregationType) : null;
 }
 

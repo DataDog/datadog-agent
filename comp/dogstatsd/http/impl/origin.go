@@ -11,11 +11,32 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-type tagsMap = map[string][]string
+type tagsMap = map[pb.TagCardinality][]string
+
+// cardinalityString maps a payload cardinality onto the string the tagger expects.
+//
+// Unknown values map to the empty string, which asks the tagger for the cardinality configured for
+// dogstatsd.
+func cardinalityString(card pb.TagCardinality) string {
+	switch card {
+	case pb.TagCardinality_None:
+		return types.NoneCardinalityString
+	case pb.TagCardinality_Low:
+		return types.LowCardinalityString
+	case pb.TagCardinality_Orch:
+		return types.OrchestratorCardinalityString
+	case pb.TagCardinality_High:
+		return types.HighCardinalityString
+	default:
+		return ""
+	}
+}
 
 type origin struct {
 	info taggertypes.OriginInfo
@@ -48,16 +69,12 @@ func originFromHeader(header http.Header, tagger tagger.Component) (origin, erro
 	}, nil
 }
 
-func (o *origin) getTags() []string {
-	return o.getTagsWith("") // request default dogstatsd cardinality from config
-}
-
-func (o *origin) getTagsWith(card string) []string {
+func (o *origin) getTagsWith(card pb.TagCardinality) []string {
 	tags, ok := o.tags[card]
 	if !ok {
 		acc := tagset.NewHashlessTagsAccumulator()
 		info := o.info
-		info.Cardinality = card
+		info.Cardinality = cardinalityString(card)
 		o.tagger.EnrichTags(acc, info)
 		tags = acc.Get()
 		o.tags[card] = tags

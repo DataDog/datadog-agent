@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "helm",
+    srcs = ["helm.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/kubernetes/helm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "@io_k8s_cli_runtime//pkg/genericclioptions",
+        "@sh_helm_helm_v3//pkg/action",
+        "@sh_helm_helm_v3//pkg/chart/loader",
+        "@sh_helm_helm_v3//pkg/cli",
+        "@sh_helm_helm_v3//pkg/storage/driver",
+    ],
+)
+
+dd_agent_go_test(
+    name = "helm_test",
+    srcs = ["helm_test.go"],
+    embed = [":helm"],
+    deps = [
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

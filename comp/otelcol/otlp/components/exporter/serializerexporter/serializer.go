@@ -102,6 +102,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	// = zstd set above has no effect here: series are sent zlib-compressed
 	// (Content-Encoding: deflate). Only the v2 intake accepts zlib, so v3 is disabled below.
 	config.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
+	config.Set("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.Set("enable_payloads.events", true, pkgconfigmodel.SourceDefault)

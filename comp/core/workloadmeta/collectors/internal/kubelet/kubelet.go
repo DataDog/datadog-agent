@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -39,6 +40,7 @@ type dependencies struct {
 
 type collector struct {
 	id                         string
+	isCLCRunner                bool
 	catalog                    workloadmeta.AgentType
 	store                      workloadmeta.Component
 	collectEphemeralContainers bool
@@ -57,6 +59,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                         collectorID,
+			isCLCRunner:                helper.IsCLCRunner(deps.Config),
 			catalog:                    workloadmeta.NodeAgent,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 			pullInterval:               time.Duration(deps.Config.GetInt("kubelet_collector_pull_interval")) * time.Second,
@@ -76,6 +79,10 @@ func (c *collector) GetPullInterval() time.Duration {
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
+	}
+
+	if c.isCLCRunner {
+		return errors.NewDisabled(componentName, "Agent is a Cluster Checks Runner and has no reachable local Kubelet")
 	}
 
 	c.store = store

@@ -13,6 +13,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/env",
+        "//pkg/config/helper",
+        "//pkg/config/setup",
         "//pkg/config/setup/constants",
         "//pkg/util/cache",
         "//pkg/util/clusteragent",
@@ -37,6 +39,7 @@ dd_agent_go_test(
     ]],
     deps = [
         "//pkg/config/env",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
     ],
 )

@@ -443,7 +443,7 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 // TestEngine_LogPatternLRUEvictionFreesStorage is the end-to-end proof that
 // the structural leak is fixed: when the extractor's LRU evicts a cluster,
 // the engine no longer just drops its contextRefs entry — it also calls
-// storage.RemoveSeriesByKeys so the per-series tags slice + columnar arrays
+// storage.RemoveSeriesByKeys so the per-series tags slice + bucket data
 // + sample buffer are actually freed. Before this fix, timeSeriesStorage.series
 // grew monotonically for the lifetime of the agent, regardless of LRU caps.
 func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
