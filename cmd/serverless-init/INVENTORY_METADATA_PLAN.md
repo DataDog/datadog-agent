@@ -21,9 +21,9 @@ Design principles:
 ## Approach: capability tiers on the shared `inventoryagent`
 
 Give the shared `inventoryagent` component two **neutral capabilities**, each
-tied to an *environmental property* rather than to serverless. This keeps the
-inventory-agent owners engaged: they own two well-motivated knobs, not a
-foreign `if serverless` branch.
+tied to an *environmental property* rather than to serverless: two
+well-motivated knobs, not a foreign `if serverless` branch. The inventoryagent
+owners have reviewed this approach and their spike comments are incorporated.
 
 The seam already exists structurally. `getPayload()` today runs three tiers in
 order: Tier 1 core fields (populated by `initData()` at construction, no IO),
@@ -178,10 +178,11 @@ histogram).
 **Identity / composite key:**
 - `resource_id` (REQUIRED CCRID, first key component) <- CloudService. The
   decoder reads it as a flat string and keys the per-flavor table on it (no
-  CCRID parsing downstream), so composition only has to yield a stable string;
-  the exact format is left alone for now and the builder emits whatever the
-  CloudService structs derive. Multiple agents may share a resource id where
-  the rest of the data is identical.
+  CCRID parsing downstream), so composition only has to yield a stable string.
+  The builder emits whatever the CloudService structs derive; the exact format
+  is intentionally left as-is and will be explored further once the system is
+  working end to end. Multiple agents may share a resource id where the rest of
+  the data is identical.
   - **Keep the payload key named `resource_id`; do NOT rename it to
     `CanonicalCloudResourceID`.** The downstream serverless decoder (dd-go
     `createServerlessAgentResource`) reads a flat key literally named
@@ -300,10 +301,11 @@ Enablement gate (parity key + serverless ramp gate):
 - A new serverless-scoped ramp gate `serverless.inventory_enabled` is nested
   under the existing `serverless:` schema section, with env var
   `DD_SERVERLESS_INIT_INVENTORY_ENABLED` (matching the existing
-  `DD_SERVERLESS_INIT_*` convention), **default `false`** initially, flipped to
-  `true` at GA (the key can remain as a permanent feature toggle). This gate is
-  legitimately serverless-only because it gates a serverless-only feature's
-  availability, not the behavior of a shared setting.
+  `DD_SERVERLESS_INIT_*` convention), **default `false`** initially (the key
+  can remain as a permanent feature toggle). This gate is legitimately
+  serverless-only because it gates a serverless-only feature's availability, not
+  the behavior of a shared setting. The default flip / rollout is managed
+  separately and is out of scope for this plan.
 - Emission = `util.InventoryEnabled(conf) && conf.GetBool("serverless.inventory_enabled")`.
   The stock component's `Enabled` is cached once in `CreateInventoryPayload`
   and never re-checked, and it never consults `serverless.inventory_enabled` at
@@ -399,11 +401,12 @@ supported serverless-init platform, so `fetchECSFargateAgentMetadata`'s
 
 ## Open items (reconciled as we implement)
 
-The field list is reconciled against the decoder branch (dd-go
-`createServerlessAgentResource`, its `stringFields` list, and
-`validServerlessWorkloadTypes` / `validServerlessDeploymentModels` allowlists).
-Remaining implementation work is the per-platform derivation, settled while
-wiring each platform:
+The downstream contract (dd-go `createServerlessAgentResource`, its
+`stringFields` list, and `validServerlessWorkloadTypes` /
+`validServerlessDeploymentModels` allowlists) is **fixed for this pass**; the
+field list is reconciled against it. If the contract needs to change we handle
+that in a later pass. Remaining implementation work is the per-platform
+derivation, settled while wiring each platform:
 
 - **`workload_type` mapping and the per-platform `runtime` derivation**
   (CloudService methods, this team). The source enum already exists
@@ -441,4 +444,4 @@ wiring each platform:
      `TestAgentConfigInit`.
    - Real `GetInventoryData` per-platform derivations (see "Open items").
 2. Tests (unit + e2e across platforms).
-3. Rollout (validate volume, then flip default to enabled).
+3. Rollout (default flip managed separately, out of scope for this plan).
