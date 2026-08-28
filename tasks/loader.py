@@ -28,7 +28,7 @@ def build(
     then copy the result to the same place. Developer opt-in only; defaults to off.
     """
     if enable_bazel:
-        build_binary_with_bazel("//cmd/loader:loader", BIN_PATH)
+        build_binary_with_bazel("//cmd/loader:loader", bin_path=BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path)
