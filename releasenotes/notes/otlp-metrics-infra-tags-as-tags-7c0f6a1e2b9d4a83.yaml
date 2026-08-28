@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    OTLP ingestion: Adds a new ``otlp_config.metrics.infra_attributes.infra_tags_as_tags`` option. When
+    enabled, custom tagger-derived tags (for example, tags configured via
+    ``kubernetesResourcesLabelsAsTags``/``kubernetesResourcesAnnotationsAsTags``) are promoted so they
+    survive the metrics translator's allowlist and are emitted as metric tags for OTLP metrics ingested
+    directly by the Agent. Without it, custom tags that are not known Datadog or OpenTelemetry
+    conventions are dropped. Default behavior is unchanged.
+  - |
+    DDOT: The ``infraattributes`` processor now supports a new ``infra_tags_as_tags`` option for the
+    metrics pipeline. When enabled, custom tagger-derived tags (for example, tags configured via
+    ``kubernetesResourcesLabelsAsTags``/``kubernetesResourcesAnnotationsAsTags``) are promoted so they
+    survive the metrics translator's allowlist and are emitted as metric tags. Default behavior is
+    unchanged.

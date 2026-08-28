@@ -73,6 +73,21 @@ type Config struct {
 	//
 	// This only affects the logs pipeline.
 	LogsTagsAsDDTags bool `mapstructure:"logs_tags_as_ddtags"`
+
+	// MetricsInfraTagsAsTags controls whether custom tags emitted by the tagger
+	// (e.g. via kubernetesResourcesLabelsAsTags / AnnotationsAsTags) are promoted
+	// so they survive the metrics translator's allowlist and become metric tags.
+	//
+	// The metrics translator (attributes.TagsFromAttributes) keeps only an
+	// allowlist of known DD / OTel convention keys and drops arbitrary keys. To
+	// get custom tags onto metrics, the processor writes them under the
+	// `datadog.container.tag.<key>` prefix that the translator promotes into metric
+	// tags (attributes.ContainerTagsFromResourceAttributes). When false (default),
+	// behavior is unchanged: custom tags remain plain resource attributes and are
+	// dropped by the allowlist.
+	//
+	// This only affects the metrics pipeline.
+	MetricsInfraTagsAsTags bool `mapstructure:"infra_tags_as_tags"`
 }
 
 var _ component.Config = (*Config)(nil)

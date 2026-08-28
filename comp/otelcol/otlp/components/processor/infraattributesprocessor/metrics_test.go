@@ -275,6 +275,71 @@ func TestInfraAttributesMetricProcessorIgnoresContainerTagPromotion(t *testing.T
 	}
 }
 
+// TestInfraAttributesMetricProcessorInfraTagsAsTags verifies that a custom
+// tagger tag is promoted under the `datadog.container.tag.` prefix (so the
+// metrics translator keeps it as a metric tag) only when infra_tags_as_tags is
+// enabled. This is the OTELS-1131 fix.
+func TestInfraAttributesMetricProcessorInfraTagsAsTags(t *testing.T) {
+	tests := []struct {
+		name            string
+		infraTagsAsTags bool
+		expected        map[string]any
+	}{
+		{
+			name:            "disabled: custom tag dropped by translator (stays unprefixed)",
+			infraTagsAsTags: false,
+			expected: map[string]any{
+				"container.id": "test",
+				"test_tag":     "bar",
+			},
+		},
+		{
+			name:            "enabled: custom tag duplicated under prefixed key",
+			infraTagsAsTags: true,
+			expected: map[string]any{
+				"container.id":                   "test",
+				"test_tag":                       "bar",
+				"datadog.container.tag.test_tag": "bar",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			next := new(consumertest.MetricsSink)
+			cfg := &Config{
+				Cardinality:            types.LowCardinality,
+				MetricsInfraTagsAsTags: tt.infraTagsAsTags,
+			}
+			tc := testutil.NewTestTaggerClient()
+			tc.TagMap["container_id://test"] = []string{"test_tag:bar"}
+
+			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
+				return "test-host", nil
+			})
+			fmp, err := factory.CreateMetrics(
+				context.Background(),
+				processortest.NewNopSettings(Type),
+				cfg,
+				next,
+			)
+			assert.NoError(t, err)
+			ctx := context.Background()
+			assert.NoError(t, fmp.Start(ctx, nil))
+
+			md := testResourceMetrics([]metricWithResource{{
+				metricNames:        inMetricNames,
+				resourceAttributes: map[string]any{"container.id": "test"},
+			}})
+			assert.NoError(t, fmp.ConsumeMetrics(ctx, md))
+			assert.NoError(t, fmp.Shutdown(ctx))
+
+			assert.Len(t, next.AllMetrics(), 1)
+			out := next.AllMetrics()[0].ResourceMetrics().At(0).Resource().Attributes().AsRaw()
+			assert.EqualValues(t, tt.expected, out)
+		})
+	}
+}
+
 func TestEntityIDsFromAttributes(t *testing.T) {
 	tests := []struct {
 		name      string

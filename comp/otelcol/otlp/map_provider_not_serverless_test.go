@@ -383,6 +383,69 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
+			name: "only metrics, infra_tags_as_tags on",
+			pcfg: PipelineConfig{
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
+				MetricsInfraTagsAsTags:       true,
+				Metrics: map[string]any{
+					"delta_ttl":                              1500,
+					"resource_attributes_as_tags":            false,
+					"instrumentation_scope_metadata_as_tags": false,
+					"histograms": map[string]any{
+						"mode":                   "nobuckets",
+						"send_count_sum_metrics": true,
+					},
+				},
+				Debug: map[string]any{
+					"verbosity": "none",
+				},
+			},
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]any{
+					"infraattributes": map[string]any{"infra_tags_as_tags": true},
+				},
+				"exporters": map[string]any{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
+							"delta_ttl":                              1500,
+							"resource_attributes_as_tags":            false,
+							"instrumentation_scope_metadata_as_tags": false,
+							"histograms": map[string]any{
+								"mode":                   "nobuckets",
+								"send_count_sum_metrics": true,
+							},
+						},
+						"sending_queue": map[string]any{
+							"batch": map[string]any{},
+						},
+					},
+				},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"serializer"},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "only gRPC, only Traces, logging with normal verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),

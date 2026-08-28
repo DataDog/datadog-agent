@@ -69,6 +69,12 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		buildKey("exporters", "serializer", "metrics"):                cfg.Metrics,
 		buildKey("exporters", "serializer", "sending_queue", "batch"): ensureNonNilMap(cfg.MetricsBatch),
 	}
+	// The metrics pipeline shares the `infraattributes` processor instance with
+	// the logs pipeline (see defaultMetricsConfig/defaultLogsConfig); this is
+	// harmless since the logs processor ignores infra_tags_as_tags.
+	if cfg.MetricsInfraTagsAsTags {
+		smap[buildKey("processors", "infraattributes", "infra_tags_as_tags")] = true
+	}
 	{
 		configMap := confmap.NewFromStringMap(smap)
 		err = baseMap.Merge(configMap)
