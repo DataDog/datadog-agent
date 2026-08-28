@@ -143,6 +143,7 @@ dd_agent_go_test(
         "connection_type_test.go",
         "container_linux_test.go",
         "converter_test.go",
+        "credential_test.go",
         "debugger_test.go",
         "dogstatsd_test.go",
         "dogstatsd_uds_test.go",
@@ -166,6 +167,7 @@ dd_agent_go_test(
     args = ["-test.short"],
     embed = [":api"],
     deps = [
+        "//comp/core/delegatedauth/mock",
         "//comp/core/tagger/origindetection",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
