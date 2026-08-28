@@ -21,6 +21,10 @@ type PacketInfo interface {
 	// LinkLayerType returns the gopacket layer type for this
 	// packet's link-layer encapsulation
 	LinkLayerType() gopacket.LayerType
+	// OriginalLength returns the packet length before capture truncation.
+	OriginalLength() int
+	// CapturedLength returns the number of bytes supplied to the visitor.
+	CapturedLength() int
 }
 
 // PacketSource reads raw packet data
