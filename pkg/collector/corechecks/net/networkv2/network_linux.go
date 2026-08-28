@@ -969,7 +969,7 @@ func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) 
 		line := scanner.Text()
 
 		if lineNum == 0 {
-			headers = strings.Split(line, " ")
+			headers = strings.Fields(line)
 		} else {
 			// each line is a cpu stat, top line is headers
 			stat := &conntrackStat{cpuID: strconv.Itoa(lineNum - 1)}
@@ -999,9 +999,9 @@ func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) 
 					stat.Error = float64(val)
 				case "search_restart":
 					stat.SearchRestart = float64(val)
-				case "clash_resolve":
+				case "clash_resolve", "clashres":
 					stat.ClashResolve = float64(val)
-				case "chaintoolong":
+				case "chainlength", "chaintoolong":
 					stat.ChainTooLong = float64(val)
 				default:
 					continue
