@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
@@ -23,5 +23,17 @@ go_library(
         "//pkg/config/utils",
         "//pkg/process/runner/endpoint",
         "//pkg/process/util/api/config",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["forwarders_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/process/util/api/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
