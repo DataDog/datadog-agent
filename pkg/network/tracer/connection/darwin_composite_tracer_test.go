@@ -62,6 +62,45 @@ func TestDarwinCompositePrimaryFailureClosesGenerationAndSidecarsOnce(t *testing
 	require.Equal(t, 1, packetSource.closeCount())
 }
 
+func TestDarwinCompositeStatusReportsSidecarDegradation(t *testing.T) {
+	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	composite := newDarwinCompositeTracerWithComponents(primary, nil, nil)
+	composite.packetRequested = true
+	composite.reconcilerRequested = true
+	composite.packetError = errors.New("BPF unavailable")
+	composite.reconcilerError = errors.New("libproc unavailable")
+
+	status := GetDarwinTracerStatus(composite)
+
+	require.Equal(t, "nstat", status.ActiveBackend)
+	require.Equal(t, nstat.ABIRevision, status.ABIRevision)
+	require.Equal(t, "unavailable", status.PacketEnrichment)
+	require.Equal(t, "unavailable", status.LibprocReconciler)
+	require.Equal(t, "BPF unavailable", status.LastError)
+}
+
+func TestDarwinCompositeStatusTracksRuntimeSidecarHealth(t *testing.T) {
+	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	packet := newDarwinPacketSidecar(newBlockingDarwinPacketSource(), primary, 10)
+	reconciler := newDarwinLibprocReconciler(nil, primary, time.Second)
+	composite := newDarwinCompositeTracerWithComponents(primary, packet, reconciler)
+	composite.packetRequested = true
+	composite.reconcilerRequested = true
+
+	packet.onFailure(errors.New("capture stopped"))
+	reconciler.onResult(errors.New("scan failed"))
+
+	status := GetDarwinTracerStatus(composite)
+	require.Equal(t, "unavailable", status.PacketEnrichment)
+	require.Equal(t, "unavailable", status.LibprocReconciler)
+	require.Equal(t, "capture stopped", status.LastError)
+
+	reconciler.onResult(nil)
+	status = GetDarwinTracerStatus(composite)
+	require.Equal(t, "healthy", status.LibprocReconciler)
+	require.Equal(t, "unavailable", status.PacketEnrichment)
+}
+
 func TestDarwinCompositeRejectsMissingPrimary(t *testing.T) {
 	composite := newDarwinCompositeTracerWithComponents(nil, nil, nil)
 	require.ErrorContains(t, composite.Start(nil), "no authoritative NStat source")
