@@ -103,7 +103,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 			}
 		}
 
-		for _, ep := range endpoints { key := ep.APIKey
+		for _, ep := range endpoints {
+			key := ep.APIKey
 			if _, exists := expectedKeys[key]; exists {
 				expectedKeys[key] = true
 			} else {
@@ -162,7 +163,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 			}
 		}
 
-		for _, ep := range endpoints { key := ep.APIKey
+		for _, ep := range endpoints {
+			key := ep.APIKey
 			if _, exists := expectedKeys[key]; exists {
 				expectedKeys[key] = true
 			} else {

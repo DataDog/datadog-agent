@@ -43,8 +43,8 @@ func TestSingleTargetClosesBodyOnError(t *testing.T) {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 	mt := &multiTransport{
-		rt:      errorRoundTripper{},
-		targets: []*url.URL{u},
+		rt:        errorRoundTripper{},
+		targets:   []*url.URL{u},
 		endpoints: []config.Endpoint{{APIKey: "dummy"}},
 	}
 
