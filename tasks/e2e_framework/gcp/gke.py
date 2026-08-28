@@ -65,7 +65,7 @@ def create_gke(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     extra_flags = {
         "ddinfra:env": f"gcp/{account if account else cfg.get_gcp().account}",

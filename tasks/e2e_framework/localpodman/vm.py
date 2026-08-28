@@ -52,7 +52,7 @@ def create_vm(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     if not cfg.get_local().publicKeyPath:
         raise Exit("The field `local.publicKeyPath` is required in the config file")

@@ -15,7 +15,7 @@ dda inv -- anomalydetection.launch-testbench
 dda inv -- anomalydetection.launch-testbench --scenarios-dir /path/to/scenarios
 ```
 
-Then open http://localhost:5173 in your browser.
+Then open `http://localhost:5173` in your browser.
 
 The `--build` flag rebuilds the binary before launching. Omit it after the first run to skip the build step.
 
@@ -402,7 +402,7 @@ These endpoints are available in interactive mode (not headless).
 - **Scenario Selection**: Load different scenarios from the sidebar
 - **Component Toggles**: Enable/disable detectors and correlators live
 - **Series Tree**: Browse and select time series to visualize
-- **Aggregation Types**: Switch between avg, count, sum, min, max views
+- **Aggregation Types**: Switch between avg, count, and sum views
 - **Time Clusters**: View correlated anomaly groups
 - **Zoom/Pan**: Drag to zoom, middle-drag to pan on charts
 - **Split by Tag**: Split series by tag values for comparison

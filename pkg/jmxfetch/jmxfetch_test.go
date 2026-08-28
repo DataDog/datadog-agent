@@ -74,7 +74,7 @@ func TestGetPreferredDSDEndpoint(t *testing.T) {
 
 	t.Run("UDS configured but not available", func(t *testing.T) {
 		cfg.SetInTest("dogstatsd_socket", "/tmp/nonexistent-dsd-test.sock")
-		cfg.SetInTest("dogstatsd_port", "8125")
+		cfg.SetInTest("dogstatsd_port", 8125)
 		cfg.SetInTest("use_dogstatsd", true)
 
 		j := NewJMXFetch(nil, nil)
@@ -83,7 +83,7 @@ func TestGetPreferredDSDEndpoint(t *testing.T) {
 
 	t.Run("UDS not configured", func(t *testing.T) {
 		cfg.SetInTest("dogstatsd_socket", "")
-		cfg.SetInTest("dogstatsd_port", "8125")
+		cfg.SetInTest("dogstatsd_port", 8125)
 		cfg.SetInTest("use_dogstatsd", true)
 
 		j := NewJMXFetch(nil, nil)
@@ -92,7 +92,7 @@ func TestGetPreferredDSDEndpoint(t *testing.T) {
 
 	t.Run("bind host 0.0.0.0 normalized to localhost", func(t *testing.T) {
 		cfg.SetInTest("dogstatsd_socket", "")
-		cfg.SetInTest("dogstatsd_port", "8125")
+		cfg.SetInTest("dogstatsd_port", 8125)
 		cfg.SetInTest("use_dogstatsd", true)
 		cfg.SetInTest("bind_host", "0.0.0.0")
 
@@ -102,7 +102,7 @@ func TestGetPreferredDSDEndpoint(t *testing.T) {
 
 	t.Run("custom bind host and port", func(t *testing.T) {
 		cfg.SetInTest("dogstatsd_socket", "")
-		cfg.SetInTest("dogstatsd_port", "9125")
+		cfg.SetInTest("dogstatsd_port", 9125)
 		cfg.SetInTest("use_dogstatsd", true)
 		cfg.SetInTest("bind_host", "127.0.0.2")
 

@@ -34,7 +34,7 @@ and the testbench use the same engine.
 | `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
 | `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
-| `impl/storage.go` | In-memory columnar time-series storage (1s buckets, read-time aggregation) |
+| `impl/storage.go` | In-memory bucketed time-series storage (1s buckets, read-time aggregation) |
 | `impl/scheduler.go` | Scheduling policy: when to advance analysis |
 | `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation, log tap |
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
@@ -113,8 +113,8 @@ analysis to T-1. This ensures deterministic replay: same data → same anomalies
 
 ### Read-time aggregation
 
-Storage keeps full summary stats (sum/count/min/max) per 1-second bucket.
-Aggregation kind (avg, sum, count, min, max) is chosen when reading, not when
+Storage keeps sum/count summary stats per 1-second bucket.
+Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
 ### Non-blocking ingestion
