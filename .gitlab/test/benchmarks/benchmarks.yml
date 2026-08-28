@@ -26,10 +26,27 @@ benchmark:
     - ./test/benchmarks/apm_scripts/run-benchmarks.sh
     - ./test/benchmarks/apm_scripts/analyze-results.sh
     - "./test/benchmarks/apm_scripts/upload-results-to-s3.sh || :"
-    - "./test/benchmarks/apm_scripts/post-pr-comment.sh || :"
   artifacts:
     name: "artifacts"
     when: always
     paths:
       - artifacts/
     expire_in: 3 months
+
+# Same pattern as golang_deps_commenter: post on the standard linux image, not the bench runner.
+benchmark_commenter:
+  stage: benchmarks
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  extends: .dd_octo_sts
+  rules: !reference [.on_trace_agent_changes_or_manual]
+  interruptible: true
+  needs: ["benchmark"]
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    - if [ ! -s artifacts/report.md ]; then
+        dda inv -- -e github.pr-commenter --title="Benchmarks" --force-delete ;
+      else
+        dda inv -- -e github.pr-commenter --title="Benchmarks" --body-file=artifacts/report.md ;
+      fi
