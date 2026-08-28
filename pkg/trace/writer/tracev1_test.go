@@ -278,20 +278,18 @@ func randomSampledSpansV1(spans, events int) *SampledChunksV1 {
 func mapPayloads(t *testing.T, payloads []*payload, compressor compression.Component, f func(*pb.AgentPayload)) {
 	all := &pb.AgentPayload{}
 	for _, p := range payloads {
-		var slurp []byte
-		assert := assert.New(t)
 		reader, err := compressor.NewReader(p.body)
-		assert.NoError(err)
-		defer reader.Close()
+		require.NoError(t, err, "payload body is not valid %s", compressor.Encoding())
 
-		slurp, err = io.ReadAll(reader)
+		slurp, readErr := io.ReadAll(reader)
+		closeErr := reader.Close()
+		require.NoError(t, readErr)
+		require.NoError(t, closeErr)
 
-		assert.NoError(err)
 		var payload pb.AgentPayload
-		err = proto.Unmarshal(slurp, &payload)
-		assert.NoError(err)
-		assert.Equal(payload.HostName, testHostname)
-		assert.Equal(payload.Env, testEnv)
+		require.NoError(t, proto.Unmarshal(slurp, &payload))
+		assert.Equal(t, testHostname, payload.HostName)
+		assert.Equal(t, testEnv, payload.Env)
 		all.IdxTracerPayloads = append(all.IdxTracerPayloads, payload.IdxTracerPayloads...)
 	}
 	f(all)
