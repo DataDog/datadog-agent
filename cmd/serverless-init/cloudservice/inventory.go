@@ -5,6 +5,14 @@
 
 package cloudservice
 
+const (
+	// Downstream workload_type values, from the allowlist enforced by the
+	// dd-go event-platform-resource-writer service.
+	workloadTypeCloudRunService   = "cloud_run_service"
+	workloadTypeCloudFunctionGen2 = "cloud_function_gen2"
+	workloadTypeCloudRunJob       = "cloud_run_job"
+)
+
 // InventoryData holds the per-platform serverless fields that feed the
 // serverless-init inventory metadata payload. Each CloudService implementation
 // derives these from its own environment so the payload builder stays thin and
@@ -57,11 +65,6 @@ type InventoryData struct {
 //
 // TODO(SVLS): derive real per-platform inventory fields.
 func (l *LocalService) GetInventoryData() InventoryData { return InventoryData{} }
-
-// GetInventoryData returns the inventory metadata fields for Cloud Run Jobs.
-//
-// TODO(SVLS): derive cloud_run_job workload_type, CCRID, region, and project id.
-func (c *CloudRunJobs) GetInventoryData() InventoryData { return InventoryData{} }
 
 // GetInventoryData returns the inventory metadata fields for Azure Container
 // Apps.
