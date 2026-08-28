@@ -1106,7 +1106,9 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.replayAdvances.Store(0)
 	e.replayAnomalies.Store(0)
 	e.mu.Lock()
-	e.storage = newTimeSeriesStorageWith(storageCfg)
+	storage := newTimeSeriesStorageWith(storageCfg)
+	storage.onDroppedValue = e.storage.onDroppedValue
+	e.storage = storage
 	e.maxCorrelations = storageCfg.MaxCorrelations
 	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()

@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"math"
 	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -13,6 +14,17 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/stretchr/testify/require"
 )
+
+func TestResetForReplayPreservesDroppedValueCallback(t *testing.T) {
+	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	var reasons []string
+	e.storage.onDroppedValue = func(reason string) { reasons = append(reasons, reason) }
+
+	e.ResetForReplay(nil, nil, nil, nil, DefaultStorageConfig(), BaselineConfig{})
+	e.storage.Add("ns", "metric", math.NaN(), 1, nil)
+
+	require.Equal(t, []string{"non_finite"}, reasons)
+}
 
 func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
