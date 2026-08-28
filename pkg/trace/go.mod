@@ -15,6 +15,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/env v0.72.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/credential v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.71.0
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/proto v0.74.1

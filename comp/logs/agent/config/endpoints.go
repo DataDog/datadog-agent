@@ -8,15 +8,14 @@ package config
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"go.uber.org/atomic"
 
-	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/credential"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -313,16 +312,15 @@ func (e *Endpoint) GetAPIKey() string {
 }
 
 // isDelaDirective reports whether a configured api_key is a delegated-auth placeholder rather than
-// a real key. Uses the shared prefix constant from pkg/config/model so this check cannot drift
-// from the canonical one in pkg/config/utils.
+// a real key. Delegates to credential.IsDirective so there is one canonical check.
 func isDelaDirective(value string) bool {
-	return strings.HasPrefix(strings.TrimSpace(value), model.DelaDirectivePrefix)
+	return credential.IsDirective(value)
 }
 
 // CredentialProvider supplies the credential for one destination. It is an alias for
-// delegatedauth.Provider so consumers that import this package get the canonical interface
+// credential.Provider so consumers that import this package get the canonical interface
 // without a separate import.
-type CredentialProvider = delegatedauth.Provider
+type CredentialProvider = credential.Provider
 
 // SetCredentialProvider makes this endpoint take its credential from p rather than from a
 // configured API key. Call it during endpoint construction, before any destination uses it.

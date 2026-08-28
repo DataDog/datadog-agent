@@ -195,7 +195,7 @@ func TestSender(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
-			assert.Equal(testAPIKey, req.Header.Get(headerAPIKey))
+			assert.Equal(testAPIKey, req.Header.Get("DD-Api-Key"))
 			assert.Equal("testUserAgent", req.Header.Get(headerUserAgent))
 			wg.Done()
 		}))
