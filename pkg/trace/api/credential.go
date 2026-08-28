@@ -7,8 +7,8 @@ package api
 
 import (
 	"net/http"
-	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/credential"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
@@ -17,22 +17,12 @@ import (
 // and false when the credential is not yet available, meaning the caller should
 // skip this endpoint rather than send unauthenticated.
 func authorizeEndpoint(e config.Endpoint, h http.Header) bool {
-	if e.CredentialProvider != nil {
-		return e.CredentialProvider.Authorize(h)
-	}
-	if e.APIKey == "" {
-		return false
-	}
-	h.Set("DD-API-KEY", e.APIKey)
-	return true
+	return credential.StampAuth(h, e.CredentialProvider, e.APIKey)
 }
-
-// delaDirectivePrefix identifies a delegated-auth directive in an API key field.
-const delaDirectivePrefix = "DELA("
 
 // isDelaDirective reports whether a value is a DELA(...) directive.
 func isDelaDirective(value string) bool {
-	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
+	return credential.IsDirective(value)
 }
 
 // resolveCredentialProvider resolves the CredentialProvider for endpoint e when its

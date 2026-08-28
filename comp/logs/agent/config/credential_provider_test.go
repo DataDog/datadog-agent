@@ -12,23 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/credential"
 )
-
-// stubProvider is a CredentialProvider whose readiness the test controls.
-type stubProvider struct {
-	key   string
-	ready bool
-}
-
-func (p *stubProvider) Authorize(h http.Header) bool {
-	if !p.ready {
-		return false
-	}
-	h.Set("DD-API-KEY", p.key)
-	return true
-}
 
 // An ordinary endpoint must be completely unaffected by any of this.
 func TestAuthorizeStampsTheConfiguredKey(t *testing.T) {
@@ -42,7 +30,11 @@ func TestAuthorizeStampsTheConfiguredKey(t *testing.T) {
 // A provider replaces the API key entirely: a delegated-auth endpoint has no key of its own.
 func TestAuthorizeUsesTheProviderWhenSet(t *testing.T) {
 	e := NewEndpoint("", "logs_config.additional_endpoints", "host", 0, "", false)
-	e.SetCredentialProvider(&stubProvider{key: "delegated-key", ready: true})
+	e.SetCredentialProvider(func() *delegatedauthmock.StubProvider {
+		p := &delegatedauthmock.StubProvider{Key: "delegated-key"}
+		p.SetReady(true)
+		return p
+	}())
 
 	h := http.Header{}
 	require.True(t, e.Authorize(h))
@@ -53,7 +45,7 @@ func TestAuthorizeUsesTheProviderWhenSet(t *testing.T) {
 // of shipping the payload with no key.
 func TestAuthorizeRefusesWhileTheCredentialResolves(t *testing.T) {
 	e := NewEndpoint("", "logs_config.additional_endpoints", "host", 0, "", false)
-	e.SetCredentialProvider(&stubProvider{key: "delegated-key"})
+	e.SetCredentialProvider(&delegatedauthmock.StubProvider{Key: "delegated-key"})
 
 	h := http.Header{}
 	assert.False(t, e.Authorize(h))
@@ -128,7 +120,7 @@ func TestDirectiveIsNeverUsedAsAnAPIKey(t *testing.T) {
 
 // With a lookup wired, the endpoint gets its own credential and starts authorizing once it lands.
 func TestDirectiveTakesItsCredentialFromTheLookup(t *testing.T) {
-	p := &stubProvider{key: "org2-key"}
+	p := &delegatedauthmock.StubProvider{Key: "org2-key"}
 	var gotConfigKey, gotHost, gotDirective string
 
 	e := buildAdditionalWithDirective(t, func(configKey, host, directive string) CredentialProvider {
@@ -144,7 +136,7 @@ func TestDirectiveTakesItsCredentialFromTheLookup(t *testing.T) {
 
 	assert.False(t, e.Authorize(http.Header{}), "must buffer until the credential arrives")
 
-	p.ready = true
+	p.SetReady(true)
 	h := http.Header{}
 	require.True(t, e.Authorize(h))
 	assert.Equal(t, "org2-key", h.Get("DD-API-KEY"))
@@ -218,7 +210,11 @@ func TestProviderStillWinsWhenTheKeyHoldsADirective(t *testing.T) {
 	e := NewEndpoint("", "logs_config.additional_endpoints", "org2.datadoghq.com", 0, "", false)
 	e.credentialDirective = "DELA(org-uuid-2, aws)"
 	e.apiKey.Store("DELA(org-uuid-2, aws)")
-	e.SetCredentialProvider(&stubProvider{key: "org2-key", ready: true})
+	e.SetCredentialProvider(func() *delegatedauthmock.StubProvider {
+		p := &delegatedauthmock.StubProvider{Key: "org2-key"}
+		p.SetReady(true)
+		return p
+	}())
 
 	h := http.Header{}
 	require.True(t, e.Authorize(h))
