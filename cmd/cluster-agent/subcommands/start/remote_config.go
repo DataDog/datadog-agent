@@ -281,6 +281,7 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 		if err := validateAdditionalRemoteConfigProducts(spec); err != nil {
 			return nil, err
 		}
+		var err error
 		spec.DatabaseFileName, err = normalizeAdditionalRemoteConfigDatabaseFileName(spec.Name, spec.DatabaseFileName)
 		if err != nil {
 			return nil, err
