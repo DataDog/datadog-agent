@@ -256,24 +256,7 @@ const (
 //nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Run() error {
 	realTimeAllowed := !l.config.GetBool("process_config.disable_realtime_checks")
-
-	checkNamesLength := len(l.enabledChecks)
-	if realTimeAllowed {
-		// checkNamesLength is double when realtime checks is enabled as we append the Process real time name
-		// as well as the original check name
-		checkNamesLength = checkNamesLength * 2
-	}
-
-	checkNames := make([]string, 0, checkNamesLength)
-	for _, check := range l.enabledChecks {
-		checkNames = append(checkNames, check.Name())
-
-		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
-		// process_rt doesn't show up in the enabled checks
-		if check.Name() == checks.ProcessCheckName && realTimeAllowed {
-			checkNames = append(checkNames, checks.RTProcessCheckName)
-		}
-	}
+	checkNames := enabledCheckNames(l.enabledChecks, realTimeAllowed)
 	status.UpdateEnabledChecks(checkNames)
 
 	runnerName := "process-agent"
@@ -303,6 +286,28 @@ func (l *CheckRunner) Run() error {
 	}
 
 	return nil
+}
+
+type statusNamesProvider interface {
+	StatusNames() []string
+}
+
+func enabledCheckNames(enabledChecks []checks.Check, realTimeAllowed bool) []string {
+	checkNames := make([]string, 0, len(enabledChecks)*2)
+	for _, check := range enabledChecks {
+		statusNames := []string{check.Name()}
+		if provider, ok := check.(statusNamesProvider); ok {
+			statusNames = provider.StatusNames()
+		}
+
+		for _, statusName := range statusNames {
+			checkNames = append(checkNames, statusName)
+			if statusName == checks.ProcessCheckName && realTimeAllowed {
+				checkNames = append(checkNames, checks.RTProcessCheckName)
+			}
+		}
+	}
+	return checkNames
 }
 
 func (l *CheckRunner) listenForRTUpdates() {
