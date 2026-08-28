@@ -796,7 +796,9 @@ impl ManagedProcess {
             self.wait_control = None;
             self.clear_windows_spawn_resources();
         }
-        self.stop_wait_generation.clear();
+        if !self.stop_wait_generation.is_claimed() {
+            self.stop_wait_generation.clear();
+        }
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
     }
@@ -900,9 +902,8 @@ impl ManagedProcess {
         }
         if self.state.awaiting_stop() {
             self.mark_stopped();
-        } else {
-            self.stop_wait_generation.clear();
         }
+        self.stop_wait_generation.clear();
         self.release_stop_wait_resources(budget).await;
     }
 
@@ -944,7 +945,6 @@ impl ManagedProcess {
         #[cfg(windows)]
         self.clear_windows_spawn_resources();
         if self.state == ProcessState::Stopping {
-            self.stop_wait_generation.clear();
             self.transition_to(ProcessState::Stopped);
         } else if status.success() {
             self.transition_to(ProcessState::Exited);
@@ -1949,6 +1949,28 @@ runtime_success_sec: 5
         proc.finalize_orphaned_stop_wait(ShutdownBudget::unlimited(Instant::now().into()))
             .await;
         assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn set_last_status_preserves_stop_wait_owner_until_complete() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut proc = ManagedProcess::new_config(
+            "svc".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        let budget = ShutdownBudget::unlimited(Instant::now().into());
+        proc.spawn().unwrap();
+        proc.request_stop();
+        let plan = proc.plan_stop_wait(budget).expect("stop wait plan");
+        let owner = plan.owner();
+        drop(plan);
+
+        proc.set_last_status(test_helpers::exit_status(0));
+
+        assert!(proc.stop_wait_generation.owns(owner));
+        proc.complete_stop_wait(owner, budget).await;
+        assert!(!proc.stop_wait_generation.is_claimed());
     }
 
     #[tokio::test]
