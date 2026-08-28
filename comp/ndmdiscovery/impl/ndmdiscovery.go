@@ -123,10 +123,19 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	return Provides{
 		Comp: comp,
-		// One shared NDM product, filtered by the kind field in the payload.
+		// One shared product, filtered by the kind field in the payload: a
+		// config whose kind is not "autodiscovery" is ignored silently and its
+		// apply state is left untouched, so sharing a product with another
+		// feature is safe.
+		//
+		// TODO(NDM): switch to data.ProductNDM once that product is provisioned
+		// backend side. MANAGED_DEPLOYMENTS_DEBUG is a POC placeholder: it
+		// already exists, which is what lets us push ranges to a real Agent
+		// today. It carries other features' payloads, so the kind filter in
+		// rcupdate.go is load-bearing here rather than merely defensive.
 		RCListener: rcclienttypes.ListenerProvider{
 			ListenerProvider: rcclienttypes.RCListener{
-				data.ProductNDM: comp.rc.Update,
+				data.ProductManagedDeploymentsDebug: comp.rc.Update,
 			},
 		},
 	}, nil

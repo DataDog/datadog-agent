@@ -50,6 +50,7 @@ var validProducts = map[string]struct{}{
 	ProductNetworkPath:                  {},
 	ProductDataSecurityDBScanTasks:      {},
 	ProductNDM:                          {},
+	ProductManagedDeploymentsDebug:      {},
 }
 
 const (
@@ -147,4 +148,8 @@ const (
 	// ProductNDM is the product used by Network Device Monitoring. The payload
 	// carries a "kind" field so that several NDM subscribers can share it.
 	ProductNDM = "NDM"
+	// ProductManagedDeploymentsDebug is a general-purpose debug product used to
+	// deliver arbitrary payloads to an Agent while a feature's own product is
+	// not yet provisioned backend side.
+	ProductManagedDeploymentsDebug = "MANAGED_DEPLOYMENTS_DEBUG"
 )

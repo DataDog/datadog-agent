@@ -53,6 +53,10 @@ const (
 	// ProductNDM is the product used by Network Device Monitoring. The payload
 	// carries a "kind" field so that several NDM subscribers can share it.
 	ProductNDM Product = "NDM"
+	// ProductManagedDeploymentsDebug is a general-purpose debug product used to
+	// deliver arbitrary payloads to an Agent while a feature's own product is
+	// not yet provisioned backend side.
+	ProductManagedDeploymentsDebug Product = "MANAGED_DEPLOYMENTS_DEBUG"
 )
 
 // ProductListToString converts a product list to string list

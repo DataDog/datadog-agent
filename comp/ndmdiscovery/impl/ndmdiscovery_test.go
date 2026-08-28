@@ -97,7 +97,7 @@ func TestNewComponentDisabledWhenRemoteConfigOff(t *testing.T) {
 	lc.AssertHooksNumber(0)
 }
 
-func TestNewComponentEnabledSubscribesToTheNDMProduct(t *testing.T) {
+func TestNewComponentEnabledSubscribesToTheSharedProduct(t *testing.T) {
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"network_devices.discovery.enabled": true,
 		"remote_configuration.enabled":      true,
@@ -108,8 +108,8 @@ func TestNewComponentEnabledSubscribesToTheNDMProduct(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotNil(t, provides.RCListener.ListenerProvider)
-	_, ok := provides.RCListener.ListenerProvider[data.ProductNDM]
-	assert.True(t, ok, "the component subscribes to the shared NDM product")
+	_, ok := provides.RCListener.ListenerProvider[data.ProductManagedDeploymentsDebug]
+	assert.True(t, ok, "the component subscribes to the shared POC product")
 	assert.Len(t, provides.RCListener.ListenerProvider, 1)
 	assert.Equal(t, 0, provides.Comp.RangeCount())
 	lc.AssertHooksNumber(1)
