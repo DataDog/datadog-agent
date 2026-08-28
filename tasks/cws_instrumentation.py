@@ -9,7 +9,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import build_go_binary_with_bazel
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.go import go_build
@@ -47,7 +47,7 @@ def build(
     `go build`, then copy the result to the same place. Developer opt-in only; defaults to off.
     """
     if enable_bazel:
-        build_go_binary_with_bazel("//cmd/cws-instrumentation:cws-instrumentation", BIN_PATH)
+        build_binary_with_bazel("//cmd/cws-instrumentation:cws-instrumentation", BIN_PATH)
         return
 
     if build_tags is None:
