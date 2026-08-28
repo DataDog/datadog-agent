@@ -103,6 +103,7 @@ require (
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/go-quicktest/qt v1.102.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect

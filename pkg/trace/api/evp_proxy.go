@@ -83,10 +83,10 @@ func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 	endpoints := evpProxyEndpointsFromConfig(conf)
 	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPProxy: ", 0) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
+		Rewrite: func(pr *httputil.ProxyRequest) {
 			// The X-Forwarded-For header can be abused to fake the origin of requests and we don't need it,
-			// so we set it to null to tell ReverseProxy to not set it.
-			req.Header["X-Forwarded-For"] = nil
+			// so we clear it instead of calling SetXForwarded.
+			pr.Out.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
 		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewContainerIDProviderFromConfig(conf), statsd},
