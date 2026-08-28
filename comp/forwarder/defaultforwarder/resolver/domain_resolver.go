@@ -16,12 +16,12 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/credential"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -446,7 +446,7 @@ func (r *domainResolver) IsMetricToVector() bool {
 // CredentialProvider supplies a credential for outbound requests at send time, rather than the
 // resolver holding a key string up front. It is an alias for delegatedauth.Provider so consumers
 // that import this package get the canonical interface without a separate import.
-type CredentialProvider = delegatedauth.Provider
+type CredentialProvider = credential.Provider
 
 // credentialSource is one authorization slot on a domain. The forwarder creates one transaction
 // per slot, so a slot must exist even when its credential has not arrived yet - otherwise the

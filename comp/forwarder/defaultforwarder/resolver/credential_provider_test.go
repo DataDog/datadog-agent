@@ -9,25 +9,12 @@ import (
 	"net/http"
 	"testing"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// stubProvider is a CredentialProvider whose readiness the test controls.
-type stubProvider struct {
-	key   string
-	ready bool
-}
-
-func (p *stubProvider) Authorize(h http.Header) bool {
-	if !p.ready {
-		return false
-	}
-	h.Set("DD-Api-Key", p.key)
-	return true
-}
 
 func resolverWithProvider(t *testing.T, staticKeys []string, p CredentialProvider) DomainResolver {
 	t.Helper()
@@ -44,7 +31,7 @@ func resolverWithProvider(t *testing.T, staticKeys []string, p CredentialProvide
 // forwarder would create no transaction for that destination and the payload would be dropped at
 // creation, which is exactly what the buffering behaviour has to avoid.
 func TestProviderGetsAnAuthorizationSlotWhileStillResolving(t *testing.T) {
-	r := resolverWithProvider(t, []string{"static-key"}, &stubProvider{ready: false})
+	r := resolverWithProvider(t, []string{"static-key"}, &delegatedauthmock.StubProvider{})
 
 	assert.Len(t, r.GetAuthorizers(), 2,
 		"a provider without a credential must still occupy a slot so a transaction is created for it")
@@ -53,7 +40,7 @@ func TestProviderGetsAnAuthorizationSlotWhileStillResolving(t *testing.T) {
 // While the provider has no credential, Authorize must refuse rather than send a request with no
 // (or someone else's) key.
 func TestAuthorizeReportsNotReadyWhileResolving(t *testing.T) {
-	r := resolverWithProvider(t, nil, &stubProvider{ready: false})
+	r := resolverWithProvider(t, nil, &delegatedauthmock.StubProvider{})
 	log := logmock.New(t)
 
 	h := http.Header{}
@@ -65,13 +52,13 @@ func TestAuthorizeReportsNotReadyWhileResolving(t *testing.T) {
 
 // Once the credential lands, the same slot starts authorizing - no rebuild, no new resolver.
 func TestAuthorizeSucceedsOnceCredentialArrives(t *testing.T) {
-	p := &stubProvider{key: "resolved-key"}
+	p := &delegatedauthmock.StubProvider{Key: "resolved-key"}
 	r := resolverWithProvider(t, nil, p)
 	log := logmock.New(t)
 
 	require.ErrorIs(t, r.Authorize(0, http.Header{}, log), ErrCredentialNotReady)
 
-	p.ready = true
+	p.SetReady(true)
 
 	h := http.Header{}
 	require.NoError(t, r.Authorize(0, h, log))
@@ -82,7 +69,7 @@ func TestAuthorizeSucceedsOnceCredentialArrives(t *testing.T) {
 // whether the provider has resolved. Providers come first in the authorizer list, so the
 // provider is at index 0 and the static key at index 1.
 func TestStaticKeysUnaffectedByAPendingProvider(t *testing.T) {
-	r := resolverWithProvider(t, []string{"static-key"}, &stubProvider{ready: false})
+	r := resolverWithProvider(t, []string{"static-key"}, &delegatedauthmock.StubProvider{})
 	log := logmock.New(t)
 
 	require.ErrorIs(t, r.Authorize(0, http.Header{}, log), ErrCredentialNotReady,
@@ -96,10 +83,23 @@ func TestStaticKeysUnaffectedByAPendingProvider(t *testing.T) {
 // An out-of-range slot is an error rather than a silent unauthenticated send. On-disk transactions
 // serialized when more slots existed can land here after a restart.
 func TestAuthorizeRejectsOutOfRangeSlot(t *testing.T) {
-	r := resolverWithProvider(t, []string{"static-key"}, &stubProvider{ready: true})
+	p := &delegatedauthmock.StubProvider{Key: "k"}
+	p.SetReady(true)
+	r := resolverWithProvider(t, []string{"static-key"}, p)
 	log := logmock.New(t)
 
 	h := http.Header{}
 	require.Error(t, r.Authorize(99, h, log))
 	assert.Empty(t, h)
+}
+
+// An ENC[...] key resolved by the secrets backend is a normal static key from the resolver's
+// perspective. The provider path must not interfere with it.
+func TestResolvedEncKeyUnaffectedByProvider(t *testing.T) {
+	r := resolverWithProvider(t, []string{"resolved-enc-key"}, &delegatedauthmock.StubProvider{})
+	log := logmock.New(t)
+
+	h := http.Header{}
+	require.NoError(t, r.Authorize(1, h, log), "the ENC[] key slot must authorize independently of the provider")
+	assert.Equal(t, "resolved-enc-key", h.Get("DD-Api-Key"))
 }

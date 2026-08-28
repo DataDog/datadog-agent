@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/pkg/credential"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	ddattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -32,13 +33,10 @@ const ServiceName = "datadog-trace-agent"
 var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
 
 // Endpoint specifies an endpoint that the trace agent will write data (traces, stats & services) to.
-// CredentialProvider supplies the credential for one destination. It mirrors
-// comp/core/delegatedauth's Provider; see CredentialProviderFn for why it is redeclared here.
-type CredentialProvider interface {
-	// Authorize stamps the credential onto h and reports whether it did. A false return means
-	// no credential is available yet and the caller must not send.
-	Authorize(h http.Header) bool
-}
+// CredentialProvider is an alias for credential.Provider, the canonical interface declared
+// in pkg/credential. pkg/trace depends on pkg/credential (not comp/) so it gets the same
+// type that the agent uses.
+type CredentialProvider = credential.Provider
 
 type Endpoint struct {
 	APIKey string `json:"-"` // never marshal this
@@ -650,7 +648,7 @@ type AgentConfig struct {
 	// returning nil when that endpoint uses a plain API key. Declared as a func field, like
 	// SecretsRefreshFn below, so pkg/trace stays free of a dependency on comp/core/delegatedauth:
 	// this module is vendored by the OTel Collector distribution and has to stay lean.
-	CredentialProviderFn func(configSettingPath, host, directive string) CredentialProvider `json:"-"`
+	CredentialProviderFn credential.Lookup `json:"-"`
 
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It blocks until the refresh
