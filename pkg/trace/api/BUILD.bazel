@@ -10,6 +10,7 @@ go_library(
         "container.go",
         "container_linux.go",
         "converter.go",
+        "credential.go",
         "debug_server.go",
         "debug_server_serverless.go",
         "debugger.go",
