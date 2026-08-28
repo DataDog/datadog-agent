@@ -120,16 +120,38 @@ struct otel_dtv_info_t {
     u32 _pad;
 };
 
-// OTel TLS registration for a process, written once by user-space after
-// classifying the otel_thread_ctx_v1 TLS variable's access model via static
-// ELF relocation analysis, and reading the (loader-resolved) GOT/TLSDESC slot
-// from the live process once.
+// V8 layout constants the Node.js writer publishes in its OTEP 4719 process
+// context, so the reader needs to know nothing of how V8 was built. Zero unless
+// the runtime is OTEL_RUNTIME_NODEJS.
+struct otel_v8_layout_t {
+    u16 tagged_size;                  // width of a tagged word; only 8 is supported
+    u16 js_map_table_offset;          // JSMap -> backing OrderedHashMap
+    u16 ordered_hash_map_header_size; // header before the OrderedHashMap fields
+    u16 wrapped_object_offset;        // JSObject -> the native wrapper of a record
+    u16 native_wrap_fields_offset;    // native wrapper -> the record pointer
+    u16 _pad[3];
+};
+
+// OTel TLS registration for a process, written once by user space after
+// classifying the access model of its otel_thread_ctx_v1 (or
+// otel_thread_ctx_nodejs_v1) thread-local.
 struct otel_tls_t {
     u32 runtime;                     // enum otel_runtime_language
     u32 module_id;                   // TLS module ID for dynamic TLS, or 0 for static TLS
     s64 tls_offset;                  // TP-relative (static TLS, module_id==0) or
                                      // in-module offset (dynamic TLS, module_id!=0)
     struct otel_dtv_info_t dtv_info; // unused when module_id == 0
+    struct otel_v8_layout_t v8;      // unused unless runtime == OTEL_RUNTIME_NODEJS
+};
+
+// Discovery struct the Node.js writer publishes in its otel_thread_ctx_nodejs_v1
+// thread-local: where to start walking for a record. See span_nodejs.h.
+struct otel_nodejs_ctx_t {
+    u64 cped_slot;          // isolate slot holding the live AsyncContextFrame
+    u64 als_handle;         // handle to the AsyncLocalStorage the frame is keyed by
+    u32 als_identity_hash;  // its identity hash, which picks a single bucket
+    u32 _pad;
+    u64 undefined_addr;     // this isolate's undefined, i.e. "no context here"
 };
 
 #endif

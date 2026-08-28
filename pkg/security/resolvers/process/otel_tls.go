@@ -35,6 +35,15 @@ const (
 	// pointer to the active Thread Local Context Record, not the record itself.
 	otelTLSExportSize = 8
 
+	// otelNodeJSTLSSymbolName is the TLS symbol the Node.js writer publishes
+	// instead, holding a discovery struct rather than a record pointer.
+	otelNodeJSTLSSymbolName = "otel_thread_ctx_nodejs_v1"
+	otelNodeJSTLSExportSize = 32
+
+	// otelNodeJSSchemaPrefix is what the process context of a process using the
+	// Node.js writer announces, as of the development version "nodejs_v1_dev".
+	otelNodeJSSchemaPrefix = "nodejs_v1"
+
 	// otelRuntimeNative is a runtime using ELF thread-local storage (C, C++,
 	// Rust, Java/JNI, ...).
 	otelRuntimeNative uint32 = 0
@@ -46,11 +55,46 @@ const (
 	// OTEL_RUNTIME_GOLANG in pkg/security/ebpf/c/include/constants/enums.h.
 	//nolint:unused
 	otelRuntimeGolang uint32 = 1
+
+	// otelRuntimeNodeJS is the Node.js runtime, which hangs its records off the
+	// asynchronous context rather than the thread.
+	otelRuntimeNodeJS uint32 = 2
 )
 
 // otelTLSValueSize is the serialized size of struct otel_tls_t in
 // pkg/security/ebpf/c/include/structs/span_context.h.
-const otelTLSValueSize = 32
+const otelTLSValueSize = 48
+
+// otelSupportedTaggedSize is the only width of a V8 tagged word the reader walks.
+// Pointer compression stores four-byte references relative to a cage base, which
+// would change every step of the walk; Node does not build V8 that way, so such a
+// process is left unregistered.
+const otelSupportedTaggedSize = 8
+
+// otelV8Layout is what walking from the Node.js discovery struct to a record
+// takes, as the writer's process context publishes it.
+type otelV8Layout struct {
+	taggedSize               uint16
+	jsMapTableOffset         uint16
+	orderedHashMapHeaderSize uint16
+	wrappedObjectOffset      uint16
+	nativeWrapFieldsOffset   uint16
+}
+
+// otelWriter is the thread context writer a process publishes with: which TLS
+// symbol holds its entry point, and what reading through it takes.
+type otelWriter struct {
+	symbolName  string
+	symbolSize  uint64
+	runtimeLang uint32
+	v8          otelV8Layout
+}
+
+var otelNativeWriter = otelWriter{
+	symbolName:  otelTLSSymbolName,
+	symbolSize:  otelTLSExportSize,
+	runtimeLang: otelRuntimeNative,
+}
 
 // otelDTVInfo describes how to walk the Dynamic Thread Vector (DTV) for a
 // process's libc. The signed fields here and in otelTLSResolution must stay
@@ -76,8 +120,10 @@ type otelTLSResolution struct {
 	tlsOffset int64
 	// dtvInfo locates the DTV for dynamic TLS (unused when moduleID == 0).
 	dtvInfo otelDTVInfo
-	// attributeKeys is used to name the attribute in the thread context record.
-	// This is used to fill Tracer.ThreadlocalAttributeKeys
+	// v8 is what the walk from the discovery struct takes (Node.js only).
+	v8 otelV8Layout
+	// attributeKeys names the attributes of the process' records, by index; it is
+	// used to fill Tracer.ThreadlocalAttributeKeys.
 	attributeKeys []string
 }
 
@@ -90,6 +136,12 @@ func serializeOTelTLSValue(res otelTLSResolution) []byte {
 	binary.NativeEndian.PutUint64(buf[16:24], uint64(res.dtvInfo.offset))
 	binary.NativeEndian.PutUint32(buf[24:28], res.dtvInfo.multiplier)
 	// buf[28:32] is dtv_info._pad, intentionally left zero.
+	binary.NativeEndian.PutUint16(buf[32:34], res.v8.taggedSize)
+	binary.NativeEndian.PutUint16(buf[34:36], res.v8.jsMapTableOffset)
+	binary.NativeEndian.PutUint16(buf[36:38], res.v8.orderedHashMapHeaderSize)
+	binary.NativeEndian.PutUint16(buf[38:40], res.v8.wrappedObjectOffset)
+	binary.NativeEndian.PutUint16(buf[40:42], res.v8.nativeWrapFieldsOffset)
+	// buf[42:48] is otel_v8_layout_t._pad, intentionally left zero.
 	return buf
 }
 
@@ -131,31 +183,37 @@ func resolveOTelTLS(pid uint32) (otelTLSResolution, error) {
 		return otelTLSResolution{}, err
 	}
 
-	// What a process publishes about itself is what makes it worth resolving,
-	// and where the names of its records' attribute indexes come from.
+	// What a process publishes about itself is what makes it worth resolving, and
+	// says which writer to resolve for.
 	procCtx, err := target.processContext()
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
 	attributeKeys, _ := procCtx.Attributes.StringSlice(otelprocessctx.KeyAttributeKeyMap)
 
-	module, sym, err := target.findOTelTLSModule()
+	writer, err := otelWriterFrom(procCtx.Attributes)
+	if err != nil {
+		return otelTLSResolution{}, err
+	}
+
+	module, sym, err := target.findOTelTLSModule(writer.symbolName)
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
 	defer module.file.Close()
 
-	if sym.Size != otelTLSExportSize {
+	if sym.Size != writer.symbolSize {
 		return otelTLSResolution{}, fmt.Errorf("TLS export has wrong size %d", sym.Size)
 	}
 	if safeelf.ST_TYPE(sym.Info) != elf.STT_TLS {
 		return otelTLSResolution{}, errors.New("TLS export is not a TLS symbol")
 	}
 
-	// resolveTLSAccess only reads the symbol's value, but takes the upstream
-	// symbol type; the STT_TLS and size checks above are what the rest of it is
-	// for, and they need safeelf's Section and Info, which libpf.Symbol has not.
+	// resolveTLSAccess only reads the symbol's name and value, but takes the
+	// upstream type; the checks above need safeelf's Section and Info, which
+	// libpf.Symbol has not.
 	access, err := resolveTLSAccess(module.file, &libpf.Symbol{
+		Name:    libpf.SymbolName(sym.Name),
 		Address: libpf.SymbolValue(sym.Value),
 		Size:    sym.Size,
 	})
@@ -167,13 +225,39 @@ func resolveOTelTLS(pid uint32) (otelTLSResolution, error) {
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
-	res.runtimeLang = otelRuntimeNative
+	res.runtimeLang = writer.runtimeLang
+	res.v8 = writer.v8
 	res.attributeKeys = attributeKeys
 	return res, nil
 }
 
-// processContext reads the OTel process context of the target, which the maps
-// parse the module lookup does anyway has already located.
+// otelWriterFrom works out which thread context writer a process publishes with,
+// from its process context; the language its tracer reports says nothing about it.
+// A schema this reader does not know is taken to be the plain thread-local writer,
+// which every writer but the Node.js one is.
+func otelWriterFrom(attrs otelprocessctx.Attributes) (otelWriter, error) {
+	schema, _ := attrs.String(otelprocessctx.KeySchemaVersion)
+	if !strings.HasPrefix(schema, otelNodeJSSchemaPrefix) {
+		return otelNativeWriter, nil
+	}
+
+	// Registering without these would be worse than not registering: the reader
+	// would walk the discovery struct with offsets it was not published with.
+	v8, err := otelV8LayoutFrom(attrs)
+	if err != nil {
+		return otelWriter{}, err
+	}
+
+	return otelWriter{
+		symbolName:  otelNodeJSTLSSymbolName,
+		symbolSize:  otelNodeJSTLSExportSize,
+		runtimeLang: otelRuntimeNodeJS,
+		v8:          v8,
+	}, nil
+}
+
+// processContext reads the OTel process context of the target, whose address the
+// maps parse the module lookup needs anyway has already located.
 func (p *otelTargetProcess) processContext() (otelprocessctx.ProcessContext, error) {
 	if _, _, err := p.groupedReadableFileMaps(); err != nil {
 		return otelprocessctx.ProcessContext{}, err
@@ -193,6 +277,58 @@ func (p *otelTargetProcess) processContext() (otelprocessctx.ProcessContext, err
 		return otelprocessctx.ProcessContext{}, err
 	}
 	return procCtx, nil
+}
+
+// otelV8LayoutFrom picks the V8 layout constants out of a process context. They
+// are only ever offsets into a V8 object header, so a value outside that range
+// means reader and writer disagree on what is published.
+func otelV8LayoutFrom(attrs otelprocessctx.Attributes) (otelV8Layout, error) {
+	const maxOffset = 4096
+
+	field := func(key string, mustBeSet bool) (uint16, error) {
+		value, ok := attrs.Int(key)
+		if !ok {
+			return 0, fmt.Errorf("missing %s", key)
+		}
+		if value < 0 || value >= maxOffset || (mustBeSet && value == 0) {
+			return 0, fmt.Errorf("implausible %s: %d", key, value)
+		}
+		return uint16(value), nil
+	}
+
+	taggedSize, err := field(otelprocessctx.KeyTaggedSize, true)
+	if err != nil {
+		return otelV8Layout{}, err
+	}
+	if taggedSize != otelSupportedTaggedSize {
+		return otelV8Layout{}, fmt.Errorf("unsupported V8 tagged size %d", taggedSize)
+	}
+
+	jsMapTableOffset, err := field(otelprocessctx.KeyJSMapTableOffset, true)
+	if err != nil {
+		return otelV8Layout{}, err
+	}
+	orderedHashMapHeaderSize, err := field(otelprocessctx.KeyOrderedHashMapHeaderSize, true)
+	if err != nil {
+		return otelV8Layout{}, err
+	}
+	wrappedObjectOffset, err := field(otelprocessctx.KeyWrappedObjectOffset, true)
+	if err != nil {
+		return otelV8Layout{}, err
+	}
+	// alone in being legitimately zero
+	nativeWrapFieldsOffset, err := field(otelprocessctx.KeyNativeWrapFieldsOffset, false)
+	if err != nil {
+		return otelV8Layout{}, err
+	}
+
+	return otelV8Layout{
+		taggedSize:               taggedSize,
+		jsMapTableOffset:         jsMapTableOffset,
+		orderedHashMapHeaderSize: orderedHashMapHeaderSize,
+		wrappedObjectOffset:      wrappedObjectOffset,
+		nativeWrapFieldsOffset:   nativeWrapFieldsOffset,
+	}, nil
 }
 
 func openOTelTargetProcess(pid uint32) (*otelTargetProcess, error) {
@@ -286,11 +422,11 @@ func stripDeletedMapsSuffix(path string) string {
 	return strings.TrimSuffix(path, " (deleted)")
 }
 
-// findOTelTLSModule returns the first mapped, readable ELF object exporting an
-// otel_thread_ctx_v1 STT_TLS symbol. The returned ELF file is left open for
+// findOTelTLSModule returns the first mapped, readable ELF object exporting
+// symbolName as an STT_TLS symbol. The returned ELF file is left open for
 // resolveTLSAccess, which reads the same object's relocations; callers must
 // Close() it.
-func (p *otelTargetProcess) findOTelTLSModule() (*otelTLSModule, *safeelf.Symbol, error) {
+func (p *otelTargetProcess) findOTelTLSModule(symbolName string) (*otelTLSModule, *safeelf.Symbol, error) {
 	grouped, order, err := p.groupedReadableFileMaps()
 	if err != nil {
 		return nil, nil, err
@@ -298,7 +434,7 @@ func (p *otelTargetProcess) findOTelTLSModule() (*otelTLSModule, *safeelf.Symbol
 
 	for _, path := range order {
 		fsPath := p.fsPath(path)
-		sym := findOTelTLSSymbol(fsPath)
+		sym := findOTelTLSSymbol(fsPath, symbolName)
 		if sym == nil {
 			continue
 		}
@@ -317,15 +453,13 @@ func (p *otelTargetProcess) findOTelTLSModule() (*otelTLSModule, *safeelf.Symbol
 		return &otelTLSModule{path: path, loadBias: loadBias, file: elfFile}, sym, nil
 	}
 
-	return nil, nil, fmt.Errorf("TLS symbol %q not found in currently mapped readable ELF objects", otelTLSSymbolName)
+	return nil, nil, fmt.Errorf("TLS symbol %q not found in currently mapped readable ELF objects", symbolName)
 }
 
-// findOTelTLSSymbol looks up otelTLSSymbolName in the object at path: first in
-// the dynamic symbol table (exported symbols of shared libraries and PIEs),
-// then in the full symbol table (local symbols, fully-static non-PIE
-// executables). The lookup stays on safeelf, whose symbols carry the section
-// index and the info byte that libpf.Symbol does not.
-func findOTelTLSSymbol(path string) *safeelf.Symbol {
+// findOTelTLSSymbol looks up symbolName in the object at path: first in the
+// dynamic symbol table (shared libraries and PIEs), then in the full one (local
+// symbols, fully-static non-PIE executables).
+func findOTelTLSSymbol(path, symbolName string) *safeelf.Symbol {
 	ef, err := openOTelELF(path)
 	if err != nil {
 		return nil
@@ -333,22 +467,22 @@ func findOTelTLSSymbol(path string) *safeelf.Symbol {
 	defer ef.Close()
 
 	if syms, err := ef.DynamicSymbols(); err == nil {
-		if sym := findOTelTLSSymbolByName(syms); sym != nil {
+		if sym := findOTelTLSSymbolByName(syms, symbolName); sym != nil {
 			return sym
 		}
 	}
 	if syms, err := ef.Symbols(); err == nil {
-		if sym := findOTelTLSSymbolByName(syms); sym != nil {
+		if sym := findOTelTLSSymbolByName(syms, symbolName); sym != nil {
 			return sym
 		}
 	}
 	return nil
 }
 
-func findOTelTLSSymbolByName(syms []safeelf.Symbol) *safeelf.Symbol {
+func findOTelTLSSymbolByName(syms []safeelf.Symbol, symbolName string) *safeelf.Symbol {
 	for i := range syms {
 		sym := &syms[i]
-		if sym.Name == otelTLSSymbolName && sym.Section != elf.SHN_UNDEF &&
+		if sym.Name == symbolName && sym.Section != elf.SHN_UNDEF &&
 			safeelf.ST_TYPE(sym.Info) == elf.STT_TLS {
 			return sym
 		}

@@ -167,6 +167,7 @@ enum otel_runtime_language
 {
     OTEL_RUNTIME_NATIVE = 0,
     OTEL_RUNTIME_GOLANG = 1,
+    OTEL_RUNTIME_NODEJS = 2,
 };
 
 enum bpf_cmd_def

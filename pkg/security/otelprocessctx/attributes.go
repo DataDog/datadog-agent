@@ -7,9 +7,27 @@
 
 package otelprocessctx
 
-// KeyAttributeKeyMap is the attribute key under which an OTEP 4947 writer publishes,
-// alongside its records, the key names a reader needs to decode them.
-const KeyAttributeKeyMap = "threadlocal.attribute_key_map"
+// Attribute keys of the thread-local block an OTEP 4947 writer publishes alongside its
+// records, so a reader can decode them. The V8 layout constants are only meaningful for
+// the Node.js schema.
+const (
+	KeySchemaVersion   = "threadlocal.schema_version"
+	KeyAttributeKeyMap = "threadlocal.attribute_key_map"
+
+	// KeyTaggedSize is the width in bytes of a V8 tagged word.
+	KeyTaggedSize = "threadlocal.tagged_size"
+	// KeyJSMapTableOffset is the offset of the backing table pointer within a JSMap.
+	KeyJSMapTableOffset = "threadlocal.js_map_table_offset"
+	// KeyOrderedHashMapHeaderSize is the size of the header preceding the fields of an
+	// OrderedHashMap.
+	KeyOrderedHashMapHeaderSize = "threadlocal.ordered_hash_map_header_size"
+	// KeyWrappedObjectOffset is the offset of the native pointer within the JSObject
+	// wrapping a record.
+	KeyWrappedObjectOffset = "threadlocal.wrapped_object_offset"
+	// KeyNativeWrapFieldsOffset is the offset of the record pointer within that native
+	// object.
+	KeyNativeWrapFieldsOffset = "threadlocal.native_wrap_fields_offset"
+)
 
 // ProcessContext is the decoded content of the process context a process publishes.
 type ProcessContext struct {

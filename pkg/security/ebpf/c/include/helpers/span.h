@@ -10,6 +10,9 @@
 // --- OTel thread local context record helpers (separate file) ---
 #include "span_otel.h"
 
+// --- Node.js async-context helpers (separate file) ---
+#include "span_nodejs.h"
+
 // --- Go pprof labels helpers (separate file) ---
 #include "span_go.h"
 
@@ -28,6 +31,8 @@ static int __attribute__((always_inline)) fill_span_context_thread_ctx(struct sp
     switch (otls->runtime) {
     case OTEL_RUNTIME_NATIVE:
         return fill_span_context_otel(span, otls);
+    case OTEL_RUNTIME_NODEJS:
+        return fill_span_context_nodejs(span, otls);
     }
 
     // Go publishes through pprof labels instead, and an unknown runtime is one
