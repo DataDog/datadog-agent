@@ -23,7 +23,6 @@ func TestNVLinkFieldsCollectorQueriesAllConfiguredPorts(t *testing.T) {
 	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			require.NotEmpty(t, fv)
-			requestedScopes = append(requestedScopes, fv[0].ScopeId)
 			for i := range fv {
 				if fv[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
 					testutil.ApplyMockFieldValue(&fv[i], testutil.NewFieldValue(3))
