@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue where the Cluster Agent ``DatadogPodAutoscaler`` controller could
+    repeatedly fail to write a ``DatadogPodAutoscaler`` status or spec with an HTTP 409
+    (Conflict) error when the informer cache held a stale ``resourceVersion``. Status
+    and spec writes now retry on conflict after re-reading the object directly from the
+    API server.
