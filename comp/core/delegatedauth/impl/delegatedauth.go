@@ -166,9 +166,9 @@ type Provides struct {
 // NewComponent creates a new delegated auth Component
 func NewComponent() Provides {
 	comp := &delegatedAuthComponent{
-		instances:        make(map[string]*authInstance),
-		providers:        make(map[providerKey][]registeredProvider),
-		credentialCache:  make(map[credentialCacheKey]*instanceProvider),
+		instances:       make(map[string]*authInstance),
+		providers:       make(map[providerKey][]registeredProvider),
+		credentialCache: make(map[credentialCacheKey]*instanceProvider),
 	}
 
 	return Provides{
@@ -645,7 +645,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 
 // doRefresh performs one refresh cycle, updates the instance state under mu, resets the ticker
 // for the next interval, and delivers the new key (if any) outside the lock.
-func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.Ticker, triggered bool) {
+func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.Ticker, _ bool) {
 	lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
 
 	var shouldUpdateConfig bool
