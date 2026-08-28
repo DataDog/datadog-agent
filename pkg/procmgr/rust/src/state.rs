@@ -31,6 +31,7 @@ impl ProcessState {
             (Created, Starting)
                 | (Starting, Running)
                 | (Starting, Failed)
+                | (Starting, Stopped)
                 | (Running, Stopping)
                 | (Running, Exited)
                 | (Running, Failed)

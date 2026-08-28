@@ -34,11 +34,18 @@ pub fn startup_runtime_context() -> (Lifecycle, RuntimeContext, RuntimeReceivers
 }
 
 pub async fn auto_start_for_test(mgr: &ProcessManager, ctx: &RuntimeContext) {
-    let _guard = crate::platform::test_shutdown_lock().await;
+    let _guard = test_manager_lock().await;
     crate::platform::reset_shutdown_state_for_test();
     let pending = std::future::pending::<()>();
     tokio::pin!(pending);
     startup::run(mgr, ctx, pending.as_mut()).await;
+}
+
+pub async fn test_manager_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    let guard = crate::platform::test_shutdown_lock().await;
+    #[cfg(unix)]
+    super::spawn::reset_spawn_gate_for_test();
+    guard
 }
 
 pub fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
@@ -86,3 +93,4 @@ mod boot;
 mod create;
 mod resolve;
 mod restart;
+mod spawn;

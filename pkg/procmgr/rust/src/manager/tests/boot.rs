@@ -7,6 +7,7 @@ use super::super::startup;
 use super::super::*;
 use super::{auto_start_for_test, loader, sleep_def, startup_runtime_context, uuid_gen};
 use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy};
+use crate::state::ProcessState;
 use std::time::Duration;
 
 #[tokio::test]
@@ -41,7 +42,7 @@ async fn test_spawn_failure_schedules_on_failure_restart() -> anyhow::Result<()>
 
 #[tokio::test]
 async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow::Result<()> {
-    let _guard = crate::platform::test_shutdown_lock().await;
+    let _guard = super::test_manager_lock().await;
     crate::platform::reset_shutdown_state_for_test();
     let mgr = ProcessManager::new(
         loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
@@ -62,7 +63,7 @@ async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow
             let procs = mgr.processes().await;
             if procs
                 .iter()
-                .any(|p| p.name() == "first-child" && p.is_running())
+                .any(|p| p.name() == "first-child" && p.state() == ProcessState::Running)
             {
                 return;
             }
@@ -97,7 +98,7 @@ async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow
 
 #[tokio::test]
 async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Result<()> {
-    let _guard = crate::platform::test_shutdown_lock().await;
+    let _guard = super::test_manager_lock().await;
     crate::platform::reset_shutdown_state_for_test();
     let mgr = ProcessManager::new(
         loader(vec![sleep_def("first-child"), sleep_def("second-child")]),
@@ -118,7 +119,7 @@ async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Resu
             let procs = mgr.processes().await;
             if procs
                 .iter()
-                .any(|p| p.name() == "first-child" && p.is_running())
+                .any(|p| p.name() == "first-child" && p.state() == ProcessState::Running)
             {
                 return;
             }
@@ -142,7 +143,7 @@ async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Resu
 
 #[tokio::test]
 async fn test_shutdown_during_auto_start_transitions_lifecycle() {
-    let _guard = crate::platform::test_shutdown_lock().await;
+    let _guard = super::test_manager_lock().await;
     crate::platform::reset_shutdown_state_for_test();
     let mgr = ProcessManager::new(
         loader(vec![sleep_def("first-child"), sleep_def("second-child")]),

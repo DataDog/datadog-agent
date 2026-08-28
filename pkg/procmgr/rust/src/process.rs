@@ -340,6 +340,46 @@ impl ManagedProcess {
         self.restart_eligibility().is_allowed() && self.may_respawn()
     }
 
+    pub(crate) fn begin_spawn_reservation(&mut self) -> Result<()> {
+        if !self.state.can_transition_to(ProcessState::Starting) {
+            bail!(
+                "[{}] cannot begin spawn: invalid state {}",
+                self.name,
+                self.state
+            );
+        }
+        self.transition_to(ProcessState::Starting);
+        Ok(())
+    }
+
+    pub(crate) fn cancel_spawn_reservation(&mut self) {
+        if self.state == ProcessState::Starting && !self.has_child_handle() {
+            self.transition_to(ProcessState::Stopped);
+        }
+    }
+
+    pub(crate) fn commit_spawn_from_outcome(
+        &mut self,
+        outcome: ManagedChildSpawn,
+        exit_tx: mpsc::Sender<ProcessExit>,
+    ) -> Result<()> {
+        if self.state != ProcessState::Starting {
+            bail!(
+                "[{}] cannot commit spawn: expected Starting, got {}",
+                self.name,
+                self.state
+            );
+        }
+        if let Err(e) = self.apply_managed_child_spawn(outcome) {
+            #[cfg(windows)]
+            self.clear_windows_spawn_resources();
+            self.transition_to(ProcessState::Failed);
+            return Err(e);
+        }
+        self.attach_exit_watcher(exit_tx);
+        Ok(())
+    }
+
     pub fn spawn(&mut self) -> Result<()> {
         if !self.state.can_transition_to(ProcessState::Starting) {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
@@ -385,25 +425,6 @@ impl ManagedProcess {
         }
         #[cfg(windows)]
         self.clear_windows_spawn_resources();
-    }
-
-    pub(crate) fn spawn_and_watch_from_outcome(
-        &mut self,
-        outcome: ManagedChildSpawn,
-        exit_tx: mpsc::Sender<ProcessExit>,
-    ) -> Result<()> {
-        if !self.state.can_transition_to(ProcessState::Starting) {
-            bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
-        }
-        self.transition_to(ProcessState::Starting);
-        if let Err(e) = self.apply_managed_child_spawn(outcome) {
-            #[cfg(windows)]
-            self.clear_windows_spawn_resources();
-            self.transition_to(ProcessState::Failed);
-            return Err(e);
-        }
-        self.attach_exit_watcher(exit_tx);
-        Ok(())
     }
 
     fn attach_exit_watcher(&mut self, exit_tx: mpsc::Sender<ProcessExit>) {
@@ -625,6 +646,10 @@ impl ManagedProcess {
                 info!("[{}] stopping (graceful)", self.name);
                 self.graceful_stop();
             }
+            ProcessState::Starting if !self.has_child_handle() => {
+                info!("[{}] cancelling in-flight spawn", self.name);
+                self.transition_to(ProcessState::Stopped);
+            }
             ProcessState::Stopping => {
                 debug!("[{}] stop requested while already stopping", self.name);
             }
@@ -658,6 +683,15 @@ impl ManagedProcess {
                 self.wait_for_stop().await;
                 debug!(
                     "[{}] stop finished (state={}), took {:?}",
+                    self.name,
+                    self.state,
+                    started.elapsed()
+                );
+            }
+            ProcessState::Starting if !self.has_child_handle() => {
+                self.request_stop();
+                debug!(
+                    "[{}] stop finished (state={}, cancelled in-flight spawn), took {:?}",
                     self.name,
                     self.state,
                     started.elapsed()
@@ -932,6 +966,24 @@ pub mod tests {
         cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
         assert!(!proc.may_auto_start());
+    }
+
+    #[tokio::test]
+    async fn test_cancel_spawn_reservation_from_starting() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut proc = ManagedProcess::new_config(
+            "svc".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+
+        proc.begin_spawn_reservation().unwrap();
+        assert_eq!(proc.state(), ProcessState::Starting);
+        assert!(proc.is_running());
+
+        proc.stop().await;
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(!proc.is_running());
     }
 
     #[tokio::test]

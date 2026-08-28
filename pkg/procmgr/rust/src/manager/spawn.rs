@@ -8,6 +8,7 @@ use super::{PendingRestart, RuntimeContext, enqueue_pending_restart};
 use crate::config::ProcessConfig;
 use crate::platform;
 use crate::process::{ManagedChildSpawn, ManagedProcess};
+use crate::state::ProcessState;
 use anyhow::Result;
 use log::{info, warn};
 use std::sync::Arc;
@@ -20,13 +21,25 @@ pub(in crate::manager) enum SpawnKind {
 }
 
 impl SpawnKind {
-    fn allowed(&self, proc: &ManagedProcess) -> bool {
+    fn may_begin_spawn(&self, proc: &ManagedProcess) -> bool {
+        if proc.state().is_alive() {
+            return false;
+        }
         match self {
-            Self::BootAutoStart | Self::CreateAutoStart => {
-                proc.may_auto_start() && !proc.is_running()
-            }
-            Self::Manual => !proc.is_running(),
+            Self::BootAutoStart | Self::CreateAutoStart => proc.may_auto_start(),
+            Self::Manual => true,
             Self::Restart(pending) => pending_restart_still_valid(proc, pending),
+        }
+    }
+
+    fn may_commit_spawn(&self, proc: &ManagedProcess) -> bool {
+        if proc.state() != ProcessState::Starting {
+            return false;
+        }
+        match self {
+            Self::BootAutoStart | Self::CreateAutoStart => proc.may_auto_start(),
+            Self::Manual => true,
+            Self::Restart(pending) => pending_restart_matches(proc, pending),
         }
     }
 
@@ -64,13 +77,17 @@ enum PendingRestartSkip {
     PolicyOrConditions,
 }
 
+fn pending_restart_matches(proc: &ManagedProcess, pending: &PendingRestart) -> bool {
+    proc.uuid() == pending.uuid && proc.spawn_seq() == pending.spawn_seq
+}
+
 fn pending_restart_skip_reason(
     proc: &ManagedProcess,
     pending: &PendingRestart,
 ) -> Option<PendingRestartSkip> {
-    if proc.uuid() != pending.uuid || proc.spawn_seq() != pending.spawn_seq {
+    if !pending_restart_matches(proc, pending) {
         Some(PendingRestartSkip::StaleSpawnSeq)
-    } else if proc.is_running() {
+    } else if matches!(proc.state(), ProcessState::Running | ProcessState::Stopping) {
         Some(PendingRestartSkip::AlreadyRunning)
     } else if !proc.should_complete_pending_restart() {
         Some(PendingRestartSkip::PolicyOrConditions)
@@ -97,17 +114,20 @@ pub(in crate::manager) async fn spawn_process(
     }
 
     let snapshot = {
-        let procs = catalog.read_processes().await;
-        let Some(proc) = procs.get(idx) else {
+        let mut procs = catalog.write_processes().await;
+        let Some(proc) = procs.get_mut(idx) else {
             return Ok(());
         };
-        if !kind.allowed(proc) {
+        if !kind.may_begin_spawn(proc) {
             return Ok(());
         }
+        proc.begin_spawn_reservation()
+            .map_err(|e| anyhow::anyhow!("{e:#}"))?;
         (proc.name().to_owned(), proc.config().clone())
     };
 
     if !ctx.lifecycle.spawns_allowed() {
+        cancel_spawn_reservation(&catalog, idx).await;
         return Ok(());
     }
 
@@ -133,9 +153,18 @@ pub(in crate::manager) fn spawn_process_background(
 }
 
 fn spawn_managed_child_sync(name: &str, config: &ProcessConfig) -> Result<ManagedChildSpawn> {
+    #[cfg(all(test, unix))]
+    wait_for_test_spawn_gate();
     #[cfg(windows)]
     let _console_guard = platform::console_lock();
     platform::spawn_managed_child(name, config)
+}
+
+async fn cancel_spawn_reservation(catalog: &ProcessCatalog, idx: usize) {
+    let mut procs = catalog.write_processes().await;
+    if let Some(proc) = procs.get_mut(idx) {
+        proc.cancel_spawn_reservation();
+    }
 }
 
 async fn commit_spawn(
@@ -152,14 +181,15 @@ async fn commit_spawn(
         return Ok(());
     };
 
-    if !ctx.lifecycle.spawns_allowed() || !kind.allowed(proc) {
+    if !ctx.lifecycle.spawns_allowed() || !kind.may_commit_spawn(proc) {
+        proc.cancel_spawn_reservation();
         abort_uncommitted(spawn_result, name).await;
         return Ok(());
     }
 
     match spawn_result {
         Ok(outcome) => proc
-            .spawn_and_watch_from_outcome(outcome, ctx.exit_tx.clone())
+            .commit_spawn_from_outcome(outcome, ctx.exit_tx.clone())
             .map_err(|e| {
                 warn!("[{name}] spawn failed: {e:#}");
                 if kind.retry_on_failure() && ctx.lifecycle.spawns_allowed() {
@@ -182,4 +212,49 @@ async fn abort_uncommitted(spawn_result: Result<ManagedChildSpawn>, name: &str) 
     if let Ok(outcome) = spawn_result {
         outcome.abort(name).await;
     }
+}
+
+#[cfg(all(test, unix))]
+static SPAWN_GATE: std::sync::OnceLock<(std::sync::Mutex<bool>, std::sync::Condvar)> =
+    std::sync::OnceLock::new();
+
+#[cfg(all(test, unix))]
+fn spawn_gate() -> &'static (std::sync::Mutex<bool>, std::sync::Condvar) {
+    SPAWN_GATE.get_or_init(|| (std::sync::Mutex::new(true), std::sync::Condvar::new()))
+}
+
+#[cfg(all(test, unix))]
+pub(in crate::manager) struct SpawnGateGuard;
+
+#[cfg(all(test, unix))]
+impl Drop for SpawnGateGuard {
+    fn drop(&mut self) {
+        open_spawn_gate_for_test();
+    }
+}
+
+#[cfg(all(test, unix))]
+pub(in crate::manager) fn close_spawn_gate_for_test() -> SpawnGateGuard {
+    *spawn_gate().0.lock().unwrap() = false;
+    SpawnGateGuard
+}
+
+#[cfg(all(test, unix))]
+pub(in crate::manager) fn open_spawn_gate_for_test() {
+    *spawn_gate().0.lock().unwrap() = true;
+    spawn_gate().1.notify_all();
+}
+
+#[cfg(all(test, unix))]
+fn wait_for_test_spawn_gate() {
+    let (lock, cv) = spawn_gate();
+    let mut open = lock.lock().unwrap();
+    while !*open {
+        open = cv.wait(open).unwrap();
+    }
+}
+
+#[cfg(all(test, unix))]
+pub(in crate::manager) fn reset_spawn_gate_for_test() {
+    open_spawn_gate_for_test();
 }
