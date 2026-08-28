@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"testing"
 
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
