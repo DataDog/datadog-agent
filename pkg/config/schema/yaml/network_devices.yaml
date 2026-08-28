@@ -595,8 +595,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -635,20 +633,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -792,8 +784,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -832,20 +822,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -896,8 +880,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -936,20 +918,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -1004,8 +980,6 @@ properties:
         node_type: setting
         type: number
         default: 5
-        tags:
-        - golang_type:float64
       compression_kind:
         node_type: setting
         type: string
@@ -1044,20 +1018,14 @@ properties:
         node_type: setting
         type: number
         default: 1
-        tags:
-        - golang_type:float64
       sender_backoff_factor:
         node_type: setting
         type: number
         default: 2
-        tags:
-        - golang_type:float64
       sender_backoff_max:
         node_type: setting
         type: number
         default: 120
-        tags:
-        - golang_type:float64
       sender_recovery_interval:
         node_type: setting
         type: integer

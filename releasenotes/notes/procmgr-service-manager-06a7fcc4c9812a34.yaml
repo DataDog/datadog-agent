@@ -1,0 +1,10 @@
+---
+upgrade:
+  - |
+    On Linux, the Datadog process manager (``dd-procmgrd``) is now a first-class service manager
+    alongside systemd, upstart and sysvinit, and it is the default when the ``dd-procmgrd`` binary
+    ships with the Agent. The OpenTelemetry Collector distribution is supervised through
+    ``processes.d`` and the ``datadog-agent-ddot`` systemd unit is no longer installed.
+
+    Each service manager now installs its own self-consistent set of units, so a host runs either
+    the ``dd-procmgrd`` supervision path or the per-payload systemd units, never a mix of the two.

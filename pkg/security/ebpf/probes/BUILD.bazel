@@ -44,6 +44,7 @@ go_library(
         "shared.go",
         "signal.go",
         "socket.go",
+        "span.go",
         "splice.go",
         "syscall_helpers.go",
         "syscall_monitor.go",

@@ -65,6 +65,7 @@ type npCollectorImpl struct {
 	pathtestStore          *pathteststore.Store
 	pathtestInputChan      chan *common.Pathtest
 	pathtestProcessingChan chan *pathteststore.PathtestContext
+	baselineSelector       *baselineSelector
 
 	// Scheduling related
 	running               bool
@@ -102,6 +103,11 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		logger.Errorf("connection filter errors: %s", errors.Join(errs...))
 	}
 
+	var baselineSelector *baselineSelector
+	if collectorConfigs.baselineTestsEnabled && !collectorConfigs.connectionsMonitoringEnabled {
+		baselineSelector = newBaselineSelector()
+	}
+
 	return &npCollectorImpl{
 		collectorConfigs: collectorConfigs,
 		sourceExcludes:   networkfilter.ParseConnectionFilters(collectorConfigs.sourceExcludedConns),
@@ -115,6 +121,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.storeConfig, logger, statsd, time.Now),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
+		baselineSelector:       baselineSelector,
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
@@ -287,20 +294,24 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	if !s.collectorConfigs.connectionsMonitoringEnabled {
+	if !s.collectorConfigs.connectionsMonitoringEnabled && !s.collectorConfigs.baselineTestsEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
+
+	// Standard Dynamic Tests take complete precedence when both modes are
+	// configured; baseline is a fallback and must not schedule duplicate paths.
+	baselineMode := !s.collectorConfigs.connectionsMonitoringEnabled
+	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, baselineMode)
 }
 
 func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, false)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], baselineMode bool) {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
@@ -312,6 +323,13 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 
 	startTime := s.TimeNowFn()
+	if baselineMode {
+		// Close an already-expired window before accepting new observations.
+		// Candidate admission is intentionally streaming: a periodic flush may
+		// split a snapshot being processed across adjacent windows. This is a
+		// known and accepted limitation of the best-effort baseline selector.
+		s.flushBaselinePaths(startTime)
+	}
 	connCount := 0
 	for conn := range conns {
 		connCount++
@@ -327,13 +345,31 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		if evaluation.testConfigID != "" {
 			pathtest.TestConfigSource = payload.TestConfigSourceRemote
 		}
-		err := s.scheduleOne(&pathtest)
-		if err != nil {
+		// Filtering and baseline ranking are separate steps: filtering determines
+		// eligibility and provenance, while baseline ranking independently chooses
+		// among admitted paths and never changes the filter outcome.
+		if baselineMode {
+			s.baselineSelector.add(pathtest, saturatingAdd(conn.SentBytes, conn.RecvBytes), startTime)
+			continue
+		}
+
+		if err := s.scheduleOne(&pathtest); err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
 	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
+}
+
+func (s *npCollectorImpl) flushBaselinePaths(now time.Time) {
+	if s.baselineSelector == nil {
+		return
+	}
+	for _, path := range s.baselineSelector.flush(now) {
+		if err := s.scheduleOne(&path); err != nil {
+			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
+		}
+	}
 }
 
 // scheduleOne schedules pathtests.
@@ -363,6 +399,9 @@ func (s *npCollectorImpl) start() error {
 		return errors.New("server already started")
 	}
 	s.running = true
+	if s.baselineSelector != nil {
+		s.baselineSelector.start(s.TimeNowFn())
+	}
 
 	s.logger.Info("Start NpCollector")
 
@@ -448,6 +487,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestConfigID = ptest.Pathtest.TestConfigID
 	path.TestConfigName = ptest.Pathtest.TestConfigName
 	path.TestConfigSource = ptest.Pathtest.TestConfigSource
+	path.DynamicTestProfile = ptest.Pathtest.DynamicTestProfile
 	path.Tags = ptest.Pathtest.Tags
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
@@ -500,6 +540,7 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 		_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"flush.interval", flushInterval.Seconds(), []string{}, 1)
 	}
 
+	s.flushBaselinePaths(s.TimeNowFn())
 	s.flush()
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"flush.duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1)
 }

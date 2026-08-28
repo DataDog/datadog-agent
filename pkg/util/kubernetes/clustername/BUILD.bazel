@@ -8,6 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/config/setup/constants",
         "//pkg/util/cache",

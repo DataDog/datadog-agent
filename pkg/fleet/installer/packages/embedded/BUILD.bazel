@@ -12,64 +12,24 @@ exports_files(
 )
 
 # keep
-service_srcs = [
-    "tmpl/gen/debrpm/datadog-agent-action-executor.yaml",
-    "tmpl/gen/debrpm/datadog-agent-action-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-action.service",
-    "tmpl/gen/debrpm/datadog-agent-data-plane-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-data-plane.service",
-    "tmpl/gen/debrpm/datadog-agent-ddot-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml",
-    "tmpl/gen/debrpm/datadog-agent-ddot.service",
-    "tmpl/gen/debrpm/datadog-agent-ddot.yaml",
-    "tmpl/gen/debrpm/datadog-agent-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-installer-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-installer.service",
-    "tmpl/gen/debrpm/datadog-agent-process-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-process.service",
-    "tmpl/gen/debrpm/datadog-agent-procmgr-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-procmgr.service",
-    "tmpl/gen/debrpm/datadog-agent-security-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-security.service",
-    "tmpl/gen/debrpm/datadog-agent-sysprobe-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-sysprobe.service",
-    "tmpl/gen/debrpm/datadog-agent-trace-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-trace.service",
-    "tmpl/gen/debrpm/datadog-agent.service",
-    "tmpl/gen/windows/datadog-agent-action-executor.yaml",
-    "tmpl/gen/windows/datadog-agent-action.yaml",
-    "tmpl/gen/windows/datadog-agent-data-plane.yaml",
-    "tmpl/gen/windows/datadog-agent-ddot.yaml",
-    "tmpl/gen/oci/datadog-agent-action-executor.yaml",
-    "tmpl/gen/oci/datadog-agent-action-exp.service",
-    "tmpl/gen/oci/datadog-agent-action.service",
-    "tmpl/gen/oci/datadog-agent-data-plane-exp.service",
-    "tmpl/gen/oci/datadog-agent-data-plane.service",
-    "tmpl/gen/oci/datadog-agent-ddot-exp.service",
-    "tmpl/gen/oci/datadog-agent-ddot-exp.yaml",
-    "tmpl/gen/oci/datadog-agent-ddot.service",
-    "tmpl/gen/oci/datadog-agent-ddot.yaml",
-    "tmpl/gen/oci/datadog-agent-exp.service",
-    "tmpl/gen/oci/datadog-agent-installer-exp.service",
-    "tmpl/gen/oci/datadog-agent-installer.service",
-    "tmpl/gen/oci/datadog-agent-process-exp.service",
-    "tmpl/gen/oci/datadog-agent-process.service",
-    "tmpl/gen/oci/datadog-agent-procmgr-exp.service",
-    "tmpl/gen/oci/datadog-agent-procmgr.service",
-    "tmpl/gen/oci/datadog-agent-security-exp.service",
-    "tmpl/gen/oci/datadog-agent-security.service",
-    "tmpl/gen/oci/datadog-agent-sysprobe-exp.service",
-    "tmpl/gen/oci/datadog-agent-sysprobe.service",
-    "tmpl/gen/oci/datadog-agent-trace-exp.service",
-    "tmpl/gen/oci/datadog-agent-trace.service",
-    "tmpl/gen/oci/datadog-agent.service",
-]
+service_srcs = glob([
+    "tmpl/gen/pm/processes.d/*.yaml",
+    "tmpl/gen/windows/*.yaml",
+    "tmpl/gen/pm/debrpm/*.service",
+    "tmpl/gen/pm/oci/*.service",
+    "tmpl/gen/sd/debrpm/*.service",
+    "tmpl/gen/sd/oci/*.service",
+])
 
-# Selected by GetSystemdUnit on hosts without ambient capability support. These must be embedded
-# in the production library, not just in tmpl_test, or the shipped binary cannot read them.
+# Selected by GetSystemdUnit/GetProcmgrUnit on hosts without ambient capability support. These must
+# be embedded in the production library, not just in tmpl_test, or the shipped binary cannot read
+# them.
+# keep
 nocap_service_srcs = glob([
-    "tmpl/gen/debrpm-nocap/*.service",
-    "tmpl/gen/oci-nocap/*.service",
+    "tmpl/gen/pm/debrpm-nc/*.service",
+    "tmpl/gen/pm/oci-nc/*.service",
+    "tmpl/gen/sd/debrpm-nc/*.service",
+    "tmpl/gen/sd/oci-nc/*.service",
 ])
 
 go_library(
@@ -123,10 +83,7 @@ go_test(
     srcs = ["tmpl/main_test.go"],
     embed = [":tmpl_lib"],
     # keep
-    embedsrcs = service_srcs + glob([
-        "tmpl/gen/debrpm-nocap/**",
-        "tmpl/gen/oci-nocap/**",
-    ]),
+    embedsrcs = glob(["tmpl/**"]),
     tags = ["dd_agent_go_test"],
     deps = [
         "//pkg/fleet/installer/fixtures",

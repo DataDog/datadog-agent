@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -21,27 +21,43 @@ type testLifecycle struct {
 	hooks []compdef.Hook
 }
 
+func TestStorageConfigFromAgentConfigDerivesRetentionFromDetectorWindows(t *testing.T) {
+	detectors := []observerdef.Detector{NewBOCPDDetector(DefaultBOCPDConfig())}
+
+	for name, test := range map[string]struct {
+		yaml string
+		want int64
+	}{
+		"unset":      {want: 1816},
+		"zero":       {yaml: "anomaly_detection:\n  storage:\n    point_retention: 0s\n", want: 1816},
+		"short":      {yaml: "anomaly_detection:\n  storage:\n    point_retention: 30s\n", want: 1816},
+		"sufficient": {yaml: "anomaly_detection:\n  storage:\n    point_retention: 3200s\n", want: 3200},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, test.yaml)
+			storageCfg := storageConfigFromAgentConfig(cfg, detectors)
+			require.Equal(t, test.want, storageCfg.PointRetentionSecs)
+			require.Equal(t, 120, storageCfg.MaxPointsPerSeries)
+		})
+	}
+}
+
+func TestMaxDetectorPoints(t *testing.T) {
+	bocpdConfig := DefaultBOCPDConfig()
+	bocpdConfig.WarmupPoints = 40
+	detectors := []observerdef.Detector{
+		NewBOCPDDetector(bocpdConfig),
+		NewHoltResidualDetector(),
+		NewTukeyBiweightDetector(),
+		NewScanMWDetector(),
+		NewScanWelchDetector(),
+	}
+	require.Equal(t, 120, maxDetectorPoints(detectors))
+}
+
 func (l *testLifecycle) Append(h compdef.Hook) {
 	l.hooks = append(l.hooks, h)
 }
-
-type noopLogComponent struct{}
-
-func (noopLogComponent) Trace(...interface{})                   {}
-func (noopLogComponent) Tracef(string, ...interface{})          {}
-func (noopLogComponent) Debug(...interface{})                   {}
-func (noopLogComponent) Debugf(string, ...interface{})          {}
-func (noopLogComponent) Info(...interface{})                    {}
-func (noopLogComponent) Infof(string, ...interface{})           {}
-func (noopLogComponent) Warn(...interface{}) error              { return nil }
-func (noopLogComponent) Warnf(string, ...interface{}) error     { return nil }
-func (noopLogComponent) Error(...interface{}) error             { return nil }
-func (noopLogComponent) Errorf(string, ...interface{}) error    { return nil }
-func (noopLogComponent) Critical(...interface{}) error          { return nil }
-func (noopLogComponent) Criticalf(string, ...interface{}) error { return nil }
-func (noopLogComponent) Flush()                                 {}
-
-var _ log.Component = noopLogComponent{}
 
 func requireNoObserverMetricFamilies(t *testing.T, telemetryComp telemetry.Component) {
 	t.Helper()
@@ -106,7 +122,6 @@ anomaly_detection:
 			_, err := NewComponent(Requires{
 				Lifecycle: lc,
 				Config:    cfg,
-				Log:       noopLogComponent{},
 				Telemetry: telComp,
 			})
 			require.Error(t, err)
@@ -133,7 +148,6 @@ anomaly_detection:
 	provides, err := NewComponent(Requires{
 		Lifecycle: lc,
 		Config:    cfg,
-		Log:       noopLogComponent{},
 		Telemetry: telComp,
 	})
 	require.NoError(t, err)
@@ -191,7 +205,6 @@ anomaly_detection:
 			provides, err := NewComponent(Requires{
 				Lifecycle: &testLifecycle{},
 				Config:    cfg,
-				Log:       noopLogComponent{},
 			})
 			require.NoError(t, err)
 			obs, ok := provides.Comp.(*observerImpl)
