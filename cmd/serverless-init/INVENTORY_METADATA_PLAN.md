@@ -1,8 +1,9 @@
 # Plan: serverless-init inventory metadata collection
 
-Status: planning — no implementation started. Currently **exploring Option C
-(capability tiers on the shared `inventoryagent`)** alongside the A/B spikes; no
-option is decided. See "Reuse vs. new component" and "Spike results" below.
+Status: planning — no implementation started. **Option C (capability tiers on
+the shared `inventoryagent`) is the chosen approach**; the A/B spikes are
+retained below as the exploration that motivated it. See "Reuse vs. new
+component" and "Spike results" below.
 
 ## Goal
 
@@ -94,12 +95,12 @@ or refactor `initData()`; those artifacts belong only to the A/B spikes.
 ## Reuse vs. new component (Phase 1 decision)
 
 Options A and B were built to a "compiles + emits a payload to a local fakeintake" level
-and compared (see spike results below). **Option C is currently being
-explored** (not decided): a capability-tier refactor of the shared
-`inventoryagent` that would keep serverless in the owners' component under
-neutral, well-motivated names — aiming to avoid both Option A's
-serverless-shaped behavioral `Params` bag and Option B's fully separate
-component that the owners never touch. Options A and B are retained below as the
+and compared (see spike results below). **Option C is the chosen approach**: a
+capability-tier refactor of the shared `inventoryagent` that keeps serverless in
+the owners' component under neutral, well-motivated names — avoiding both
+Option A's serverless-shaped behavioral `Params` bag and Option B's fully
+separate component that the owners never touch. Options A and B are retained
+below as the
 spikes that motivated exploring C.
 
 ### Option A — Reuse the existing `inventoryagent` component
@@ -154,7 +155,7 @@ spikes that motivated exploring C.
   relevant fields; simplest deps; logic stays in serverless-init. Best fit for
   "minimal hooks."
 
-### Option C — Capability tiers on the shared `inventoryagent` (exploring)
+### Option C — Capability tiers on the shared `inventoryagent` (chosen)
 
 Instead of encoding "serverless-ness" as a bag of behavioral overrides (Option
 A) or forking a whole component (Option B), Option C gives the shared component
@@ -176,6 +177,17 @@ The two capabilities:
 |---|---|---|---|
 | **cross-process enrichment** (the `refreshMetadata()` tier) | on | off | Do other agent processes (security/process/trace/system-probe) exist to query? |
 | **immediate on-start submission** | off | on | Is there a host-metadata pipeline? If not, there is no host-creation race, so the 60s first-run delay is unnecessary. |
+
+**Flag polarity: the Go zero value must equal full-agent behavior.** A naive
+`CrossProcessEnrichment bool` traps us — its zero value (`false`) would disable
+enrichment, but the full agent (which supplies no capability struct) needs it
+**on**, so an unset field would silently break the full agent and any doc saying
+"zero value = full-agent behavior" would be wrong. Name the field for the
+divergence instead, e.g. `SkipCrossProcessEnrichment` (zero value `false` = do
+not skip = full-agent behavior; serverless sets it `true`). Same rule for the
+second capability: default-off matches the full agent, serverless opts in.
+Carry no capability field that is only ever set once and never read against its
+zero value — drop dead flags rather than leave them as confusing surface.
 
 The second capability is the exact inverse of the 60s
 `inventories_first_run_delay`'s reason for existing. `collect()` documents that
@@ -200,8 +212,10 @@ What Option C collapses from Option A's 5-knob `Params`:
   flavor can be set via `Set("flavor", "serverless-init")` after init. (We still
   do NOT touch the process-global `flavor.SetFlavor`; see the Flavor section.)
 - `SkipRemoteMetadata` → **reframed** as the cross-process-enrichment capability
-  (off for serverless). This also removes the nil-`ipcfx-none`-client hazard:
-  the enrichment tier never runs, so the nil client is never dereferenced.
+  (skipped for serverless), named for the divergence so its zero value matches
+  full-agent behavior (see "Flag polarity" above). This also removes the
+  nil-`ipcfx-none`-client hazard: the enrichment tier never runs, so the nil
+  client is never dereferenced.
 - `Enabled` → **stays** (the serverless ramp gate); normal.
 
 Residual shared-code coupling Option C does *not* eliminate:
@@ -224,6 +238,15 @@ sequenced *after* the serverless `Set` calls (enable → `Set` core+serverless
 fields → synchronous submit), or the first payload would miss the serverless
 fields. Exact shape of the synchronous-submit entry point (method on the
 component vs. on `util.InventoryPayload`) is a Phase-1 detail.
+
+`forceRefresh` reset: a reviewer flagged that `util.InventoryPayload.Submit()`
+does not reset `forceRefresh` the way `collect()` does. With
+`inventories_first_run_delay` forced to `0`, an unreset `forceRefresh` makes the
+runner's very next tick resend the same payload immediately. Since the plan
+requires only one successful send per process, the synchronous-submit path must
+leave `forceRefresh` cleared (or otherwise guard the runner from re-sending on
+every tick). This is a shared-code line to get right, not just a serverless
+detail.
 
 Each sketch must answer: (a) enablement/intervals given the missing config
 keys, (b) how the `serverless-init` flavor is set, (c) how serverless fields +
@@ -288,6 +311,19 @@ payload `timestamp`.
 - `resource_id` (REQUIRED CCRID, first key component) <- CloudService. CCRID
   composition/format to be specified. Multiple agents may share a resource id
   where the rest of the data is identical.
+  - **Keep the payload key named `resource_id`; do NOT rename it to
+    `CanonicalCloudResourceID`.** A reviewer suggested matching
+    `inventoryhost`'s `CanonicalCloudResourceID` field
+    (`comp/metadata/inventoryhost/impl/inventoryhost.go`), but the downstream
+    serverless decoder (dd-go `createServerlessAgentResource`) reads a flat key
+    literally named `resource_id` (from `serverless_resource_id` after prefix
+    stripping) and keys the per-flavor table on it. `inventoryhost` is a
+    different table the serverless decoder does not consult, and its component
+    is not wired into serverless-init. Aligning the key name to the actual
+    downstream contract wins over cosmetic parity with an unused path.
+- `parent_resource_id` (nullable) <- CloudService. Stable service CCRID for
+  revision-capable workloads (e.g. a Cloud Run service behind its revisions).
+  Accepted downstream as a discrete key.
 - `resource_name` (REQUIRED) <- CloudService display name (app/job/revision).
   Never substitute `dd_service`.
 - `workload_type` (REQUIRED) <- CloudService method. Existing `CloudRunType`
@@ -295,7 +331,10 @@ payload `timestamp`.
   (`cloud_run_service`, `cloud_run_job`, `cloud_function_gen2`,
   `azure_container_app`, `azure_app_service`), incl. gen2 and Azure types.
 
-**Location:**
+**Location:** emit these as **discrete keys**, not derived from the CCRID. A
+reviewer suggested extracting them from the `resource_id` string, but the
+downstream decoder reads each as an independent payload key and does no CCRID
+parsing, so the agent must send them explicitly.
 - `region` <- CloudService (GCP or Azure region).
 - `gcp_project_id` (nullable) <- GCP env; NULL for Azure.
 - `azure_subscription_id` (nullable) <- Azure env/tags (subscription id already
@@ -307,6 +346,10 @@ payload `timestamp`.
 - `azure_hosting_plan` (nullable) <- CloudService (Consumption|Flex).
 - `azure_deployment_type` (nullable) <- CloudService (Code|Container).
 - `workload_runtime` (nullable) <- CloudService; likely NULL for sidecar.
+  **Name mismatch to reconcile:** the decoder branch reads the un-prefixed key
+  `runtime` (i.e. it expects `serverless_runtime` on the wire), while the
+  architect's table calls the column `workload_runtime`. Confirm the wire key
+  with the extractor team before implementing (see Open items).
 - `wrapped_command` (nullable, internal only) <- wrapped workload command
   (`os.Args[1:]` in init mode); NULL in sidecar mode.
 
@@ -369,9 +412,15 @@ mechanism. Because `SendMetadata` is a cheap non-blocking enqueue, this does
 not hold up the customer workload, and the normal shutdown drain then delivers
 it. This is the `ForceCollect`-at-startup idea the plan previously rejected;
 the "even a *very* short-lived container" requirement reverses that call. The
-runer (`comp/metadata/runner`, `inventories_first_run_delay` forced to `0` via
+runner (`comp/metadata/runner`, `inventories_first_run_delay` forced to `0` via
 `setOverride`) can still exist for the rare long-lived-container refresh, but it
-cannot be the *only* path. Open: whether the early synchronous enqueue is a
+cannot be the *only* path. If the runner is kept as a backup it must be
+**consumed by the Fx one-shot graph, not merely registered**: Fx constructs
+providers lazily, so `run()` has to request `runner.Component` (or a value that
+depends on it) or the runner—and the grouped inventory provider—are never
+instantiated and nothing is scheduled (the same lazy-construction gap a reviewer
+flagged on the Option B spike). This is another reason the synchronous startup
+submit is the *primary* path. Open: whether the early synchronous enqueue is a
 shared `InventoryPayload` hook (reuse path) or a serverless-owned call to
 `SendMetadata` (new-component path) — see the seam discussion below.
 
@@ -481,10 +530,25 @@ Confirms the schema and build-tag assumptions this plan relies on:
 
 ## Open items
 
-- Finalize the field list with the extractor team.
+- Finalize the field list with the extractor team, reconciling the architect's
+  table against the current decoder branch (dd-go
+  `createServerlessAgentResource`). Known divergences to settle:
+  - `workload_runtime` (table) vs. `runtime` (decoder wire key).
+  - `gcp_deployment_type` / `azure_deployment_type` / `azure_hosting_plan`:
+    listed in the table, but the decoder branch comment marks them "removed
+    per RFC." Confirm whether these ship.
+  - `deployment_id` / `azure_resource_group`: accepted by the decoder, not in
+    the table — confirm whether the agent should emit them.
+  - Vocabulary is wider downstream than this plan lists:
+    `validServerlessWorkloadTypes` also allows `azure_function` and
+    `gcp_cloud_function_gen1`; `validServerlessDeploymentModels` =
+    `in-container`, `in-process`, `sidecar`, `extension`.
 - `workload_type` mapping, `resource_id` / CCRID composition, and the
   gcp/azure deployment-type / hosting-plan / runtime derivations (CloudService
-  methods, this team).
+  methods, this team). Confirmed with the decoder: `resource_id` is a flat
+  string keyed on directly (no CCRID parsing downstream), and location fields
+  are separate keys — so CCRID composition only has to yield a stable string,
+  not an extractable structure.
 - The minimal core-field set the pipeline requires (a downstream contract with
   the pipeline owners). Under Option C this is whatever `initData()` already
   emits; the open question is only whether the pipeline needs more or fewer
@@ -501,14 +565,19 @@ Confirms the schema and build-tag assumptions this plan relies on:
 
 0. Spikes: built Options A and B to local-fakeintake level, sharing
    `PopulateCoreFields` and the `cloudservice.GetInventoryData` seam; compared
-   (see spike results below). Currently exploring Option C (capability tiers)
-   as a third candidate; not yet decided.
-1. If Option C is chosen, implement it on the shared `inventoryagent`:
+   (see spike results below). Explored Option C (capability tiers) as a third
+   candidate and chose it.
+1. Implement Option C on the shared `inventoryagent`:
    - Reuse the existing `initData()` for core fields as-is (no
      `PopulateCoreFields` extraction, no `initData` refactor).
-   - Two capabilities: cross-process enrichment (off for serverless → the
-     `refreshMetadata()` tier is skipped) and immediate on-start submission
-     (on for serverless → synchronous submit at startup, no 60s delay).
+   - Two capabilities named for the divergence so their zero value equals
+     full-agent behavior (see "Flag polarity"): cross-process enrichment
+     (skipped for serverless → the `refreshMetadata()` tier is skipped) and
+     immediate on-start submission (on for serverless → synchronous submit at
+     startup, no 60s delay). Ensure the synchronous submit leaves
+     `forceRefresh` cleared so the runner does not resend every tick; if the
+     runner is kept as a backup, have `run()` actually consume it (Fx builds
+     lazily).
    - A small construction param for the per-process `uuid` (the one residual
      envelope override).
    - Serverless fields + flavor injected via the public `Set` API from
@@ -601,9 +670,9 @@ component isolation becomes the cheaper long-term maintenance story.
 
 The spikes surfaced that Option A's cost is concentrated in *how* it expresses
 the divergence (a 5-knob behavioral `Params` bag threaded through the full
-agent's hot path), not in the divergence itself. Option C is being explored
-because it could keep Option A's win (no new component; owners keep seeing the
-serverless path) while shrinking the shared-code surface to two neutral,
+agent's hot path), not in the divergence itself. Option C was chosen because it
+keeps Option A's win (no new component; owners keep seeing the serverless path)
+while shrinking the shared-code surface to two neutral,
 environmentally-justified capabilities plus one `uuid` param, and moving
 field/flavor injection onto the existing public `Set` API — thereby avoiding
 Option A's `ExtraFields`/`Flavor`/`SkipRemoteMetadata` knobs and Option B's
@@ -611,8 +680,8 @@ whole separate component. A further simplification surfaced while exploring C:
 because it reuses the real component with `Enabled=true`, it runs the existing
 `initData()` for core fields and therefore does **not** need the
 `PopulateCoreFields` extraction the A/B spikes introduced (see "Core fields
-under Option C"). This is a hypothesis to validate, not a decision. See
-the Option C section above for the full shape. The A and B spike branches remain
+under Option C"). See the Option C section above for the full shape. The A and
+B spike branches remain
 as reference:
 - Option A: `aleksandr.pasechnik/svls-9645-serverless-init-inventory-agent-spike`
 - Option B: `aleksandr.pasechnik/svls-9645-serverless-init-inventory-component-spike`
