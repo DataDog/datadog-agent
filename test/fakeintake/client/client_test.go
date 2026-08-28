@@ -62,6 +62,9 @@ var apiV1Metadata []byte
 //go:embed fixtures/api_v2_ndm_response
 var apiV2NDM []byte
 
+//go:embed fixtures/api_v2_ncm_response
+var apiV2NCM []byte
+
 //go:embed fixtures/api_v2_ndmflow_response
 var apiV2NDMFlow []byte
 
@@ -585,6 +588,54 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "device", ndmPayload.Diagnoses[0].ResourceType)
 		assert.Equal(t, int64(1743497402), ndmPayload.CollectTimestamp)
 		assert.Empty(t, ndmPayload.Subnet)
+	})
+
+	t.Run("GetNCMPayloads config-only run reports includes_inventory_snapshot=false", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(apiV2NCM)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		ncmPayloads, err := client.GetNCMPayloads()
+		require.NoError(t, err)
+		require.Len(t, ncmPayloads, 1)
+
+		ncmPayload := ncmPayloads[0]
+		assert.Equal(t, "cml-test", ncmPayload.Namespace)
+		assert.Len(t, ncmPayload.Configs, 2)
+		assert.False(t, ncmPayload.IncludesInventorySnapshot, "a config-only payload must not claim an inventory snapshot was taken")
+		assert.Empty(t, ncmPayload.Inventories)
+	})
+
+	t.Run("GetNCMPayloads empty inventory snapshot is still reported explicitly", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			payloads := []api.Payload{
+				{
+					Data: []byte(`{
+						"namespace": "cml-test",
+						"inventories": [],
+						"includes_inventory_snapshot": true,
+						"collect_timestamp": 1761160527
+					}`),
+				},
+			}
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		ncmPayloads, err := client.GetNCMPayloads()
+		require.NoError(t, err)
+		require.Len(t, ncmPayloads, 1)
+
+		ncmPayload := ncmPayloads[0]
+		assert.True(t, ncmPayload.IncludesInventorySnapshot, "an empty local store must still be reported as an explicit (empty) snapshot")
+		assert.Empty(t, ncmPayload.Inventories)
 	})
 
 	t.Run("getAgentDiscoveryPayloads", func(t *testing.T) {

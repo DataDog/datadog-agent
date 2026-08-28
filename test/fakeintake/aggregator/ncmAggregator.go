@@ -15,10 +15,12 @@ import (
 
 // NCMPayload represents a network config management payload
 type NCMPayload struct {
-	collectedTime    time.Time
-	Namespace        string                `json:"namespace"`
-	Configs          []NetworkDeviceConfig `json:"configs"`
-	CollectTimestamp int64                 `json:"collect_timestamp"`
+	collectedTime             time.Time
+	Namespace                 string                `json:"namespace"`
+	Configs                   []NetworkDeviceConfig `json:"configs"`
+	Inventories               []InventoryEntry      `json:"inventories"`
+	IncludesInventorySnapshot bool                  `json:"includes_inventory_snapshot"`
+	CollectTimestamp          int64                 `json:"collect_timestamp"`
 }
 
 // NetworkDeviceConfig contains network device configuration for a single device
@@ -29,6 +31,13 @@ type NetworkDeviceConfig struct {
 	Timestamp  int64    `json:"timestamp"`
 	Tags       []string `json:"tags"`
 	Content    string   `json:"content"`
+}
+
+// InventoryEntry contains the metadata about a config stored locally on the agent
+type InventoryEntry struct {
+	Namespace string `json:"namespace"`
+	ConfigID  string `json:"config_id"`
+	DeviceID  string `json:"device_id"`
 }
 
 func (p *NCMPayload) name() string {

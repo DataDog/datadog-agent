@@ -128,7 +128,7 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		},
 	}
 
-	payload := ToNCMPayload(namespace, "test-agent-host", configs, []InventoryEntry{}, timestamp)
+	payload := ToNCMPayload(namespace, "test-agent-host", configs, []InventoryEntry{}, false, timestamp)
 
 	assert.Equal(t, namespace, payload.Namespace)
 	assert.Equal(t, "test-agent-host", payload.AgentHostname)
@@ -181,6 +181,7 @@ func TestNCMPayload_JSONFormat(t *testing.T) {
 						"config_hash": "test_hash"
 					}
 				],
+				"includes_inventory_snapshot": false,
 				"collect_timestamp": ` + formatInt(timestamp) + `,
 				"agent_hostname": ""
 			}`,
@@ -215,6 +216,7 @@ func TestNCMPayload_JSONFormat(t *testing.T) {
 						"content": "running config content"
 					}
 				],
+				"includes_inventory_snapshot": false,
 				"collect_timestamp": ` + formatInt(timestamp) + `,
 				"agent_hostname": ""
 			}`,
@@ -235,7 +237,7 @@ func TestNCMPayload_JSONFormat(t *testing.T) {
 }
 
 func TestNetworkDevicesConfigPayload_EmptyConfigs(t *testing.T) {
-	payload := ToNCMPayload("test", "test-agent-host", []NetworkDeviceConfig{}, []InventoryEntry{}, time.Now().Unix())
+	payload := ToNCMPayload("test", "test-agent-host", []NetworkDeviceConfig{}, []InventoryEntry{}, false, time.Now().Unix())
 
 	assert.Equal(t, "test", payload.Namespace)
 	assert.Empty(t, payload.Configs)
@@ -254,7 +256,7 @@ func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 		ConfigSource: types.CLI,
 		Timestamp:    0,
 	}
-	payload := ToNCMPayload("test", "test-agent-host", []NetworkDeviceConfig{ndc}, []InventoryEntry{}, agentTs)
+	payload := ToNCMPayload("test", "test-agent-host", []NetworkDeviceConfig{ndc}, []InventoryEntry{}, false, agentTs)
 
 	expected := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",

@@ -38,6 +38,7 @@ dd_agent_go_test(
         "fixtures/api_v2_contimage_response",
         "fixtures/api_v2_contlcycle_response",
         "fixtures/api_v2_logs_response",
+        "fixtures/api_v2_ncm_response",
         "fixtures/api_v2_ndm_response",
         "fixtures/api_v2_ndmflow_response",
         "fixtures/api_v2_netpath_response",

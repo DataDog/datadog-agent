@@ -286,8 +286,9 @@ func TestCheck_Run_Success(t *testing.T) {
 				DeviceID:  "default:10.0.0.1",
 			},
 		},
-		CollectTimestamp: 1754043600,
-		AgentHostname:    "test-agent-host",
+		IncludesInventorySnapshot: true,
+		CollectTimestamp:          1754043600,
+		AgentHostname:             "test-agent-host",
 	}
 	expectedConfigEvent, err := json.Marshal(expectedConfigPayload)
 	assert.NoError(t, err)
@@ -353,6 +354,50 @@ func findEventPlatformEventPayload(t *testing.T, m *mocksender.MockSender, event
 	}
 	t.Fatalf("no EventPlatformEvent call found for event type %s", eventType)
 	return report.NCMPayload{}
+}
+
+type alwaysChangedEmptyStore struct{}
+
+func (alwaysChangedEmptyStore) Close(context.Context) error { return nil }
+
+func (alwaysChangedEmptyStore) StoreConfig(string, types.ConfigType, string) (string, string, bool, error) {
+	return "", "", true, nil
+}
+
+func (alwaysChangedEmptyStore) GetConfig(string) (string, *types.ConfigMetadata, error) {
+	return "", nil, errors.New("not found")
+}
+
+func (alwaysChangedEmptyStore) CheckDuplicate(string, types.ConfigType, string) (string, error) {
+	return "", nil
+}
+
+func (alwaysChangedEmptyStore) GetAllConfigMetadata() ([]*types.ConfigMetadata, error) {
+	return nil, nil
+}
+
+var _ ncmstore.ConfigStore = alwaysChangedEmptyStore{}
+
+func TestCheck_Run_EmptyInventorySnapshot_StillReportedExplicitly(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	comp.store = alwaysChangedEmptyStore{}
+
+	device := createTestDevice()
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
+
+	mockSender := reqs.sender
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Times(2)
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
+	assert.NoError(t, err)
+
+	actualNCMPayload := findEventPlatformEventPayload(t, mockSender, eventplatform.EventTypeNetworkConfigManagement)
+	assert.True(t, actualNCMPayload.IncludesInventorySnapshot, "an empty local store must still be reported as an explicit (empty) snapshot")
+	assert.Empty(t, actualNCMPayload.Inventories)
 }
 
 func TestCheck_Run_ConnectionFailure(t *testing.T) {
@@ -437,20 +482,27 @@ func TestCheck_Run_MultipleNonBlockingErrors_CountsOnce(t *testing.T) {
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	// Both configs failed to retrieve, but this is the very first check ever run,
+	// so an (empty) inventory snapshot is still due and gets reported explicitly
+	mockSender.On("Count", "datadog.ncm.inventory.entries_sent", 0.0, "test-agent-host", mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.Error(t, err)
 
-	mockSender.AssertNumberOfCalls(t, "Count", 1)
+	mockSender.AssertNumberOfCalls(t, "Count", 2)
 	mockSender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
 		errorTags := 0
+		hasExpectedTag := false
 		for _, tag := range tags {
 			if strings.HasPrefix(tag, "error:") {
 				errorTags++
 			}
+			if tag == "error:config_retrieval_failed" {
+				hasExpectedTag = true
+			}
 		}
-		return assert.Contains(t, tags, "error:config_retrieval_failed") && assert.Equal(t, 1, errorTags)
+		return hasExpectedTag && errorTags == 1
 	}))
 }
 
