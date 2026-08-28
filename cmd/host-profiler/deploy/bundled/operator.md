@@ -38,9 +38,10 @@ spec:
               # Drop default capabilities and add only the ones the Host Profiler needs.
               drop: ["ALL"]
               add: ["BPF", "PERFMON", "SYS_PTRACE", "SYS_RESOURCE", "DAC_READ_SEARCH", "SYSLOG", "CHECKPOINT_RESTORE", "IPC_LOCK"]
-            # Set both LSMs to their privileged profile to allow ptrace across all node types
+            # Keep AppArmor unconfined so it does not block cross-process access.
             appArmorProfile:
               type: Unconfined
+            # Use spc_t, or an equivalent type, so SELinux permits the required host and process access.
             seLinuxOptions:
               type: spc_t
           # Explicit zero requests avoid reserving CPU or memory on every node,
@@ -87,23 +88,6 @@ spec:
               type: Localhost
               localhostProfile: host-profiler.json
 ```
-
-## SELinux
-
-The provided `DatadogAgent` manifest uses the `spc_t` SELinux type for the Host Profiler. If `spc_t` is not available in your environment, replace it in the `seLinuxOptions` block with an equivalent type supported by your distribution and security policy:
-
-```yaml
-spec:
-  override:
-    nodeAgent:
-      containers:
-        host-profiler:
-          securityContext:
-            seLinuxOptions:
-              type: <SELINUX_TYPE>
-```
-
-The replacement must provide the host and process access required by the Host Profiler.
 
 ## AppArmor (optional)
 

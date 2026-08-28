@@ -156,11 +156,10 @@ spec:
     privileged: false
     readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
-    # AppArmor has an optional profile.
-    # Both LSMs are set to their default privileged profiles so this example works on clusters that do not support or
-    # manage one or the other.
+    # Keep AppArmor unconfined so it does not block cross-process access.
     appArmorProfile:
       type: Unconfined
+    # Use spc_t, or an equivalent type, here and in the init container.
     seLinuxOptions:
       type: spc_t
     capabilities:
