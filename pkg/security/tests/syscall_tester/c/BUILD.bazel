@@ -1,0 +1,88 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load(":otel_tls.bzl", "DSO_FLAVORS", "SUPPORTED_PLATFORMS", "otel_tls_dso")
+
+# The OTel TLS testers, one per access model a tracer can publish
+# otel_thread_ctx_v1 through. Built here rather than by the ninja/invoke path so
+# they link against the hermetic crosstool-NG sysroot: its glibc is older than
+# every KMT host and than the ubuntu:20.04 image RunMultiMode's docker leg uses,
+# which is what lets the dynamically linked variants run there at all.
+
+filegroup(
+    name = "otel_tls_headers",
+    srcs = [
+        "otel_tls_common.h",
+        "otel_tls_lib.h",
+    ],
+)
+
+# The variable lives in the executable's own static TLS block (local-exec), read
+# from .dynsym here and from .symtab in the fully static build below.
+cc_binary(
+    name = "otel_tls_exe_glibc",
+    srcs = [
+        "otel_tls_driver.c",
+        "otel_tls_lib.c",
+        ":otel_tls_headers",
+    ],
+    linkopts = [
+        "-Wl,--export-dynamic",
+        "-pthread",
+    ],
+    target_compatible_with = SUPPORTED_PLATFORMS,
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "otel_tls_exe_static_glibc",
+    srcs = [
+        "otel_tls_driver.c",
+        "otel_tls_lib.c",
+        ":otel_tls_headers",
+    ],
+    features = ["fully_static_link"],
+    linkopts = [
+        "-static",
+        "-no-pie",
+        "-pthread",
+    ],
+    target_compatible_with = SUPPORTED_PLATFORMS,
+    visibility = ["//visibility:public"],
+)
+
+# The dlopen driver takes the shared object to load as its first argument, so
+# one binary covers every flavor.
+cc_binary(
+    name = "otel_tls_dlopen_glibc",
+    srcs = [
+        "otel_tls_driver.c",
+        ":otel_tls_headers",
+    ],
+    defines = ["USE_DLOPEN"],
+    linkopts = ["-ldl"],
+    target_compatible_with = SUPPORTED_PLATFORMS,
+    visibility = ["//visibility:public"],
+)
+
+[
+    otel_tls_dso(
+        copts = copts,
+        suffix = suffix,
+    )
+    for suffix, copts in DSO_FLAVORS.items()
+]
+
+filegroup(
+    name = "otel_tls_artifacts",
+    srcs = [
+        "otel_tls_dlopen_glibc",
+        "otel_tls_exe_glibc",
+        "otel_tls_exe_static_glibc",
+    ] + [
+        "libotel_tls_glibc%s.so" % suffix
+        for suffix in DSO_FLAVORS
+    ] + [
+        "otel_tls_linked_glibc%s" % suffix
+        for suffix in DSO_FLAVORS
+    ],
+    visibility = ["//visibility:public"],
+)

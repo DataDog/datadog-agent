@@ -779,8 +779,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 // TestOTelSpan covers OTel Thread Local Context Record span collection across
 // every TLS access model a tracer can publish the record through: local-exec
 // from a main executable, both dialects of general-dynamic, initial-exec and
-// local-dynamic from a shared object linked at startup or dlopen'd, against
-// both glibc and musl.
+// local-dynamic from a shared object linked at startup or dlopen'd.
 func TestOTelSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
 	skipIfNoThreadPointer(t)
@@ -853,8 +852,10 @@ func TestOTelSpan(t *testing.T) {
 	// otelTesterSpecs mirrors the matrix the upstream profiler builds for its own
 	// integration tests (processcontext/integrationtests in
 	// open-telemetry/opentelemetry-ebpf-profiler#1229): one tester per TLS access
-	// model the resolver has to handle, against both libcs. See
-	// otel_tls_build_steps in tasks/security_agent.py for how each is built.
+	// model the resolver has to handle. See otel_tls.bzl in the syscall tester's
+	// c directory for how each is built. musl is not covered here: the only thing
+	// it changes is the DTV layout its libc reports, which is resolved in user
+	// space, so TestResolveOTelTLSMuslDTV covers it without eBPF or a VM.
 	type otelTesterSpec struct {
 		name string
 		// binary and fixture name artifacts of the syscall tester build; fixture
@@ -863,9 +864,10 @@ func TestOTelSpan(t *testing.T) {
 		binary  string
 		fixture string
 		dlopen  bool
-		// alpine runs the variant in an Alpine container, the only place the musl
-		// testers that need a runtime loader can start.
-		alpine bool
+		// snapshot runs the variant inside a container, where the process is
+		// already running by the time the agent sees it, so resolution has to be
+		// driven by an explicit snapshot rather than by the exec event.
+		snapshot bool
 		// execCoverage adds the variant to the exec sub-tests. Carrying a span
 		// across exec is independent of the access model the record was published
 		// through, so only a few variants need to prove it.
@@ -882,8 +884,6 @@ func TestOTelSpan(t *testing.T) {
 		// the fully static ones.
 		{name: "exe-glibc", binary: "otel_tls_exe_glibc", execCoverage: true},
 		{name: "exe-static-glibc", binary: "otel_tls_exe_static_glibc", execCoverage: true, negatives: true},
-		{name: "exe-static-musl", binary: "otel_tls_exe_static_musl", execCoverage: true},
-		{name: "exe-musl", binary: "otel_tls_exe_musl", alpine: true},
 
 		// A shared object linked at startup, once per access model.
 		{name: "linked-glibc", binary: "otel_tls_linked_glibc", fixture: "libotel_tls_glibc.so"},
@@ -897,15 +897,11 @@ func TestOTelSpan(t *testing.T) {
 		{name: "dlopen-glibc-ie", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ie.so", dlopen: true},
 		{name: "dlopen-glibc-ld", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ld.so", dlopen: true},
 
-		// musl only differs from glibc once the offset comes from the DTV, which
-		// it lays out its own way, so its dynamic variants are worth the
-		// container they need.
-		{name: "linked-musl", binary: "otel_tls_linked_musl", fixture: "libotel_tls_musl.so", alpine: true},
-		{name: "linked-musl-gnu", binary: "otel_tls_linked_musl_gnu", fixture: "libotel_tls_musl_gnu.so", alpine: true},
-		{name: "linked-musl-ie", binary: "otel_tls_linked_musl_ie", fixture: "libotel_tls_musl_ie.so", alpine: true},
-		{name: "linked-musl-ld", binary: "otel_tls_linked_musl_ld", fixture: "libotel_tls_musl_ld.so", alpine: true},
-		{name: "dlopen-musl", binary: "otel_tls_dlopen_musl", fixture: "libotel_tls_musl.so", dlopen: true, alpine: true},
-		{name: "dlopen-musl-gnu", binary: "otel_tls_dlopen_musl", fixture: "libotel_tls_musl_gnu.so", dlopen: true, alpine: true},
+		// The snapshot route, which resolves a process the agent never saw exec.
+		// It is independent of the access model, so one tester per eBPF path --
+		// static TLS and the DTV walk -- is enough.
+		{name: "snapshot-exe-static-glibc", binary: "otel_tls_exe_static_glibc", snapshot: true},
+		{name: "snapshot-dlopen-glibc-gnu", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_gnu.so", dlopen: true, snapshot: true},
 	}
 
 	// loadOTelTesterVariant materializes a spec's artifacts, dropping the variant
@@ -942,12 +938,12 @@ func TestOTelSpan(t *testing.T) {
 		return variant, true
 	}
 
-	var alpineWrapper *dockerCmdWrapper
-	alpineUnavailable := false
+	var snapshotWrapper *dockerCmdWrapper
+	snapshotUnavailable := false
 	var negativeTester string
 	var otelTesterVariants []otelTesterVariant
 	var otelExecVariants []otelTesterVariant
-	var alpineTesterVariants []otelTesterVariant
+	var snapshotTesterVariants []otelTesterVariant
 
 	for _, spec := range otelTesterSpecs {
 		variant, ok := loadOTelTesterVariant(t, spec)
@@ -955,18 +951,20 @@ func TestOTelSpan(t *testing.T) {
 			continue
 		}
 
-		if spec.alpine {
-			if alpineWrapper == nil && !alpineUnavailable {
-				alpineWrapper, err = newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
+		if spec.snapshot {
+			if snapshotWrapper == nil && !snapshotUnavailable {
+				// ubuntu:20.04, the same image RunMultiMode's docker leg uses:
+				// the testers link against a 2.23 sysroot so they start there.
+				snapshotWrapper, err = newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 				if err != nil {
-					t.Logf("skipping the OTel TLS variants needing an Alpine container: %v", err)
-					alpineUnavailable = true
+					t.Logf("skipping the OTel TLS variants needing a container: %v", err)
+					snapshotUnavailable = true
 				}
 			}
-			if alpineWrapper == nil {
+			if snapshotWrapper == nil {
 				continue
 			}
-			alpineTesterVariants = append(alpineTesterVariants, variant)
+			snapshotTesterVariants = append(snapshotTesterVariants, variant)
 			continue
 		}
 
@@ -984,7 +982,7 @@ func TestOTelSpan(t *testing.T) {
 		// never tried (see build_otel_tls_glibc_artifacts); producing some but
 		// not the one needing nothing more than a static link is an error worth
 		// failing on rather than a platform this cannot cover.
-		if len(otelTesterVariants) == 0 && len(alpineTesterVariants) == 0 {
+		if len(otelTesterVariants) == 0 && len(snapshotTesterVariants) == 0 {
 			t.Skip("no OTel TLS tester embedded")
 		}
 		t.Fatal("otel_tls_exe_static_glibc is missing while other OTel TLS testers were embedded")
@@ -1054,7 +1052,7 @@ func TestOTelSpan(t *testing.T) {
 		// A tester running in a container was started before the agent could see
 		// it, so these variants publish the record behind a ready file and have
 		// the resolution driven by an explicit snapshot.
-		for _, variant := range alpineTesterVariants {
+		for _, variant := range snapshotTesterVariants {
 			variant := variant
 			t.Run(variant.name, func(t *testing.T) {
 				ebpfProbe, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
@@ -1062,7 +1060,7 @@ func TestOTelSpan(t *testing.T) {
 					t.Skip("OTel TLS snapshot requires the eBPF probe")
 				}
 
-				alpineWrapper.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+				snapshotWrapper.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 					requireOTelTesterRuns(t, variant, cmdFunc)
 
 					testFile, _, err := test.Path("test-otel-span")

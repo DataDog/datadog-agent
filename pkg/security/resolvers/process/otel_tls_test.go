@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"debug/elf" //nolint:depguard
+	"encoding/binary"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -273,6 +274,50 @@ func TestResolveOTelTLSStaticMuslNonPIEMainSymtab(t *testing.T) {
 	// the DTV layout, which module_id == 0 never consults.
 	require.Zero(t, res.moduleID)
 	require.Len(t, serializeOTelTLSValue(res), otelTLSValueSize)
+}
+
+// TestResolveOTelTLSMuslDTV is the whole of the musl coverage, and the reason
+// the functional tests build glibc testers only: every access model resolves
+// the same way whatever the libc, and the one thing musl changes is the DTV
+// layout its libc reports. Three things here appear nowhere else in the suite:
+// an 8-byte DTV entry rather than glibc's 16, a *negative* offset from the
+// thread pointer (glibc reports 0 on arm64 and 8 on x86_64, so nothing else
+// exercises the sign of otel_dtv_info_t.offset through serialization), and the
+// musl branch of the upstream __tls_get_addr decoder.
+func TestResolveOTelTLSMuslDTV(t *testing.T) {
+	skipUnsupportedOTelTLSArch(t)
+
+	dir := t.TempDir()
+	// No -mtls-dialect or -ftls-model: a dlopen'd module cannot live in the
+	// static TLS block, so musl reaches it through the DTV whatever the dialect.
+	lib, ok := compileOptionalOTelTLSFixtureWithCompiler(t, "musl-gcc", dir, "libotel_fixture.so", otelTLSFixtureDSO, "-shared", "-fPIC")
+	if !ok {
+		t.Skip("musl-gcc is not available or cannot build the shared musl fixture")
+	}
+	bin, ok := compileOptionalOTelTLSFixtureWithCompiler(t, "musl-gcc", dir, "dlopen-musl-main", otelTLSFixtureDlopenMain, "-ldl")
+	if !ok {
+		t.Skip("musl-gcc cannot build the musl dlopen driver")
+	}
+
+	cmd := startOTelTLSFixture(t, bin, lib)
+	res, err := resolveOTelTLS(uint32(cmd.Process.Pid), "cpp")
+	require.NoError(t, err)
+
+	require.Equal(t, uint32(otelRuntimeNative), res.runtimeLang)
+	// Asserted rather than assumed: musl having no static TLS surplus for
+	// dlopen is an allocation policy, not a guarantee. Should a later musl
+	// gain one, module_id would go to 0 and this test would quietly stop
+	// covering the DTV at all, so it has to fail instead.
+	require.NotZero(t, res.moduleID, "a dlopen'd musl DSO must resolve through the DTV")
+	require.Equal(t, uint32(8), res.dtvInfo.multiplier, "musl DTV entries are 8 bytes, glibc's are 16")
+
+	if runtime.GOARCH == "arm64" {
+		require.Negative(t, res.dtvInfo.offset, "musl puts the DTV below the thread pointer on arm64")
+		buf := serializeOTelTLSValue(res)
+		require.Len(t, buf, otelTLSValueSize)
+		require.Equal(t, uint64(res.dtvInfo.offset), binary.NativeEndian.Uint64(buf[16:24]),
+			"the negative offset must reach struct otel_dtv_info_t's s64 sign-extended")
+	}
 }
 
 // TestVisitRelocations uses the DSO fixture rather than the main-executable

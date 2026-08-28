@@ -27,6 +27,22 @@
 #define MFD_ALLOW_SEALING 0x0002U
 #endif
 
+// The memfd seals reached glibc's fcntl.h in 2.25, and these testers are built
+// against a 2.23 sysroot so they can run on every KMT host and inside the
+// ubuntu:20.04 image the docker leg uses. The kernel ABI values are fixed.
+#ifndef F_ADD_SEALS
+#define F_ADD_SEALS (1024 + 9)
+#endif
+#ifndef F_SEAL_SHRINK
+#define F_SEAL_SHRINK 0x0002
+#endif
+#ifndef F_SEAL_GROW
+#define F_SEAL_GROW 0x0004
+#endif
+#ifndef F_SEAL_WRITE
+#define F_SEAL_WRITE 0x0008
+#endif
+
 // Byte-compatible with struct otel_thread_ctx_record_t in
 // pkg/security/ebpf/c/include/structs/span_context.h, which documents the
 // layout; the eBPF reader parses these bytes out of the tester's memory.
