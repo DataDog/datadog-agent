@@ -7,6 +7,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
+	github.com/DataDog/datadog-agent/pkg/credential => ../../../../../pkg/credential
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset/
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil/

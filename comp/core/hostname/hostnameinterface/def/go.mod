@@ -98,6 +98,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../../../pkg/config/setup/constants
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/credential => ../../../../../pkg/credential
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../../pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../../../pkg/fips

@@ -8,5 +8,6 @@ go_library(
     deps = [
         "//comp/core/delegatedauth/common",
         "//pkg/config/model",
+        "//pkg/credential",
     ],
 )

@@ -10,46 +10,19 @@ package delegatedauth
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/credential"
 )
 
 // team: credential-management
 
-// Provider supplies the credential for outbound requests to one delegated-auth destination.
-// Implementations are safe for concurrent use and are cheap enough to call on every request.
-//
-// Consumers should not import this package just for the interface - it is small enough to
-// redeclare structurally where it is consumed, which keeps lean modules such as pkg/trace free of
-// a dependency on the component. This declaration is the canonical shape.
-type Provider interface {
-	// Authorize stamps the credential onto h and reports whether it did.
-	//
-	// A false return means no credential is available yet. The caller MUST NOT send the request;
-	// it should retain the payload and retry, so nothing is lost while the first exchange with the
-	// cloud provider is still in flight. It never means "send unauthenticated".
-	//
-	// Which header is set, and whether the credential is an API key or a token, is the provider's
-	// business - that is the point of the interface. Callers only learn whether they may send.
-	Authorize(h http.Header) bool
-
-	// Refresh signals that the current credential has been rejected (e.g. a 403 from the intake)
-	// and should be re-exchanged as soon as possible. It resets the credential to its buffering
-	// state so Authorize returns false until a new exchange succeeds, preventing further sends
-	// under a stale key.
-	//
-	// Returns true when a background refresh was queued, false when no refresh mechanism is
-	// available (no cloud provider detected). Callers should treat false as "drop the transaction"
-	// and true as "reschedule it" — the same contract as secrets.Refresh().
-	//
-	// Anti-storm: the underlying trigger is a buffered channel of capacity 1 with a non-blocking
-	// send, so a burst of 403s from many in-flight transactions coalesces into a single refresh.
-	// While a refresh is in progress additional calls are dropped, and after a triggered refresh
-	// the ticker is reset so there is a cooldown before the next one.
-	Refresh() bool
-}
+// Provider is an alias for credential.Provider, the canonical interface declared in
+// pkg/credential. The alias keeps existing imports of delegatedauth.Provider working
+// while making pkg/credential the single source of truth that both comp/ and pkg/trace
+// can depend on.
+type Provider = credential.Provider
 
 // InstanceParams configures a single API key instance.
 //
