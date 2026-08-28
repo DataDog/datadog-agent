@@ -147,6 +147,7 @@ go_library(
             "@org_golang_google_grpc//:grpc",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/collector/corechecks/gpu/model",
             "//comp/networkpath/traceroute/def",
             "//pkg/collector/corechecks/ebpf/probe/ebpfcheck",
             "//pkg/collector/corechecks/ebpf/probe/noisyneighbor",
