@@ -7,6 +7,7 @@ package configstreamimpl
 
 import (
 	"context"
+	"math"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -365,6 +366,7 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 	cfg.BindEnvAndSetDefault("my.new.setting", "")
 	cfg.BindEnvAndSetDefault("dropped.setting", "")
 	cfg.BindEnvAndSetDefault("another.setting", 0)
+	cfg.BindEnvAndSetDefault("complex.setting", map[string]interface{}{})
 	cfg.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", true)
 	cfg.BindEnvAndSetDefault("logs_config.use_compression", false)
 
@@ -483,6 +485,56 @@ func TestConfigStream(t *testing.T) {
 		require.NotNil(t, unset.Unset.Resolved, "unset must carry the post-unset resolution")
 		require.Equal(t, "original_value", unset.Unset.Resolved.Value.GetStringValue())
 		require.Equal(t, string(model.SourceAgentRuntime), unset.Unset.Resolved.Source)
+	})
+	t.Run("drops the unset when the fallback value cannot be encoded", func(t *testing.T) {
+		provides, configComp := buildComponent(t)
+
+		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-unencodable"})
+		defer unsubscribe()
+
+		var event *pb.ConfigEvent
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting initial snapshot")
+		}
+		_, isSnapshot := event.GetEvent().(*pb.ConfigEvent_Snapshot)
+		require.True(t, isSnapshot, "first event must be snapshot")
+
+		configComp.Set("complex.setting", map[string]interface{}{"n": 1.0}, model.SourceCLI)
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting config update")
+		}
+		update, isUpdate := event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate)
+		require.Equal(t, "complex.setting", update.Update.Setting.Key)
+
+		// Scalar keys are coerced to their declared type, so an unencodable value only survives under
+		// a complex one. This write is shadowed by CLI, so it notifies nobody and stays off the wire.
+		configComp.Set("complex.setting", map[string]interface{}{"n": math.Inf(1)}, model.SourceAgentRuntime)
+
+		// Clearing CLI falls back to the +Inf map, which has no JSON representation. An unset without
+		// Resolved would read as "nothing remains" and diverge the subscriber for good, so nothing is
+		// sent at all.
+		configComp.UnsetForSource("complex.setting", model.SourceCLI)
+		select {
+		case event = <-eventsCh:
+			t.Fatalf("expected no event, got %v", event.GetEvent())
+		case <-time.After(500 * time.Millisecond):
+		}
+
+		// The dropped event still consumed a sequence ID, so the next change lands out of order and
+		// the subscriber is resynchronized with a snapshot instead of carrying a stale value.
+		configComp.Set("complex.setting", map[string]interface{}{"n": 2.0}, model.SourceCLI)
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting resynchronization snapshot")
+		}
+		_, isSnapshot = event.GetEvent().(*pb.ConfigEvent_Snapshot)
+		require.True(t, isSnapshot, "sequence gap must resynchronize the subscriber")
 	})
 
 	resyncsWithSnapshotOnDiscontinuity := func(t *testing.T) {

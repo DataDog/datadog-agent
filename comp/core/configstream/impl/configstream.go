@@ -160,11 +160,14 @@ func (cs *configStream) run() {
 
 		// Left unset when the key resolves to nothing, which tells the subscriber to only drop it.
 		if resolvedSource != model.SourceUnknown {
-			if resolved, err := newConfigSetting(setting, resolvedValue, resolvedSource); err != nil {
-				cs.log.Errorf("Failed to encode post-unset value of '%s': %v", setting, err)
-			} else {
-				unset.Resolved = resolved
+			resolved, err := newConfigSetting(setting, resolvedValue, resolvedSource)
+			if err != nil {
+				// Sending it anyway would read as "nothing remains" and diverge the subscriber for
+				// good. Dropping the event leaves a sequence gap, which makes it resync instead.
+				cs.log.Errorf("Failed to encode post-unset value of '%s', dropping unset to force a resync: %v", setting, err)
+				return
 			}
+			unset.Resolved = resolved
 		}
 
 		configUnset := &pb.ConfigEvent{Event: &pb.ConfigEvent_Unset{Unset: unset}}
