@@ -26,22 +26,10 @@ def build(
     go_mod="readonly",
     enable_bazel=False,
 ):
-    """Build the privateactionrunner binary.
-
-    enable_bazel: build via `bazel build //cmd/privateactionrunner:privateactionrunner` instead of
-    `go build`, then copy the result to the same place. Developer opt-in only; defaults to off.
-
-    Not yet supported on Windows (ABLD-310): the bazel target does not embed the Windows
-    resources (rsrc.syso) that the legacy go_build() path produces via build_messagetable()/
-    build_rc(). See //cmd/privateactionrunner/windows_resources:rsrc.
-    """
+    """Build the privateactionrunner binary."""
     if enable_bazel:
         if sys.platform == 'win32':
-            raise NotImplementedError(
-                "enable_bazel is not yet supported on Windows for privateactionrunner: the bazel "
-                "target does not embed Windows resources (rsrc.syso) that the legacy go_build() "
-                "path produces. See //cmd/privateactionrunner/windows_resources:rsrc. (ABLD-310)"
-            )
+            raise NotImplementedError("--enable-bazel does not support Windows.")
         build_go_binary_with_bazel("//cmd/privateactionrunner:privateactionrunner", BIN_PATH)
         return
 
