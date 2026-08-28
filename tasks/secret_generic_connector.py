@@ -11,7 +11,6 @@ from invoke import task
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import build_binary_with_bazel
-from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING, REPO_PATH
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import bin_name
@@ -41,17 +40,8 @@ def build(
     Build the secret-generic-connector binary.
     """
     if enable_bazel:
-        if sys.platform == 'win32':
-            raise NotImplementedError("--enable-bazel does not support Windows.")
         if output_bin is not None or arch_suffix is not False:
             raise NotImplementedError("--enable-bazel does not support --output-bin/--arch-suffix.")
-        print(
-            color_message(
-                "warning: the bazel-built secret-generic-connector binary's --version output "
-                "will report 'dev' instead of the real stamped version.",
-                "orange",
-            )
-        )
         bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
         build_binary_with_bazel(
             "//cmd/secret-generic-connector:secret-generic-connector", args=bazel_args, bin_path=BIN_PATH
