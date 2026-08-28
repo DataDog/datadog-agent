@@ -174,12 +174,6 @@ func newScannerTestState(t *testing.T) *scannerTestState {
 // scanner's retry bookkeeping runs on.
 var testEpoch = time.Unix(0, 0).UTC()
 
-// ticksToDuration converts the tick-denominated durations used by the test
-// timelines into the durations that the constructor takes.
-func ticksToDuration(t uint64) time.Duration {
-	return time.Duration(t) * time.Second / clkTck
-}
-
 // command is the interface that all test commands implement.
 type command interface {
 	execute(t *testing.T, ts *scannerTestState) error
@@ -336,7 +330,9 @@ func (c *initializeCommand) execute(
 ) error {
 	ts.currentTime = ticks(c.CurrentTime)
 	ts.scanner = newScanner(
-		ticksToDuration(c.BackoffBase), ticksToDuration(c.BackoffCap),
+		ticksToDuration(ticks(c.BackoffBase)),
+		ticksToDuration(ticks(c.BackoffCap)),
+		testEpoch,
 		ts.now,
 		ts.listPids,
 		ts.readStartTime,
@@ -367,7 +363,7 @@ func (c *scanCommand) execute(_ *testing.T, ts *scannerTestState) error {
 }
 
 func (ts *scannerTestState) now() time.Time {
-	return testEpoch.Add(ticksToDuration(uint64(ts.currentTime)))
+	return testEpoch.Add(ticksToDuration(ts.currentTime))
 }
 
 func (ts *scannerTestState) listPids() iter.Seq2[uint32, error] {
@@ -436,6 +432,14 @@ type procSnapshot struct {
 	StartTime uint64 `yaml:"start_time"`
 }
 
+// discoveredSnapshot is a process that a scan discovered, along with how many
+// earlier scans looked at it without discovering it.
+type discoveredSnapshot struct {
+	PID       uint32 `yaml:"pid"`
+	StartTime uint64 `yaml:"start_time"`
+	Attempts  uint32 `yaml:"attempts,omitempty"`
+}
+
 // candidateSnapshot exposes the retry schedule of a process that is not
 // instrumented yet.
 type candidateSnapshot struct {
@@ -459,7 +463,7 @@ type commandOutput struct {
 
 type scanOutput struct {
 	Command ast.Node             `yaml:"command"`
-	New     []procSnapshot       `yaml:"new,omitempty,flow"`
+	New     []discoveredSnapshot `yaml:"new,omitempty,flow"`
 	Removed []int                `yaml:"removed,omitempty,flow"`
 	State   scannerStateSnapshot `yaml:"state"`
 }
@@ -519,10 +523,16 @@ func (ts *scannerTestState) generateOutput(
 		}
 
 		if len(ts.lastScanResult.New) > 0 {
-			scanOut.New = make([]procSnapshot, 0, len(ts.lastScanResult.New))
+			scanOut.New = make([]discoveredSnapshot, 0, len(ts.lastScanResult.New))
 			for _, dp := range ts.lastScanResult.New {
-				scanOut.New = append(scanOut.New, procSnapshot{
-					PID: dp.PID, StartTime: dp.StartTimeTicks,
+				require.Equal(
+					t, testEpoch.Add(ticksToDuration(ticks(dp.StartTimeTicks))),
+					dp.StartTime,
+				)
+				scanOut.New = append(scanOut.New, discoveredSnapshot{
+					PID:       dp.PID,
+					StartTime: dp.StartTimeTicks,
+					Attempts:  dp.Attempts,
 				})
 			}
 		}
