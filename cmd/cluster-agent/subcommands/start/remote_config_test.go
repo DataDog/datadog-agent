@@ -218,3 +218,20 @@ func TestRemoteConfigClientRegistryRejectsMixedAutoscalingProductOwnership(t *te
 	)
 	require.ErrorContains(t, err, "different clients")
 }
+
+// TestAdditionalRemoteConfigClientSpecsRejectReservedName ensures an extra
+// client cannot take the status key used by the default client, which would
+// make the two share a status entry.
+func TestAdditionalRemoteConfigClientSpecsRejectReservedName(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{
+		defaultRemoteConfigStatusInstance: map[string]interface{}{
+			"api_key":   "api-key",
+			"rc_dd_url": "https://config.extra.datadoghq.com",
+			"products":  []string{state.ProductK8SActions},
+		},
+	})
+
+	_, err := getAdditionalRemoteConfigClientSpecs(cfg)
+	require.ErrorContains(t, err, "reserved for the default client")
+}

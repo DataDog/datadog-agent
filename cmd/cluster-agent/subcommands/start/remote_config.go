@@ -31,14 +31,9 @@ const (
 	defaultRemoteConfigDatabaseFileName = "remote-config.db"
 	// defaultRemoteConfigStatusInstance mirrors defaultStatusInstance in
 	// pkg/config/remote/service, the key the default client reports status under.
+	// Additional clients report under their own name, so this one is reserved.
 	defaultRemoteConfigStatusInstance = "Remote Config"
 )
-
-// remoteConfigStatusInstanceName returns the key an additional client reports
-// its status under. Keep in sync with the WithStatusInstance call below.
-func remoteConfigStatusInstanceName(specName string) string {
-	return "cluster-agent:" + specName
-}
 
 var processLevelRemoteConfigProducts = map[string]struct{}{
 	state.ProductAgentConfig: {},
@@ -192,9 +187,9 @@ func (r *remoteConfigClientRegistry) InstanceNameForProducts(products ...string)
 	}
 	for _, product := range products {
 		if instance, found := r.byProduct[product]; found {
-			// Match the key used in the Remote Configuration status section, so
-			// the two sections can be cross-referenced.
-			return remoteConfigStatusInstanceName(instance.name)
+			// Matches the key used in the Remote Configuration status section,
+			// so the two sections can be cross-referenced.
+			return instance.name
 		}
 	}
 	return defaultRemoteConfigStatusInstance
@@ -296,6 +291,9 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 		if spec.Name == "" {
 			return nil, fmt.Errorf("%s contains an empty client name", additionalRemoteConfigClientsConfig)
 		}
+		if spec.Name == defaultRemoteConfigStatusInstance {
+			return nil, fmt.Errorf("%s.%s is reserved for the default client, pick another name", additionalRemoteConfigClientsConfig, spec.Name)
+		}
 		if spec.RCDDURL == "" {
 			return nil, fmt.Errorf("%s.%s.rc_dd_url must be set", additionalRemoteConfigClientsConfig, spec.Name)
 		}
@@ -371,7 +369,7 @@ func newAdditionalRemoteConfigService(
 		remoteconfig.WithConfigRootOverride(site, spec.ConfigRoot),
 		remoteconfig.WithDirectorRootOverride(site, spec.DirectorRoot),
 		remoteconfig.WithRcKey(spec.Key),
-		remoteconfig.WithStatusInstance(remoteConfigStatusInstanceName(spec.Name)),
+		remoteconfig.WithStatusInstance(spec.Name),
 	}
 
 	service, err := remoteconfig.NewService(
