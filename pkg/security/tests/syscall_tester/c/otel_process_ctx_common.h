@@ -45,9 +45,11 @@ struct otel_process_ctx_header {
 #define OTEL_PB_KV_KEY 1
 #define OTEL_PB_KV_VALUE 2
 #define OTEL_PB_ANY_STRING 1
+#define OTEL_PB_ANY_INT 3
 #define OTEL_PB_ANY_ARRAY 5
 #define OTEL_PB_ARRAY_VALUES 1
 
+#define OTEL_PB_WIRE_VARINT 0
 #define OTEL_PB_WIRE_BYTES 2
 
 static inline size_t otel_pb_varint(uint8_t *out, uint64_t value) {
@@ -78,6 +80,11 @@ static inline size_t otel_pb_string_value(uint8_t *out, const char *value) {
     return otel_pb_bytes(out, OTEL_PB_ANY_STRING, value, strlen(value));
 }
 
+static inline size_t otel_pb_int_value(uint8_t *out, int64_t value) {
+    size_t off = otel_pb_tag(out, OTEL_PB_ANY_INT, OTEL_PB_WIRE_VARINT);
+    return off + otel_pb_varint(out + off, (uint64_t)value);
+}
+
 // Appends one KeyValue of the extra attributes, its value already encoded as an
 // AnyValue in `value`.
 static inline size_t otel_pb_attribute(uint8_t *out, const char *key, const uint8_t *value, size_t value_len) {
@@ -90,6 +97,12 @@ static inline size_t otel_pb_attribute(uint8_t *out, const char *key, const uint
 static inline size_t otel_pb_string_attribute(uint8_t *out, const char *key, const char *value) {
     uint8_t any[256];
     size_t any_len = otel_pb_string_value(any, value);
+    return otel_pb_attribute(out, key, any, any_len);
+}
+
+static inline size_t otel_pb_int_attribute(uint8_t *out, const char *key, int64_t value) {
+    uint8_t any[32];
+    size_t any_len = otel_pb_int_value(any, value);
     return otel_pb_attribute(out, key, any, any_len);
 }
 
