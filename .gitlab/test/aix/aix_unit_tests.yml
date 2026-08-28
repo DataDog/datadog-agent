@@ -1,6 +1,14 @@
 ---
 # AIX/ppc64 jobs run on a remote AIX LPAR over SSH, driven by a Linux GitLab
-# runner.
+# runner (RFC: AIX/ppc64 datadog-agent CI, Phase 1).
+#
+# Neither GitHub Actions nor AWS/GitLab offer AIX/ppc64 runners, so a standard
+# Linux runner orchestrates the job: it fetches the AIX host's SSH private key
+# from Vault, ensures the agent source is cloned on the host at the commit
+# under test, then runs job-specific scripts over SSH. The AIX host does all
+# the actual work.
+#
+# A resource_group per VM ensures only one AIX job uses the host at a time.
 
 .aix_remote:
   stage: source_test
@@ -12,14 +20,7 @@
   timeout: 2h
   rules:
     - !reference [.except_mergequeue]
-    # - changes:
-    #     paths:
-    #       - packaging/aix/**
-    #       - internal/tools/go.mod
-    #       - **/*_aix.go
-    #       - **/*_aix_test.go
-    #     compare_to: $COMPARE_TO_BRANCH
-    - !reference [.manual]
+    - when: on_success
   variables:
     # SSH connection details for the AIX LPAR.
     # TODO: move to Vault
@@ -62,8 +63,11 @@
     # Setup the host (idempotent) then run the unit tests.
     # setup-host.sh is shared with devs (packaging/aix/), run-tests.sh is the
     # unit-test job's script (packaging/aix/ci/).
-    - ssh -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "$AIX_AGENT_SRC/packaging/aix/setup-host.sh"
-    - ssh -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "$AIX_AGENT_SRC/packaging/aix/ci/run-tests.sh"
+    # Invoke via `sh` so the job works even if the executable bit isn't set on
+    # the checked-out file, and quote the remote command so $AIX_AGENT_SRC is
+    # expanded on the runner (not split by the remote shell).
+    - ssh -tt -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/setup-host.sh"
+    - ssh -tt -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/ci/run-tests.sh"
 
 aix_unit_tests:
   extends: .aix_remote
