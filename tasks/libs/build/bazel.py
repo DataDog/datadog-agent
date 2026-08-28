@@ -240,36 +240,25 @@ def bazel(
     return completed.stdout if capture_output else ""
 
 
-def build_go_binary_with_bazel(target: str, bin_path: str) -> None:
-    """Build a ``go_binary``/``dd_agent_go_binary`` Bazel target and copy its output to ``bin_path``.
+def build_binary_with_bazel(target: str, bin_path: str = None) -> None:
+    """Build a Bazel target and copy its output to bin_path.
 
-    This is the "opt-in" counterpart to ``go_build()`` for invoke tasks that grew an
-    ``--enable_bazel`` flag: it runs ``bazel build <target>`` and copies the resulting
-    binary from ``bazel-out`` to wherever the legacy ``go_build()`` path would have put it,
-    so the rest of the invoke task (asset staging, etc.) doesn't need to know which path built it.
-
-    We resolve the output path via ``bazel cquery --output=files`` rather than
-    ``bazel info bazel-bin`` + a hand-built ``<package>/<name>_/<name>`` path: some
-    ``go_binary`` targets (e.g. ones with custom ``gotags``) are built under a
-    starlark configuration transition, which places their outputs in a
-    ``<platform>-ST-<hash>`` bazel-out subdirectory that the plain ``bazel-bin``
-    convenience path does not point to. ``cquery --output=files`` reports the actual
-    configured output path regardless of any transition.
+    Args:
+        target: Bazel target
+        bin_path: directory to copy the binary to. None for no copy.
     """
-    label = split_label(target)
-    if label.name is None:
-        raise ValueError(f"Bazel target {target!r} must include a target name (e.g. //cmd/foo:foo)")
-
     bazel("build", target)
+    # We need cquery to find the output path that has the configuration hash in it.
     output = bazel("cquery", "--output=files", target, capture_output=True).strip()
     outputs = [line for line in output.splitlines() if line]
     if len(outputs) != 1:
         raise SystemExit(f"Expected exactly one output file for Bazel target {target!r}, got: {outputs!r}")
     src = os.path.join(get_repo_root(), outputs[0])
 
-    os.makedirs(os.path.dirname(bin_path), exist_ok=True)
-    shutil.copy2(src, bin_path)
-    os.chmod(bin_path, 0o755)
+    if bin_path:
+        os.makedirs(os.path.dirname(bin_path), exist_ok=True)
+        shutil.copy2(src, bin_path)
+        os.chmod(bin_path, 0o755)
 
 
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:

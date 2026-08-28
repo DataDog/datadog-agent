@@ -10,7 +10,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import build_go_binary_with_bazel
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.system_probe import copy_ebpf_and_related_files
@@ -52,7 +52,7 @@ def build(
         if sys.platform != 'linux':
             raise NotImplementedError("--enable-bazel is only supported on Linux.")
 
-        build_go_binary_with_bazel(BAZEL_TARGET, BIN_PATH)
+        build_binary_with_bazel(BAZEL_TARGET, BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(
