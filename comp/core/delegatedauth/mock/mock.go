@@ -44,12 +44,18 @@ func (p StaticProvider) Authorize(h http.Header) bool {
 	return true
 }
 
+// Refresh implements delegatedauth.Provider.
+func (StaticProvider) Refresh() bool { return false }
+
 // PendingProvider is a Provider that never has a credential, for tests that exercise the
 // buffer-until-resolved path.
 type PendingProvider struct{}
 
 // Authorize implements delegatedauth.Provider and always reports "no credential yet".
 func (PendingProvider) Authorize(_ http.Header) bool { return false }
+
+// Refresh implements delegatedauth.Provider. A pending provider has no background refresh.
+func (PendingProvider) Refresh() bool { return false }
 
 var _ delegatedauth.Component = (*Mock)(nil)
 

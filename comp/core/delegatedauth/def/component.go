@@ -34,6 +34,21 @@ type Provider interface {
 	// Which header is set, and whether the credential is an API key or a token, is the provider's
 	// business - that is the point of the interface. Callers only learn whether they may send.
 	Authorize(h http.Header) bool
+
+	// Refresh signals that the current credential has been rejected (e.g. a 403 from the intake)
+	// and should be re-exchanged as soon as possible. It resets the credential to its buffering
+	// state so Authorize returns false until a new exchange succeeds, preventing further sends
+	// under a stale key.
+	//
+	// Returns true when a background refresh was queued, false when no refresh mechanism is
+	// available (no cloud provider detected). Callers should treat false as "drop the transaction"
+	// and true as "reschedule it" — the same contract as secrets.Refresh().
+	//
+	// Anti-storm: the underlying trigger is a buffered channel of capacity 1 with a non-blocking
+	// send, so a burst of 403s from many in-flight transactions coalesces into a single refresh.
+	// While a refresh is in progress additional calls are dropped, and after a triggered refresh
+	// the ticker is reset so there is a cooldown before the next one.
+	Refresh() bool
 }
 
 // InstanceParams configures a single API key instance.

@@ -124,6 +124,13 @@ type delegatedAuthComponent struct {
 	// can carry more than one provider when several orgs dual-ship to it.
 	providers map[providerKey][]registeredProvider
 
+	// credentialCache deduplicates WIF exchanges: two directives with the same (orgUUID,
+	// targetSite) resolve to the same API key, so they share one instanceProvider and one
+	// background refresh goroutine. Without this, the same org appearing in both
+	// additional_endpoints and apm_config.additional_endpoints would trigger two separate
+	// cloud exchanges for the same key — one per subsystem.
+	credentialCache map[credentialCacheKey]*instanceProvider
+
 	// additionalEndpointsMu serializes read-modify-write access to additional_endpoints config
 	// values across concurrent instances. Separate from mu to avoid deadlocking with OnUpdate callbacks.
 	additionalEndpointsMu sync.Mutex
@@ -133,6 +140,14 @@ type delegatedAuthComponent struct {
 type providerKey struct {
 	configKey   string
 	destination string
+}
+
+// credentialCacheKey identifies a unique WIF exchange: the same org UUID against the same
+// target site always resolves to the same API key, regardless of which subsystem's config the
+// directive was discovered in.
+type credentialCacheKey struct {
+	orgUUID    string
+	targetSite string
 }
 
 // registeredProvider keeps the directive alongside its provider so a consumer that owns one
@@ -151,8 +166,9 @@ type Provides struct {
 // NewComponent creates a new delegated auth Component
 func NewComponent() Provides {
 	comp := &delegatedAuthComponent{
-		instances: make(map[string]*authInstance),
-		providers: make(map[providerKey][]registeredProvider),
+		instances:        make(map[string]*authInstance),
+		providers:        make(map[providerKey][]registeredProvider),
+		credentialCache:  make(map[credentialCacheKey]*instanceProvider),
 	}
 
 	return Provides{
@@ -301,9 +317,34 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	// buffer rather than ship unauthenticated.
 	if providerConfig == nil {
 		log.Warnf("Delegated auth is not available on this host, so '%s' will keep its statically configured value", params.APIKeyConfigKey)
+
+		// Deduplicate only in directive mode (SkipConfigWriteback). In flat-key mode each config
+		// slot needs its own instance to write the fallback key back into config.
+		if params.SkipConfigWriteback {
+			targetSite := resolveTargetSite(params)
+			cacheKey := credentialCacheKey{orgUUID: params.OrgUUID, targetSite: targetSite}
+			d.mu.Lock()
+			if existing, ok := d.credentialCache[cacheKey]; ok {
+				d.mu.Unlock()
+				d.registerProvider(params, existing)
+				return existing, nil
+			}
+			credProvider := newInstanceProvider()
+			credProvider.setFallback(params.FallbackAPIKey)
+			if d.credentialCache == nil {
+				d.credentialCache = make(map[credentialCacheKey]*instanceProvider)
+			}
+			d.credentialCache[cacheKey] = credProvider
+			d.mu.Unlock()
+
+			d.registerProvider(params, credProvider)
+			return credProvider, nil
+		}
+
+		// Flat-key path: each slot needs its own write-back.
 		credProvider := newInstanceProvider()
 		credProvider.setFallback(params.FallbackAPIKey)
-		if params.FallbackAPIKey != "" && !params.SkipConfigWriteback {
+		if params.FallbackAPIKey != "" {
 			d.writeAPIKeyToTarget(fallbackTargetInstance(params), params.FallbackAPIKey, true)
 		}
 		d.registerProvider(params, credProvider)
@@ -333,6 +374,33 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		OrgUUID: params.OrgUUID,
 	}
 
+	targetSite := resolveTargetSite(params)
+
+	// Deduplicate WIF exchanges only in directive mode (SkipConfigWriteback). In flat-key mode
+	// each config slot needs its own authInstance to write the resolved key back into config.
+	var credProvider *instanceProvider
+	if params.SkipConfigWriteback {
+		cacheKey := credentialCacheKey{orgUUID: params.OrgUUID, targetSite: targetSite}
+		d.mu.Lock()
+		if existing, ok := d.credentialCache[cacheKey]; ok {
+			d.mu.Unlock()
+			log.Infof("Reusing existing delegated auth credential for '%s' (org %s already has a provider for %s)",
+				apiKeyConfigKey, params.OrgUUID, targetSite)
+			d.registerProvider(params, existing)
+			return existing, nil
+		}
+		// Reserve the slot so a concurrent AddInstance for the same org+site sees it.
+		credProvider = newInstanceProvider()
+		if d.credentialCache == nil {
+			d.credentialCache = make(map[credentialCacheKey]*instanceProvider)
+		}
+		d.credentialCache[cacheKey] = credProvider
+		d.mu.Unlock()
+	} else {
+		// Flat-key path: each slot gets its own provider and its own write-back goroutine.
+		credProvider = newInstanceProvider()
+	}
+
 	// Create a context for the background refresh goroutine
 	refreshCtx, refreshCancel := context.WithCancel(context.Background())
 
@@ -342,7 +410,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		authConfig:                       authConfig,
 		refreshInterval:                  refreshInterval,
 		apiKeyConfigKey:                  apiKeyConfigKey,
-		targetSite:                       resolveTargetSite(params),
+		targetSite:                       targetSite,
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
 		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
@@ -351,7 +419,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		lastWrittenValue:                 params.AdditionalEndpointDirective,
 		originalDirective:                params.AdditionalEndpointDirective,
 		backoff:                          newBackoff(refreshInterval),
-		credProvider:                     newInstanceProvider(),
+		credProvider:                     credProvider,
 		fallbackAPIKey:                   params.FallbackAPIKey,
 		skipConfigWriteback:              params.SkipConfigWriteback,
 		refreshCtx:                       refreshCtx,
@@ -409,6 +477,10 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		d.deliverAPIKey(instance, *apiKey)
 		log.Infof("Successfully fetched and set initial delegated API key for '%s'", apiKeyConfigKey)
 	}
+
+	// refreshTrigger is the channel Refresh() sends to for an immediate re-exchange (e.g. on
+	// 403). Capacity 1 so a burst of calls coalesces into one refresh.
+	instance.credProvider.setRefreshTrigger(make(chan struct{}, 1))
 
 	// Always start the background refresh goroutine, even if initial fetch failed
 	// This ensures retries will happen with exponential backoff
@@ -535,7 +607,8 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(ctx context.Context, instan
 }
 
 // startBackgroundRefresh starts the background goroutine that periodically refreshes the API key
-// with exponential backoff on failures
+// with exponential backoff on failures. It also listens on the instance's refreshTrigger channel
+// for immediate refreshes requested by Refresh() (e.g. on a 403 from the intake).
 func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) {
 	go func() {
 		// Signal goroutine exit when we return
@@ -556,60 +629,66 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 				log.Debugf("Background refresh goroutine for '%s' exiting due to context cancellation", instance.apiKeyConfigKey)
 				return
 			case <-ticker.C:
-				lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
-
-				// Variables to capture state updates
-				var shouldUpdateConfig bool
-				var apiKeyToUpdate string
-
-				d.mu.Lock()
-				if lErr != nil {
-					// Check if the error is due to context cancellation
-					if instance.refreshCtx.Err() != nil {
-						d.mu.Unlock()
-						log.Debugf("Refresh for '%s' failed due to context cancellation, exiting", instance.apiKeyConfigKey)
-						return
-					}
-
-					// Track failures for status reporting
-					instance.consecutiveFailures++
-					instance.lastError = lErr
-
-					// Get next backoff interval (exponentially increasing with jitter)
-					nextInterval := instance.backoff.NextBackOff()
-					instance.nextRefresh = time.Now().Add(nextInterval)
-					log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
-						instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, nextInterval)
-					ticker.Reset(nextInterval)
-				} else {
-					// Success - reset backoff and failure counter
-					if instance.consecutiveFailures > 0 {
-						log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts",
-							instance.apiKeyConfigKey, instance.consecutiveFailures)
-					}
-					instance.consecutiveFailures = 0
-					instance.backoff.Reset()
-					nextInterval := instance.backoff.NextBackOff()
-					instance.nextRefresh = time.Now().Add(nextInterval)
-
-					// Capture the API key to update config outside the lock
-					if updated && lCreds != nil {
-						shouldUpdateConfig = true
-						apiKeyToUpdate = *lCreds
-					}
-
-					ticker.Reset(nextInterval)
-				}
-				d.mu.Unlock()
-
-				// Deliver OUTSIDE the lock to avoid potential deadlocks with config
-				// callbacks that might try to acquire locks
-				if shouldUpdateConfig {
-					d.deliverAPIKey(instance, apiKeyToUpdate)
+				d.doRefresh(instance, ticker, false)
+			case <-instance.credProvider.refreshTrigger:
+				d.doRefresh(instance, ticker, true)
+				// Drain any triggers that accumulated during the refresh so a burst of 403s
+				// does not cause back-to-back refreshes.
+				select {
+				case <-instance.credProvider.refreshTrigger:
+				default:
 				}
 			}
 		}
 	}()
+}
+
+// doRefresh performs one refresh cycle, updates the instance state under mu, resets the ticker
+// for the next interval, and delivers the new key (if any) outside the lock.
+func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.Ticker, triggered bool) {
+	lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
+
+	var shouldUpdateConfig bool
+	var apiKeyToUpdate string
+
+	d.mu.Lock()
+	if lErr != nil {
+		if instance.refreshCtx.Err() != nil {
+			d.mu.Unlock()
+			log.Debugf("Refresh for '%s' failed due to context cancellation, exiting", instance.apiKeyConfigKey)
+			return
+		}
+
+		instance.consecutiveFailures++
+		instance.lastError = lErr
+
+		nextInterval := instance.backoff.NextBackOff()
+		instance.nextRefresh = time.Now().Add(nextInterval)
+		log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
+			instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, nextInterval)
+		ticker.Reset(nextInterval)
+	} else {
+		if instance.consecutiveFailures > 0 {
+			log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts",
+				instance.apiKeyConfigKey, instance.consecutiveFailures)
+		}
+		instance.consecutiveFailures = 0
+		instance.backoff.Reset()
+		nextInterval := instance.backoff.NextBackOff()
+		instance.nextRefresh = time.Now().Add(nextInterval)
+
+		if updated && lCreds != nil {
+			shouldUpdateConfig = true
+			apiKeyToUpdate = *lCreds
+		}
+
+		ticker.Reset(nextInterval)
+	}
+	d.mu.Unlock()
+
+	if shouldUpdateConfig {
+		d.deliverAPIKey(instance, apiKeyToUpdate)
+	}
 }
 
 // authenticate uses the configured provider to generate an auth proof, then exchanges it for an API key

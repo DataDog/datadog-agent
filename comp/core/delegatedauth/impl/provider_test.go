@@ -174,3 +174,98 @@ func TestProviderForDirectiveReturnsNilForAnUnregisteredDirective(t *testing.T) 
 
 	assert.Nil(t, d.ProviderForDirective("additional_endpoints", "https://app.datadoghq.com", "DELA(org-z, aws)"))
 }
+
+// Refresh returns false when no background refresh goroutine is running (no trigger channel),
+// so the caller knows to drop the transaction rather than reschedule it.
+func TestProviderRefreshReturnsFalseWithoutTrigger(t *testing.T) {
+	p := newInstanceProvider()
+	assert.False(t, p.Refresh(), "Refresh must return false when no background goroutine is configured")
+}
+
+// Refresh resets the credential to buffering so Authorize returns false — no further sends under
+// the stale key — and sends a non-blocking signal to the trigger channel. A burst of calls
+// coalesces: the channel has capacity 1, so a second Refresh while the first signal is still
+// pending is silently dropped.
+func TestProviderRefreshResetsToBufferingAndSignals(t *testing.T) {
+	p := newInstanceProvider()
+	p.setResolved("stale-key")
+	p.setRefreshTrigger(make(chan struct{}, 1))
+
+	// Before Refresh, the provider authorizes.
+	h := http.Header{}
+	require.True(t, p.Authorize(h))
+	assert.Equal(t, "stale-key", h.Get(apiKeyHeader))
+
+	// After Refresh, it buffers and the trigger channel has one pending signal.
+	require.True(t, p.Refresh())
+	h = http.Header{}
+	assert.False(t, p.Authorize(h), "Authorize must return false after Refresh resets to buffering")
+	assert.Empty(t, h)
+
+	// A second Refresh coalesces: the channel is full, so the non-blocking send is dropped.
+	require.True(t, p.Refresh())
+
+	// Exactly one signal in the channel, not two.
+	select {
+	case <-p.refreshTrigger:
+		// expected: the first signal
+	default:
+		t.Fatal("Refresh must send to the trigger channel")
+	}
+	select {
+	case <-p.refreshTrigger:
+		t.Fatal("second Refresh must not add a second signal to a full channel")
+	default:
+		// expected: channel is empty, the second Refresh was dropped
+	}
+}
+
+// Two directives with the same org UUID and the same target site resolve to the same API key,
+// so they must share one credential provider rather than each starting its own background
+// refresh goroutine and making its own WIF exchange. Without dedup, the same org appearing in
+// both additional_endpoints and apm_config.additional_endpoints would trigger two separate
+// cloud exchanges for the same key.
+func TestCredentialCacheDeduplicatesByOrgUUIDAndTargetSite(t *testing.T) {
+	d := &delegatedAuthComponent{
+		instances:       make(map[string]*authInstance),
+		providers:       make(map[providerKey][]registeredProvider),
+		credentialCache: make(map[credentialCacheKey]*instanceProvider),
+	}
+
+	orgA := newInstanceProvider()
+	orgA.setResolved("shared-key-for-org-a")
+	cacheKey := credentialCacheKey{orgUUID: "org-a", targetSite: "https://app.datadoghq.com"}
+	d.credentialCache[cacheKey] = orgA
+
+	// A second directive for the same org+site should reuse orgA's provider, not create a new one.
+	d.registerProvider(delegatedauth.InstanceParams{
+		ConfigKey: "additional_endpoints", Destination: "https://app.datadoghq.com", Directive: "DELA(org-a, aws)",
+	}, orgA)
+	d.registerProvider(delegatedauth.InstanceParams{
+		ConfigKey: "apm_config.additional_endpoints", Destination: "https://app.datadoghq.com", Directive: "DELA(org-a, aws)",
+	}, orgA)
+
+	// Both config keys should find the same provider.
+	p1 := d.ProvidersFor("additional_endpoints", "https://app.datadoghq.com")
+	p2 := d.ProvidersFor("apm_config.additional_endpoints", "https://app.datadoghq.com")
+	require.Len(t, p1, 1)
+	require.Len(t, p2, 1)
+
+	// Same underlying provider — one WIF exchange, one goroutine.
+	h1, h2 := http.Header{}, http.Header{}
+	require.True(t, p1[0].Authorize(h1))
+	require.True(t, p2[0].Authorize(h2))
+	assert.Equal(t, "shared-key-for-org-a", h1.Get(apiKeyHeader))
+	assert.Equal(t, "shared-key-for-org-a", h2.Get(apiKeyHeader))
+
+	// A different org gets its own provider.
+	orgB := newInstanceProvider()
+	orgB.setResolved("org-b-key")
+	d.credentialCache[credentialCacheKey{orgUUID: "org-b", targetSite: "https://app.datadoghq.com"}] = orgB
+	d.registerProvider(delegatedauth.InstanceParams{
+		ConfigKey: "additional_endpoints", Destination: "https://app.datadoghq.com", Directive: "DELA(org-b, aws)",
+	}, orgB)
+
+	providers := d.ProvidersFor("additional_endpoints", "https://app.datadoghq.com")
+	assert.Len(t, providers, 2, "two different orgs on the same domain should have two providers")
+}

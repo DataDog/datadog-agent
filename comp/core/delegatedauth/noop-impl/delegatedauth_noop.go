@@ -58,6 +58,9 @@ type noopProvider struct{}
 // Authorize implements delegatedauth.Provider and never authorizes.
 func (noopProvider) Authorize(_ http.Header) bool { return false }
 
+// Refresh implements delegatedauth.Provider. No background refresh in the noop impl.
+func (noopProvider) Refresh() bool { return false }
+
 // Status Provider implementation for noop
 
 // Name returns the name for status sorting

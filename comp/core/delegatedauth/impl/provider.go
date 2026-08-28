@@ -53,12 +53,24 @@ var buffering = &credential{usable: false}
 // shipping them under a key the operator only meant as a safety net.
 type instanceProvider struct {
 	cred atomic.Pointer[credential]
+	// refreshTrigger is a buffered channel (capacity 1) that Refresh() sends to in order to
+	// nudge the background goroutine into an immediate re-exchange. nil when no background
+	// refresh goroutine is running (no cloud provider detected), in which case Refresh()
+	// returns false.
+	refreshTrigger chan struct{}
 }
 
 func newInstanceProvider() *instanceProvider {
 	p := &instanceProvider{}
 	p.cred.Store(buffering)
 	return p
+}
+
+// setRefreshTrigger attaches the channel that Refresh() uses to nudge the background goroutine.
+// Called by the component only when a background refresh goroutine is about to start; when no
+// cloud provider was detected the channel stays nil and Refresh() returns false.
+func (p *instanceProvider) setRefreshTrigger(ch chan struct{}) {
+	p.refreshTrigger = ch
 }
 
 // Authorize implements delegatedauth.Provider.
@@ -68,6 +80,27 @@ func (p *instanceProvider) Authorize(h http.Header) bool {
 		return false
 	}
 	h.Set(apiKeyHeader, c.value)
+	return true
+}
+
+// Refresh implements delegatedauth.Provider. It resets the credential to buffering so Authorize
+// returns false (no further sends under the stale key) and nudges the background goroutine to
+// re-exchange as soon as possible.
+//
+// The send is non-blocking and the channel has capacity 1, so a burst of 403s from many
+// in-flight transactions coalesces into a single refresh — no storm.
+func (p *instanceProvider) Refresh() bool {
+	if p.refreshTrigger == nil {
+		return false
+	}
+	// Stop further sends under the stale key. A concurrent Authorize that already loaded the
+	// old credential will still use it, but the next call will see buffering.
+	p.cred.Store(buffering)
+	select {
+	case p.refreshTrigger <- struct{}{}:
+	default:
+		// A refresh is already queued or in progress; this call coalesces into it.
+	}
 	return true
 }
 
