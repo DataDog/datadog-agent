@@ -13,6 +13,7 @@ mod runtime;
 mod spawn;
 mod startup;
 mod supervisor;
+mod tracked_join;
 
 #[cfg(test)]
 mod tests;

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use super::deferred_cleanup;
 use super::lifecycle::Lifecycle;
+use super::tracked_join::{TrackedJoinTimeout, join_tracked_handle};
 use super::{ExitEvent, PendingRestart, ProcessManager};
 use crate::command::Command;
 use crate::shutdown::ShutdownBudget;
@@ -36,51 +36,15 @@ impl CommandHandlers {
     pub(in crate::manager) async fn join_all_with_budget(&self, budget: ShutdownBudget) {
         let handles = std::mem::take(&mut *self.handles.lock().unwrap());
         for handle in handles {
-            Self::join_tracked_handle(handle, &budget).await;
-        }
-    }
-
-    async fn join_tracked_handle(handle: JoinHandle<()>, budget: &ShutdownBudget) {
-        let cap = budget.remaining_cap(Duration::MAX);
-        if budget.is_bounded() && cap.is_zero() {
-            warn!("command handler join budget exhausted; deferring task to runtime shutdown");
-            deferred_cleanup::register_deferred_spawn_join(handle);
-            return;
-        }
-
-        if !budget.is_bounded() {
-            Self::log_tracked_join_result(handle.await);
-            return;
-        }
-
-        let mut monitor = tokio::spawn(handle);
-        tokio::select! {
-            result = &mut monitor => Self::log_tracked_monitor_result(result),
-            _ = tokio::time::sleep(cap) => {
-                warn!(
-                    "timed out waiting for command handler ({cap:?} left in service shutdown budget); deferring to runtime shutdown"
-                );
-                deferred_cleanup::register_deferred_spawn_join(tokio::spawn(async move {
-                    Self::log_tracked_monitor_result(monitor.await);
-                }));
-            }
-        }
-    }
-
-    fn log_tracked_monitor_result(
-        result: Result<Result<(), tokio::task::JoinError>, tokio::task::JoinError>,
-    ) {
-        match result {
-            Ok(inner) => Self::log_tracked_join_result(inner),
-            Err(error) => warn!("command handler monitor failed: {error}"),
-        }
-    }
-
-    fn log_tracked_join_result(result: Result<(), tokio::task::JoinError>) {
-        match result {
-            Ok(()) => {}
-            Err(error) if error.is_cancelled() => {}
-            Err(error) => warn!("command handler failed: {error}"),
+            join_tracked_handle(
+                handle,
+                &budget,
+                TrackedJoinTimeout::Abort {
+                    log_label: "command handler",
+                },
+                log_command_handler_failed,
+            )
+            .await;
         }
     }
 }
@@ -104,59 +68,15 @@ impl BackgroundSpawns {
     pub(in crate::manager) async fn join_all_with_budget(&self, budget: ShutdownBudget) {
         let handles = std::mem::take(&mut *self.handles.lock().unwrap());
         for handle in handles {
-            Self::join_tracked_handle(handle, &budget).await;
-        }
-    }
-
-    async fn join_tracked_handle(handle: JoinHandle<()>, budget: &ShutdownBudget) {
-        let cap = budget.remaining_cap(Duration::MAX);
-        if budget.is_bounded() && cap.is_zero() {
-            warn!("background spawn join budget exhausted; deferring task to runtime shutdown");
-            Self::defer_tracked_handle(handle);
-            return;
-        }
-
-        if !budget.is_bounded() {
-            Self::log_tracked_join_result(handle.await);
-            return;
-        }
-
-        let mut monitor = tokio::spawn(handle);
-        tokio::select! {
-            result = &mut monitor => Self::log_tracked_monitor_result(result),
-            _ = tokio::time::sleep(cap) => {
-                warn!(
-                    "timed out waiting for background spawn ({cap:?} left in service shutdown budget); deferring to runtime shutdown"
-                );
-                Self::defer_tracked_monitor(monitor);
-            }
-        }
-    }
-
-    fn defer_tracked_handle(handle: JoinHandle<()>) {
-        deferred_cleanup::register_deferred_spawn_join(handle);
-    }
-
-    fn defer_tracked_monitor(monitor: JoinHandle<Result<(), tokio::task::JoinError>>) {
-        deferred_cleanup::register_deferred_spawn_join(tokio::spawn(async move {
-            Self::log_tracked_monitor_result(monitor.await);
-        }));
-    }
-
-    fn log_tracked_monitor_result(
-        result: Result<Result<(), tokio::task::JoinError>, tokio::task::JoinError>,
-    ) {
-        match result {
-            Ok(inner) => Self::log_tracked_join_result(inner),
-            Err(error) => warn!("background task monitor failed: {error}"),
-        }
-    }
-
-    fn log_tracked_join_result(result: Result<(), tokio::task::JoinError>) {
-        match result {
-            Ok(()) => {}
-            Err(error) if error.is_cancelled() => {}
-            Err(error) => warn!("background task failed: {error}"),
+            join_tracked_handle(
+                handle,
+                &budget,
+                TrackedJoinTimeout::Defer {
+                    log_label: "background spawn",
+                },
+                log_background_spawn_failed,
+            )
+            .await;
         }
     }
 }
@@ -367,6 +287,14 @@ fn reject_pending_commands(cmd_rx: &mut mpsc::Receiver<Command>, status: &Status
     }
 }
 
+fn log_command_handler_failed(log_label: &str, error: tokio::task::JoinError) {
+    warn!("{log_label} failed: {error}");
+}
+
+fn log_background_spawn_failed(log_label: &str, error: tokio::task::JoinError) {
+    warn!("{log_label} failed: {error}");
+}
+
 #[cfg(all(test, unix))]
 pub(crate) fn spawn_command_loop_for_tests(
     manager: ProcessManager,
@@ -525,9 +453,10 @@ mod tests {
             .expect("join_all_with_budget should return before blocked handler completes")
             .expect("join task should succeed");
 
-        release_tx
-            .send(())
-            .expect("deferred command handler should still be running");
+        assert!(
+            release_tx.send(()).is_err(),
+            "timed-out command handler should be aborted instead of left running"
+        );
     }
 
     #[tokio::test]
