@@ -10,6 +10,8 @@ import (
 	"os"
 	"runtime"
 
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -24,12 +26,15 @@ type TraceAgent interface {
 	Stop()
 }
 
-// TracingContext holds tracing dependencies used by cloud services that need them.
-// Only CloudRunJobs currently uses this context for span creation, but it's passed
-// to all services for interface consistency.
+// TracingContext holds dependencies passed to CloudService.Init.
+// TraceAgent and SpanTags are used by CloudRunJobs for span creation.
+// LifecycleCtx is populated by main.go for MicroVM environments so that
+// MicroVM.Init can construct and start the lifecycle hook server; it is nil
+// for all other cloud services and ignored by their Init implementations.
 type TracingContext struct {
-	TraceAgent TraceAgent
-	SpanTags   map[string]string
+	TraceAgent   TraceAgent
+	SpanTags     map[string]string
+	LifecycleCtx *LifecycleContext
 }
 
 // EnhancedMetricTags holds base tags and high-cardinality tags for enhanced metrics.
@@ -45,6 +50,11 @@ const (
 	CloudRunService  CloudRunType = "service"
 	CloudRunFunction CloudRunType = "function"
 	CloudRunJob      CloudRunType = "job"
+)
+
+const (
+	archAMD64 = "amd64"
+	archARM64 = "arm64"
 )
 
 // CloudService implements getting tags from each Cloud Provider.
@@ -83,12 +93,19 @@ type CloudService interface {
 
 	// AddStartMetric adds the start (and legacy start, if any) metric to the metric agent
 	AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent)
+
+	// Run executes the user process for the given mode. In sidecar mode it calls
+	// RunSidecar; in init-container mode it spawns the user app via RunInit.
+	// MicroVM overrides this to pass its child handle so /ready reflects liveness.
+	Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
 type LocalService struct{}
 
 const defaultPrefix = "datadog.serverless_agent."
+
+const unsupportedArchMsg = "serverless-init is running on an unsupported architecture (%s). Monitoring may behave unexpectedly."
 
 const localServiceShutdownMetricName = "datadog.serverless_agent.enhanced.shutdown"
 const localServiceStartMetricName = "datadog.serverless_agent.enhanced.cold_start"
@@ -151,6 +168,22 @@ func (l *LocalService) Init(_ *TracingContext) error {
 	return nil
 }
 
+// Run uses the default run behaviour for LocalService.
+func (l *LocalService) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
+}
+
+// defaultRun is the standard Run implementation for cloud services that do not
+// manage a child process themselves. In sidecar mode it calls RunSidecar; in
+// init-container mode it spawns the user app with no child handle (no
+// MarkAlive/MarkDead tracking). MicroVM overrides Run to supply its child.
+func defaultRun(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	if modeConf.SidecarMode {
+		return mode.RunSidecar(logConfig)
+	}
+	return mode.RunInit(logConfig, nil) // no child tracking for non-MicroVM services
+}
+
 // Shutdown emits the shutdown metric for LocalService
 func (l *LocalService) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if metricAgent != nil && enhancedMetricsEnabled {
@@ -167,9 +200,14 @@ func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessM
 //
 //nolint:revive // TODO(SERV) Fix revive lin
 func GetCloudServiceType() CloudService {
+	arch := runtime.GOARCH
 
-	if runtime.GOARCH != "amd64" {
-		log.Errorf("serverless-init is running on an unsupported architecture (%s). Monitoring may behave unexpectedly.", runtime.GOARCH)
+	if isMicroVM() {
+		return &MicroVM{}
+	}
+
+	if arch != archAMD64 {
+		log.Errorf(unsupportedArchMsg, arch)
 	}
 
 	if isCloudRunService() {
