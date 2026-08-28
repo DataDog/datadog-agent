@@ -942,8 +942,8 @@ func addConntrackStatsMetrics(conntrackPath string, useSudoConntrack bool) []*co
 			default:
 				continue
 			}
-			stats = append(stats, stat)
 		}
+		stats = append(stats, stat)
 	}
 	return stats
 }
