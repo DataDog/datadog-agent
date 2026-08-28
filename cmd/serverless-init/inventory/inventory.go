@@ -13,13 +13,22 @@
 package inventory
 
 import (
+	"os"
+	"strings"
+
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// reportReasonStartup marks the primary synchronous on-start submission. It is
+// telemetry-only downstream (a bounded metric dimension) and not persisted.
+const reportReasonStartup = "startup"
 
 // serverlessFieldPrefix is applied uniformly to every serverless-specific key
 // in agent_metadata.
@@ -68,12 +77,12 @@ func inventoryEnabled() bool {
 // The inventoryEnabled() guard is defense-in-depth: the component's own Enabled
 // gate already makes Set and Submit no-ops, but returning early here keeps the
 // intent explicit for the sketch.
-func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf) {
+func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
 	if !inventoryEnabled() {
 		return
 	}
 
-	for key, value := range buildFields(cs, modeConf) {
+	for key, value := range buildFields(cs, modeConf, conf, tags) {
 		ia.Set(serverlessFieldPrefix+key, value)
 	}
 	ia.Set("flavor", serverlessInitFlavor)
@@ -83,11 +92,19 @@ func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf 
 
 // buildFields flattens the per-platform inventory data and process-level
 // serverless context into the (unprefixed) agent_metadata keys.
-func buildFields(cs cloudservice.CloudService, modeConf mode.Conf) map[string]interface{} {
+//
+// DD_* passthrough: env and site are real config keys, but version and service
+// are not (DD_VERSION / DD_SERVICE are read by the agent outside the Config
+// struct), so they come from the already-computed tag map rather than
+// conf.GetString, which would return empty and log an unknown-key warning.
+func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) map[string]interface{} {
 	inv := cs.GetInventoryData()
 
-	return map[string]interface{}{
+	fields := map[string]interface{}{
 		"serverless_init_version": serverlessTags.GetExtensionVersion(),
+		"agent_version_base":      version.AgentVersion,
+		"agent_commit":            version.Commit,
+		"report_reason":           reportReasonStartup,
 
 		"resource_id":   inv.ResourceID,
 		"resource_name": inv.ResourceName,
@@ -99,7 +116,21 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf) map[string]in
 
 		"deployment_model": deploymentModel(modeConf),
 		"runtime":          inv.Runtime,
+
+		"dd_env":     conf.GetString("env"),
+		"dd_site":    conf.GetString("site"),
+		"dd_version": tags["version"],
+		"dd_service": tags["service"],
 	}
+
+	// wrapped_command is the customer workload command wrapped by serverless-init
+	// in init mode (os.Args[1:]); it is absent in sidecar mode, where
+	// serverless-init wraps nothing.
+	if !modeConf.SidecarMode && len(os.Args) > 1 {
+		fields["wrapped_command"] = strings.Join(os.Args[1:], " ")
+	}
+
+	return fields
 }
 
 // deploymentModel maps the run mode to the downstream deployment_model value.

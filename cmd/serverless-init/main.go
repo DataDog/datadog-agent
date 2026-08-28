@@ -502,7 +502,7 @@ func setup(
 	// right after the config is loaded, so the enablement gate and DD_*
 	// passthrough fields are readable and the payload is enqueued as early as
 	// possible; a no-op while the feature is gated off.
-	serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf)
+	serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
 
 	origin := cloudService.GetOrigin()
 	// Note: we do not modify tags for the LogsAgent.
