@@ -887,7 +887,7 @@ impl ManagedProcess {
                 }
             }
         }
-        self.state.awaiting_stop()
+        true
     }
 
     pub(crate) async fn complete_stop_wait(
@@ -1952,6 +1952,24 @@ runtime_success_sec: 5
     }
 
     #[tokio::test]
+    async fn run_stop_wait_returns_owner_when_stop_finishes_during_finalize() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut proc = ManagedProcess::new_config(
+            "svc".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        let budget = ShutdownBudget::unlimited(Instant::now().into());
+        proc.spawn().unwrap();
+        proc.request_stop();
+        let pid = proc.pid().expect("pid");
+        test_helpers::cleanup_process(pid);
+
+        let owner = run_stop_wait(&mut proc, budget).await;
+        assert!(owner.is_some());
+    }
+
+    #[tokio::test]
     async fn finalize_stop_wait_records_exit_status_after_force_kill() {
         let (cmd, args) = test_helpers::trap_term_sleep();
         let mut cfg = test_helpers::make_config(cmd, args);
@@ -1964,10 +1982,7 @@ runtime_success_sec: 5
         proc.wait_for_stop_since(budget).await;
 
         assert_eq!(proc.state(), ProcessState::Stopped);
-        assert!(
-            proc.last_signal().is_some() || proc.last_exit_code().is_some(),
-            "force-kill stop should record exit status"
-        );
+        assert!(proc.last_signal().is_some() || proc.last_exit_code().is_some());
     }
 
     #[tokio::test]
