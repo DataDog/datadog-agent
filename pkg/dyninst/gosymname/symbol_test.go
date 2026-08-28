@@ -6,6 +6,7 @@
 package gosymname
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
@@ -212,8 +213,12 @@ func TestSymbols(t *testing.T) {
 				Output: formatTestOutput(&s),
 			})
 		}
-		out, err := yaml.Marshal(cases)
-		require.NoError(t, err)
+		var buf bytes.Buffer
+		enc := yaml.NewEncoder(&buf)
+		enc.SetIndent(2)
+		require.NoError(t, enc.Encode(cases))
+		require.NoError(t, enc.Close())
+		out := buf.Bytes()
 		require.NoError(t, os.WriteFile(path, out, 0644))
 		t.Logf("rewrote %s with %d cases", path, len(cases))
 		return
