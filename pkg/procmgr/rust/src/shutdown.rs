@@ -26,7 +26,6 @@ impl ShutdownBudget {
         }
     }
 
-    /// Prefer the SCM-anchored budget when a Windows service stop is in progress.
     pub(crate) fn prefer_service_stop(fallback: Self) -> Self {
         #[cfg(windows)]
         {
@@ -37,17 +36,14 @@ impl ShutdownBudget {
         fallback
     }
 
-    /// Re-read the active service stop signal (for example after graceful wait).
     pub(crate) fn refresh(self) -> Self {
         Self::prefer_service_stop(self)
     }
 
-    /// Budget for a single Stop RPC or child teardown outside ordered shutdown.
     pub(crate) fn for_single_stop() -> Self {
         Self::prefer_service_stop(Self::unlimited(Instant::now()))
     }
 
-    /// Budget for ordered shutdown after a service stop signal.
     pub(crate) fn service_stop(signal_time: Instant) -> Self {
         #[cfg(windows)]
         {
@@ -75,7 +71,6 @@ impl ShutdownBudget {
         self.remaining_cap(from_stop_timeout)
     }
 
-    /// Remaining time for a phase, capped by `cap` and the service deadline.
     pub(crate) fn remaining_cap(&self, cap: Duration) -> Duration {
         self.deadline
             .map(|deadline| cap.min(deadline.saturating_duration_since(Instant::now())))
@@ -94,14 +89,10 @@ impl ShutdownBudget {
     }
 }
 
-/// Wait for graceful child exit, or cut short when service shutdown is requested.
 pub(crate) async fn wait_graceful_or_shutdown<T, F: std::future::Future<Output = T>>(
     graceful_budget: Duration,
     fut: F,
 ) -> Result<T, tokio::time::error::Elapsed> {
-    if crate::platform::shutdown_requested() {
-        return tokio::time::timeout(Duration::ZERO, std::future::pending::<T>()).await;
-    }
     #[cfg(windows)]
     {
         tokio::select! {
@@ -145,6 +136,26 @@ mod tests {
     fn sleep_config() -> crate::config::ProcessConfig {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         test_helpers::make_config(cmd, args)
+    }
+
+    #[tokio::test]
+    async fn test_already_requested_shutdown_still_waits_graceful_budget() {
+        let _guard = crate::platform::test_shutdown_lock().await;
+        crate::platform::reset_shutdown_state_for_test();
+        crate::platform::signal_shutdown_for_test();
+
+        let started = Instant::now();
+        let result =
+            wait_graceful_or_shutdown(Duration::from_millis(150), std::future::pending::<()>())
+                .await;
+        crate::platform::reset_shutdown_state_for_test();
+
+        assert!(result.is_err(), "pending future should time out");
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed >= Duration::from_millis(100),
+            "already-requested shutdown must not skip the graceful budget, elapsed {elapsed:?}"
+        );
     }
 
     #[test]
@@ -212,7 +223,6 @@ mod tests {
         p3.spawn().unwrap();
 
         let mut procs = vec![p1, p2, p3];
-        // Reverse order: p3, p2, p1
         shutdown_ordered(&mut procs, &[2, 1, 0]).await;
 
         assert_eq!(procs[0].state(), ProcessState::Stopped);
