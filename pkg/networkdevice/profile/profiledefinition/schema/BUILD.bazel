@@ -31,7 +31,7 @@ dd_agent_go_test(
     data = [":testcases"],
     embed = [":schema"],
     deps = [
-        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
+        "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

@@ -51,7 +51,7 @@ class LintResult(ExecResult):
             failure_string = self.failure_string(flavor)
             failure_string += "Linter failures:\n"
             for lint_output in self.lint_outputs:
-                if lint_output.exited != 0:
+                if lint_output.returncode != 0:
                     failure_string = f"{failure_string}{lint_output.stdout}\n" if lint_output.stdout else failure_string
                     failure_string = f"{failure_string}{lint_output.stderr}\n" if lint_output.stderr else failure_string
 

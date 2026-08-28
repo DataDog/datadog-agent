@@ -54,7 +54,7 @@ def create_openshift(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     # Use parameter if provided during invoke setup, otherwise use config
     if not pull_secret_path:
