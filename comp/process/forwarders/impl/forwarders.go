@@ -11,11 +11,13 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -29,6 +31,7 @@ type dependencies struct {
 	ConnectionsForwarders connectionsforwarder.Component
 	Lc                    compdef.Lifecycle
 	Secrets               secrets.Component
+	DelegatedAuth         delegatedauth.Component
 }
 
 type forwardersComp struct {
@@ -51,7 +54,7 @@ func NewComponent(deps dependencies) (forwarders.Component, error) {
 		return nil, err
 	}
 
-	processForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
+	processForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints, deps.DelegatedAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -68,12 +71,28 @@ func createForwarder(deps dependencies, options *defaultforwarderimpl.Options) d
 	return defaultforwarderimpl.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
 }
 
-func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarderimpl.Options, error) {
-	resolver, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints))
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint, delegatedAuth delegatedauth.Component) (*defaultforwarderimpl.Options, error) {
+	eds := configutils.EndpointDescriptorSetFromKeysPerDomain(apicfg.KeysPerDomains(endpoints))
+	resolvers, err := resolver.NewSingleDomainResolvers2(eds)
 	if err != nil {
 		return nil, err
 	}
-	forwarderOpts := defaultforwarderimpl.NewOptionsWithResolvers(config, log, resolver)
+	if delegatedAuth != nil {
+		for _, ed := range eds {
+			r, ok := resolvers[ed.BaseURL]
+			if !ok {
+				continue
+			}
+			var providers []resolver.CredentialProvider
+			for _, keys := range ed.APIKeySet {
+				providers = append(providers, delegatedAuth.ProvidersFor(keys.ConfigSettingPath, ed.BaseURL)...)
+			}
+			if len(providers) > 0 {
+				r.SetCredentialProviders(providers)
+			}
+		}
+	}
+	forwarderOpts := defaultforwarderimpl.NewOptionsWithResolvers(config, log, resolvers)
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	return forwarderOpts, nil

@@ -17,12 +17,14 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -32,12 +34,13 @@ import (
 type Requires struct {
 	compdef.In
 
-	Lc      compdef.Lifecycle
-	Log     log.Component
-	Config  config.Component
-	Secrets secrets.Component
-	Tagger  tagger.Component
-	Params  orchestrator.Params
+	Lc            compdef.Lifecycle
+	Log           log.Component
+	Config        config.Component
+	Secrets       secrets.Component
+	Tagger        tagger.Component
+	DelegatedAuth delegatedauth.Component
+	Params        orchestrator.Params
 }
 
 // NewComponent returns an orchestratorForwarder
@@ -62,11 +65,27 @@ func NewComponent(deps Requires) orchestrator.Component {
 			deps.Log.Errorf("Error loading the orchestrator config: %s", err)
 		}
 		keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-		resolver, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+		eds := configutils.EndpointDescriptorSetFromKeysPerDomain(keysPerDomain)
+		resolvers, err := resolver.NewSingleDomainResolvers2(eds)
 		if err != nil {
 			deps.Log.Errorf("Error creating domain resolver: %s", err)
 		}
-		orchestratorForwarderOpts := defaultforwarderimpl.NewOptionsWithResolvers(deps.Config, deps.Log, resolver)
+		if deps.DelegatedAuth != nil {
+			for _, ed := range eds {
+				r, ok := resolvers[ed.BaseURL]
+				if !ok {
+					continue
+				}
+				var providers []resolver.CredentialProvider
+				for _, keys := range ed.APIKeySet {
+					providers = append(providers, deps.DelegatedAuth.ProvidersFor(keys.ConfigSettingPath, ed.BaseURL)...)
+				}
+				if len(providers) > 0 {
+					r.SetCredentialProviders(providers)
+				}
+			}
+		}
+		orchestratorForwarderOpts := defaultforwarderimpl.NewOptionsWithResolvers(deps.Config, deps.Log, resolvers)
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 		orchestratorForwarderOpts.Secrets = deps.Secrets
 

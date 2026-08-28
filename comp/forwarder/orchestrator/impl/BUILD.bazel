@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/def",
         "//comp/core/log/def",
         "//comp/core/secrets/def",
         "//comp/core/tagger/def",
@@ -21,6 +22,7 @@ go_library(
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/orchestrator/def",
         "//pkg/config/env",
+        "//pkg/config/utils",
         "//pkg/orchestrator/config",
         "//pkg/process/util/api/config",
         "//pkg/util/option",
