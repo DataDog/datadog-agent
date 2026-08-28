@@ -13,6 +13,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/origindetection",
+        "//pkg/credential",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/remoteconfig/state",

@@ -23,6 +23,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/credential"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -198,18 +199,7 @@ type apiKeyManager struct {
 // Authorize stamps this endpoint's credential onto h and reports whether it did. It returns false
 // only for a delegated-auth endpoint whose credential has not arrived yet.
 func (m *apiKeyManager) Authorize(h http.Header) bool {
-	if m.provider != nil {
-		return m.provider.Authorize(h)
-	}
-	// No provider and no key means the endpoint was built from a directive that never produced
-	// an instance - an unsupported provider, or a consumer with no provider wiring. Stamping the
-	// empty key would send the payload to that org's intake unauthenticated, so refuse instead.
-	key := m.Get()
-	if key == "" {
-		return false
-	}
-	h.Set(headerAPIKey, key)
-	return true
+	return credential.StampAuth(h, m.provider, m.Get())
 }
 
 func (m *apiKeyManager) Get() string {
@@ -525,7 +515,6 @@ type retriableError struct{ err error }
 func (e retriableError) Error() string { return e.err.Error() }
 
 const (
-	headerAPIKey    = "DD-Api-Key"
 	headerUserAgent = "User-Agent"
 )
 
