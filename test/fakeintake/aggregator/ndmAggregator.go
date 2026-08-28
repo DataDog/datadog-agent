@@ -19,13 +19,14 @@ type NDMPayload struct {
 	collectedTime time.Time
 
 	// We redefine NetworkDevicesMetadata from pkg/networkdevice/metadata to not have to export it
-	Subnet           string              `json:"subnet,omitempty"`
-	Namespace        string              `json:"namespace"`
-	Integration      string              `json:"integration"`
-	Devices          []DeviceMetadata    `json:"devices,omitempty"`
-	Interfaces       []InterfaceMetadata `json:"interfaces,omitempty"`
-	Diagnoses        []DiagnosisMetadata `json:"diagnoses,omitempty"`
-	CollectTimestamp int64               `json:"collect_timestamp"`
+	Subnet           string                 `json:"subnet,omitempty"`
+	Namespace        string                 `json:"namespace"`
+	Integration      string                 `json:"integration"`
+	Devices          []DeviceMetadata       `json:"devices,omitempty"`
+	Interfaces       []InterfaceMetadata    `json:"interfaces,omitempty"`
+	Links            []TopologyLinkMetadata `json:"links,omitempty"`
+	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
+	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
 // DeviceMetadata contains device metadata
@@ -70,6 +71,39 @@ type InterfaceMetadata struct {
 	OperStatus    int      `json:"oper_status,omitempty"`
 	MerakiEnabled *bool    `json:"meraki_enabled,omitempty"`
 	MerakiStatus  string   `json:"meraki_status,omitempty"`
+}
+
+// TopologyLinkDevice contains the device data of one side of a topology link
+type TopologyLinkDevice struct {
+	DDID        string `json:"dd_id,omitempty"`
+	ID          string `json:"id,omitempty"`
+	IDType      string `json:"id_type,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	IPAddress   string `json:"ip_address,omitempty"`
+}
+
+// TopologyLinkInterface contains the interface data of one side of a topology link
+type TopologyLinkInterface struct {
+	DDID        string `json:"dd_id,omitempty"`
+	ID          string `json:"id"`
+	IDType      string `json:"id_type,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// TopologyLinkSide contains the data for the local or the remote side of a topology link
+type TopologyLinkSide struct {
+	Device    *TopologyLinkDevice    `json:"device,omitempty"`
+	Interface *TopologyLinkInterface `json:"interface,omitempty"`
+}
+
+// TopologyLinkMetadata contains interface to interface topology link metadata
+type TopologyLinkMetadata struct {
+	ID          string            `json:"id"`
+	SourceType  string            `json:"source_type"`
+	Integration string            `json:"integration,omitempty"`
+	Local       *TopologyLinkSide `json:"local"`
+	Remote      *TopologyLinkSide `json:"remote"`
 }
 
 // Diagnosis contains data for a diagnosis
