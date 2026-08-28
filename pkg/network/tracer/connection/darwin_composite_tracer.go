@@ -40,30 +40,33 @@ type darwinCompositeTracer struct {
 	stopSidecarsOnce       sync.Once
 }
 
-// newDarwinCompositeTracer constructs the complete backend without selecting
-// it from the production Darwin tracer path.
-//
-//nolint:unused // The production backend selection is introduced in the integration commit.
+// newDarwinCompositeTracer constructs the complete backend used by the opt-in
+// NStat modes in the production Darwin tracer path.
 func newDarwinCompositeTracer(cfg *config.Config) (*darwinCompositeTracer, error) {
 	primary, err := newNStatTracer(cfg)
 	if err != nil {
 		return nil, err
 	}
 	composite := newDarwinCompositeTracerWithComponents(primary, nil)
-	composite.packetRequested = true
+	composite.packetRequested = cfg.DarwinConnectionTracerPacketEnabled
 
-	packetSource, packetErr := filter.NewLibpcapSource(
-		filter.OptSnapLen(darwinPrefixLimit),
-		filter.OptBPFFilter("tcp"),
-	)
-	if packetErr != nil {
-		composite.packetError = packetErr
-		log.Warnf("notable: darwin_packet_enrichment disabled: %v", packetErr)
-	} else {
-		primary.packetCoverage = packetSource.CapturesInterfaceIndex
-		packetFanout := filter.NewPacketSourceFanout(packetSource)
-		composite.packet = newDarwinPacketSidecar(packetFanout, primary, int(cfg.MaxTrackedConnections))
+	if cfg.DarwinConnectionTracerPacketEnabled {
+		packetSource, packetErr := filter.NewLibpcapSource(
+			filter.OptSnapLen(cfg.DarwinConnectionTracerPacketSnaplen),
+			filter.OptBPFBufferSize(cfg.DarwinConnectionTracerPacketBufferSize),
+			filter.OptBPFFilter("tcp"),
+		)
+		if packetErr != nil {
+			composite.packetError = packetErr
+			log.Warnf("notable: darwin_packet_enrichment disabled: %v", packetErr)
+		} else {
+			primary.packetCoverage = packetSource.CapturesInterfaceIndex
+			packetFanout := filter.NewPacketSourceFanout(packetSource)
+			composite.packet = newDarwinPacketSidecar(packetFanout, primary, int(cfg.MaxTrackedConnections))
+		}
 	}
+
+	composite.configureSidecarCallbacks()
 	return composite, nil
 }
 
@@ -80,9 +83,15 @@ func newDarwinCompositeTracerWithComponents(
 	}
 	if packet != nil {
 		composite.packetRequested = true
-		packet.setFailureCallback(composite.handlePacketFailure)
 	}
+	composite.configureSidecarCallbacks()
 	return composite
+}
+
+func (t *darwinCompositeTracer) configureSidecarCallbacks() {
+	if t.packet != nil {
+		t.packet.setFailureCallback(t.handlePacketFailure)
+	}
 }
 
 func (t *darwinCompositeTracer) Start(closeCallback func(*network.ConnectionStats)) error {
