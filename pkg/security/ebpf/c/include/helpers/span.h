@@ -12,6 +12,9 @@
 // --- OTel thread local context record helpers (separate file) ---
 #include "span_otel.h"
 
+// --- Node.js async-context helpers (separate file) ---
+#include "span_nodejs.h"
+
 // --- Go pprof labels helpers (separate file) ---
 #include "span_go.h"
 
@@ -32,6 +35,10 @@ static int __attribute__((always_inline)) fill_span_context_thread_ctx(struct sp
     case OTEL_RUNTIME_NATIVE:
         status = fill_span_context_otel(span, otls);
         monitor_span_ctx_event(SPAN_CTX_EVENT_READER_OTEL, status);
+        return status == SPAN_CTX_EVENT_OK;
+    case OTEL_RUNTIME_NODEJS:
+        status = fill_span_context_nodejs(span, otls);
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_NODEJS, status);
         return status == SPAN_CTX_EVENT_OK;
     }
 
