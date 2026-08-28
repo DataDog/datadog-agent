@@ -53,17 +53,6 @@ func NewCapabilities() *inventoryagent.Capabilities {
 	return inventoryagent.NewServerlessCapabilities(uuid.New().String())
 }
 
-// inventoryEnabled reports whether serverless-init inventory emission is on. It
-// is disabled by default while the feature ramps.
-//
-// TODO(SVLS): gate on util.InventoryEnabled + a serverless-scoped config key
-// (DD_SERVERLESS_INIT_INVENTORY_ENABLED) once those keys are added to the
-// serverless config schema. Kept as a hardcoded false here so the sketch stays
-// at the same "wired but off by default" bar as the A/B spikes.
-func inventoryEnabled() bool {
-	return false
-}
-
 // Inject populates the serverless-specific fields on the shared inventoryagent
 // component and enqueues the first payload.
 //
@@ -74,11 +63,17 @@ func inventoryEnabled() bool {
 // on; then Submit enqueues the payload synchronously so a very short-lived
 // container delivers it before exiting rather than racing the runner goroutine.
 //
-// The inventoryEnabled() guard is defense-in-depth: the component's own Enabled
-// gate already makes Set and Submit no-ops, but returning early here keeps the
-// intent explicit for the sketch.
+// serverless.inventory_enabled (DD_SERVERLESS_INIT_INVENTORY_ENABLED) is the
+// serverless-only ramp gate, disabled by default while the feature ramps. It is
+// only the serverless-scoped half of the gate: the shared parity gate
+// (util.InventoryEnabled = enable_metadata_collection && inventories_enabled) is
+// enforced inside the inventoryagent component, whose Enabled flag is
+// util.InventoryEnabled(conf), cached at construction, so both Set and Submit
+// are no-ops when it is false — inventories_enabled: false silences serverless
+// inventory just as it does the full agent. The component never consults
+// serverless.inventory_enabled, so we evaluate that ramp gate here.
 func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
-	if !inventoryEnabled() {
+	if !conf.GetBool("serverless.inventory_enabled") {
 		return
 	}
 
