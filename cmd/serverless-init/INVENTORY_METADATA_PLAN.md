@@ -86,25 +86,73 @@ which are now the source of truth. MicroVM is the only remaining derivation.
 ### 2. AWS MicroVM
 
 MicroVM (Firecracker, Agent runs as init inside the VM) needs its own handling —
-the "enqueue synchronously in `run()`" model is wrong for it:
+the "enqueue synchronously in `run()`/`setup()`" model is wrong for it:
 
-- **`run()` executes at image-build time** when the platform boots the VM to
-  snapshot it (`/ready` → snapshot, `/validate` → post-snapshot smoke test on an
-  ephemeral VM). Submitting in `run()` would be a build-time payload.
+- **`setup()` runs at image-build time** for MicroVM: the platform boots the VM
+  to snapshot it (`/ready` → snapshot, `/validate` → post-snapshot smoke test on
+  an ephemeral VM). The current synchronous `inventory.Inject().Submit()` in
+  `setup()` would therefore emit a build-time payload.
 - **Submit on start and resume, not build.** Production lifecycle hooks live in
   `cmd/serverless-init/lifecycle/server.go`: submit off `/run` (VM starting) and
   `/resume` (from suspended snapshot); `/suspend` / `/terminate` are drains;
   `/ready` / `/validate` are build-time and must be excluded. A snapshot-restored
-  process resumes mid-execution and does NOT re-run `run()`, so submission must
+  process resumes mid-execution and does NOT re-run `setup()`, so submission must
   hang off the lifecycle hook dispatch (`handleRun` / `handleResume`).
-- Some fields (instance / `lambda_microvm_id`) are only known once `/run`
-  delivers them in its request body — payload can't be finalized at build time.
-- `MicroVM.GetInventoryData` currently returns an empty struct. Its
-  `workload_type` value depends on the downstream decoder allowlist, which does
-  not yet include a MicroVM entry; derive `resource_id`, `region`, and the
-  workload type once that allowlist is settled.
-- Open question: is one submission per start enough, or should resume re-submit?
-  (Payload is otherwise static across sends.) Decide alongside the derivation.
+- The instance id (`microvmId` → `lambda_microvm_id`) is only known once `/run`
+  delivers it in its request body — the payload can't be finalized at build time.
+
+#### Wiring: `SetInventorySubmitter`, mirroring the tag-setter trio
+
+The lifecycle package cannot import `inventory` (cycle:
+`inventory → cloudservice → lifecycle`), so submission is injected via a
+register-once setter, exactly like `SetLogsTagSetter` / `SetTraceTagSetter` /
+`SetMetricTagSetter`. Two established microvm-id patterns exist in this package;
+we follow the tag-setter one (server owns the id, hands it to a plain callback):
+
+- Add to `lifecycle`:
+  ```go
+  type InventorySubmitter interface { SubmitInventory(microVMID string) }
+  type InventorySubmitterFunc func(string)
+  func (f InventorySubmitterFunc) SubmitInventory(id string) { f(id) }
+  ```
+  `microVMID` is the direct analog of the assembled tag slice the other setters
+  already receive: the server assembles/owns the id (`s.instanceID`), the
+  callback consumes it. No returned closure.
+- `Server` gets an `inventorySubmitter` field (nil-safe) + `SetInventorySubmitter`.
+  `handleRun` calls `s.inventorySubmitter.SubmitInventory(body.MicroVMID)` after
+  `s.instanceID.Store`; `handleResume` calls it with `s.instanceID.Load()`. Both
+  run in the handler's existing side goroutine so the platform-facing response
+  is not delayed.
+- `LifecycleContext` gains `InventorySubmitter lifecycle.InventorySubmitter`;
+  `MicroVM.Init` wires it via `m.server.SetInventorySubmitter(...)` (nil-safe,
+  like the tag setters).
+- `inventory` exposes the callback (a `SubmitInventory(id)` method / `Func`) that
+  re-checks the `serverless.inventory_enabled` gate, `Set`s the serverless
+  fields + flavor + the per-instance id, then `Submit()`s. `Submit()` is
+  synchronous and re-sends on every call, so `/run` and `/resume` each enqueue a
+  fresh payload.
+- `inventory.Inject` skips MicroVM (branch on
+  `cs.GetOrigin() == cloudservice.MicroVMOrigin`) so `setup()` no longer emits a
+  build-time payload for it.
+- `main.go` builds the submitter in `setup()` and sets it on
+  `LifecycleContext.InventorySubmitter` in both the no-API-key and normal
+  branches, before `cloudService.Init`.
+
+#### Field derivation
+
+- `MicroVM.GetInventoryData` currently returns an empty struct. Derive
+  `resource_id` (image ARN) and `region` (from `parseMicroVMARN`) at setup time.
+- `workload_type` = `aws_microvm` (placeholder constant `workloadTypeAWSMicroVM`
+  in `inventory.go`, next to the others). The downstream decoder allowlist does
+  not yet include a MicroVM entry; we emit `aws_microvm` on the expectation that
+  the downstream adds it, and reconcile if the agreed value differs.
+- The per-instance id rides in `DeploymentID` (the field is "the
+  deployment/revision instance when the platform exposes one", which fits a
+  per-VM id) rather than adding a new serverless field the downstream does not
+  yet know.
+- `report_reason` stays `startup` on both `/run` and `/resume`: the payload is
+  static across sends and `resume` is not one of the bounded values
+  (`startup`/`periodic`/`refresh`).
 
 ### 3. Tests
 
