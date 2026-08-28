@@ -78,3 +78,11 @@ func TestCompareToAgentVersion(t *testing.T) {
 	res, _ = v.CompareTo("0.12.12")
 	assert.Equal(t, 1, res)
 }
+
+// TestCIAIXSmoke is a trivial smoke test to verify the AIX CI job runs the
+// tests of a modified package end-to-end.
+func TestCIAIXSmoke(t *testing.T) {
+	if got := AgentVersion; got == "" {
+		t.Fatal("AgentVersion is empty")
+	}
+}
