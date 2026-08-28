@@ -6,10 +6,15 @@
 package constants
 
 const (
-	// InternalSkipTaskVerificationEnvVar is an internal-only env var for e2e tests.
-	// When set to "true", PAR skips signed-envelope validation and allows HTTP connections.
+	// InternalSkipTaskVerificationEnvVar is an internal-only env var for tests that
+	// cannot provide Remote Config signing keys. It must not control OPMS routing.
 	// NOT intended for customer use.
 	InternalSkipTaskVerificationEnvVar = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"
+
+	// InternalUseDDURLForOPMSEnvVar is an internal-only env var for tests.
+	// When set to "true", PAR sends OPMS requests to the configured dd_url.
+	// NOT intended for customer use.
+	InternalUseDDURLForOPMSEnvVar = "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS"
 
 	// InternalEnableTelemetryEnvVar is an internal-only env var for SMP tests.
 	// When set to "true", PAR exposes the core telemetry endpoint.
