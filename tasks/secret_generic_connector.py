@@ -39,35 +39,18 @@ def build(
 ):
     """
     Build the secret-generic-connector binary.
-
-    enable_bazel: build via `bazel build //cmd/secret-generic-connector:secret-generic-connector`
-    instead of `go build`, then copy the result to the same place. Developer opt-in only;
-    defaults to off. Not yet supported with fips_mode, on Windows, or with a non-default
-    output_bin/arch_suffix. See ABLD-310.
     """
     if enable_bazel:
         if fips_mode:
-            raise NotImplementedError(
-                "enable_bazel is not yet supported with fips_mode for secret-generic-connector: "
-                "the bazel target has no FIPS build config equivalent. See ABLD-310."
-            )
+            raise NotImplementedError("--enable-bazel does not support fips_mode.")
         if sys.platform == 'win32':
-            raise NotImplementedError(
-                "enable_bazel is not yet supported on Windows for secret-generic-connector: "
-                "Windows resource embedding is not wired into the plain bazel target. See ABLD-310."
-            )
+            raise NotImplementedError("--enable-bazel does not support Windows.")
         if output_bin is not None or arch_suffix is not False:
-            raise NotImplementedError(
-                "enable_bazel is not yet supported with a non-default output_bin or arch_suffix "
-                "for secret-generic-connector: these have no bazel equivalent in the simple helper. "
-                "See ABLD-310."
-            )
+            raise NotImplementedError("--enable-bazel does not support --output-bin/--arch-suffix.")
         print(
             color_message(
                 "warning: the bazel-built secret-generic-connector binary's --version output "
-                "will report 'dev' instead of the real stamped version, because the plain bazel "
-                "target doesn't inject -X main.appVersion=... the way go_build()'s ldflags do. "
-                "See ABLD-310.",
+                "will report 'dev' instead of the real stamped version.",
                 "orange",
             )
         )
