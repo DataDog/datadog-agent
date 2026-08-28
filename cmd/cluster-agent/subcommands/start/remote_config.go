@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"unicode"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -29,10 +28,6 @@ import (
 const (
 	additionalRemoteConfigClientsConfig = "cluster_agent.remote_configuration.additional_clients"
 	defaultRemoteConfigDatabaseFileName = "remote-config.db"
-	// defaultRemoteConfigStatusInstance mirrors defaultStatusInstance in
-	// pkg/config/remote/service, the key the default client reports status under.
-	// Additional clients report under their own name, so this one is reserved.
-	defaultRemoteConfigStatusInstance = "Remote Config"
 )
 
 // remoteConfigClientPresets gives well-known client names a default product
@@ -144,19 +139,22 @@ func initializeRemoteConfigClients(
 		return nil, err
 	}
 
-	extraProductOwners := make(map[string]string)
+	byProduct := make(map[string]*remoteConfigClientInstance)
 	for _, spec := range specs {
+		instance := &remoteConfigClientInstance{
+			name:     spec.Name,
+			spec:     spec,
+			products: spec.Products,
+		}
 		for _, product := range spec.Products {
-			if owner, found := extraProductOwners[product]; found {
-				return nil, fmt.Errorf("%s: product %q is owned by both %q and %q", additionalRemoteConfigClientsConfig, product, owner, spec.Name)
-			}
-			extraProductOwners[product] = spec.Name
+			byProduct[product] = instance
 		}
 	}
 
+	// Whatever no additional client claims stays on the default client.
 	defaultProducts := make([]string, 0, len(products))
 	for _, product := range products {
-		if _, ownedByExtraClient := extraProductOwners[product]; !ownedByExtraClient {
+		if _, ownedByExtraClient := byProduct[product]; !ownedByExtraClient {
 			defaultProducts = append(defaultProducts, product)
 		}
 	}
@@ -171,18 +169,7 @@ func initializeRemoteConfigClients(
 			name:     "default",
 			products: defaultProducts,
 		},
-		byProduct: make(map[string]*remoteConfigClientInstance),
-	}
-
-	for _, spec := range specs {
-		instance := &remoteConfigClientInstance{
-			name:     spec.Name,
-			spec:     spec,
-			products: spec.Products,
-		}
-		for _, product := range spec.Products {
-			registry.byProduct[product] = instance
-		}
+		byProduct: byProduct,
 	}
 
 	return registry, nil
@@ -242,7 +229,7 @@ func (r *remoteConfigClientRegistry) InstanceNameForProducts(products ...string)
 			return instance.name
 		}
 	}
-	return defaultRemoteConfigStatusInstance
+	return remoteconfig.DefaultStatusInstance
 }
 
 func (r *remoteConfigClientRegistry) clientForInstanceLocked(instance *remoteConfigClientInstance) (*rcclient.Client, error) {
@@ -355,9 +342,6 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 			return nil, fmt.Errorf("%s.%s is not a known client name (known: %v)", additionalRemoteConfigClientsConfig, spec.Name, remoteConfigClientPresetNames())
 		}
 		spec.Products = append([]string(nil), preset...)
-		if err := validateAdditionalRemoteConfigProducts(spec); err != nil {
-			return nil, err
-		}
 		var err error
 		spec.DatabaseFileName, err = normalizeAdditionalRemoteConfigDatabaseFileName(spec.Name, spec.DatabaseFileName)
 		if err != nil {
@@ -373,23 +357,9 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 	return specs, nil
 }
 
-func validateAdditionalRemoteConfigProducts(spec additionalRemoteConfigClientSpec) error {
-	seen := make(map[string]struct{}, len(spec.Products))
-	for _, product := range spec.Products {
-		if _, blocked := processLevelRemoteConfigProducts[product]; blocked {
-			return fmt.Errorf("%s.%s.products cannot contain process-level product %q", additionalRemoteConfigClientsConfig, spec.Name, product)
-		}
-		if _, found := seen[product]; found {
-			return fmt.Errorf("%s.%s.products contains duplicate product %q", additionalRemoteConfigClientsConfig, spec.Name, product)
-		}
-		seen[product] = struct{}{}
-	}
-	return nil
-}
-
 func normalizeAdditionalRemoteConfigDatabaseFileName(specName, databaseFileName string) (string, error) {
 	if databaseFileName == "" {
-		databaseFileName = fmt.Sprintf("remote-config-%s.db", safeRemoteConfigInstanceName(specName))
+		databaseFileName = fmt.Sprintf("remote-config-%s.db", specName)
 	}
 	if databaseFileName == "." || databaseFileName == ".." || strings.ContainsAny(databaseFileName, `/\`) {
 		return "", fmt.Errorf("%s.%s.database_file_name must be a basename, got %q", additionalRemoteConfigClientsConfig, specName, databaseFileName)
@@ -464,22 +434,6 @@ func getClusterAgentRemoteConfigTags(cfg config.Component) func() []string {
 		tags := configUtils.GetConfiguredTags(cfg, false)
 		return append(tags, configUtils.GetConfiguredDCATags(cfg)...)
 	}
-}
-
-func safeRemoteConfigInstanceName(name string) string {
-	var builder strings.Builder
-	for _, r := range name {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' || r == '.' {
-			builder.WriteRune(r)
-		} else {
-			builder.WriteRune('_')
-		}
-	}
-	safeName := strings.Trim(builder.String(), "._-")
-	if safeName == "" {
-		return "extra"
-	}
-	return safeName
 }
 
 func asStringMap(value interface{}) (map[string]interface{}, bool) {

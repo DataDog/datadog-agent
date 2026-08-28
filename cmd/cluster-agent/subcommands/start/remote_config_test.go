@@ -15,6 +15,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -256,7 +257,7 @@ func TestRemoteConfigClientPresetsMatchConsumers(t *testing.T) {
 	}
 
 	// A preset name must never collide with the reserved default status entry.
-	_, reserved := remoteConfigClientPresets[defaultRemoteConfigStatusInstance]
+	_, reserved := remoteConfigClientPresets[remoteconfig.DefaultStatusInstance]
 	assert.False(t, reserved)
 }
 
@@ -266,7 +267,7 @@ func TestRemoteConfigClientPresetsMatchConsumers(t *testing.T) {
 // be used. This also covers the default client's status key, which is not a
 // preset name and so cannot be taken by an additional client.
 func TestAdditionalRemoteConfigClientSpecsRejectUnknownName(t *testing.T) {
-	for _, name := range []string{"something-else", defaultRemoteConfigStatusInstance} {
+	for _, name := range []string{"something-else", remoteconfig.DefaultStatusInstance} {
 		t.Run(name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetInTest(additionalRemoteConfigClientsConfig, map[string]interface{}{

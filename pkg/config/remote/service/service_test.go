@@ -1090,7 +1090,7 @@ func TestWithApiKeyUpdateDisabled(t *testing.T) {
 }
 
 func TestRemoteConfigStatusInstancesDoNotOverwriteDefaultStatus(t *testing.T) {
-	defaultStatus := getRemoteConfigStatus(defaultStatusInstance)
+	defaultStatus := getRemoteConfigStatus(DefaultStatusInstance)
 	extraStatus := getRemoteConfigStatus("test-extra")
 	t.Cleanup(func() {
 		defaultStatus.orgEnabled.Set("")
@@ -1106,7 +1106,7 @@ func TestRemoteConfigStatusInstancesDoNotOverwriteDefaultStatus(t *testing.T) {
 	extraAPI := &mockAPI{}
 	extraAPI.On("FetchOrgStatus", mock.Anything).Return(&pbgo.OrgStatusResponse{Enabled: false, Authorized: false}, nil)
 
-	newOrgStatusPoller(time.Minute, defaultStatus).poll(defaultAPI, defaultStatusInstance)
+	newOrgStatusPoller(time.Minute, defaultStatus).poll(defaultAPI, DefaultStatusInstance)
 	newOrgStatusPoller(time.Minute, extraStatus).poll(extraAPI, "test-extra")
 
 	var status map[string]interface{}

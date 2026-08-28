@@ -15,17 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 //go:embed status_templates
 var templatesFS embed.FS
-
-// defaultStatusInstance mirrors the constant of the same name in
-// pkg/config/remote/service: the key the process default client reports its
-// status under. The fields of that instance are rendered at the top level, so
-// it is excluded from the additional-clients list. Keep the two in sync.
-const defaultStatusInstance = "Remote Config"
 
 // Requires holds the dependencies for the rcstatus component.
 type Requires struct {
@@ -109,7 +104,7 @@ func (rc statusProvider) populateStatus(stats map[string]interface{}) {
 	if instances, ok := status["instances"].(map[string]interface{}); ok {
 		additional := make(map[string]interface{}, len(instances))
 		for name, instance := range instances {
-			if name == defaultStatusInstance {
+			if name == remoteconfig.DefaultStatusInstance {
 				continue
 			}
 			additional[name] = instance

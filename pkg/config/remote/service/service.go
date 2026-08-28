@@ -78,10 +78,11 @@ var (
 	statusExpvars           = make(map[string]*remoteConfigStatus)
 )
 
-// defaultStatusInstance names the status entry for the process default RC
-// client. The status templates in comp/remote-config/rcstatus/impl match on
-// this literal to avoid listing the default client twice, so keep them in sync.
-const defaultStatusInstance = "Remote Config"
+// DefaultStatusInstance names the status entry for the process default RC
+// client. Additional clients report under their own name, so this one is
+// reserved; the status renderer uses it to avoid listing the default client
+// twice.
+const DefaultStatusInstance = "Remote Config"
 
 type remoteConfigStatus struct {
 	orgEnabled    expvar.String
@@ -92,7 +93,7 @@ type remoteConfigStatus struct {
 
 func getRemoteConfigStatus(instance string) *remoteConfigStatus {
 	if instance == "" {
-		instance = defaultStatusInstance
+		instance = DefaultStatusInstance
 	}
 
 	statusExpvarsLock.Lock()
@@ -113,7 +114,7 @@ func getRemoteConfigStatus(instance string) *remoteConfigStatus {
 	instanceMap.Set("endpoint", &status.endpoint)
 	exportedStatusInstances.Set(instance, instanceMap)
 
-	if instance == defaultStatusInstance {
+	if instance == DefaultStatusInstance {
 		exportedMapStatus.Set("orgEnabled", &status.orgEnabled)
 		exportedMapStatus.Set("apiKeyScoped", &status.keyAuthorized)
 		exportedMapStatus.Set("lastError", &status.lastUpdateErr)
@@ -398,7 +399,7 @@ func init() {
 	exportedMapStatus.Init()
 	exportedStatusInstances.Init()
 	exportedMapStatus.Set("instances", &exportedStatusInstances)
-	getRemoteConfigStatus(defaultStatusInstance)
+	getRemoteConfigStatus(DefaultStatusInstance)
 }
 
 type options struct {
@@ -445,7 +446,7 @@ var defaultOptions = options{
 	apiKey:                              "",
 	parJWT:                              "",
 	traceAgentEnv:                       "",
-	statusInstance:                      defaultStatusInstance,
+	statusInstance:                      DefaultStatusInstance,
 	databaseFileName:                    "remote-config.db",
 	databaseFilePath:                    "",
 	configRootOverride:                  "",
