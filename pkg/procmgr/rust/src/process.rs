@@ -867,30 +867,23 @@ impl ManagedProcess {
             StopWaitResult::WatcherTimedOut(handle) => {
                 if self.state.is_alive() {
                     tokio::pin!(handle);
-                    if self
+                    let status = self
                         .force_kill_and_wait(
                             graceful_budget,
                             budget,
                             ForceKillWaitTarget::Watcher(&mut handle),
                         )
-                        .await
-                        .is_none()
-                        && self.state.is_alive()
-                    {
-                        self.mark_stopped();
-                    }
+                        .await;
+                    self.apply_stop_exit(status);
                 }
             }
             StopWaitResult::ChildTimedOut(handle) => {
                 self.handle = Some(handle);
-                if self.state.is_alive()
-                    && self
+                if self.state.is_alive() {
+                    let status = self
                         .force_kill_and_wait(graceful_budget, budget, ForceKillWaitTarget::Child)
-                        .await
-                        .is_none()
-                    && self.state.is_alive()
-                {
-                    self.mark_stopped();
+                        .await;
+                    self.apply_stop_exit(status);
                 }
             }
         }
@@ -1956,6 +1949,25 @@ runtime_success_sec: 5
         proc.finalize_orphaned_stop_wait(ShutdownBudget::unlimited(Instant::now().into()))
             .await;
         assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn finalize_stop_wait_records_exit_status_after_force_kill() {
+        let (cmd, args) = test_helpers::trap_term_sleep();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.stop_timeout = Some(1);
+        let mut proc =
+            ManagedProcess::new_config("stubborn".into(), test_helpers::test_uuid(), cfg);
+        let budget = ShutdownBudget::unlimited(Instant::now().into());
+        proc.spawn().unwrap();
+        proc.request_stop();
+        proc.wait_for_stop_since(budget).await;
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            proc.last_signal().is_some() || proc.last_exit_code().is_some(),
+            "force-kill stop should record exit status"
+        );
     }
 
     #[tokio::test]
