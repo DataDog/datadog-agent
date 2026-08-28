@@ -484,7 +484,7 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 			Integration: common.SnmpIntegrationName,
 			Remote: &devicemetadata.TopologyLinkSide{
 				Device: &devicemetadata.TopologyLinkDevice{
-					Name:        store.GetColumnAsString("cdp_remote.device_name", strIndex),
+					Name:        getRemDeviceNameByCDPRemIndex(store, strIndex),
 					Description: store.GetColumnAsString("cdp_remote.device_desc", strIndex),
 					ID:          store.GetColumnAsString("cdp_remote.device_id", strIndex),
 					IDType:      "",
@@ -510,6 +510,16 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 		links = append(links, newLink)
 	}
 	return links
+}
+
+func getRemDeviceNameByCDPRemIndex(store *metadata.Store, strIndex string) string {
+	optionalSysName := store.GetColumnAsString("cdp_remote.device_name", strIndex)
+	if optionalSysName != "" {
+		return optionalSysName
+	}
+
+	mandatoryDeviceID := store.GetColumnAsString("cdp_remote.device_id", strIndex)
+	return mandatoryDeviceID
 }
 
 func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) string {
