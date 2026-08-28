@@ -3,25 +3,34 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package strings
+package metricname
 
 import (
-	"slices"
 	"sort"
 	"strings"
 )
 
-// Matcher test a string for match against a list of strings.
+// Matcher tests a metric name for match against a list of metric names.
 // See `NewMatcher` for details.
 type Matcher struct {
 	data        []string
 	matchPrefix bool
 }
 
-// NewMatcher creates a new strings matcher.
+// NewMatcher creates a new metric name matcher.
 // Use `matchPrefix` to  create a prefixes matcher.
+//
+// Entries are normalized with `Normalize` so that the matcher works in the same
+// name space as the backend, and entries that the intake would reject outright
+// are dropped because they can never match a stored name.
 func NewMatcher(data []string, matchPrefix bool) Matcher {
-	data = slices.Clone(data)
+	normalized := make([]string, 0, len(data))
+	for _, entry := range data {
+		if name, ok := Normalize(entry); ok {
+			normalized = append(normalized, name)
+		}
+	}
+	data = normalized
 	sort.Strings(data)
 
 	if matchPrefix && len(data) > 0 {
@@ -55,14 +64,29 @@ func (m *Matcher) Len() int {
 	return len(m.data)
 }
 
-// Test returns true if the given string matches one in the matcher list.
+// Test returns true if the given metric name matches one in the matcher list,
 // or is matching by prefix if the matcher has been created with `matchPrefix`.
+//
+// The name is normalized before being compared. The Agent sees names exactly as
+// they were submitted, but the intake rewrites them on ingest, so a raw name
+// such as `my metric-name` is stored (and shown to users, and therefore
+// configured in filter lists) as `my_metric_name`. Matching the raw name would
+// let those metrics through the filter list and still have them show up in
+// Datadog. Names the intake would reject never match.
+//
+// Normalization does not allocate for names that are already normalized, which
+// is the common case.
 func (m *Matcher) Test(name string) bool {
 	if m == nil {
 		return false
 	}
 
 	if len(m.data) == 0 {
+		return false
+	}
+
+	name, ok := Normalize(name)
+	if !ok {
 		return false
 	}
 

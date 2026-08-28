@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // Requires contains the config for RC
@@ -49,9 +49,9 @@ type FilterList struct {
 	telemetryComp telemetry.Component
 
 	updateMetricMtx        sync.RWMutex
-	metricFilterListUpdate []func(utilstrings.Matcher, utilstrings.Matcher)
-	filterList             utilstrings.Matcher
-	histoFilterList        utilstrings.Matcher
+	metricFilterListUpdate []func(metricname.Matcher, metricname.Matcher)
+	filterList             metricname.Matcher
+	histoFilterList        metricname.Matcher
 
 	updateTagMtx        sync.RWMutex
 	tagFilterListUpdate []func(filterlistdef.TagMatcher)
@@ -178,7 +178,7 @@ func (fl *FilterList) GetTagFilterList() filterlistdef.TagMatcher {
 }
 
 // GetMetricFilterList returns the current metric filterlist.
-func (fl *FilterList) GetMetricFilterList() utilstrings.Matcher {
+func (fl *FilterList) GetMetricFilterList() metricname.Matcher {
 	fl.updateMetricMtx.RLock()
 	defer fl.updateMetricMtx.RUnlock()
 	return fl.filterList
@@ -189,7 +189,7 @@ func (fl *FilterList) GetMetricFilterList() utilstrings.Matcher {
 // match histogram aggregate suffixes. It is used by DogStatsD workers which
 // pre-filter regular metrics in listeners; only histogram-derived names need
 // post-aggregation filtering.
-func (fl *FilterList) GetHistoFilterList() utilstrings.Matcher {
+func (fl *FilterList) GetHistoFilterList() metricname.Matcher {
 	fl.updateMetricMtx.RLock()
 	defer fl.updateMetricMtx.RUnlock()
 	return fl.histoFilterList
@@ -260,8 +260,8 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 
 	// only histogram metric names (including their aggregates suffixes)
 	histoMetricNames := fl.createHistogramsFilterList(metricNames)
-	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
-	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+	filterList := metricname.NewMatcher(metricNames, matchPrefix)
+	histoFilterList := metricname.NewMatcher(histoMetricNames, matchPrefix)
 
 	// Report the compiled size: with prefix matching, NewMatcher compacts
 	// redundant sub-prefixes, so len(metricNames) can overcount.
@@ -299,7 +299,7 @@ func (fl *FilterList) restoreTagFilterListFromLocalConfig() {
 
 // OnUpdateMetricFilterList is called to register a callback to be called when the
 // metric list is updated.
-func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher, utilstrings.Matcher)) {
+func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(metricname.Matcher, metricname.Matcher)) {
 	fl.updateMetricMtx.Lock()
 	fl.metricFilterListUpdate = append(fl.metricFilterListUpdate, onUpdate)
 	fl.updateMetricMtx.Unlock()

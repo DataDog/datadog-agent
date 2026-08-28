@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package strings
+package metricname
 
 import (
 	"fmt"
 	"math/rand"
-	stdstrings "strings"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,6 +25,63 @@ func TestNewMatcher(t *testing.T) {
 	assert.Equal(t, []string{"a"}, check([]string{"a", "aa"}))
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "aa", "b", "bb"}))
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "b", "bb"}))
+
+	// Entries are stored normalized, so a raw entry and its normalized form
+	// compact down to the same prefix.
+	assert.Equal(t, []string{"a_b"}, check([]string{"a-b", "a_b"}))
+
+	// Entries the intake would reject can never match a stored name, so they are
+	// dropped rather than kept as dead weight.
+	assert.Equal(t, []string{"a"}, check([]string{"a", "", "123", strings.Repeat("b", 351)}))
+}
+
+// TestIsStringMatchingNormalizesNames asserts that filter list matching happens
+// in the same name space the backend stores, so a metric submitted with a raw
+// name is filtered by its normalized name.
+func TestIsStringMatchingNormalizesNames(t *testing.T) {
+	cases := []struct {
+		result      bool
+		name        string
+		list        []string
+		matchPrefix bool
+	}{
+		// The submitted name needs normalizing, the configured entry is the
+		// normalized name the user sees in Datadog.
+		{true, "my metric-name", []string{"my_metric_name"}, false},
+		{true, "custom.metric one", []string{"custom.metric_one"}, false},
+		{true, "host.cpu%util", []string{"host.cpu_util"}, false},
+		{true, "1app.requests", []string{"app.requests"}, false},
+		{true, "caf\u00e9.requests", []string{"caf.requests"}, false},
+
+		// Distinct raw names that normalize to the same thing are both filtered.
+		{true, "multiple-norm-1", []string{"multiple_norm_1"}, false},
+		{true, "multiple_norm-1", []string{"multiple_norm_1"}, false},
+
+		// A raw entry in the config still matches, because entries are
+		// normalized too.
+		{true, "my_metric_name", []string{"my metric-name"}, false},
+		{true, "my metric-name", []string{"my-metric-name"}, false},
+
+		// Normalization must not make unrelated names collide.
+		{false, "my.metric", []string{"my_metric"}, false},
+		{false, "other metric", []string{"my_metric"}, false},
+
+		// Prefix matching also works on the normalized name.
+		{true, "custom.metric name.count", []string{"custom.metric_name"}, true},
+		{false, "custom.metric name.count", []string{"custom.other"}, true},
+
+		// Names the intake rejects outright never match.
+		{false, "", []string{"foo"}, false},
+		{false, "123", []string{"foo"}, false},
+		{false, strings.Repeat("foo", 200), []string{"foo"}, true},
+	}
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("%v-%v-%v", c.name, c.list, c.matchPrefix),
+			func(t *testing.T) {
+				b := NewMatcher(c.list, c.matchPrefix)
+				assert.Equal(t, c.result, b.Test(c.name))
+			})
+	}
 }
 
 func TestIsStringMatching(t *testing.T) {
@@ -57,7 +114,7 @@ func TestIsStringMatching(t *testing.T) {
 func randomString(size uint) string {
 	letterBytes := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-	var builder stdstrings.Builder
+	var builder strings.Builder
 	for range size {
 		builder.WriteByte(letterBytes[rand.Intn(len(letterBytes))])
 	}
