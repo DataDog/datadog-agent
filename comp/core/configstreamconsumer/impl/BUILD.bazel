@@ -17,6 +17,7 @@ go_library(
         "//comp/def",
         "//pkg/api/security",
         "//pkg/api/security/cert",
+        "//pkg/config/model",
         "//pkg/configstreambootstrap",
         "//pkg/proto/pbgo/core",
         "//pkg/util/defaultpaths",
@@ -26,6 +27,7 @@ go_library(
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
 
