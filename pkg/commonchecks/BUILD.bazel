@@ -20,7 +20,6 @@ go_library(
         "//comp/core/telemetry/impl/noops",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
-        "//comp/forwarder/metricslogs/def",
         "//comp/networkconfigmanagement/def",
         "//comp/networkpath/traceroute/def",
         "//comp/remote-config/rcclient/def",
@@ -83,6 +82,7 @@ go_library(
         "//pkg/collector/corechecks/systemd",
         "//pkg/collector/corechecks/telemetry",
         "//pkg/util/option",
+        "@com_github_datadog_datadog_agent//comp/forwarder/metricslogs/def",
     ],
 )
 

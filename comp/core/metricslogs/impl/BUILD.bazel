@@ -7,11 +7,11 @@ go_library(
         "impl.go",
         "logmetrics.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/impl",
+    importpath = "github.com/DataDog/datadog-agent/comp/core/metricslogs/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log/def",
-        "//comp/forwarder/metricslogs/def",
+        "//comp/core/metricslogs/def",
     ],
 )
 
@@ -20,7 +20,7 @@ dd_agent_go_test(
     srcs = ["impl_test.go"],
     embed = [":impl"],
     deps = [
-        "//comp/forwarder/metricslogs/def",
+        "//comp/core/metricslogs/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
