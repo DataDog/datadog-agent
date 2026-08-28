@@ -75,10 +75,9 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --install-path.")
         if static:
             raise NotImplementedError("--enable-bazel does not support --static.")
-        if fips_mode:
-            raise NotImplementedError("--enable-bazel does not support --fips-mode.")
 
-        build_binary_with_bazel(BAZEL_TARGET, BIN_PATH)
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
