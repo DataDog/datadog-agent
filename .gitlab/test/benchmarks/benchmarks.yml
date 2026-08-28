@@ -6,11 +6,19 @@ benchmark:
   rules: !reference [.on_trace_agent_changes_or_manual]
   interruptible: true
   needs: ["setup_agent_version"]
+  retry: !reference [.retry_only_infra_failure, retry]
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
+  variables:
+    GIT_DEPTH: 0  # Full history: run-benchmarks.sh / analyze-results.sh check out BASE_BRANCH
+    # `go test -tags=test` sends pkg/util/log output to stdout at debug level, which corrupts
+    # the GoBench output the analyzer parses. Set here rather than only in tasks/trace_agent.py
+    # so it also applies to the baseline run, which is executed from a BASE_BRANCH checkout.
+    DD_LOG_LEVEL: "off"
   script:
     - export ARTIFACTS_DIR="$(pwd)/artifacts" && mkdir -p $ARTIFACTS_DIR
     - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
     - export BASE_BRANCH="$(cat release.json | jq ".base_branch" | tr -d '"')"
+    - git fetch origin "$BASE_BRANCH"
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@${DDA_VERSION}"
     - dda self dep sync -f legacy-tasks

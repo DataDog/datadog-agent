@@ -9,6 +9,7 @@
 '@datadog/agent-onboarding': AGENTONB
 '@datadog/container-autoscaling': CASCL
 '@datadog/credential-management': WIF
+'@datadog/delegated-auth-login': WIF
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
 '@datadog/network-device-monitoring-core': NDMC
@@ -35,7 +36,7 @@
 '@datadog/network-path': NETPATH
 '@datadog/universal-service-monitoring': USMON
 '@datadog/windows-products': WINA
-'@datadog/opentelemetry': OTAGENT
+'@datadog/opentelemetry': OTEL
 '@datadog/opentelemetry-agent': OTAGENT
 '@datadog/sdlc-security': SINT
 '@datadog/sensitive-data-scanner': SDS
@@ -59,5 +60,6 @@
 '@datadog/synthetics-executing': SYNORG
 '@datadog/fleet-remediation': FLREM
 '@datadog/profiling-full-host': 'PROF'
-'@datadog/q-branch': DEFAULT_JIRA_PROJECT
+'@datadog/q-branch': AAD
+'@datadog/agent-anomaly-detection': AAD
 '@datadog/gpu-monitoring-agent': EBPF

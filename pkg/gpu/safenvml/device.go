@@ -8,10 +8,13 @@
 package safenvml
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SafeDevice represents a safe wrapper around NVML device operations.
@@ -74,6 +77,8 @@ type SafeDevice interface {
 	GetName() (string, error)
 	// GetNvLinkState returns the state of the specified NVLink
 	GetNvLinkState(link int) (nvml.EnableState, error)
+	// GetNvLinkVersion returns the version of the specified NVLink.
+	GetNvLinkVersion(link int) (int, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
 	GetNumGpuCores() (int, error)
 	// GetNumFans returns the number of fans in the device
@@ -143,11 +148,17 @@ type DeviceEventData struct {
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion    uint32
-	UUID         string
-	Name         string
-	CoreCount    int
-	Architecture nvml.DeviceArchitecture
+	SMVersion          uint32
+	UUID               string
+	Name               string
+	CoreCount          int
+	Architecture       nvml.DeviceArchitecture
+	VirtualizationMode nvml.GpuVirtualizationMode
+
+	// NVLinkLinkCount is the number of NVLink links available on the device.
+	NVLinkLinkCount int
+	// NVLinkVersion is the version reported by the device's NVLink links.
+	NVLinkVersion string
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -299,6 +310,8 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
 		migChildDevice.Architecture = d.Architecture
+		// MIG slices do not have NVLink ports; keep the parent's protocol version for tags.
+		migChildDevice.NVLinkVersion = d.NVLinkVersion
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
 
 		gpuInstanceID, err := migChildDevice.GetGpuInstanceId()
@@ -379,7 +392,102 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 	}
 	d.SMVersion = uint32(major*10 + minor)
 
+	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
+		d.VirtualizationMode = virtualizationMode
+	} else if logLimiter.ShouldLog() {
+		log.Warnf("cannot get virtualization mode: %v", err)
+	}
+
+	d.fillNVLinkDataFromNVML(dev)
+
 	return nil
+}
+
+func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
+	fields := []nvml.FieldValue{{FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT}}
+	if err := dev.GetFieldValues(fields); err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get NVLink link count: %v", err)
+		}
+		return
+	}
+	if ret := nvml.Return(fields[0].NvmlReturn); ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get NVLink link count: %s", nvml.ErrorString(ret))
+		}
+		return
+	}
+
+	linkCount, err := nvmlFieldValueToInt(fields[0])
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot parse NVLink link count: %v", err)
+		}
+		return
+	}
+	if linkCount < 0 {
+		if logLimiter.ShouldLog() {
+			log.Warnf("NVLink link count %d is negative", linkCount)
+		}
+		return
+	}
+
+	d.NVLinkLinkCount = linkCount
+	for link := range d.NVLinkLinkCount {
+		version, err := dev.GetNvLinkVersion(link)
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Warnf("cannot get NVLink version for link %d: %v", link, err)
+			}
+			continue
+		}
+
+		if d.NVLinkVersion == "" {
+			d.NVLinkVersion = nvlinkVersionString(version)
+		} else if d.NVLinkVersion != nvlinkVersionString(version) && logLimiter.ShouldLog() {
+			log.Warnf("NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
+		}
+	}
+}
+
+func nvmlFieldValueToInt(fv nvml.FieldValue) (int, error) {
+	switch nvml.ValueType(fv.ValueType) {
+	case nvml.VALUE_TYPE_UNSIGNED_INT:
+		return int(binary.LittleEndian.Uint32(fv.Value[:4])), nil
+	case nvml.VALUE_TYPE_UNSIGNED_LONG, nvml.VALUE_TYPE_UNSIGNED_LONG_LONG:
+		value := binary.LittleEndian.Uint64(fv.Value[:])
+		if value > uint64(^uint(0)>>1) {
+			return 0, fmt.Errorf("NVLink field value %d exceeds maximum integer value", value)
+		}
+		return int(value), nil
+	case nvml.VALUE_TYPE_SIGNED_INT:
+		return int(int32(binary.LittleEndian.Uint32(fv.Value[:4]))), nil
+	case nvml.VALUE_TYPE_SIGNED_LONG_LONG:
+		return int(int64(binary.LittleEndian.Uint64(fv.Value[:]))), nil
+	default:
+		return 0, fmt.Errorf("unsupported NVML value type %d", fv.ValueType)
+	}
+}
+
+func nvlinkVersionString(version int) string {
+	switch version {
+	case 1:
+		return "1.0"
+	case 2:
+		return "2.0"
+	case 3:
+		return "2.2"
+	case 4:
+		return "3.0"
+	case 5:
+		return "3.1"
+	case 6:
+		return "4.0"
+	case 7:
+		return "5.0"
+	default:
+		return fmt.Sprintf("unknown_%d", version)
+	}
 }
 
 // coresPerMultiprocessor returns the number of cores per multiprocessor for a given SM version. It's a fallback

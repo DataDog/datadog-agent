@@ -294,65 +294,6 @@ class GithubAPI:
             return list(tags)
         return [t for t in tags if t.name.startswith(pattern)]
 
-    def trigger_workflow(self, workflow_name, ref, inputs=None):
-        """
-        Create a pipeline targeting a given reference of a project.
-        ref must be a branch or a tag.
-        """
-        workflow = self._repository.get_workflow(workflow_name)
-        if workflow is None:
-            return False
-        if inputs is None:
-            inputs = {}
-        return workflow.create_dispatch(ref, inputs)
-
-    def workflow_run(self, run_id):
-        """
-        Gets info on a specific workflow.
-        """
-        return self._repository.get_workflow_run(run_id)
-
-    def download_artifact(self, artifact, destination_dir):
-        """
-        Downloads the artifact identified by artifact_id to destination_dir.
-        """
-        url = artifact.archive_download_url
-
-        return self.download_from_url(url, destination_dir, destination_file=artifact.id)
-
-    def download_from_url(self, url, destination_dir, destination_file):
-        import requests
-
-        headers = {
-            "Authorization": f'{self._auth.token_type} {self._auth.token}',
-            "Accept": "application/vnd.github.v3+json",
-        }
-        # Retrying this request if needed is handled by the caller
-        with requests.get(url, headers=headers, stream=True, timeout=10) as r:
-            r.raise_for_status()
-            zip_target_path = os.path.join(destination_dir, f"{destination_file}.zip")
-            with open(zip_target_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-        return zip_target_path
-
-    def download_logs(self, run_id, destination_dir):
-        run = self._repository.get_workflow_run(run_id)
-        logs_url = run.logs_url
-        _, headers, _ = run._requester.requestJson("GET", logs_url)
-
-        return self.download_from_url(headers["location"], destination_dir, run.id)
-
-    def workflow_run_for_ref_after_date(self, workflow_name, ref, oldest_date):
-        """
-        Gets all the workflow triggered after a given date
-        """
-        workflow = self._repository.get_workflow(workflow_name)
-        runs = workflow.get_runs(branch=ref)
-        recent_runs = [run for run in runs if run.created_at > oldest_date]
-
-        return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
-
     def latest_release(self, major_version=7) -> str:
         if major_version == 6:
             return max((r for r in self.get_releases() if r.title.startswith('6.53')), key=lambda r: r.created_at).title
@@ -732,20 +673,22 @@ def get_pr_size(pr) -> str:
     # - hard PRs are merged in more than 1 week
     # More details: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
     _SIZE_CRITERIA = {
-        'easy': {'files': 4, 'lines': 150, 'comments': 2},
+        'easy': {'files': 4, 'lines': 150, 'comments': 3},
         'hard': {'files': 12, 'lines': 650, 'comments': 9},
     }
-
+    human_review_comments = sum(
+        1 for comment in pr.get_review_comments() if comment.user is not None and "[bot]" not in comment.user.login
+    )
     if (
         pr.changed_files < _SIZE_CRITERIA['easy']['files']
         and pr.additions + pr.deletions < _SIZE_CRITERIA['easy']['lines']
-        and pr.review_comments < _SIZE_CRITERIA['easy']['comments']
+        and human_review_comments < _SIZE_CRITERIA['easy']['comments']
     ):
         return 'small'
     if (
         pr.changed_files > _SIZE_CRITERIA['hard']['files']
         or pr.additions + pr.deletions > _SIZE_CRITERIA['hard']['lines']
-        or pr.review_comments > _SIZE_CRITERIA['hard']['comments']
+        or human_review_comments > _SIZE_CRITERIA['hard']['comments']
     ):
         return 'large'
     return 'medium'

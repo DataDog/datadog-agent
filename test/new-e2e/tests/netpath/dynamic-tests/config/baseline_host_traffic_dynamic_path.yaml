@@ -1,0 +1,10 @@
+network_path:
+  connections_monitoring:
+    baseline_tests_enabled: true
+  collector:
+    flush_interval: 2s
+    filters:
+      - match_domain: '*'
+        type: exclude
+      - match_domain: 'httpbin-rc.dynamic-netpath.test'
+        type: include

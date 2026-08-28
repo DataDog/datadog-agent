@@ -46,6 +46,7 @@ var (
 		string(semconv1_27.ServiceNameKey):               "service",
 		string(semconv1_27.ServiceVersionKey):            "version",
 		string(semconv1_27.DeploymentEnvironmentNameKey): "env",
+		string(semconv1_27.ServiceNamespaceKey):          "service.namespace",
 		// Required for OTel traffic metrics on Datadog Fleet Automation.
 		string(semconv1_27.ServiceInstanceIDKey): "service.instance.id",
 	}
@@ -86,6 +87,7 @@ var (
 		string(semconv1_27.K8SCronJobNameKey):     "kube_cronjob",
 		string(semconv1_27.K8SNamespaceNameKey):   "kube_namespace",
 		string(semconv1_27.K8SPodNameKey):         "pod_name",
+		string(semconv1_27.K8SNodeNameKey):        "kube_node",
 	}
 
 	containerDDTags = (func() map[string]struct{} {
@@ -110,7 +112,7 @@ var (
 		"app.kubernetes.io/name":       "kube_app_name",
 		"app.kubernetes.io/instance":   "kube_app_instance",
 		"app.kubernetes.io/version":    "kube_app_version",
-		"app.kuberenetes.io/component": "kube_app_component",
+		"app.kubernetes.io/component":  "kube_app_component",
 		"app.kubernetes.io/part-of":    "kube_app_part_of",
 		"app.kubernetes.io/managed-by": "kube_app_managed_by",
 	}

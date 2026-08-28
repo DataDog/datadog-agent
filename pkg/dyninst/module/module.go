@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package module
 
@@ -307,6 +307,9 @@ func (m *Module) GetStats() map[string]any {
 	}
 	if m.runtimeStats != nil {
 		stats["runtime"] = m.runtimeStats.asStats()
+	}
+	if sub := m.shutdown.realDependencies.procSubscriber; sub != nil {
+		stats["processDiscovery"] = sub.Stats()
 	}
 	return stats
 }

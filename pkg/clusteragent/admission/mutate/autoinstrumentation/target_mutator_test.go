@@ -88,7 +88,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta, imageResolver, nil)
+			_, err = NewTargetMutator(config, wmeta, imageResolver, nil, nil)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -259,7 +259,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -364,7 +364,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -372,137 +372,6 @@ func TestShouldMutatePod(t *testing.T) {
 
 			// Validate the output.
 			require.Equal(t, test.expected, actual)
-		})
-	}
-}
-
-func TestIsNamespaceEligible(t *testing.T) {
-	tests := map[string]struct {
-		configPath string
-		in         string
-		expected   bool
-		namespaces []workloadmeta.KubernetesMetadata
-	}{
-		"a matchNames namespace is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "billing-service",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("billing-service", nil),
-			},
-			expected: true,
-		},
-		"a rule without a namespace selector is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "foo",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("foo", nil),
-			},
-			expected: true,
-		},
-		"a matchLabels namespace is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "foo",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("foo", map[string]string{
-					"tracing": "yes",
-					"env":     "prod",
-				}),
-			},
-			expected: true,
-		},
-		"a disabled namespace is not eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "infra",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("infra", nil),
-			},
-			expected: false,
-		},
-		"kube-system is eligible because default namespaces are filtered at the webhook layer": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "kube-system",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("kube-system", nil),
-			},
-			expected: true,
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Load the config.
-			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig)
-			require.NoError(t, err)
-
-			// Create a mock meta.
-			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				fx.Supply(coreconfig.Params{}),
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			))
-
-			// Add the namespaces.
-			for _, ns := range test.namespaces {
-				wmeta.Set(&ns)
-			}
-
-			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
-			require.NoError(t, err)
-
-			// Determine if the namespace is eligible.
-			actual := f.IsNamespaceEligible(test.in)
-
-			// Validate the output.
-			require.Equal(t, test.expected, actual)
-		})
-	}
-}
-
-func TestIsNamespaceEligibleSkipsTargetWhenNamespaceMetadataIsUnavailable(t *testing.T) {
-	tests := map[string]struct {
-		fallback string
-		want     bool
-	}{
-		"catch-all fallback makes namespace eligible": {
-			fallback: `
-      - name: "fallback"`,
-			want: true,
-		},
-		"pod-only fallback makes namespace eligible": {
-			fallback: `
-      - name: "pod-only"
-        podSelector:
-          matchLabels:
-            app: "web"`,
-			want: true,
-		},
-		"no fallback leaves namespace ineligible": {
-			want: false,
-		},
-	}
-
-	const configTemplate = `
-apm_config:
-  instrumentation:
-    enabled: true
-    targets:
-      - name: "namespace-label-target"
-        namespaceSelector:
-          matchLabels:
-            instrument: "true"
-%s
-`
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			wmeta := newMatchTestWmeta(t)
-			m := newMatchMutator(t, fmt.Sprintf(configTemplate, test.fallback), wmeta)
-
-			require.Equal(t, test.want, m.IsNamespaceEligible("temporarily-unavailable"))
 		})
 	}
 }
@@ -662,7 +531,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -939,7 +808,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageResolver, nil)
+			f, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
 			require.NoError(t, err)
 
 			// Filter the pod.
@@ -1107,7 +976,7 @@ admission_controller:
 			wmeta := mutatecommon.FakeStoreWithDeployment(t, test.deployments)
 
 			// Create the mutator.
-			m, err := NewTargetMutator(config, wmeta, imageResolver, nil)
+			m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate the pod.

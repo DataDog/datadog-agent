@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Health Platform: the ``health_platform.issues_detected`` telemetry counter
+    is now also tagged with ``severity``, in addition to the existing
+    ``issue_type`` tag. This allows filtering or grouping detected health
+    issues by their severity level.

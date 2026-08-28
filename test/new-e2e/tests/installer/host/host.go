@@ -7,6 +7,8 @@
 package host
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -73,11 +75,170 @@ func (h *Host) GetPkgManager() string {
 	return h.pkgManager
 }
 
+// Procmgr enabled returns true if the procmgr is enabled on the host, ie if the folder processes.d exists
+func (h *Host) ProcmgrEnabled() bool {
+	_, err := h.remote.ReadDir("/opt/datadog-packages/datadog-agent/stable/processes.d")
+	if errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	require.NoError(h.t(), err)
+	return true
+}
+
+// procmgr COAT telemetry gauge names, reported via `datadog-agent diagnose show-metadata agent-full-telemetry`.
+const (
+	metricProcmgrDaemonReachable        = "runtime__procmgr_daemon_reachable"
+	metricProcmgrDaemonReady            = "runtime__procmgr_daemon_ready"
+	metricProcmgrProcessRunning         = "runtime__procmgr_process_running"
+	metricAgentServiceInstalled         = "runtime__agent_service_installed"
+	metricAgentServiceProcmgrConfigured = "runtime__agent_service_procmgr_configured"
+	metricAgentServiceManagementMode    = "runtime__agent_service_management_mode"
+	procmgrManagementModeProcmgr        = "procmgr"
+)
+
+// AssertProcmgrTelemetry verifies the agent's COAT gauges report serviceID/processName as managed
+// by dd-procmgrd. Call this after the process is confirmed running so procmgr is reachable.
+func (h *Host) AssertProcmgrTelemetry(t *testing.T, serviceID, processName string) {
+	t.Helper()
+
+	// The procmgr reporter refreshes every 5 minutes; poll until gauges reflect the current state.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		out, err := h.remote.Execute("sudo datadog-agent diagnose show-metadata agent-full-telemetry")
+		require.NoError(c, err)
+
+		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReachable, nil)
+		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReady, nil)
+		assertTelemetryGaugeTrue(c, out, metricProcmgrProcessRunning, map[string]string{
+			"process": processName,
+		})
+		assertTelemetryGaugeTrue(c, out, metricAgentServiceInstalled, map[string]string{
+			"service": serviceID,
+		})
+		assertTelemetryGaugeTrue(c, out, metricAgentServiceProcmgrConfigured, map[string]string{
+			"service": serviceID,
+		})
+		assertTelemetryGaugeTrue(c, out, metricAgentServiceManagementMode, map[string]string{
+			"service": serviceID,
+			"mode":    procmgrManagementModeProcmgr,
+		})
+	}, 7*time.Minute, 10*time.Second, "procmgr telemetry gauges should be emitted")
+}
+
+func assertTelemetryGaugeTrue(c *assert.CollectT, output, metric string, labels map[string]string) {
+	c.Helper()
+
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if !strings.HasPrefix(trimmed, metric) {
+			continue
+		}
+
+		fields := strings.Fields(trimmed)
+		if len(fields) < 2 {
+			continue
+		}
+		value := fields[len(fields)-1]
+		if value != "1" && value != "1.0" {
+			continue
+		}
+
+		missingLabel := false
+		for key, val := range labels {
+			if !strings.Contains(trimmed, key+`="`+val+`"`) {
+				missingLabel = true
+				break
+			}
+		}
+		if missingLabel {
+			continue
+		}
+
+		return
+	}
+
+	if len(labels) == 0 {
+		assert.Failf(c, "telemetry gauge not found", "expected %s with value 1", metric)
+		return
+	}
+	assert.Failf(c, "telemetry gauge not found", "expected %s with labels %v and value 1", metric, labels)
+}
+
 func (h *Host) setSystemdVersion() {
-	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
-	version, err := strconv.Atoi(strVersion)
+	output := h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'")
+	version, err := parseSystemdVersion(output)
 	require.NoError(h.t(), err)
 	h.systemdVersion = version
+}
+
+func parseSystemdVersion(output string) (int, error) {
+	for _, line := range strings.Split(output, "\n") {
+		version, err := strconv.Atoi(strings.TrimSpace(line))
+		if err == nil {
+			return version, nil
+		}
+	}
+	return 0, fmt.Errorf("could not parse systemd version from %q", output)
+}
+
+// ConfigureAptMirrors hardens apt against package-mirror outages on apt-based hosts.
+// It bounds apt's per-request timeout and retries so an unreachable (or merely slow)
+// mirror fails within seconds instead of hanging until the CI job's 2h timeout, and on
+// Ubuntu rewrites the apt sources to a "mirror+file" list so apt fails over to global
+// mirrors when the regional EC2 mirror is down or degraded. us-east-1 is kept as the
+// first entry (our infra's region), with archive.ubuntu.com / ports.ubuntu.com and a
+// third-party mirror (mirror.leaseweb.net, which mirrors both amd64 and ports) as
+// fallbacks, since ports.ubuntu.com alone is shared across every non-x86 architecture
+// (arm64, armhf, ppc64el, s390x, riscv64) and is far less provisioned than the
+// amd64-only archive.ubuntu.com global CDN. The timeout/retry values mirror
+// Dockerfiles/agent/Dockerfile so CI image builds and e2e installs degrade identically.
+// The source rewrite is skipped on releases whose apt lacks the "mirror+file" method
+// driver (apt < 1.6, e.g. Ubuntu 16.04). See incidents 58780 and 59571.
+func (h *Host) ConfigureAptMirrors() {
+	if h.pkgManager != "apt" {
+		return
+	}
+	// Fail fast when a mirror is unreachable or slow-but-dribbling instead of retrying
+	// with long default TCP timeouts: Acquire::http::Timeout is a per-socket idle timeout,
+	// so a short bound turns a stalled mirror into a fast error that triggers failover.
+	h.remote.MustExecute(`printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' | sudo tee /etc/apt/apt.conf.d/99datadog-e2e-fail-fast`)
+	// Ubuntu EC2 AMIs point at a single regional mirror with no fallback; add global mirrors.
+	if h.os.Flavor != e2eos.Ubuntu {
+		return
+	}
+	// The "mirror+file" transport used below only exists in apt >= 1.6 (Ubuntu >= 18.04). On
+	// older releases (e.g. Ubuntu 16.04, which ships apt 1.2) the method driver is absent, so
+	// rewriting the sources to "mirror+file:" makes every subsequent apt operation fail with
+	// "The method driver /usr/lib/apt/methods/mirror+file could not be found". Skip the source
+	// rewrite there; the Acquire retry/timeout hardening above still applies. See incident 59571.
+	if _, err := h.remote.Execute("test -e /usr/lib/apt/methods/mirror+file"); err != nil {
+		return
+	}
+	h.remote.MustExecute(`printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
+	h.remote.MustExecute(`printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
+	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
+}
+
+// ConfigureYumMirrors is the yum counterpart to ConfigureAptMirrors. CentOS 7 is EOL and its
+// stock /centos/7/ path on vault.centos.org now returns HTTP 403, breaking any "yum install".
+// It repoints base/updates/extras at the versioned vault archive (7.9.2009), with the CERN and
+// kernel.org vault mirrors as ordered fallbacks (failovermethod=priority) plus skip_if_unavailable
+// and a bounded timeout to fail fast. vault's http path matches the agent's production
+// kernel-header downloader (pkg/util/kernel/headers/download/rpm/centos.go). See incident 58780.
+func (h *Host) ConfigureYumMirrors() {
+	if h.pkgManager != "yum" {
+		return
+	}
+	// Only CentOS 7 needs this — its EOL content lives at vault.centos.org/7.9.2009. Other yum
+	// distros (RHEL, Amazon Linux) and CentOS 6 (different vault tree) are left untouched.
+	if h.os.Flavor != e2eos.CentOS || !strings.HasPrefix(h.os.Version, "7") {
+		return
+	}
+	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base\nbaseurl=http://vault.centos.org/7.9.2009/os/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/os/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/os/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[updates]\nname=CentOS-7 - Updates\nbaseurl=http://vault.centos.org/7.9.2009/updates/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/updates/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/updates/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[extras]\nname=CentOS-7 - Extras\nbaseurl=http://vault.centos.org/7.9.2009/extras/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/extras/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/extras/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
+	// Drop metadata cached against the previous (403ing) repo config so the next yum call uses the new mirror.
+	h.remote.MustExecute("sudo yum clean all")
 }
 
 // dockerImage returns the ECR pull-through URL for ecrPath when a registry is configured,
@@ -228,6 +389,31 @@ func (h *Host) WaitForUnitActive(t *testing.T, units ...string) {
 
 			return err == nil
 		}, time.Second*90, time.Second*2, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+	}
+}
+
+// WaitForProcessesRunning waits for procmgr-supervised processes to report a Running state.
+// Unlike State.AssertProcessesRunning (a static snapshot check with no retry), this polls
+// dd-procmgrd directly: becoming Running takes a few extra hops after the hosting systemd unit
+// itself is active (daemon init, processes.d read, condition_path_exists check, process spawn), so
+// a plain WaitForUnitActive on the procmgr unit is not enough to avoid a race with State().
+func (h *Host) WaitForProcessesRunning(t *testing.T, names ...string) {
+	const procmgrBin = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
+	for _, rawName := range names {
+		name := processName(rawName)
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			out, err := h.remote.Execute("sudo -u dd-agent " + procmgrBin + " describe --json " + name)
+			if !assert.NoError(c, err, "dd-procmgr describe failed for process %s", name) {
+				return
+			}
+			var detail struct {
+				State string `json:"state"`
+			}
+			if !assert.NoError(c, json.Unmarshal([]byte(out), &detail), "failed to parse dd-procmgr describe output for %s", name) {
+				return
+			}
+			assert.Equal(c, "Running", detail.State, "process %s is not running", name)
+		}, 2*time.Minute, 5*time.Second)
 	}
 }
 
@@ -384,11 +570,12 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 // State returns the state of the host.
 func (h *Host) State() State {
 	return State{
-		t:      h.t(),
-		Users:  h.users(),
-		Groups: h.groups(),
-		FS:     h.fs(),
-		Units:  h.getSystemdUnitInfo(),
+		t:         h.t(),
+		Users:     h.users(),
+		Groups:    h.groups(),
+		FS:        h.fs(),
+		Units:     h.getSystemdUnitInfo(),
+		Processes: h.getProcessesUnitInfo(),
 	}
 }
 
@@ -539,6 +726,58 @@ func (h *Host) getSystemdUnitInfo() map[string]SystemdUnitInfo {
 	return units
 }
 
+func (h *Host) getProcessesUnitInfo() map[string]ProcessesUnitInfo {
+	processes := make(map[string]ProcessesUnitInfo)
+	if !h.ProcmgrEnabled() {
+		return processes
+	}
+	// Return early if procmgr is not running
+	if _, err := h.remote.Execute("systemctl is-active --quiet datadog-agent-procmgr.service"); err != nil {
+		return processes
+	}
+
+	const procmgrBin = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
+	listOutput := h.remote.MustExecute("sudo -u dd-agent " + procmgrBin + " list --json")
+
+	var entries []struct {
+		Name         string   `json:"name"`
+		UUID         string   `json:"uuid"`
+		State        string   `json:"state"`
+		PID          int      `json:"pid"`
+		Command      string   `json:"command"`
+		Args         []string `json:"args"`
+		RestartCount int      `json:"restart_count"`
+		LastExitCode *int     `json:"last_exit_code"`
+		LastSignal   *int     `json:"last_signal"`
+	}
+	require.NoError(h.t(), json.Unmarshal([]byte(listOutput), &entries))
+
+	for _, e := range entries {
+		info := ProcessesUnitInfo{
+			Name:         e.Name,
+			UUID:         e.UUID,
+			State:        e.State,
+			PID:          e.PID,
+			Command:      e.Command,
+			Args:         e.Args,
+			RestartCount: e.RestartCount,
+			LastExitCode: e.LastExitCode,
+			LastSignal:   e.LastSignal,
+		}
+
+		describeOutput := h.remote.MustExecute("sudo -u dd-agent " + procmgrBin + " describe --json " + e.Name)
+		var detail struct {
+			AutoStart bool `json:"auto_start"`
+		}
+		require.NoError(h.t(), json.Unmarshal([]byte(describeOutput), &detail))
+		info.AutoStart = detail.AutoStart
+
+		processes[e.Name] = info
+	}
+
+	return processes
+}
+
 // SetUmask set the default umask for commands
 func (h *Host) SetUmask(mask string) (oldmask string) {
 	oldmask = strings.TrimSpace(h.remote.MustExecute("umask"))
@@ -633,6 +872,20 @@ type SystemdUnitInfo struct {
 	LoadState LoadState
 }
 
+// ProcessesUnitInfo is the info of a process managed by procmgr.
+type ProcessesUnitInfo struct {
+	Name         string
+	UUID         string
+	State        string
+	PID          int
+	Command      string
+	Args         []string
+	RestartCount int
+	LastExitCode *int
+	LastSignal   *int
+	AutoStart    bool
+}
+
 // FileInfo struct mimics os.FileInfo
 type FileInfo struct {
 	Name      string
@@ -648,11 +901,12 @@ type FileInfo struct {
 
 // State is the state of a remote host.
 type State struct {
-	t      *testing.T
-	Users  []user.User
-	Groups []user.Group
-	FS     map[string]FileInfo
-	Units  map[string]SystemdUnitInfo
+	t         *testing.T
+	Users     []user.User
+	Groups    []user.Group
+	FS        map[string]FileInfo
+	Units     map[string]SystemdUnitInfo
+	Processes map[string]ProcessesUnitInfo
 }
 
 // Stat returns the FileInfo of a path on the host.
@@ -869,5 +1123,69 @@ func (s *State) AssertUnitsDead(names ...string) {
 		unit, ok := s.Units[name]
 		assert.True(s.t, ok, "unit %v is not running", name)
 		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not running", name)
+	}
+}
+
+// processName strips a trailing ".yaml" suffix, allowing callers to pass either the process
+// name (e.g. "datadog-agent-ddot") or its processes.d config filename (e.g. "datadog-agent-ddot.yaml").
+func processName(name string) string {
+	return strings.TrimSuffix(name, ".yaml")
+}
+
+// AssertProcessesLoaded asserts that processes are loaded (registered) by procmgr.
+func (s *State) AssertProcessesLoaded(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		_, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+	}
+}
+
+// AssertProcessesNotLoaded asserts that processes are not loaded (registered) by procmgr.
+func (s *State) AssertProcessesNotLoaded(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		_, ok := s.Processes[name]
+		assert.False(s.t, ok, "process %v is loaded", name)
+	}
+}
+
+// AssertProcessesEnabled asserts that processes are configured to auto-start under procmgr.
+func (s *State) AssertProcessesEnabled(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		process, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+		assert.True(s.t, process.AutoStart, "process %v is not enabled (auto_start)", name)
+	}
+}
+
+// AssertProcessesNotEnabled asserts that processes are loaded but not configured to auto-start.
+func (s *State) AssertProcessesNotEnabled(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		process, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+		assert.False(s.t, process.AutoStart, "process %v is enabled (auto_start)", name)
+	}
+}
+
+// AssertProcessesRunning asserts that processes are running under procmgr.
+func (s *State) AssertProcessesRunning(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		process, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+		assert.Equal(s.t, "Running", process.State, "process %v is not running", name)
+	}
+}
+
+// AssertProcessesDead asserts that processes are not running under procmgr (stopped, exited, crashed or failed).
+func (s *State) AssertProcessesDead(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		process, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+		assert.NotEqual(s.t, "Running", process.State, "process %v is running", name)
 	}
 }

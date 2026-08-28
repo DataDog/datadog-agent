@@ -7,10 +7,11 @@ from __future__ import annotations
 import dataclasses
 import fnmatch
 import glob
-import operator
 import os
 import re
+import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -29,6 +30,7 @@ from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
@@ -44,6 +46,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
+from tasks.schema.generate import schema_codegen
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
@@ -73,41 +76,13 @@ WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
+BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
+DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
+# TODO(OTAGENT-1305): point back to a tagged release once one ships with the go.mod
+# bump upstream currently only has on main.
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
 )
-
-
-class TestProfiler:
-    times = []
-    parser = re.compile(r"^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
-
-    def write(self, txt):
-        # Output to stdout
-        # NOTE: write to underlying stream on Python 3 to avoid unicode issues when default encoding is not UTF-8
-        getattr(sys.stdout, 'buffer', sys.stdout).write(ensure_bytes(txt))
-        # Extract the run time
-        for result in self.parser.finditer(txt):
-            self.times.append((result.group(1), float(result.group(2))))
-
-    def flush(self):
-        sys.stdout.flush()
-
-    def print_sorted(self, limit=0):
-        if self.times:
-            sorted_times = sorted(self.times, key=operator.itemgetter(1), reverse=True)
-
-            if limit:
-                sorted_times = sorted_times[:limit]
-            for pkg, time in sorted_times:
-                print(f"{time}s\t{pkg}")
-
-
-def ensure_bytes(s):
-    if not isinstance(s, bytes):
-        return s.encode('utf-8')
-
-    return s
 
 
 def build_standard_lib(
@@ -116,7 +91,6 @@ def build_standard_lib(
     cmd: str,
     env: dict[str, str],
     args: dict[str, str],
-    test_profiler: TestProfiler,
 ):
     """
     Builds the stdlib with the same build flags as the tests.
@@ -126,10 +100,10 @@ def build_standard_lib(
     """
     args["go_build_tags"] = ",".join(build_tags)
 
-    ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)  # with `warn=True`, errors went unnoticed
+    ctx.run(cmd.format(**args), env=env)  # with `warn=True`, errors went unnoticed
 
 
-def _target_to_bazel_pattern(target: str) -> str:
+def _target_to_bazel_pattern(target: str, recursive=True) -> str:
     """Convert a Go test target path to a Bazel target pattern.
 
     Examples:
@@ -139,13 +113,17 @@ def _target_to_bazel_pattern(target: str) -> str:
         './pkg/util/' -> '//pkg/util/...'
         './pkg/...'   -> '//pkg/...'
     """
+    # .as_posix() both normalizes the path as well as ensures posix-like paths like those used
+    # to refer to Bazel targets
+    target = Path(target).as_posix()
+
     if target in ('.', './'):
-        return '//...'
+        return '//...' if recursive else "//:all"
     # Strip leading './' then any trailing '/' to avoid double-slash before '/...'
     rel = target.removeprefix('./').rstrip('/')
     if rel.endswith('/...'):
         return f'//{rel}'
-    return f'//{rel}/...'
+    return f'//{rel}{"/..." if recursive else ":all"}'
 
 
 def _minimize_bazel_patterns(patterns: list[str]) -> list[str]:
@@ -300,6 +278,17 @@ def _parse_bazel_test_line(line: str) -> tuple[str, str, str | None, bool] | Non
     return None
 
 
+def _bazel_test_jobs() -> str | None:
+    jobs = os.environ.get(BAZEL_TEST_JOBS_ENV)
+    if jobs is None and sys.platform == "win32" and running_in_ci():
+        jobs = str(DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS)
+    if not jobs:
+        return None
+    if not jobs.isdigit() or int(jobs) <= 0:
+        raise Exit(f"{BAZEL_TEST_JOBS_ENV} must be a positive integer, got {jobs!r}")
+    return jobs
+
+
 def _run_bazel_tests(
     ctx, flavor: AgentFlavor, targets: list[str], bazel_flags: list[str] = None, verbose: bool = False
 ) -> TestStats:
@@ -320,6 +309,8 @@ def _run_bazel_tests(
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
     base_args = ["test", "--keep_going", "--build_tests_only", "--curses=no", "--color=no"]
+    if jobs := _bazel_test_jobs():
+        base_args.append(f"--jobs={jobs}")
     if bazel_flags:
         base_args.extend(bazel_flags)
     fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
@@ -410,7 +401,6 @@ def test_flavor(
     env: dict[str, str],
     args: dict[str, str],
     result_junit: str,
-    test_profiler: TestProfiler,
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
     recursive: bool = True,
@@ -436,12 +426,12 @@ def test_flavor(
     # Produce the result json file, which is used to show the failures at the end of the test run
     if result_json:
         result.result_json_path = os.path.join(result.path, result_json)
-        args["json_flag"] = "--jsonfile " + result.result_json_path
+        args["json_flag"] = f'--jsonfile "{result.result_json_path}"'
 
     # Produce the junit file if needed
     if result_junit:
         result_junit_path = os.path.join(result.path, result_junit)
-        args["junit_file_flag"] = "--junitfile " + result_junit_path
+        args["junit_file_flag"] = f'--junitfile "{result_junit_path}"'
 
     # Compute full list of targets to run tests against
     module_list = list(modules)
@@ -482,21 +472,35 @@ def test_flavor(
     for batch in batches:
         batch_packages = ' '.join(batch)
         with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
-            res = ctx.run(
-                command=cmd.format(
-                    packages=batch_packages,
-                    cov_test_path=cov_test_path,
-                    **args,
-                ),
-                env=env,
-                out_stream=test_profiler,
-                warn=True,
-            )
+            formatted_cmd = cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)
+            if sys.platform == "aix":
+                # AIX has no Bazel yet. ctx.run goes through a shell, so build the
+                # exact argv (the same shlex.split list the bazel path passes) and
+                # re-quote it with shlex.join — otherwise shell metacharacters in
+                # the command (e.g. `|` in a `-run TestA|TestB` regex) would be
+                # interpreted by the shell instead of passed literally to go test.
+                gotestsum_argv = ["gotestsum", *shlex.split(formatted_cmd)]
+                run_res = ctx.run(shlex.join(gotestsum_argv), env=env, warn=True, hide=False)
+                res = subprocess.CompletedProcess(
+                    args=gotestsum_argv,
+                    returncode=run_res.return_code,
+                    stdout=run_res.stdout,
+                    stderr=run_res.stderr,
+                )
+            else:
+                res = bazel(
+                    "run",
+                    "//internal/tools:gotestsum",
+                    "--",
+                    *shlex.split(formatted_cmd),
+                    env=env,  # contains secrets, so passing each variable through `--run_env=` would print their values
+                    ignore_errors=True,
+                )
             # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-            if res is not None and res.exited == 130:
+            if res is not None and res.returncode in (130, -signal.SIGINT):
                 raise KeyboardInterrupt()
 
-        if res is not None and (res.exited is None or res.exited > 0):
+        if res is not None and res.returncode != 0:
             result.failed = True
         elif not skip_tests_covered_by_bazel:
             lines = res.stdout.splitlines()
@@ -628,10 +632,10 @@ def test(
     build_exclude=None,
     verbose=False,
     race=False,
-    profile=False,
     rtloader_root=None,
     python_home_3=None,
     cpus=None,
+    build_cpus=None,
     timeout=180,
     cache=True,
     test_run_name="",
@@ -671,6 +675,9 @@ def test(
         skip_tests_covered_by_bazel = True
         run_bazel_tests = True
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
     unit_tests_tags = compute_build_tags_for_flavor(
@@ -687,13 +694,11 @@ def test(
         include_python="python" in unit_tests_tags,
     )
 
-    # Use stdout if no profile is set
-    test_profiler = TestProfiler() if profile else None
-
     race_opt = "-race" if race else ""
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
-    build_cpus_opt = f"-p {cpus}" if cpus else ""
+    build_cpus = build_cpus or cpus
+    build_cpus_opt = f"-p {build_cpus}" if build_cpus else ""
     test_cpus_opt = f"-parallel {cpus}" if cpus else ""
     trimpath_opt = "-trimpath" if 'DELVE' not in os.environ else ""
 
@@ -723,7 +728,7 @@ def test(
     gobuild_flags = '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt} {trimpath_opt}'
 
     stdlib_build_cmd = f'go build {{verbose}} {gobuild_flags} std cmd'
-    rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
+    rerun_coverage_fix = '--raw-command "{cov_test_path}"' if coverage else ""
     gotestsum_flags = (
         '{junit_file_flag} {json_flag} --format {gotestsum_format} {rerun_fails} --packages="{packages}" '
         + rerun_coverage_fix
@@ -732,7 +737,7 @@ def test(
     gotest_flags = (
         '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
     )
-    cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
+    cmd = f'{gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -760,7 +765,6 @@ def test(
             cmd=stdlib_build_cmd,
             env=env,
             args=args,
-            test_profiler=test_profiler,
         )
 
     if only_modified_packages:
@@ -805,7 +809,6 @@ def test(
             args=args,
             result_junit=result_junit,
             result_json=result_json,
-            test_profiler=test_profiler,
             coverage=coverage,
             recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
             exclude_packages=exclude_packages or None,
@@ -818,12 +821,6 @@ def test(
     if test_result:
         if coverage and print_coverage:
             coverage_flavor(ctx)
-
-        # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
-        # in the meantime to avoid confusion
-        if profile:
-            # print("\n--- Top 15 packages sorted by run time:")
-            test_profiler.print_sorted(15)
 
         go_success, go_stats = process_test_result(
             ctx,
@@ -876,6 +873,65 @@ def test(
 
     if test_result and not run_bazel_tests:
         print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
+
+
+@task(
+    help={
+        "module": "Path to the Go module to test (for example '.', 'comp/core', or 'pkg/util/log'). When set, --targets are relative to this module.",
+        "targets": "Comma-separated package targets to test.",
+        "only_modified_packages": "Test only packages containing modified Go files, instead of the targets selected by --module/--targets.",
+        "race": "Run tests with the Go race detector enabled (passes --config=gorace to Bazel).",
+        "test_args": "Additional arguments passed to each Go test binary via Bazel --test_arg. Use test-binary flags such as '-test.run=TestFoo' and '-test.v'. Quote the value when passing multiple arguments.",
+        "bazel_args": "Additional flags passed directly to bazel test. Quote the value when passing multiple flags.",
+    },
+)
+def test_new(
+    ctx,
+    module=None,
+    targets=None,
+    only_modified_packages=False,
+    race=False,
+    test_args="",
+    bazel_args="",
+):
+    """
+    Run go tests.
+
+    This task uses Bazel to run the tests and will soon replace the existing `test` task, which
+    will be renamed to `legacy` and eventually be dropped.
+    """
+
+    if only_modified_packages:
+        modules = get_modified_packages(ctx)
+    else:
+        modules, _ = process_input_args(ctx, module, targets, input_flavor=None)
+
+    if not modules:
+        raise Exit("No targets selected for testing!")
+
+    bazel_flags = [
+        "--config=dd-agent-go-tests-only",
+        "--build_tests_only",
+    ]
+    bazel_flags.extend(shlex.split(bazel_args))
+    if race:
+        bazel_flags.append("--config=gorace")
+
+    for test_arg in shlex.split(test_args):
+        bazel_flags.append(f"--test_arg={test_arg}")
+
+    bazel_targets = [
+        _target_to_bazel_pattern(os.path.join(module.path, target), recursive=not only_modified_packages)
+        for module in modules
+        if module.should_test()
+        for target in module.test_targets
+    ]
+
+    bazel(
+        "test",
+        *bazel_flags,
+        *_minimize_bazel_patterns(bazel_targets),
+    )
 
 
 @task
@@ -948,12 +1004,13 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         if not os.path.exists(os.path.dirname(modified_file)):
             continue
 
-        # If there are go file matching the build tags in the folder we do not try to run tests
-        res = ctx.run(
-            f'go list -tags "{",".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
-        )
-        if res.stderr is not None and "matched no packages" in res.stderr:
-            continue
+        # If there are no files matching the build tags in the folder we do not try to run tests
+        if build_tags:
+            res = ctx.run(
+                f'go list -tags "{",".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
+            )
+            if res.stderr is not None and "matched no packages" in res.stderr:
+                continue
 
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
 
@@ -1435,6 +1492,9 @@ def check_otel_build(ctx):
     package_main = "package main"
     rename_package(file_path, package_otel, package_main)
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     with ctx.cd("test/otel"):
         # Update dependencies to latest local version
         res = ctx.run("go mod tidy")
@@ -1451,6 +1511,11 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
+    print(
+        f"Checking against opentelemetry-collector-contrib main instead of the latest "
+        f"tagged release (v{OTEL_CONTRIB_VERSION}) — see OTAGENT-1305"
+    )
+
     # Get Go version from upstream (e.g., "1.24" or "1.24.0")
     upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)

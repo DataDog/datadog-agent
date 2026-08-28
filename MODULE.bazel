@@ -62,25 +62,26 @@ archive_override(
 bazel_dep(name = "bazel_lib", version = "3.7.1")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
-bazel_dep(name = "gazelle", version = "0.52.2")
-bazel_dep(name = "gcc_toolchain", version = "0.9.2")
+bazel_dep(name = "gazelle", version = "0.53.0")
+bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.3.1")
 bazel_dep(name = "rules_cc", version = "0.2.22")
 bazel_dep(name = "rules_flex", version = "0.4.1")
-bazel_dep(name = "rules_go", version = "0.61.1")
+bazel_dep(name = "rules_go", version = "0.63.0")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "2.2.0")
+bazel_dep(name = "rules_python", version = "2.3.2")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.73.0")
 bazel_dep(name = "rules_rust_prost", version = "0.73.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "toml.bzl", version = "0.4.1")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
+bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
@@ -104,6 +105,11 @@ single_version_override(
 # Temporary until rules_pkg > 1.2.0 is in BCR
 archive_override(
     module_name = "rules_pkg",
+    patch_strip = 1,
+    patches = [
+        # Windows runfiles junctions cannot point at files; follow them on copy.
+        "//bazel/patches:rules_pkg-windows-junction-copy.patch",
+    ],
     sha256 = "9923c6c8855b153f837a953760159908507f571b4b77cb24ed862dda1de20f90",
     strip_prefix = "rules_pkg-401969d4367c42dcbb45d33a637eae87788d025e",
     urls = ["https://github.com/bazelbuild/rules_pkg/archive/401969d4367c42dcbb45d33a637eae87788d025e.tar.gz"],  # main as of April 22, 2026
@@ -212,8 +218,6 @@ register_toolchains(
     dev_dependency = True,
 )
 
-visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
-
 ######################################
 ## LLVM BPF toolchain for eBPF    ##
 ####################################
@@ -262,18 +266,28 @@ use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_hea
 ####################################
 
 archive_override(
+    module_name = "toolchains_msvc",
+    patch_strip = 1,
+    # Adds MSBuild + the VC project system, and whole-tree filegroups, so MSBuild-driven
+    # builds (CPython) can run against the same hermetic toolchain as rules_cc.
+    patches = ["//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch"],
+    sha256 = "1ab52698bd8b1eac2e005a07e25e62538daed471e9657586213b88d7cd7cb14d",
+    strip_prefix = "toolchains_msvc-8e2aa4624bbb5a53a94f135e90995f307875d1ad",
+    urls = ["https://github.com/Dragnalith/toolchains_msvc/archive/8e2aa4624bbb5a53a94f135e90995f307875d1ad.tar.gz"],
+)
+
+archive_override(
     module_name = "gcc_toolchain",
     patch_args = ["-p1"],
     patches = [
         "//bazel/patches:gcc-toolchain/0001-adapt-to-our-ctng-toolchain.patch",
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
-        "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
         "//bazel/patches:gcc-toolchain/0006-independent-exec-target-arch.patch",
     ],
-    sha256 = "c7a6674abbf309d2ed5fb2cf6a03aca1e4f357a6f287de2cf21ace856a08f6c2",
-    strip_prefix = "gcc-toolchain-cd3e7ee1027a3ecc8b89dc61eb485299ed833399",
-    urls = ["https://github.com/f0rmiga/gcc-toolchain/archive/cd3e7ee1027a3ecc8b89dc61eb485299ed833399.tar.gz"],
+    sha256 = "9602cf9a7f854a9a70758e6eac241e269996d2a1eb941479e8886f4ccf127412",
+    strip_prefix = "gcc-toolchain-0.12.1",
+    urls = ["https://github.com/f0rmiga/gcc-toolchain/releases/download/0.12.1/gcc-toolchain-0.12.1.tar.gz"],
 )
 
 gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
@@ -361,20 +375,29 @@ winlibs_mingw_repository(
     url = "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
 )
 
+# Hermetic MSVC + Windows SDK + MSBuild for CPython and DatadogInterop
+# (see deps/cpython/build_python.bat, tools/windows/DatadogInterop). MinGW stays
+# the default Windows cc_toolchain.
+msvc_toolchain = use_extension("@toolchains_msvc//:extensions.bzl", "toolchain")
+msvc_toolchain.toolchain_set(
+    name = "default",
+    # MSVC toolset version, not VS product version: VS 2022 17.14.x → 14.44
+    # (see https://learn.microsoft.com/en-us/cpp/overview/compiler-versions).
+    # toolchains_msvc only accepts 14.xx here, not 17.14.
+    msvc_versions = ["14.44"],
+    # Win11 SDK 10.0.26100; toolchains_msvc uses the trailing build number only.
+    winsdk_versions = ["26100"],
+)
+use_repo(msvc_toolchain, "msvc_toolchains")
+
 # TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
 register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
     "@gcc_toolchain_armv7//:cc_toolchain",
     "@winlibs_mingw64//:mingw_cc_toolchain",
+    "@msvc_toolchains//:all",
     "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
-)
-
-# Visual Studio / MSBuild tooling, taken from the local installation
-visual_studio(
-    name = "visual_studio",
-    path_variable = "VSTUDIO_ROOT",
-    version = "17.14.36717.8",  # 18.4.11612.150
 )
 
 # =========================================
@@ -384,14 +407,12 @@ visual_studio(
 # Keep in sync with .python-version
 PYTHON_VERSION = "3.12"
 
+python_config = use_extension("@rules_python//python/extensions:config.bzl", "config")
+python_config.explicit_init_py(default = True)
+
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
-python.defaults(python_version = PYTHON_VERSION)
-python.toolchain(
-    configure_coverage_tool = False,  # when enabling, please find a way to turn off warnings for unsupported platforms
-    is_default = True,
-    python_version = PYTHON_VERSION,
-)
-use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"), "pythons_hub")
+python.defaults(python_version_file = "//:.python-version")
+use_repo(python, "pythons_hub", "python_" + PYTHON_VERSION.replace(".", "_"))
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 
@@ -408,8 +429,6 @@ pip.parse(
     requirements_lock = "//deps:py_agent_integrations_tool_requirements_lock.txt",
 )
 use_repo(pip, "py_agent_integrations_tool_requirements", "py_dev_requirements")
-
-register_toolchains("@pythons_hub//:all")
 
 #######################
 ## Rust dependencies ##
@@ -429,11 +448,11 @@ rust.repository_set(
         "@platforms//cpu:x86_64",
     ],
     target_triple = "x86_64-pc-windows-gnu",
-    versions = ["1.92.0"],
+    versions = ["1.94.0"],
 )
 rust.toolchain(
     edition = "2024",
-    versions = ["1.92.0"],
+    versions = ["1.94.0"],
 )
 use_repo(rust, "rust_toolchains")
 
@@ -515,7 +534,7 @@ include("//deps/agent_integrations:integrations.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.8.0")
+bazel_dep(name = "apple_support", version = "2.8.1")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
 

@@ -659,6 +659,18 @@ func (e *SyscallContext) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *GoLabelsContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.ID = uint32(binary.NativeEndian.Uint32(data))
+
+	// padding
+
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := e.SyscallEvent.UnmarshalBinary(data)
 	if err != nil {

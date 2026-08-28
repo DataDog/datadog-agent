@@ -19,3 +19,11 @@ private_action_runner:
   # before total_pss_bytes can be sampled. Never authenticates: egress is blackholed.
   urn: "urn:dd:apps:on-prem-runner:us1:1:smp-regression"
   private_key: "eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IkhqMjZFRGtySVJiTXYyUlYta2hLM09JODZMVlUtS0E4dnJ6QkZWdmFYVUEiLCJ5Ijoic0RSREpPemxMZ2pEUnJKbS01YTMtdlFraTZiZExiT0IxY3FldEpxVXNnNCIsImQiOiJBbXhKaVJtMS1icTBLVS1FMng1eHlTclJKTVg3NmJHRlJFNlJLS3lqWDVRIiwiYWxnIjoiRVMyNTYiLCJ1c2UiOiJzaWcifQ"
+
+# Hold the Agent Data Plane pre-flight open for the whole run.
+#
+# The pre-flight starts ADP as a child of the Agent and stops it again after 90s. That step down
+# in total RSS lands in the middle of a replicate here, so the gate ends up measuring when the
+# timer fired as much as what the Agent costs. 30m is well past the ~10 minute experiment, so ADP
+# is resident for every sample instead.
+data_plane.preflight_mode_duration: 30m

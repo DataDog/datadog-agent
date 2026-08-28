@@ -10,6 +10,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_ancestor_base_branch, get_changed_files, get_common_ancestor
 from tasks.libs.common.go import go_build
+from tasks.schema.generate import schema_codegen
 
 VERSION_FILE = "test/fakeintake/version/VERSION"
 
@@ -42,9 +43,8 @@ def build(ctx):
     """
     Build the fake intake
     """
-    with ctx.cd("test/fakeintake"):
-        go_build(ctx, "cmd/server/main.go", bin_path="build/fakeintake")
-        go_build(ctx, "cmd/client/main.go", bin_path="build/fakeintakectl")
+    go_build(ctx, "test/fakeintake/cmd/server/main.go", bin_path="test/fakeintake/build/fakeintake")
+    go_build(ctx, "test/fakeintake/cmd/client/main.go", bin_path="test/fakeintake/build/fakeintakectl")
 
 
 @task
@@ -52,6 +52,9 @@ def test(ctx):
     """
     Run the fake intake tests
     """
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     with ctx.cd("test/fakeintake"):
         ctx.run("go test ./...")
 

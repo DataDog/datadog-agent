@@ -28,6 +28,12 @@ import (
 const (
 	// ADMinMaxDumSize represents the minimum value for runtime_security_config.activity_dump.max_dump_size
 	ADMinMaxDumSize = 100
+
+	// samplingPressureCritical mirrors SAMPLING_PRESSURE_CRITICAL in
+	// pkg/security/ebpf/c/include/constants/custom.h and must be kept in sync with it.
+	// It is the exclusive upper bound for the per-event sampling thresholds: at or above
+	// it the critical check fires first, so the rate limiter band would never be reached.
+	samplingPressureCritical = 90
 )
 
 var (
@@ -284,14 +290,19 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpMaxDumpSize func() int
 
 	// Per-type event sampling config
-	EventSamplingOpenEnabled    bool
-	EventSamplingOpenRate       int
-	EventSamplingConnectEnabled bool
-	EventSamplingConnectRate    int
-	EventSamplingBindEnabled    bool
-	EventSamplingBindRate       int
-	EventSamplingDNSEnabled     bool
-	EventSamplingDNSRate        int
+	EventSamplingOpenEnabled      bool
+	EventSamplingOpenRate         int
+	EventSamplingOpenThreshold    int
+	EventSamplingConnectEnabled   bool
+	EventSamplingConnectRate      int
+	EventSamplingConnectThreshold int
+	EventSamplingBindEnabled      bool
+	EventSamplingBindRate         int
+	EventSamplingBindThreshold    int
+	EventSamplingDNSEnabled       bool
+	EventSamplingDNSRate          int
+	EventSamplingDNSThreshold     int
+	EventSamplingDynamicEnabled   bool
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
@@ -422,6 +433,9 @@ type RuntimeSecurityConfig struct {
 	EnforcementEnabled bool
 	// EnforcementRawSyscallEnabled defines if the enforcement should be performed using the sys_enter tracepoint
 	EnforcementRawSyscallEnabled bool
+	// EnforcementCgroupKillEnabled defines if a kill action scoped to a container or a cgroup may
+	// kill the whole cgroup at once, instead of signalling each of its processes
+	EnforcementCgroupKillEnabled bool
 	EnforcementBinaryExcluded    []string
 	EnforcementRuleSourceAllowed []string
 	// EnforcementDisarmerContainerEnabled defines if an enforcement rule should be disarmed when hitting too many different containers
@@ -633,14 +647,19 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// event sampling (per-type)
-		EventSamplingOpenEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
-		EventSamplingOpenRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
-		EventSamplingConnectEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
-		EventSamplingConnectRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
-		EventSamplingBindEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
-		EventSamplingBindRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
-		EventSamplingDNSEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
-		EventSamplingDNSRate:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
+		EventSamplingOpenEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
+		EventSamplingOpenRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
+		EventSamplingOpenThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.threshold"),
+		EventSamplingConnectEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
+		EventSamplingConnectRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
+		EventSamplingConnectThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
+		EventSamplingBindEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingBindThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
+		EventSamplingDNSEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
+		EventSamplingDNSRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
+		EventSamplingDNSThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.threshold"),
+		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -679,6 +698,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EnforcementEnabled:                      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.enabled"),
 		EnforcementBinaryExcluded:               pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.enforcement.exclude_binaries"),
 		EnforcementRawSyscallEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.raw_syscall.enabled"),
+		EnforcementCgroupKillEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.cgroup_kill.enabled"),
 		EnforcementRuleSourceAllowed:            pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.enforcement.rule_source_allowed"),
 		EnforcementDisarmerContainerEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.disarmer.container.enabled"),
 		EnforcementDisarmerContainerMaxAllowed:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.enforcement.disarmer.container.max_allowed"),
@@ -819,6 +839,20 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 	if c.EnforcementDisarmerExecutableEnabled && c.EnforcementDisarmerExecutableMaxAllowed <= 0 {
 		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
+	}
+
+	for _, threshold := range []struct {
+		eventType string
+		value     int
+	}{
+		{"open", c.EventSamplingOpenThreshold},
+		{"connect", c.EventSamplingConnectThreshold},
+		{"bind", c.EventSamplingBindThreshold},
+		{"dns", c.EventSamplingDNSThreshold},
+	} {
+		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
+			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)
+		}
 	}
 
 	c.sanitizePlatform()

@@ -316,7 +316,7 @@ func (d *Manager) assertCompose() (command.Command, error) {
 	// the SBOM/RHEL10 work in #51486); migrated OSes assume docker-compose is
 	// pre-baked and hard-fail below if it is missing.
 	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux:
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux, os.AmazonLinuxECS:
 		return InstallCompose(d.Host, opts...)
 	}
 

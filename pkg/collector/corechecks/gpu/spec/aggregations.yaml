@@ -14,6 +14,11 @@ aggregations:
     time_aggregator: "max/last"
     group_aggregator: "sum"
     granularity_aggregator: "max"
+  interval_count:
+    description: "Number of events counted in each collection interval"
+    time_aggregator: "sum"
+    group_aggregator: "sum"
+    granularity_aggregator: "sum"
   sensor_data:
     description: "GPU sensor readings"
     time_aggregator: "avg"

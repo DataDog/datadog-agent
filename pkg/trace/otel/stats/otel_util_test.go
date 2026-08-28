@@ -31,6 +31,7 @@ var (
 	testTraceID = [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	testSpanID1 = [8]byte{1, 2, 3, 4, 5, 6, 7, 8}
 	testSpanID2 = [8]byte{2, 2, 3, 4, 5, 6, 7, 8}
+	testSpanID3 = [8]byte{3, 2, 3, 4, 5, 6, 7, 8}
 )
 
 func TestProcessOTLPTraces(t *testing.T) {
@@ -459,6 +460,83 @@ func TestProcessOTLPTraces(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHasClientComputedStats(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		set  func(pcommon.Map)
+		want bool
+	}{
+		{name: "absent", set: func(pcommon.Map) {}, want: false},
+		{name: "bool_true", set: func(attrs pcommon.Map) { attrs.PutBool(keyStatsComputed, true) }, want: true},
+		{name: "bool_false", set: func(attrs pcommon.Map) { attrs.PutBool(keyStatsComputed, false) }, want: false},
+		{name: "string_true", set: func(attrs pcommon.Map) { attrs.PutStr(keyStatsComputed, "true") }, want: true},
+		{name: "string_false", set: func(attrs pcommon.Map) { attrs.PutStr(keyStatsComputed, "false") }, want: false},
+		{name: "nonempty", set: func(attrs pcommon.Map) { attrs.PutStr(keyStatsComputed, "1") }, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			tc.set(attrs)
+			assert.Equal(t, tc.want, hasClientComputedStats(attrs))
+		})
+	}
+}
+
+func TestOTLPTracesToConcentratorInputsSkipsClientComputedResource(t *testing.T) {
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	assert.NoError(t, err)
+
+	traces := ptrace.NewTraces()
+	rspan := traces.ResourceSpans().AppendEmpty()
+	rspan.Resource().Attributes().PutBool(keyStatsComputed, true)
+	span := rspan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(testTraceID)
+	span.SetSpanID(testSpanID1)
+	span.SetName("client request")
+	span.SetKind(ptrace.SpanKindClient)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-time.Second)))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+
+	conf := config.New()
+	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	assert.Empty(t, OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil))
+}
+
+func newTestClientSpan(spanID pcommon.SpanID, markComputed bool) ptrace.Span {
+	span := ptrace.NewSpan()
+	span.SetTraceID(testTraceID)
+	span.SetSpanID(spanID)
+	span.SetName("client request")
+	span.SetKind(ptrace.SpanKindClient)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-time.Second)))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	if markComputed {
+		span.Attributes().PutBool(keyStatsComputed, true)
+	}
+	return span
+}
+
+func TestOTLPTracesToConcentratorInputsSkipsResourceWhenSpanIsClientComputed(t *testing.T) {
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	require.NoError(t, err)
+
+	traces := ptrace.NewTraces()
+	computedResourceSpans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	newTestClientSpan(testSpanID1, false).CopyTo(computedResourceSpans.AppendEmpty())
+	newTestClientSpan(testSpanID2, true).CopyTo(computedResourceSpans.AppendEmpty())
+	uncomputedResourceSpans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	newTestClientSpan(testSpanID3, false).CopyTo(uncomputedResourceSpans.AppendEmpty())
+
+	conf := config.New()
+	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
+	require.Len(t, inputs, 1)
+	assert.Len(t, inputs[0].Traces[0].TraceChunk.Spans, 1)
 }
 
 func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {

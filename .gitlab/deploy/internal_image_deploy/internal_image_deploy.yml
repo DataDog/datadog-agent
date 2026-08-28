@@ -39,7 +39,7 @@
         export RELEASE_PROD=""
       fi
     - if [ "${RELEASE_PROD_OVERRIDE:-}" = "true" ]; then export RELEASE_PROD="true"; fi
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref ${IMAGES_GIT_REF} --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref ${IMAGES_GIT_REF} --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS --variable MERGE_PLATFORM"
   retry: 2
 
 # -- binary specific variables --
@@ -68,10 +68,12 @@ publish_internal_container_image-jmx:
     matrix:
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
-        IMAGE_VERSION: tmpl-v24
+        IMAGE_VERSION: tmpl-v24.1
+        MERGE_PLATFORM: "false"
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
-        IMAGE_VERSION: tmpl-v25
+        IMAGE_VERSION: tmpl-v26
+        MERGE_PLATFORM: "true"
   needs:
     - job: docker_build_agent7_jmx
       artifacts: false
@@ -89,10 +91,12 @@ publish_internal_container_image-fips:
     matrix:
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
-        IMAGE_VERSION: tmpl-v24
+        IMAGE_VERSION: tmpl-v24.1
+        MERGE_PLATFORM: "false"
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
-        IMAGE_VERSION: tmpl-v25
+        IMAGE_VERSION: tmpl-v26
+        MERGE_PLATFORM: "true"
   needs:
     - job: docker_build_fips_agent7_jmx
       artifacts: false
@@ -110,9 +114,11 @@ publish_internal_container_image-ot_standalone:
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v7
+        MERGE_PLATFORM: "false"
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
         IMAGE_VERSION: tmpl-v8
+        MERGE_PLATFORM: "true"
   needs:
     - job: docker_build_ot_agent_standalone_amd64
       artifacts: false
@@ -129,9 +135,11 @@ publish_internal_container_image-ot_standalone-fips:
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v7
+        MERGE_PLATFORM: "false"
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
         IMAGE_VERSION: tmpl-v8
+        MERGE_PLATFORM: "true"
   needs:
     - job: docker_build_ot_agent_standalone_fips_amd64
       artifacts: false
@@ -149,9 +157,11 @@ publish_internal_container_image-host_profiler_standalone:
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v1
+        MERGE_PLATFORM: "false"
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
         IMAGE_VERSION: tmpl-v2
+        MERGE_PLATFORM: "true"
   needs:
     - job: docker_build_host_profiler_standalone_amd64
       artifacts: false
@@ -169,9 +179,11 @@ publish_internal_dca_container_image:
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v12
+        MERGE_PLATFORM: "false"
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
         IMAGE_VERSION: tmpl-v13
+        MERGE_PLATFORM: "true"
   needs:
     - job: docker_build_cluster_agent_amd64
       artifacts: false
@@ -187,9 +199,12 @@ publish_internal_dca_container_image-fips:
       - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
         IMAGE_VERSION: tmpl-v12
+        MERGE_PLATFORM: "false"
       - COMPRESSION: ""
         RELEASE_TAG_COMPRESSION_SUFFIX: ""
         IMAGE_VERSION: tmpl-v13
+        MERGE_PLATFORM: "true"
+
   needs:
     - job: docker_build_cluster_agent_fips_amd64
       artifacts: false

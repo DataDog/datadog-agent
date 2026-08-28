@@ -28,7 +28,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -678,9 +678,9 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 6 jobs with different schedules:
+	// Default configuration has 7 jobs with different schedules:
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 6, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 7, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
 	totalProfiles := 0
@@ -688,8 +688,8 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 20 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe)
-	assert.Equal(t, 20, totalProfiles)
+	// Default config has 21 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode)
+	assert.Equal(t, 21, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -2934,6 +2934,91 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 			require.Equal(t, testCase.aggregateTotal, metric.AggregateTotal)
 		})
 	}
+}
+
+func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
+	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, candidate := range cfg.Profiles {
+		if candidate.Name == "cluster-agent" {
+			profile = candidate
+			break
+		}
+	}
+	require.NotNil(t, profile)
+	require.NotNil(t, profile.Metric)
+
+	metrics := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, metric := range profile.Metric.Metrics {
+		metrics[metric.Name] = metric.PreserveTags
+	}
+
+	assert.Contains(t, metrics, "instrumentation_controller.resources")
+	assert.ElementsMatch(t, []string{"section", "status"}, metrics["instrumentation_controller.reconciliations"])
+}
+
+// TestDataPlanePreflightModeProfile guards the Agent Data Plane preflight mode metrics.
+//
+// The pre-flight in comp/dataplane/preflightmode reports its outcome purely through these
+// three metrics, and a metric missing from this allowlist is dropped rather than shipped.
+// The label allowlists matter just as much: an unlisted label is stripped and its
+// timeseries summed into the others, which would collapse every distinct finding into one
+// meaningless number. The matching tripwire on the producing side is
+// TestFindingsAreAllowlisted in comp/dataplane/preflightmode/impl.
+func TestDataPlanePreflightModeProfile(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, defaultProfiles)
+	atCfg, err := parseConfig(cfg)
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, p := range atCfg.Profiles {
+		if p.Name == "data-plane-preflight-mode" {
+			profile = p
+			break
+		}
+	}
+	require.NotNil(t, profile, "the data-plane-preflight-mode profile is missing")
+	require.NotNil(t, profile.Metric)
+
+	wantTags := map[string][]string{
+		"data_plane.preflight_mode_result":           {"result"},
+		"data_plane.preflight_mode_finding":          {"finding"},
+		"data_plane.preflight_mode_duration_seconds": nil,
+	}
+
+	got := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, m := range profile.Metric.Metrics {
+		got[m.Name] = m.PreserveTags
+	}
+
+	for name, tags := range wantTags {
+		preserved, ok := got[name]
+		require.Truef(t, ok, "%s is not allowlisted, so it would never be sent", name)
+		assert.ElementsMatchf(t, tags, preserved, "preserve_tags for %s", name)
+	}
+
+	require.NotNil(t, profile.Schedule)
+
+	// The first flush must land after the run finishes, or it would report an empty run. The
+	// shortest possible window is minPreflightModeDuration in comp/dataplane/preflightmode/impl
+	// (90s; data_plane.preflight_mode_duration can only extend it, which the recurring schedule
+	// below covers). This asserts the schedule keeps clear of the floor with margin. Raising that
+	// constant past this bound should fail here.
+	const preflightModeWindowSeconds = 90
+	assert.Greater(t, int(profile.Schedule.StartAfter), preflightModeWindowSeconds,
+		"the first flush must land after the preflight mode window closes")
+
+	// The schedule also stays recurring, so a future change to the window cannot silently
+	// strand the outcome. Safe because counters are delta-converted: the increment ships on
+	// whichever flush first observes it, and later flushes send zero, which zero_metric drops.
+	assert.Zero(t, int(profile.Schedule.Iterations),
+		"the schedule must be recurring so a longer preflight mode window still reports")
+	require.NotNil(t, profile.Metric.Exclude)
+	require.NotNil(t, profile.Metric.Exclude.ZeroMetric)
+	assert.True(t, *profile.Metric.Exclude.ZeroMetric,
+		"zero_metric exclusion is what keeps the recurring schedule from re-shipping the same run")
 }
 
 func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {

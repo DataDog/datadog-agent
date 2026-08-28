@@ -36,7 +36,7 @@ test/fakeintake/
 | `/api/v1/connections` | ConnectionsAggregator | `GetConnections()` |
 | `/api/v1/container` | ContainerAggregator | `GetContainers()` |
 | `/api/v2/agentdiscovery` | AgentDiscoveryAggregator | `GetAgentDiscoveryPayloads()` |
-| `/api/v2/contimage` | ContainerImageAggregator | `GetContainerImages()` |
+| `/api/v2/contimage` | ContainerImageAggregator | `GetContainerImageNames()` / `FilterContainerImages()` |
 | `/api/v2/contlcycle` | ContainerLifecycleAggregator | `GetContainerLifecycleEvents()` |
 | `/api/v2/sbom` | SBOMAggregator | `GetSBOMIDs()` / `FilterSBOMs()` |
 | `/api/v2/orch` | OrchestratorAggregator | `GetOrchestratorResources()` |
@@ -78,6 +78,34 @@ fakeintake.FlushServerAndResetAggregators()
 // Debug: list all received metric names
 names, _ := fakeintake.GetMetricNames()
 ```
+
+## Private Action Runner
+
+Fakeintake simulates the OPMS endpoints used by the Private Action Runner and
+provides control endpoints for tests:
+
+| Route | Purpose |
+|-------|---------|
+| `POST /api/v2/on-prem-management-service/workflow-tasks/dequeue` | PAR dequeues a task |
+| `POST /api/v2/on-prem-management-service/workflow-tasks/publish-task-update` | PAR publishes a result |
+| `POST /api/v2/on-prem-management-service/workflow-tasks/heartbeat` | PAR sends a task heartbeat |
+| `GET /api/v2/on-prem-management-service/runner/health-check` | PAR checks OPMS health |
+| `POST /fakeintake/par/enqueue` | Enqueue a task from a test |
+| `GET /fakeintake/par/result` | Read a task result |
+| `POST /fakeintake/par/signing-key` | Register the signing identity used for dequeued tasks |
+| `POST /fakeintake/par/flush` | Clear queued tasks and results |
+| `GET /fakeintake/par/stats` | Read the dequeue count |
+
+By default, dequeued tasks have unsigned envelopes. To exercise real task
+verification, first push the matching public key through the `AP_RUNNER_KEYS`
+Remote Config product, then register the private key with fakeintake:
+
+```go
+err := fakeintake.SetPARSigningKey(keyID, privateKey, orgID, runnerID, connectionID)
+```
+
+The key ID and private key must match the public key delivered to PAR. Calls to
+`EnqueuePARTask` after registration return signed envelopes that PAR can verify.
 
 ## Remote Config
 

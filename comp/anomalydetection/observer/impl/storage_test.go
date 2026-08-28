@@ -33,6 +33,45 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
+	s := newTimeSeriesStorage()
+	var ref observer.SeriesRef
+	for i := int64(1); i <= 5; i++ {
+		res := s.Add("test", "my.metric", float64(i), i, []string{"env:prod"})
+		ref = res.Ref
+	}
+
+	var got []observer.Point
+	found := s.ForEachLastPoints(ref, 4, 3, AggregateAverage, func(series *observer.Series, p observer.Point) {
+		assert.Equal(t, "my.metric", series.Name)
+		got = append(got, p)
+	})
+	require.True(t, found)
+	assert.Equal(t, []observer.Point{{Timestamp: 2, Value: 2}, {Timestamp: 3, Value: 3}, {Timestamp: 4, Value: 4}}, got)
+}
+
+func TestTimeSeriesStorage_ForEachLastPoints_Boundaries(t *testing.T) {
+	s := newTimeSeriesStorage()
+	res := s.Add("test", "my.metric", 1, 10, nil)
+	s.Add("test", "my.metric", 2, 20, nil)
+
+	called := false
+	assert.False(t, s.ForEachLastPoints(res.Ref, 20, 0, AggregateAverage, func(*observer.Series, observer.Point) { called = true }))
+	assert.False(t, called)
+
+	var got []int64
+	require.True(t, s.ForEachLastPoints(res.Ref, 100, 10, AggregateAverage, func(_ *observer.Series, p observer.Point) {
+		got = append(got, p.Timestamp)
+	}))
+	assert.Equal(t, []int64{10, 20}, got)
+}
+
+func TestDefaultStorageConfigIncludesInactiveSeriesEviction(t *testing.T) {
+	cfg := DefaultStorageConfig()
+	assert.Equal(t, int64(5*60), cfg.InactiveSeriesTTLSeconds)
+	assert.Equal(t, int64(5*60), cfg.InactiveSeriesCheckIntervalSeconds)
+}
+
 func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {
 	s := newTimeSeriesStorage()
 
@@ -74,20 +113,37 @@ func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
 	assert.Equal(t, 3.0, series.Points[0].Value)
 }
 
-func TestTimeSeriesStorage_AddSameBucket_MinMax(t *testing.T) {
+func TestTimeSeriesStorage_LeavesUnitCountsImplicit(t *testing.T) {
 	s := newTimeSeriesStorage()
+	res := s.Add("test", "my.metric", 10, 1000, nil)
+	s.Add("test", "my.metric", 20, 1001, nil)
 
-	s.Add("test", "my.metric", 10.0, 1000, nil)
-	s.Add("test", "my.metric", 20.0, 1000, nil)
-	s.Add("test", "my.metric", 5.0, 1000, nil)
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	assert.Nil(t, stats.counts)
+	assert.Equal(t, int64(2), stats.sampleCount())
+}
 
-	minSeries := s.GetSeries("test", "my.metric", nil, AggregateMin)
-	maxSeries := s.GetSeries("test", "my.metric", nil, AggregateMax)
+func TestTimeSeriesStorage_ExplicitCountsStayAlignedThroughInsertAndTrim(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
+	res := s.Add("test", "my.metric", 30, 1002, nil)
+	s.Add("test", "my.metric", 10, 1000, nil)
+	s.Add("test", "my.metric", 20, 1001, nil)
+	s.Add("test", "my.metric", 40, 1002, nil)
+	s.Add("test", "my.metric", 50, 1003, nil)
 
-	require.NotNil(t, minSeries)
-	require.NotNil(t, maxSeries)
-	assert.Equal(t, 5.0, minSeries.Points[0].Value)
-	assert.Equal(t, 20.0, maxSeries.Points[0].Value)
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	require.NotNil(t, stats.counts)
+	assert.Equal(t, []int64{1, 2, 1}, stats.counts.values)
+
+	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
+	require.NotNil(t, series)
+	assert.Equal(t, []observer.Point{
+		{Timestamp: 1001, Value: 20},
+		{Timestamp: 1002, Value: 35},
+		{Timestamp: 1003, Value: 50},
+	}, series.Points)
 }
 
 func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
@@ -108,6 +164,38 @@ func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 	assert.Equal(t, 20.0, series.Points[1].Value)
 	assert.Equal(t, 30.0, series.Points[2].Value)
+}
+
+func TestTimeSeriesStorage_MaxPointsRetainsPendingBucket(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 3})
+	for timestamp := int64(1); timestamp <= 6; timestamp++ {
+		s.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+
+	series := s.GetSeriesRange(observer.SeriesRef(0), 0, 6, AggregateAverage)
+	require.NotNil(t, series)
+	require.Equal(t, []observer.Point{
+		{Timestamp: 3, Value: 3},
+		{Timestamp: 4, Value: 4},
+		{Timestamp: 5, Value: 5},
+		{Timestamp: 6, Value: 6},
+	}, series.Points)
+	assert.Equal(t, 3, s.PointCountUpTo(observer.SeriesRef(0), 5))
+}
+
+func TestTimeSeriesStorage_CombinesDurationAndPointRetention(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{PointRetentionSecs: 3, MaxPointsPerSeries: 2})
+	for timestamp := int64(1); timestamp <= 6; timestamp++ {
+		s.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+
+	series := s.GetSeriesRange(observer.SeriesRef(0), 0, 6, AggregateAverage)
+	require.NotNil(t, series)
+	require.Equal(t, []observer.Point{
+		{Timestamp: 4, Value: 4},
+		{Timestamp: 5, Value: 5},
+		{Timestamp: 6, Value: 6},
+	}, series.Points)
 }
 
 func TestTimeSeriesStorage_PreservesOutOfOrderBuckets(t *testing.T) {
@@ -180,39 +268,29 @@ func TestTimeSeriesStorage_AllSeries(t *testing.T) {
 }
 
 func TestSeriesStats_AggregateAt(t *testing.T) {
-	// Build a seriesStats with known columnar data to test aggregation.
+	// Build a seriesStats with known bucket data to test aggregation.
 	ss := &seriesStats{
-		timestamps: []int64{1000},
-		sums:       []float64{100.0},
-		counts:     []int64{4},
-		mins:       []float64{10.0},
-		maxes:      []float64{40.0},
+		buckets: []pointBucket{{timestamp: 1000, sum: 100.0}},
+		counts:  &bucketCounts{values: []int64{4}},
 	}
 
 	assert.Equal(t, 25.0, ss.aggregateAt(0, AggregateAverage))
 	assert.Equal(t, 100.0, ss.aggregateAt(0, AggregateSum))
 	assert.Equal(t, 4.0, ss.aggregateAt(0, AggregateCount))
-	assert.Equal(t, 10.0, ss.aggregateAt(0, AggregateMin))
-	assert.Equal(t, 40.0, ss.aggregateAt(0, AggregateMax))
 
 	// Zero count returns 0 for average
 	ss2 := &seriesStats{
-		timestamps: []int64{1000},
-		sums:       []float64{10.0},
-		counts:     []int64{0},
-		mins:       []float64{0},
-		maxes:      []float64{0},
+		buckets: []pointBucket{{timestamp: 1000, sum: 10.0}},
+		counts:  &bucketCounts{values: []int64{0}},
 	}
 	assert.Equal(t, 0.0, ss2.aggregateAt(0, AggregateAverage))
 }
 
 func TestAggSuffix(t *testing.T) {
-	// Test all aggregation types return correct suffixes
+	// Test all aggregation types return correct suffixes.
 	assert.Equal(t, "avg", aggSuffix(AggregateAverage))
 	assert.Equal(t, "sum", aggSuffix(AggregateSum))
 	assert.Equal(t, "count", aggSuffix(AggregateCount))
-	assert.Equal(t, "min", aggSuffix(AggregateMin))
-	assert.Equal(t, "max", aggSuffix(AggregateMax))
 
 	// Unknown aggregation type
 	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
@@ -348,7 +426,7 @@ func TestGetSeriesRange_NoOverlap(t *testing.T) {
 
 func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	s := newTimeSeriesStorage()
-	// Two values in the same bucket: sum=30, count=2, min=10, max=20, avg=15
+	// Two values in the same bucket: sum=30, count=2, avg=15.
 	s.Add("ns", "m", 10.0, 100, nil)
 	s.Add("ns", "m", 20.0, 100, nil)
 
@@ -360,8 +438,6 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	}{
 		{AggregateSum, 30.0},
 		{AggregateCount, 2.0},
-		{AggregateMin, 10.0},
-		{AggregateMax, 20.0},
 		{AggregateAverage, 15.0},
 	} {
 		result := s.GetSeriesRange(id, 0, 200, tc.agg)
@@ -609,7 +685,7 @@ func TestTimeSeriesStorage_ListSeriesRefsInto_MatchesListSeriesFilters(t *testin
 			}
 
 			got := s.ListSeriesRefsInto(filter, []observer.SeriesRef{999})
-			require.Equal(t, want, got)
+			require.ElementsMatch(t, want, got)
 		})
 	}
 }
@@ -620,7 +696,7 @@ func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 	resA := s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
 	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
 	resC := s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
-	require.Equal(t, 3, s.TotalSeriesCount(""))
+	require.Equal(t, 3, s.TotalSeriesCount())
 	genBefore := s.SeriesGeneration()
 
 	refA, refB, refC := resA.Ref, resB.Ref, resC.Ref
@@ -629,7 +705,7 @@ func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 	removed := s.RemoveSeriesByRefs([]observer.SeriesRef{refB, refC, -1})
 	require.Len(t, removed, 2, "out-of-range refs are silently ignored")
 	require.ElementsMatch(t, []observer.SeriesRef{refB, refC}, removed, "freed refs are returned for fan-out to detectors")
-	require.Equal(t, 1, s.TotalSeriesCount(""), "only series 'a' should remain")
+	require.Equal(t, 1, s.TotalSeriesCount(), "only series 'a' should remain")
 	require.Greater(t, s.SeriesGeneration(), genBefore, "seriesGen bumps on removal")
 
 	require.Nil(t, s.GetSeriesMeta(refB), "removed ref resolves to nil")
@@ -638,9 +714,82 @@ func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 
 	// A subsequent Add for the same series creates a fresh series with a new ref.
 	res2B := s.Add("ns", "b", 99.0, 1100, []string{"k:2"})
-	require.Equal(t, 2, s.TotalSeriesCount(""), "re-add re-creates the series")
+	require.Equal(t, 2, s.TotalSeriesCount(), "re-add re-creates the series")
 	require.NotEqual(t, refB, res2B.Ref, "new ref minted; old ref is retired")
 	require.Nil(t, s.GetSeriesMeta(refB), "old ref still resolves to nil after re-add")
+}
+
+func TestTimeSeriesStorage_TotalSeriesCountTracksCatalogMutations(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	first := s.Add("workload", "requests", 1, 1, nil)
+	s.Add("workload", "requests", 2, 2, nil) // existing series must not change counts
+	s.Add("workload", "errors", 1, 1, nil)
+	s.Add(observer.TelemetryNamespace, "internal", 1, 1, nil)
+	require.Equal(t, 2, s.TotalSeriesCount())
+	require.Equal(t, 2, s.TotalSeriesCount())
+
+	// Rejected values do not create a series.
+	s.Add("workload", "invalid", math.NaN(), 1, nil)
+	require.Equal(t, 2, s.TotalSeriesCount())
+
+	require.Equal(t, []observer.SeriesRef{first.Ref}, s.RemoveSeriesByRefs([]observer.SeriesRef{first.Ref}))
+	require.Equal(t, 1, s.TotalSeriesCount())
+	require.Equal(t, 1, s.TotalSeriesCount())
+
+	removed := s.RemoveSeriesByMetricName("workload", "errors")
+	require.Len(t, removed, 1)
+	require.Zero(t, s.TotalSeriesCount())
+	require.Zero(t, s.TotalSeriesCount())
+
+	// Re-adding a removed key creates a fresh live series and restores its count.
+	s.Add("workload", "requests", 3, 3, nil)
+	require.Equal(t, 1, s.TotalSeriesCount())
+	require.Equal(t, 1, s.TotalSeriesCount())
+}
+
+func TestTimeSeriesStorage_TotalSeriesCountTracksCapacityEviction(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("workload", "old", 1, 1, nil)
+	s.Add("workload", "middle", 1, 2, nil)
+	s.Add("workload", "new", 1, 3, nil)
+
+	freed := s.EvictToCapacity(2, 1)
+	require.Len(t, freed, 2)
+	require.Equal(t, 1, s.TotalSeriesCount())
+	require.Equal(t, 1, s.TotalSeriesCount())
+}
+
+func TestTimeSeriesStorage_EvictInactiveBefore(t *testing.T) {
+	s := newTimeSeriesStorage()
+	old := s.Add("workload", "old", 1, 100, []string{"env:test"}).Ref
+	exact := s.Add("workload", "exact", 1, 300, nil).Ref
+	newer := s.Add("workload", "newer", 1, 301, nil).Ref
+	telemetry := s.Add(observer.TelemetryNamespace, "internal", 1, 100, nil).Ref
+	genBefore := s.SeriesGeneration()
+
+	freed := s.EvictInactiveBefore(300)
+
+	require.ElementsMatch(t, []observer.SeriesRef{old, exact}, freed)
+	assert.Nil(t, s.GetSeriesMeta(old))
+	assert.Nil(t, s.GetSeriesMeta(exact))
+	assert.NotNil(t, s.GetSeriesMeta(newer))
+	assert.NotNil(t, s.GetSeriesMeta(telemetry), "telemetry series must not be evicted by inactivity")
+	assert.Equal(t, 1, s.TotalSeriesCount(), "only the newer non-telemetry series remains live")
+	assert.Greater(t, s.SeriesGeneration(), genBefore)
+}
+
+func TestTimeSeriesStorage_EvictToCapacityBreaksActivityTiesByRef(t *testing.T) {
+	s := newTimeSeriesStorage()
+	first := s.Add("workload", "first", 1, 100, nil).Ref
+	second := s.Add("workload", "second", 1, 100, nil).Ref
+	third := s.Add("workload", "third", 1, 100, nil).Ref
+
+	freed := s.EvictToCapacity(2, 2)
+	require.Equal(t, []observer.SeriesRef{first}, freed)
+	require.Nil(t, s.GetSeriesMeta(first))
+	require.NotNil(t, s.GetSeriesMeta(second))
+	require.NotNil(t, s.GetSeriesMeta(third))
 }
 
 func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
@@ -670,6 +819,37 @@ func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	// Out-of-range refs (-1, 999) are silently skipped.
 	require.Empty(t, s.RemoveSeriesByRefs([]observer.SeriesRef{-1, 999}))
 	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
+}
+
+func TestTimeSeriesStorage_SeriesRefIndexBoundedUnderChurn(t *testing.T) {
+	s := newTimeSeriesStorage()
+	lastRef := observer.SeriesRef(-1)
+
+	for i := 0; i < 1_000; i++ {
+		res := s.Add("workload", fmt.Sprintf("churn-%d", i), 1, int64(i), nil)
+		require.Greater(t, res.Ref, lastRef, "new refs must be monotonic and never reused")
+		lastRef = res.Ref
+
+		switch i % 3 {
+		case 0:
+			require.Equal(t, []observer.SeriesRef{res.Ref}, s.RemoveSeriesByRefs([]observer.SeriesRef{res.Ref}))
+		case 1:
+			require.Equal(t, []observer.SeriesRef{res.Ref}, s.RemoveSeriesByMetricName("workload", fmt.Sprintf("churn-%d", i)))
+		case 2:
+			second := s.Add("workload", fmt.Sprintf("churn-extra-%d", i), 1, int64(i), nil)
+			require.Greater(t, second.Ref, lastRef, "capacity eviction must not cause ref reuse")
+			lastRef = second.Ref
+			require.Len(t, s.EvictToCapacity(1, 0), 2)
+		}
+
+		require.Empty(t, s.seriesIDStats, "ref index must retain only live series")
+		require.Zero(t, s.TotalSeriesCount())
+	}
+
+	newRef := s.Add("workload", "final", 1, 1_000, nil).Ref
+	require.Greater(t, newRef, lastRef)
+	require.Len(t, s.seriesIDStats, 1)
+	require.Nil(t, s.GetSeriesMeta(lastRef), "retired refs must remain invalid")
 }
 
 func TestTimeSeriesStorage_AddReturnsRef(t *testing.T) {

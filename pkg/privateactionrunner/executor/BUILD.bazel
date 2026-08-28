@@ -17,6 +17,7 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/executor",
+        "@com_github_benbjohnson_clock//:clock",
         "@org_golang_google_grpc//:grpc",
     ] + select({
         "@rules_go//go/platform:windows": [
@@ -40,6 +41,7 @@ dd_agent_go_test(
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/executor",
+        "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",

@@ -409,7 +409,9 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// PLR is not supported by this mock, so it is filtered out during collector creation.
-	numSupportedCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr, which is not supported by MIG
+	parentCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr
+	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
+	migCollectorTypes := parentCollectorTypes - 3
 
 	// Track the number of MIG children dynamically
 	migChildrenUUIDs := make(map[int]map[int]string)
@@ -431,10 +433,10 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// Assert function to check collectors match current device state
 	assertCollectors := func(collectors []nvidia.Collector) {
 		migCount := len(migChildren)
-		expectedCollectorCount := numSupportedCollectorTypes + (migCount * numSupportedCollectorTypes)
+		expectedCollectorCount := parentCollectorTypes + (migCount * migCollectorTypes)
 		assert.Len(t, collectors, expectedCollectorCount,
 			"Expected %d collectors (1 parent*%d + %d mig*%d), got %d",
-			expectedCollectorCount, numSupportedCollectorTypes, migCount, numSupportedCollectorTypes, len(collectors))
+			expectedCollectorCount, parentCollectorTypes, migCount, migCollectorTypes, len(collectors))
 
 		// Count collectors by UUID
 		actualUUIDs := map[string]int{}
@@ -444,10 +446,10 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 
 		// Build expected UUIDs
 		expectedUUIDs := map[string]int{
-			parentUUID: numSupportedCollectorTypes,
+			parentUUID: parentCollectorTypes,
 		}
 		for _, migUUID := range migChildren {
-			expectedUUIDs[migUUID] = numSupportedCollectorTypes
+			expectedUUIDs[migUUID] = migCollectorTypes
 		}
 
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
@@ -502,6 +504,8 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 		mocksender.CreateDefaultDemultiplexer(t),
 		nil,
 	)
+	check.parallelCollectors = true
+
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),

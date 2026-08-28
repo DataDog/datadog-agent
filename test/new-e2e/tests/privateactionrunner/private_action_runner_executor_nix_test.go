@@ -6,24 +6,19 @@
 package privateactionrunner
 
 import (
-	"crypto/ed25519"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -34,16 +29,7 @@ const (
 
 	executorListeningLogLine = "Private action runner executor listening on"
 	executorReadyLogLine     = "Private action runner executor ready to accept actions"
-
-	// pkg/remoteconfig/state.ProductActionPlatformRunnerKeys
-	runnerKeysRCProduct = "AP_RUNNER_KEYS"
 )
-
-// mirrors pkg/privateactionrunner/types.RawKey's JSON shape
-type rawRCKey struct {
-	KeyType string `json:"keyType"`
-	Key     []byte `json:"key"`
-}
 
 type linuxPrivateActionRunnerExecutorSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -63,31 +49,28 @@ func TestLinuxPrivateActionRunnerExecutorSuite(t *testing.T) {
 	))
 }
 
-func (s *linuxPrivateActionRunnerExecutorSuite) pushFakeRunnerKeysConfig() {
-	t := s.T()
-
-	pub, _, err := ed25519.GenerateKey(rand.Reader)
-	require.NoError(t, err, "failed to generate fake runner key")
-
-	pubDER, err := x509.MarshalPKIXPublicKey(pub)
-	require.NoError(t, err, "failed to marshal fake runner public key")
-
-	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})
-
-	payload, err := json.Marshal(rawRCKey{KeyType: "ED25519", Key: pubPEM})
-	require.NoError(t, err, "failed to marshal fake runner key config payload")
-
-	err = s.Env().FakeIntake.Client().RCAddConfig("", runnerKeysRCProduct, "fake-runner-key", "fake-runner-key", payload)
-	require.NoError(t, err, "failed to push fake runner key config to fakeintake")
-}
-
 // TestExecutorStartsAndListens launches the on-demand executor subcommand and
 // asserts it comes up: the process runs, the gRPC unix socket is created, and
 // the log reports the server listening and ready.
 func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 	host := s.Env().RemoteHost
+	svcManager := common.GetServiceManager(host)
+	s.Require().NotNil(svcManager)
 
-	s.pushFakeRunnerKeysConfig()
+	// The executor's remote-config client talks to the core Agent. Stop the Agent
+	// first so the executor has subscribed to AP_RUNNER_KEYS before the Agent's
+	// remote-config service performs its first fetch.
+	_, err := svcManager.Stop(coreAgentServiceName)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		_, _ = svcManager.Start(coreAgentServiceName)
+	})
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		_, statusErr := svcManager.Status(coreAgentServiceName)
+		require.Error(c, statusErr)
+	}, 30*time.Second, time.Second, "core Agent should be stopped")
+
+	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
 	// run-executor is a foreground subcommand, not the packaged systemd service.
 	// Launch it detached as dd-agent so it can bind its socket under
@@ -121,11 +104,17 @@ func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorListeningLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "executor log should report listening")
 
-	// Readiness depends on the KeysManager receiving its first AP_RUNNER_KEYS
-	// remote-config update. The backend director's first fetch of a brand-new
-	// product can take well over 2 minutes regardless of the client's poll
-	// interval (observed ~2m10s in CI), so this needs a longer budget than the
-	// other checks in this test.
+	// The executor is now listening but waiting for its first signing-key update.
+	// Start the core Agent only after the AP_RUNNER_KEYS subscription is in place;
+	// its first remote-config request can then include the product immediately.
+	_, err = svcManager.Start(coreAgentServiceName)
+	s.Require().NoError(err)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		status, statusErr := svcManager.Status(coreAgentServiceName)
+		require.NoError(c, statusErr)
+		require.Contains(c, status, "active")
+	}, 2*time.Minute, 5*time.Second, "core Agent should be active")
+
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorReadyLogLine, privateActionRunnerLogFile))
 	}, 5*time.Minute, 5*time.Second, "executor log should report ready")

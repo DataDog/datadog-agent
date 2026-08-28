@@ -2,9 +2,6 @@
 set -euo pipefail
 featureDir=$(cd "$(dirname "$0")"; pwd)
 
-# Get claude from the buildimages /root/.local/bin
-# cp /root/.local/bin/claude /home/bits/.local/bin/claude
-
 # Add bits user to the docker group. This should probably be handled by the base feature. But not working for now.
 usermod -aG docker bits
 usermod -aG build-shared bits
@@ -23,4 +20,7 @@ cp /var/config/dd/dd-agent-workspace-env.sh /etc/profile.d/50-agent-workspace-en
 # /etc/zsh/zshenv sources these files.
 cat > /etc/profile.d/zz-ddagent-workspace-env.sh << 'EOF'
 export PATH="/home/bits/.local/bin:$PATH" # Make sure we keep it in the path some useful tooling is there
+export HOST_ROOT="/host/root"
+export HOST_PROC="/host/root/proc"
+export HOST_SYS="/host/root/sys"
 EOF

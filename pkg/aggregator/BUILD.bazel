@@ -52,7 +52,6 @@ go_library(
         "//comp/forwarder/eventplatform/impl",
         "//comp/forwarder/orchestrator/def",
         "//comp/haagent/def",
-        "//comp/serializer/logscompression/def",
         "//comp/serializer/metricscompression/def",
         "//pkg/aggregator/ckey",
         "//pkg/aggregator/internal/tags",
@@ -110,6 +109,7 @@ dd_agent_go_test(
         "tagfilter_cache_test.go",
         "tagset_telem_test.go",
         "time_sampler_test.go",
+        "time_sampler_worker_test.go",
     ],
     embed = [":aggregator"],
     gotags_sets = [[

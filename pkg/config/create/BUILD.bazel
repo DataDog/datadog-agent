@@ -3,14 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "create",
-    srcs = [
-        "impl_kind.go",
-        "new.go",
-    ],
+    srcs = ["new.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/create",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/buildschema",
         "//pkg/config/model",
         "//pkg/config/nodetreemodel",
     ],
