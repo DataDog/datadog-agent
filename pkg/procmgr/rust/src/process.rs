@@ -199,6 +199,10 @@ impl StopWaitGeneration {
     fn clear(&mut self) {
         self.0 = None;
     }
+
+    fn is_claimed(&self) -> bool {
+        self.0.is_some()
+    }
 }
 
 impl StopWaitPlan {
@@ -870,6 +874,24 @@ impl ManagedProcess {
             self.stop_wait_generation.clear();
         }
         self.release_stop_wait_resources(budget).await;
+    }
+
+    pub(crate) fn has_orphaned_stop_wait(&self) -> bool {
+        self.stop_wait_generation.is_claimed()
+            && self.state.awaiting_stop()
+            && self.watcher_handle.is_none()
+            && self.handle.is_none()
+    }
+
+    pub(crate) async fn finalize_orphaned_stop_wait(&mut self, budget: ShutdownBudget) {
+        if !self.has_orphaned_stop_wait() {
+            return;
+        }
+        warn!(
+            "[{}] finalizing orphaned stop wait after handler abort",
+            self.name
+        );
+        self.complete_stop_wait(budget).await;
     }
 
     async fn release_stop_wait_resources(&mut self, _budget: ShutdownBudget) {
@@ -1858,6 +1880,27 @@ runtime_success_sec: 5
 
         proc.stop().await;
 
+        assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn finalize_orphaned_stop_wait_marks_stopped() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut proc = ManagedProcess::new_config(
+            "svc".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        proc.spawn().unwrap();
+        proc.request_stop();
+
+        let plan = proc.plan_stop_wait(ShutdownBudget::unlimited(Instant::now().into()));
+        assert!(plan.is_some(), "stop wait should claim the watcher");
+        drop(plan);
+
+        assert!(proc.has_orphaned_stop_wait());
+        proc.finalize_orphaned_stop_wait(ShutdownBudget::unlimited(Instant::now().into()))
+            .await;
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 

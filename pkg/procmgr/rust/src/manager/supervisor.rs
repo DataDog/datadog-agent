@@ -55,7 +55,7 @@ impl Supervisor {
             .await;
 
         ctx.command_handlers
-            .join_all_with_budget(shutdown_budget)
+            .join_all_with_budget(Some(self.manager.catalog.as_ref()), shutdown_budget)
             .await;
         ctx.background_spawns
             .join_all_with_budget(shutdown_budget)

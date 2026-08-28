@@ -111,6 +111,16 @@ impl ProcessCatalog {
         super::stop_wait::wait_for_process_stop(self, idx, budget).await;
     }
 
+    pub(in crate::manager) async fn finalize_orphaned_stop_waits(
+        &self,
+        budget: shutdown::ShutdownBudget,
+    ) {
+        let mut procs = self.processes.write().await;
+        for proc in procs.iter_mut() {
+            proc.finalize_orphaned_stop_wait(budget).await;
+        }
+    }
+
     fn append_runtime_process(
         &self,
         procs: &mut Vec<ManagedProcess>,

@@ -14,9 +14,9 @@ use super::{
 use crate::command::{Command, CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader};
 use crate::process::ManagedProcess;
-use crate::state::ProcessState;
 #[cfg(windows)]
 use crate::shutdown;
+use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
 use log::{debug, info, warn};
 use std::sync::Arc;

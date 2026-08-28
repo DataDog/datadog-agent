@@ -29,13 +29,20 @@ impl CommandHandlers {
 
     #[cfg_attr(not(test), allow(dead_code))]
     pub(in crate::manager) async fn join_all(&self) {
-        self.join_all_with_budget(ShutdownBudget::unlimited(Instant::now()))
+        self.join_all_with_budget(None, ShutdownBudget::unlimited(Instant::now()))
             .await;
     }
 
-    pub(in crate::manager) async fn join_all_with_budget(&self, budget: ShutdownBudget) {
+    pub(in crate::manager) async fn join_all_with_budget(
+        &self,
+        catalog: Option<&super::catalog::ProcessCatalog>,
+        budget: ShutdownBudget,
+    ) {
         let handles = std::mem::take(&mut *self.handles.lock().unwrap());
         for handle in handles {
+            if let Some(catalog) = catalog {
+                catalog.finalize_orphaned_stop_waits(budget).await;
+            }
             join_tracked_handle(
                 handle,
                 &budget,
@@ -45,6 +52,9 @@ impl CommandHandlers {
                 log_command_handler_failed,
             )
             .await;
+        }
+        if let Some(catalog) = catalog {
+            catalog.finalize_orphaned_stop_waits(budget).await;
         }
     }
 }
@@ -444,7 +454,7 @@ mod tests {
         let mut join_task = tokio::spawn({
             let command_handlers = command_handlers.clone();
             async move {
-                command_handlers.join_all_with_budget(budget).await;
+                command_handlers.join_all_with_budget(None, budget).await;
             }
         });
 
