@@ -19,6 +19,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
@@ -78,6 +79,43 @@ func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("43", suite.a.registry[suite.source.Config.Path].Offset)
 	suite.Equal("beginning", suite.a.registry[suite.source.Config.Path].TailingMode)
+}
+
+func (suite *AuditorTestSuite) TestAuditorCommitsPayloadsInSenderOrder() {
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.payloadSequences = make(map[uint64]*payloadSequenceState)
+
+	payload := func(sequence uint64, offset string) *message.Payload {
+		origin := message.NewOrigin(suite.source)
+		origin.Identifier = suite.source.Config.Path
+		origin.Offset = offset
+		// File records read in one chunk share an ingestion timestamp, so sequence
+		// ordering (not the timestamp guard) must prevent checkpoint regression.
+		msg := message.NewMessage([]byte("log"), origin, "", 0)
+		p := message.NewPayload([]*message.MessageMetadata{&msg.MessageMetadata}, nil, "", 0)
+		p.AuditStream = 7
+		p.AuditSequence = sequence
+		return p
+	}
+
+	// A later HTTP request may finish first. Its checkpoint must remain pending
+	// until the prior payload succeeds.
+	suite.a.processPayload(payload(2, "160"))
+	_, found := suite.a.registry[suite.source.Config.Path]
+	suite.False(found)
+
+	// Dual shipping can report the same success more than once.
+	suite.a.processPayload(payload(2, "160"))
+	_, found = suite.a.registry[suite.source.Config.Path]
+	suite.False(found)
+
+	suite.a.processPayload(payload(1, "0"))
+	suite.Equal("160", suite.a.registry[suite.source.Config.Path].Offset)
+
+	// A late duplicate of an already committed payload cannot regress the
+	// checkpoint.
+	suite.a.processPayload(payload(1, "0"))
+	suite.Equal("160", suite.a.registry[suite.source.Config.Path].Offset)
 }
 
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {

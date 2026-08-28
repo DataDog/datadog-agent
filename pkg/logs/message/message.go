@@ -39,6 +39,13 @@ type Payload struct {
 	Encoding string
 	// The size of the unencoded payload
 	UnencodedSize int
+	// AuditStream and AuditSequence identify the payload's position in one
+	// sender worker's ordered input stream. HTTP destinations may complete
+	// concurrent sends out of order; the auditor uses these fields to commit
+	// file checkpoints in the original payload order. Zero values opt out for
+	// payload producers that do not pass through a sender worker.
+	AuditStream   uint64
+	AuditSequence uint64
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
@@ -84,6 +91,15 @@ type MessageMetadata struct {
 	// This is also used to track the original content size before the message is processed and encoded later
 	// in the pipeline.
 	RawDataLen int
+	// rawDataLenForCheckpoint is the number of source bytes that may be included
+	// when advancing a file tailer's checkpoint after this message. It differs
+	// from RawDataLen when partial records from multiple streams are interleaved:
+	// a completed message can be sent while an earlier record remains buffered,
+	// but it must not move the restart position past that record.
+	//
+	// nil preserves the historical behavior of using RawDataLen. A pointer is
+	// required so an explicit zero can hold the checkpoint at its prior value.
+	rawDataLenForCheckpoint *int
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -478,6 +494,21 @@ func (m *MessageMetadata) Count() int64 {
 // Size returns the size of the message.
 func (m *MessageMetadata) Size() int64 {
 	return int64(m.RawDataLen)
+}
+
+// RawDataLenForCheckpoint returns the number of source bytes that a file
+// tailer may safely include when advancing its checkpoint for this message.
+func (m *MessageMetadata) RawDataLenForCheckpoint() int {
+	if m.rawDataLenForCheckpoint == nil {
+		return m.RawDataLen
+	}
+	return *m.rawDataLenForCheckpoint
+}
+
+// SetRawDataLenForCheckpoint overrides the source byte count used to advance a
+// file tailer's checkpoint. Passing zero explicitly holds the prior checkpoint.
+func (m *MessageMetadata) SetRawDataLenForCheckpoint(rawDataLen int) {
+	m.rawDataLenForCheckpoint = &rawDataLen
 }
 
 // RecordProcessingRule records the application of a processing rule to a message.

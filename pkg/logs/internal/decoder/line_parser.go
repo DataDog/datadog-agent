@@ -87,8 +87,9 @@ type MultiLineParser struct {
 	// Partial lines are accumulated independently by stream. Parsers that do not
 	// identify a stream use the empty-string entry and retain the original
 	// single-buffer behavior.
-	buffers      map[string]*partialLineState
-	nextSequence uint64
+	buffers           map[string]*partialLineState
+	nextSequence      uint64
+	pendingRawDataLen int
 
 	// configuration attributes
 
@@ -143,6 +144,7 @@ func (p *MultiLineParser) flushTimedOut() {
 // process buffers and aggregates partial lines
 func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 	p.stopFlushTimer()
+	p.pendingRawDataLen += rawDataLen
 
 	msg, err := p.parser.Parse(input)
 	if err != nil {
@@ -185,7 +187,7 @@ func (p *MultiLineParser) sendLine(stream string) {
 	if !found {
 		return
 	}
-	defer delete(p.buffers, stream)
+	delete(p.buffers, stream)
 
 	// Skip only when there is nothing to send. Complete but empty lines (empty
 	// content, non-zero rawDataLen) are still forwarded so downstream
@@ -197,6 +199,17 @@ func (p *MultiLineParser) sendLine(stream string) {
 	content := make([]byte, state.buffer.Len())
 	copy(content, state.buffer.Bytes())
 	state.bufferedMsg.RawDataLen = state.rawDataLen
+	checkpointRawDataLen := 0
+	if len(p.buffers) == 0 {
+		// Every record read since the previous checkpoint now belongs to a
+		// completed message. Let this final output advance across the whole
+		// contiguous source range. Earlier outputs were allowed downstream with
+		// an explicit zero so a restart replays them instead of skipping a still
+		// buffered record.
+		checkpointRawDataLen = p.pendingRawDataLen
+		p.pendingRawDataLen = 0
+	}
+	state.bufferedMsg.SetRawDataLenForCheckpoint(checkpointRawDataLen)
 	state.bufferedMsg.SetContent(content)
 	state.bufferedMsg.ParsingExtra.IsTruncated = state.bufferedMsg.ParsingExtra.IsTruncated || state.isBufferTruncated
 	p.lineHandler.process(state.bufferedMsg)

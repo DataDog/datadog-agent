@@ -79,16 +79,19 @@ func TestJSONAggregatorProcess_MultiPart_RawDataLen(t *testing.T) {
 
 	// First part of a JSON message
 	msg1 := newTestMessage(part1)
+	msg1.SetRawDataLenForCheckpoint(0)
 	result := aggregator.Process(msg1)
 	assert.Equal(t, 0, len(result), "Expected no messages for first incomplete part")
 
 	// Second part completes the JSON
 	msg2 := newTestMessage(part2)
+	msg2.SetRawDataLenForCheckpoint(expectedRawDataLen)
 	result = aggregator.Process(msg2)
 
 	assert.Equal(t, 1, len(result), "Expected one message after completion")
 	assert.Equal(t, []byte(`{"key":"value"}`), result[0].GetContent(), "Content should be compact JSON")
 	assert.Equal(t, expectedRawDataLen, result[0].RawDataLen, "Expected raw data length to be the sum of the two parts")
+	assert.Equal(t, expectedRawDataLen, result[0].RawDataLenForCheckpoint(), "Expected the safe checkpoint length to survive JSON aggregation")
 }
 
 func TestJSONAggregatorProcess_MultiPart_RawDataLen_original_size_differs(t *testing.T) {
