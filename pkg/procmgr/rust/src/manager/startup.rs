@@ -22,6 +22,9 @@ pub(in crate::manager) async fn run(
     let order = manager.catalog.startup_order().await.clone();
     if order.is_empty() {
         info!("startup: catalog is empty, nothing to auto-start");
+        if platform::shutdown_requested() {
+            ctx.lifecycle.begin_stopping();
+        }
         return;
     }
 
@@ -129,8 +132,9 @@ async fn join_in_flight_spawn(
             return;
         }
 
+        let mut handle = handle;
         tokio::select! {
-            result = async { handle.await } => log_spawn_monitor_result(result),
+            result = &mut handle => log_spawn_monitor_result(result),
             _ = tokio::time::sleep(cap) => {
                 warn!(
                     "startup: timed out waiting for in-flight auto-start ({cap:?} left in SCM budget); deferring to supervisor teardown"
