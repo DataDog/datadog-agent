@@ -7,6 +7,7 @@ go_library(
         "doc.go",
         "helpers.go",
         "kafka.go",
+        "postgres.go",
         "redis.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl/collectors",
@@ -23,6 +24,7 @@ dd_agent_go_test(
     srcs = [
         "helpers_test.go",
         "kafka_test.go",
+        "postgres_test.go",
         "redis_test.go",
     ],
     embed = [":collectors"],
