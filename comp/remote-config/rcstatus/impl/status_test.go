@@ -86,8 +86,8 @@ func TestStatusOutputAdditionalInstances(t *testing.T) {
 	instances.Init()
 	for name, authorized := range map[string]string{
 		"Remote Config":             "true",
-		"cluster-agent:autoscaling": "true",
-		"cluster-agent:broken":      "false",
+		"autoscaling": "true",
+		"broken":      "false",
 	} {
 		entry := &expvar.Map{}
 		entry.Init()
@@ -114,19 +114,19 @@ func TestStatusOutputAdditionalInstances(t *testing.T) {
 	require.NoError(t, statusProvider.Text(false, b))
 	out := b.String()
 
-	assert.Contains(t, out, `Additional client "cluster-agent:autoscaling"`)
-	assert.Contains(t, out, `Additional client "cluster-agent:broken"`)
+	assert.Contains(t, out, "- autoscaling")
+	assert.Contains(t, out, "- broken")
 	assert.Contains(t, out, "Not authorized", "an unauthorized extra client must be visible")
 	// The endpoint is the point of extra clients: they can target another backend.
-	assert.Contains(t, out, "Endpoint: https://config.cluster-agent:autoscaling.example.com")
+	assert.Contains(t, out, "Endpoint: https://config.autoscaling.example.com")
 	// The default client is described by the top-level fields; it must not also
 	// appear in the additional-client list.
-	assert.NotContains(t, out, `Additional client "Remote Config"`)
+	assert.NotContains(t, out, "- Remote Config")
 
 	h := new(bytes.Buffer)
 	require.NoError(t, statusProvider.HTML(false, h))
-	assert.Contains(t, h.String(), `Additional client "cluster-agent:autoscaling"`)
-	assert.NotContains(t, h.String(), `Additional client "Remote Config"`)
+	assert.Contains(t, h.String(), "autoscaling")
+	assert.NotContains(t, h.String(), "<li>Remote Config")
 
 	// With only the default client configured -- the overwhelmingly common case --
 	// the output must not grow an empty section.
@@ -143,7 +143,7 @@ func TestStatusOutputAdditionalInstances(t *testing.T) {
 
 		b := new(bytes.Buffer)
 		require.NoError(t, statusProvider.Text(false, b))
-		assert.NotContains(t, b.String(), "Additional client")
+		assert.NotContains(t, b.String(), "Additional clients")
 		assert.Contains(t, b.String(), "Organization enabled: True")
 	})
 }

@@ -6,21 +6,21 @@ Startup Failure Reason: {{ $.remoteConfigStartup.startupFailureReason }}
 {{ end }}Organization enabled: {{ if and .orgEnabled (eq .orgEnabled "true") }}True{{ else }}False{{ end }}
 API Key: {{ if and .apiKeyScoped (eq .apiKeyScoped "true") }}Authorized{{ else }}Not authorized, add the Remote Configuration Read permission to enable it for this agent.{{ end }}
 Last error: {{ if .lastError }}{{ .lastError }}{{ else }}None{{ end }}
-{{- /* Extra Remote Configuration clients, e.g. Cluster Agent clients declared via
-       cluster_agent.remote_configuration.additional_clients. The fields above
-       describe the default client, which is also present in .instances under the
-       name below, so it is skipped here to avoid repeating it. The name must
-       match defaultStatusInstance in pkg/config/remote/service/service.go. */ -}}
-{{ range $name, $instance := .instances }}{{ if ne $name "Remote Config" }}
+{{- /* Extra clients, e.g. Cluster Agent clients declared via
+       cluster_agent.remote_configuration.additional_clients. The default client
+       is described by the fields above and is filtered out by the provider. */ -}}
+{{ with .additionalInstances }}
 
-Additional client "{{ $name }}"
-{{- if $instance.endpoint }}
-  Endpoint: {{ $instance.endpoint }}
+Additional clients
+------------------
+{{- range $name, $instance := . }}
+  - {{ $name }}
+      Endpoint: {{ if $instance.endpoint }}{{ $instance.endpoint }}{{ else }}Unknown{{ end }}
+      Organization enabled: {{ if and $instance.orgEnabled (eq $instance.orgEnabled "true") }}True{{ else }}False{{ end }}
+      API Key: {{ if and $instance.apiKeyScoped (eq $instance.apiKeyScoped "true") }}Authorized{{ else }}Not authorized, add the Remote Configuration Read permission to enable it for this agent.{{ end }}
+      Last error: {{ if $instance.lastError }}{{ $instance.lastError }}{{ else }}None{{ end }}
 {{- end }}
-  Organization enabled: {{ if and $instance.orgEnabled (eq $instance.orgEnabled "true") }}True{{ else }}False{{ end }}
-  API Key: {{ if and $instance.apiKeyScoped (eq $instance.apiKeyScoped "true") }}Authorized{{ else }}Not authorized, add the Remote Configuration Read permission to enable it for this agent.{{ end }}
-  Last error: {{ if $instance.lastError }}{{ $instance.lastError }}{{ else }}None{{ end }}
-{{- end }}{{ end }}
+{{ end }}
 {{- else }}
 Remote Configuration is disabled because {{ .disabledReason }}
 {{ end }}
