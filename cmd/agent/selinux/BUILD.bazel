@@ -4,17 +4,18 @@
 #
 # NOTE: this shells out to `checkmodule` and `semodule_package` found on
 # PATH. These are the SELinux userspace policy tools (package `checkpolicy`
-# and `policycoreutils` on most distros); this repo does not currently
-# provide a hermetic Bazel toolchain for them, so this genrule is only
-# expected to succeed on a Linux host/container with those tools installed
-# (e.g. CI). It cannot be built or tested on macOS.
+# and `policycoreutils` on most distros);
+# TODO(agent-build): Add MODULE level tool wrappers for these and a selinux toolchain.
 genrule(
-    name = "system_probe_policy_pp",
+    name = "system_probe_policy",
     srcs = ["system_probe_policy.te"],
     outs = ["system_probe_policy.pp"],
+    # Compile the module targeting modular policy version 19, the highest version
+    # supported by libsepol on RHEL 7 (range 4-19). Newer distributions remain
+    # backward-compatible, so a v19 module loads on all supported RHEL releases.
     cmd = """
-        /usr/bin/checkmodule -M -m -c 19 -o $@.mod $(location system_probe_policy.te)
-        /usr/sbin/semodule_package -o $@ -m $@.mod
+        /usr/bin/checkmodule -M -m -c 19 -o system_probe_policy.mod $(location system_probe_policy.te)
+        /usr/bin/semodule_package -o $@ -m system_probe_policy.mod
     """,
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
