@@ -255,8 +255,6 @@ def build_sysprobe_binary(
             raise NotImplementedError("--enable-bazel does not support --bundle-ebpf.")
         if strip_binary:
             raise NotImplementedError("--enable-bazel does not support --strip-binary.")
-        if fips_mode:
-            raise NotImplementedError("--enable-bazel does not support --fips-mode.")
         if static:
             raise NotImplementedError("--enable-bazel does not support --static.")
         if not glibc:
@@ -266,7 +264,8 @@ def build_sysprobe_binary(
         if sys.platform != 'linux':
             raise NotImplementedError("--enable-bazel is only supported on Linux.")
 
-        build_binary_with_bazel(BAZEL_TARGET, binary)
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=binary)
         return
 
     ldflags, gcflags, env = get_build_flags(
