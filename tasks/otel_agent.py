@@ -56,7 +56,7 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
         os.remove(bin_path)
 
     if enable_bazel:
-        build_binary_with_bazel("//cmd/otel-agent:otel-agent", bin_path)
+        build_binary_with_bazel("//cmd/otel-agent:otel-agent", bin_path=bin_path)
     else:
         flavor = AgentFlavor[flavor]
         env = {"GO111MODULE": "on"}
