@@ -39,14 +39,14 @@ func ExecuteCommand(ctx context.Context, cmd *exec.Cmd) (Result, error) {
 		return Result{}, errors.New("authored-script context is required")
 	}
 
-	result, err := executeCommand(cmd, defaultOutputLimit)
+	result, err := executeCommand(ctx, cmd, defaultOutputLimit)
 	if err != nil {
 		return result, formatExecutionError(ctx, result, err)
 	}
 	return result, nil
 }
 
-func executeCommand(cmd *exec.Cmd, outputLimit int64) (Result, error) {
+func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Result, error) {
 	if cmd == nil {
 		return Result{}, errors.New("authored-script command is required")
 	}
@@ -59,7 +59,27 @@ func executeCommand(cmd *exec.Cmd, outputLimit int64) (Result, error) {
 	cmd.Stderr = stderr
 
 	start := time.Now()
-	runErr := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return Result{ExitCode: -1, Duration: time.Since(start)}, err
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	var cancellationErr error
+	var runErr error
+	select {
+	case runErr = <-waitCh:
+	case <-ctx.Done():
+		cancellationErr = cancelCommand(cmd)
+		runErr = <-waitCh
+	case <-stdout.LimitReachedSignal():
+		cancellationErr = cancelCommand(cmd)
+		runErr = <-waitCh
+	}
+
 	terminationErr := terminateCommand(cmd)
 	result := Result{
 		ExitCode: -1,
@@ -72,6 +92,12 @@ func executeCommand(cmd *exec.Cmd, outputLimit int64) (Result, error) {
 	}
 	if stdout.LimitReached() || stderr.LimitReached() {
 		return result, fmt.Errorf("authored-script output exceeded %d bytes: %w", outputLimit, errOutputLimitExceeded)
+	}
+	if cancellationErr != nil {
+		if runErr != nil {
+			return result, errors.Join(runErr, fmt.Errorf("could not cancel authored-script command: %w", cancellationErr))
+		}
+		return result, fmt.Errorf("could not cancel authored-script command: %w", cancellationErr)
 	}
 	if runErr != nil && terminationErr != nil {
 		return result, errors.Join(runErr, fmt.Errorf("could not terminate authored-script process group: %w", terminationErr))

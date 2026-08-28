@@ -8,9 +8,12 @@
 package authoredscripts
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
@@ -79,7 +82,7 @@ func TestExecuteCommand_ContextCanceled(t *testing.T) {
 func TestExecuteCommand_OutputLimitExceeded(t *testing.T) {
 	cmd := exec.CommandContext(context.Background(), "yes")
 
-	result, err := executeCommand(cmd, 100)
+	result, err := executeCommand(context.Background(), cmd, 100)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errOutputLimitExceeded))
@@ -104,6 +107,78 @@ func TestExecuteCommand_ReapsProcessGroup(t *testing.T) {
 	}, time.Second, 10*time.Millisecond, "background process %d was not terminated", childPID)
 }
 
+func TestExecuteCommand_OutputLimitTerminatesProcessIgnoringSIGPIPE(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestExecuteCommand_SIGPIPEHelperProcess")
+	cmd.Env = append(os.Environ(), "GO_WANT_SIGPIPE_HELPER_PROCESS=1")
+	configureCommand(cmd)
+
+	result, err := executeCommand(ctx, cmd, 100)
+
+	require.ErrorIs(t, err, errOutputLimitExceeded)
+	require.NoError(t, ctx.Err(), "output exhaustion should terminate the process before the safety timeout")
+	assert.LessOrEqual(t, len(result.Stdout)+len(result.Stderr), 100)
+}
+
+func TestExecuteCommand_SIGPIPEHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_SIGPIPE_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	signal.Ignore(syscall.SIGPIPE)
+	output := bytes.Repeat([]byte("x"), 4096)
+	for {
+		_, _ = os.Stdout.Write(output)
+	}
+}
+
+func TestExecuteCommand_ConcurrentExecutionsAreIndependent(t *testing.T) {
+	const executionCount = 8
+	type outcome struct {
+		shouldReachLimit bool
+		result           Result
+		err              error
+		ctxErr           error
+	}
+
+	start := make(chan struct{})
+	outcomes := make(chan outcome, executionCount)
+	for i := 0; i < executionCount; i++ {
+		shouldReachLimit := i%2 == 0
+		go func(shouldReachLimit bool) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			var cmd *exec.Cmd
+			if shouldReachLimit {
+				cmd = exec.CommandContext(ctx, os.Args[0], "-test.run=TestExecuteCommand_SIGPIPEHelperProcess")
+				cmd.Env = append(os.Environ(), "GO_WANT_SIGPIPE_HELPER_PROCESS=1")
+			} else {
+				cmd = exec.CommandContext(ctx, "/bin/echo", "ok")
+			}
+			configureCommand(cmd)
+
+			<-start
+			result, err := executeCommand(ctx, cmd, 100)
+			ctxErr := ctx.Err()
+			cancel()
+			outcomes <- outcome{shouldReachLimit: shouldReachLimit, result: result, err: err, ctxErr: ctxErr}
+		}(shouldReachLimit)
+	}
+	close(start)
+
+	for i := 0; i < executionCount; i++ {
+		result := <-outcomes
+		require.NoError(t, result.ctxErr, "execution should finish before its safety timeout")
+		if result.shouldReachLimit {
+			require.ErrorIs(t, result.err, errOutputLimitExceeded)
+			assert.LessOrEqual(t, len(result.result.Stdout)+len(result.result.Stderr), 100)
+			continue
+		}
+		require.NoError(t, result.err)
+		assert.Equal(t, "ok\n", result.result.Stdout)
+	}
+}
+
 func TestExecuteCommand_StderrTruncatedInError(t *testing.T) {
 	longStderr := strings.Repeat("e", maxErrorStderrSize+1000)
 	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "printf '%s' \"$LONG_STDERR\" 1>&2; exit 1")
@@ -117,7 +192,7 @@ func TestExecuteCommand_StderrTruncatedInError(t *testing.T) {
 }
 
 func TestExecuteCommand_CommandRequired(t *testing.T) {
-	_, err := executeCommand(nil, defaultOutputLimit)
+	_, err := executeCommand(context.Background(), nil, defaultOutputLimit)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "command is required")
@@ -126,7 +201,7 @@ func TestExecuteCommand_CommandRequired(t *testing.T) {
 func TestExecuteCommand_OutputLimitMustBePositive(t *testing.T) {
 	cmd := exec.Command("/bin/echo", "hi")
 
-	_, err := executeCommand(cmd, 0)
+	_, err := executeCommand(context.Background(), cmd, 0)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be positive")

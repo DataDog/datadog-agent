@@ -7,6 +7,7 @@ package util
 
 import (
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,7 +74,28 @@ func TestNewLimitedStdoutStderrWritersPair_SharesLimitAcrossWriters(t *testing.T
 	require.ErrorIs(t, err, ErrOutputLimitExceeded)
 	assert.Equal(t, 0, n)
 	assert.True(t, stdout.LimitReached())
-	assert.False(t, stderr.LimitReached())
+	assert.True(t, stderr.LimitReached())
+}
+
+func TestNewLimitedStdoutStderrWritersPair_ConcurrentWritesRespectSharedLimit(t *testing.T) {
+	const limit = 100
+	stdout, stderr := NewLimitedStdoutStderrWritersPair(limit)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	write := func(writer *LimitedWriter) {
+		defer wg.Done()
+		<-start
+		_, _ = writer.Write(make([]byte, limit))
+	}
+	go write(stdout)
+	go write(stderr)
+	close(start)
+	wg.Wait()
+
+	assert.LessOrEqual(t, stdout.Len()+stderr.Len(), limit)
+	assert.True(t, stdout.LimitReached())
+	assert.True(t, stderr.LimitReached())
 }
 
 func TestLimitedWriter_Len(t *testing.T) {

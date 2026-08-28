@@ -78,6 +78,27 @@ func killProcessGroup(pid int) error {
 	return syscall.Kill(-pid, syscall.SIGKILL)
 }
 
+func cancelCommand(cmd *exec.Cmd) error {
+	if cmd.Cancel != nil {
+		if err := cmd.Cancel(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			if cmd.Process == nil {
+				return err
+			}
+			if killErr := cmd.Process.Kill(); killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+				return errors.Join(err, killErr)
+			}
+		}
+		return nil
+	}
+	if cmd.Process == nil {
+		return nil
+	}
+	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	return nil
+}
+
 func terminateCommand(cmd *exec.Cmd) error {
 	if cmd.Process == nil {
 		return nil
