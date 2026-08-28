@@ -13,7 +13,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import build_go_binary_with_bazel
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -61,7 +61,7 @@ def build(
         if not no_strip_binary:
             raise NotImplementedError("--enable-bazel does not support --no-strip-binary=False.")
 
-        build_go_binary_with_bazel(BAZEL_TARGET, INSTALLER_BIN)
+        build_binary_with_bazel(BAZEL_TARGET, INSTALLER_BIN)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)
