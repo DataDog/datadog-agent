@@ -59,7 +59,9 @@ func TestTraceWriterV1(t *testing.T) {
 			tw.Stop()
 			// All payloads should be flushed on stop
 			assert.GreaterOrEqual(t, srv.Accepted(), 1)
-			payloadsContainV1(t, srv.Payloads(), testSpans, tc.compressor)
+			// The number of payloads (one vs. split across several) is not
+			// deterministic here, so skip the count check via the -1 sentinel.
+			payloadsContainV1(t, srv, -1, testSpans, tc.compressor)
 		})
 	}
 }
@@ -257,7 +259,7 @@ func TestTraceWriterV1RemovedChunkUnreferencedStringsRemoved(t *testing.T) {
 	tw.WriteChunksV1(ss)
 	tw.Stop()
 	assert.Equal(t, 1, srv.Accepted())
-	mapPayloads(t, srv.Payloads(), compressor, func(all *pb.AgentPayload) {
+	mapPayloads(t, srv, compressor, func(all *pb.AgentPayload) {
 		for _, tp := range all.IdxTracerPayloads {
 			assert.NotContains(t, tp.Strings, "SECRET_STRING")
 		}
@@ -275,11 +277,18 @@ func randomSampledSpansV1(spans, events int) *SampledChunksV1 {
 	}
 }
 
-func mapPayloads(t *testing.T, payloads []*payload, compressor compression.Component, f func(*pb.AgentPayload)) {
+// mapPayloads decodes every request the server recorded and hands the merged
+// result to f. It takes the server rather than its payloads so that a body which
+// fails to decompress can be reported with its provenance: an undecodable body
+// here has previously turned out to be a request that belonged to another test.
+func mapPayloads(t *testing.T, srv *testServer, compressor compression.Component, f func(*pb.AgentPayload)) {
+	t.Helper()
+	require.Empty(t, srv.ReadErrors(),
+		"the test server failed to read a request body, which means a request was in flight when it closed")
 	all := &pb.AgentPayload{}
-	for _, p := range payloads {
+	for _, p := range srv.Received() {
 		reader, err := compressor.NewReader(p.body)
-		require.NoError(t, err, "payload body is not valid %s", compressor.Encoding())
+		require.NoError(t, err, "payload body is not valid %s: %s", compressor.Encoding(), p.describe())
 
 		slurp, readErr := io.ReadAll(reader)
 		closeErr := reader.Close()
@@ -295,10 +304,17 @@ func mapPayloads(t *testing.T, payloads []*payload, compressor compression.Compo
 	f(all)
 }
 
-// payloadsContain checks that the given payloads contain the given set of sampled spans.
-func payloadsContainV1(t *testing.T, payloads []*payload, sampledSpans []*SampledChunksV1, compressor compression.Component) {
+// payloadsContainV1 checks that the given payloads contain the given set of
+// sampled spans. expected is the number of requests the server should have
+// recorded; pass -1 to skip that check when the count is not deterministic.
+func payloadsContainV1(t *testing.T, srv *testServer, expected int, sampledSpans []*SampledChunksV1, compressor compression.Component) {
 	t.Helper()
-	mapPayloads(t, payloads, compressor, func(all *pb.AgentPayload) {
+	if expected >= 0 {
+		received := srv.Received()
+		require.Len(t, received, expected,
+			"unexpected number of requests reached the test server; recorded: %s", describeReceived(received))
+	}
+	mapPayloads(t, srv, compressor, func(all *pb.AgentPayload) {
 		for _, ss := range sampledSpans {
 			var found bool
 			for _, tracerPayload := range all.IdxTracerPayloads {
@@ -337,6 +353,7 @@ func TestTraceWriterV1FlushSync(t *testing.T) {
 			randomSampledSpansV1(40, 5),
 		}
 		tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		defer tw.Stop()
 		for _, ss := range testSpans {
 			tw.WriteChunksV1(ss)
 		}
@@ -346,7 +363,7 @@ func TestTraceWriterV1FlushSync(t *testing.T) {
 		tw.FlushSync()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContainV1(t, srv.Payloads(), testSpans, tw.compressor)
+		payloadsContainV1(t, srv, 1, testSpans, tw.compressor)
 	})
 }
 
@@ -365,6 +382,7 @@ func TestTraceWriterV1ResetBuffer(t *testing.T) {
 	}
 
 	w := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer w.Stop()
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -423,7 +441,7 @@ func TestTraceWriterV1SyncStop(t *testing.T) {
 		tw.Stop()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContainV1(t, srv.Payloads(), testSpans, tw.compressor)
+		payloadsContainV1(t, srv, 1, testSpans, tw.compressor)
 	})
 }
 
@@ -449,13 +467,13 @@ func TestTraceWriterV1AgentPayload(t *testing.T) {
 	}
 	// helper function to parse the received payload and inspect the TPS that were filled by the writer
 	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool, compressor compression.Component) {
-		require.Len(t, srv.payloads, 1)
-		ap, err := deserializePayload(*srv.payloads[0], compressor)
+		require.Len(t, srv.Payloads(), 1)
+		ap, err := deserializePayload(*srv.Payloads()[0], compressor)
 		assert.Nil(t, err)
 		assert.Equal(t, priorityTps, ap.TargetTPS)
 		assert.Equal(t, errorTps, ap.ErrorTPS)
 		assert.Equal(t, rareEnabled, ap.RareSamplerEnabled)
-		srv.payloads = nil
+		srv.ResetPayloads()
 	}
 
 	t.Run("static TPS config", func(t *testing.T) {
