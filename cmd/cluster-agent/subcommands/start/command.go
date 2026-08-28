@@ -203,6 +203,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(pkgclusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
+					status.NewInformationProvider(workload.Provider{}),
 				),
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
@@ -589,6 +590,7 @@ func start(log log.Component,
 	// Autoscaling Product
 	var pp workload.PodPatcher
 	var autoscalingRCClient *rcclient.Client
+	var autoscalingRCInstance string
 	if config.GetBool("autoscaling.workload.enabled") || config.GetBool("autoscaling.cluster.enabled") {
 		if rcClients == nil {
 			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
@@ -607,13 +609,14 @@ func start(log log.Component,
 		if err != nil {
 			return err
 		}
+		autoscalingRCInstance = rcClients.InstanceNameForProducts(autoscalingProducts...)
 	}
 	if config.GetBool("autoscaling.workload.enabled") {
 		if !config.GetBool("admission_controller.enabled") {
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, autoscalingRCClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
+		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, autoscalingRCClient, autoscalingRCInstance, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
 			pp = patcher
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)

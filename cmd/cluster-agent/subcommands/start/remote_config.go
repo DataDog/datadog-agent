@@ -29,7 +29,16 @@ import (
 const (
 	additionalRemoteConfigClientsConfig = "cluster_agent.remote_configuration.additional_clients"
 	defaultRemoteConfigDatabaseFileName = "remote-config.db"
+	// defaultRemoteConfigStatusInstance mirrors defaultStatusInstance in
+	// pkg/config/remote/service, the key the default client reports status under.
+	defaultRemoteConfigStatusInstance = "Remote Config"
 )
+
+// remoteConfigStatusInstanceName returns the key an additional client reports
+// its status under. Keep in sync with the WithStatusInstance call below.
+func remoteConfigStatusInstanceName(specName string) string {
+	return "cluster-agent:" + specName
+}
 
 var processLevelRemoteConfigProducts = map[string]struct{}{
 	state.ProductAgentConfig: {},
@@ -171,6 +180,24 @@ func (r *remoteConfigClientRegistry) ClientForProducts(products ...string) (*rcc
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.clientForInstanceLocked(selectedInstance)
+}
+
+// InstanceNameForProducts returns the name of the client serving the given
+// products, for reporting in the status output. It mirrors the routing done by
+// ClientForProducts but creates nothing, and returns "default" when the
+// products are not owned by an additional client.
+func (r *remoteConfigClientRegistry) InstanceNameForProducts(products ...string) string {
+	if r == nil {
+		return ""
+	}
+	for _, product := range products {
+		if instance, found := r.byProduct[product]; found {
+			// Match the key used in the Remote Configuration status section, so
+			// the two sections can be cross-referenced.
+			return remoteConfigStatusInstanceName(instance.name)
+		}
+	}
+	return defaultRemoteConfigStatusInstance
 }
 
 func (r *remoteConfigClientRegistry) clientForInstanceLocked(instance *remoteConfigClientInstance) (*rcclient.Client, error) {
@@ -344,7 +371,7 @@ func newAdditionalRemoteConfigService(
 		remoteconfig.WithConfigRootOverride(site, spec.ConfigRoot),
 		remoteconfig.WithDirectorRootOverride(site, spec.DirectorRoot),
 		remoteconfig.WithRcKey(spec.Key),
-		remoteconfig.WithStatusInstance("cluster-agent:" + spec.Name),
+		remoteconfig.WithStatusInstance(remoteConfigStatusInstanceName(spec.Name)),
 	}
 
 	service, err := remoteconfig.NewService(
