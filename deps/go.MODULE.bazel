@@ -267,6 +267,7 @@ use_repo(
     "com_github_kouhin_envflag",
     "com_github_kr_pretty",
     "com_github_kraken_hpc_go_fork",
+    "com_github_landlock_lsm_go_landlock",
     "com_github_lightstep_go_expohisto",
     "com_github_lorenzosaino_go_sysctl",
     "com_github_lxn_walk",

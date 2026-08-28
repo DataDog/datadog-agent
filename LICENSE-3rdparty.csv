@@ -306,6 +306,7 @@ core,github.com/DataDog/rshell/builtins/internal/sizeparse,Apache-2.0,"Copyright
 core,github.com/DataDog/rshell/builtins/internal/winnet,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/winpoll,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ip,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/journalctl,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/logrotate,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ls,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ping,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -327,8 +328,10 @@ core,github.com/DataDog/rshell/builtins/uniq,Apache-2.0,"Copyright 2026-present 
 core,github.com/DataDog/rshell/builtins/wc,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/xargs,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/internal/interpoption,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/internal/systemd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/internal/version,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/interp,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/privilegedhelper,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Copyright 2021 Datadog, Inc"
@@ -1539,6 +1542,7 @@ core,github.com/kr/pretty,MIT,Copyright 2012 Keith Rarick
 core,github.com/kr/text,MIT,Copyright 2012 Keith Rarick
 core,github.com/kylelemons/godebug/diff,Apache-2.0,Copyright (c) 2013-2020 Kyle Lemons
 core,github.com/kylelemons/godebug/pretty,Apache-2.0,Copyright (c) 2013-2020 Kyle Lemons
+core,github.com/landlock-lsm/go-landlock/landlock/syscall,MIT,Copyright (c) 2021 Günther Noack
 core,github.com/leodido/go-syslog/v4,MIT,"Copyright (c) 2018, Leonardo Di Donato"
 core,github.com/leodido/go-syslog/v4/auto,MIT,"Copyright (c) 2018, Leonardo Di Donato"
 core,github.com/leodido/go-syslog/v4/ciscoios,MIT,"Copyright (c) 2018, Leonardo Di Donato"
@@ -2451,6 +2455,7 @@ core,github.com/twmb/franz-go/pkg/sasl,BSD-3-Clause,"Copyright 2020, Travis Bisc
 core,github.com/twmb/murmur3,BSD-3-Clause,"Copyright 2013, Sébastien Paolacci | Copyright 2018, Travis Bischel"
 core,github.com/ua-parser/uap-go/uaparser,MIT,Copyright (c) 2013 Yihuan Zhou | Copyright 2009 Google Inc
 core,github.com/ugorji/go/codec,MIT,Copyright (c) 2012-2020 Ugorji Nwoke
+core,github.com/ulikunitz/xz,BSD-3-Clause,Copyright (c) 2014-2022  Ulrich Kunitz
 core,github.com/ulikunitz/xz/internal/hash,BSD-3-Clause,Copyright (c) 2014-2022  Ulrich Kunitz
 core,github.com/ulikunitz/xz/internal/xlog,BSD-3-Clause,Copyright (c) 2014-2022  Ulrich Kunitz
 core,github.com/ulikunitz/xz/lzma,BSD-3-Clause,Copyright (c) 2014-2022  Ulrich Kunitz
@@ -4405,6 +4410,7 @@ core,k8s.io/utils/path,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/ptr,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/strings/slices,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/trace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,kernel.org/pub/linux/libs/security/libcap/psx,BSD-3-Clause,"Copyright (c) 2019,20,24 Andrew G. Morgan <morgan@kernel.org>"
 core,mellium.im/sasl,BSD-2-Clause,Copyright © 2014 The Mellium Contributors
 core,mvdan.cc/sh/v3/expand,BSD-3-Clause,"Copyright (c) 2016, Daniel Martí. All rights reserved"
 core,mvdan.cc/sh/v3/fileutil,BSD-3-Clause,"Copyright (c) 2016, Daniel Martí. All rights reserved"
