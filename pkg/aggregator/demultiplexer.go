@@ -46,8 +46,9 @@ type Demultiplexer interface {
 	SendSamplesWithoutAggregation(metrics metrics.MetricSampleBatch)
 
 	// ForceFlushToSerializer flushes all the aggregated data from the different samplers to
-	// the serialization/forwarding parts.
-	ForceFlushToSerializer(start time.Time, waitForSerializer bool)
+	// the serialization/forwarding parts. forceFlushAll additionally includes samples in
+	// the current, not-yet-closed time bucket (otherwise they wait for the next flush).
+	ForceFlushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool)
 	// GetMetricSamplePool returns a shared resource used in the whole DogStatsD
 	// pipeline to re-use metric samples slices: the server is getting a slice
 	// and filling it with samples, the rest of the pipeline process them the

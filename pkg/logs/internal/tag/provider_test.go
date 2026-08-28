@@ -8,6 +8,7 @@ package tag
 import (
 	"sort"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -15,7 +16,6 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -46,25 +46,26 @@ func TestProviderExpectedTags(t *testing.T) {
 	pp := p.(*provider)
 
 	var tt []string
+	synctest.Test(t, func(t *testing.T) {
+		// this will block for two (mock) seconds, so do it in a goroutine
+		tagsChan := make(chan []string)
+		go func() {
+			tagsChan <- pp.GetTags()
+		}()
+		synctest.Wait() // GetTags is now sleeping for the warmup duration
 
-	// this will block for two (mock) seconds, so do it in a goroutine
-	tagsChan := make(chan []string)
-	go func() {
-		tagsChan <- pp.GetTags()
-	}()
-
-wait:
-	for {
+		// Just before the warmup duration elapses, GetTags must still be asleep.
+		clock.Add(1999 * time.Millisecond)
 		select {
 		case tt = <-tagsChan:
-			break wait
+			t.Fatal("tags arrived before warmup duration elapsed!")
 		default:
-			clock.Add(90 * time.Millisecond)
 		}
-	}
 
-	// Ensure we waited at least 2 seconds
-	require.True(t, clock.Now().After(then.Add(2*time.Second)))
+		// Once the warmup duration elapses, GetTags unblocks.
+		clock.Add(1 * time.Millisecond)
+		tt = <-tagsChan
+	})
 
 	sort.Strings(tags)
 	sort.Strings(tt)

@@ -1516,11 +1516,14 @@ type TraceSerializer struct {
 // JSON keys (both omitempty pointers) are omitted entirely rather than emitted
 // as empty objects.
 func newTraceSerializer(e *model.Event) *TraceSerializer {
-	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
+	// this is the point where the lazily-filled parts of the span context are
+	// actually needed, and thus resolved
+	sc := e.FieldHandlers.ResolveSpanContext(e)
+	if sc.SpanID != 0 && (sc.TraceID.Hi != 0 || sc.TraceID.Lo != 0) {
 		return &TraceSerializer{
-			SpanID:     strconv.FormatUint(e.SpanContext.SpanID, 10),
-			TraceID:    e.SpanContext.TraceID.HexString(),
-			Attributes: e.SpanContext.Attributes,
+			SpanID:     strconv.FormatUint(sc.SpanID, 10),
+			TraceID:    sc.TraceID.HexString(),
+			Attributes: sc.Attributes,
 		}
 	}
 
