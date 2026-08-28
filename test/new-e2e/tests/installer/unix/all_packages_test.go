@@ -46,7 +46,7 @@ var (
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2604,
-		// e2eos.Ubuntu2404,  A bug in APT causes some apt update calls to timeout with unstable mirrors: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/2003851/comments/41
+		// e2eos.Ubuntu2404,  A bug in APT causes some apt update calls to timeout with unstable mirrors: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/2003851
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
