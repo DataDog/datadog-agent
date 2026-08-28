@@ -23,6 +23,7 @@ import (
 	"path"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -71,12 +72,50 @@ const (
 )
 
 var (
-	exportedMapStatus = expvar.NewMap("remoteConfigStatus")
-	// Status expvar exported
-	exportedStatusOrgEnabled    = expvar.String{}
-	exportedStatusKeyAuthorized = expvar.String{}
-	exportedLastUpdateErr       = expvar.String{}
+	exportedMapStatus       = expvar.NewMap("remoteConfigStatus")
+	exportedStatusInstances = expvar.Map{}
+	statusExpvarsLock       sync.Mutex
+	statusExpvars           = make(map[string]*remoteConfigStatus)
 )
+
+const defaultStatusInstance = "Remote Config"
+
+type remoteConfigStatus struct {
+	orgEnabled    expvar.String
+	keyAuthorized expvar.String
+	lastUpdateErr expvar.String
+}
+
+func getRemoteConfigStatus(instance string) *remoteConfigStatus {
+	if instance == "" {
+		instance = defaultStatusInstance
+	}
+
+	statusExpvarsLock.Lock()
+	defer statusExpvarsLock.Unlock()
+
+	if status, found := statusExpvars[instance]; found {
+		return status
+	}
+
+	status := &remoteConfigStatus{}
+	statusExpvars[instance] = status
+
+	instanceMap := &expvar.Map{}
+	instanceMap.Init()
+	instanceMap.Set("orgEnabled", &status.orgEnabled)
+	instanceMap.Set("apiKeyScoped", &status.keyAuthorized)
+	instanceMap.Set("lastError", &status.lastUpdateErr)
+	exportedStatusInstances.Set(instance, instanceMap)
+
+	if instance == defaultStatusInstance {
+		exportedMapStatus.Set("orgEnabled", &status.orgEnabled)
+		exportedMapStatus.Set("apiKeyScoped", &status.keyAuthorized)
+		exportedMapStatus.Set("lastError", &status.lastUpdateErr)
+	}
+
+	return status
+}
 
 func getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
 	var roots [][]byte
@@ -147,10 +186,13 @@ type CoreAgentService struct {
 
 	clients         *clients
 	orgStatusPoller *orgStatusPoller
+	status          *remoteConfigStatus
 
 	// Channels to stop the services main goroutines
 	stopConfigPoller chan struct{}
 	stopOnce         sync.Once
+
+	apiKeyUpdateSetting string
 
 	// The set of products to which calls to CreateConfigSubscription can
 	// subscribe. At the time of writing, this is a single-entry map in
@@ -242,6 +284,7 @@ type RcTelemetryReporter interface {
 type orgStatusPoller struct {
 	refreshInterval time.Duration
 	stopChan        chan struct{}
+	status          *remoteConfigStatus
 
 	mu struct {
 		sync.Mutex
@@ -252,10 +295,11 @@ type orgStatusPoller struct {
 	}
 }
 
-func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
+func newOrgStatusPoller(refreshInterval time.Duration, status *remoteConfigStatus) *orgStatusPoller {
 	p := &orgStatusPoller{
 		refreshInterval: refreshInterval,
 		stopChan:        make(chan struct{}),
+		status:          status,
 	}
 	return p
 }
@@ -339,16 +383,16 @@ func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
 		Enabled:    response.Enabled,
 		Authorized: response.Authorized,
 	}
-	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
-	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
+	p.status.orgEnabled.Set(strconv.FormatBool(response.Enabled))
+	p.status.keyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
 func init() {
 	// Exported variable to get the state of remote-config
 	exportedMapStatus.Init()
-	exportedMapStatus.Set("orgEnabled", &exportedStatusOrgEnabled)
-	exportedMapStatus.Set("apiKeyScoped", &exportedStatusKeyAuthorized)
-	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
+	exportedStatusInstances.Init()
+	exportedMapStatus.Set("instances", &exportedStatusInstances)
+	getRemoteConfigStatus(defaultStatusInstance)
 }
 
 type options struct {
@@ -357,10 +401,12 @@ type options struct {
 	apiKey                         string
 	parJWT                         string
 	traceAgentEnv                  string
+	statusInstance                 string
 	databaseFileName               string
 	databaseFilePath               string
 	configRootOverride             string
 	directorRootOverride           string
+	apiKeyUpdateSetting            string
 	clientCacheBypassLimit         int
 	refresh                        time.Duration
 	refreshIntervalOverrideAllowed bool
@@ -393,10 +439,12 @@ var defaultOptions = options{
 	apiKey:                              "",
 	parJWT:                              "",
 	traceAgentEnv:                       "",
+	statusInstance:                      defaultStatusInstance,
 	databaseFileName:                    "remote-config.db",
 	databaseFilePath:                    "",
 	configRootOverride:                  "",
 	directorRootOverride:                "",
+	apiKeyUpdateSetting:                 "api_key",
 	clientCacheBypassLimit:              defaultCacheBypassLimit,
 	refresh:                             defaultRefreshInterval,
 	refreshIntervalOverrideAllowed:      true,
@@ -501,6 +549,17 @@ func WithRcKey(rcKey string) func(s *options) {
 // WithAPIKey sets the service API key
 func WithAPIKey(apiKey string) func(s *options) {
 	return func(s *options) { s.apiKey = apiKey }
+}
+
+// WithAPIKeyUpdateSetting sets the config path watched for API key runtime updates.
+// An empty setting disables API key update watching for this service instance.
+func WithAPIKeyUpdateSetting(setting string) func(s *options) {
+	return func(s *options) { s.apiKeyUpdateSetting = strings.TrimSpace(setting) }
+}
+
+// WithStatusInstance sets the status instance name used for exported RC state.
+func WithStatusInstance(instance string) func(s *options) {
+	return func(s *options) { s.statusInstance = strings.TrimSpace(instance) }
 }
 
 // WithPARJWT sets the JWT for the private action runner
@@ -627,6 +686,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	clock := clock.New()
 
 	now := clock.Now().UTC()
+	status := getRemoteConfigStatus(options.statusInstance)
 	cas := &CoreAgentService{
 		api:                   http,
 		rcType:                rcType,
@@ -657,7 +717,9 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		subscriptionProductMappings:         options.subscriptionProductMappings,
 		maxConcurrentSubscriptions:          options.maxConcurrentSubscriptions,
 		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
-		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
+		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval, status),
+		status:                              status,
+		apiKeyUpdateSetting:                 options.apiKeyUpdateSetting,
 	}
 	cas.mu.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
@@ -671,7 +733,9 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	cas.mu.newProducts = make(map[rdata.Product]struct{})
 	cas.mu.uptane = uptaneClient
 
-	cfg.OnUpdate(cas.apiKeyUpdateCallback())
+	if cas.apiKeyUpdateSetting != "" {
+		cfg.OnUpdate(cas.apiKeyUpdateCallback())
+	}
 
 	return cas, nil
 }
@@ -764,7 +828,7 @@ func (s *CoreAgentService) logRefreshError(err error) {
 			defer s.mu.Unlock()
 			return s.mu.fetchConfigs503And504ErrCount
 		}()
-		exportedLastUpdateErr.Set(err.Error())
+		s.status.lastUpdateErr.Set(err.Error())
 		if fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
 			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		} else {
@@ -904,7 +968,7 @@ func (s *CoreAgentService) refresh() error {
 
 	s.mu.backoffErrorCount = s.backoffPolicy.DecError(s.mu.backoffErrorCount)
 
-	exportedLastUpdateErr.Set("")
+	s.status.lastUpdateErr.Set("")
 
 	return nil
 }
@@ -1176,7 +1240,7 @@ func makeFileMetaMap(targetFileMetas []*pbgo.TargetFileMeta) (map[string]data.Fi
 
 func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any, any, uint64) {
 	return func(setting string, _ model.Source, _, newvalue any, _ uint64) {
-		if setting != "api_key" {
+		if setting != s.apiKeyUpdateSetting {
 			return
 		}
 
@@ -1186,6 +1250,7 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 			log.Errorf("Could not convert API key to string")
 			return
 		}
+		newKey = strings.TrimSpace(newKey)
 		s.mu.Lock()
 		defer s.mu.Unlock()
 

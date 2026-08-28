@@ -86,8 +86,10 @@ func NewComponent(deps Dependencies) Provides {
 // newRemoteConfigService creates and configures a new remote config service
 func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 	apiKey := deps.Cfg.GetString("api_key")
+	apiKeyUpdateSetting := "api_key"
 	if deps.Cfg.IsConfigured("remote_configuration.api_key") {
 		apiKey = deps.Cfg.GetString("remote_configuration.api_key")
+		apiKeyUpdateSetting = "remote_configuration.api_key"
 	}
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 
@@ -100,6 +102,8 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.config_root")),
 		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.director_root")),
 		remoteconfig.WithRcKey(deps.Cfg.GetString("remote_configuration.key")),
+		remoteconfig.WithAPIKeyUpdateSetting(apiKeyUpdateSetting),
+		remoteconfig.WithStatusInstance("Remote Config"),
 	}
 	if deps.Params != nil {
 		options = append(options, deps.Params.Options...)

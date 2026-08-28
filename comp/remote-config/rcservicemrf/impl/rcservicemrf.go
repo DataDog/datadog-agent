@@ -82,6 +82,8 @@ func newMrfRemoteConfigService(deps Dependencies) (rcservicemrf.Component, error
 		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("multi_region_failover.site"), deps.Cfg.GetString("multi_region_failover.remote_configuration.config_root")),
 		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("multi_region_failover.site"), deps.Cfg.GetString("multi_region_failover.remote_configuration.director_root")),
 		remoteconfig.WithRcKey(deps.Cfg.GetString("multi_region_failover.remote_configuration.key")),
+		remoteconfig.WithAPIKeyUpdateSetting("multi_region_failover.api_key"),
+		remoteconfig.WithStatusInstance("MRF"),
 	}
 	if deps.Cfg.IsConfigured("multi_region_failover.remote_configuration.refresh_interval") {
 		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("multi_region_failover.remote_configuration.refresh_interval"), "multi_region_failover.remote_configuration.refresh_interval"))

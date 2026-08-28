@@ -496,6 +496,7 @@ func start(log log.Component,
 
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
+	var rcClients *remoteConfigClientRegistry
 	rcserv, isSet := rcService.Get()
 	rcEnabled := configUtils.IsRemoteConfigEnabled(config)
 	if rcEnabled && isSet {
@@ -523,16 +524,15 @@ func start(log log.Component,
 		}
 
 		var err error
-		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
+		rcClients, err = initializeRemoteConfigClients(rcserv, config, hostnameGetter, clusterName, clusterID, products...)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
+			rcClient = rcClients.DefaultClient()
 			subscribeAgentConfig(rcClient, config)
 			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
 			rcClient.Start()
-			defer func() {
-				rcClient.Close()
-			}()
+			defer rcClients.Close()
 		}
 	}
 
@@ -593,7 +593,12 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
+		workloadRCClient, err := rcClients.ClientForProducts(state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+		if err != nil {
+			return err
+		}
+
+		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, workloadRCClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
 			pp = patcher
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
@@ -605,7 +610,12 @@ func start(log log.Component,
 			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
 		}
 
-		if err := cluster.StartClusterAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, demultiplexer); err != nil {
+		clusterRCClient, err := rcClients.ClientForProducts(state.ProductClusterAutoscalingValues)
+		if err != nil {
+			return err
+		}
+
+		if err := cluster.StartClusterAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, clusterRCClient, demultiplexer); err != nil {
 			return fmt.Errorf("Error while starting cluster autoscaling: %w", err)
 		}
 	}
@@ -627,7 +637,12 @@ func start(log log.Component,
 		}
 		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
 
-		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, apiCl.DynamicCl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder, demultiplexer); err != nil {
+		kubeactionsRCClient, err := rcClients.ClientForProducts(state.ProductK8SActions)
+		if err != nil {
+			return err
+		}
+
+		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, apiCl.DynamicCl, clusterName, clusterID, le.IsLeader, kubeactionsRCClient, epForwarder, demultiplexer); err != nil {
 			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
 		}
 		log.Info("Kubernetes actions subsystem started successfully")
@@ -661,7 +676,12 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
+		parRCClient, err := rcClients.ClientForProducts(state.ProductActionPlatformRunnerKeys)
+		if err != nil {
+			return err
+		}
+
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, parRCClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -671,11 +691,16 @@ func start(log log.Component,
 
 	if config.GetBool("admission_controller.enabled") {
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
+			patchRCClient, err := rcClients.ClientForProducts(state.ProductAPMTracing)
+			if err != nil {
+				return err
+			}
+
 			patchCtx := admissionpatch.ControllerContext{
 				LeadershipStateSubscribeFunc: le.Subscribe,
 				K8sClient:                    apiCl.Cl,
 				DynamicClient:                apiCl.DynamicCl,
-				RcClient:                     rcClient,
+				RcClient:                     patchRCClient,
 				ClusterName:                  clusterName,
 				ClusterID:                    clusterID,
 				StopCh:                       stopCh,
@@ -693,6 +718,11 @@ func start(log log.Component,
 			csiDriverWatcher = libraryinjection.NewCSIDriverWatcher(mainCtx, wmeta)
 		}
 
+		admissionRCClient, err := rcClients.ClientForProducts(state.ProductApmPolicies)
+		if err != nil {
+			return err
+		}
+
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
 			SecretInformers:              apiCl.CertificateSecretInformerFactory,
@@ -706,7 +736,7 @@ func start(log log.Component,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
 			CSIDriverWatcher:             csiDriverWatcher,
-			RcClient:                     rcClient,
+			RcClient:                     admissionRCClient,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)

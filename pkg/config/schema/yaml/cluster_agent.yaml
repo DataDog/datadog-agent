@@ -118,6 +118,48 @@ properties:
         description: |-
           Sample rate for traces emitted by the Cluster Agent (0.0 to 1.0).
           Default is 0.1 (10%) for safety. Set to 1.0 to trace all operations.
+  remote_configuration:
+    node_type: section
+    type: object
+    properties:
+      additional_clients:
+        node_type: setting
+        type: object
+        default: {}
+        description: Additional Cluster Agent remote configuration clients keyed by instance name.
+        additionalProperties:
+          type: object
+          properties:
+            api_key:
+              type: string
+              default: ''
+            api_key_setting:
+              type: string
+              default: ''
+              description: Optional config path watched for runtime API key updates for this client.
+            rc_dd_url:
+              type: string
+              default: ''
+            site:
+              type: string
+              default: ''
+            config_root:
+              type: string
+              default: ''
+            director_root:
+              type: string
+              default: ''
+            key:
+              type: string
+              default: ''
+            database_file_name:
+              type: string
+              default: ''
+            products:
+              type: array
+              default: []
+              items:
+                type: string
   allow_legacy_tls:
     node_type: setting
     type: boolean
