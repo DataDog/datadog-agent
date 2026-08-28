@@ -305,7 +305,7 @@ impl ManagedChildSpawnData {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn pid(&self) -> Option<u32> {
         self.handle.id()
     }
@@ -375,7 +375,7 @@ impl From<ManagedChildSpawnData> for ManagedChildSpawn {
 }
 
 impl ManagedChildSpawn {
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn pid(&self) -> Option<u32> {
         self.inner.as_ref()?.pid()
     }
