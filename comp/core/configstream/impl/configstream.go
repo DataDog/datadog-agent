@@ -55,6 +55,10 @@ type configStream struct {
 	// Cached origin (set once at initialization to avoid lock contention)
 	origin string
 
+	// lastUnsetSeqID suppresses the OnUpdate that UnsetForSource fires under the same sequence ID:
+	// it reports the shadowed value under the cleared source, which the ConfigUnset stands in for.
+	lastUnsetSeqID atomic.Uint64
+
 	subscribersGauge     telemetry.Gauge
 	snapshotsSent        telemetry.Counter
 	updatesSent          telemetry.Counter
@@ -141,8 +145,42 @@ func (cs *configStream) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.Confi
 func (cs *configStream) run() {
 	updatesChan := make(chan *pb.ConfigEvent, 100)
 
+	cs.config.OnUnset(func(setting string, clearedSource model.Source, resolvedValue interface{}, resolvedSource model.Source, sequenceID uint64) {
+		if cs.stopped.Load() {
+			return
+		}
+		cs.lastUnsetSeqID.Store(sequenceID)
+
+		unset := &pb.ConfigUnset{
+			SequenceId: int32(sequenceID),
+			Origin:     cs.origin,
+			Key:        setting,
+			Source:     clearedSource.String(),
+		}
+
+		// Left unset when the key resolves to nothing, which tells the subscriber to only drop it.
+		if resolvedSource != model.SourceUnknown {
+			if resolved, err := newConfigSetting(setting, resolvedValue, resolvedSource); err != nil {
+				cs.log.Errorf("Failed to encode post-unset value of '%s': %v", setting, err)
+			} else {
+				unset.Resolved = resolved
+			}
+		}
+
+		configUnset := &pb.ConfigEvent{Event: &pb.ConfigEvent_Unset{Unset: unset}}
+
+		select {
+		case updatesChan <- configUnset:
+		default:
+			cs.log.Warn("Config update channel is full, dropping unset.")
+		}
+	})
+
 	cs.config.OnUpdate(func(setting string, source model.Source, _, newValue interface{}, sequenceID uint64) {
 		if cs.stopped.Load() {
+			return
+		}
+		if cs.lastUnsetSeqID.Load() == sequenceID {
 			return
 		}
 		sanitizedValue, err := sanitizeValue(newValue)
@@ -236,6 +274,27 @@ func (cs *configStream) removeSubscriber(id string) {
 	}
 }
 
+// newConfigSetting encodes one resolved setting for the wire.
+func newConfigSetting(key string, value interface{}, source model.Source) (*pb.ConfigSetting, error) {
+	sanitizedValue, err := sanitizeValue(value)
+	if err != nil {
+		return nil, err
+	}
+	pbValue, err := structpb.NewValue(sanitizedValue)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.ConfigSetting{Key: key, Source: source.String(), Value: pbValue}, nil
+}
+
+// incrementalSequenceID reads the sequence ID off either incremental event kind; both share a counter.
+func incrementalSequenceID(event *pb.ConfigEvent) uint64 {
+	if unset := event.GetUnset(); unset != nil {
+		return uint64(unset.SequenceId)
+	}
+	return uint64(event.GetUpdate().SequenceId)
+}
+
 func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
@@ -244,7 +303,7 @@ func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 	var snapshotSeqID uint64
 	var snapshotErr error
 
-	currentSequenceID := uint64(event.GetUpdate().SequenceId)
+	currentSequenceID := incrementalSequenceID(event)
 
 	for id, sub := range cs.subscribers {
 		// Skip updates that are older than the last one we sent to this subscriber.

@@ -111,6 +111,7 @@ type ntmConfig struct {
 	envTransform map[string]func(string) interface{}
 
 	notificationReceivers []model.NotificationReceiver
+	unsetReceivers        []model.UnsetNotificationReceiver
 	sequenceID            uint64
 
 	// Proxy settings
@@ -175,6 +176,13 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.Lock()
 	defer c.Unlock()
 	c.notificationReceivers = append(c.notificationReceivers, callback)
+}
+
+// OnUnset adds a receiver called on every layer removal, including ones that leave the resolved value unchanged.
+func (c *ntmConfig) OnUnset(callback model.UnsetNotificationReceiver) {
+	c.Lock()
+	defer c.Unlock()
+	c.unsetReceivers = append(c.unsetReceivers, callback)
 }
 
 func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
@@ -413,13 +421,16 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.maybeRebuild()
 
 	var (
-		previousValue interface{}
-		newValue      interface{}
-		receivers     []model.NotificationReceiver
-		sequenceID    uint64
+		previousValue  interface{}
+		resolvedValue  interface{}
+		resolvedSource model.Source
+		receivers      []model.NotificationReceiver
+		unsetReceivers []model.UnsetNotificationReceiver
+		sequenceID     uint64
+		notifyUpdate   bool
 	)
 
-	ok := func() bool {
+	func() {
 		c.Lock()
 		defer c.Unlock()
 
@@ -430,69 +441,74 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		tree, err := c.getTreeBySource(source)
 		if err != nil {
 			log.Errorf("%s", err)
-			return false
+			return
 		}
 		parentNode, childName, err := c.parentOfNode(tree, key)
 		if err != nil {
-			return false
+			return
 		}
 		// Only remove if the setting is a leaf
+		removed := false
 		if child, err := parentNode.GetChild(childName); err == nil {
 			if child.IsLeafNode() {
 				parentNode.RemoveChild(childName)
+				removed = true
 			} else {
 				log.Errorf("cannot remove setting %q, not a leaf", key)
-				return false
+				return
+			}
+		}
+		// Nothing left the layer, so root cannot name this source as its winner either.
+		if !removed {
+			return
+		}
+
+		// Allocated on removal, not on value change: a mirror drops the entry either way.
+		c.sequenceID++
+		sequenceID = c.sequenceID
+		unsetReceivers = slices.Clone(c.unsetReceivers)
+
+		// The merged tree only needs mending when the layer we cleared was the one winning in it.
+		if c.leafAtPathFromNode(key, c.root).Source() == source {
+			prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
+			if rootParent, rootChild, err := c.parentOfNode(c.root, key); err == nil {
+				if findPreviousSourceError != nil {
+					// No lower layer holds this key, so it leaves the merged tree entirely.
+					rootParent.RemoveChild(rootChild)
+				} else {
+					rootParent.InsertChildNode(rootChild, prevNode)
+				}
 			}
 		}
 
-		// If the node in the merged tree doesn't match the source we expect, we're done
-		if c.leafAtPathFromNode(key, c.root).Source() != source {
-			return false
-		}
-
-		// Find what the previous value used to be, based upon the previous source
-		prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
-
-		// Get the parent node of the leaf we're unsetting
-		parentNode, childName, err = c.parentOfNode(c.root, key)
-		if err != nil {
-			return false
-		}
-
-		// If there was no previous source with a node of this name, simply remove it from the parent
-		if findPreviousSourceError != nil {
-			parentNode.RemoveChild(childName)
-			return false
-		}
-
-		// Replace the child with the node from the previous layer
-		parentNode.InsertChildNode(childName, prevNode)
-
-		newValue = c.leafAtPathFromNode(key, c.root).Get()
+		// Read once the merged tree has settled, so every removal path reports the same thing: what
+		// the key resolves to now. missingLeaf reports SourceUnknown, meaning nothing is left.
+		resolved := c.leafAtPathFromNode(key, c.root)
+		resolvedValue = resolved.Get()
+		resolvedSource = resolved.Source()
 
 		// Value has not changed, do not notify
-		if reflect.DeepEqual(previousValue, newValue) {
-			return false
+		if reflect.DeepEqual(previousValue, resolvedValue) {
+			return
 		}
 
-		c.sequenceID++
 		receivers = slices.Clone(c.notificationReceivers)
-		// Capture the sequenceID here whilst locked to send to the receivers
-		// after unlocking.
-		sequenceID = c.sequenceID
-		return true
+		notifyUpdate = true
 	}()
-
-	if !ok {
-		return
-	}
 
 	// Notify receivers outside the lock. Subscribers commonly read the
 	// config from within their callback, and doing so while the write
 	// lock is still held deadlocks them against this goroutine.
+	// Unset receivers run first so a mirror drops the entry before the value change is reported.
+	for _, receiver := range unsetReceivers {
+		receiver(key, source, resolvedValue, resolvedSource, sequenceID)
+	}
+
+	if !notifyUpdate {
+		return
+	}
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, sequenceID)
+		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID)
 	}
 }
 

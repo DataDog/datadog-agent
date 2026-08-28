@@ -467,19 +467,22 @@ func TestConfigStream(t *testing.T) {
 		require.Equal(t, "new_value", update.Update.Setting.Value.GetStringValue())
 
 		configComp.UnsetForSource("my.new.setting", model.SourceCLI)
-		// verify we receive the update for the unset.
+
 		select {
 		case event = <-eventsCh:
 		case <-time.After(2 * time.Second):
-			t.Fatal("timed out waiting for config update")
+			t.Fatal("timed out waiting for config unset")
 		}
 		require.NotNil(t, event)
-		update, isUpdate = event.GetEvent().(*pb.ConfigEvent_Update)
-		require.True(t, isUpdate, "unset event must be an update")
+		unset, isUnset := event.GetEvent().(*pb.ConfigEvent_Unset)
+		require.True(t, isUnset, "unset must be its own event kind, got %T", event.GetEvent())
+		require.Equal(t, "my.new.setting", unset.Unset.Key)
+		require.Equal(t, string(model.SourceCLI), unset.Unset.Source, "the cleared layer, not the fallback")
 
-		// verify that the value has been unset and back to the original value.
-		require.Equal(t, "my.new.setting", update.Update.Setting.Key)
-		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
+		// Subscribers mirror the merged view, so the removal has to say what the key resolves to now.
+		require.NotNil(t, unset.Unset.Resolved, "unset must carry the post-unset resolution")
+		require.Equal(t, "original_value", unset.Unset.Resolved.Value.GetStringValue())
+		require.Equal(t, string(model.SourceAgentRuntime), unset.Unset.Resolved.Source)
 	})
 
 	resyncsWithSnapshotOnDiscontinuity := func(t *testing.T) {

@@ -318,6 +318,8 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
 		return c.applySnapshot(e.Snapshot)
 	case *pb.ConfigEvent_Update:
 		return c.applyUpdate(e.Update)
+	case *pb.ConfigEvent_Unset:
+		return c.applyUnset(e.Unset)
 	default:
 		return fmt.Errorf("unknown event type: %T", event.Event)
 	}
@@ -389,6 +391,36 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 	configstreambootstrap.Config().Set(setting.Key, setting.Value, setting.Source)
 	c.lastSeqID.Store(update.SequenceId)
 	c.lastSeqIDMetric.Set(float64(update.SequenceId))
+
+	return nil
+}
+
+// applyUnset mirrors an UnsetForSource performed on the core agent. Seeding the fallback layer is not
+// optional: snapshots only carry the merged view, so this config has no lower layer of its own to
+// fall back to. It is also seeded before the unset rather than after, so the unset resolves onto it
+// and notifies local receivers once with the final value instead of transiently with the default.
+func (c *consumer) applyUnset(unset *pb.ConfigUnset) error {
+	if unset.SequenceId <= c.lastSeqID.Load() {
+		c.log.Warnf("Ignoring stale unset (seq_id: %d <= %d)", unset.SequenceId, c.lastSeqID.Load())
+		c.droppedStaleUpdates.Inc()
+		return nil
+	}
+
+	if unset.SequenceId != c.lastSeqID.Load()+1 {
+		return fmt.Errorf("seq_id discontinuity: expected %d, got %d", c.lastSeqID.Load()+1, unset.SequenceId)
+	}
+
+	c.log.Debugf("Applying config unset (seq_id: %d, key: %s, source: %s)", unset.SequenceId, unset.Key, unset.Source)
+
+	cfg := configstreambootstrap.Config()
+	// Absent when the key resolves to nothing on the core agent, leaving only the removal to mirror.
+	if resolved := unset.GetResolved(); resolved != nil {
+		cfg.DirectBulkSet([]pkgconfigmodel.DirectSetting{toDirectSetting(resolved)})
+	}
+	cfg.UnsetForSource(unset.Key, pkgconfigmodel.Source(unset.Source))
+
+	c.lastSeqID.Store(unset.SequenceId)
+	c.lastSeqIDMetric.Set(float64(unset.SequenceId))
 
 	return nil
 }
