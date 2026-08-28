@@ -219,6 +219,16 @@ func TestInstallerSupportsTmpfs(t *testing.T) {
 	assert.False(t, installerSupportsTmpfs(filepath.Join(tmpDir, "missing")))
 }
 
+func TestRequiresReinstallForPreload(t *testing.T) {
+	tmpfsLauncher := filepath.Join(defaultTmpfsInjectDir, "launcher.preload.so")
+	persistentLauncher := filepath.Join(injectorPath, "inject", "launcher.preload.so")
+
+	assert.True(t, requiresReinstallForPreload(tmpfsLauncher+"\n", false))
+	assert.False(t, requiresReinstallForPreload(tmpfsLauncher+"\n", true))
+	assert.False(t, requiresReinstallForPreload(persistentLauncher+"\n", false))
+	assert.False(t, requiresReinstallForPreload("", false))
+}
+
 func alwaysSupported(string) bool { return true }
 
 func TestSystemdServiceManager_Uninstall(t *testing.T) {

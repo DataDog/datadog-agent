@@ -75,6 +75,14 @@ awshost.Provisioner(
 )
 ```
 
+### Kubernetes resource ownership
+
+Pulumi resource names and component parents only make Pulumi URNs unique. Kubernetes
+resource identity is still the combination of kind, namespace, and metadata name. When
+components can be installed together, give independently owned resources distinct
+Kubernetes names or make one component the explicit owner; do not create the same
+Kubernetes object under multiple Pulumi parents.
+
 ### BaseSuite
 
 All E2E tests embed `e2e.BaseSuite[Env]` and use `e2e.Run()`:

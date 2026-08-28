@@ -1,0 +1,40 @@
+services:
+  postgres-configfilesdiscovery:
+    image: 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/postgres:16@sha256:e17e86066e5ef83e0952a9347f5c792b7ece00972e2aa787a6986f471b3dd3d5
+    container_name: postgres-configfilesdiscovery
+    # No command override: the image's normal bare `postgres` startup is the
+    # realistic deployment scenario.
+    environment:
+      PGDATA: /var/lib/postgresql/data/configfilesdiscovery
+      PGPORT: "5432"
+      POSTGRES_DB: configfilesdiscovery
+      POSTGRES_USER: configfilesdiscovery
+      POSTGRES_PASSWORD: must-not-be-forwarded
+      # Canonical Bitnami names are included to exercise the supported image
+      # convention. The official image safely ignores these unknown settings.
+      POSTGRESQL_DATA_DIR: /bitnami/postgresql/data/configfilesdiscovery
+      POSTGRESQL_DATABASE: configfilesdiscovery-bitnami
+      POSTGRESQL_USERNAME: configfilesdiscovery-bitnami
+      POSTGRESQL_INITDB_WAL_DIR: /bitnami/postgresql/wal
+      POSTGRESQL_MAX_CONNECTIONS: "200"
+      POSTGRESQL_PASSWORD_ENCRYPTION: scram-sha-256
+      POSTGRESQL_ENABLE_TLS: "no"
+      POSTGRESQL_REPLICATION_MODE: master
+      POSTGRESQL_LDAP_URL: ldap://user:password@ldap.example.test
+      POSTGRESQL_PASSWORD: must-not-be-forwarded
+      POSTGRESQL_PASSWORD_FILE: /run/secrets/postgres-password
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "postgres": {
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": 5432,
+                "username": "configfilesdiscovery",
+                "password": "must-not-be-forwarded",
+                "dbname": "configfilesdiscovery"
+              }
+            ]
+          }
+        }

@@ -11,6 +11,7 @@ go_library(
         "jwt.go",
         "keys.go",
         "response_parser.go",
+        "stringops.go",
         "urn.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util",
@@ -29,6 +30,7 @@ dd_agent_go_test(
     srcs = [
         "http_retry_test.go",
         "keys_test.go",
+        "stringops_test.go",
     ],
     embed = [":util"],
     deps = [

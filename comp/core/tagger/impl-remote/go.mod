@@ -33,8 +33,8 @@ require (
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/google/uuid v1.6.0
 	github.com/mdlayher/vsock v1.3.0
-	github.com/stretchr/testify v1.12.0
-	google.golang.org/grpc v1.83.0
+	github.com/stretchr/testify v1.12.1
+	google.golang.org/grpc v1.83.1
 )
 
 require (
@@ -132,7 +132,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260720211330-0afa2a65878a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260810153831-ec0a7760b754 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

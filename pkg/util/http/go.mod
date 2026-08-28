@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	golang.org/x/net v0.58.0
 )
 
@@ -54,7 +54,6 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

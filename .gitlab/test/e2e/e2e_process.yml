@@ -1,0 +1,56 @@
+---
+# e2e stage - container-experiences owned jobs
+# Owned by: container-experiences, agent-devx
+
+.on_language-detection_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/language-detection/**/*
+        - cmd/process-agent/**/*
+        - comp/process/**/*
+        - pkg/process/**/*
+        - comp/core/workloadmeta/collectors/internal/process/**/*
+        - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-language-detection:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_language-detection_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/language-detection
+    TEAM: container-experiences
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-process-ecs:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
+    - qa_dca
+  rules:
+    - !reference [.on_process_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    EXTRA_PARAMS: --run TestECSFargateCoreAgentTestSuite|TestECSFargateTestSuite|TestECSEC2CoreAgentSuite|TestECSEC2TestSuite
+    TARGETS: ./tests/process
+    TEAM: container-experiences
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-process:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+    - qa_dca
+  rules:
+    - !reference [.on_process_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    EXTRA_PARAMS: --skip "TestECSFargateCoreAgentTestSuite|TestECSFargateTestSuite|TestECSEC2CoreAgentSuite|TestECSEC2TestSuite|Windows"
+    TARGETS: ./tests/process
+    TEAM: container-experiences
+    ON_NIGHTLY_FIPS: "true"
