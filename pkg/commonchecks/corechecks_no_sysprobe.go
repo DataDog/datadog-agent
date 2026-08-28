@@ -9,8 +9,11 @@
 // Package commonchecks contains shared checks for multiple agent components
 package commonchecks
 
-import tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	metricslogs "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/def"
+)
 
-func registerSystemProbeChecks(_ tagger.Component) {
+func registerSystemProbeChecks(_ tagger.Component, _ metricslogs.Component) {
 	// nothing to do here, this build doesn't include system-probe based checks
 }

@@ -16,6 +16,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	metricslogs "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/def"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -80,6 +81,7 @@ import (
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component],
+	metricsLogs metricslogs.Component,
 ) {
 	telemetryForMode := telemetryProviderForLoadMode(telemetry)
 
@@ -153,5 +155,5 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
 	corecheckLoader.RegisterCheck(thermal.CheckName, thermal.Factory())
 
-	registerSystemProbeChecks(tagger)
+	registerSystemProbeChecks(tagger, metricsLogs)
 }

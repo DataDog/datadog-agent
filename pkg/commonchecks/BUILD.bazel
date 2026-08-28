@@ -20,6 +20,7 @@ go_library(
         "//comp/core/telemetry/impl/noops",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
+        "//comp/forwarder/metricslogs/def",
         "//comp/networkconfigmanagement/def",
         "//comp/networkpath/traceroute/def",
         "//comp/remote-config/rcclient/def",
