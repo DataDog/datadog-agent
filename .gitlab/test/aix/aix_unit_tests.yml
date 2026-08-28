@@ -1,0 +1,66 @@
+---
+# AIX/ppc64 jobs run on a remote AIX LPAR over SSH, driven by a Linux GitLab
+# runner.
+
+.aix_remote:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  # Only one job may use the AIX host at a time.
+  resource_group: aix_ci_host
+  timeout: 2h
+  rules:
+    - !reference [.except_mergequeue]
+    # - changes:
+    #     paths:
+    #       - packaging/aix/**
+    #       - internal/tools/go.mod
+    #       - **/*_aix.go
+    #       - **/*_aix_test.go
+    #     compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  variables:
+    # SSH connection details for the AIX LPAR.
+    # TODO: move to Vault
+    AIX_HOST: "cloud3.siteox.com"
+    AIX_PORT: "42222"
+    AIX_USER: "root"
+    # Where the agent source is cloned on the AIX host.
+    AIX_AGENT_SRC: "/opt/dd-build/datadog-agent"
+    AIX_GIT_REMOTE: "https://github.com/DataDog/datadog-agent.git"
+    GIT_DEPTH: 1
+  before_script:
+    # Fetch the AIX host SSH private key from Vault and install it for this job.
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - touch ~/.ssh/aix_ci_key && chmod 600 ~/.ssh/aix_ci_key
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER key > ~/.ssh/aix_ci_key || exit $?
+    - chmod 600 ~/.ssh/aix_ci_key
+    # Trust the host key
+    - ssh-keyscan -p $AIX_PORT $AIX_HOST >> ~/.ssh/known_hosts 2>/dev/null
+    # Ensure the agent source is cloned on the AIX host at the commit under
+    # test. Reuses any existing clone (fetch + checkout) to avoid cloning from
+    # scratch each run. The clone includes packaging/aix/ci/*.sh, so the host
+    # has the scripts the job later runs.
+    - |
+      ssh -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST bash -s <<EOF
+      set -eu
+      export PATH=/opt/freeware/bin:/usr/bin:\$PATH
+      if [ ! -d "$AIX_AGENT_SRC/.git" ]; then
+        git clone "$AIX_GIT_REMOTE" "$AIX_AGENT_SRC"
+      fi
+      cd "$AIX_AGENT_SRC"
+      git fetch origin
+      # The commit under test may not be reachable from origin yet (e.g. a
+      # brand-new branch push); fetch the branch ref as a fallback.
+      git fetch origin "$CI_COMMIT_REF_NAME" 2>/dev/null || true
+      git checkout "$CI_COMMIT_SHA"
+      EOF
+  script:
+    # Setup the host (idempotent) then run the unit tests.
+    # setup-host.sh is shared with devs (packaging/aix/), run-tests.sh is the
+    # unit-test job's script (packaging/aix/ci/).
+    - ssh -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "$AIX_AGENT_SRC/packaging/aix/setup-host.sh"
+    - ssh -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "$AIX_AGENT_SRC/packaging/aix/ci/run-tests.sh"
+
+aix_unit_tests:
+  extends: .aix_remote

@@ -57,6 +57,8 @@ build_windows_container_entrypoint   @DataDog/windows-products
 # Cross-compiled binary builds for validation purpose
 cross_build_agent-binary_aix_ppc64        @DataDog/agent-build
 cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
+# AIX/ppc64 unit tests on a rented SiteOX LPAR (RFC: AIX CI, Phase 1)
+aix_unit_tests                             @DataDog/agent-runtimes
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
