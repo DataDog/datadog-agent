@@ -129,15 +129,14 @@ async fn join_in_flight_spawn(
             return;
         }
 
-        let monitor = tokio::spawn(async move { handle.await });
         tokio::select! {
-            result = monitor => log_spawn_monitor_result(result),
+            result = async { handle.await } => log_spawn_monitor_result(result),
             _ = tokio::time::sleep(cap) => {
                 warn!(
                     "startup: timed out waiting for in-flight auto-start ({cap:?} left in SCM budget); deferring to supervisor teardown"
                 );
                 ctx.background_spawns.track(tokio::spawn(async move {
-                    log_spawn_monitor_result(monitor.await);
+                    log_spawn_monitor_result(handle.await);
                 }));
             }
         }

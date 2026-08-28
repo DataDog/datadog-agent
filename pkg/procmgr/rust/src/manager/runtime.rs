@@ -131,7 +131,7 @@ impl RuntimeContext {
         Self::with_senders(lifecycle, cmd_tx, cmd_rx)
     }
 
-    #[cfg(all(test, unix))]
+    #[cfg(test)]
     pub(super) fn with_cmd(
         lifecycle: Lifecycle,
         cmd_tx: mpsc::Sender<Command>,
