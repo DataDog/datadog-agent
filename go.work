@@ -109,6 +109,7 @@ use (
 	pkg/config/setup/constants
 	pkg/config/structure
 	pkg/config/utils
+	pkg/credential
 	pkg/discovery/tracermetadata/model
 	pkg/errors
 	pkg/fips
