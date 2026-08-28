@@ -4,9 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::super::*;
-use super::{
-    auto_start_for_test, current_pending_restart, loader, test_runtime_context, uuid_gen,
-};
+use super::{auto_start_for_test, current_pending_restart, loader, test_runtime_context, uuid_gen};
 use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy};
 use crate::config_gate::ConditionConfigFile;
 use crate::test_helpers;
