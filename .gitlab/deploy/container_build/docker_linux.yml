@@ -81,8 +81,9 @@
         DOCKER_NO_CACHE=""
       fi
     # Build image, use target none label to avoid replication
+    # Force Docker media types to prevent buildx from switching to OCI manifests (#incident-59848)
     - |-
-      docker buildx build --push --pull --platform linux/$ARCH \
+      docker buildx build --output=type=image,push=true,oci-mediatypes=false --pull --platform linux/$ARCH \
         ${CACHE_SOURCE} \
         ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \

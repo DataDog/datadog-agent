@@ -12,7 +12,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -282,8 +282,15 @@ func TestResolveFromProcfs(t *testing.T) {
 	resolver.pidCacheMap = newFakeEBPMap()
 	resolver.inodeFileMap = newFakeEBPMap()
 
-	// use self pid so that the procfs entry exists and we have the permissions to read it
-	pid := os.Getpid()
+	cmd := exec.Command("sleep", "60")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+	pid := cmd.Process.Pid
 
 	t.Run("sanitize-inode", func(t *testing.T) {
 		entry := resolver.resolveFromProcfs(uint32(pid), 222, 1, func(pce *model.ProcessCacheEntry, _ error) {

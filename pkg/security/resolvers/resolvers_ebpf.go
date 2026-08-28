@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/file"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/golabelsctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -62,6 +63,7 @@ type EBPFResolvers struct {
 	HashResolver         *hash.Resolver
 	UserSessionsResolver *usersessions.Resolver
 	SyscallCtxResolver   *syscallctx.Resolver
+	GoLabelsCtxResolver  *golabelsctx.Resolver
 	DNSResolver          *dns.Resolver
 	FileMetadataResolver *file.Resolver
 	SignatureResolver    *sign.Resolver
@@ -214,6 +216,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		HashResolver:           hashResolver,
 		UserSessionsResolver:   userSessionsResolver,
 		SyscallCtxResolver:     syscallctx.NewResolver(),
+		GoLabelsCtxResolver:    golabelsctx.NewResolver(),
 		DNSResolver:            dnsResolver,
 		FileMetadataResolver:   fileMetadataResolver,
 		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
@@ -238,6 +241,10 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 	}
 
 	if err := r.SyscallCtxResolver.Start(r.manager); err != nil {
+		return err
+	}
+
+	if err := r.GoLabelsCtxResolver.Start(r.manager); err != nil {
 		return err
 	}
 
@@ -318,7 +325,8 @@ func (r *EBPFResolvers) snapshot() error {
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
 		// If the process is running a Datadog tracer, populate the user-space
-		// tracer metadata — this otherwise only gets populated by the runtime
+		// metadata and the kernel-side go_labels_procs offset map
+		// — these otherwise only get populated by the runtime
 		// tracer_memfd_seal event, which has already fired and been missed for
 		// processes that started before the agent.
 		r.ProcessResolver.SnapshotTracer(uint32(proc.Pid))

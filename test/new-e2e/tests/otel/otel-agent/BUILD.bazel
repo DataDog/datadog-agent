@@ -19,6 +19,7 @@ dd_agent_go_test(
         "receive_resource_spans_v2_test.go",
         "sampling_test.go",
         "span_derived_primary_tags_test.go",
+        "v3_series_test.go",
     ],
     data = [
         "config/complete.yml",
