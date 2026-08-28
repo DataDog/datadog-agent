@@ -9,7 +9,7 @@
 package ebpf
 
 import (
-	metricslogs "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/def"
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )

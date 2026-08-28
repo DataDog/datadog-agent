@@ -10,8 +10,8 @@
 package commonchecks
 
 import (
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	metricslogs "github.com/DataDog/datadog-agent/comp/forwarder/metricslogs/def"
 )
 
 func registerSystemProbeChecks(_ tagger.Component, _ metricslogs.Component) {
