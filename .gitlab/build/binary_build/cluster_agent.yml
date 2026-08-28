@@ -1,4 +1,5 @@
 ---
+.cluster_agent-build_common:
   extends: .bazel:defs:cache:progressive
   stage: binary_build
   timeout: 30m
@@ -6,9 +7,6 @@
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_deps"]
-  id_tokens:
-    BUILDBARN_ID_TOKEN:
-      aud: buildbarn.us1.ddbuild.io
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
