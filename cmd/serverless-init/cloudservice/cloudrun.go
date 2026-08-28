@@ -79,13 +79,6 @@ const (
 	functionSignature         = "function_signature_type"
 )
 
-const (
-	// Downstream workload_type values, from the allowlist enforced by the
-	// dd-go event-platform-resource-writer service.
-	workloadTypeCloudRunService   = "cloud_run_service"
-	workloadTypeCloudFunctionGen2 = "cloud_function_gen2"
-)
-
 var metadataHelperFunc = GetMetaData
 
 // GCPConfig holds the metadata configuration

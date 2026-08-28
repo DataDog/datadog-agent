@@ -55,6 +55,22 @@ platforms that cannot derive one leave it empty. The source enum already exists
 (`cloudservice/service.go`: `CloudRunType` = service/function/job). Co-locate
 each derivation with the platform's existing tag logic.
 
+Conventions established while adding CloudRunJobs (apply to the remaining
+platforms):
+- **Cache the metadata fetch when adding a second caller.** A platform whose
+  `GetTags` fetched the metadata service inline (no cache) grows a `sync.Once`
+  + cached map + `resolveMetadata()`, and `GetTags` is switched to
+  `maps.Clone(resolveMetadata())`. Do this in the same change that adds
+  `GetInventoryData`, not as a follow-up.
+- **Co-locate helpers with their owning type.** A CCRID (or similar) helper
+  used by exactly one platform lives in that platform's file, even when a
+  sibling platform has a structurally similar helper. Do not pool
+  single-owner helpers into a shared file by resemblance.
+- **`workload_type` constants live in `inventory.go`**, next to the
+  `InventoryData` contract they satisfy — not in per-platform files.
+- **Extract inline CCRID `Sprintf`s into a named helper** so `GetTags` and
+  `GetInventoryData` share one source of truth for the resource-id format.
+
 **CloudRun (service + function): done** (`cloudrun.go`, tests in
 `cloudrun_test.go`). Decisions baked in:
 - Service `resource_id` is the revision-level CCRID
@@ -66,7 +82,15 @@ each derivation with the platform's existing tag logic.
 - `deployment_id` is `K_REVISION`; `runtime` stays empty (not derivable in
   sidecar mode).
 
-Still TODO — CloudRunJobs, ContainerApp, AppService return empty structs.
+**CloudRunJobs: done** (`cloudrun_jobs.go`, test in `cloudrun_jobs_test.go`).
+Decisions baked in:
+- `resource_id` is the job-level CCRID (`.../jobs/{job}`); the job is the stable
+  top-level resource so `parent_resource_id` is left empty.
+- `deployment_id` is the execution (`CLOUD_RUN_EXECUTION`), the runtime instance.
+- Metadata fetch is cached on the struct via `resolveMetadata`/`sync.Once`, so
+  `GetTags` and `GetInventoryData` share exactly one metadata-service fetch.
+
+Still TODO — ContainerApp, AppService return empty structs.
 Derive `workload_type`, `resource_id` (CCRID), `resource_name`, `region`, the
 platform id (`gcp_project_id` or `azure_subscription_id`), plus the nullable
 fields where derivable:
