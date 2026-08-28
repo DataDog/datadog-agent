@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use super::catalog::ProcessCatalog;
 use super::{PendingRestart, RuntimeContext, enqueue_pending_restart};
 use crate::config::ProcessConfig;
 use crate::platform;
@@ -10,7 +11,6 @@ use crate::process::{ManagedChildSpawn, ManagedProcess};
 use anyhow::Result;
 use log::{info, warn};
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 pub(in crate::manager) enum SpawnKind {
     BootAutoStart,
@@ -87,7 +87,7 @@ pub(in crate::manager) fn pending_restart_still_valid(
 }
 
 pub(in crate::manager) async fn spawn_process(
-    processes: Arc<RwLock<Vec<ManagedProcess>>>,
+    catalog: Arc<ProcessCatalog>,
     idx: usize,
     ctx: &RuntimeContext,
     kind: SpawnKind,
@@ -97,7 +97,7 @@ pub(in crate::manager) async fn spawn_process(
     }
 
     let snapshot = {
-        let procs = processes.read().await;
+        let procs = catalog.read_processes().await;
         let Some(proc) = procs.get(idx) else {
             return Ok(());
         };
@@ -118,17 +118,17 @@ pub(in crate::manager) async fn spawn_process(
             .await
             .map_err(|e| anyhow::anyhow!("spawn worker join failed: {e}"))?;
 
-    commit_spawn(processes, idx, &name, spawn_result, ctx, &kind).await
+    commit_spawn(catalog, idx, &name, spawn_result, ctx, &kind).await
 }
 
 pub(in crate::manager) fn spawn_process_background(
-    processes: Arc<RwLock<Vec<ManagedProcess>>>,
+    catalog: Arc<ProcessCatalog>,
     idx: usize,
     ctx: RuntimeContext,
     kind: SpawnKind,
 ) {
     tokio::spawn(async move {
-        let _ = spawn_process(processes, idx, &ctx, kind).await;
+        let _ = spawn_process(catalog, idx, &ctx, kind).await;
     });
 }
 
@@ -139,14 +139,14 @@ fn spawn_managed_child_sync(name: &str, config: &ProcessConfig) -> Result<Manage
 }
 
 async fn commit_spawn(
-    processes: Arc<RwLock<Vec<ManagedProcess>>>,
+    catalog: Arc<ProcessCatalog>,
     idx: usize,
     name: &str,
     spawn_result: Result<ManagedChildSpawn>,
     ctx: &RuntimeContext,
     kind: &SpawnKind,
 ) -> Result<()> {
-    let mut procs = processes.write().await;
+    let mut procs = catalog.write_processes().await;
     let Some(proc) = procs.get_mut(idx) else {
         abort_uncommitted(spawn_result, name).await;
         return Ok(());

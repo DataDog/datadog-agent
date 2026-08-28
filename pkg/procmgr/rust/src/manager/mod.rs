@@ -5,6 +5,7 @@
 
 #![allow(clippy::result_large_err)]
 
+mod catalog;
 mod lifecycle;
 mod process_manager;
 mod runtime;

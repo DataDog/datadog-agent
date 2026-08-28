@@ -53,7 +53,7 @@ async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::
         .expect("expected first queued restart event");
 
     {
-        let mut procs = mgr.processes.write().await;
+        let mut procs = mgr.catalog.write_processes().await;
         procs[0].config_mut().command = "/nonexistent/dd-procmgr-failed-respawn".to_string();
     }
 
@@ -65,7 +65,7 @@ async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::
         .expect("expected second queued restart event");
 
     {
-        let mut procs = mgr.processes.write().await;
+        let mut procs = mgr.catalog.write_processes().await;
         procs[0].config_mut().command = cmd.to_string();
     }
 
@@ -220,7 +220,7 @@ async fn test_complete_restart_honors_policy_for_auto_start_false() -> anyhow::R
     }
 
     {
-        let mut procs = mgr.processes.write().await;
+        let mut procs = mgr.catalog.write_processes().await;
         let (cmd, args) = test_helpers::false_cmd();
         let status = std::process::Command::new(cmd).args(args).status()?;
         procs[0].set_last_status(status);
@@ -286,7 +286,7 @@ async fn test_complete_restart_skips_retry_when_restart_policy_revoked() -> anyh
         .expect("expected queued restart event");
 
     {
-        let mut procs = mgr.processes.write().await;
+        let mut procs = mgr.catalog.write_processes().await;
         procs[0].config_mut().restart = RestartPolicy::Never;
     }
 

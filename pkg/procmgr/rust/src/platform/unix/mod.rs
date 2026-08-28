@@ -17,8 +17,10 @@ use tokio::process::Command;
 
 use log::warn;
 use nix::unistd::{User, geteuid};
-use std::sync::{Arc, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
+#[cfg(test)]
+use std::sync::Arc;
 use tokio::sync::Notify;
 
 static SUPERVISOR_SPAWN_USER: OnceLock<String> = OnceLock::new();

@@ -3,42 +3,33 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use super::catalog::ProcessCatalog;
 use super::{
-    ExitEvent, PendingRestart, RuntimeContext, Supervisor, enqueue_pending_restart,
-    find_index_by_name, resolve_index,
+    ExitEvent, PendingRestart, RuntimeContext, Supervisor, enqueue_pending_restart, resolve_index,
     spawn::{
         SpawnKind, log_skipped_pending_restart, pending_restart_still_valid, spawn_process,
         spawn_process_background,
     },
 };
 use crate::command::{Command, CreateResult, StartResult, StopResult};
-use crate::config::{self, ConfigLoader, ProcessDefinition};
-use crate::ordering;
+use crate::config::{self, ConfigLoader};
 use crate::process::ManagedProcess;
+#[cfg(windows)]
 use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
-use anyhow::Result;
 use log::{debug, info, warn};
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tonic::Status;
 
 #[derive(Clone)]
 pub struct ProcessManager {
-    pub(in crate::manager) processes: Arc<RwLock<Vec<ManagedProcess>>>,
-    pub(in crate::manager) startup_order: Arc<RwLock<Vec<usize>>>,
-    pub(in crate::manager) config_loader: Arc<dyn ConfigLoader>,
-    pub(in crate::manager) uuid_gen: Arc<dyn UuidGenerator>,
+    pub(in crate::manager) catalog: Arc<ProcessCatalog>,
 }
 
 impl ProcessManager {
     pub fn new(config_loader: Arc<dyn ConfigLoader>, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
-        let (processes, startup_order) = load_catalog(config_loader.as_ref(), uuid_gen.as_ref());
         Self {
-            processes: Arc::new(RwLock::new(processes)),
-            startup_order: Arc::new(RwLock::new(startup_order)),
-            config_loader,
-            uuid_gen,
+            catalog: Arc::new(ProcessCatalog::load(config_loader.as_ref(), uuid_gen)),
         }
     }
 
@@ -47,15 +38,15 @@ impl ProcessManager {
     }
 
     pub(crate) async fn processes(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
-        self.processes.read().await
+        self.catalog.read_processes().await
     }
 
     pub(crate) fn config_source(&self) -> &str {
-        self.config_loader.source()
+        self.catalog.config_source()
     }
 
-    pub(crate) fn config_location(&self) -> String {
-        self.config_loader.location()
+    pub(crate) fn config_location(&self) -> &str {
+        self.catalog.config_location()
     }
 
     pub(in crate::manager) async fn handle_command(&self, ctx: &RuntimeContext, cmd: Command) {
@@ -83,7 +74,7 @@ impl ProcessManager {
     }
 
     pub(in crate::manager) async fn handle_exit(&self, event: ExitEvent, ctx: &RuntimeContext) {
-        let mut procs = self.processes.write().await;
+        let mut procs = self.catalog.write_processes().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
             warn!("exit event for unknown process '{}'", event.name);
             return;
@@ -118,7 +109,7 @@ impl ProcessManager {
         ctx: &RuntimeContext,
     ) {
         let idx = {
-            let procs = self.processes.read().await;
+            let procs = self.catalog.read_processes().await;
             let Some((idx, proc)) = procs
                 .iter()
                 .enumerate()
@@ -135,7 +126,7 @@ impl ProcessManager {
         };
 
         spawn_process_background(
-            Arc::clone(&self.processes),
+            Arc::clone(&self.catalog),
             idx,
             ctx.clone(),
             SpawnKind::Restart(pending),
@@ -162,17 +153,11 @@ impl ProcessManager {
         if config.command.is_empty() {
             return Err(Status::invalid_argument("command must not be empty"));
         }
-        let (uuid, auto_start_idx, auto_start, warnings) = {
-            let mut procs = self.processes.write().await;
-            let mut startup_order = self.startup_order.write().await;
-            let (uuid, auto_start_idx, auto_start) =
-                self.append_runtime_process(&mut procs, &name, config)?;
-            let warnings = self.sync_startup_order(&procs, &mut startup_order);
-            (uuid, auto_start_idx, auto_start, warnings)
-        };
+        let (uuid, auto_start_idx, auto_start, warnings) =
+            self.catalog.append_runtime(&name, config).await?;
         if auto_start {
             spawn_process_background(
-                Arc::clone(&self.processes),
+                Arc::clone(&self.catalog),
                 auto_start_idx,
                 ctx.clone(),
                 SpawnKind::CreateAutoStart,
@@ -187,7 +172,7 @@ impl ProcessManager {
         ctx: &RuntimeContext,
     ) -> Result<StartResult, Status> {
         let (idx, name) = {
-            let procs = self.processes.read().await;
+            let procs = self.catalog.read_processes().await;
             let idx = resolve_index(&procs, name_or_uuid)?;
             let proc = &procs[idx];
             let name = proc.name().to_owned();
@@ -200,11 +185,11 @@ impl ProcessManager {
             (idx, name)
         };
 
-        spawn_process(Arc::clone(&self.processes), idx, ctx, SpawnKind::Manual)
+        spawn_process(Arc::clone(&self.catalog), idx, ctx, SpawnKind::Manual)
             .await
             .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
 
-        let procs = self.processes.read().await;
+        let procs = self.catalog.read_processes().await;
         let proc = &procs[idx];
         if !proc.is_running() {
             return Err(Status::internal(format!(
@@ -222,7 +207,7 @@ impl ProcessManager {
         &self,
         name_or_uuid: &str,
     ) -> Result<StopResult, Status> {
-        let mut procs = self.processes.write().await;
+        let mut procs = self.catalog.write_processes().await;
         let idx = resolve_index(&procs, name_or_uuid)?;
         let proc = &mut procs[idx];
 
@@ -239,136 +224,6 @@ impl ProcessManager {
     }
 
     pub(in crate::manager) async fn shutdown(&self) {
-        let order: Vec<usize> = self
-            .startup_order
-            .read()
-            .await
-            .iter()
-            .copied()
-            .rev()
-            .collect();
-        let mut procs = self.processes.write().await;
-        shutdown::shutdown_ordered(&mut procs, &order).await;
-    }
-
-    fn append_runtime_process(
-        &self,
-        procs: &mut Vec<ManagedProcess>,
-        name: &str,
-        config: config::ProcessConfig,
-    ) -> Result<(String, usize, bool), Status> {
-        if find_index_by_name(procs, name).is_some() {
-            return Err(Status::already_exists(format!(
-                "process '{name}' already exists"
-            )));
-        }
-        let proc = ManagedProcess::new_runtime(name.to_string(), self.uuid_gen.generate(), config);
-        let uuid = proc.uuid().to_owned();
-        let auto_start = proc.may_auto_start();
-        info!("[{name}] created via RPC (uuid={uuid})");
-        procs.push(proc);
-        Ok((uuid, procs.len() - 1, auto_start))
-    }
-
-    fn sync_startup_order(
-        &self,
-        procs: &[ManagedProcess],
-        startup_order: &mut Vec<usize>,
-    ) -> Vec<String> {
-        let result = recompute_startup_order(procs);
-        *startup_order = result.order;
-        result.warnings
-    }
-}
-
-struct StartupOrderResult {
-    order: Vec<usize>,
-    warnings: Vec<String>,
-}
-
-fn load_catalog(
-    config_loader: &dyn ConfigLoader,
-    uuid_gen: &dyn UuidGenerator,
-) -> (Vec<ManagedProcess>, Vec<usize>) {
-    let processes: Vec<ManagedProcess> = config_loader
-        .load()
-        .into_iter()
-        .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
-        .collect();
-    let startup_order = recompute_startup_order(&processes).order;
-    (processes, startup_order)
-}
-
-fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
-    let defs: Vec<ProcessDefinition> = procs
-        .iter()
-        .map(|p| ProcessDefinition {
-            name: p.name().to_string(),
-            config: p.config().clone(),
-        })
-        .collect();
-    let result = ordering::resolve_order(&defs);
-    if !result.skipped.is_empty() {
-        warn!(
-            "dependency cycle detected, skipping processes: {}",
-            result.skipped.join(", ")
-        );
-    }
-    let names: Vec<&str> = result.order.iter().map(|&i| procs[i].name()).collect();
-    debug!("startup order: {}", names.join(" -> "));
-    StartupOrderResult {
-        order: result.order,
-        warnings: result.warnings,
-    }
-}
-
-#[cfg(test)]
-mod startup_order_tests {
-    use super::*;
-    use crate::config::{ProcessConfig, StaticConfigLoader};
-    use crate::test_helpers;
-    use crate::uuid_gen::V4UuidGenerator;
-    use std::sync::Arc;
-
-    fn named_config(name: &str) -> ManagedProcess {
-        let (cmd, args) = test_helpers::true_cmd();
-        ManagedProcess::new_config(
-            name.to_string(),
-            format!("uuid-{name}"),
-            ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
-        )
-    }
-
-    #[test]
-    fn sync_startup_order_matches_process_count() {
-        let mgr = ProcessManager::new(
-            Arc::new(StaticConfigLoader::new(vec![])),
-            Arc::new(V4UuidGenerator),
-        );
-        let procs = vec![named_config("alpha"), named_config("bravo")];
-        let mut order = vec![0];
-
-        let _warnings = mgr.sync_startup_order(&procs, &mut order);
-
-        assert_eq!(order.len(), procs.len());
-        assert_eq!(order.iter().copied().collect::<std::collections::HashSet<_>>().len(), procs.len());
-    }
-
-    #[test]
-    fn stale_order_write_drops_process_from_shutdown_plan() {
-        let procs = vec![named_config("alpha"), named_config("bravo")];
-        let fresh = recompute_startup_order(&procs).order;
-        let stale = vec![0];
-
-        assert_eq!(fresh.len(), 2);
-        assert_eq!(stale.len(), 1);
-        assert!(
-            !stale.contains(&1),
-            "stale order omits bravo and would skip it during shutdown"
-        );
+        self.catalog.shutdown().await;
     }
 }

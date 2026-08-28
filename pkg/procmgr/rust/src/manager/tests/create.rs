@@ -70,7 +70,7 @@ async fn test_startup_order_indices_match_processes() {
         uuid_gen(),
     );
 
-    let order = mgr.startup_order.read().await;
+    let order = mgr.catalog.startup_order().await;
     let procs = mgr.processes().await;
     let names: Vec<&str> = order.iter().map(|&i| procs[i].name()).collect();
     assert_eq!(names, vec!["alpha", "bravo", "charlie"]);
@@ -94,7 +94,7 @@ async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Resu
     )
     .await?;
 
-    let order = mgr.startup_order.read().await;
+    let order = mgr.catalog.startup_order().await;
     let procs = mgr.processes().await;
     let names: Vec<&str> = order.iter().map(|&i| procs[i].name()).collect();
     assert_eq!(
@@ -250,7 +250,7 @@ async fn test_concurrent_create_preserves_startup_order() -> anyhow::Result<()> 
         task.await??;
     }
 
-    let order = mgr.startup_order.read().await;
+    let order = mgr.catalog.startup_order().await;
     let procs = mgr.processes().await;
     assert_eq!(procs.len(), CREATE_COUNT);
     assert_eq!(order.len(), CREATE_COUNT);

@@ -131,9 +131,10 @@ async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Resu
     crate::platform::signal_shutdown_for_test();
     auto_start_task.await?;
 
-    let _write_guard = tokio::time::timeout(Duration::from_millis(100), mgr.processes.write())
-        .await
-        .expect("catalog write lock still held after auto-start shutdown join");
+    let _write_guard =
+        tokio::time::timeout(Duration::from_millis(100), mgr.catalog.write_processes())
+            .await
+            .expect("catalog write lock still held after auto-start shutdown join");
 
     crate::platform::reset_shutdown_state_for_test();
     Ok(())

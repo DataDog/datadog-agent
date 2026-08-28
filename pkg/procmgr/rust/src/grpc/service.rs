@@ -204,7 +204,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         let loaded = procs.len() as u32 - runtime;
         Ok(Response::new(proto::GetConfigResponse {
             source: self.mgr.config_source().to_string(),
-            location: self.mgr.config_location(),
+            location: self.mgr.config_location().to_string(),
             loaded_processes: loaded,
             runtime_processes: runtime,
         }))

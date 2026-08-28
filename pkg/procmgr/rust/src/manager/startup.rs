@@ -19,7 +19,7 @@ pub(in crate::manager) async fn run(
     ctx: &RuntimeContext,
     mut shutdown: Pin<&mut impl Future<Output = ()>>,
 ) {
-    let order = manager.startup_order.read().await.clone();
+    let order = manager.catalog.startup_order().await.clone();
     if order.is_empty() {
         info!("startup: catalog is empty, nothing to auto-start");
         return;
@@ -36,16 +36,18 @@ pub(in crate::manager) async fn run(
             return;
         }
 
-        let name = manager.processes.read().await[idx].name().to_owned();
+        let name = manager.catalog.read_processes().await[idx]
+            .name()
+            .to_owned();
         debug!(
             "startup: step {}/{} spawning '{name}' if configured",
             step + 1,
             order.len()
         );
 
-        let processes = manager.processes.clone();
+        let catalog = manager.catalog.clone();
         let ctx = ctx.clone();
-        let spawn_fut = spawn_process(processes, idx, &ctx, SpawnKind::BootAutoStart);
+        let spawn_fut = spawn_process(catalog, idx, &ctx, SpawnKind::BootAutoStart);
         tokio::pin!(spawn_fut);
 
         tokio::select! {
@@ -66,7 +68,7 @@ pub(in crate::manager) async fn run(
 }
 
 async fn log_startup_plan(manager: &ProcessManager, order: &[usize]) {
-    let procs = manager.processes.read().await;
+    let procs = manager.catalog.read_processes().await;
     let names: Vec<&str> = order.iter().map(|&i| procs[i].name()).collect();
     info!(
         "startup: {} catalog processes, order: {}",
