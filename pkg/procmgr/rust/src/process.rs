@@ -236,7 +236,7 @@ impl StopWaitPlan {
                 mut handle,
                 graceful_budget,
                 ..
-            } => match time::timeout(graceful_budget, &mut handle).await {
+            } => match shutdown::wait_graceful_or_shutdown(graceful_budget, &mut handle).await {
                 Ok(Ok(status)) => StopWaitResult::Exited(status),
                 Ok(Err(error)) => {
                     warn!("[{name}] watcher join failed during stop: {error:#}");
@@ -249,7 +249,7 @@ impl StopWaitPlan {
                 mut handle,
                 graceful_budget,
                 ..
-            } => match time::timeout(graceful_budget, handle.wait()).await {
+            } => match shutdown::wait_graceful_or_shutdown(graceful_budget, handle.wait()).await {
                 Ok(Ok(status)) => StopWaitResult::Exited(Some(status)),
                 Ok(Err(error)) => {
                     warn!("[{name}] wait failed during stop: {error:#}");
@@ -953,6 +953,7 @@ impl ManagedProcess {
             return false;
         }
 
+        let budget = budget.refresh();
         let graceful_budget = budget.graceful_budget(self.stop_timeout());
         match result {
             StopWaitResult::Exited(status) => self.apply_stop_exit(status),
@@ -999,7 +1000,7 @@ impl ManagedProcess {
             self.mark_stopped();
         }
         self.stop_wait_generation.clear();
-        self.release_stop_wait_resources(budget).await;
+        self.release_stop_wait_resources(budget.refresh()).await;
     }
 
     pub(crate) fn has_orphaned_stop_wait(&self) -> bool {
@@ -1133,7 +1134,7 @@ impl ManagedProcess {
     }
 
     pub async fn wait_for_stop(&mut self) {
-        self.wait_for_stop_since(ShutdownBudget::unlimited(Instant::now()))
+        self.wait_for_stop_since(ShutdownBudget::unlimited(std::time::Instant::now()))
             .await;
     }
 
@@ -1267,12 +1268,13 @@ pub(crate) trait StopWaitContext {
 
 pub(crate) async fn run_stop_wait<C: StopWaitContext>(
     ctx: &mut C,
-    budget: ShutdownBudget,
+    mut budget: ShutdownBudget,
 ) -> Option<StopWaitOwner> {
     let mut owner_needing_complete = None;
     while let Some(plan) = ctx.plan_stop(budget).await {
         let owner = plan.owner();
         let result = plan.execute().await;
+        budget = budget.refresh();
         if ctx.finalize_stop(owner, result, budget).await {
             owner_needing_complete = Some(owner);
         } else {

@@ -253,10 +253,7 @@ impl ProcessManager {
         };
 
         self.catalog
-            .wait_for_process_stop(
-                idx,
-                crate::shutdown::ShutdownBudget::unlimited(std::time::Instant::now()),
-            )
+            .wait_for_process_stop(idx, crate::shutdown::ShutdownBudget::for_single_stop())
             .await;
 
         let state = self.catalog.read_processes().await[idx].state();

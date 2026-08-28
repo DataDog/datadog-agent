@@ -40,7 +40,6 @@ impl ShutdownBudget {
         Self::prefer_service_stop(self)
     }
 
-    #[cfg(windows)]
     pub(crate) fn for_single_stop() -> Self {
         Self::prefer_service_stop(Self::unlimited(Instant::now()))
     }
