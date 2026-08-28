@@ -178,6 +178,39 @@ async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> any
 }
 
 #[tokio::test]
+async fn test_start_returns_committed_snapshot_after_immediate_exit() -> anyhow::Result<()> {
+    let _guard = super::test_manager_lock().await;
+    crate::platform::reset_shutdown_state_for_test();
+
+    let mgr = ProcessManager::new(loader(vec![super::true_def("fast-exit")]), uuid_gen());
+    let (ctx, mut rx) = test_runtime_context();
+
+    let mgr_loop = mgr.clone();
+    let ctx_loop = ctx.clone();
+    let loop_task = tokio::spawn(async move {
+        let pending = std::future::pending::<()>();
+        tokio::pin!(pending);
+        rx.run_with(&mgr_loop, &ctx_loop, pending).await;
+    });
+
+    let result = mgr.handle_start("fast-exit", &ctx).await?;
+    assert_eq!(result.state, ProcessState::Running);
+    assert!(result.pid.is_some());
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_ne!(
+        mgr.processes().await[0].state(),
+        ProcessState::Running,
+        "exit watcher should update state after Start returns"
+    );
+
+    loop_task.abort();
+    let _ = loop_task.await;
+    crate::platform::reset_shutdown_state_for_test();
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_create_auto_start_respects_in_flight_reservation() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
     let (handles, _rx) = test_runtime_context();

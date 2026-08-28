@@ -13,9 +13,16 @@ use anyhow::Result;
 use log::{info, warn};
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::manager) struct SpawnCommitSnapshot {
+    pub uuid: String,
+    pub pid: Option<u32>,
+    pub state: ProcessState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::manager) enum SpawnProcessOutcome {
-    Committed,
+    Committed(SpawnCommitSnapshot),
     NotStarted,
 }
 
@@ -196,7 +203,13 @@ async fn commit_spawn(
     match spawn_result {
         Ok(outcome) => proc
             .commit_spawn_from_outcome(outcome, ctx.exit_tx.clone())
-            .map(|()| SpawnProcessOutcome::Committed)
+            .map(|()| {
+                SpawnProcessOutcome::Committed(SpawnCommitSnapshot {
+                    uuid: proc.uuid().to_owned(),
+                    pid: proc.pid(),
+                    state: proc.state(),
+                })
+            })
             .map_err(|e| {
                 warn!("[{name}] spawn failed: {e:#}");
                 if kind.retry_on_failure() && ctx.lifecycle.spawns_allowed() {

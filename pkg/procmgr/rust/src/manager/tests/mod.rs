@@ -89,6 +89,18 @@ fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
     }
 }
 
+pub fn true_def(name: &str) -> ProcessDefinition {
+    let (cmd, args) = test_helpers::true_cmd();
+    ProcessDefinition {
+        name: name.to_string(),
+        config: ProcessConfig {
+            command: cmd.to_string(),
+            args,
+            ..Default::default()
+        },
+    }
+}
+
 mod boot;
 mod create;
 mod resolve;
