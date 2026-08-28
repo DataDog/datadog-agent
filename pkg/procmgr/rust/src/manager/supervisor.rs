@@ -52,7 +52,8 @@ impl Supervisor {
             Ok(Ok(())) => {}
         }
 
-        self.manager.shutdown().await;
+        rx.drain_exits_during(&self.manager, &ctx, self.manager.shutdown())
+            .await;
         info!("dd-procmgrd stopped");
         Ok(())
     }

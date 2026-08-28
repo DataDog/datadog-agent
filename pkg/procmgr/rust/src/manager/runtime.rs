@@ -8,7 +8,7 @@ use super::{ExitEvent, PendingRestart, ProcessManager};
 use crate::command::Command;
 use log::warn;
 use std::future::Future;
-use std::pin::Pin;
+use std::pin::{Pin, pin};
 use tokio::sync::mpsc;
 
 #[derive(Clone)]
@@ -97,6 +97,38 @@ impl RuntimeReceivers {
             }
         }
     }
+
+    pub(in crate::manager) async fn drain_exits_during(
+        &mut self,
+        manager: &ProcessManager,
+        ctx: &RuntimeContext,
+        work: impl Future<Output = ()>,
+    ) {
+        let mut work = pin!(work);
+        loop {
+            tokio::select! {
+                biased;
+                _ = work.as_mut() => break,
+                Some(event) = self.exit_rx.recv() => {
+                    manager.handle_exit(event, ctx).await;
+                }
+            }
+        }
+        self.drain_pending_exits(manager, ctx).await;
+    }
+
+    async fn drain_pending_exits(&mut self, manager: &ProcessManager, ctx: &RuntimeContext) {
+        while let Ok(event) = self.exit_rx.try_recv() {
+            manager.handle_exit(event, ctx).await;
+        }
+        while let Ok(Some(event)) =
+            tokio::time::timeout(Self::EXIT_DRAIN_IDLE, self.exit_rx.recv()).await
+        {
+            manager.handle_exit(event, ctx).await;
+        }
+    }
+
+    const EXIT_DRAIN_IDLE: std::time::Duration = std::time::Duration::from_millis(100);
 }
 
 #[cfg(all(test, unix))]
@@ -160,5 +192,39 @@ mod tests {
 
         assert!(ctx.lifecycle.is_stopping());
         platform::reset_shutdown_state_for_test();
+    }
+
+    #[tokio::test]
+    async fn drain_exits_during_work_drains_beyond_channel_capacity() {
+        let manager = empty_manager();
+        let (ctx, mut rx) = running_runtime();
+
+        let senders: Vec<_> = (0..300)
+            .map(|i| {
+                let tx = ctx.exit_tx.clone();
+                tokio::spawn(async move {
+                    tx.send(ExitEvent {
+                        name: format!("svc-{i}"),
+                        pid: i as u32,
+                        status: crate::test_helpers::exit_status(0),
+                    })
+                    .await
+                    .expect("exit send should not block indefinitely");
+                })
+            })
+            .collect();
+
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            rx.drain_exits_during(&manager, &ctx, async {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }),
+        )
+        .await
+        .expect("drain should complete while exit senders are active");
+
+        for sender in senders {
+            sender.await.expect("exit sender task should complete");
+        }
     }
 }

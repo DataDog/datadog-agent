@@ -88,7 +88,9 @@ impl ProcessManager {
                 std::time::Instant::now(),
             ))
             .await;
-            enqueue_pending_restart(proc, ctx);
+            if ctx.lifecycle.spawns_allowed() {
+                enqueue_pending_restart(proc, ctx);
+            }
             return;
         }
 
