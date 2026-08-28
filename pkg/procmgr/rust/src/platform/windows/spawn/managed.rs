@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use log::{info, warn};
 
 use crate::config::ProcessConfig;
-use crate::process::ManagedChildSpawn;
+use crate::process::{ManagedChildSpawn, ManagedProcess};
 use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 
 use super::super::JobObject;
@@ -54,7 +54,7 @@ pub(crate) async fn abort_uncommitted_spawn(spawn: ManagedChildSpawn, process_na
         mut handle,
         intended_user: _,
         job_object,
-        user_profile: _,
+        user_profile,
     } = spawn;
 
     if let Err(e) = job_object.terminate() {
@@ -64,4 +64,19 @@ pub(crate) async fn abort_uncommitted_spawn(spawn: ManagedChildSpawn, process_na
     if let Err(e) = handle.kill().await {
         warn!("[{process_name}] failed to terminate uncommitted spawn (pid={pid}): {e:#}");
     }
+    if let Err(e) = handle.wait().await {
+        warn!("[{process_name}] failed to wait for uncommitted spawn (pid={pid}): {e:#}");
+    }
+
+    let timeout = ManagedProcess::FORCE_KILL_TIMEOUT;
+    let drained = tokio::task::spawn_blocking(move || job_object.wait_until_empty(timeout))
+        .await
+        .unwrap_or(false);
+    if !drained {
+        warn!(
+            "[{process_name}] timed out waiting for uncommitted spawn job to drain before releasing profile"
+        );
+    }
+
+    drop(user_profile);
 }
