@@ -14,6 +14,7 @@ import (
 
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/credential"
 )
 
 // An ordinary endpoint must be completely unaffected by any of this.
@@ -79,7 +80,7 @@ func TestIsDelaDirective(t *testing.T) {
 		{"abcdef0123456789", false},
 		{"", false},
 	} {
-		assert.Equal(t, tc.want, isDelaDirective(tc.value), "isDelaDirective(%q)", tc.value)
+		assert.Equal(t, tc.want, credential.IsDirective(tc.value), "credential.IsDirective(%q)", tc.value)
 	}
 }
 
