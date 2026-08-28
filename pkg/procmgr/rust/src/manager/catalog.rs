@@ -89,8 +89,19 @@ impl ProcessCatalog {
             .copied()
             .rev()
             .collect();
-        let mut procs = self.processes.write().await;
-        shutdown::shutdown_ordered(&mut procs, &order).await;
+        {
+            let mut procs = self.processes.write().await;
+            for &idx in &order {
+                procs[idx].request_stop();
+            }
+        }
+        let signal_time =
+            crate::platform::service_stop_signal_time().unwrap_or_else(std::time::Instant::now);
+        let budget = shutdown::ShutdownBudget::service_stop(signal_time);
+        for &idx in &order {
+            let mut procs = self.processes.write().await;
+            procs[idx].wait_for_stop_since(budget).await;
+        }
     }
 
     fn append_runtime_process(

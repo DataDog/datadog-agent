@@ -109,9 +109,7 @@ impl RuntimeReceivers {
             tokio::select! {
                 biased;
                 _ = work.as_mut() => break,
-                Some(event) = self.exit_rx.recv() => {
-                    manager.handle_exit(event, ctx).await;
-                }
+                Some(_event) = self.exit_rx.recv() => {}
             }
         }
         self.drain_pending_exits(manager, ctx).await;
@@ -222,6 +220,42 @@ mod tests {
         )
         .await
         .expect("drain should complete while exit senders are active");
+
+        for sender in senders {
+            sender.await.expect("exit sender task should complete");
+        }
+    }
+
+    #[tokio::test]
+    async fn drain_exits_during_work_drains_while_catalog_write_locked() {
+        let manager = empty_manager();
+        let (ctx, mut rx) = running_runtime();
+        let catalog = Arc::clone(&manager.catalog);
+
+        let senders: Vec<_> = (0..300)
+            .map(|i| {
+                let tx = ctx.exit_tx.clone();
+                tokio::spawn(async move {
+                    tx.send(ExitEvent {
+                        name: format!("svc-{i}"),
+                        pid: i as u32,
+                        status: crate::test_helpers::exit_status(0),
+                    })
+                    .await
+                    .expect("exit send should not block while catalog lock is held");
+                })
+            })
+            .collect();
+
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            rx.drain_exits_during(&manager, &ctx, async {
+                let _guard = catalog.write_processes().await;
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }),
+        )
+        .await
+        .expect("drain should keep receiving while shutdown holds the catalog lock");
 
         for sender in senders {
             sender.await.expect("exit sender task should complete");
