@@ -747,6 +747,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn shutdown_signal_completes_when_requested_before_first_poll() {
+        let _guard = platform::test_shutdown_lock().await;
+        platform::reset_shutdown_state_for_test();
+        platform::signal_shutdown_for_test();
+
+        let shutdown = platform::shutdown_signal();
+        tokio::pin!(shutdown);
+        tokio::time::timeout(Duration::from_millis(50), shutdown.as_mut())
+            .await
+            .expect("shutdown should complete when the flag was set before the first poll");
+
+        platform::reset_shutdown_state_for_test();
+    }
+
+    #[tokio::test]
     async fn drain_exits_during_work_drains_beyond_channel_capacity() {
         let manager = empty_manager();
         let (ctx, mut rx) = running_runtime();

@@ -406,6 +406,9 @@ fn default_stable_fleet_policies_dir() -> Option<PathBuf> {
 }
 
 pub(crate) async fn wait_for_shutdown() {
+    if shutdown_requested() {
+        return;
+    }
     tokio::select! {
         result = tokio::signal::ctrl_c() => {
             result.expect("failed to register Ctrl+C handler");

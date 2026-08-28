@@ -110,6 +110,9 @@ pub fn stderr_inheritable() -> bool {
 }
 
 pub(crate) async fn wait_for_shutdown() {
+    if shutdown_requested() {
+        return;
+    }
     use tokio::signal::unix::{SignalKind, signal};
     let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
     let mut sigint = signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
