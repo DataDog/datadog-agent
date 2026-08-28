@@ -10,6 +10,7 @@ use crate::state::ProcessState;
 use crate::test_helpers;
 use std::time::Duration;
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_stop_during_in_flight_spawn_aborts_child() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -53,6 +54,7 @@ async fn test_stop_during_in_flight_spawn_aborts_child() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_concurrent_start_rejected_while_spawn_in_flight() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -129,6 +131,7 @@ async fn test_concurrent_start_only_one_succeeds() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;

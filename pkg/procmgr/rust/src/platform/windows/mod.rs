@@ -36,8 +36,10 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
+#[cfg(test)]
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 use tokio::sync::Notify;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE, TRUE};
