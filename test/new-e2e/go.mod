@@ -23,7 +23,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.63.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/dd-trace-go/v2 v2.9.2
-	github.com/DataDog/orchestrion v1.12.1
+	github.com/DataDog/orchestrion v1.12.2
 	github.com/aws/aws-sdk-go-v2 v1.43.6
 	github.com/aws/aws-sdk-go-v2/config v1.32.37
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.90.2
