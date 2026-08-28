@@ -34,12 +34,16 @@ benchmark:
     expire_in: 3 months
 
 # Same pattern as golang_deps_commenter: post on the standard linux image, not the bench runner.
+# Automatic (not .on_trace_agent_changes_or_manual): a manual play of `benchmark` must still
+# start this job. Sharing the parent's when: manual fallback would require a second play button.
 benchmark_commenter:
   stage: benchmarks
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   extends: .dd_octo_sts
-  rules: !reference [.on_trace_agent_changes_or_manual]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   interruptible: true
   needs: ["benchmark"]
   before_script:
