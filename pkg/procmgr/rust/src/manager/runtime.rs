@@ -53,23 +53,16 @@ impl CommandHandlers {
             return;
         }
 
-        let mut monitor = Some(tokio::spawn(handle));
+        let mut monitor = tokio::spawn(handle);
         tokio::select! {
-            result = async {
-                monitor
-                    .take()
-                    .expect("command handler monitor should be present")
-                    .await
-            } => Self::log_tracked_monitor_result(result),
+            result = &mut monitor => Self::log_tracked_monitor_result(result),
             _ = tokio::time::sleep(cap) => {
                 warn!(
                     "timed out waiting for command handler ({cap:?} left in service shutdown budget); deferring to runtime shutdown"
                 );
-                if let Some(monitor) = monitor.take() {
-                    deferred_cleanup::register_deferred_spawn_join(tokio::spawn(async move {
-                        Self::log_tracked_monitor_result(monitor.await);
-                    }));
-                }
+                deferred_cleanup::register_deferred_spawn_join(tokio::spawn(async move {
+                    Self::log_tracked_monitor_result(monitor.await);
+                }));
             }
         }
     }
@@ -128,21 +121,14 @@ impl BackgroundSpawns {
             return;
         }
 
-        let mut monitor = Some(tokio::spawn(handle));
+        let mut monitor = tokio::spawn(handle);
         tokio::select! {
-            result = async {
-                monitor
-                    .take()
-                    .expect("background spawn monitor should be present")
-                    .await
-            } => Self::log_tracked_monitor_result(result),
+            result = &mut monitor => Self::log_tracked_monitor_result(result),
             _ = tokio::time::sleep(cap) => {
                 warn!(
                     "timed out waiting for background spawn ({cap:?} left in service shutdown budget); deferring to runtime shutdown"
                 );
-                if let Some(monitor) = monitor.take() {
-                    Self::defer_tracked_monitor(monitor);
-                }
+                Self::defer_tracked_monitor(monitor);
             }
         }
     }
