@@ -184,6 +184,14 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 					dims[ddKey] = v.Str()
 				}
 			}
+			// Fallback: some SDKs put the ACA replica identifier in service.instance.id
+			// instead of azure.container_app.instance.id. The latter stays authoritative
+			// since it's what the RDP detector currently emits.
+			if _, ok := dims["replica"]; !ok {
+				if v, ok := attrs.Get(string(semconv1_27.ServiceInstanceIDKey)); ok && v.Str() != "" {
+					dims["replica"] = v.Str()
+				}
+			}
 			// Fallback: derive subscription_id, resource_group, and name from cloud.resource_id
 			if v, ok := attrs.Get(string(semconv1_27.CloudResourceIDKey)); ok && v.Str() != "" {
 				if parsed, err := parseAzureResourceID(v.Str()); err == nil {
