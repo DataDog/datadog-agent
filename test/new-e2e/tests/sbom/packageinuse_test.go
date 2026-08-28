@@ -234,13 +234,18 @@ func (s *packageInUseSuite) Test00UpAndRunning() {
 }
 
 // TestPackageInUse drives the full not-in-use -> in-use -> stale -> security ->
-// refresh cycle for each workload (rpm, dpkg, apk) as a nested subtest.
+// refresh cycle for each workload (rpm, dpkg, apk) as a nested subtest, then
+// checks the scope of the enrichment across every enriched image.
 func (s *packageInUseSuite) TestPackageInUse() {
 	for _, d := range pkgInUseDistros {
 		s.Run(d.name, func() {
 			s.runPackageInUse(d)
 		})
 	}
+
+	s.Run("out-of-scope-components", func() {
+		s.runOutOfScopeComponents()
+	})
 }
 
 func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
@@ -368,6 +373,94 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 			assert.Equalf(c, "0", v, "%s LastSeenRunning should reset to 0 after a package-DB refresh, got %q", d.inUsePkg, v)
 		}, 6*time.Minute, 20*time.Second, "%s SBOM never reset %s to 0 after the package-DB refresh", d.name, d.inUsePkg)
 	})
+}
+
+// runOutOfScopeComponents asserts the runtime properties reach the OS packages
+// alone. The resolver reads the dpkg, rpm and apk databases, so the image's
+// operating-system component and the application packages stay out of its scope,
+// and the absence of a property marks them so.
+//
+// Every image SBOM holds one operating-system component, so every enriched image
+// exercises this. The phase stands alone, which suits the leaf-test retry loop in
+// tasks/new_e2e_tests.py: it reads whatever enriched payloads the fake intake
+// holds, and the Agent's own containers and the control plane keep it supplied.
+func (s *packageInUseSuite) runOutOfScopeComponents() {
+	s.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+
+		images := s.enrichedImages(c)
+		require.NotEmptyf(c, images, "no runtime-enriched container SBOM in fake intake")
+
+		for _, img := range images {
+			apps := applicationComponents(img.components)
+			s.T().Logf("PKG-IN-USE[scope] id=%q components=%d application=%d", img.id, len(img.components), len(apps))
+
+			if osComp := findOSComponent(img.components); osComp != nil {
+				assertNoRuntimeProperties(c, img.id, osComp)
+			}
+			for _, comp := range apps {
+				assertNoRuntimeProperties(c, img.id, comp)
+			}
+		}
+		// 15m: run on its own, the phase waits out the first enrichment, which
+		// lands ~10-15m in, once the overlayfs Trivy SBOMs reach workloadmeta.
+	}, 15*time.Minute, 15*time.Second, "runtime properties kept landing on components the resolver cannot observe")
+}
+
+func assertNoRuntimeProperties(c *myCollectT, id string, comp *cyclonedx_v1_4.Component) {
+	for _, name := range []string{propLastSeenRunning, propHasSetSuidBit, propRunningAsRoot} {
+		assert.Emptyf(c, propertyValues(comp.GetProperties(), name),
+			"%s %q carries %s in %s, but the resolver cannot observe it", comp.GetType(), comp.GetName(), name, id)
+	}
+}
+
+// enrichedImage holds the components of one image's newest enriched payload.
+type enrichedImage struct {
+	id         string
+	components []*cyclonedx_v1_4.Component
+}
+
+// enrichedImages returns, for every container image in the fake intake, the
+// components of its newest payload carrying a LastSeenRunning property. That
+// property marks the payloads the enrichment merge has been through, which are
+// the ones worth asserting on.
+func (s *packageInUseSuite) enrichedImages(c *myCollectT) []enrichedImage {
+	ids, err := s.Fakeintake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	var images []enrichedImage
+	for _, id := range ids {
+		payloads, err := s.Fakeintake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+
+		var newest time.Time
+		var components []*cyclonedx_v1_4.Component
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			if p.GetCollectedTime().Before(newest) {
+				continue
+			}
+			comps := p.GetCyclonedx().Components
+			if !lo.SomeBy(comps, func(comp *cyclonedx_v1_4.Component) bool {
+				_, enriched := lastSeenRunning(comp)
+				return enriched
+			}) {
+				continue
+			}
+			newest = p.GetCollectedTime()
+			components = comps
+		}
+
+		if len(components) > 0 {
+			images = append(images, enrichedImage{id: id, components: components})
+		}
+	}
+	return images
 }
 
 // packageUsage returns, across every successful container-image SBOM payload for

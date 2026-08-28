@@ -519,12 +519,12 @@ func (d *AgentDemultiplexer) Stop() {
 // ForceFlushToSerializer triggers the execution of a flush from all data of samplers
 // and the BufferedAggregator to the serializer.
 // Safe to call from multiple threads.
-func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
+func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
 	trigger := trigger{
 		time:              start,
 		waitForSerializer: waitForSerializer,
 		blockChan:         make(chan struct{}),
-		forceFlushAll:     false,
+		forceFlushAll:     forceFlushAll,
 	}
 	d.flushChan <- trigger
 	<-trigger.blockChan
@@ -690,11 +690,23 @@ func (d *AgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metri
 	d.statsd.workers[shard].addSamples(samples)
 }
 
+// singleSampleShard is the time sampler shard used by AggregateSample.
+// WaitForPendingSamples drains this same shard, so the two must stay in sync.
+const singleSampleShard TimeSamplerID = 0
+
 // AggregateSample adds a MetricSample in the first DogStatsD time sampler.
 func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
-	d.statsd.workers[0].addSamples(batch[:1])
+	d.statsd.workers[singleSampleShard].addSamples(batch[:1])
+}
+
+// WaitForPendingSamples blocks until samples enqueued on singleSampleShard
+// before this call have been consumed. Used by serverless-init's on-demand
+// flush, where a sample submitted right before a flush could otherwise race
+// it.
+func (d *AgentDemultiplexer) WaitForPendingSamples() {
+	d.statsd.workers[singleSampleShard].waitForPendingSamples()
 }
 
 // AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.

@@ -37,7 +37,7 @@ The internal E2E pages carry useful material — the cloud-selection rule, the c
 | Page says | Current |
 |---|---|
 | `inv …` | `dda inv …` |
-| `.gitlab/e2e/e2e.yml` | `.gitlab/test/e2e/e2e.yml` |
+| monolithic E2E CI path | `.gitlab/test/e2e/e2e_<area>.yml` |
 | `test/new-e2e/pkg/utils/e2e` | `test/e2e-framework/testing/e2e` |
 | framework lives in the `test-infra-definitions` repository | it lives in this repository under `test/e2e-framework/` |
 | `compare_to: main` in a rule | `compare_to: $COMPARE_TO_BRANCH` |

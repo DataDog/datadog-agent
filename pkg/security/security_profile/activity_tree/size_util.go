@@ -94,24 +94,37 @@ func fileEventStringsBytes(fe *model.FileEvent) int64 {
 	return n
 }
 
-// processStringsBytes counts the major string allocations on a model.Process. These are
-// the fields that actually consume non-trivial heap on long-running workloads — full argv,
-// env vars, container tags, credentials labels, etc. — and that the previous shallow
+// fileInfoStringsBytes counts the heap-allocated strings carried by a FileInfo node.
+func fileInfoStringsBytes(fi *FileInfo) int64 {
+	var n int64
+	n += int64(len(fi.PathnameStr))
+	n += int64(len(fi.BasenameStr))
+	n += int64(len(fi.Filesystem))
+	n += int64(len(fi.User))
+	n += int64(len(fi.Group))
+	n += int64(len(fi.PkgName))
+	n += int64(len(fi.PkgVersion))
+	n += int64(len(fi.PkgRelease))
+	n += int64(len(fi.PkgSrcVersion))
+	n += int64(len(fi.PkgSrcRelease))
+	n += stringSliceBytes(fi.Hashes)
+	return n
+}
+
+// processStringsBytes counts the major string allocations on a ProcessInfo. These are
+// the fields that actually consume non-trivial heap on long-running workloads — argv,
+// env var names, credentials labels, exec file metadata — and that the previous shallow
 // size() ignored.
-func processStringsBytes(p *model.Process) int64 {
+func processStringsBytes(p *ProcessInfo) int64 {
 	var n int64
 	n += fileEventStringsBytes(&p.FileEvent)
-	n += fileEventStringsBytes(&p.LinuxBinprm.FileEvent)
 
 	n += int64(len(p.Argv0))
 	n += int64(len(p.Comm))
 	n += int64(len(p.TTYName))
 	n += stringSliceBytes(p.Argv)
 	n += stringSliceBytes(p.Envs)
-	n += stringSliceBytes(p.Envp)
 
-	n += int64(len(p.ContainerContext.ContainerID))
-	n += stringSliceBytes(p.ContainerContext.Tags)
 	n += int64(len(p.CGroup.CGroupID))
 
 	n += int64(len(p.Credentials.User))

@@ -960,7 +960,10 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 				config: &config.Config{
 					RuntimeSecurity: &config.RuntimeSecurityConfig{
 						ActivityDumpMaxDumpSize: func() int {
-							return 2048
+							// Threshold is two process nodes' worth of the shallow
+							// ApproximateSize estimate, so the ProcessNodes:2 fixtures are
+							// exactly overweight regardless of the ProcessNode struct size.
+							return 2 * int(unsafe.Sizeof(activity_tree.ProcessNode{}))
 						},
 					},
 				},

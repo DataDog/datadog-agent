@@ -148,7 +148,7 @@
 
 /.gitlab/common/                                     @DataDog/agent-devx
 
-/.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx
+/.gitlab/e2e/e2e_containers.yml                      @DataDog/container-integrations @DataDog/agent-devx
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx
 

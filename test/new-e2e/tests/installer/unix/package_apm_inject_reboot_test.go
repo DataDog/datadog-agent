@@ -233,6 +233,84 @@ func (s *packageApmInjectSuite) TestOlderAgentAPMInjectService() {
 	require.NotContains(s.T(), stderr, "cannot be preloaded")
 }
 
+// TestAgentDowngradeReinstallsAPMInject verifies that an Agent installation
+// reruns the post-install hook of an already-installed injector even when its
+// requested version is unchanged:
+//
+//  1. Install the pipeline Agent and injector with host SSI enabled.
+//  2. Downgrade only the Agent to 7.80.4 while requesting the same injector.
+//  3. Verify the injector version is unchanged but its hook has switched the
+//     service from tmpfs to the persistent preload path supported by 7.80.4.
+//  4. Reboot and verify the refreshed service still has a valid preload entry.
+//
+// This is intentionally limited to one representative host. The contract is
+// the install-script/package-hook/systemd lifecycle, not distro- or
+// architecture-specific behavior.
+func (s *packageApmInjectSuite) TestAgentDowngradeReinstallsAPMInject() {
+	isUbuntu2404 := s.os.Flavor == e2eos.Ubuntu2404.Flavor && s.os.Version == e2eos.Ubuntu2404.Version
+	if s.installMethod != InstallMethodInstallScript || !isUbuntu2404 || s.arch != e2eos.AMD64Arch {
+		s.T().Skip("Agent downgrade hook replay is covered on Ubuntu 24.04 amd64 with the install script")
+	}
+	s.requireSystemd()
+
+	host := s.Env().RemoteHost
+	// Purge uses the downgraded Agent installer. Always remove the preload entry
+	// last so a same-host retry cannot start with a dangling launcher.
+	defer host.Execute("sudo rm -f /etc/ld.so.preload") //nolint:errcheck
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	defer s.Purge()
+
+	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
+	s.assertLDPreloadInstrumented(injectOCIPath)
+
+	recentAgentVersion := s.host.AgentStableVersion()
+	require.NotEqual(s.T(), agentVersionBeforeAPMTmpfsSupport, recentAgentVersion,
+		"test requires a recent Agent before exercising the downgrade")
+	injectorVersion := strings.TrimSpace(host.MustExecute("readlink /opt/datadog-packages/datadog-apm-inject/stable"))
+	require.NotEmpty(s.T(), injectorVersion)
+
+	// Keep SSI explicitly enabled so the same injector version is requested. Its
+	// package must still be force-installed after Agent stable changes, otherwise
+	// Install() skips the post-install hook as already up to date.
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		"TESTING_APT_URL=",
+		"TESTING_APT_REPO_VERSION=",
+		"TESTING_YUM_URL=",
+		"TESTING_YUM_VERSION_PATH=",
+		"DD_REPO_URL=datadoghq.com",
+		"DD_AGENT_MAJOR_VERSION=7",
+		"DD_AGENT_MINOR_VERSION="+agentMinorVersionBeforeAPMTmpfsSupport,
+	)
+	require.Equal(s.T(), agentVersionBeforeAPMTmpfsSupport, s.host.AgentStableVersion())
+	require.Equal(s.T(), injectorVersion,
+		strings.TrimSpace(host.MustExecute("readlink /opt/datadog-packages/datadog-apm-inject/stable")),
+		"the test requires the injector version to remain unchanged")
+
+	// Replaying the injector hook must preserve the service while changing the
+	// preload path to the persistent path understood by the older Agent installer.
+	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
+	preload, err := s.host.ReadFile("/etc/ld.so.preload")
+	require.NoError(s.T(), err)
+	require.Contains(s.T(), string(preload), launcherPreloadPath)
+	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+
+	s.reboot()
+	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
+
+	preload, err = s.host.ReadFile("/etc/ld.so.preload")
+	require.NoError(s.T(), err)
+	require.Contains(s.T(), string(preload), launcherPreloadPath)
+	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	_, err = host.Execute("test -e " + launcherPreloadPath)
+	require.NoError(s.T(), err, "ld.so.preload entry is dangling")
+
+	stderr, err := host.Execute(`i=0; while [ "$i" -lt 10 ]; do /bin/true; i=$((i + 1)); done 2>&1`)
+	require.NoError(s.T(), err)
+	require.NotContains(s.T(), stderr, "cannot be preloaded")
+}
+
 // TestSystemdServiceRebootBrokenInjector verifies the safety property the
 // tmpfs symlink exists to provide: if the injector library on disk is replaced
 // by a .so that unconditionally crashes any process that loads it (via any

@@ -45,7 +45,7 @@ def deploy(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     # Keep ~/.aws/config in sync: add the SSO profile if it's missing (e.g. after a role
     # rename like account-admin -> account-admin-8h). No-op if already present.

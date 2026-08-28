@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"context"
 	"maps"
 	"slices"
 	"sort"
@@ -21,15 +22,42 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
+
+// TestDisabledCLCRunner verifies that the collector refuses to start (with a
+// non-retriable "disabled" error) on Cluster Checks Runners, since they are
+// never scheduled with a locally-reachable kubelet and would otherwise retry
+// kubelet.GetKubeUtil() forever, generating noisy WARN logs.
+func TestDisabledCLCRunner(t *testing.T) {
+	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
+
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"clc_runner_enabled": true,
+		"config_providers":   []map[string]interface{}{{"name": "clusterchecks"}},
+	})
+
+	c := &collector{
+		id:          collectorID,
+		isCLCRunner: helper.IsCLCRunner(cfg),
+		catalog:     workloadmeta.NodeAgent,
+	}
+
+	err := c.Start(context.Background(), nil)
+	require.Error(t, err)
+	assert.True(t, pkgerrors.IsDisabled(err))
+}
 
 func TestPodParser(t *testing.T) {
 	creationTimestamp := time.Date(2025, time.January, 1, 12, 0, 0, 0, time.UTC)

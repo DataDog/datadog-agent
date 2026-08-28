@@ -2,7 +2,7 @@
 Tasks for managing Kubernetes version updates in e2e tests.
 This module fetches the latest Kubernetes releases from GitHub, tracks known
 versions in k8s_versions.json, and updates the kubernetesVersion pinned in
-the Kubernetes latest-style jobs of .gitlab/test/e2e/e2e.yml.
+the Kubernetes latest-style jobs of .gitlab/test/e2e/e2e_containers.yml.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ except ImportError:
 
 GITHUB_URL_BASE = "https://api.github.com"
 VERSIONS_FILE = "k8s_versions.json"
-E2E_YAML_PATH = ".gitlab/test/e2e/e2e.yml"
+E2E_YAML_PATH = ".gitlab/test/e2e/e2e_containers.yml"
 KIND_VERSIONS_JSON_PATH = "test/e2e-framework/components/kubernetes/kind_versions.json"
 
 K8S_LATEST_JOB = "new-e2e-containers-k8s-latest"
@@ -502,7 +502,7 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
 @task
 def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
     """
-    Update the Kubernetes latest jobs in .gitlab/test/e2e/e2e.yml to the latest
+    Update the Kubernetes latest jobs in .gitlab/test/e2e/e2e_containers.yml to the latest
     known versions from `versions_file`.
 
     Behavior:
@@ -532,7 +532,7 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
     with open(versions_file) as f:
         all_versions = KubernetesVersions.from_dict(json.load(f), type_=KindKubernetesImage)
 
-    print("Checking for new versions to add to e2e.yml...")
+    print("Checking for new versions to add to e2e_containers.yml...")
 
     stable = all_versions.latest(ReleaseType.STABLE)
     rc = all_versions.latest(ReleaseType.RC)

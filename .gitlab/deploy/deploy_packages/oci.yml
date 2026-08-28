@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/.pre/common/container_publish_job_templates.yml
-
 .deploy_packages_oci:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64", "specific:true"]

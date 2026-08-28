@@ -95,8 +95,6 @@ properties:
       As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
       disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
       value sufficiently high for your traffic pattern.
-    tags:
-    - golang_type:float64
     comment: deprecated
   target_traces_per_second:
     node_type: setting
@@ -111,8 +109,6 @@ properties:
       As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
       disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
       value sufficiently high for your traffic pattern.
-    tags:
-    - golang_type:float64
   errors_per_second:
     node_type: setting
     type: number
@@ -124,8 +120,6 @@ properties:
       The target error trace chunks to receive per second. The TPS is spread
       to catch all combinations of service, name, resource, http.status, and error.type.
       Set to 0 to disable the errors sampler.
-    tags:
-    - golang_type:float64
   max_events_per_second:
     node_type: setting
     type: number
@@ -139,12 +133,10 @@ properties:
       caps sampling for that legacy path only. It does not limit trace volume, spans, or general APM
       ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
       Maximum number of APM events per second to sample.
-    tags:
-    - golang_type:float64
   max_memory:
     node_type: setting
     type: number
-    default: 5e+08
+    default: 500000000.0
     env_vars:
     - DD_APM_MAX_MEMORY
     visibility: public
@@ -154,8 +146,6 @@ properties:
       Note: The Agent process is killed if it uses more than 150% of `max_memory`.
       Set the `max_memory` parameter to `0` to disable the memory limitation.
     example: '500000000.0'
-    tags:
-    - golang_type:float64
   max_cpu_percent:
     node_type: setting
     type: number
@@ -167,8 +157,6 @@ properties:
       The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
       incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
       Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
-    tags:
-    - golang_type:float64
   obfuscation:
     node_type: section
     type: object
@@ -1000,8 +988,6 @@ properties:
         - DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE
         visibility: public
         description: Samples this percentage (0-100) of traffic
-        tags:
-        - golang_type:float64
       hash_seed:
         node_type: setting
         type: integer
@@ -1191,8 +1177,6 @@ properties:
     node_type: setting
     type: number
     default: 0
-    tags:
-    - golang_type:float64
   install_id:
     node_type: setting
     type: string
@@ -1251,8 +1235,6 @@ properties:
     default: 100
     env_vars:
     - DD_APM_MAX_REMOTE_TPS
-    tags:
-    - golang_type:float64
   max_sender_retries:
     node_type: setting
     type: integer

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	gpu "github.com/DataDog/datadog-agent/pkg/gpu/tags"
@@ -66,7 +67,11 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 	}
 
 	if env.IsFeaturePresent(env.Kubernetes) {
-		providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
+		// Cluster Checks Runners have no reachable local Kubelet, so node-label-based
+		// tags can never be retrieved and would otherwise retry (and log WARNs) forever.
+		if !helper.IsCLCRunner(conf) {
+			providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
+		}
 		providers["kubernetes_cluster_agent_tags"] = &providerDef{10, clusterinfo.GetClusterAgentStaticTags}
 	}
 

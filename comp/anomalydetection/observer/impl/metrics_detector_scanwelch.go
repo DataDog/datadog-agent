@@ -67,7 +67,8 @@ type ScanWelchDetector struct {
 	series map[scanwelchStateKey]*scanwelchSeriesState
 	// scanBuf is shared by this single-writer detector instead of being retained
 	// once per live series and aggregation.
-	scanBuf []observer.Point
+	scanBuf   []observer.Point
+	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef
@@ -218,33 +219,42 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 // Returns (anomaly, changeIndex, found).
 func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
-
-	values := make([]float64, n)
-	for i, p := range points {
-		values[i] = p.Value
+	minSeg := d.MinSegment
+	// A valid split requires MinSegment points on each side. MinPoints is
+	// independently configurable, so a newly activated series may legitimately
+	// reach this method before a candidate split exists.
+	if n < 2*minSeg {
+		return observer.Anomaly{}, 0, false
 	}
 
-	// Phase 1: Scan using Welch's t-statistic (fast, O(n) with cumulative sums).
-	cumSum := make([]float64, n+1)
-	cumSumSq := make([]float64, n+1)
-	for i, v := range values {
-		cumSum[i+1] = cumSum[i] + v
-		cumSumSq[i+1] = cumSumSq[i] + v*v
+	values := d.workspace.valuesFromPoints(points)
+
+	// Phase 1: Scan using Welch's t-statistic. Keep the total moments and
+	// advance the left-side moments as the split moves, instead of retaining a
+	// prefix array for every candidate split.
+	var totalSum, totalSumSq float64
+	for _, v := range values {
+		totalSum += v
+		totalSumSq += v * v
+	}
+	var leftSum, leftSumSq float64
+	for _, v := range values[:minSeg] {
+		leftSum += v
+		leftSumSq += v * v
 	}
 
 	bestTAbs := 0.0
 	bestK := -1
-
-	minSeg := d.MinSegment
 	for k := minSeg; k <= n-minSeg; k++ {
 		fk := float64(k)
 		fnk := float64(n - k)
 
-		leftMean := cumSum[k] / fk
-		rightMean := (cumSum[n] - cumSum[k]) / fnk
+		leftMean := leftSum / fk
+		rightSum := totalSum - leftSum
+		rightMean := rightSum / fnk
 
-		leftVar := cumSumSq[k]/fk - leftMean*leftMean
-		rightVar := (cumSumSq[n]-cumSumSq[k])/fnk - rightMean*rightMean
+		leftVar := leftSumSq/fk - leftMean*leftMean
+		rightVar := (totalSumSq-leftSumSq)/fnk - rightMean*rightMean
 
 		if leftVar < 1e-12 {
 			leftVar = 1e-12
@@ -263,6 +273,12 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 			bestTAbs = t
 			bestK = k
 		}
+
+		if k < n-minSeg {
+			v := values[k]
+			leftSum += v
+			leftSumSq += v * v
+		}
 	}
 
 	if bestK < 0 || bestTAbs < d.MinTStatistic {
@@ -270,7 +286,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	}
 
 	// Phase 2: Verify using Mann-Whitney at the best split point.
-	ranks, tieCorrection := assignRanks(values)
+	ranks, tieCorrection := d.workspace.assignRanks(values)
 	var R1 float64
 	for i := 0; i < bestK; i++ {
 		R1 += ranks[i]
@@ -312,9 +328,9 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	// Phase 3: Robust deviation check
 	preVals := values[:bestK]
 	postVals := values[bestK:]
-	preMedian := detectorMedian(preVals)
-	postMedian := detectorMedian(postVals)
-	preMAD := detectorMAD(preVals, preMedian, false)
+	preMedian := d.workspace.median(preVals)
+	postMedian := d.workspace.median(postVals)
+	preMAD := d.workspace.mad(preVals, preMedian)
 
 	denom := preMAD
 	if denom < 1e-10 {
@@ -346,7 +362,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 			seriesName, direction, preMedian, postMedian, bestTAbs, pValue, effectSize, deviation),
 		Timestamp:           changePtTime,
 		Score:               &score,
-		SamplingIntervalSec: medianPointInterval(points),
+		SamplingIntervalSec: d.workspace.medianPointInterval(points),
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: preMedian,
 			BaselineMAD:    preMAD,

@@ -22,20 +22,22 @@ type Server struct {
 	name string
 }
 
+const testOrdersSpanID = uint64(0xfedcba9876543210)
+
 //go:noinline
-func (s *Server) handleOrder(req *Request) error {
+func (s *Server) handleOrder(ctx context.Context, req *Request) error {
 	if req.Total < 0 {
 		return fmt.Errorf("server %s: order %d for %s has negative total %v", s.name, req.ID, req.Customer, req.Total)
 	}
 	fmt.Println("handled order", req.ID, req.Customer, req.Total)
-	return nil
+	return ctx.Err()
 }
 
 func executeServerFuncs(ctx context.Context) {
-	span, _ := tracer.StartSpanFromContext(ctx, "sample.orders")
+	span, ctx := tracer.StartSpanFromContext(ctx, "sample.orders", tracer.WithSpanID(testOrdersSpanID))
 	defer span.Finish()
 
 	s := &Server{name: "orders"}
-	s.handleOrder(&Request{ID: 1, Customer: "Alice", Total: 42.50})
-	s.handleOrder(&Request{ID: 2, Customer: "Bob", Total: -1})
+	s.handleOrder(ctx, &Request{ID: 1, Customer: "Alice", Total: 42.50})
+	s.handleOrder(ctx, &Request{ID: 2, Customer: "Bob", Total: -1})
 }

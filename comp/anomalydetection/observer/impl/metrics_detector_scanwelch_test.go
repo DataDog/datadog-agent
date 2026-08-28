@@ -31,6 +31,23 @@ func TestScanWelch_NotEnoughPoints(t *testing.T) {
 	assert.Empty(t, result.Anomalies, "should not fire with fewer than MinPoints")
 }
 
+func TestScanWelch_MinPointsBelowMinSegmentDoesNotPanic(t *testing.T) {
+	d := testScanWelchDetector()
+	d.MinPoints = 4
+	d.MinSegment = 12
+	d.MaxPoints = 24
+	storage := newTimeSeriesStorage()
+
+	for timestamp := int64(1); timestamp <= int64(d.MinSegment); timestamp++ {
+		storage.Add("ns", "metric", 100, timestamp, nil)
+	}
+
+	require.NotPanics(t, func() {
+		result := d.Detect(storage, int64(d.MinSegment))
+		assert.Empty(t, result.Anomalies)
+	})
+}
+
 func TestScanWelch_DetectsStepChange(t *testing.T) {
 	d := testScanWelchDetector()
 	storage := newTimeSeriesStorage()

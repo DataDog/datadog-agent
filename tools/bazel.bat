@@ -24,6 +24,7 @@ if defined XDG_CACHE_HOME (
   set "XDG_CACHE_HOME=!XDG_CACHE_HOME:/=\!"
   if "!XDG_CACHE_HOME:~1,2!" neq ":\" if "!XDG_CACHE_HOME:~0,2!" neq "\\" goto :error_xdg_cache_home_must_be_absolute
   set "GOCACHE=!XDG_CACHE_HOME!\go-build"
+  set "GOLANGCI_LINT_CACHE=!XDG_CACHE_HOME!\golangci-lint"
   set "GOMODCACHE=!XDG_CACHE_HOME!\go\mod"
   set "PIP_CACHE_DIR=!XDG_CACHE_HOME!\pip"
   :: https://github.com/bazelbuild/bazel/issues/27808

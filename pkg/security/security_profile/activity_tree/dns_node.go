@@ -21,17 +21,17 @@ type DNSNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
-	Requests       []model.DNSEvent
+	Requests       []model.DNSQuestion
 }
 
 // size approximates this node's heap footprint
 func (dn *DNSNode) size() int64 {
 	s := int64(unsafe.Sizeof(*dn))
 	s += seenBytes(dn.NodeBase)
-	s += sliceBackingBytes(cap(dn.Requests), unsafe.Sizeof(model.DNSEvent{}))
+	s += sliceBackingBytes(cap(dn.Requests), unsafe.Sizeof(model.DNSQuestion{}))
 	s += sliceBackingBytes(cap(dn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
 	for _, req := range dn.Requests {
-		s += int64(len(req.Question.Name))
+		s += int64(len(req.Name))
 	}
 	return s
 }
@@ -41,7 +41,7 @@ func NewDNSNode(event *model.DNSEvent, evt *model.Event, rules []*model.MatchedR
 	node := &DNSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
-		Requests:       []model.DNSEvent{*event},
+		Requests:       []model.DNSQuestion{event.Question},
 	}
 	node.NodeBase = NewNodeBase()
 	node.AppendImageTagID(imageTagID, evt.ResolveEventTime())
@@ -70,7 +70,7 @@ func (dn *DNSNode) evictImageTag(imageTagID uint64, DNSNames *utils.StringKeys) 
 	}
 	// reconstruct the list of all DNS requests
 	if len(dn.Requests) > 0 {
-		DNSNames.Insert(dn.Requests[0].Question.Name)
+		DNSNames.Insert(dn.Requests[0].Name)
 	}
 	return false
 }

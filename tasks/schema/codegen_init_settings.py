@@ -154,8 +154,6 @@ def get_golang_type_tag(curr):
 def retrieve_default_value(node, name):
     settingDefault = node.get('default')
     settingType = node.get('type')
-    if settingType is None:
-        return 'nil'
 
     if node.get('platform_default'):
         platform_default = as_go_value(node['platform_default'], split_lines=True)
@@ -167,14 +165,19 @@ def retrieve_default_value(node, name):
     if settingType == 'boolean':
         return 'true' if settingDefault else 'false'
 
-    if settingType in ('integer', 'number'):
-        golang_type = get_golang_type_tag(node)
-        if golang_type in ('int64', 'float64'):
-            return f"{golang_type}({settingDefault})"
-        if settingDefault is None:
-            return '0'
-        if isinstance(settingDefault, int | float):
-            return str(settingDefault)
+    if settingType == 'integer':
+        if get_golang_type_tag(node) == 'int64':
+            return f"int64({settingDefault})"
+        return str(settingDefault)
+
+    if settingType == 'number':
+        if isinstance(settingDefault, float):
+            textDefault = str(settingDefault)
+            if '.' in textDefault:
+                return str(settingDefault)
+            return f"float64({settingDefault}.0)"
+        if isinstance(settingDefault, int):
+            return f"{settingDefault}.0"
 
     if settingType == 'string':
         if node.get('format') == 'duration':
@@ -182,8 +185,6 @@ def retrieve_default_value(node, name):
             durationValue = try_parse_duration(settingDefault)
             if durationValue is not None:
                 return durationValue
-        if settingDefault is None:
-            return '""'
         if isinstance(settingDefault, str):
             return f"\"{settingDefault}\""
 

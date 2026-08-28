@@ -156,7 +156,7 @@ func syscallNodeToProto(sysc *SyscallNode, tagIDToImageTag func(id uint64) strin
 	}
 }
 
-func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
+func processNodeToProto(p *ProcessInfo) *adproto.ProcessInfo {
 	if p == nil {
 		return nil
 	}
@@ -215,39 +215,50 @@ func credentialsToProto(creds *model.Credentials) *adproto.Credentials {
 	return pcreds
 }
 
+// fileInfoToProto encodes a slim FileInfo directly into the proto, without round-tripping
+// through a reconstructed model.FileEvent.
+func fileInfoToProto(fi *FileInfo) *adproto.FileInfo {
+	if fi == nil {
+		return nil
+	}
+
+	pfi := adproto.FileInfoFromVTPool()
+	*pfi = adproto.FileInfo{
+		Uid:               fi.UID,
+		User:              fi.User,
+		Gid:               fi.GID,
+		Group:             fi.Group,
+		Mode:              uint32(fi.Mode), // yeah sorry
+		Ctime:             fi.CTime,
+		Mtime:             fi.MTime,
+		MountId:           fi.MountID,
+		Inode:             fi.Inode,
+		InUpperLayer:      fi.InUpperLayer,
+		Path:              escape(fi.PathnameStr),
+		Basename:          escape(fi.BasenameStr),
+		Filesystem:        escape(fi.Filesystem),
+		PackageName:       fi.PkgName,
+		PackageVersion:    fi.PkgVersion,
+		PackageEpoch:      pointer.Ptr(uint32(fi.PkgEpoch)),
+		PackageRelease:    pointer.Ptr(fi.PkgRelease),
+		PackageSrcVersion: fi.PkgSrcVersion,
+		PackageSrcEpoch:   pointer.Ptr(uint32(fi.PkgSrcEpoch)),
+		PackageSrcRelease: pointer.Ptr(fi.PkgSrcRelease),
+		Hashes:            make([]string, len(fi.Hashes)),
+		HashState:         adproto.HashState(fi.HashState),
+	}
+	copy(pfi.Hashes, fi.Hashes)
+
+	return pfi
+}
+
+// fileEventToProto encodes the process' exec file, which is still held as a full
+// model.FileEvent, by projecting it onto the same slim FileInfo the encoder uses.
 func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 	if fe == nil {
 		return nil
 	}
-
-	fi := adproto.FileInfoFromVTPool()
-	*fi = adproto.FileInfo{
-		Uid:               fe.UID,
-		User:              fe.User,
-		Gid:               fe.GID,
-		Group:             fe.Group,
-		Mode:              uint32(fe.Mode), // yeah sorry
-		Ctime:             fe.CTime,
-		Mtime:             fe.MTime,
-		MountId:           fe.MountID,
-		Inode:             fe.Inode,
-		InUpperLayer:      fe.InUpperLayer,
-		Path:              escape(fe.PathnameStr),
-		Basename:          escape(fe.BasenameStr),
-		Filesystem:        escape(fe.Filesystem),
-		PackageName:       fe.PkgName,
-		PackageVersion:    fe.PkgVersion,
-		PackageEpoch:      pointer.Ptr(uint32(fe.PkgEpoch)),
-		PackageRelease:    pointer.Ptr(fe.PkgRelease),
-		PackageSrcVersion: fe.PkgSrcVersion,
-		PackageSrcEpoch:   pointer.Ptr(uint32(fe.PkgSrcEpoch)),
-		PackageSrcRelease: pointer.Ptr(fe.PkgSrcRelease),
-		Hashes:            make([]string, len(fe.Hashes)),
-		HashState:         adproto.HashState(fe.HashState),
-	}
-	copy(fi.Hashes, fe.Hashes)
-
-	return fi
+	return fileInfoToProto(newFileInfo(fe))
 }
 
 func fileActivityNodeToProto(fan *FileNode, tagIDToImageTag func(id uint64) string) *adproto.FileActivityNode {
@@ -259,7 +270,7 @@ func fileActivityNodeToProto(fan *FileNode, tagIDToImageTag func(id uint64) stri
 	*pfan = adproto.FileActivityNode{
 		MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           escape(fan.Name),
-		File:           fileEventToProto(fan.File),
+		File:           fileInfoToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
@@ -306,7 +317,7 @@ func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adprot
 	}
 
 	for _, req := range dn.Requests {
-		pdn.Requests = append(pdn.Requests, dnsEventToProto(&req))
+		pdn.Requests = append(pdn.Requests, dnsQuestionToProto(&req))
 	}
 
 	pdn.NodeBase = nodeBaseToProto(&dn.NodeBase, tagIDToImageTag)
@@ -314,17 +325,17 @@ func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adprot
 	return pdn
 }
 
-func dnsEventToProto(ev *model.DNSEvent) *adproto.DNSInfo {
-	if ev == nil {
+func dnsQuestionToProto(q *model.DNSQuestion) *adproto.DNSInfo {
+	if q == nil {
 		return nil
 	}
 
 	return &adproto.DNSInfo{
-		Name:  escape(ev.Question.Name),
-		Type:  uint32(ev.Question.Type),
-		Class: uint32(ev.Question.Class),
-		Size:  uint32(ev.Question.Size),
-		Count: uint32(ev.Question.Count),
+		Name:  escape(q.Name),
+		Type:  uint32(q.Type),
+		Class: uint32(q.Class),
+		Size:  uint32(q.Size),
+		Count: uint32(q.Count),
 	}
 }
 
@@ -342,7 +353,7 @@ func imdsNodeToProto(in *IMDSNode, tagIDToImageTag func(id uint64) string) *adpr
 	return pin
 }
 
-func imdsEventToProto(event model.IMDSEvent) *adproto.IMDSEvent {
+func imdsEventToProto(event IMDSInfo) *adproto.IMDSEvent {
 	return &adproto.IMDSEvent{
 		Type:          event.Type,
 		CloudProvider: event.CloudProvider,
@@ -354,7 +365,7 @@ func imdsEventToProto(event model.IMDSEvent) *adproto.IMDSEvent {
 	}
 }
 
-func awsIMDSEventToProto(event model.IMDSEvent) *adproto.AWSIMDSEvent {
+func awsIMDSEventToProto(event IMDSInfo) *adproto.AWSIMDSEvent {
 	if event.CloudProvider != model.IMDSAWSCloudProvider {
 		return nil
 	}

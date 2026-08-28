@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -108,4 +109,90 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 		testOriginTags(false, origin)
 		os.Unsetenv(cloudServiceEnvVar)
 	}
+}
+
+// TestSpanModifierModifySpanBeforeSetTags verifies that ModifySpan only
+// applies the _dd.origin tag when SetTags has never been called, since
+// spanModifier.tags starts as an unset atomic.Pointer.
+func TestSpanModifierModifySpanBeforeSetTags(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+	span := &pb.Span{Meta: map[string]string{}}
+
+	sm.ModifySpan(&pb.TraceChunk{}, span)
+
+	assert.Equal(t, "lambda", span.Meta[ddOriginTagName])
+	assert.Len(t, span.Meta, 1)
+}
+
+// TestSpanModifierModifySpanAppliesTagsSetDynamically verifies that tags
+// applied via SetTags after construction are picked up by ModifySpan, the
+// mechanism MicroVM uses to deliver the lambda_microvm_id tag once it becomes
+// known at /run time.
+func TestSpanModifierModifySpanAppliesTagsSetDynamically(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+	sm.SetTags(map[string]string{"lambda_microvm_id": "vm-123"})
+
+	span := &pb.Span{Meta: map[string]string{}}
+	sm.ModifySpan(&pb.TraceChunk{}, span)
+
+	assert.Equal(t, "lambda", span.Meta[ddOriginTagName])
+	assert.Equal(t, "vm-123", span.Meta["lambda_microvm_id"])
+}
+
+// TestSpanModifierModifySpanPreservesExistingOrigin verifies that ModifySpan
+// does not overwrite a span's existing _dd.origin when the dynamically-set
+// tags also contain _dd.origin. Every CloudService.GetTags() sets _dd.origin
+// (e.g. MicroVM sets "lambdamicrovm"), and that value flows into the tags
+// applied here via SetTags/UpdateRuntimeTags — so without this guard, every
+// span would have a tracer-supplied origin (e.g. "rum") silently replaced.
+func TestSpanModifierModifySpanPreservesExistingOrigin(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+	sm.SetTags(map[string]string{ddOriginTagName: "lambdamicrovm", "lambda_microvm_id": "vm-123"})
+
+	span := &pb.Span{Meta: map[string]string{ddOriginTagName: "rum"}}
+	sm.ModifySpan(&pb.TraceChunk{}, span)
+
+	assert.Equal(t, "rum", span.Meta[ddOriginTagName], "must not overwrite a tracer-supplied origin")
+	assert.Equal(t, "vm-123", span.Meta["lambda_microvm_id"])
+}
+
+// TestSpanModifierModifySpanReflectsLatestSetTags verifies that a later
+// SetTags call replaces the tag set used by subsequent ModifySpan calls.
+func TestSpanModifierModifySpanReflectsLatestSetTags(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+	sm.SetTags(map[string]string{"lambda_microvm_id": "vm-1"})
+	sm.SetTags(map[string]string{"lambda_microvm_id": "vm-2"})
+
+	span := &pb.Span{Meta: map[string]string{}}
+	sm.ModifySpan(&pb.TraceChunk{}, span)
+
+	assert.Equal(t, "vm-2", span.Meta["lambda_microvm_id"])
+}
+
+// TestSpanModifierSetTagsConcurrentWithModifySpan exercises SetTags and
+// ModifySpan concurrently under the race detector. This is a regression test
+// for the data race Codex flagged on PR #53036: MicroVM's /run hook calls
+// SetTags from a goroutine that runs concurrently with the trace agent's
+// span-processing loop, which calls ModifySpan on every span.
+func TestSpanModifierSetTagsConcurrentWithModifySpan(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			sm.SetTags(map[string]string{"lambda_microvm_id": "vm-1"})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			span := &pb.Span{Meta: map[string]string{}}
+			sm.ModifySpan(&pb.TraceChunk{}, span)
+		}
+	}()
+	wg.Wait()
+
+	assert.Equal(t, map[string]string{"lambda_microvm_id": "vm-1"}, *sm.tags.Load())
 }

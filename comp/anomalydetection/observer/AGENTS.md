@@ -34,7 +34,7 @@ and the testbench use the same engine.
 | `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
 | `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
-| `impl/storage.go` | In-memory columnar time-series storage (1s buckets, read-time aggregation) |
+| `impl/storage.go` | In-memory bucketed time-series storage (1s buckets, read-time aggregation) |
 | `impl/scheduler.go` | Scheduling policy: when to advance analysis |
 | `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation, log tap |
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |

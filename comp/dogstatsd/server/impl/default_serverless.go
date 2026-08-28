@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 )
 
 const (
@@ -29,6 +30,9 @@ func GetDefaultMetricSource() metrics.MetricSource {
 	}
 	if _, ok := os.LookupEnv(azureAppServiceNameEnvVar); ok {
 		return metrics.MetricSourceAzureAppServiceCustom
+	}
+	if _, ok := os.LookupEnv(serverlessenv.MicroVMImageARNEnvVar); ok {
+		return metrics.MetricSourceAWSMicroVMCustom
 	}
 
 	return metrics.MetricSourceServerless

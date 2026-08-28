@@ -35,7 +35,7 @@ const ecrCredentialHelperVersion = "0.12.0"
 // them.
 func SetupECRDockerAuth(n namer.Namer, host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
 	switch host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux:
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux, os.AmazonLinuxECS:
 		ecrCredsHelperInstall, err := ensureECRCredentialHelper(n, host, opts...)
 		if err != nil {
 			return nil, err

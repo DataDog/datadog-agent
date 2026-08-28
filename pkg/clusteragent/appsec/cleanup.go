@@ -15,7 +15,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 )
@@ -52,7 +53,16 @@ func Cleanup(ctx context.Context, logger log.Component, datadogConfig config.Com
 
 func cleanupPattern(ctx context.Context, logger log.Component, client dynamic.Interface, pattern appsecconfig.InjectionPattern) {
 	objs, err := client.Resource(pattern.Resource()).Namespace(pattern.Namespace()).List(ctx, metav1.ListOptions{})
-	if errors.IsForbidden(err) {
+	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+		// The resource type (CRD) is not installed in this cluster, so there is
+		// nothing of this proxy type to clean up. Cleanup iterates over every
+		// registered proxy pattern, so this is expected on clusters that only
+		// run a subset of the supported proxies.
+		logger.Debugf("Skipping cleanup for pattern %v: resource type %v is not present in the cluster: %v", pattern, pattern.Resource(), err)
+		return
+	}
+
+	if apierrors.IsForbidden(err) {
 		logger.Debugf("Skipping cleanup of resource pattern %v due to forbidden access: %v", pattern, err)
 		return
 	}

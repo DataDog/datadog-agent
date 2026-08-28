@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
@@ -67,4 +68,21 @@ func TestLocalServiceShutdownNilMetricAgent(t *testing.T) {
 	require.NotPanics(t, func() {
 		service.Shutdown(nil, true, nil)
 	})
+}
+
+func TestGetCloudServiceTypeMicroVM(t *testing.T) {
+	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, "arn:aws:lambda:us-east-1:123456789012:microvm-image:my-image")
+	svc := GetCloudServiceType()
+	_, ok := svc.(*MicroVM)
+	assert.True(t, ok, "expected MicroVM CloudService")
+}
+
+func TestGetCloudServiceTypeMicroVMTakesPriorityOverCloudRun(t *testing.T) {
+	// MicroVM is checked first — both would never be set in practice,
+	// but the ordering must be explicit.
+	t.Setenv(ServiceNameEnvVar, "my-service")
+	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, "arn:aws:lambda:us-east-1:123456789012:microvm-image:my-image")
+	svc := GetCloudServiceType()
+	_, ok := svc.(*MicroVM)
+	assert.True(t, ok, "MicroVM should take priority over CloudRun")
 }
