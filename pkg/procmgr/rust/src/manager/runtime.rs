@@ -9,8 +9,32 @@ use crate::command::Command;
 use log::warn;
 use std::future::Future;
 use std::pin::{Pin, pin};
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tonic::Status;
+
+#[derive(Clone, Default)]
+pub(in crate::manager) struct BackgroundSpawns {
+    handles: Arc<Mutex<Vec<JoinHandle<()>>>>,
+}
+
+impl BackgroundSpawns {
+    pub(in crate::manager) fn track(&self, handle: JoinHandle<()>) {
+        self.handles.lock().unwrap().push(handle);
+    }
+
+    pub(in crate::manager) async fn join_all(&self) {
+        let handles = std::mem::take(&mut *self.handles.lock().unwrap());
+        for handle in handles {
+            match handle.await {
+                Ok(()) => {}
+                Err(error) if error.is_cancelled() => {}
+                Err(error) => warn!("background task failed: {error}"),
+            }
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct RuntimeContext {
@@ -18,6 +42,7 @@ pub(crate) struct RuntimeContext {
     pub(in crate::manager) exit_tx: mpsc::Sender<ExitEvent>,
     pub(in crate::manager) restart_tx: mpsc::Sender<PendingRestart>,
     pub(in crate::manager) lifecycle: Lifecycle,
+    pub(in crate::manager) background_spawns: BackgroundSpawns,
 }
 
 pub(crate) struct RuntimeReceivers {
@@ -40,6 +65,7 @@ impl RuntimeContext {
                 exit_tx,
                 restart_tx,
                 lifecycle,
+                background_spawns: BackgroundSpawns::default(),
             },
             RuntimeReceivers {
                 cmd_rx,

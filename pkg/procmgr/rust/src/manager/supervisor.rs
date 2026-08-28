@@ -44,6 +44,7 @@ impl Supervisor {
         }
 
         rx.drain_pending_commands().await;
+        ctx.background_spawns.join_all().await;
 
         info!("dd-procmgrd shutting down");
 

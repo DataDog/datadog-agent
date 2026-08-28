@@ -311,3 +311,44 @@ async fn test_create_auto_start_respects_in_flight_reservation() -> anyhow::Resu
     test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
     Ok(())
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_background_spawn_joined_before_teardown() -> anyhow::Result<()> {
+    let _guard = super::test_manager_lock().await;
+    crate::platform::reset_shutdown_state_for_test();
+    let _gate = super::super::spawn::close_spawn_gate_for_test();
+
+    let mgr = ProcessManager::new(loader(vec![sleep_def("bg-svc")]), uuid_gen());
+    let (handles, _rx) = test_runtime_context();
+
+    super::super::spawn::spawn_process_background(
+        mgr.catalog.clone(),
+        0,
+        handles.clone(),
+        super::super::spawn::SpawnKind::Manual,
+    );
+
+    tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            if mgr.processes().await[0].state() == ProcessState::Starting {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("timed out waiting for background spawn reservation");
+
+    handles.lifecycle.begin_stopping();
+    drop(_gate);
+    handles.background_spawns.join_all().await;
+
+    let proc = &mgr.processes().await[0];
+    assert_eq!(proc.state(), ProcessState::Stopped);
+    assert!(!proc.is_running());
+    assert!(proc.pid().is_none());
+
+    crate::platform::reset_shutdown_state_for_test();
+    Ok(())
+}

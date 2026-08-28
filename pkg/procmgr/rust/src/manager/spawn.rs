@@ -175,9 +175,11 @@ pub(in crate::manager) fn spawn_process_background(
     ctx: RuntimeContext,
     kind: SpawnKind,
 ) {
-    tokio::spawn(async move {
+    let background_spawns = ctx.background_spawns.clone();
+    let handle = tokio::spawn(async move {
         let _ = spawn_process(catalog, idx, &ctx, kind).await;
     });
+    background_spawns.track(handle);
 }
 
 fn spawn_managed_child_sync(name: &str, config: &ProcessConfig) -> Result<ManagedChildSpawn> {
