@@ -67,10 +67,11 @@ enum DENTRY_ERPC_RESOLUTION_CODE {
 };
 
 // Reader that attempted a per-event span context fill. Matches
-// (span_ctx_stats.go)
+// (spanctxevent_monitor.go)
 enum span_ctx_event_reader {
     SPAN_CTX_EVENT_READER_OTEL,       // reader:otel_tls
     SPAN_CTX_EVENT_READER_GO_LABELS,  // reader:go_labels
+    SPAN_CTX_EVENT_READER_NODEJS,     // reader:nodejs_tls
     SPAN_CTX_EVENT_READER_FILL,       // reader:fill  (the tail-call plumbing itself)
     SPAN_CTX_EVENT_READER_LAST,
 };
