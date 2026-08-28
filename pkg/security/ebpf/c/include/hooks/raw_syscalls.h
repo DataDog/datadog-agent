@@ -19,8 +19,8 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 
     // syscall_monitor_event_t lives in a per-CPU map rather than on the stack.
     // We're reusing the SPAN_FILL per-CPU map instead of using another one, but we're
-    // not tail calling span_fill here: a tail call never returns, and this program may
-    // have to send two events.
+    // not filling the span context here: this event represents a batch of syscall,
+    // the span context is not useful here
     struct syscall_monitor_event_t *event = SPAN_FILL_EVENT(struct syscall_monitor_event_t, EVENT_SYSCALLS);
     if (!event) {
         return 0;
@@ -29,14 +29,6 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     struct proc_cache_t *proc_cache_entry = fill_process_context(&event->process);
     fill_cgroup_context(proc_cache_entry, &event->cgroup);
 
-    // Both monitor types are decided before anything is sent, so the single
-    // fill_span_context() below can serve both events (the span context is per-thread,
-    // hence identical for both): inlining that helper at two send sites pushes
-    // sys_enter past the 4096-instruction ceiling kernels before 5.2 enforce.
-    //
-    // Only these flags may cross into the send blocks: on 4.14 a map value that merges
-    // with a NULL initializer loses its pointer type, so each block re-derives its
-    // entry.
     u8 drift_active = 0;
     u8 dump_active = 0;
     u8 drift_reason = SYSCALL_MONITOR_REASON_NONE;
@@ -81,10 +73,6 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
             syscall_monitor_entry_insert(entry, args->id);
             dump_reason = syscall_monitor_should_send(args, entry, now);
         }
-    }
-
-    if (drift_reason || dump_reason) {
-        fill_span_context(&event->span, &event->go_labels);
     }
 
     // A NULL peek means another thread exited and dropped the entry: nothing to flush.
