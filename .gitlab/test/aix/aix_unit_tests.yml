@@ -43,6 +43,7 @@
     # test. Reuses any existing clone (fetch + checkout) to avoid cloning from
     # scratch each run. The clone includes packaging/aix/ci/*.sh, so the host
     # has the scripts the job later runs.
+    - echo "=== AIX: cloning agent source at $CI_COMMIT_SHA ==="
     - |
       ssh -T -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST bash -s <<EOF
       set -eu
@@ -65,8 +66,11 @@
     # unit-test job's script (packaging/aix/ci/).
     # Invoke via `sh` so the job works even if the executable bit isn't set on
     # the checked-out file, and quote the remote command so $AIX_AGENT_SRC is
-    # expanded on the runner (not split by the remote shell).
+    # expanded on the runner (not split by the remote shell). -tt forces a PTY
+    # so the remote script's stdout/stderr stream live to the job log.
+    - echo "=== AIX: provisioning host (setup-host.sh) ==="
     - ssh -tt -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/setup-host.sh"
+    - echo "=== AIX: running unit tests (run-tests.sh) ==="
     - ssh -tt -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/ci/run-tests.sh"
 
 aix_unit_tests:
