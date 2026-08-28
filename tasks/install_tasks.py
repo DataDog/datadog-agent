@@ -20,7 +20,7 @@ TOOL_LIST = [
     'github.com/wadey/gocovmerge',
     'github.com/uber-go/gopatch',
     'github.com/aarzilli/whydeadcode',
-    'gotest.tools/gotestsum'
+    'gotest.tools/gotestsum',
 ]
 
 # TODO: Fix the build images.
