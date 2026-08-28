@@ -17,8 +17,7 @@ type Component interface {
 	Get() map[string]interface{}
 	// Submit synchronously builds a payload and enqueues it for submission now,
 	// bypassing the metadata runner's first-run delay and interval gating. It is
-	// the mechanism behind the immediate-on-start-submission capability
-	// (Capabilities.ImmediateSubmission): an embedder in an environment with no
+	// an embedder in an environment with no
 	// host-metadata pipeline has no host-creation race to order around, so it can
 	// enqueue the first payload immediately rather than waiting for the runner
 	// goroutine, which may never be scheduled in a very short-lived process.
@@ -34,23 +33,20 @@ type Component interface {
 // "serverless": the zero value is exactly full-agent behavior, and each
 // non-zero value is justified by a property of the embedding environment rather
 // than by a product name. This keeps the divergence legible to the inventory
-// component's owners as two well-motivated knobs instead of an `if serverless`
+// component's owners as well-motivated knobs instead of an `if serverless`
 // branch.
+//
+// Fields are named for the divergence, not the full-agent behavior, so the Go
+// zero value equals full-agent behavior: a binary that supplies no Capabilities
+// (or an empty one) gets the standard agent.
 type Capabilities struct {
-	// CrossProcessEnrichment enables the payload-enrichment tier that fetches
-	// configuration from the other agent processes (security/process/trace/
-	// system-probe) over IPC/localhost. It is on for the full agent, where those
-	// processes exist to query, and off in an environment where they do not run
-	// (so the fetches would only fail, add semantic noise, and risk
-	// dereferencing a nil IPC client).
-	CrossProcessEnrichment bool
-	// ImmediateSubmission requests a synchronous payload submission at startup
-	// (see Component.Submit) instead of relying solely on the metadata runner's
-	// delayed first collection. It is off for the full agent, whose 60s first-run
-	// delay orders inventory after host metadata to avoid a backend
-	// host-creation race, and on in an environment with no host-metadata pipeline
-	// (no such race, and a short-lived process may exit before the runner fires).
-	ImmediateSubmission bool
+	// SkipCrossProcessEnrichment turns off the payload-enrichment tier that
+	// fetches configuration from the other agent processes (security/process/
+	// trace/system-probe) over IPC/localhost. The full agent leaves it false
+	// (enrichment on), where those processes exist to query. An environment where
+	// they do not run sets it true (so the fetches would only fail, add semantic
+	// noise, and risk dereferencing a nil IPC client).
+	SkipCrossProcessEnrichment bool
 	// PayloadUUID overrides the payload's uuid. Empty means use the cached host
 	// machine GUID (uuid.GetUUID()), which is correct for a host-bound agent but
 	// meaningless across the ephemeral, per-process containers of a hostless
@@ -61,18 +57,13 @@ type Capabilities struct {
 // NewServerlessCapabilities builds the Capabilities that configure the
 // inventoryagent component for serverless-init, a hostless single-process
 // environment:
-//   - CrossProcessEnrichment is false: no other agent processes run alongside
+//   - SkipCrossProcessEnrichment is true: no other agent processes run alongside
 //     serverless-init, so there is nothing to query.
-//   - ImmediateSubmission is true: there is no host-metadata pipeline and thus
-//     no host-creation race, and the process may be very short-lived, so the
-//     first payload is enqueued synchronously at startup rather than left to
-//     the runner goroutine.
 //   - PayloadUUID is a per-process uuid: serverless containers do not share the
 //     host machine GUID that uuid.GetUUID() returns.
 func NewServerlessCapabilities(processUUID string) *Capabilities {
 	return &Capabilities{
-		CrossProcessEnrichment: false,
-		ImmediateSubmission:    true,
-		PayloadUUID:            processUUID,
+		SkipCrossProcessEnrichment: true,
+		PayloadUUID:                processUUID,
 	}
 }
