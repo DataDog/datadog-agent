@@ -10,6 +10,7 @@ import (
 	"maps"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
@@ -57,11 +58,25 @@ type CloudRunJobs struct {
 	jobSpan    *pb.Span
 	traceAgent TraceAgent
 	spanTags   map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
+
+	metadataOnce sync.Once
+	metadata     map[string]string
+}
+
+// resolveMetadata fetches the GCP metadata-service values once and caches them.
+// GetTags and GetInventoryData both trigger it, so exactly one network fetch
+// happens regardless of call order. The cached map is read-only; callers that
+// mutate clone it.
+func (c *CloudRunJobs) resolveMetadata() map[string]string {
+	c.metadataOnce.Do(func() {
+		c.metadata = metadataHelperFunc(GetDefaultConfig(), CloudRunJob)
+	})
+	return c.metadata
 }
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
-	tags := metadataHelperFunc(GetDefaultConfig(), CloudRunJob)
+	tags := maps.Clone(c.resolveMetadata())
 	tags["origin"] = CloudRunJobsOrigin
 	tags["_dd.origin"] = CloudRunJobsOrigin
 
@@ -92,8 +107,38 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 		tags[cloudRunJobTagPrefix+taskCountTag] = taskCountVal
 	}
 
-	tags[cloudRunJobTagPrefix+resourceNameTag] = fmt.Sprintf("projects/%s/locations/%s/jobs/%s", tags["project_id"], tags["location"], jobNameVal)
+	tags[cloudRunJobTagPrefix+resourceNameTag] = cloudRunJobCCRID(tags["project_id"], tags["location"], jobNameVal)
 	return tags
+}
+
+// cloudRunJobCCRID builds the job-level Canonical Cloud Resource ID. The job is
+// the stable top-level resource; executions are runtime instances tracked via
+// deployment_id rather than nested into the CCRID.
+func cloudRunJobCCRID(project, region, job string) string {
+	return fmt.Sprintf("projects/%s/locations/%s/jobs/%s", project, region, job)
+}
+
+// GetInventoryData derives the inventory metadata fields for Cloud Run Jobs. It
+// resolves its own facts from the cached metadata service values plus the
+// workload environment, so it does not depend on GetTags having run first.
+//
+// The job CCRID is the stable top-level resource, so it is the resource_id with
+// no distinct parent. The execution is the runtime instance and is reported as
+// the deployment_id.
+func (c *CloudRunJobs) GetInventoryData() InventoryData {
+	metadata := c.resolveMetadata()
+	project := metadata[projectID]
+	region := metadata[location]
+	job := os.Getenv(cloudRunJobNameEnvVar)
+
+	return InventoryData{
+		WorkloadType: workloadTypeCloudRunJob,
+		ResourceID:   cloudRunJobCCRID(project, region, job),
+		ResourceName: job,
+		Region:       region,
+		GCPProjectID: project,
+		DeploymentID: os.Getenv(cloudRunExecutionEnvVar),
+	}
 }
 
 func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
