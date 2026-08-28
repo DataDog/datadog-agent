@@ -133,9 +133,9 @@ async fn join_in_flight_spawn(
         }
 
         let mut handle = handle;
-        tokio::select! {
-            result = &mut handle => log_spawn_monitor_result(result),
-            _ = tokio::time::sleep(cap) => {
+        match tokio::time::timeout(cap, &mut handle).await {
+            Ok(result) => log_spawn_monitor_result(result),
+            Err(_) => {
                 warn!(
                     "startup: timed out waiting for in-flight auto-start ({cap:?} left in SCM budget); deferring to supervisor teardown"
                 );
