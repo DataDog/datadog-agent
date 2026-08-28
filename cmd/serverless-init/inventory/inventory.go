@@ -101,13 +101,16 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 		"agent_commit":            version.Commit,
 		"report_reason":           reportReasonStartup,
 
-		"resource_id":   inv.ResourceID,
-		"resource_name": inv.ResourceName,
-		"workload_type": inv.WorkloadType,
+		"resource_id":        inv.ResourceID,
+		"resource_name":      inv.ResourceName,
+		"workload_type":      inv.WorkloadType,
+		"parent_resource_id": inv.ParentResourceID,
+		"deployment_id":      inv.DeploymentID,
 
 		"region":                inv.Region,
 		"gcp_project_id":        inv.GCPProjectID,
 		"azure_subscription_id": inv.AzureSubscriptionID,
+		"azure_resource_group":  inv.AzureResourceGroup,
 
 		"deployment_model": deploymentModel(modeConf),
 		"runtime":          inv.Runtime,

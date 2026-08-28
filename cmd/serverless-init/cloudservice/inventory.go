@@ -37,6 +37,18 @@ type InventoryData struct {
 
 	// Runtime is the detected workload runtime; likely empty in sidecar mode.
 	Runtime string
+
+	// ParentResourceID is the CCRID of the stable parent for revision-capable
+	// workloads (e.g. the Cloud Run service behind a revision). Empty when the
+	// workload has no distinct parent.
+	ParentResourceID string
+
+	// DeploymentID identifies the deployment/revision instance when the platform
+	// exposes one; empty otherwise.
+	DeploymentID string
+
+	// AzureResourceGroup is the Azure resource group; empty for GCP.
+	AzureResourceGroup string
 }
 
 // GetInventoryData returns the inventory metadata fields for this cloud
@@ -45,13 +57,6 @@ type InventoryData struct {
 //
 // TODO(SVLS): derive real per-platform inventory fields.
 func (l *LocalService) GetInventoryData() InventoryData { return InventoryData{} }
-
-// GetInventoryData returns the inventory metadata fields for Cloud Run
-// (service, function).
-//
-// TODO(SVLS): derive workload_type (service vs cloud_function_gen2), CCRID,
-// region, and project id from the Cloud Run environment.
-func (c *CloudRun) GetInventoryData() InventoryData { return InventoryData{} }
 
 // GetInventoryData returns the inventory metadata fields for Cloud Run Jobs.
 //

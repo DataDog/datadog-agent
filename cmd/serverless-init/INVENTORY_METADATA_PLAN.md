@@ -44,18 +44,33 @@ Key derivation facts to reuse:
 
 ### 1. Per-platform `GetInventoryData` derivation
 
-All implementations in `cmd/serverless-init/cloudservice/inventory.go` currently
-return an empty `InventoryData{}`. Fill them in per platform (CloudRun,
-CloudRunJobs, ContainerApp, AppService), deriving `workload_type`, `resource_id`
-(CCRID), `resource_name`, `region`, and the platform id (`gcp_project_id` or
-`azure_subscription_id`) and `runtime` from each struct's environment. The
-source enum already exists (`cloudservice/service.go`: `CloudRunType` =
-service/function/job). Co-locate with each platform's existing tag logic.
+`GetInventoryData()` takes no arguments: each platform resolves its own facts
+rather than reading a caller-supplied `tags` map, so it never depends on
+`GetTags` having run first. Where a platform shares a metadata-service fetch
+between `GetTags` and `GetInventoryData`, cache that fetch on the struct (see
+CloudRun's `resolveMetadata`) so exactly one fetch happens regardless of call
+order. The shared nullable fields (`parent_resource_id`, `deployment_id`,
+`azure_resource_group`) are on `InventoryData` and emitted by `buildFields`;
+platforms that cannot derive one leave it empty. The source enum already exists
+(`cloudservice/service.go`: `CloudRunType` = service/function/job). Co-locate
+each derivation with the platform's existing tag logic.
 
-Also-accepted-downstream nullable fields not yet on `InventoryData` or in
-`buildFields` — add and emit per platform when derivable, otherwise omit:
-- `parent_resource_id` — stable service CCRID for revision-capable workloads
-  (e.g. Cloud Run service behind revisions).
+**CloudRun (service + function): done** (`cloudrun.go`, tests in
+`cloudrun_test.go`). Decisions baked in:
+- Service `resource_id` is the revision-level CCRID
+  (`.../services/{svc}/revisions/{K_REVISION}`); `parent_resource_id` is the
+  stable service CCRID. Function `resource_id` is the function CCRID
+  (`.../services/{svc}/functions/{target}`), which already nests under the
+  service path; `parent_resource_id` is that same service CCRID.
+- `resource_name` is the service name (`K_SERVICE`), stable across revisions.
+- `deployment_id` is `K_REVISION`; `runtime` stays empty (not derivable in
+  sidecar mode).
+
+Still TODO — CloudRunJobs, ContainerApp, AppService return empty structs.
+Derive `workload_type`, `resource_id` (CCRID), `resource_name`, `region`, the
+platform id (`gcp_project_id` or `azure_subscription_id`), plus the nullable
+fields where derivable:
+- `parent_resource_id` — stable parent CCRID for revision-capable workloads.
 - `deployment_id`.
 - `azure_resource_group` — from Azure env/tags (subscription id already surfaces
   in `serverlessProfileTags`).
@@ -95,10 +110,12 @@ the "enqueue synchronously in `run()`" model is wrong for it:
 
 ## Downstream contract (fixed for this pass)
 
-The dd-go `createServerlessAgentResource` decoder, its `stringFields` list, and
-`validServerlessWorkloadTypes` / `validServerlessDeploymentModels` allowlists
-are fixed. Reconcile fields against them; if the contract must change, that is a
-later pass. `report_reason` is a bounded telemetry dimension
+The contract is owned by the dd-go `event-platform-resource-writer` service
+(the stable anchor; decoder function/type names below may drift). As of this
+pass that is the `createServerlessAgentResource` decoder, its `stringFields`
+list, and the `validServerlessWorkloadTypes` / `validServerlessDeploymentModels`
+allowlists. Reconcile fields against them; if the contract must change, that is
+a later pass. `report_reason` is a bounded telemetry dimension
 (`startup`/`periodic`/`refresh`), not persisted; we emit `startup`.
 
 ## Rollout
