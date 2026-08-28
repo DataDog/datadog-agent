@@ -136,7 +136,7 @@ func workloadTypeFromOrigin(origin string, tags map[string]string) string {
 		// (available in init-container) or build_function_target tag (available
 		// in sidecar, set by the Cloud Run collector).
 		if os.Getenv("FUNCTION_TARGET") != "" || tags["build_function_target"] != "" {
-			return "cloud_function_gen2"
+			return "cloud_run_function"
 		}
 		return "cloud_run_service"
 	case cloudservice.CloudRunJobsOrigin:
