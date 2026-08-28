@@ -25,7 +25,11 @@ pub struct ProcessManagerService {
 }
 
 impl ProcessManagerService {
-    pub(crate) fn new(mgr: ProcessManager, cmd_tx: mpsc::Sender<Command>, lifecycle: Lifecycle) -> Self {
+    pub(crate) fn new(
+        mgr: ProcessManager,
+        cmd_tx: mpsc::Sender<Command>,
+        lifecycle: Lifecycle,
+    ) -> Self {
         Self {
             mgr,
             started_at: Instant::now(),
