@@ -567,6 +567,17 @@ workflow:
         RUN_KMT_TESTS: "on"
         RUN_UNIT_TESTS: "on"
         SKIP_WINDOWS: "false"
+    # Treat an ACR version bump the same way: ACR ships in every Linux Agent package.
+    - changes:
+        paths:
+          - deps/agent_check_runner/agent_check_runner.MODULE.bazel
+        compare_to: $COMPARE_TO_BRANCH
+      variables:
+        RUN_ALL_BUILDS: "true"
+        RUN_E2E_TESTS: "on"
+        RUN_KMT_TESTS: "on"
+        RUN_UNIT_TESTS: "on"
+        SKIP_WINDOWS: "true"
     - changes:
         paths: *windows_path
         compare_to: main
