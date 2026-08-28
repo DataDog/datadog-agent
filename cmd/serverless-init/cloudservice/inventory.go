@@ -35,19 +35,8 @@ type InventoryData struct {
 	// AzureSubscriptionID is set for Azure platforms; empty for GCP.
 	AzureSubscriptionID string
 
-	// GCPDeploymentType is one of Function|Source|Container|Repo; empty for
-	// non-GCP.
-	GCPDeploymentType string
-
-	// AzureHostingPlan is one of Consumption|Flex; empty for non-Azure.
-	AzureHostingPlan string
-
-	// AzureDeploymentType is one of Code|Container; empty for non-Azure.
-	AzureDeploymentType string
-
-	// WorkloadRuntime is the detected workload runtime; likely empty in
-	// sidecar mode.
-	WorkloadRuntime string
+	// Runtime is the detected workload runtime; likely empty in sidecar mode.
+	Runtime string
 }
 
 // GetInventoryData returns the inventory metadata fields for this cloud
@@ -61,7 +50,7 @@ func (l *LocalService) GetInventoryData() InventoryData { return InventoryData{}
 // (service, function).
 //
 // TODO(SVLS): derive workload_type (service vs cloud_function_gen2), CCRID,
-// region, project id, and GCP deployment type from the Cloud Run environment.
+// region, and project id from the Cloud Run environment.
 func (c *CloudRun) GetInventoryData() InventoryData { return InventoryData{} }
 
 // GetInventoryData returns the inventory metadata fields for Cloud Run Jobs.
@@ -72,14 +61,14 @@ func (c *CloudRunJobs) GetInventoryData() InventoryData { return InventoryData{}
 // GetInventoryData returns the inventory metadata fields for Azure Container
 // Apps.
 //
-// TODO(SVLS): derive azure_container_app workload_type, CCRID, region,
-// subscription id, hosting plan, and deployment type.
+// TODO(SVLS): derive azure_container_app workload_type, CCRID, region, and
+// subscription id.
 func (c *ContainerApp) GetInventoryData() InventoryData { return InventoryData{} }
 
 // GetInventoryData returns the inventory metadata fields for Azure App Service.
 //
-// TODO(SVLS): derive azure_app_service workload_type, CCRID, region,
-// subscription id, hosting plan, and deployment type.
+// TODO(SVLS): derive azure_app_service workload_type, CCRID, region, and
+// subscription id.
 func (a *AppService) GetInventoryData() InventoryData { return InventoryData{} }
 
 // GetInventoryData returns the inventory metadata fields for AWS MicroVM.
