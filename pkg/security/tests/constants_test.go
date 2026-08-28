@@ -25,6 +25,10 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
 	constantfetch.OffsetNameSockStructSKProtocol,
+	// Thread pointer offsets: BTF/BTFHub-only by design. task_struct.thread has
+	// 34 distinct values on amd64 (46 on arm64) across BTFHub
+	constantfetch.OffsetNameTaskStructThread,
+	constantfetch.OffsetNameThreadStructTp,
 }
 
 func TestOctogonConstants(t *testing.T) {

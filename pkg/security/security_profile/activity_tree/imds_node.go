@@ -14,12 +14,61 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// IMDSInfo is the slimmed-down representation of a model.IMDSEvent kept in the
+// activity tree.
+type IMDSInfo struct {
+	Type          string
+	CloudProvider string
+	URL           string
+	Host          string
+	UserAgent     string
+	Server        string
+	AWS           AWSIMDSInfo
+}
+
+// AWSIMDSInfo holds the AWS-specific fields kept from an IMDS event.
+type AWSIMDSInfo struct {
+	IsIMDSv2            bool
+	SecurityCredentials AWSSecurityCredentialsInfo
+}
+
+// AWSSecurityCredentialsInfo holds the AWS security credential fields kept from an IMDS event.
+type AWSSecurityCredentialsInfo struct {
+	Code          string
+	Type          string
+	AccessKeyID   string
+	LastUpdated   string
+	ExpirationRaw string
+}
+
+// newIMDSInfo builds a slim IMDSInfo from a model.IMDSEvent.
+func newIMDSInfo(e *model.IMDSEvent) IMDSInfo {
+	return IMDSInfo{
+		Type:          e.Type,
+		CloudProvider: e.CloudProvider,
+		URL:           e.URL,
+		Host:          e.Host,
+		UserAgent:     e.UserAgent,
+		Server:        e.Server,
+		AWS: AWSIMDSInfo{
+			IsIMDSv2: e.AWS.IsIMDSv2,
+			SecurityCredentials: AWSSecurityCredentialsInfo{
+				Code:          e.AWS.SecurityCredentials.Code,
+				Type:          e.AWS.SecurityCredentials.Type,
+				AccessKeyID:   e.AWS.SecurityCredentials.AccessKeyID,
+				LastUpdated:   e.AWS.SecurityCredentials.LastUpdated,
+				ExpirationRaw: e.AWS.SecurityCredentials.ExpirationRaw,
+			},
+		},
+	}
+}
+
 // IMDSNode is used to store a IMDS node
 type IMDSNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
-	Event          model.IMDSEvent
+	Event          IMDSInfo
 }
 
 // size approximates this node's heap footprint
@@ -46,7 +95,7 @@ func NewIMDSNode(event *model.IMDSEvent, evt *model.Event, rules []*model.Matche
 	node := &IMDSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
-		Event:          *event,
+		Event:          newIMDSInfo(event),
 	}
 	node.NodeBase = NewNodeBase()
 	node.AppendImageTagID(imageTagID, evt.ResolveEventTime())

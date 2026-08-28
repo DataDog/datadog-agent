@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/build/packaging/common.yml
-
 .package_rpm_common:
   extends: .bazel:defs:cache:omnibus-transition
   rules:
