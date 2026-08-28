@@ -75,8 +75,15 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 	// never be acquired, so it is clamped rather than left to hang the sweep.
 	r.Workers = clampWorkers(r.Workers, s.budget)
 	state := s.startState(r)
+	total := r.Plan.chunkCount()
 
+	// One line per cycle, not per chunk: a /16 is 256 chunks. This and the
+	// completion line below are the only positive-path signals the component
+	// emits, so between them they have to say what is being scanned, how far it
+	// got, and which run the backend should be showing.
 	if state.NextChunk == 0 {
+		s.log.Infof("ndmdiscovery: scanning range %s (%s): %d addresses in %d chunks, %d ignored, run %s",
+			id, r.Config.CIDR, r.Plan.totalAddresses(), total, r.Plan.ignoredCount(), state.RunID)
 		s.reportRun(r, metadata.AutodiscoveryRunMetadata{
 			AutodiscoveryID:  id,
 			RunID:            state.RunID,
@@ -84,9 +91,14 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 			AddressesScanned: state.Scanned,
 			StartedAtMs:      state.StartedAtMs,
 		})
+	} else {
+		s.log.Infof("ndmdiscovery: resuming the scan of range %s (%s) at chunk %d of %d, run %s",
+			id, r.Config.CIDR, state.NextChunk, total, state.RunID)
 	}
 
-	total := r.Plan.chunkCount()
+	// reported counts the whole cycle, including the chunks a resumed run
+	// inherited nothing from, so it is a lower bound after a restart.
+	reported := 0
 	for state.NextChunk < total {
 		chunk := r.Plan.chunk(state.NextChunk)
 
@@ -122,6 +134,8 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 				// A transport failure is not a scan failure: log it and keep
 				// sweeping rather than aborting a multi-hour cycle.
 				s.log.Warnf("ndmdiscovery: failed to report chunk %d of range %s: %v", chunk.Index, id, err)
+			} else {
+				reported += len(devices)
 			}
 		}
 
@@ -130,6 +144,8 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 		s.saveCursor(id, state)
 	}
 
+	s.log.Infof("ndmdiscovery: completed the scan of range %s (%s): %d addresses scanned, %d devices reported, run %s",
+		id, r.Config.CIDR, state.Scanned, reported, state.RunID)
 	s.reportRun(r, metadata.AutodiscoveryRunMetadata{
 		AutodiscoveryID:  id,
 		RunID:            state.RunID,
