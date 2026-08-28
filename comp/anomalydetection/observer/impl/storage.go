@@ -13,9 +13,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -125,11 +127,10 @@ type timeSeriesStorage struct {
 	// deleted. Protected by s.mu (write lock).
 	tagIntern map[uint64]*tagInternEntry
 
-	// Drop accounting for invalid/unsafe input values.
-	droppedNonFinite int64
-	droppedExtreme   int64
-	droppedByMetric  map[string]int64
-	sampledDrops     map[string]int
+	// Invalid-value logging is limited globally across metric names so input
+	// cardinality cannot create retained per-metric state.
+	droppedValueLogLimit *pkglog.Limit
+	onDroppedValue       func(reason string)
 }
 
 // tagInternEntry is the value stored in timeSeriesStorage.tagIntern.
@@ -317,8 +318,7 @@ func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 		seriesIDStats:         make(map[observer.SeriesRef]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
-		droppedByMetric:       make(map[string]int64),
-		sampledDrops:          make(map[string]int),
+		droppedValueLogLimit:  pkglog.NewLogLimit(3, 10*time.Minute),
 	}
 }
 
@@ -332,7 +332,7 @@ type AddResult struct {
 }
 
 // Add inserts a (namespace, name, value, timestamp, tags) point into storage.
-// Invalid values are dropped at ingest with accounting and sampled logging.
+// Invalid values are dropped at ingest with telemetry and rate-limited logging.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
@@ -465,32 +465,14 @@ func insertBucket(s []pointBucket, idx int, v pointBucket) []pointBucket {
 }
 
 func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, value float64, timestamp int64, tags []string) {
-	switch reason {
-	case "non_finite":
-		s.droppedNonFinite++
-	case "extreme":
-		s.droppedExtreme++
+	if s.onDroppedValue != nil {
+		s.onDroppedValue(reason)
 	}
 
-	metricKey := namespace + "|" + name
-	s.droppedByMetric[metricKey]++
-	sampled := s.sampledDrops[metricKey]
-	if sampled < 3 {
-		s.sampledDrops[metricKey] = sampled + 1
-		logging.Warnf("dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
-			reason, namespace, name, value, timestamp, tags, sampled+1)
+	if s.droppedValueLogLimit != nil && s.droppedValueLogLimit.ShouldLog() {
+		logging.Warnf("dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v",
+			reason, namespace, name, value, timestamp, tags)
 	}
-}
-
-func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64, byMetric map[string]int64) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	byMetric = make(map[string]int64, len(s.droppedByMetric))
-	for k, v := range s.droppedByMetric {
-		byMetric[k] = v
-	}
-	return s.droppedNonFinite, s.droppedExtreme, byMetric
 }
 
 // GetSeries returns the series using the specified aggregation.

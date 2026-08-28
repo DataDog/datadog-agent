@@ -296,23 +296,23 @@ func TestAggSuffix(t *testing.T) {
 	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
 }
 
-func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
+func TestTimeSeriesStorage_DropsNonFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
+	var reasons []string
+	s.onDroppedValue = func(reason string) { reasons = append(reasons, reason) }
 
 	s.Add("test", "my.metric", math.Inf(1), 1000, nil)
 	s.Add("test", "my.metric", math.NaN(), 1001, nil)
 
 	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
 	assert.Nil(t, series)
-
-	nonFinite, extreme, byMetric := s.DroppedValueStats()
-	assert.Equal(t, int64(2), nonFinite)
-	assert.Equal(t, int64(0), extreme)
-	assert.Equal(t, int64(2), byMetric["test|my.metric"])
+	assert.Equal(t, []string{"non_finite", "non_finite"}, reasons)
 }
 
-func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
+func TestTimeSeriesStorage_DropsExtremeFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
+	var reasons []string
+	s.onDroppedValue = func(reason string) { reasons = append(reasons, reason) }
 
 	s.Add("test", "my.metric", math.MaxFloat64, 1000, nil)
 	s.Add("test", "my.metric", math.MaxFloat64/4, 1001, nil)
@@ -321,11 +321,7 @@ func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
 	require.NotNil(t, series)
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, math.MaxFloat64/4, series.Points[0].Value)
-
-	nonFinite, extreme, byMetric := s.DroppedValueStats()
-	assert.Equal(t, int64(0), nonFinite)
-	assert.Equal(t, int64(1), extreme)
-	assert.Equal(t, int64(1), byMetric["test|my.metric"])
+	assert.Equal(t, []string{"extreme"}, reasons)
 }
 
 // --- Binary-search-based range query tests ---
@@ -573,30 +569,6 @@ func TestFindingH1_StorageListAllSeriesCompactRace(_ *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 500; i++ {
 			_ = s.ListAllSeriesCompact()
-		}
-	}()
-
-	wg.Wait()
-}
-
-func TestFindingH1_StorageDroppedValueStatsRace(_ *testing.T) {
-	s := newTimeSeriesStorage()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 500; i++ {
-			// Add some NaN to trigger drop accounting writes
-			s.Add("ns", "metric", math.NaN(), int64(i), nil)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 500; i++ {
-			_, _, _ = s.DroppedValueStats()
 		}
 	}()
 
