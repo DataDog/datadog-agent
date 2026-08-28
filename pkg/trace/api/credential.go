@@ -20,16 +20,11 @@ func authorizeEndpoint(e config.Endpoint, h http.Header) bool {
 	return credential.StampAuth(h, e.CredentialProvider, e.APIKey)
 }
 
-// isDelaDirective reports whether a value is a DELA(...) directive.
-func isDelaDirective(value string) bool {
-	return credential.IsDirective(value)
-}
-
 // resolveCredentialProvider resolves the CredentialProvider for endpoint e when its
 // API key is a DELA(...) directive. The directive text, configSettingPath, and host
 // together identify the provider via AgentConfig.CredentialProviderFn.
 func resolveCredentialProvider(conf *config.AgentConfig, e *config.Endpoint, apiKey, configSettingPath string) {
-	if !isDelaDirective(apiKey) {
+	if !credential.IsDirective(apiKey) {
 		return
 	}
 	e.CredentialDirective = apiKey
