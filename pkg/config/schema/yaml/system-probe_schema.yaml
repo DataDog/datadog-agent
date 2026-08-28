@@ -1319,6 +1319,13 @@ properties:
         format: duration
         tags:
         - golang_type:duration
+      driver_events_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to collect NVIDIA driver events from the kernel log.
       enable_fatbin_parsing:
         node_type: setting
         type: boolean
