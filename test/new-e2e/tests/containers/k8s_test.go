@@ -1156,6 +1156,11 @@ func (suite *k8sSuite) TestCPU() {
 }
 
 func (suite *k8sSuite) TestKSM() {
+	// After KSM v2.14, kube_endpoint_address is emitted only for addresses that
+	// exist in that ready state. The transformer must still submit the opposite
+	// series as 0 so healthy endpoints keep reporting address_not_ready=0.
+	suite.testKSMEndpointAddressZeros("workload-nginx", "nginx")
+
 	// Test VPA metrics for nginx
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
@@ -1226,6 +1231,51 @@ func (suite *k8sSuite) TestKSM() {
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			}),
 		},
+	})
+}
+
+func (suite *k8sSuite) testKSMEndpointAddressZeros(namespace, endpoint string) {
+	endpointTags := []string{
+		"kube_namespace:" + namespace,
+		"kube_endpoint:" + endpoint,
+	}
+
+	suite.Run(fmt.Sprintf("metric kubernetes_state.endpoint.address_available+address_not_ready{kube_namespace:%s,kube_endpoint:%s}", namespace, endpoint), func() {
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			available, err := suite.Fakeintake.FilterMetrics(
+				"kubernetes_state.endpoint.address_available",
+				fakeintake.WithTags[*aggregator.MetricSeries](endpointTags),
+			)
+			require.NoErrorf(c, err, "Failed to query fake intake")
+			require.NotEmptyf(c, available, "No `kubernetes_state.endpoint.address_available{kube_namespace:%s,kube_endpoint:%s}` metrics yet", namespace, endpoint)
+
+			notReady, err := suite.Fakeintake.FilterMetrics(
+				"kubernetes_state.endpoint.address_not_ready",
+				fakeintake.WithTags[*aggregator.MetricSeries](endpointTags),
+			)
+			require.NoErrorf(c, err, "Failed to query fake intake")
+			require.NotEmptyf(c, notReady, "No `kubernetes_state.endpoint.address_not_ready{kube_namespace:%s,kube_endpoint:%s}` metrics yet", namespace, endpoint)
+
+			hasPositiveAvailable := false
+			for _, metric := range available {
+				for _, point := range metric.GetPoints() {
+					if point.GetValue() >= 1 {
+						hasPositiveAvailable = true
+					}
+				}
+			}
+			assert.Truef(c, hasPositiveAvailable, "expected `kubernetes_state.endpoint.address_available` >= 1 for a healthy endpoint")
+
+			hasSynthesizedZero := false
+			for _, metric := range notReady {
+				for _, point := range metric.GetPoints() {
+					if point.GetValue() == 0 {
+						hasSynthesizedZero = true
+					}
+				}
+			}
+			assert.Truef(c, hasSynthesizedZero, "expected synthesized `kubernetes_state.endpoint.address_not_ready` = 0 for a healthy endpoint")
+		}, 2*time.Minute, 10*time.Second, "Failed finding kubernetes_state.endpoint.address_* including synthesized zeros")
 	})
 }
 
