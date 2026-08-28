@@ -14,12 +14,17 @@ pub(in crate::manager) enum TrackedJoinTimeout {
     Defer { log_label: &'static str },
 }
 
+pub(in crate::manager) enum TrackedJoinOutcome {
+    Completed,
+    Aborted,
+}
+
 pub(in crate::manager) async fn join_tracked_handle(
     handle: JoinHandle<()>,
     budget: &ShutdownBudget,
     timeout: TrackedJoinTimeout,
     log_failed: fn(&str, tokio::task::JoinError),
-) {
+) -> TrackedJoinOutcome {
     let log_label = match timeout {
         TrackedJoinTimeout::Abort { log_label } | TrackedJoinTimeout::Defer { log_label } => {
             log_label
@@ -32,37 +37,45 @@ pub(in crate::manager) async fn join_tracked_handle(
             TrackedJoinTimeout::Abort { .. } => {
                 warn!("{log_label} join budget exhausted; aborting in-flight task");
                 handle.abort();
+                return TrackedJoinOutcome::Aborted;
             }
             TrackedJoinTimeout::Defer { .. } => {
                 warn!("{log_label} join budget exhausted; deferring task to runtime shutdown");
                 deferred_cleanup::register_deferred_spawn_join(handle);
+                return TrackedJoinOutcome::Completed;
             }
         }
-        return;
     }
 
     if !budget.is_bounded() {
         log_join_result(log_label, handle.await, log_failed);
-        return;
+        return TrackedJoinOutcome::Completed;
     }
 
     match timeout {
         TrackedJoinTimeout::Abort { .. } => {
             let abort = handle.abort_handle();
             tokio::select! {
-                result = handle => log_join_result(log_label, result, log_failed),
+                result = handle => {
+                    log_join_result(log_label, result, log_failed);
+                    TrackedJoinOutcome::Completed
+                }
                 _ = tokio::time::sleep(cap) => {
                     warn!(
                         "timed out waiting for {log_label} ({cap:?} left in service shutdown budget); aborting in-flight task"
                     );
                     abort.abort();
+                    TrackedJoinOutcome::Aborted
                 }
             }
         }
         TrackedJoinTimeout::Defer { .. } => {
             let mut monitor = tokio::spawn(handle);
             tokio::select! {
-                result = &mut monitor => log_monitor_result(log_label, result, log_failed),
+                result = &mut monitor => {
+                    log_monitor_result(log_label, result, log_failed);
+                    TrackedJoinOutcome::Completed
+                }
                 _ = tokio::time::sleep(cap) => {
                     warn!(
                         "timed out waiting for {log_label} ({cap:?} left in service shutdown budget); deferring to runtime shutdown"
@@ -70,6 +83,7 @@ pub(in crate::manager) async fn join_tracked_handle(
                     deferred_cleanup::register_deferred_spawn_join(tokio::spawn(async move {
                         log_monitor_result(log_label, monitor.await, log_failed);
                     }));
+                    TrackedJoinOutcome::Completed
                 }
             }
         }

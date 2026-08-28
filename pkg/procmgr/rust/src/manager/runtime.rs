@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::lifecycle::Lifecycle;
-use super::tracked_join::{TrackedJoinTimeout, join_tracked_handle};
+use super::tracked_join::{TrackedJoinOutcome, TrackedJoinTimeout, join_tracked_handle};
 use super::{ExitEvent, PendingRestart, ProcessManager};
 use crate::command::Command;
 use crate::shutdown::ShutdownBudget;
@@ -40,10 +40,7 @@ impl CommandHandlers {
     ) {
         let handles = std::mem::take(&mut *self.handles.lock().unwrap());
         for handle in handles {
-            if let Some(catalog) = catalog {
-                catalog.finalize_orphaned_stop_waits(budget).await;
-            }
-            join_tracked_handle(
+            let outcome = join_tracked_handle(
                 handle,
                 &budget,
                 TrackedJoinTimeout::Abort {
@@ -52,9 +49,11 @@ impl CommandHandlers {
                 log_command_handler_failed,
             )
             .await;
-        }
-        if let Some(catalog) = catalog {
-            catalog.finalize_orphaned_stop_waits(budget).await;
+            if matches!(outcome, TrackedJoinOutcome::Aborted)
+                && let Some(catalog) = catalog
+            {
+                catalog.finalize_orphaned_stop_waits(budget).await;
+            }
         }
     }
 }
@@ -466,6 +465,127 @@ mod tests {
         assert!(
             release_tx.send(()).is_err(),
             "timed-out command handler should be aborted instead of left running"
+        );
+    }
+
+    #[tokio::test]
+    async fn command_handlers_join_does_not_finalize_orphan_while_handler_in_flight() {
+        use super::super::catalog::ProcessCatalog;
+        use crate::config::ProcessDefinition;
+        use crate::shutdown::ShutdownBudget;
+        use crate::state::ProcessState;
+        use crate::test_helpers;
+        use tokio::sync::oneshot;
+
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let catalog = Arc::new(ProcessCatalog::load(
+            &StaticConfigLoader::new(vec![ProcessDefinition {
+                name: "svc".into(),
+                config: test_helpers::make_config(cmd, args),
+            }]),
+            Arc::new(V4UuidGenerator),
+        ));
+
+        {
+            let mut procs = catalog.write_processes().await;
+            procs[0].spawn().unwrap();
+            procs[0].request_stop();
+            let plan = procs[0].plan_stop_wait(ShutdownBudget::unlimited(Instant::now()));
+            assert!(plan.is_some(), "stop wait should claim the watcher");
+            drop(plan);
+            assert!(procs[0].has_orphaned_stop_wait());
+        }
+
+        let command_handlers = CommandHandlers::default();
+        let (release_tx, release_rx) = oneshot::channel::<()>();
+        command_handlers.track(tokio::spawn(async move {
+            let _ = release_rx.await;
+        }));
+
+        let budget = ShutdownBudget::unlimited(Instant::now());
+        let catalog_for_join = Arc::clone(&catalog);
+        let join_task = tokio::spawn({
+            let command_handlers = command_handlers.clone();
+            async move {
+                command_handlers
+                    .join_all_with_budget(Some(catalog_for_join.as_ref()), budget)
+                    .await;
+            }
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        {
+            let procs = catalog.read_processes().await;
+            assert_eq!(
+                procs[0].state(),
+                ProcessState::Stopping,
+                "in-flight handler must not trigger orphan finalize before abort"
+            );
+        }
+
+        drop(release_tx);
+        join_task
+            .await
+            .expect("join task should complete after handler releases");
+
+        {
+            let procs = catalog.read_processes().await;
+            assert_eq!(
+                procs[0].state(),
+                ProcessState::Stopping,
+                "completed handler join without abort must not orphan-finalize"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn command_handlers_join_finalizes_orphan_after_abort() {
+        use super::super::catalog::ProcessCatalog;
+        use crate::config::ProcessDefinition;
+        use crate::shutdown::ShutdownBudget;
+        use crate::state::ProcessState;
+        use crate::test_helpers;
+        use tokio::sync::oneshot;
+
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let catalog = ProcessCatalog::load(
+            &StaticConfigLoader::new(vec![ProcessDefinition {
+                name: "svc".into(),
+                config: test_helpers::make_config(cmd, args),
+            }]),
+            Arc::new(V4UuidGenerator),
+        );
+
+        {
+            let mut procs = catalog.write_processes().await;
+            procs[0].spawn().unwrap();
+            procs[0].request_stop();
+            let plan = procs[0].plan_stop_wait(ShutdownBudget::unlimited(Instant::now()));
+            assert!(plan.is_some(), "stop wait should claim the watcher");
+            drop(plan);
+            assert!(procs[0].has_orphaned_stop_wait());
+        }
+
+        let command_handlers = CommandHandlers::default();
+        let (_release_tx, release_rx) = oneshot::channel::<()>();
+        command_handlers.track(tokio::spawn(async move {
+            let _ = release_rx.await;
+        }));
+
+        let budget = ShutdownBudget::with_deadline(
+            Instant::now(),
+            Instant::now() + Duration::from_millis(50),
+        );
+        command_handlers
+            .join_all_with_budget(Some(&catalog), budget)
+            .await;
+
+        let procs = catalog.read_processes().await;
+        assert_eq!(
+            procs[0].state(),
+            ProcessState::Stopped,
+            "orphan finalize should run only after handler abort"
         );
     }
 
