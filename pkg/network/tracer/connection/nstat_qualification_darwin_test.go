@@ -143,6 +143,8 @@ func TestNStatQualificationSeparateProcessPayloadAndLifecycle(t *testing.T) {
 
 			_, err = io.WriteString(server, response)
 			require.NoError(t, err)
+			require.Equal(t, nstatUDPReady, readExactString(t, server, len(nstatUDPReady)))
+			expectedSentBytes := uint64(len(request) + len(nstatUDPReady))
 			conn = requireNStatConnection(
 				t,
 				tracer,
@@ -150,11 +152,13 @@ func TestNStatQualificationSeparateProcessPayloadAndLifecycle(t *testing.T) {
 				uint16(clientAddress.Port),
 				uint16(serverAddress.Port),
 				network.TCP,
-				uint64(len(request)),
+				expectedSentBytes,
 				uint64(len(response)),
 			)
-			require.Equal(t, uint64(len(request)), conn.Monotonic.SentBytes)
+			require.Equal(t, expectedSentBytes, conn.Monotonic.SentBytes)
 			require.Equal(t, uint64(len(response)), conn.Monotonic.RecvBytes)
+			_, err = io.WriteString(server, nstatUDPRelease)
+			require.NoError(t, err)
 			require.NoError(t, server.Close())
 			require.NoErrorf(t, cmd.Wait(), "helper failed: %s", output.String())
 
@@ -388,19 +392,10 @@ func TestNStatQualificationShortLivedFlows(t *testing.T) {
 		server, err := listener.Accept()
 		require.NoError(t, err)
 		require.Equal(t, request, readExactString(t, server, len(request)))
-		clientPort := uint16(server.RemoteAddr().(*net.TCPAddr).Port)
-		serverPort := uint16(server.LocalAddr().(*net.TCPAddr).Port)
-		_ = requireNStatConnection(
-			t,
-			tracer,
-			uint32(cmd.Process.Pid),
-			clientPort,
-			serverPort,
-			network.TCP,
-			uint64(len(request)),
-			0,
-		)
 		_, err = server.Write([]byte{1})
+		require.NoError(t, err)
+		require.Equal(t, nstatUDPReady, readExactString(t, server, len(nstatUDPReady)))
+		_, err = io.WriteString(server, nstatUDPRelease)
 		require.NoError(t, err)
 		require.NoError(t, server.Close())
 		require.NoErrorf(t, cmd.Wait(), "helper failed: %s", output.String())
@@ -547,9 +542,13 @@ func TestNStatQualificationSustainedCardinality(t *testing.T) {
 
 	const settleTimeout = 60 * time.Second
 	var observed int
+	var lastErr error
 	if !assert.Eventually(t, func() bool {
 		var buffer network.ConnectionBuffer
-		require.NoError(t, tracer.GetConnections(&buffer, nil))
+		lastErr = tracer.GetConnections(&buffer, nil)
+		if lastErr != nil {
+			return false
+		}
 		observed = 0
 		for _, conn := range buffer.Connections() {
 			if conn.Pid == uint32(os.Getpid()) && conn.DPort == serverPort {
@@ -558,7 +557,7 @@ func TestNStatQualificationSustainedCardinality(t *testing.T) {
 		}
 		return observed == count
 	}, settleTimeout, 20*time.Millisecond) {
-		t.Fatalf("observed %d of %d active connections", observed, count)
+		t.Fatalf("observed %d of %d active connections; error=%v", observed, count, lastErr)
 	}
 	creationDuration := time.Since(started)
 
@@ -618,7 +617,9 @@ func TestNStatQualificationWorkloadHelper(t *testing.T) {
 		require.NoError(t, err)
 		if response != "" {
 			require.Equal(t, response, readExactString(t, conn, len(response)))
-			time.Sleep(250 * time.Millisecond)
+			_, err = io.WriteString(conn, nstatUDPReady)
+			require.NoError(t, err)
+			require.Equal(t, nstatUDPRelease, readExactString(t, conn, len(nstatUDPRelease)))
 		}
 		require.NoError(t, conn.Close())
 	case "tcp-refused":
