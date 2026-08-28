@@ -8,7 +8,7 @@ use super::{
     ExitEvent, PendingRestart, RuntimeContext, Supervisor, enqueue_pending_restart, resolve_index,
     spawn::{
         SpawnKind, SpawnProcessOutcome, log_skipped_pending_restart, pending_restart_still_valid,
-        spawn_process, spawn_process_background,
+        reserve_spawn, spawn_process, spawn_process_background,
     },
 };
 use crate::command::{Command, CreateResult, StartResult, StopResult};
@@ -132,6 +132,7 @@ impl ProcessManager {
             idx,
             ctx.clone(),
             SpawnKind::Restart(pending),
+            None,
         );
     }
 
@@ -158,12 +159,23 @@ impl ProcessManager {
         let (uuid, auto_start_idx, auto_start, warnings) =
             self.catalog.append_runtime(&name, config).await?;
         if auto_start {
-            spawn_process_background(
-                Arc::clone(&self.catalog),
-                auto_start_idx,
-                ctx.clone(),
-                SpawnKind::CreateAutoStart,
-            );
+            let reservation =
+                reserve_spawn(&self.catalog, auto_start_idx, &SpawnKind::CreateAutoStart)
+                    .await
+                    .map_err(|e| {
+                        Status::internal(format!(
+                            "failed to reserve auto-start for '{name}': {e:#}"
+                        ))
+                    })?;
+            if let Some(token) = reservation {
+                spawn_process_background(
+                    Arc::clone(&self.catalog),
+                    auto_start_idx,
+                    ctx.clone(),
+                    SpawnKind::CreateAutoStart,
+                    Some(token),
+                );
+            }
         }
         Ok(CreateResult { uuid, warnings })
     }
@@ -187,7 +199,7 @@ impl ProcessManager {
             (idx, name)
         };
 
-        let outcome = spawn_process(Arc::clone(&self.catalog), idx, ctx, SpawnKind::Manual)
+        let outcome = spawn_process(Arc::clone(&self.catalog), idx, ctx, SpawnKind::Manual, None)
             .await
             .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
 

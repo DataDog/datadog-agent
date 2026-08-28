@@ -6,7 +6,46 @@
 use super::super::*;
 use super::{loader, sleep_def, test_runtime_context, uuid_gen, wait_until_running};
 use crate::config::ProcessConfig;
+use crate::state::ProcessState;
 use crate::test_helpers;
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_create_auto_start_reserves_before_return() -> anyhow::Result<()> {
+    let _guard = super::test_manager_lock().await;
+    crate::platform::reset_shutdown_state_for_test();
+    let _gate = super::super::spawn::close_spawn_gate_for_test();
+
+    let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+    let (handles, _rx) = test_runtime_context();
+    let (cmd, args) = test_helpers::sleep_cmd(60);
+
+    mgr.handle_create(
+        "auto-svc".to_string(),
+        ProcessConfig {
+            command: cmd.to_string(),
+            args,
+            auto_start: true,
+            ..Default::default()
+        },
+        &handles,
+    )
+    .await?;
+
+    assert_eq!(mgr.processes().await[0].state(), ProcessState::Starting);
+    mgr.handle_stop("auto-svc").await?;
+
+    drop(_gate);
+    handles.background_spawns.join_all().await;
+
+    let proc = &mgr.processes().await[0];
+    assert_eq!(proc.state(), ProcessState::Stopped);
+    assert!(!proc.is_running());
+    assert!(proc.pid().is_none());
+
+    crate::platform::reset_shutdown_state_for_test();
+    Ok(())
+}
 
 #[tokio::test]
 async fn test_create_rejects_empty_name() {
@@ -123,6 +162,7 @@ async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
     .await?;
 
     wait_until_running(&mgr, "auto-svc").await;
+    handles.background_spawns.join_all().await;
     {
         let procs = mgr.processes().await;
         assert_eq!(procs.len(), 1);
@@ -183,13 +223,11 @@ async fn test_create_auto_start_bad_command_still_created() -> anyhow::Result<()
         .await;
 
     assert!(result.is_ok(), "create should succeed even if spawn fails");
+    handles.background_spawns.join_all().await;
     let procs = mgr.processes().await;
     assert_eq!(procs.len(), 1);
     assert_eq!(procs[0].name(), "bad-cmd");
-    assert!(
-        !procs[0].is_running(),
-        "process with bad command should not be running"
-    );
+    assert_eq!(procs[0].state(), ProcessState::Failed);
     Ok(())
 }
 

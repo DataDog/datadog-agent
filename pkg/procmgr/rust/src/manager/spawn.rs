@@ -127,26 +127,46 @@ pub(in crate::manager) async fn spawn_process(
     idx: usize,
     ctx: &RuntimeContext,
     kind: SpawnKind,
+    pre_reserved: Option<SpawnReservationToken>,
 ) -> Result<SpawnProcessOutcome> {
     if !ctx.lifecycle.spawns_allowed() {
+        if let Some(token) = pre_reserved {
+            cancel_spawn_reservation(&catalog, idx, token).await;
+        }
         return Ok(SpawnProcessOutcome::NotStarted);
     }
 
-    let snapshot = {
-        let mut procs = catalog.write_processes().await;
-        let Some(proc) = procs.get_mut(idx) else {
-            return Ok(SpawnProcessOutcome::NotStarted);
-        };
-        if !kind.may_begin_spawn(proc) {
-            return Ok(SpawnProcessOutcome::NotStarted);
+    let snapshot = match pre_reserved {
+        Some(reservation) => {
+            let procs = catalog.read_processes().await;
+            let Some(proc) = procs.get(idx) else {
+                return Ok(SpawnProcessOutcome::NotStarted);
+            };
+            if !proc.may_commit_spawn_reservation(reservation) {
+                return Ok(SpawnProcessOutcome::NotStarted);
+            }
+            InFlightSpawn {
+                name: proc.name().to_owned(),
+                config: proc.config().clone(),
+                reservation,
+            }
         }
-        let reservation = proc
-            .begin_spawn_reservation()
-            .map_err(|e| anyhow::anyhow!("{e:#}"))?;
-        InFlightSpawn {
-            name: proc.name().to_owned(),
-            config: proc.config().clone(),
-            reservation,
+        None => {
+            let mut procs = catalog.write_processes().await;
+            let Some(proc) = procs.get_mut(idx) else {
+                return Ok(SpawnProcessOutcome::NotStarted);
+            };
+            if !kind.may_begin_spawn(proc) {
+                return Ok(SpawnProcessOutcome::NotStarted);
+            }
+            let reservation = proc
+                .begin_spawn_reservation()
+                .map_err(|e| anyhow::anyhow!("{e:#}"))?;
+            InFlightSpawn {
+                name: proc.name().to_owned(),
+                config: proc.config().clone(),
+                reservation,
+            }
         }
     };
 
@@ -169,15 +189,31 @@ pub(in crate::manager) async fn spawn_process(
     commit_spawn(catalog, idx, &name, reservation, spawn_result, ctx, &kind).await
 }
 
+pub(in crate::manager) async fn reserve_spawn(
+    catalog: &ProcessCatalog,
+    idx: usize,
+    kind: &SpawnKind,
+) -> Result<Option<SpawnReservationToken>> {
+    let mut procs = catalog.write_processes().await;
+    let Some(proc) = procs.get_mut(idx) else {
+        return Ok(None);
+    };
+    if !kind.may_begin_spawn(proc) {
+        return Ok(None);
+    }
+    Ok(Some(proc.begin_spawn_reservation()?))
+}
+
 pub(in crate::manager) fn spawn_process_background(
     catalog: Arc<ProcessCatalog>,
     idx: usize,
     ctx: RuntimeContext,
     kind: SpawnKind,
+    pre_reserved: Option<SpawnReservationToken>,
 ) {
     let background_spawns = ctx.background_spawns.clone();
     let handle = tokio::spawn(async move {
-        let _ = spawn_process(catalog, idx, &ctx, kind).await;
+        let _ = spawn_process(catalog, idx, &ctx, kind, pre_reserved).await;
     });
     background_spawns.track(handle);
 }

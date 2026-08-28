@@ -8,6 +8,7 @@ use super::runtime::RuntimeReceivers;
 use super::startup;
 use super::*;
 use crate::config::{ConfigLoader, ProcessConfig, ProcessDefinition, StaticConfigLoader};
+use crate::state::ProcessState;
 use crate::test_helpers;
 use crate::uuid_gen::{UuidGenerator, V4UuidGenerator};
 use std::sync::Arc;
@@ -62,7 +63,7 @@ pub async fn wait_until_running(mgr: &ProcessManager, name: &str) {
                 .processes()
                 .await
                 .iter()
-                .any(|p| p.name() == name && p.is_running())
+                .any(|p| p.name() == name && p.state() == ProcessState::Running)
             {
                 return;
             }

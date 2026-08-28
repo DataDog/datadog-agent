@@ -47,7 +47,7 @@ pub(in crate::manager) async fn run(
 
         let catalog = manager.catalog.clone();
         let ctx = ctx.clone();
-        let spawn_fut = spawn_process(catalog, idx, &ctx, SpawnKind::BootAutoStart);
+        let spawn_fut = spawn_process(catalog, idx, &ctx, SpawnKind::BootAutoStart, None);
         tokio::pin!(spawn_fut);
 
         tokio::select! {

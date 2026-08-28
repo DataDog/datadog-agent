@@ -23,8 +23,14 @@ async fn test_stop_during_in_flight_spawn_aborts_child() -> anyhow::Result<()> {
     let catalog = mgr.catalog.clone();
     let ctx = handles.clone();
     let spawn_task = tokio::spawn(async move {
-        super::super::spawn::spawn_process(catalog, 0, &ctx, super::super::spawn::SpawnKind::Manual)
-            .await
+        super::super::spawn::spawn_process(
+            catalog,
+            0,
+            &ctx,
+            super::super::spawn::SpawnKind::Manual,
+            None,
+        )
+        .await
     });
 
     tokio::time::timeout(Duration::from_secs(1), async {
@@ -67,8 +73,14 @@ async fn test_concurrent_start_rejected_while_spawn_in_flight() -> anyhow::Resul
     let catalog = mgr.catalog.clone();
     let ctx = handles.clone();
     let spawn_task = tokio::spawn(async move {
-        super::super::spawn::spawn_process(catalog, 0, &ctx, super::super::spawn::SpawnKind::Manual)
-            .await
+        super::super::spawn::spawn_process(
+            catalog,
+            0,
+            &ctx,
+            super::super::spawn::SpawnKind::Manual,
+            None,
+        )
+        .await
     });
 
     tokio::time::timeout(Duration::from_secs(1), async {
@@ -144,8 +156,14 @@ async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> any
     let catalog = mgr.catalog.clone();
     let ctx = handles.clone();
     let spawn_task = tokio::spawn(async move {
-        super::super::spawn::spawn_process(catalog, 0, &ctx, super::super::spawn::SpawnKind::Manual)
-            .await
+        super::super::spawn::spawn_process(
+            catalog,
+            0,
+            &ctx,
+            super::super::spawn::SpawnKind::Manual,
+            None,
+        )
+        .await
     });
 
     tokio::time::timeout(Duration::from_secs(1), async {
@@ -164,6 +182,7 @@ async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> any
         0,
         &handles,
         super::super::spawn::SpawnKind::Manual,
+        None,
     )
     .await?;
     assert_eq!(
@@ -193,8 +212,14 @@ async fn test_stale_spawn_commit_does_not_steal_newer_reservation() -> anyhow::R
     let catalog = mgr.catalog.clone();
     let ctx = handles.clone();
     let stale_spawn = tokio::spawn(async move {
-        super::super::spawn::spawn_process(catalog, 0, &ctx, super::super::spawn::SpawnKind::Manual)
-            .await
+        super::super::spawn::spawn_process(
+            catalog,
+            0,
+            &ctx,
+            super::super::spawn::SpawnKind::Manual,
+            None,
+        )
+        .await
     });
 
     tokio::time::timeout(Duration::from_secs(1), async {
@@ -327,6 +352,7 @@ async fn test_background_spawn_joined_before_teardown() -> anyhow::Result<()> {
         0,
         handles.clone(),
         super::super::spawn::SpawnKind::Manual,
+        None,
     );
 
     tokio::time::timeout(Duration::from_secs(1), async {
