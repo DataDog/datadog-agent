@@ -13,6 +13,6 @@ fixes:
     the Datadog intake on ingest, so a metric submitted as ``my metric-name`` is
     stored and displayed as ``my_metric_name``. Previously a filter list entry
     using the normalized name that users see in Datadog would fail to match such
-    a metric, and the metric was submitted anyway. Filter list entries are
-    normalized the same way, so entries that are not already normalized now match
-    as well.
+    a metric, and the metric was submitted anyway. Filter list entries themselves
+    are matched as written, so they should be the metric name as it appears in
+    Datadog.

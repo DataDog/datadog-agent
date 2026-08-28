@@ -6,6 +6,7 @@
 package metricname
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -20,17 +21,19 @@ type Matcher struct {
 // NewMatcher creates a new metric name matcher.
 // Use `matchPrefix` to  create a prefixes matcher.
 //
-// Entries are normalized with `Normalize` so that the matcher works in the same
-// name space as the backend, and entries that the intake would reject outright
-// are dropped because they can never match a stored name.
+// Entries are taken verbatim. They are expected to already be normalized, i.e.
+// to be metric names as the backend stores and displays them, which is what
+// users copy into a filter list. `Test` normalizes the name it is given, so the
+// comparison happens in that same name space.
+//
+// Entries are deliberately *not* normalized here. Doing so is a no-op for any
+// already-normalized entry, because `Normalize` is idempotent, so the only
+// entries it would affect are ones that cannot match any stored metric name in
+// the first place. For those, leaving the entry alone means it matches nothing,
+// whereas rewriting it can widen it: as a prefix, `foo_` would become `foo` and
+// start matching unrelated names such as `foobar`.
 func NewMatcher(data []string, matchPrefix bool) Matcher {
-	normalized := make([]string, 0, len(data))
-	for _, entry := range data {
-		if name, ok := Normalize(entry); ok {
-			normalized = append(normalized, name)
-		}
-	}
-	data = normalized
+	data = slices.Clone(data)
 	sort.Strings(data)
 
 	if matchPrefix && len(data) > 0 {

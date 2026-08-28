@@ -26,13 +26,28 @@ func TestNewMatcher(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "aa", "b", "bb"}))
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "b", "bb"}))
 
-	// Entries are stored normalized, so a raw entry and its normalized form
-	// compact down to the same prefix.
-	assert.Equal(t, []string{"a_b"}, check([]string{"a-b", "a_b"}))
+	// Entries are taken verbatim, never rewritten. A non-normalized entry is
+	// kept as-is and simply matches nothing, rather than being rewritten into
+	// something that matches more than the user asked for.
+	assert.Equal(t, []string{"a-b", "a_b"}, check([]string{"a-b", "a_b"}))
+}
 
-	// Entries the intake would reject can never match a stored name, so they are
-	// dropped rather than kept as dead weight.
-	assert.Equal(t, []string{"a"}, check([]string{"a", "", "123", strings.Repeat("b", 351)}))
+// TestNewMatcherDoesNotRewritePrefixEntries guards the failure mode that
+// normalizing entries would reintroduce: normalizing a prefix entry as if it
+// were a complete metric name strips its trailing separator, which widens it.
+// `redis.checkpoint_` must not start behaving like `redis.checkpoint`.
+func TestNewMatcherDoesNotRewritePrefixEntries(t *testing.T) {
+	m := NewMatcher([]string{"redis.checkpoint_"}, true)
+
+	assert.Equal(t, []string{"redis.checkpoint_"}, m.data, "prefix entry must be kept verbatim")
+
+	// In the family the user asked for.
+	assert.True(t, m.Test("redis.checkpoint_bytes"))
+	assert.True(t, m.Test("redis.checkpoint-bytes"), "raw name normalizes into the family")
+
+	// Adjacent names that merely share the shorter prefix must be left alone.
+	assert.False(t, m.Test("redis.checkpointing.count"))
+	assert.False(t, m.Test("redis.checkpointed"))
 }
 
 // TestIsStringMatchingNormalizesNames asserts that filter list matching happens
@@ -57,10 +72,11 @@ func TestIsStringMatchingNormalizesNames(t *testing.T) {
 		{true, "multiple-norm-1", []string{"multiple_norm_1"}, false},
 		{true, "multiple_norm-1", []string{"multiple_norm_1"}, false},
 
-		// A raw entry in the config still matches, because entries are
-		// normalized too.
-		{true, "my_metric_name", []string{"my metric-name"}, false},
-		{true, "my metric-name", []string{"my-metric-name"}, false},
+		// Entries are expected to already be normalized. A non-normalized entry
+		// matches nothing rather than being rewritten, so a misconfigured entry
+		// under-filters instead of silently over-filtering.
+		{false, "my_metric_name", []string{"my metric-name"}, false},
+		{false, "my metric-name", []string{"my-metric-name"}, false},
 
 		// Normalization must not make unrelated names collide.
 		{false, "my.metric", []string{"my_metric"}, false},

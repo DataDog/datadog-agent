@@ -33,21 +33,18 @@
 //
 // # Cost of name normalization
 //
-// The experiment predates Matcher normalizing names (see matcher.go). Both
-// arrangements were measured A/B on the same machine with these fixtures, at
-// 100k entries and 88-character names:
+// The experiment predates Test normalizing the name it is given (see
+// matcher.go). Measured A/B on the same machine with these fixtures, at 100k
+// entries and 88-character names:
 //
-//	                        before      after
-//	Test (match)            ~105 ns     ~122 ns    (+15%, still 0 allocs)
-//	NewMatcher (10k)         164 µs      789 µs    (~4x, still 1 alloc)
-//	NewMatcher (100k)       1.45 ms     5.70 ms    (~4x, still 1 alloc)
+//	                    before      after
+//	Test (match)        ~105 ns     ~122 ns    (+15%, still 0 allocs)
+//	NewMatcher          unchanged
 //
 // Lookup pays one extra pass over the name, bounded by its length. Construction
-// pays that pass for every entry, where previously it only copied headers and
-// let sort.Strings compare the few diverging leading bytes, hence the larger
-// factor. Construction happens once at startup and on each remote-config
-// update, so at 100k entries it remains ~3 orders of magnitude below the ~2 s
-// total Agent startup the experiment measured.
+// is unaffected because entries are not normalized; an earlier revision did
+// normalize them and cost ~4x here (100k: 1.45 ms -> 5.70 ms) while also
+// widening prefix entries, which is why it was dropped.
 //
 // Note that Test returns before normalizing when no filter list is configured,
 // so Agents without metric_filterlist pay none of this.
