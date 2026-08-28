@@ -258,13 +258,19 @@ impl ProcessHandle {
         let Some(pid) = self.child.id() else {
             return;
         };
-        use nix::sys::wait::{WaitPidFlag, waitpid};
+        use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
         use nix::unistd::Pid;
 
         let pid = Pid::from_raw(pid as i32);
         let deadline = Instant::now() + SYNC_WAIT_TIMEOUT;
         loop {
             match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
+                Ok(WaitStatus::StillAlive) => {
+                    if Instant::now() >= deadline {
+                        return;
+                    }
+                    std::thread::sleep(Duration::from_millis(50));
+                }
                 Ok(_) => return,
                 Err(nix::errno::Errno::ECHILD) => return,
                 Err(_) if Instant::now() >= deadline => return,
