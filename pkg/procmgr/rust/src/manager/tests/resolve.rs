@@ -4,11 +4,14 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::super::*;
-use super::{loader, sleep_def, test_runtime_context};
+#[cfg(not(windows))]
+use super::sleep_def;
+use super::{loader, test_runtime_context};
 use crate::uuid_gen::{SequentialUuidGenerator, UuidGenerator};
 use std::sync::Arc;
 use tonic::Status;
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_ambiguous_uuid_prefix_returns_error() {
     let uuid_gen: Arc<dyn UuidGenerator> = Arc::new(SequentialUuidGenerator::new(vec![

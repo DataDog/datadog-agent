@@ -74,10 +74,12 @@ pub async fn wait_until_running(mgr: &ProcessManager, name: &str) {
     .unwrap_or_else(|_| panic!("timed out waiting for '{name}' to start"));
 }
 
+#[cfg(not(windows))]
 pub fn sleep_def(name: &str) -> ProcessDefinition {
     sleep_def_secs(name, 60)
 }
 
+#[cfg(not(windows))]
 fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
     let (cmd, args) = test_helpers::sleep_cmd(secs);
     ProcessDefinition {

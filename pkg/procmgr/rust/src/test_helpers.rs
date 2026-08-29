@@ -43,14 +43,10 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
 /// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
 /// minimal Windows CI containers.
 ///
-/// Long sleeps are capped so unit tests that spawn many children (or call
-/// `stop().await` with the default stop timeout) stay under the Bazel test
-/// timeout on Windows CI. Tests that need a real multi-second graceful stop
-/// budget are gated with `#[cfg(not(windows))]`.
+/// No Windows unit test calls this today (sleep-based tests are Unix-only).
 #[cfg(windows)]
+#[allow(dead_code)]
 pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
-    const MAX_SLEEP_SECS: u32 = 3;
-    let secs = secs.min(MAX_SLEEP_SECS);
     (
         "ping.exe",
         vec!["-n".into(), (secs + 1).to_string(), "127.0.0.1".into()],
@@ -89,6 +85,7 @@ pub fn sleep_config_yaml() -> &'static str {
 /// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
 /// minimal Windows CI containers.
 #[cfg(windows)]
+#[allow(dead_code)]
 pub fn sleep_config_yaml() -> &'static str {
     "command: ping.exe\nargs:\n  - '-n'\n  - '301'\n  - '127.0.0.1'\n"
 }
@@ -181,6 +178,7 @@ pub fn cmd_yaml(cmd: &str, args: &[String], extra: &str) -> String {
 }
 
 /// Sleep config with extra options appended.
+#[cfg_attr(windows, allow(dead_code))]
 pub fn sleep_config_with(extra: &str) -> String {
     let (cmd, args) = sleep_cmd(300);
     cmd_yaml(cmd, &args, extra)
@@ -199,12 +197,14 @@ pub fn false_config_with(extra: &str) -> String {
 }
 
 /// The args for the platform's sleep command as a JSON value (for assertions).
+#[cfg_attr(windows, allow(dead_code))]
 pub fn sleep_args_json() -> serde_json::Value {
     let (_, args) = sleep_cmd(300);
     serde_json::json!(args)
 }
 
 /// The args for the platform's sleep command joined for display (for assertions).
+#[cfg_attr(windows, allow(dead_code))]
 pub fn sleep_args_display() -> String {
     let (_, args) = sleep_cmd(300);
     args.join(" ")

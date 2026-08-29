@@ -468,7 +468,7 @@ mod tests {
         );
     }
 
-    // Windows CI: orphan finalize with sleep_cmd(60) children is slow/flaky (ping ~61s).
+    // Orphan finalize tests spawn sleep_cmd children (Unix-only).
     #[cfg(not(windows))]
     #[tokio::test]
     async fn command_handlers_join_does_not_finalize_orphan_while_handler_in_flight() {

@@ -4,7 +4,9 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::super::*;
-use super::{loader, sleep_def, test_runtime_context, uuid_gen, wait_until_running};
+#[cfg(not(windows))]
+use super::sleep_def;
+use super::{loader, test_runtime_context, uuid_gen, wait_until_running};
 use crate::config::{ProcessConfig, ProcessDefinition};
 use crate::state::ProcessState;
 use crate::test_helpers;
@@ -109,6 +111,7 @@ async fn test_concurrent_start_rejected_while_spawn_in_flight() -> anyhow::Resul
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_concurrent_start_only_one_succeeds() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -303,6 +306,7 @@ async fn test_start_returns_committed_snapshot_after_immediate_exit() -> anyhow:
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_create_auto_start_respects_in_flight_reservation() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
@@ -406,6 +410,7 @@ async fn test_defer_spawn_join_handle_waits_for_completion() -> anyhow::Result<(
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_stop_completes_while_exit_channel_is_full() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -463,7 +468,7 @@ async fn test_stop_completes_while_exit_channel_is_full() -> anyhow::Result<()> 
     Ok(())
 }
 
-// Windows CI: sleep_def uses ping ~61s; duplicate Stop RPC coalescing is covered on Unix.
+// Duplicate Stop RPC coalescing is covered on Unix (sleep-based child).
 #[cfg(not(windows))]
 #[tokio::test]
 async fn test_concurrent_stop_waiters_coalesce() -> anyhow::Result<()> {

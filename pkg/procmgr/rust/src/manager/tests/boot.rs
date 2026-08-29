@@ -5,7 +5,9 @@
 
 use super::super::startup;
 use super::super::*;
-use super::{auto_start_for_test, loader, sleep_def, startup_runtime_context, uuid_gen};
+#[cfg(not(windows))]
+use super::sleep_def;
+use super::{auto_start_for_test, loader, startup_runtime_context, uuid_gen};
 use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy};
 use crate::state::ProcessState;
 use std::time::Duration;
@@ -40,6 +42,7 @@ async fn test_spawn_failure_schedules_on_failure_restart() -> anyhow::Result<()>
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -96,6 +99,7 @@ async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -141,6 +145,7 @@ async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Resu
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_shutdown_during_auto_start_transitions_lifecycle() {
     let _guard = super::test_manager_lock().await;

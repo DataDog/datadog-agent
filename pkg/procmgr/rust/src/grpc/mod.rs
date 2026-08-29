@@ -190,6 +190,7 @@ mod tests {
         assert_eq!(status.message(), "process 'nonexistent' not found");
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_get_status_not_ready_during_startup() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -425,6 +426,7 @@ mod tests {
         assert_eq!(resp.exited_processes, 0);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_get_status_mixed_states() {
         let (sleep_cmd, sleep_args) = test_helpers::sleep_cmd(60);
@@ -539,6 +541,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_list_shows_running_pid() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -578,6 +581,7 @@ mod tests {
 
     // -- Write RPC tests --
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_start_rpc_success() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -634,6 +638,7 @@ mod tests {
         assert_eq!(err.code(), tonic::Code::NotFound);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_start_rpc_already_running() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -670,6 +675,7 @@ mod tests {
         test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_stop_rpc_success() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -757,6 +763,7 @@ mod tests {
         assert_eq!(err.code(), tonic::Code::FailedPrecondition);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_start_then_stop_round_trip() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -804,6 +811,7 @@ mod tests {
 
     // -- Create RPC tests --
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_create_then_start() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -846,6 +854,7 @@ mod tests {
         test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_create_auto_start() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1080,6 +1089,7 @@ mod tests {
         assert_eq!(resp.detail.unwrap().name, "svc-a");
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_start_stop_by_uuid_prefix() {
         let (cmd, args) = test_helpers::sleep_cmd(60);

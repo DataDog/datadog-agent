@@ -82,8 +82,6 @@ mod tests {
     use std::sync::Arc;
     use std::time::{Duration, Instant};
 
-    // Windows CI: sleep_cmd(60) is ping ~61s; stop().await can exceed the job budget.
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn await_stop_progress_returns_false_when_stop_finishes_before_wait() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -114,7 +112,6 @@ mod tests {
         assert!(!still_waiting);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn concurrent_wait_for_process_stop_does_not_hang() {
         let (cmd, args) = test_helpers::sleep_cmd(60);

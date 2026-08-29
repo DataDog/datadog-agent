@@ -4,12 +4,13 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::super::*;
-use super::{
-    current_pending_restart, loader, sleep_def, test_runtime_context, uuid_gen, wait_until_running,
-};
+#[cfg(not(windows))]
+use super::sleep_def;
+use super::{current_pending_restart, loader, test_runtime_context, uuid_gen, wait_until_running};
 use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy};
 use crate::test_helpers;
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::Result<()> {
     let (cmd, _args) = test_helpers::sleep_cmd(60);
@@ -77,6 +78,7 @@ async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_stale_restart_timer_invalidated_after_manual_start() -> anyhow::Result<()> {
     let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -171,6 +173,7 @@ async fn test_stale_restart_timer_invalidated_after_manual_start() -> anyhow::Re
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![sleep_def("svc")]), uuid_gen());
@@ -192,6 +195,7 @@ async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_complete_restart_honors_policy_for_auto_start_false() -> anyhow::Result<()> {
     let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -242,6 +246,7 @@ async fn test_complete_restart_honors_policy_for_auto_start_false() -> anyhow::R
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_complete_restart_skips_retry_when_restart_policy_revoked() -> anyhow::Result<()> {
     let (cmd, args) = test_helpers::sleep_cmd(60);

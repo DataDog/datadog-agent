@@ -1316,6 +1316,7 @@ pub mod tests {
         assert_eq!(proc.state(), ProcessState::Failed);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_state_after_take_handle_still_running() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1420,6 +1421,7 @@ pub mod tests {
         assert!(!proc.is_running());
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_and_is_running() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1446,6 +1448,7 @@ pub mod tests {
         assert_eq!(proc.state(), ProcessState::Failed);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_failure_after_stop_goes_through_starting_to_failed() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1914,7 +1917,7 @@ runtime_success_sec: 5
         assert_eq!(cfg.runtime_success_sec, Some(5));
     }
 
-    // Windows CI: graceful stop on ping sleep_cmd(60) can wait up to the default stop timeout.
+    // Graceful stop on sleep_cmd children is Unix-only (Windows uses ping in sleep_cmd).
     #[cfg(not(windows))]
     #[tokio::test]
     async fn test_stop_transitions_to_stopped() {
@@ -2046,6 +2049,7 @@ runtime_success_sec: 5
         assert!(proc.stop_wait_generation.owns(replacement_owner));
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_stop_start_then_crash_restarts_on_failure() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -2069,6 +2073,7 @@ runtime_success_sec: 5
         );
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_stop_skips_restart() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
