@@ -20,12 +20,12 @@ pub(crate) fn check_secret_backend_command_rights(path: &str, allow_group_exec: 
         return Ok(());
     }
 
-    let path = Path::new(path);
-    if !path.is_file() {
+    let path_obj = Path::new(path);
+    if !path_obj.is_file() {
         bail!("invalid executable '{path}', can't stat it: no such file");
     }
 
-    let metadata = std::fs::metadata(path)
+    let metadata = std::fs::metadata(path_obj)
         .with_context(|| format!("invalid executable '{path}', can't stat it"))?;
     let mode = metadata.permissions().mode();
 
@@ -39,7 +39,7 @@ pub(crate) fn check_secret_backend_command_rights(path: &str, allow_group_exec: 
         bail!("invalid executable '{path}', 'group' or 'others' have rights on it");
     }
 
-    access(path, AccessFlags::X_OK)
+    access(path_obj, AccessFlags::X_OK)
         .with_context(|| format!("invalid executable '{path}', can't access it"))?;
 
     Ok(())

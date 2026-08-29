@@ -14,7 +14,9 @@ use std::ffi::CString;
 use std::os::unix::process::CommandExt;
 
 use anyhow::{Context, Result, bail};
-use nix::unistd::{Gid, Uid, User, initgroups};
+use nix::unistd::{Gid, Uid, User};
+#[cfg(not(any(target_os = "macos", target_os = "ios")))]
+use nix::unistd::initgroups;
 
 use crate::secret_backend_exec::{BackendRun, exec_inherited_token, spawn_and_capture};
 
@@ -80,10 +82,26 @@ fn exec_as_agent_user(run: &BackendRun<'_>) -> Result<String> {
 
 unsafe fn drop_to_agent_user(uid: Uid, gid: Gid) -> std::io::Result<()> {
     let user = CString::new(AGENT_USER).map_err(|_| invalid_agent_user_name())?;
-    initgroups(&user, gid).map_err(io_error)?;
+    initgroups_for_user(&user, gid)?;
     nix::unistd::setgid(gid).map_err(io_error)?;
     nix::unistd::setuid(uid).map_err(io_error)?;
     Ok(())
+}
+
+fn initgroups_for_user(user: &std::ffi::CStr, gid: Gid) -> std::io::Result<()> {
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+    {
+        initgroups(user, gid).map_err(io_error)
+    }
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    {
+        let rc = unsafe { libc::initgroups(user.as_ptr(), gid.as_raw() as libc::c_int) };
+        if rc == 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
+    }
 }
 
 fn invalid_agent_user_name() -> std::io::Error {

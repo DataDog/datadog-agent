@@ -1392,8 +1392,9 @@ process_config:
                 env_bool_for_config_key(
                     "process_config.process_discovery.enabled",
                     "/nonexistent/datadog.yaml",
-                ),
-                Ok(None)
+                )
+                .unwrap(),
+                None
             );
             assert!(!env_configured_for_key(
                 "process_config.process_discovery.enabled"
@@ -1412,8 +1413,9 @@ process_config:
                 env_bool_for_config_key(
                     "process_config.process_discovery.enabled",
                     "/nonexistent/datadog.yaml",
-                ),
-                Ok(Some(true))
+                )
+                .unwrap(),
+                Some(true)
             );
             assert!(env_configured_for_key(
                 "process_config.process_discovery.enabled"
@@ -1474,8 +1476,9 @@ process_config:
                 env_bool_for_config_key(
                     "process_config.container_collection.enabled",
                     "/nonexistent/datadog.yaml",
-                ),
-                Ok(Some(false))
+                )
+                .unwrap(),
+                Some(false)
             );
         });
     }

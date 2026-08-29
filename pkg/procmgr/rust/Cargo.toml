@@ -38,7 +38,7 @@ tonic-reflection.workspace = true
 uuid.workspace = true
 
 [target.'cfg(unix)'.dependencies]
-nix = { workspace = true, features = ["signal", "process", "user"] }
+nix = { workspace = true, features = ["signal", "process", "user", "fs"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc.workspace = true
@@ -65,7 +65,7 @@ windows-sys = { workspace = true, features = [
 ] }
 
 [target.'cfg(unix)'.dev-dependencies]
-nix = { workspace = true, features = ["signal", "process", "user"] }
+nix = { workspace = true, features = ["signal", "process", "user", "fs"] }
 
 [dev-dependencies]
 tempfile.workspace = true
