@@ -14,9 +14,9 @@ use std::ffi::CString;
 use std::os::unix::process::CommandExt;
 
 use anyhow::{Context, Result, bail};
-use nix::unistd::{Gid, Uid, User};
 #[cfg(not(any(target_os = "macos", target_os = "ios")))]
 use nix::unistd::initgroups;
+use nix::unistd::{Gid, Uid, User};
 
 use crate::secret_backend_exec::{BackendRun, exec_inherited_token, spawn_and_capture};
 

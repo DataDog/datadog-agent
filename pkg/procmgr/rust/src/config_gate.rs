@@ -354,16 +354,18 @@ impl YamlCache {
 
     fn get_bool_at(&mut self, path: &str, key: &str) -> anyhow::Result<bool> {
         Ok(match self.dotted_key_if_exists(path, key)? {
-            Some(value) => try_value_as_bool(value, &agent_datadog_yaml(path), false)?
-                .unwrap_or(false),
+            Some(value) => {
+                try_value_as_bool(value, &agent_datadog_yaml(path), false)?.unwrap_or(false)
+            }
             None => false,
         })
     }
 
     fn get_bool_at_resolving_secrets(&mut self, path: &str, key: &str) -> anyhow::Result<bool> {
         Ok(match self.dotted_key_if_exists(path, key)? {
-            Some(value) => try_value_as_bool(value, &agent_datadog_yaml(path), true)?
-                .unwrap_or(false),
+            Some(value) => {
+                try_value_as_bool(value, &agent_datadog_yaml(path), true)?.unwrap_or(false)
+            }
             None => false,
         })
     }
@@ -724,9 +726,7 @@ fn try_value_as_bool(
 }
 
 fn value_as_bool(value: &serde_yaml::Value, agent_yaml: &str) -> Option<bool> {
-    try_value_as_bool(value, agent_yaml, true)
-        .ok()
-        .flatten()
+    try_value_as_bool(value, agent_yaml, true).ok().flatten()
 }
 
 fn number_as_bool(number: &serde_yaml::Number) -> bool {

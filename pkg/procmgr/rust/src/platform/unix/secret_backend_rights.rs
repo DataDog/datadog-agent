@@ -14,7 +14,10 @@ use anyhow::{Context, Result, bail};
 use nix::unistd::{AccessFlags, access};
 
 /// Validate that only the owner can execute the backend, optionally allowing group execute.
-pub(crate) fn check_secret_backend_command_rights(path: &str, allow_group_exec: bool) -> Result<()> {
+pub(crate) fn check_secret_backend_command_rights(
+    path: &str,
+    allow_group_exec: bool,
+) -> Result<()> {
     if cfg!(test) {
         // Unit tests create backends under temp dirs without production permissions.
         return Ok(());

@@ -22,17 +22,16 @@ use windows_sys::Win32::Foundation::{
     CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
     WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
+use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_WRITE, FILE_SHARE_READ, FILE_SHARE_WRITE,
     OPEN_EXISTING,
 };
 use windows_sys::Win32::System::Pipes::CreatePipe;
-use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
     CreateProcessAsUserW, GetCurrentProcess, GetExitCodeProcess, OpenProcessToken,
-    PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW, TerminateProcess,
-    WaitForSingleObject,
+    PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW, TerminateProcess, WaitForSingleObject,
 };
 
 use crate::secret_backend_exec::{BackendRun, wait_with_stdout_drain};
@@ -42,11 +41,13 @@ use super::baseline_env_vars_from_token;
 use super::legacy_scm_env::build_secret_backend_env_vars;
 use super::resolve_executable::resolve_executable_in_env;
 use super::secret_backend_rights;
-use super::win_handle::WinHandle;
 use super::spawn::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::spawn::user_profile::UserProfileGuard;
-use super::spawn::win32::{build_windows_command_line, duplicate_primary_token, env_vars_to_wide_block};
+use super::spawn::win32::{
+    build_windows_command_line, duplicate_primary_token, env_vars_to_wide_block,
+};
 use super::wide;
+use super::win_handle::WinHandle;
 
 const PROCESS_NAME: &str = "secret-backend";
 
@@ -423,8 +424,8 @@ fn wait_for_exit(process: HANDLE, timeout: Duration, command: &str) -> Result<u3
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::legacy_scm_env::set_test_core_agent_scm_env;
+    use super::*;
     use std::collections::HashMap;
 
     fn wide_env_block_to_map(block: &[u16]) -> HashMap<String, String> {
@@ -452,8 +453,7 @@ mod tests {
             "DD_SECRET_BACKEND_COMMAND".to_string(),
             r"C:\agent\secret.cmd".to_string(),
         )])));
-        let env =
-            secret_backend_resolution_env(&AgentAccount::LocalSystem, None).expect("env");
+        let env = secret_backend_resolution_env(&AgentAccount::LocalSystem, None).expect("env");
         assert_eq!(
             env.get("DD_SECRET_BACKEND_COMMAND").map(String::as_str),
             Some(r"C:\agent\secret.cmd"),
@@ -468,8 +468,7 @@ mod tests {
             "DD_CUSTOM_SECRET".to_string(),
             "from-scm".to_string(),
         )])));
-        let env =
-            secret_backend_resolution_env(&AgentAccount::LocalSystem, None).expect("env");
+        let env = secret_backend_resolution_env(&AgentAccount::LocalSystem, None).expect("env");
         let block = env_vars_to_wide_block(&env);
         let parsed = wide_env_block_to_map(&block);
         assert_eq!(
@@ -491,8 +490,7 @@ mod tests {
             !inherited.contains_key("DD_ONLY_IN_SCM"),
             "supervisor inherited env must not include datadogagent SCM-only overrides"
         );
-        let merged =
-            secret_backend_resolution_env(&AgentAccount::LocalSystem, None).expect("env");
+        let merged = secret_backend_resolution_env(&AgentAccount::LocalSystem, None).expect("env");
         assert_eq!(
             merged.get("DD_ONLY_IN_SCM").map(String::as_str),
             Some("scm-value"),

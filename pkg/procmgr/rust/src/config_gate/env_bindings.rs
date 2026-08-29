@@ -103,10 +103,7 @@ pub(super) fn env_vars_for_key(key: &str) -> &'static [&'static str] {
         .unwrap_or(&[])
 }
 
-pub(super) fn env_bool_for_config_key(
-    key: &str,
-    agent_yaml: &str,
-) -> anyhow::Result<Option<bool>> {
+pub(super) fn env_bool_for_config_key(key: &str, agent_yaml: &str) -> anyhow::Result<Option<bool>> {
     let names = env_vars_for_key(key);
     if !names.is_empty() {
         return env_bool_from_names(names, agent_yaml);
