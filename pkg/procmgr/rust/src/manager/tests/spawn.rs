@@ -463,6 +463,8 @@ async fn test_stop_completes_while_exit_channel_is_full() -> anyhow::Result<()> 
     Ok(())
 }
 
+// Windows CI: sleep_def uses ping ~61s; duplicate Stop RPC coalescing is covered on Unix.
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_concurrent_stop_waiters_coalesce() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
