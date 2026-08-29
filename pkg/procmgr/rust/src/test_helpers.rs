@@ -42,8 +42,15 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
 /// Command + args for sleeping `secs` seconds.
 /// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
 /// minimal Windows CI containers.
+///
+/// Long sleeps are capped so unit tests that spawn many children (or call
+/// `stop().await` with the default stop timeout) stay under the Bazel test
+/// timeout on Windows CI. Tests that need a real multi-second graceful stop
+/// budget are gated with `#[cfg(not(windows))]`.
 #[cfg(windows)]
 pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
+    const MAX_SLEEP_SECS: u32 = 3;
+    let secs = secs.min(MAX_SLEEP_SECS);
     (
         "ping.exe",
         vec!["-n".into(), (secs + 1).to_string(), "127.0.0.1".into()],
