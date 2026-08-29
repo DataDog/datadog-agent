@@ -25,10 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-const (
-	additionalRemoteConfigClientsConfig = "cluster_agent.remote_configuration.additional_clients"
-	defaultRemoteConfigDatabaseFileName = "remote-config.db"
-)
+const additionalRemoteConfigClientsConfig = "cluster_agent.remote_configuration.additional_clients"
 
 // remoteConfigClientPresets gives well-known client names a default product
 // set, so a client that serves a whole subsystem does not have to spell out
@@ -304,7 +301,7 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 
 	specs := make([]additionalRemoteConfigClientSpec, 0, len(names))
 	databaseFileOwners := map[string]string{
-		defaultRemoteConfigDatabaseFileName: "default",
+		remoteconfig.DefaultDatabaseFileName: "default",
 	}
 	for _, name := range names {
 		rawSpec, ok := asStringMap(raw[name])

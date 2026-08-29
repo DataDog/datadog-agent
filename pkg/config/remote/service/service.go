@@ -77,6 +77,11 @@ var (
 	statusExpvars           = make(map[string]*remoteConfigStatus)
 )
 
+// DefaultDatabaseFileName is the uptane cache database a service uses unless
+// WithDatabaseFileName overrides it. Callers that need to keep caches distinct
+// compare against this rather than repeating the literal.
+const DefaultDatabaseFileName = "remote-config.db"
+
 // DefaultStatusInstance names the status entry for the process default RC
 // client. Additional clients report under their own name, so this one is
 // reserved; the status renderer uses it to avoid listing the default client
@@ -446,7 +451,7 @@ var defaultOptions = options{
 	parJWT:                              "",
 	traceAgentEnv:                       "",
 	statusInstance:                      DefaultStatusInstance,
-	databaseFileName:                    "remote-config.db",
+	databaseFileName:                    DefaultDatabaseFileName,
 	databaseFilePath:                    "",
 	configRootOverride:                  "",
 	directorRootOverride:                "",

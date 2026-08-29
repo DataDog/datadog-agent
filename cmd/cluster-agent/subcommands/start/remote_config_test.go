@@ -44,7 +44,7 @@ func TestAdditionalRemoteConfigClientSpecsRejectDuplicateDatabaseFiles(t *testin
 		"kubeactions": map[string]interface{}{
 			"api_key":            "api-key",
 			"rc_dd_url":          "https://config.extra.datadoghq.com",
-			"database_file_name": defaultRemoteConfigDatabaseFileName,
+			"database_file_name": remoteconfig.DefaultDatabaseFileName,
 		},
 	})
 
