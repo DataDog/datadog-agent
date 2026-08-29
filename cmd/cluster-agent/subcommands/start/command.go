@@ -780,6 +780,10 @@ func start(log log.Component,
 		pkglog.Info("Admission controller is disabled")
 	}
 
+	// Every subsystem has resolved its remote config client and subscribed to
+	// its products by now, so the additional clients can safely start polling.
+	rcClients.StartClients()
+
 	pkglog.Infof("All components started. Cluster Agent now running.")
 
 	// Block here until we receive the interrupt signal

@@ -106,6 +106,7 @@ type remoteConfigClientRegistry struct {
 	defaultInstance *remoteConfigClientInstance
 	byProduct       map[string]*remoteConfigClientInstance
 	clients         []*rcclient.Client
+	pendingStart    []*rcclient.Client
 	services        []*remoteconfig.CoreAgentService
 }
 
@@ -239,14 +240,38 @@ func (r *remoteConfigClientRegistry) clientForInstanceLocked(instance *remoteCon
 		return nil, err
 	}
 
+	// Start the service, which only fills its own cache, but leave the client
+	// stopped. The caller subscribes to its products after this returns, and the
+	// client notifies only the listeners registered when an update arrives and
+	// never replays: a client polling before its subsystem subscribes would
+	// consume the current configuration and never deliver it. StartClients
+	// starts them once every subsystem has wired up, mirroring how the default
+	// client is started after subscribeAgentConfig/subscribeAgentTask.
 	service.Start()
-	client.Start()
 
 	instance.service = service
 	instance.client = client
 	r.services = append(r.services, service)
 	r.clients = append(r.clients, client)
+	r.pendingStart = append(r.pendingStart, client)
 	return client, nil
+}
+
+// StartClients starts every additional client built so far. Call it once all
+// subsystems have resolved their client and subscribed to their products.
+func (r *remoteConfigClientRegistry) StartClients() {
+	if r == nil {
+		return
+	}
+
+	r.mu.Lock()
+	pending := r.pendingStart
+	r.pendingStart = nil
+	r.mu.Unlock()
+
+	for _, client := range pending {
+		client.Start()
+	}
 }
 
 func (r *remoteConfigClientRegistry) Close() {

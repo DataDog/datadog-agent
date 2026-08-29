@@ -699,11 +699,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	now := clock.Now().UTC()
 	status := getRemoteConfigStatus(options.statusInstance)
-	// Record the endpoint so `status` can show where each instance points.
-	// rc_dd_url is user-supplied and could embed credentials, so strip any
-	// userinfo before it reaches the status output.
-	displayURL := *baseURL
-	displayURL.User = nil
+	displayURL := url.URL{Scheme: baseURL.Scheme, Host: baseURL.Host, Path: baseURL.Path}
 	status.endpoint.Set(displayURL.String())
 	cas := &CoreAgentService{
 		api:                   http,

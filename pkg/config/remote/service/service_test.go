@@ -1586,3 +1586,34 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 	assert.NotNil(t, service)
 	service.Stop()
 }
+
+// TestEndpointStatusDropsCredentials checks the endpoint published to the
+// status keeps only what identifies the backend. The URL comes from user
+// configuration and the status output ends up in flares.
+func TestEndpointStatusDropsCredentials(t *testing.T) {
+	for _, tc := range []struct{ raw, want string }{
+		{"https://user:pass@localhost/path", "https://localhost/path"},
+		{"https://localhost/path?token=SECRET", "https://localhost/path"},
+		{"https://localhost/path#token=SECRET", "https://localhost/path"},
+		{"https://localhost", "https://localhost"},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("run_path", t.TempDir())
+			instance := "endpoint-test-" + tc.want + tc.raw
+
+			service, err := NewService(cfg, "Remote Config", tc.raw, "localhost", getHostTags,
+				&telemetryReporter{}, agentVersion,
+				WithAPIKey("key"),
+				WithStatusInstance(instance),
+				uptaneFactoryOption(&mockCoreAgentUptane{}),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, service.Stop()) })
+
+			assert.Equal(t, tc.want, getRemoteConfigStatus(instance).endpoint.Value())
+			assert.NotContains(t, getRemoteConfigStatus(instance).endpoint.Value(), "SECRET")
+			assert.NotContains(t, getRemoteConfigStatus(instance).endpoint.Value(), "pass")
+		})
+	}
+}
