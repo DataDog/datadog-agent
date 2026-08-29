@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"unsafe"
 )
 
 // Matcher tests a metric name for match against a list of metric names.
@@ -77,8 +78,8 @@ func (m *Matcher) Len() int {
 // let those metrics through the filter list and still have them show up in
 // Datadog. Names the intake would reject never match.
 //
-// Normalization does not allocate for names that are already normalized, which
-// is the common case.
+// Test never allocates. Names that are already normalized are compared as
+// given, and the rest are normalized into a stack buffer.
 func (m *Matcher) Test(name string) bool {
 	if m == nil {
 		return false
@@ -88,11 +89,28 @@ func (m *Matcher) Test(name string) bool {
 		return false
 	}
 
-	name, ok := Normalize(name)
+	// Fast path: already normalized, so compare the name as given.
+	if IsNormalized(name) {
+		return m.search(name)
+	}
+
+	// Slow path. Normalizing allocates if it has to return a string, and this
+	// runs per DogStatsD sample, so build the normalized form in a stack buffer
+	// instead. normalizeAppend cannot exceed MaxLength (see its doc comment), so
+	// append never reallocates and buf never escapes.
+	var buf [MaxLength]byte
+	key, ok := normalizeAppend(buf[:0], name)
 	if !ok {
 		return false
 	}
 
+	// Safe: the string aliases buf, search only reads it for comparison and
+	// never retains it, and buf is not written again while it is alive.
+	return m.search(unsafe.String(unsafe.SliceData(key), len(key)))
+}
+
+// search looks name up in the compiled list. name must already be normalized.
+func (m *Matcher) search(name string) bool {
 	i := sort.SearchStrings(m.data, name)
 
 	// SearchStrings returns an index such that either:

@@ -219,11 +219,13 @@ func TestMatcherTestIsAllocationFree(t *testing.T) {
 	}
 }
 
-// TestMatcherTestAllocationsForNonNormalizedName pins the cost of the one case
-// that cannot be allocation-free: a submitted name that the intake would
-// rewrite. Such names have to be normalized before they can be compared, so
-// they allocate. The point of pinning it is to know the number, and to notice
-// if it grows.
+// TestMatcherTestAllocationsForNonNormalizedName asserts that even a submitted
+// name the intake would rewrite costs no allocations, because Test normalizes
+// into a stack buffer rather than returning a string.
+//
+// This matters because non-normalized names are not rare in practice: lading's
+// DogStatsD generator draws names from an alphabet of letters and digits, and
+// ~16% therefore start with a digit, which is not a normalized metric name.
 func TestMatcherTestAllocationsForNonNormalizedName(t *testing.T) {
 	normalized := metricName(1, "tail")
 	raw := rawName(1, "tail")
@@ -242,13 +244,122 @@ func TestMatcherTestAllocationsForNonNormalizedName(t *testing.T) {
 		t.Fatalf("Test(%q) = false, want true: raw name should match via its normalized form", raw)
 	}
 
-	// One allocation for the rewrite buffer, one for the resulting string.
-	const maxAllocs = 2
-	allocs := testing.AllocsPerRun(100, func() { m.Test(raw) })
-	if allocs > maxAllocs {
-		t.Errorf("Test on a non-normalized name allocated %.1f times per call, want <= %d", allocs, maxAllocs)
+	if allocs := testing.AllocsPerRun(100, func() { m.Test(raw) }); allocs != 0 {
+		t.Errorf("Test on a non-normalized name allocated %.1f times per call, want 0", allocs)
 	}
-	t.Logf("non-normalized name: %.0f allocs/call", allocs)
+
+	// The name is also longer than a typical one, to exercise the buffer nearer
+	// its bound without reallocating.
+	long := "9" + strings.Repeat("a-", (MaxLength-1)/2)
+	if _, ok := Normalize(long); !ok {
+		t.Fatalf("fixture %q should be storable", long[:20])
+	}
+	if allocs := testing.AllocsPerRun(100, func() { m.Test(long) }); allocs != 0 {
+		t.Errorf("Test on a long non-normalized name allocated %.1f times per call, want 0", allocs)
+	}
+}
+
+// ladingAlphabet is the alphabet lading's RandomStringPool draws metric names
+// from: ASCII letters and digits, no separators. 10 of its 62 characters are
+// digits, so ~16% of generated names do not start with a letter and are not
+// normalized -- which is what makes the slow path worth keeping allocation-free.
+const ladingAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+// ladingNames mirrors the background generator in the paired SMP case:
+// name_length uniform over 1..200, drawn from ladingAlphabet.
+func ladingNames(n int, seed int64) []string {
+	rng := rand.New(rand.NewSource(seed))
+	out := make([]string, n)
+	for i := range out {
+		b := make([]byte, 1+rng.Intn(200))
+		for j := range b {
+			b[j] = ladingAlphabet[rng.Intn(len(ladingAlphabet))]
+		}
+		out[i] = string(b)
+	}
+	return out
+}
+
+// TestMatcherTestIsAllocationFreeOnLadingTraffic is the end-to-end form of the
+// guarantee: over the name distribution the paired SMP case actually sends, with
+// its mix of normalized and non-normalized names, Test allocates nothing.
+func TestMatcherTestIsAllocationFreeOnLadingTraffic(t *testing.T) {
+	m := NewMatcher(buildNames(10_000, "tail"), false)
+	names := ladingNames(2048, 1)
+
+	var normalized, rewritten, unstorable int
+	for _, n := range names {
+		switch {
+		case IsNormalized(n):
+			normalized++
+		default:
+			if _, ok := Normalize(n); ok {
+				rewritten++
+			} else {
+				unstorable++
+			}
+		}
+	}
+	t.Logf("lading-shaped names: %d normalized, %d rewritten, %d unstorable",
+		normalized, rewritten, unstorable)
+	if rewritten == 0 {
+		t.Fatal("fixture generated no non-normalized names, so this proves nothing")
+	}
+
+	i := 0
+	if allocs := testing.AllocsPerRun(len(names), func() {
+		m.Test(names[i%len(names)])
+		i++
+	}); allocs != 0 {
+		t.Errorf("Test allocated %.2f times per call over lading-shaped traffic, want 0", allocs)
+	}
+}
+
+// BenchmarkMatcherTestLadingTraffic measures Test over the name distribution the
+// paired SMP case sends, which is the number that shows up as Agent CPU there.
+func BenchmarkMatcherTestLadingTraffic(b *testing.B) {
+	m := NewMatcher(buildNames(10_000, "tail"), false)
+	names := ladingNames(4096, 2)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Test(names[i%len(names)])
+	}
+}
+
+// BenchmarkMatcherTestNormalizedOnly isolates the fast path, which is ~84% of
+// that traffic and must not regress when the slow path changes.
+func BenchmarkMatcherTestNormalizedOnly(b *testing.B) {
+	m := NewMatcher(buildNames(10_000, "tail"), false)
+	var names []string
+	for _, n := range ladingNames(8192, 2) {
+		if IsNormalized(n) {
+			names = append(names, n)
+		}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Test(names[i%len(names)])
+	}
+}
+
+// BenchmarkMatcherTestRewrittenOnly isolates the slow path, the worst case.
+func BenchmarkMatcherTestRewrittenOnly(b *testing.B) {
+	m := NewMatcher(buildNames(10_000, "tail"), false)
+	var names []string
+	for _, n := range ladingNames(8192, 2) {
+		if !IsNormalized(n) {
+			if _, ok := Normalize(n); ok {
+				names = append(names, n)
+			}
+		}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Test(names[i%len(names)])
+	}
 }
 
 // TestMatcherConstructionAllocationBudget pins the experiment's finding that

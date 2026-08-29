@@ -126,36 +126,52 @@ func Normalize(name string) (string, bool) {
 		return name, true
 	}
 
-	start, ok := firstAlpha(name)
+	res, ok := normalizeAppend(make([]byte, 0, len(name)), name)
 	if !ok {
 		return name, false
 	}
 
-	res := make([]byte, 0, len(name)-start)
+	return string(res), true
+}
+
+// normalizeAppend appends the normalized form of name to dst and returns the
+// extended slice. The bool is false when the intake would reject name outright,
+// in which case dst is returned unmodified.
+//
+// A normalized name is never longer than its input, and firstAlpha rejects
+// anything longer than MaxLength, so a dst with MaxLength spare capacity is
+// enough for append never to reallocate. Callers relying on that (see
+// Matcher.Test) can therefore normalize into a stack buffer.
+func normalizeAppend(dst []byte, name string) ([]byte, bool) {
+	start, ok := firstAlpha(name)
+	if !ok {
+		return dst, false
+	}
+
+	// The first iteration always appends, because name[start] is a letter, so
+	// the lookbacks below never read past the end of what this call wrote.
 	for i := start; i < len(name); i++ {
 		switch c := name[i]; {
 		case isAlphaNum(c):
-			res = append(res, c)
+			dst = append(dst, c)
 		case c == '.':
-			// We skipped everything before the first letter, so res is
-			// guaranteed non-empty here.
-			if res[len(res)-1] == '_' {
+			if dst[len(dst)-1] == '_' {
 				// Overwrite an underscore that happens just before a period.
-				res[len(res)-1] = '.'
+				dst[len(dst)-1] = '.'
 			} else {
-				res = append(res, '.')
+				dst = append(dst, '.')
 			}
 		default:
 			// No double underscores and no underscore after a period.
-			if last := res[len(res)-1]; last != '.' && last != '_' {
-				res = append(res, '_')
+			if last := dst[len(dst)-1]; last != '.' && last != '_' {
+				dst = append(dst, '_')
 			}
 		}
 	}
 
-	if res[len(res)-1] == '_' {
-		res = res[:len(res)-1]
+	if dst[len(dst)-1] == '_' {
+		dst = dst[:len(dst)-1]
 	}
 
-	return string(res), true
+	return dst, true
 }
