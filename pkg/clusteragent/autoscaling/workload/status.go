@@ -80,6 +80,15 @@ func recordRemoteConfigUpdate(product string, timestamp time.Time, update map[st
 	tracked.LastUpdate = timestamp
 	tracked.ConfigCount = len(update)
 	tracked.UpdateCount++
+
+	// An update carries the full current config set for the product, not a
+	// delta, so both of these describe this update alone. Reset them rather
+	// than accumulating: a stale high version or a recovered error would
+	// otherwise be reported as current for the life of the process.
+	tracked.LastVersion = 0
+	tracked.LastError = ""
+	tracked.LastErrorTime = time.Time{}
+
 	for _, rawConfig := range update {
 		if rawConfig.Metadata.Version > tracked.LastVersion {
 			tracked.LastVersion = rawConfig.Metadata.Version

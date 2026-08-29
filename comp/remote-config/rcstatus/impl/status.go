@@ -15,12 +15,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 //go:embed status_templates
 var templatesFS embed.FS
+
+// defaultStatusInstance duplicates remoteconfig.DefaultStatusInstance rather
+// than importing it: that package drags uptane and bbolt into every binary
+// linking this one, which is far more expensive than repeating one string.
+const defaultStatusInstance = "Remote Config"
 
 // Requires holds the dependencies for the rcstatus component.
 type Requires struct {
@@ -104,7 +108,7 @@ func (rc statusProvider) populateStatus(stats map[string]interface{}) {
 	if instances, ok := status["instances"].(map[string]interface{}); ok {
 		additional := make(map[string]interface{}, len(instances))
 		for name, instance := range instances {
-			if name == remoteconfig.DefaultStatusInstance {
+			if name == defaultStatusInstance {
 				continue
 			}
 			additional[name] = instance

@@ -122,3 +122,40 @@ func TestWorkloadAutoscalingStatusWithUpdates(t *testing.T) {
 	require.NoError(t, Provider{}.HTML(false, h))
 	assert.Contains(t, h.String(), "DatadogPodAutoscalers: 2")
 }
+
+// TestWorkloadAutoscalingStatusReportsOnlyTheLatestUpdate covers the two ways
+// stale state could leak into the status: an update carries the full config
+// set, so a version from a superseded config must not survive, and a recovered
+// product must not keep reporting an old error.
+func TestWorkloadAutoscalingStatusReportsOnlyTheLatestUpdate(t *testing.T) {
+	resetStatus(t)
+	cfg := configmock.New(t)
+	cfg.SetInTest("autoscaling.workload.enabled", true)
+	InitStatus(autoscalingstore.NewStore[model.PodAutoscalerInternal](), func() bool { return true }, "autoscaling")
+
+	now := time.Now()
+	// First update: high version, and a config that fails to apply.
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, now, map[string]state.RawConfig{
+		"a": {Metadata: state.Metadata{Version: 99}},
+	})
+	recordRemoteConfigError(data.ProductContainerAutoscalingSettings, now, errors.New("bad spec"))
+	out := renderText(t)
+	assert.Contains(t, out, "Last config version: 99")
+	assert.Contains(t, out, "Last error: bad spec")
+
+	// Second update: the high-version config is gone and nothing fails.
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, now.Add(time.Minute), map[string]state.RawConfig{
+		"b": {Metadata: state.Metadata{Version: 4}},
+	})
+	out = renderText(t)
+	assert.Contains(t, out, "Last config version: 4", "version must describe this update, not the highest ever seen")
+	assert.NotContains(t, out, "99")
+	assert.NotContains(t, out, "Last error:", "a recovered product must not keep reporting an old error")
+	assert.Contains(t, out, "Updates received: 2", "the cumulative counter still accumulates")
+
+	// An update that removes every config reports zero, not a stale version.
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, now.Add(2*time.Minute), map[string]state.RawConfig{})
+	out = renderText(t)
+	assert.Contains(t, out, "Configs in last update: 0")
+	assert.NotContains(t, out, "Last config version: 4")
+}

@@ -14,7 +14,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/status",
         "//comp/def",
-        "//pkg/config/remote/service",
         "//pkg/config/utils",
     ],
 )
