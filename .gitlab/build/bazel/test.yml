@@ -118,6 +118,42 @@ bazel:test:macos-amd64:
 bazel:test:macos-arm64:
   extends: [.bazel:runner:macos-arm64, .bazel:test:macos]
 
+# Windows Bazel test jobs run inside docker and do not use .bazel:test:reporting
+# (no dda after_script on the runner today). Collect failed test.log files from
+# the bind-mounted output base so CI failures name the exact Rust/Go test.
+.bazel:test:windows:collect_failed_testlogs:
+  - |
+    $ErrorActionPreference = 'Stop'
+    $dest = Join-Path $env:CI_PROJECT_DIR $env:BAZEL_FAILED_TESTLOGS_DIR
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    $testlogsRoot = Join-Path $env:CI_PROJECT_DIR '.cache\bob\execroot\_main\bazel-out'
+    if (-not (Test-Path $testlogsRoot)) {
+      Write-Host "No Bazel testlogs under $testlogsRoot"
+      exit 0
+    }
+    Get-ChildItem -Path $testlogsRoot -Recurse -Filter test.log | ForEach-Object {
+      $content = Get-Content -Path $_.FullName -Raw
+      if ($content -match '(?m)^test result: FAILED\.|^failures:|panicked at') {
+        $label = ($_.DirectoryName -replace [regex]::Escape($testlogsRoot), '') -replace '\\', '/' -replace '^/', ''
+        $outName = ($label -replace '/', '__') + '__test.log'
+        Copy-Item -Path $_.FullName -Destination (Join-Path $dest $outName)
+        Write-Host "Collected failed test log: $outName"
+      }
+    }
+
+.bazel:test:windows:
+  extends: [.bazel:test]
+  variables:
+    BAZEL_FAILED_TESTLOGS_DIR: bazel-failed-testlogs
+  after_script:
+    - !reference [.bazel:test:windows:collect_failed_testlogs]
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - bazel-bep.json
+      - bazel-failed-testlogs/
+
 # Windows splits the build from the Go tests, unlike the other platforms: the
 # runner has 16 CPUs, and compiling the rest of the repo alongside ~1k
 # race-instrumented tests starves them enough that tests waiting on wall-clock
@@ -125,19 +161,22 @@ bazel:test:macos-arm64:
 # Windows, so tests_windows-x64 remains the Windows coverage producer. Revisit
 # this when rules_go is upgraded. This job covers everything but the Go tests.
 bazel:test:windows-amd64:
-  extends: [.bazel:runner:windows-amd64, .bazel:test]
+  extends: [.bazel:runner:windows-amd64, .bazel:test:windows]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --config=gorace --config=no-dd-agent-go-tests --keep_going //... --
+      bazel test --config=gorace --config=no-dd-agent-go-tests --keep_going
+      --remote_download_outputs=toplevel --build_event_json_file=bazel-bep.json
+      //... --
       -//test/new-e2e/...
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
 
 bazel:test:windows-amd64:go:
-  extends: [.bazel:runner:windows-amd64, .bazel:test]
+  extends: [.bazel:runner:windows-amd64, .bazel:test:windows]
   variables:
     POWERSHELL_SCRIPT: >-
       bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going
+      --remote_download_outputs=toplevel --build_event_json_file=bazel-bep.json
       //... --
       -//test/new-e2e/...
       -//bazel/rules/dd_packaging/...
