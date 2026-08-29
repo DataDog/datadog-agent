@@ -77,11 +77,6 @@ func remoteConfigClientPresetNames() []string {
 	return names
 }
 
-var processLevelRemoteConfigProducts = map[string]struct{}{
-	state.ProductAgentConfig: {},
-	state.ProductAgentTask:   {},
-}
-
 type additionalRemoteConfigClientSpec struct {
 	Name             string
 	APIKey           string

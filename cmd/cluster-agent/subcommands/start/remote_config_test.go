@@ -225,6 +225,17 @@ func TestAdditionalRemoteConfigClientSpecsPresetProducts(t *testing.T) {
 	}, specs[0].Products)
 }
 
+// processLevelRemoteConfigProducts are products that must stay on the process
+// default client. Nothing in production reads this: additional clients take
+// their products from curated presets, so the rule is asserted against those
+// presets below rather than enforced at runtime. It lives here because the
+// production files build on darwin while these tests do not, so a var defined
+// there and used only here reads as unused on macOS.
+var processLevelRemoteConfigProducts = map[string]struct{}{
+	state.ProductAgentConfig: {},
+	state.ProductAgentTask:   {},
+}
+
 // TestRemoteConfigClientPresetsMatchConsumers guards the preset table against
 // drift: every preset product must be one the Cluster Agent actually resolves
 // through ClientForProducts, and no product may appear in two presets.
