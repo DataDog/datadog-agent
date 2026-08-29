@@ -345,13 +345,21 @@ func measureAlloc(fn func()) (bytes, allocs float64) {
 }
 
 // TestMatcherLookupCostIsFlat pins the experiment's central result: lookup is
-// O(log n), so per-metric cost is effectively flat from 10k to 100k entries.
+// O(log n), so per-metric cost is effectively flat as the list grows.
 //
-// It asserts on the median rather than a tail percentile, and against a bound
-// two orders of magnitude above the measured value, so scheduling noise on a
-// busy CI machine cannot trip it. What it does catch decisively is the matcher
-// degrading to a linear scan: at 100k entries with 88-character names that is
-// hundreds of microseconds per lookup, not hundreds of nanoseconds.
+// The assertion is deliberately *relative* -- the ratio of the median lookup at
+// 100k entries to the median at 10k -- rather than an absolute nanosecond bound.
+// An absolute bound cannot work here: CI runs this package under
+// `bazel coverage --config=gorace`, and race plus coverage instrumentation
+// inflates a ~80 ns lookup to ~21 us, a factor of ~260. Any bound loose enough
+// to survive that is too loose to mean anything uninstrumented.
+//
+// A ratio is invariant to that, because both measurements are slowed equally,
+// while still catching the regression that matters. If matching degraded to a
+// linear scan the 10x more entries would cost ~10x more time, and the O(n) term
+// grows past the fixed per-call overhead in both instrumented and
+// uninstrumented runs. Measured ratios: ~1.04 plain, ~1.01 under race+coverage;
+// a linear scan would be ~10.
 //
 // The p50/p95/p99 table is logged for comparison against the numbers recorded
 // in the experiment's README.
@@ -360,59 +368,80 @@ func TestMatcherLookupCostIsFlat(t *testing.T) {
 		t.Skip("skipping latency sweep in -short mode")
 	}
 
-	// Measured p50 is ~50-60 ns. A linear scan would be ~10^5 ns.
-	const maxMedian = 10 * time.Microsecond
-
-	const samplesPerSize = 200_000
-	rng := rand.New(rand.NewSource(42))
+	// O(log n) predicts ~1.2x going from 10k to 100k (3.3 extra comparisons on
+	// ~13); O(n) predicts ~10x.
+	const maxGrowth = 3.0
 
 	t.Logf("%-6s %-8s %-10s %-10s %-10s", "layout", "n", "p50(ns)", "p95(ns)", "p99(ns)")
 	for _, layout := range layouts {
+		medians := make(map[int]time.Duration, len(testSizes))
 		for _, n := range testSizes {
-			m := NewMatcher(buildNames(n, layout), false)
+			medians[n] = measureLookupPercentiles(t, layout, n)
+		}
 
-			// Representative mixed workload, matching the lading traffic mix
-			// in the paired SMP cases: 90% random background names that miss,
-			// 5% guaranteed match from the shared corpus, 5% guaranteed
-			// non-match from the disjoint namespace.
-			lookups := make([]string, samplesPerSize)
-			for i := range lookups {
-				switch roll := rng.Float64(); {
-				case roll < 0.90:
-					lookups[i] = fmt.Sprintf("bg.random.metric.%d.%d", rng.Int63(), i)
-				case roll < 0.95:
-					lookups[i] = metricName(rng.Intn(matchCorpusSize), layout)
-				default:
-					lookups[i] = nomatchName(rng.Intn(matchCorpusSize), layout)
-				}
-			}
+		smallest, largest := testSizes[0], testSizes[len(testSizes)-1]
+		if medians[smallest] <= 0 {
+			t.Fatalf("layout=%s: median at n=%d measured as %v, clock resolution too coarse",
+				layout, smallest, medians[smallest])
+		}
 
-			durations := make([]time.Duration, samplesPerSize)
-			for i, name := range lookups {
-				start := time.Now()
-				m.Test(name)
-				durations[i] = time.Since(start)
-			}
-			sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
-
-			pct := func(p float64) time.Duration {
-				idx := int(p * float64(len(durations)))
-				if idx >= len(durations) {
-					idx = len(durations) - 1
-				}
-				return durations[idx]
-			}
-
-			median := pct(0.50)
-			t.Logf("%-6s %-8d %-10d %-10d %-10d", layout, n,
-				median.Nanoseconds(), pct(0.95).Nanoseconds(), pct(0.99).Nanoseconds())
-
-			if median > maxMedian {
-				t.Errorf("layout=%s n=%d: median lookup %v exceeds %v; matching may no longer be O(log n)",
-					layout, n, median, maxMedian)
-			}
+		growth := float64(medians[largest]) / float64(medians[smallest])
+		t.Logf("layout=%-6s median growth %dk -> %dk: %.2fx", layout, smallest/1000, largest/1000, growth)
+		if growth > maxGrowth {
+			t.Errorf("layout=%s: median lookup grew %.2fx from %d to %d entries (%v -> %v), want <= %.1fx; matching may no longer be O(log n)",
+				layout, growth, smallest, largest, medians[smallest], medians[largest], maxGrowth)
 		}
 	}
+}
+
+// measureLookupPercentiles times a representative mixed workload against a
+// matcher of n entries, logs p50/p95/p99, and returns the median.
+//
+// The traffic mix matches the lading configuration in the paired SMP cases: 90%
+// random background names that miss, 5% guaranteed match from the shared corpus,
+// 5% guaranteed non-match from the disjoint namespace.
+func measureLookupPercentiles(t *testing.T, layout string, n int) time.Duration {
+	t.Helper()
+
+	// 20k samples give stable percentiles while keeping this cheap under the
+	// race detector, where each iteration costs ~21 us.
+	const samples = 20_000
+
+	rng := rand.New(rand.NewSource(42))
+	m := NewMatcher(buildNames(n, layout), false)
+
+	lookups := make([]string, samples)
+	for i := range lookups {
+		switch roll := rng.Float64(); {
+		case roll < 0.90:
+			lookups[i] = fmt.Sprintf("bg.random.metric.%d.%d", rng.Int63(), i)
+		case roll < 0.95:
+			lookups[i] = metricName(rng.Intn(matchCorpusSize), layout)
+		default:
+			lookups[i] = nomatchName(rng.Intn(matchCorpusSize), layout)
+		}
+	}
+
+	durations := make([]time.Duration, samples)
+	for i, name := range lookups {
+		start := time.Now()
+		m.Test(name)
+		durations[i] = time.Since(start)
+	}
+	sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
+
+	pct := func(p float64) time.Duration {
+		idx := int(p * float64(len(durations)))
+		if idx >= len(durations) {
+			idx = len(durations) - 1
+		}
+		return durations[idx]
+	}
+
+	t.Logf("%-6s %-8d %-10d %-10d %-10d", layout, n,
+		pct(0.50).Nanoseconds(), pct(0.95).Nanoseconds(), pct(0.99).Nanoseconds())
+
+	return pct(0.50)
 }
 
 // BenchmarkMatcherConstruction measures NewMatcher, the one-time cost paid at
