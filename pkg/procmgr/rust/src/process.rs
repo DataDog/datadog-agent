@@ -2004,7 +2004,11 @@ runtime_success_sec: 5
         proc.wait_for_stop_since(budget).await;
 
         assert_eq!(proc.state(), ProcessState::Stopped);
-        assert!(proc.last_signal().is_some() || proc.last_exit_code().is_some());
+        #[cfg(unix)]
+        assert!(
+            proc.last_signal().is_some() || proc.last_exit_code().is_some(),
+            "force-kill stop wait should record exit status on Unix"
+        );
     }
 
     #[tokio::test]
