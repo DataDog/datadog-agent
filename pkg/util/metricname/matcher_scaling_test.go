@@ -315,51 +315,102 @@ func TestMatcherTestIsAllocationFreeOnLadingTraffic(t *testing.T) {
 	}
 }
 
-// BenchmarkMatcherTestLadingTraffic measures Test over the name distribution the
-// paired SMP case sends, which is the number that shows up as Agent CPU there.
+// benchProbeCount is the working set for the path benchmarks below. Fixture
+// shape dominates a ~100ns measurement, so every variant uses the same probe
+// count, the same name length, and a list of the same size and prefix depth.
+// Getting that wrong makes an unrelated cache effect look like a code-path
+// difference, which is exactly what an earlier revision of this file did.
+const benchProbeCount = 4096
+
+// benchVariant builds a list and probes where every probe normalizes onto its
+// corresponding entry, so all variants search the same amount and differ only in
+// the path Test takes. sep replaces the `.` separators of the generated names:
+// `.` leaves probes already normalized, `-` forces the rewrite path. A `-`
+// normalizes to `_`, so in that case the entries carry `_`.
+func benchVariant(sep string) (entries, probes []string) {
+	entrySep := sep
+	if sep == "-" {
+		entrySep = "_"
+	}
+	dotted := buildNames(benchProbeCount, "tail")
+	entries = make([]string, len(dotted))
+	probes = make([]string, len(dotted))
+	for i, d := range dotted {
+		entries[i] = strings.ReplaceAll(d, ".", entrySep)
+		probes[i] = strings.ReplaceAll(d, ".", sep)
+	}
+	return entries, probes
+}
+
+func benchmarkTest(b *testing.B, entries, probes []string) {
+	b.Helper()
+	m := NewMatcher(entries, false)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Test(probes[i%len(probes)])
+	}
+}
+
+// BenchmarkMatcherTestPaths compares the paths Test can take with fixture shape
+// held constant. `hyphenated` is the shape the paired
+// quality_gate_metric_filterlist_10k_rewrite SMP case sends, where every name
+// needs rewriting.
+func BenchmarkMatcherTestPaths(b *testing.B) {
+	normEntries, normProbes := benchVariant(".")
+	hyphEntries, hyphProbes := benchVariant("-")
+
+	// leading-digit is the shape of lading's own non-normalized names, where the
+	// fast-path check fails on the first byte.
+	digitProbes := make([]string, len(normProbes))
+	for i, n := range normProbes {
+		digitProbes[i] = "9" + n
+	}
+
+	// trailing-hyphen is pathological for the fast-path check, which must scan
+	// the whole name before rejecting it on the last byte.
+	tailEntries := make([]string, len(normEntries))
+	tailProbes := make([]string, len(normEntries))
+	for i, n := range normEntries {
+		tailEntries[i] = n[:len(n)-1]
+		tailProbes[i] = n[:len(n)-1] + "-"
+	}
+
+	for _, c := range []struct {
+		name           string
+		entries        []string
+		probes         []string
+		wantNormalized bool
+	}{
+		{"already-normalized", normEntries, normProbes, true},
+		{"hyphenated", hyphEntries, hyphProbes, false},
+		{"leading-digit", normEntries, digitProbes, false},
+		{"trailing-hyphen", tailEntries, tailProbes, false},
+	} {
+		// Guard each variant's premise: it must take the intended path and still
+		// match, or it is measuring something other than what it claims.
+		if got := IsNormalized(c.probes[0]); got != c.wantNormalized {
+			b.Fatalf("%s: IsNormalized(%q) = %v, want %v", c.name, c.probes[0], got, c.wantNormalized)
+		}
+		if got, ok := Normalize(c.probes[0]); !ok || got != c.entries[0] {
+			b.Fatalf("%s: Normalize(%q) = (%q, %v), want (%q, true)",
+				c.name, c.probes[0], got, ok, c.entries[0])
+		}
+		if m := NewMatcher(c.entries, false); !m.Test(c.probes[0]) {
+			b.Fatalf("%s: probe %q should match", c.name, c.probes[0])
+		}
+		b.Run(c.name, func(b *testing.B) { benchmarkTest(b, c.entries, c.probes) })
+	}
+}
+
+// BenchmarkMatcherTestLadingTraffic measures the distribution the paired
+// quality_gate_metric_filterlist_10k SMP case sends: ~84% already normalized,
+// names uniform over 1..200 chars.
+//
+// Not comparable with BenchmarkMatcherTestPaths, whose names are a fixed 88
+// chars and laid out differently. Compare it only against itself across changes.
 func BenchmarkMatcherTestLadingTraffic(b *testing.B) {
-	m := NewMatcher(buildNames(10_000, "tail"), false)
-	names := ladingNames(4096, 2)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.Test(names[i%len(names)])
-	}
-}
-
-// BenchmarkMatcherTestNormalizedOnly isolates the fast path, which is ~84% of
-// that traffic and must not regress when the slow path changes.
-func BenchmarkMatcherTestNormalizedOnly(b *testing.B) {
-	m := NewMatcher(buildNames(10_000, "tail"), false)
-	var names []string
-	for _, n := range ladingNames(8192, 2) {
-		if IsNormalized(n) {
-			names = append(names, n)
-		}
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.Test(names[i%len(names)])
-	}
-}
-
-// BenchmarkMatcherTestRewrittenOnly isolates the slow path, the worst case.
-func BenchmarkMatcherTestRewrittenOnly(b *testing.B) {
-	m := NewMatcher(buildNames(10_000, "tail"), false)
-	var names []string
-	for _, n := range ladingNames(8192, 2) {
-		if !IsNormalized(n) {
-			if _, ok := Normalize(n); ok {
-				names = append(names, n)
-			}
-		}
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.Test(names[i%len(names)])
-	}
+	benchmarkTest(b, buildNames(10_000, "tail"), ladingNames(benchProbeCount, 2))
 }
 
 // TestMatcherConstructionAllocationBudget pins the experiment's finding that
