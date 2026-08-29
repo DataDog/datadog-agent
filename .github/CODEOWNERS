@@ -286,7 +286,7 @@
 /cmd/otel-agent/                                    @DataDog/opentelemetry-agent
 /cmd/privateactionrunner                            @DataDog/action-platform
 /cmd/process-agent/                                 @DataDog/container-experiences
-/cmd/serverless-init/                               @DataDog/serverless-azure-gcp
+/cmd/serverless-init/                               @DataDog/serverless-azure-and-gcp
 /cmd/sbomgen/                                       @DataDog/agent-security
 /cmd/system-probe/                                  @DataDog/ebpf-platform
 /cmd/system-probe/modules/usm*                      @DataDog/universal-service-monitoring
@@ -524,7 +524,7 @@
 /pkg/notableevents/                                                   @DataDog/windows-products
 /pkg/serializer/                                                      @DataDog/agent-metric-pipelines
 /pkg/serializer/internal/metrics/origin_mapping.go                    @DataDog/agent-metric-pipelines @DataDog/agent-integrations
-/pkg/serverless/                                                      @DataDog/serverless-azure-gcp
+/pkg/serverless/                                                      @DataDog/serverless-azure-and-gcp
 /pkg/status/                                                          @DataDog/fleet-remediation
 /pkg/status/health                                                    @DataDog/agent-runtimes
 /pkg/status/collector                                                 @DataDog/agent-runtimes
@@ -917,7 +917,7 @@
 /test/                                                          @DataDog/agent-devx
 /test/benchmarks/                                               @DataDog/agent-metric-pipelines
 /test/benchmarks/kubernetes_state/                              @DataDog/container-integrations
-/test/integration/                                              @DataDog/serverless-azure-gcp
+/test/integration/                                              @DataDog/serverless-azure-and-gcp
 /test/integration/docker/                                       @DataDog/opentelemetry-agent
 /test/e2e-framework/AGENTS.md                                   @DataDog/agent-devx
 /test/e2e-framework/CLAUDE.md                                   @DataDog/agent-devx
