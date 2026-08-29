@@ -124,8 +124,8 @@ int uprobe__kafka_tls_filter(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("uprobe/kafka_tls_termination")
-int uprobe__kafka_tls_termination(struct pt_regs *ctx) {
+// Shared body for the uprobe- and kprobe-typed entry points below.
+static __always_inline int __kafka_tls_termination(struct pt_regs *ctx) {
     const __u32 zero = 0;
 
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -138,6 +138,19 @@ int uprobe__kafka_tls_termination(struct pt_regs *ctx) {
     kafka_tcp_termination(&tup);
 
     return 0;
+}
+
+SEC("uprobe/kafka_tls_termination")
+int uprobe__kafka_tls_termination(struct pt_regs *ctx) {
+    return __kafka_tls_termination(ctx);
+}
+
+// Kprobe-typed copy of the program above, reached from kprobe__tcp_close through
+// tls_termination_progs. The two arrays exist because a PROG_ARRAY locks onto its
+// members' expected_attach_type; see tls_finish_from_kprobe in protocols/tls/https.h.
+SEC("kprobe/kafka_tls_termination")
+int kprobe__kafka_tls_termination(struct pt_regs *ctx) {
+    return __kafka_tls_termination(ctx);
 }
 
 PKTBUF_READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)

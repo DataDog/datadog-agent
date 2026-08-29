@@ -23,6 +23,9 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	ciliumebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/link"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -316,7 +319,50 @@ type ProbeManager interface {
 
 	// GetProbe returns the probe with the given ID pair, and a boolean indicating if it was found
 	GetProbe(manager.ProbeIdentificationPair) (*manager.Probe, bool)
+
+	// GetProgram returns the loaded eBPF programs matching the given ID pair. Used by the
+	// multi-uprobe attach path, which attaches the program directly instead of going through
+	// AddHook, so that many probe points share a single bpf_link.
+	GetProgram(manager.ProbeIdentificationPair) ([]*ciliumebpf.Program, bool, error)
 }
+
+// multiAttachMinKernel is the minimum kernel version we allow uprobe_multi on.
+//
+// BPF_LINK_TYPE_UPROBE_MULTI landed in 6.6, but its PID filter was broken until 6.10
+// (upstream 46ba0e49b642, "bpf: fix multi-uprobe PID filtering logic"). USM never sets a
+// PID filter -- it attaches host-wide on the inode -- so the bug does not apply to us, but
+// we match the floor Datadog itself uses in pkg/dyninst/loader rather than inventing one.
+var multiAttachMinKernel = kernel.VersionCode(6, 10, 0)
+
+// canUseMultiAttach reports whether uprobe_multi links can be used on this host.
+//
+// Collapsing N per-probe perf_event fds into a single link is what makes shutdown fast:
+// each perf_event fd close costs an uninterruptible ~34ms RCU grace period
+// (perf_event_detach_bpf_prog -> synchronize_rcu_tasks_trace), paid serially, so teardown
+// time scales linearly with attachment count. One link pays that cost once.
+var canUseMultiAttach = sync.OnceValue(func() bool {
+	// DD_USM_FORCE_UPROBE_MULTI bypasses the 6.10 floor for testing on kernels that support
+	// BPF_LINK_TYPE_UPROBE_MULTI but are excluded by it (e.g. Ubuntu 24.04's 6.8). Safe for
+	// USM specifically: the pre-6.10 bug is in the multi-uprobe PID filter, and USM never
+	// sets one -- nothing in the agent sets manager.Probe.PerfEventPID, so uprobes attach
+	// host-wide on the inode. Mirrors WithForceMultiAttach in pkg/dyninst/loader.
+	forced := os.Getenv("DD_USM_FORCE_UPROBE_MULTI") == "true"
+
+	if err := features.HaveBPFLinkUprobeMulti(); err != nil {
+		log.Debugf("uprobe_multi unavailable, falling back to per-probe attach: %v", err)
+		return false
+	}
+	if forced {
+		log.Warnf("DD_USM_FORCE_UPROBE_MULTI set: using uprobe_multi without the %s kernel check", multiAttachMinKernel)
+		return true
+	}
+	v, err := kernel.HostVersion()
+	if err != nil {
+		log.Debugf("cannot determine kernel version, falling back to per-probe attach: %v", err)
+		return false
+	}
+	return v >= multiAttachMinKernel
+})
 
 // FileRegistry is an interface that defines the methods that a FileRegistry implements, so that we can replace it in tests for a mock object
 type FileRegistry interface {
@@ -375,6 +421,16 @@ type UprobeAttacher struct {
 	// Used to detach them once the path is no longer used.
 	fileIDToAttachedProbes map[utils.PathIdentifier][]manager.ProbeIdentificationPair
 
+	// fileIDToMultiLinks maps a filesystem path to the uprobe_multi links attached to it,
+	// keyed by eBPF program name. Populated instead of fileIDToAttachedProbes when
+	// useMultiAttach is set: one link covers every probe point of a single program in that
+	// binary. Keying by program name gives us the same idempotency the per-probe path gets
+	// from manager.GetProbe.
+	fileIDToMultiLinks map[utils.PathIdentifier]map[string]link.Link
+
+	// useMultiAttach caches whether this host supports uprobe_multi links.
+	useMultiAttach bool
+
 	// onAttachCallback is a callback that is called whenever a probe is attached
 	onAttachCallback AttachCallback
 
@@ -431,6 +487,8 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		manager:                mgr,
 		onAttachCallback:       onAttachCallback,
 		fileIDToAttachedProbes: make(map[utils.PathIdentifier][]manager.ProbeIdentificationPair),
+		fileIDToMultiLinks:     make(map[utils.PathIdentifier]map[string]link.Link),
+		useMultiAttach:         canUseMultiAttach(),
 		done:                   make(chan struct{}),
 		inspector:              deps.Inspector,
 		processMonitor:         deps.ProcessMonitor,
@@ -949,6 +1007,87 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 	return nil
 }
 
+// CanUseMultiAttach reports whether this host supports uprobe_multi links. Callers that
+// load eBPF programs must consult this before deciding whether to mark them with
+// AttachTraceUprobeMulti, since that is a load-time property.
+func CanUseMultiAttach() bool { return canUseMultiAttach() }
+
+// isReturnProbeName reports whether an eBPF program name denotes a real uretprobe
+// (uretprobe__SSL_read, nodejs_uretprobe__SSL_read, istio_uretprobe__SSL_read) as opposed
+// to a manual-return uprobe (uprobe__crypto_tls_Conn_Read__return), which is a plain
+// uprobe placed at a RET offset. The distinction matters because the two need different
+// multi-link constructors.
+func isReturnProbeName(ebpfFuncName string) bool {
+	probeType, _, _ := strings.Cut(ebpfFuncName, "__")
+	return strings.HasSuffix(probeType, "uretprobe")
+}
+
+// attachMulti attaches every probe point of a single eBPF program to a binary using one
+// uprobe_multi link, rather than one perf_event fd per location. This is the whole point
+// of the change: teardown cost is per-fd (~34ms of uninterruptible RCU grace period each,
+// paid serially), so collapsing N fds into 1 link makes shutdown time independent of the
+// number of probe points.
+func (ua *UprobeAttacher) attachMulti(probeID manager.ProbeIdentificationPair, locations []uint64, fpath utils.FilePath) error {
+	if len(locations) == 0 {
+		return nil
+	}
+
+	// Idempotency: the per-probe path gets this from manager.GetProbe; we key on program
+	// name within the file so a repeated AttachPID does not attach twice.
+	if links, ok := ua.fileIDToMultiLinks[fpath.ID]; ok {
+		if _, attached := links[probeID.EBPFFuncName]; attached {
+			if ua.config.EnableDetailedLogging {
+				log.Debugf("Program %s already multi-attached to %s", probeID.EBPFFuncName, fpath.HostPath)
+			}
+			return nil
+		}
+	}
+
+	progs, found, err := ua.manager.GetProgram(manager.ProbeIdentificationPair{EBPFFuncName: probeID.EBPFFuncName})
+	if err != nil {
+		return fmt.Errorf("cannot look up program %s: %w", probeID.EBPFFuncName, err)
+	}
+	if !found || len(progs) == 0 {
+		return fmt.Errorf("program %s is not loaded", probeID.EBPFFuncName)
+	}
+
+	ex, err := link.OpenExecutable(fpath.HostPath)
+	if err != nil {
+		return fmt.Errorf("cannot open %s: %w", fpath.HostPath, err)
+	}
+
+	// locations are file offsets -- the same units the per-probe path passes as
+	// manager.Probe.UprobeOffset. cilium/ebpf forwards Addresses verbatim
+	// (Executable.address returns address+offset when address > 0), so no conversion.
+	opts := &link.UprobeMultiOptions{Addresses: locations}
+
+	var l link.Link
+	if isReturnProbeName(probeID.EBPFFuncName) {
+		l, err = ex.UretprobeMulti(nil, progs[0], opts)
+	} else {
+		l, err = ex.UprobeMulti(nil, progs[0], opts)
+	}
+	if err != nil {
+		ua.telemetry.probeAttachErrorsAddHook.Inc()
+		return fmt.Errorf("cannot multi-attach %s to %s: %w", probeID.EBPFFuncName, fpath.HostPath, err)
+	}
+
+	if ua.fileIDToMultiLinks[fpath.ID] == nil {
+		ua.fileIDToMultiLinks[fpath.ID] = make(map[string]link.Link)
+	}
+	ua.fileIDToMultiLinks[fpath.ID][probeID.EBPFFuncName] = l
+
+	ua.telemetry.createdProbes.Inc()
+	ua.telemetry.attachedProbes.Inc()
+
+	if ua.config.EnableDetailedLogging {
+		log.Debugf("Multi-attached %s to %s (PID %d), covering %d locations in one link",
+			probeID.EBPFFuncName, fpath.HostPath, fpath.PID, len(locations))
+	}
+
+	return nil
+}
+
 func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, fpath utils.FilePath, fpathUID string, rule *AttachRule, inspectResult map[string]bininspect.FunctionMetadata) error {
 	_, isBestEffort := selector.(*manager.BestEffort)
 
@@ -978,6 +1117,13 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 		} else {
 			locationsToAttach = []uint64{data.EntryLocation}
 			probeTypeCode = "d"
+		}
+
+		if ua.useMultiAttach {
+			if err := ua.attachMulti(probeID, locationsToAttach, fpath); err != nil {
+				return err
+			}
+			continue
 		}
 
 		for i, location := range locationsToAttach {
@@ -1034,9 +1180,12 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 		}
 	}
 
-	manager, ok := ua.manager.(*manager.Manager)
-	if ok {
-		if err := selector.RunValidator(manager); err != nil {
+	// The multi path never calls AddHook, so manager.GetProbe finds nothing and
+	// ProbeSelector.RunValidator would fail. UprobeMulti already returned an error if the
+	// attach failed, which is a more direct check than the selector's.
+	mgr, ok := ua.manager.(*manager.Manager)
+	if ok && !ua.useMultiAttach {
+		if err := selector.RunValidator(mgr); err != nil {
 			ua.telemetry.probeAttachErrorsValidate.Inc()
 			return fmt.Errorf("error validating probes: %w", err)
 		}
@@ -1076,6 +1225,13 @@ func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
 		}
 	}
 
+	for funcName, l := range ua.fileIDToMultiLinks[fpath.ID] {
+		if err := l.Close(); err != nil {
+			return fmt.Errorf("error closing multi link for %s on %s: %w", funcName, fpath.HostPath, err)
+		}
+	}
+
+	delete(ua.fileIDToMultiLinks, fpath.ID)
 	delete(ua.fileIDToAttachedProbes, fpath.ID)
 	ua.inspector.Cleanup(fpath)
 

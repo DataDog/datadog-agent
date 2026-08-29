@@ -20,6 +20,16 @@ BPF_PROG_ARRAY(protocols_progs, PROG_MAX)
 // traffic, after getting plain data from our TLS implementations
 BPF_PROG_ARRAY(tls_process_progs, PROG_MAX)
 
+// Kprobe-typed mirror of the termination subset of tls_process_progs.
+//
+// A PROG_ARRAY locks onto the expected_attach_type of its first member and rejects any
+// other (kernel/bpf/core.c, __bpf_prog_map_compatible). USM's uprobes are loaded with
+// BPF_TRACE_UPROBE_MULTI so they can share uprobe_multi links, which makes
+// tls_process_progs unreachable from kprobe__tcp_close -- the one non-uprobe caller of
+// tls_finish. This array holds kprobe-typed copies of the termination programs so that
+// caller keeps its cleanup path. See tls_finish_from_kprobe in protocols/tls/https.h.
+BPF_PROG_ARRAY(tls_termination_progs, PROG_MAX)
+
 // This program array is needed to bypass a memory limit on socket filters.
 // There is a limitation on number of instructions can be attached to a socket filter,
 // as we dispatching more protocols, we reached that limit, thus we workaround it

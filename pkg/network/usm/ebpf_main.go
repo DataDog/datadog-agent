@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -95,6 +97,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
+			{Name: protocols.TLSTerminationProgramsMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
 			{Name: protocols.ProtocolDispatcherClassificationPrograms},
 			{Name: protocols.TLSProtocolDispatcherClassificationPrograms},
@@ -392,6 +395,36 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 	}
 }
 
+// setMultiAttachType marks USM's uprobe programs for uprobe_multi attachment by setting
+// their expected_attach_type before the collection is loaded.
+//
+// uprobe_multi requires expected_attach_type == BPF_TRACE_UPROBE_MULTI, which is fixed at
+// load time and cannot be changed afterwards. Kernel PROG_ARRAYs are owner-locked on that
+// value (kernel/bpf/core.c, __bpf_prog_map_compatible), so every program in the TLS
+// tail-call arrays -- and every uprobe that tail-calls into them -- has to carry it
+// together, or the array insert fails with -EINVAL.
+//
+// Selecting by section rather than by name is deliberate: every USM uprobe/uretprobe is on
+// the TLS path (the plaintext path uses socket filters, SEC("socket/...")), so this is
+// exactly the set that must move together, and it stays correct as probes are added.
+//
+// kprobe__tcp_close and the kprobe-typed termination programs it tail-calls are excluded
+// by the same rule: they keep the default attach type and dispatch through their own
+// array, protocols.TLSTerminationProgramsMap. See tls_finish_from_kprobe in
+// pkg/network/ebpf/c/protocols/tls/https.h.
+func setMultiAttachType(m *manager.Manager) error {
+	specs, err := m.GetProgramSpecs()
+	if err != nil {
+		return fmt.Errorf("cannot read program specs to set the multi-attach type: %w", err)
+	}
+	for _, spec := range specs {
+		if strings.HasPrefix(spec.SectionName, "uprobe/") || strings.HasPrefix(spec.SectionName, "uretprobe/") {
+			spec.AttachType = ebpf.AttachTraceUprobeMulti
+		}
+	}
+	return nil
+}
+
 func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
@@ -446,6 +479,15 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
 	options.TailCallRouter = e.tailCallRouter
+
+	// InstructionPatchers run after the ELF is parsed and before loadCollection()
+	// (ebpf-manager v0.7.18, manager.go:637-650), which is the only window in which
+	// expected_attach_type can still be changed. GetProgramSpecs returns a shallow copy, so
+	// the *ebpf.ProgramSpec values it hands back are the ones about to be loaded.
+	if uprobes.CanUseMultiAttach() {
+		e.Manager.InstructionPatchers = append(e.Manager.InstructionPatchers, setMultiAttachType)
+	}
+
 	for _, p := range supported {
 		p.Instance.ConfigureOptions(&options)
 	}

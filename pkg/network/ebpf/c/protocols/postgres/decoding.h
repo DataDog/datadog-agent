@@ -443,8 +443,8 @@ int uprobe__postgres_tls_process_parse_message(struct pt_regs *ctx) {
 }
 
 // Handles connection termination for a TLS Postgres connection.
-SEC("uprobe/postgres_tls_termination")
-int uprobe__postgres_tls_termination(struct pt_regs *ctx) {
+// Shared body for the uprobe- and kprobe-typed entry points below.
+static __always_inline int __postgres_tls_termination(struct pt_regs *ctx) {
     const __u32 zero = 0;
 
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -456,6 +456,19 @@ int uprobe__postgres_tls_termination(struct pt_regs *ctx) {
     conn_tuple_t tup = args->tup;
     postgres_tcp_termination(&tup);
     return 0;
+}
+
+SEC("uprobe/postgres_tls_termination")
+int uprobe__postgres_tls_termination(struct pt_regs *ctx) {
+    return __postgres_tls_termination(ctx);
+}
+
+// Kprobe-typed copy of the program above, reached from kprobe__tcp_close through
+// tls_termination_progs. The two arrays exist because a PROG_ARRAY locks onto its
+// members' expected_attach_type; see tls_finish_from_kprobe in protocols/tls/https.h.
+SEC("kprobe/postgres_tls_termination")
+int kprobe__postgres_tls_termination(struct pt_regs *ctx) {
+    return __postgres_tls_termination(ctx);
 }
 
 // Handles message parsing for a TLS Postgres traffic.
