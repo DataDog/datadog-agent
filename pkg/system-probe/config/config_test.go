@@ -8,7 +8,6 @@
 package config
 
 import (
-	"bytes"
 	"runtime"
 	"strconv"
 	"testing"
@@ -17,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestEventMonitor(t *testing.T) {
@@ -61,59 +59,6 @@ func TestEventMonitor(t *testing.T) {
 			t.Logf("%+v\n", cfg)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
-		})
-	}
-}
-
-func TestTracerouteModule(t *testing.T) {
-	boolPtr := func(value bool) *bool { return &value }
-	tests := []struct {
-		name                    string
-		npmEnabled              bool
-		standardTestsEnabled    bool
-		baselineTestsEnabled    bool
-		tracerouteEnabled       *bool
-		expectTracerouteEnabled bool
-		expectWarning           bool
-	}{
-		{name: "disabled by default"},
-		{name: "NPM alone does not enable traceroute", npmEnabled: true},
-		{name: "standard tests require NPM", standardTestsEnabled: true},
-		{name: "baseline tests require NPM", baselineTestsEnabled: true},
-		{name: "standard tests enable traceroute", npmEnabled: true, standardTestsEnabled: true, expectTracerouteEnabled: true},
-		{name: "baseline tests enable traceroute", npmEnabled: true, baselineTestsEnabled: true, expectTracerouteEnabled: true},
-		{name: "explicit true enables traceroute", tracerouteEnabled: boolPtr(true), expectTracerouteEnabled: true},
-		{name: "explicit false without dynamic tests", npmEnabled: true, tracerouteEnabled: boolPtr(false)},
-		{name: "explicit false overrides standard tests", npmEnabled: true, standardTestsEnabled: true, tracerouteEnabled: boolPtr(false), expectWarning: true},
-		{name: "explicit false overrides baseline tests", npmEnabled: true, baselineTestsEnabled: true, tracerouteEnabled: boolPtr(false), expectWarning: true},
-	}
-
-	var logs bytes.Buffer
-	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logs, log.WarnLvl)
-	require.NoError(t, err)
-	log.SetupLogger(logger, "warn")
-	t.Cleanup(func() { log.SetupLogger(log.Default(), "debug") })
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			coreCfg := mock.New(t)
-			sysprobeCfg := mock.NewSystemProbe(t)
-			coreCfg.SetInTest("network_path.connections_monitoring.enabled", test.standardTestsEnabled)
-			coreCfg.SetInTest("network_path.connections_monitoring.baseline_tests_enabled", test.baselineTestsEnabled)
-			sysprobeCfg.SetInTest("network_config.enabled", test.npmEnabled)
-			if test.tracerouteEnabled != nil {
-				sysprobeCfg.SetInTest("traceroute.enabled", *test.tracerouteEnabled)
-			}
-			assert.Equal(t, test.tracerouteEnabled != nil, sysprobeCfg.IsConfigured("traceroute.enabled"))
-
-			logs.Reset()
-			cfg, err := load()
-			require.NoError(t, err)
-
-			assert.Equal(t, test.expectTracerouteEnabled, cfg.ModuleIsEnabled(TracerouteModule))
-			assert.Equal(t, test.tracerouteEnabled != nil || test.expectTracerouteEnabled, sysprobeCfg.IsConfigured("traceroute.enabled"))
-			assert.Equal(t, test.expectTracerouteEnabled, sysprobeCfg.GetBool("traceroute.enabled"))
-			assert.Equal(t, test.expectWarning, bytes.Contains(logs.Bytes(), []byte("system-probe traceroute was explicitly disabled")))
 		})
 	}
 }

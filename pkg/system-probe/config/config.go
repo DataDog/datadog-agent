@@ -257,7 +257,7 @@ func load() (*types.Config, error) {
 // It logs a warning when Dynamic Tests require traceroute but it was explicitly disabled.
 func tracerouteEnabled(cfg, coreCfg pkgconfigmodel.Reader, npmEnabled bool) bool {
 	dynamicTestsEnabled := coreCfg.GetBool("network_path.connections_monitoring.enabled") ||
-		coreCfg.GetBool("network_path.connections_monitoring.baseline_tests_enabled")
+		coreCfg.GetBool("network_path.connections_monitoring.basic_tests_enabled")
 	enabled := cfg.GetBool(tracerouteNS("enabled"))
 
 	if !cfg.IsConfigured(tracerouteNS("enabled")) {

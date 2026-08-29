@@ -781,7 +781,7 @@ properties:
         description: |-
           Set to true to enable the Traceroute Module of the System Probe.
           When this setting is unset, the module is enabled automatically if Network Performance Monitoring
-          and either standard or baseline Network Path Dynamic Tests are enabled. Set to false explicitly to
+          and either Standard or Basic Network Path Dynamic Tests are enabled. Set to false explicitly to
           prevent automatic enablement.
   runtime_security_config:
     $ref: system-probe-cws.yaml
