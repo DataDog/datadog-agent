@@ -1259,6 +1259,7 @@ pub mod tests {
             ManagedProcess::new_config("retry-chain".into(), test_helpers::test_uuid(), cfg);
 
         proc.restarts.last_spawn_time = Some(Instant::now() - Duration::from_secs(5));
+        proc.transition_to(ProcessState::Starting);
         proc.transition_to(ProcessState::Failed);
 
         assert!(proc.schedule_restart().is_some());
