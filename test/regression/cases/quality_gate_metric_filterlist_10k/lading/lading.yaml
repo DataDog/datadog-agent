@@ -21,25 +21,28 @@
 # so `{{000000-000499}}` expands to 3-digit ".000"..".499" and matches nothing.
 # Character ranges are fixed-width by construction.
 #
-# The rendered file is IDENTICAL across all generated cases -- only each
-# case's datadog.yaml (metric_filterlist size) differs. That is what makes the
-# tiers comparable.
+# Total offered load is 20 MiB/s (18 + 1 + 1), matching
+# cases/quality_gate_metrics_logs so this case is comparable against the
+# existing metrics quality gate and runs within the same target resources.
 #
-# Total offered load is 60 MiB/s (54 + 3 + 3), 3x the original 20 MiB/s. This
-# was 200 MiB/s (180/10/10) but every tier crashed in real SMP runs at that
-# rate, through three successive memory_allotment increases, so it was cut back.
-# The 90/5/5 byte split is preserved exactly, which keeps the filtered share and
-# comparability with cases/quality_gate_metrics_logs intact.
+# History: this was 200 MiB/s (180/10/10), then 60 MiB/s (54/3/3). Every
+# replicate crashed at 60 MiB/s on a 6-CPU / 8192 MiB target, at every
+# filterlist size from 10k to 100k, while every other case in this directory
+# passed in the same job -- so the rate was not the only problem and the
+# oversized allotment has been brought back in line too (see experiment.yaml).
+# 20 MiB/s is the rate the comparable working case uses.
 #
-# Measured cost is ~10.5 CPU millicores per MiB/s, so 60 MiB/s is ~630 mc, ~11%
-# of the 6-CPU allotment. Past ~370 MiB/s the agent cannot keep up at all
+# The 90/5/5 byte split is preserved exactly, which keeps the filtered share
+# intact: generator B's messages are much smaller than generator A's, so 5% of
+# the byte budget is a substantially larger share of MESSAGES.
+#
+# Measured cost is ~10.5 CPU millicores per MiB/s, so 20 MiB/s is ~210 mc, ~5%
+# of the 4-CPU allotment. Past ~370 MiB/s the agent cannot keep up at all
 # (delivery falls from 95% to 69%) and the offered load stops being the number
-# written here. See README "Offered load".
+# written here.
 #
-# Note the prebuild caches are unchanged (500/50 MiB), so at 3x the rate they
-# recycle 3x faster: ~9 s of unique blocks for generator A rather than ~28 s.
-# Traffic is correspondingly more repetitive per unit time, which understates
-# context churn slightly; raising the caches costs lading-container memory.
+# At 20 MiB/s the 500 MiB prebuild cache for generator A is ~25 s of unique
+# blocks, so traffic stays varied without raising lading-container memory.
 #
 # Traffic mix (kept deliberately similar to
 # cases/quality_gate_metrics_logs/lading/lading.yaml so results are
@@ -109,7 +112,7 @@ generator:
             distribution: 5
             set: 0
             histogram: 0
-      bytes_per_second: "54 MiB"
+      bytes_per_second: "18 MiB"
       maximum_prebuild_cache_size_bytes: "500 MiB"
 
   - id: match
@@ -155,7 +158,7 @@ generator:
           # guaranteed-match corpus. Needs lading >= 0.32. See header.
           metric_names:
             - "smp.filterlist.bench.metric.aaaa{{a-z}}{{a-z}}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      bytes_per_second: "3 MiB"
+      bytes_per_second: "1 MiB"
       maximum_prebuild_cache_size_bytes: "50 MiB"
 
   - id: nomatch
@@ -201,7 +204,7 @@ generator:
           # guaranteed-nomatch corpus. Needs lading >= 0.32. See header.
           metric_names:
             - "smp.filterlist.bench.nomatch.aaaa{{a-z}}{{a-z}}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      bytes_per_second: "3 MiB"
+      bytes_per_second: "1 MiB"
       maximum_prebuild_cache_size_bytes: "50 MiB"
 
 blackhole:
