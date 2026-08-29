@@ -103,7 +103,7 @@ Get-Content -Path $bepPath | ForEach-Object {
             $collected++
         }
         catch {
-            Write-Host "collect-bazel-failed-testlogs: failed to copy $outName from $src: $_"
+            Write-Host "collect-bazel-failed-testlogs: failed to copy $outName from ${src}: $_"
         }
     }
 }
