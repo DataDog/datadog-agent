@@ -101,11 +101,6 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.director_root")),
 		remoteconfig.WithRcKey(deps.Cfg.GetString("remote_configuration.key")),
 	}
-	if deps.Cfg.IsConfigured("remote_configuration.api_key") {
-		// Watch the setting the key actually came from. The service otherwise
-		// watches "api_key", which would miss runtime updates to this one.
-		options = append(options, remoteconfig.WithAPIKeyUpdateSetting("remote_configuration.api_key"))
-	}
 	if deps.Params != nil {
 		options = append(options, deps.Params.Options...)
 	}
