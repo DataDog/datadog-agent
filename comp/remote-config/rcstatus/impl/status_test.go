@@ -85,9 +85,9 @@ func TestStatusOutputAdditionalInstances(t *testing.T) {
 	instances := &expvar.Map{}
 	instances.Init()
 	for name, authorized := range map[string]string{
-		"Remote Config":             "true",
-		"autoscaling": "true",
-		"broken":      "false",
+		"Remote Config": "true",
+		"autoscaling":   "true",
+		"broken":        "false",
 	} {
 		entry := &expvar.Map{}
 		entry.Init()
