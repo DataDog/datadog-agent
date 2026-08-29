@@ -10,7 +10,7 @@ use crate::config_gate::ConditionConfigFile;
 use crate::test_helpers;
 use std::io::Write;
 
-fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+pub(crate) fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
     let (cmd, args) = test_helpers::sleep_cmd(60);
     ProcessDefinition {
         name: name.to_string(),
@@ -26,7 +26,7 @@ fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
     }
 }
 
-fn write_agent_yaml(dir: &std::path::Path, process_collection_enabled: bool) -> String {
+pub(crate) fn write_agent_yaml(dir: &std::path::Path, process_collection_enabled: bool) -> String {
     let path = dir.join("datadog.yaml");
     let body = format!(
         "process_config:\n  process_collection:\n    enabled: {process_collection_enabled}\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"

@@ -11,7 +11,7 @@ use crate::platform;
 use crate::process::{ManagedChildSpawn, ManagedProcess, SpawnReservationToken};
 use crate::state::ProcessState;
 use anyhow::Result;
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +71,10 @@ pub(in crate::manager) fn log_skipped_pending_restart(
     };
     let name = proc.name();
     match reason {
+        PendingRestartSkip::StaleConfigGeneration => debug!(
+            "[{name}] ignoring stale restart for config generation {}",
+            pending.config_generation
+        ),
         PendingRestartSkip::StaleSpawnSeq => info!(
             "[{name}] ignoring stale queued restart (spawn_seq {} != {})",
             pending.spawn_seq,
@@ -86,6 +90,7 @@ pub(in crate::manager) fn log_skipped_pending_restart(
 }
 
 enum PendingRestartSkip {
+    StaleConfigGeneration,
     StaleSpawnSeq,
     AlreadyRunning,
     PolicyOrConditions,
@@ -105,7 +110,9 @@ fn pending_restart_skip_reason(
     proc: &ManagedProcess,
     pending: &PendingRestart,
 ) -> Option<PendingRestartSkip> {
-    if !pending_restart_matches(proc, pending) {
+    if proc.config_generation() != pending.config_generation {
+        Some(PendingRestartSkip::StaleConfigGeneration)
+    } else if !pending_restart_matches(proc, pending) {
         Some(PendingRestartSkip::StaleSpawnSeq)
     } else if matches!(proc.state(), ProcessState::Running | ProcessState::Stopping) {
         Some(PendingRestartSkip::AlreadyRunning)

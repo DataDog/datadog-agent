@@ -70,6 +70,13 @@ pub(in crate::manager) async fn run(
                 log_spawn_task_result(spawn_handle.await, &name);
             }
         }
+
+        {
+            let mut procs = manager.catalog.write_processes().await;
+            if let Some(proc) = procs.get_mut(idx) {
+                proc.record_config_gate_met();
+            }
+        }
     }
 
     info!("startup: auto-start complete");

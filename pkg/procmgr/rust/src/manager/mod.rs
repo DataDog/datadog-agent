@@ -9,6 +9,7 @@ mod catalog;
 pub(crate) mod deferred_cleanup;
 mod lifecycle;
 mod process_manager;
+mod reload;
 mod runtime;
 mod spawn;
 mod startup;
@@ -39,6 +40,7 @@ pub(crate) type ExitEvent = crate::process::ProcessExit;
 pub(crate) struct PendingRestart {
     pub(crate) uuid: String,
     pub(crate) spawn_seq: u64,
+    pub(crate) config_generation: u64,
 }
 
 pub fn looks_like_uuid_prefix(s: &str) -> bool {
@@ -76,11 +78,12 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
-fn enqueue_pending_restart(proc: &mut ManagedProcess, ctx: &RuntimeContext) {
+pub(in crate::manager) fn enqueue_pending_restart(proc: &mut ManagedProcess, ctx: &RuntimeContext) {
     if let Some(delay) = proc.schedule_restart() {
         let pending = PendingRestart {
             uuid: proc.uuid().to_owned(),
             spawn_seq: proc.spawn_seq(),
+            config_generation: proc.config_generation(),
         };
         let tx = ctx.restart_tx.clone();
         tokio::spawn(async move {

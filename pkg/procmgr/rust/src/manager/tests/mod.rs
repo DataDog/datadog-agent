@@ -59,6 +59,7 @@ pub fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
     PendingRestart {
         uuid: proc.uuid().to_owned(),
         spawn_seq: proc.spawn_seq(),
+        config_generation: proc.config_generation(),
     }
 }
 
@@ -102,7 +103,7 @@ pub fn sleep_def(name: &str) -> ProcessDefinition {
     }
 }
 
-fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
+pub fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
     let (cmd, args) = test_helpers::sleep_cmd(secs);
     ProcessDefinition {
         name: name.to_string(),
@@ -134,6 +135,7 @@ mod boot;
 #[cfg(not(windows))]
 mod config_gate;
 mod create;
+mod reload;
 mod resolve;
 #[cfg(not(windows))]
 mod restart;

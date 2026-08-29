@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    ``dd-procmgr reload`` now re-reads ``processes.d`` at runtime. Added,
+    removed, and modified definitions are applied without restarting
+    ``dd-procmgr-service``. Config gates and secret-backend values are
+    re-evaluated on reload.

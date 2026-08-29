@@ -562,10 +562,10 @@ mod tests {
 
         let (cmd, args) = test_helpers::sleep_cmd(60);
         let catalog = Arc::new(ProcessCatalog::load(
-            &StaticConfigLoader::new(vec![ProcessDefinition {
+            Arc::new(StaticConfigLoader::new(vec![ProcessDefinition {
                 name: "svc".into(),
                 config: test_helpers::make_config(cmd, args),
-            }]),
+            }])),
             Arc::new(V4UuidGenerator),
         ));
 
@@ -623,10 +623,10 @@ mod tests {
 
         let (cmd, args) = test_helpers::sleep_cmd(60);
         let catalog = ProcessCatalog::load(
-            &StaticConfigLoader::new(vec![ProcessDefinition {
+            Arc::new(StaticConfigLoader::new(vec![ProcessDefinition {
                 name: "svc".into(),
                 config: test_helpers::make_config(cmd, args),
-            }]),
+            }])),
             Arc::new(V4UuidGenerator),
         );
 

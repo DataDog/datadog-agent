@@ -18,12 +18,13 @@ pub(in crate::manager) struct ProcessCatalog {
     processes: RwLock<Vec<ManagedProcess>>,
     startup_order: RwLock<Vec<usize>>,
     uuid_gen: Arc<dyn UuidGenerator>,
+    config_loader: Arc<dyn ConfigLoader>,
     config_source: String,
     config_location: String,
 }
 
 impl ProcessCatalog {
-    pub fn load(config_loader: &dyn ConfigLoader, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
+    pub fn load(config_loader: Arc<dyn ConfigLoader>, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
         let config_source = config_loader.source().to_string();
         let config_location = config_loader.location();
         let processes: Vec<ManagedProcess> = config_loader
@@ -36,6 +37,7 @@ impl ProcessCatalog {
             processes: RwLock::new(processes),
             startup_order: RwLock::new(startup_order),
             uuid_gen,
+            config_loader,
             config_source,
             config_location,
         }
@@ -47,6 +49,20 @@ impl ProcessCatalog {
 
     pub(crate) fn config_location(&self) -> &str {
         &self.config_location
+    }
+
+    pub(in crate::manager) fn config_loader(&self) -> &dyn ConfigLoader {
+        self.config_loader.as_ref()
+    }
+
+    pub(in crate::manager) fn generate_uuid(&self) -> String {
+        self.uuid_gen.generate()
+    }
+
+    pub(in crate::manager) async fn update_startup_order(&self) -> Vec<String> {
+        let procs = self.processes.read().await;
+        let mut order = self.startup_order.write().await;
+        Self::sync_startup_order(&procs, &mut order)
     }
 
     pub(in crate::manager) async fn read_processes(
@@ -231,7 +247,7 @@ mod startup_order_tests {
     #[test]
     fn load_builds_matching_startup_order() {
         let catalog = ProcessCatalog::load(
-            &StaticConfigLoader::new(vec![
+            Arc::new(StaticConfigLoader::new(vec![
                 ProcessDefinition {
                     name: "alpha".to_string(),
                     config: ProcessConfig::default(),
@@ -240,7 +256,7 @@ mod startup_order_tests {
                     name: "bravo".to_string(),
                     config: ProcessConfig::default(),
                 },
-            ]),
+            ])),
             Arc::new(V4UuidGenerator),
         );
 

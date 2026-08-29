@@ -132,6 +132,7 @@ async fn test_stale_restart_timer_invalidated_after_manual_start() -> anyhow::Re
     let stale_pending = PendingRestart {
         uuid: uuid.clone(),
         spawn_seq: 1,
+        config_generation: 0,
     };
 
     mgr.handle_start("action-executor", &handles).await?;

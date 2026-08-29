@@ -30,7 +30,7 @@ pub struct ProcessManager {
 impl ProcessManager {
     pub fn new(config_loader: Arc<dyn ConfigLoader>, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
         Self {
-            catalog: Arc::new(ProcessCatalog::load(config_loader.as_ref(), uuid_gen)),
+            catalog: Arc::new(ProcessCatalog::load(config_loader, uuid_gen)),
         }
     }
 
@@ -70,6 +70,9 @@ impl ProcessManager {
                 reply,
             } => {
                 let _ = reply.send(self.handle_stop(&name_or_uuid).await);
+            }
+            Command::ReloadConfig { reply } => {
+                let _ = reply.send(self.handle_reload_config(ctx).await);
             }
         }
     }

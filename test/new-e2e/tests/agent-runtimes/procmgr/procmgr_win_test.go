@@ -60,6 +60,9 @@ description: should not start
 
 	winUserProfileEnvMarkerDir = `C:/ProgramData/Datadog`
 
+	windowsADPDescOriginalLine = "description: Datadog Agent Data Plane"
+	windowsADPDescE2ELine      = "description: E2E-reload-after-yaml"
+
 	adpProcessName = "datadog-agent-data-plane"
 )
 
@@ -415,6 +418,46 @@ func (s *procmgrWindowsSuite) TestADPProcessDescribe() {
 		assertHasField(ct, out, "PID")
 		assertHasField(ct, out, "UUID")
 	}, 90*time.Second, 2*time.Second)
+}
+
+func (s *procmgrWindowsSuite) TestADPReloadAfterYamlChange() {
+	originalPID := s.waitWindowsADPRunning(90 * time.Second)
+
+	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
+	require.NoError(s.T(), err)
+	yamlPath := joinWindowsPath(installPath, "processes.d", "datadog-agent-data-plane.yaml")
+
+	s.T().Cleanup(func() {
+		_, _ = s.Env().RemoteHost.Execute(psRemote(
+			`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
+			yamlPath, windowsADPDescE2ELine, windowsADPDescOriginalLine,
+		))
+		_, _ = s.Env().RemoteHost.Execute(s.platform.cliCmd("reload"))
+	})
+
+	s.Env().RemoteHost.MustExecute(psRemote(
+		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
+		yamlPath, windowsADPDescOriginalLine, windowsADPDescE2ELine,
+	))
+
+	reloadOut := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("reload"))
+	assert.Contains(s.T(), reloadOut, adpProcessName, "reload output: %s", reloadOut)
+	assert.Contains(s.T(), reloadOut, "Modified", "reload output: %s", reloadOut)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+adpProcessName))
+		assertField(ct, out, "State", "Running")
+		p := fieldValue(out, "PID")
+		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
+			return
+		}
+		assert.NotEqual(ct, originalPID, p, "ADP should respawn with a new PID after reload")
+	}, 90*time.Second, 2*time.Second)
+
+	assertField(s.T(),
+		s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe "+adpProcessName)),
+		"Description", "E2E-reload-after-yaml",
+	)
 }
 
 func windowsProcessOwnerByPID(host *e2ecomponents.RemoteHost, pid string) (string, error) {

@@ -193,9 +193,20 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
     ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
         require_mutating_pipe_client(&request)?;
         let _ = request.into_inner();
-        Err(Status::unimplemented(
-            "config reload is not implemented; restart dd-procmgr-service instead",
-        ))
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.cmd_tx
+            .send(Command::ReloadConfig { reply: reply_tx })
+            .await
+            .map_err(|_| Status::internal("event loop not available"))?;
+        let result = reply_rx
+            .await
+            .map_err(|_| Status::internal("event loop dropped reply"))??;
+        Ok(Response::new(proto::ReloadConfigResponse {
+            added: result.added,
+            removed: result.removed,
+            modified: result.modified,
+            unchanged: result.unchanged,
+        }))
     }
 
     async fn get_config(

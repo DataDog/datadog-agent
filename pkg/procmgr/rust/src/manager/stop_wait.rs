@@ -98,10 +98,10 @@ mod tests {
         let mut config = test_helpers::make_config(cmd, args);
         config.stop_timeout = Some(1);
         ProcessCatalog::load(
-            &StaticConfigLoader::new(vec![ProcessDefinition {
+            Arc::new(StaticConfigLoader::new(vec![ProcessDefinition {
                 name: "svc".into(),
                 config,
-            }]),
+            }])),
             Arc::new(V4UuidGenerator),
         )
     }

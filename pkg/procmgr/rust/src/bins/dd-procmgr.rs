@@ -643,11 +643,43 @@ async fn cmd_create(
     Ok(())
 }
 
-async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, _json: bool) -> Result<(), String> {
-    client
+async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
+    let resp = client
         .reload_config(proto::ReloadConfigRequest {})
         .await
-        .map_err(grpc_err)?;
+        .map_err(grpc_err)?
+        .into_inner();
+
+    if json {
+        let val = serde_json::json!({
+            "added": resp.added,
+            "removed": resp.removed,
+            "modified": resp.modified,
+            "unchanged": resp.unchanged,
+        });
+        println!("{}", serde_json::to_string_pretty(&val).unwrap());
+        return Ok(());
+    }
+
+    if !resp.added.is_empty() {
+        println!("Added:     {}", resp.added.join(", "));
+    }
+    if !resp.removed.is_empty() {
+        println!("Removed:   {}", resp.removed.join(", "));
+    }
+    if !resp.modified.is_empty() {
+        println!("Modified:  {}", resp.modified.join(", "));
+    }
+    if !resp.unchanged.is_empty() {
+        println!("Unchanged: {}", resp.unchanged.join(", "));
+    }
+    if resp.added.is_empty()
+        && resp.removed.is_empty()
+        && resp.modified.is_empty()
+        && resp.unchanged.is_empty()
+    {
+        println!("No changes");
+    }
     Ok(())
 }
 
