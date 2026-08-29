@@ -71,9 +71,9 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	}
 	// The metrics pipeline shares the `infraattributes` processor instance with
 	// the logs pipeline (see defaultMetricsConfig/defaultLogsConfig); this is
-	// harmless since the logs processor ignores infra_tags_as_tags.
-	if cfg.MetricsInfraTagsAsTags {
-		smap[buildKey("processors", "infraattributes", "infra_tags_as_tags")] = true
+	// harmless since the logs processor ignores metrics_attributes_as_tags.
+	if cfg.MetricsInfraAttrsAsTags {
+		smap[buildKey("processors", "infraattributes", "metrics_attributes_as_tags")] = true
 	}
 	{
 		configMap := confmap.NewFromStringMap(smap)

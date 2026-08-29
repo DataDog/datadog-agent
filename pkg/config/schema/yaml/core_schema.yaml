@@ -4527,7 +4527,7 @@ properties:
             tags:
             - template_section:CoreAgent
             properties:
-              infra_tags_as_tags:
+              as_tags:
                 node_type: setting
                 type: boolean
                 default: false
@@ -4538,7 +4538,7 @@ properties:
                   allowlist and are emitted as metric tags. Without it, custom tags that are not known Datadog
                   or OpenTelemetry conventions are dropped.
                 comment: |-
-                  infra_tags_as_tags controls whether the infraattributes processor promotes custom tags
+                  as_tags controls whether the infraattributes processor promotes custom tags
                   (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) so they survive the metrics
                   translator's allowlist and become metric tags.
           resource_attributes_as_tags:

@@ -275,27 +275,27 @@ func TestInfraAttributesMetricProcessorIgnoresContainerTagPromotion(t *testing.T
 	}
 }
 
-// TestInfraAttributesMetricProcessorInfraTagsAsTags verifies that a custom
+// TestInfraAttributesMetricProcessorMetricsAttributesAsTags verifies that a custom
 // tagger tag is promoted under the `datadog.container.tag.` prefix (so the
-// metrics translator keeps it as a metric tag) only when infra_tags_as_tags is
-// enabled. This is the OTELS-1131 fix.
-func TestInfraAttributesMetricProcessorInfraTagsAsTags(t *testing.T) {
+// metrics translator keeps it as a metric tag) only when metrics_attributes_as_tags
+// is enabled. This is the OTELS-1131 fix.
+func TestInfraAttributesMetricProcessorMetricsAttributesAsTags(t *testing.T) {
 	tests := []struct {
-		name            string
-		infraTagsAsTags bool
-		expected        map[string]any
+		name             string
+		attributesAsTags bool
+		expected         map[string]any
 	}{
 		{
-			name:            "disabled: custom tag dropped by translator (stays unprefixed)",
-			infraTagsAsTags: false,
+			name:             "disabled: custom tag dropped by translator (stays unprefixed)",
+			attributesAsTags: false,
 			expected: map[string]any{
 				"container.id": "test",
 				"test_tag":     "bar",
 			},
 		},
 		{
-			name:            "enabled: custom tag duplicated under prefixed key",
-			infraTagsAsTags: true,
+			name:             "enabled: custom tag duplicated under prefixed key",
+			attributesAsTags: true,
 			expected: map[string]any{
 				"container.id":                   "test",
 				"test_tag":                       "bar",
@@ -307,8 +307,8 @@ func TestInfraAttributesMetricProcessorInfraTagsAsTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			next := new(consumertest.MetricsSink)
 			cfg := &Config{
-				Cardinality:            types.LowCardinality,
-				MetricsInfraTagsAsTags: tt.infraTagsAsTags,
+				Cardinality:             types.LowCardinality,
+				MetricsAttributesAsTags: tt.attributesAsTags,
 			}
 			tc := testutil.NewTestTaggerClient()
 			tc.TagMap["container_id://test"] = []string{"test_tag:bar"}

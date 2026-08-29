@@ -151,11 +151,11 @@ type PipelineConfig struct {
 	// `ddtags` log record attribute (real Datadog log tags) instead of resource
 	// attributes (log attributes) for the Logs pipeline.
 	LogsTagsAsDDTags bool
-	// MetricsInfraTagsAsTags controls whether the InfraAttributes processor promotes
+	// MetricsInfraAttrsAsTags controls whether the InfraAttributes processor promotes
 	// custom tags (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) so they
 	// survive the metrics translator's allowlist and become metric tags for the Metrics
 	// pipeline. Without it, custom tags that are not known DD/OTel conventions are dropped.
-	MetricsInfraTagsAsTags bool
+	MetricsInfraAttrsAsTags bool
 	// Logs contains configuration options for the logs
 	Logs map[string]interface{}
 	// Debug contains debug configurations.

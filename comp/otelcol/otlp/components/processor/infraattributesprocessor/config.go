@@ -74,7 +74,7 @@ type Config struct {
 	// This only affects the logs pipeline.
 	LogsTagsAsDDTags bool `mapstructure:"logs_tags_as_ddtags"`
 
-	// MetricsInfraTagsAsTags controls whether custom tags emitted by the tagger
+	// MetricsAttributesAsTags controls whether custom tags emitted by the tagger
 	// (e.g. via kubernetesResourcesLabelsAsTags / AnnotationsAsTags) are promoted
 	// so they survive the metrics translator's allowlist and become metric tags.
 	//
@@ -87,7 +87,7 @@ type Config struct {
 	// dropped by the allowlist.
 	//
 	// This only affects the metrics pipeline.
-	MetricsInfraTagsAsTags bool `mapstructure:"infra_tags_as_tags"`
+	MetricsAttributesAsTags bool `mapstructure:"metrics_attributes_as_tags"`
 }
 
 var _ component.Config = (*Config)(nil)

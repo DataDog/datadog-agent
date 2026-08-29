@@ -37,7 +37,7 @@ func newInfraAttributesMetricProcessor(
 }
 
 func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
-	// When infra_tags_as_tags is enabled, promote custom tagger labels (e.g. from
+	// When metrics_attributes_as_tags is enabled, promote custom tagger labels (e.g. from
 	// kubernetesResourcesLabelsAsTags) so they survive the metrics translator's
 	// allowlist. The metrics path consumes them via the `datadog.container.tag.`
 	// prefix: attributes.TagsFromAttributes (metrics_translator.go) calls
@@ -47,7 +47,7 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	// keeps the original resource attribute and additionally writes the prefixed
 	// form the translator reads.
 	promote := ContainerTagPromotionOff
-	if iamp.cfg.MetricsInfraTagsAsTags {
+	if iamp.cfg.MetricsAttributesAsTags {
 		promote = ContainerTagPromotionDuplicate
 	}
 

@@ -383,14 +383,14 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only metrics, infra_tags_as_tags on",
+			name: "only metrics, metrics_attributes_as_tags on",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:                    5003,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
 				TracesContainerTagPromotion:  "off",
-				MetricsInfraTagsAsTags:       true,
+				MetricsInfraAttrsAsTags:      true,
 				Metrics: map[string]any{
 					"delta_ttl":                              1500,
 					"resource_attributes_as_tags":            false,
@@ -415,7 +415,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": map[string]any{"infra_tags_as_tags": true},
+					"infraattributes": map[string]any{"metrics_attributes_as_tags": true},
 				},
 				"exporters": map[string]any{
 					"serializer": map[string]any{
