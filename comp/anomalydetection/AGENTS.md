@@ -117,6 +117,12 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 
 Both paths share filtering primitives from `internal/logsfilter/`.
 
+### Logging convention
+
+Use `internal/logging` for every production log. Its
+`[anomalydetection] ` marker prevents self-ingestion; label only non-main
+subsystems such as `logssource`, `reporter`, or `logsfilter` in messages.
+
 Metrics with the `datadog.*` prefix are normalized as internal agent telemetry.
 Only observer telemetry under `datadog.agent.observer.*` is dropped before it
 reaches observer storage, preventing an ingestion loop.
@@ -213,7 +219,7 @@ Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.detectors.<name>.enabled` | varies | Per detector/correlator/extractor |
 | `anomaly_detection.storage.max_series` | `50000` | Storage series cap |
 | `anomaly_detection.storage.eviction_floor_ratio` | `0.5` | Fraction below the cap to drain during series eviction |
-| `anomaly_detection.storage.point_retention` | `120s` | Per-series point retention |
+| `anomaly_detection.storage.point_retention` | derived | Per-series retention; `0s` derives it from enabled detector windows |
 | `anomaly_detection.storage.inactive_series_ttl` | `5m` | Evict non-telemetry series inactive for this long; `0` disables inactivity eviction |
 | `anomaly_detection.storage.inactive_series_check_interval` | `5m` | Advance-time interval between inactivity scans; `0` disables inactivity eviction |
 

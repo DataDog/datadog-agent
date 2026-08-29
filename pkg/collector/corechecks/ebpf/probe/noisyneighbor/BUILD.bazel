@@ -24,15 +24,27 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/collector/corechecks/ebpf/probe/noisyneighbor/model",
-        "//pkg/ebpf",
-        "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/telemetry",
-        "//pkg/util/kernel",
-        "//pkg/util/log",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/corechecks/ebpf/probe/noisyneighbor/model",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/telemetry",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/corechecks/ebpf/probe/noisyneighbor/model",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/telemetry",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # ebpf_types_linux_test.go and probe_test.go must be in separate rules because
@@ -63,7 +75,7 @@ dd_agent_go_test(
     # keep: split from noisyneighbor_types_test; see comment above.
     srcs = ["probe_test.go"],
     embed = [":noisyneighbor"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     tags = ["requires_ebpf"],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [

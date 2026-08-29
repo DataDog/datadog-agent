@@ -52,6 +52,8 @@
       - coverage-bazel-*.out
   variables:
     KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "64Gi"
+    KUBERNETES_MEMORY_LIMIT: "64Gi"
 
 bazel:coverage:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux]
@@ -63,7 +65,7 @@ bazel:coverage:linux-arm64:
   extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+    - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
 
 bazel:test:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:test:linux]
@@ -71,32 +73,45 @@ bazel:test:linux-amd64:
 bazel:test:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
 
-bazel:test:macos-amd64:
-  extends: [.bazel:test:reporting, .bazel:runner:macos-amd64, .bazel:test]
+.bazel:coverage:macos:
+  extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
-
-bazel:test:macos-arm64:
-  extends: [.bazel:test:reporting, .bazel:runner:macos-arm64, .bazel:test]
-  script:
-    - !reference [.install_python_dependencies]
-    - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --execution_log_compact_file=$CI_PROJECT_DIR/bazel-exec.log //... -- -//test/new-e2e/...
-  after_script:
-    - !reference [.install_python_dependencies]
-    - !reference [.bazel:test:reporting, after_script]
+    - cp "$(bazel info output_path)/_coverage/_coverage_report.dat" "$CI_PROJECT_DIR/coverage-bazel-$CI_JOB_NAME_SLUG.out"
   artifacts:
     paths:
       - $RESULT_JSON
       - test_output_unified.json
       - junit-*.tgz
       - bazel-bep.json
-      - bazel-exec.log
+      - coverage-bazel-*.out
+
+bazel:coverage:macos-amd64:
+  extends: [.bazel:runner:macos-amd64, .bazel:coverage:macos]
+
+bazel:coverage:macos-arm64:
+  extends: [.bazel:runner:macos-arm64, .bazel:coverage:macos]
+
+.bazel:test:macos:
+  extends: [.bazel:test:reporting, .bazel:test]
+  script:
+    - !reference [.install_python_dependencies]
+    - !reference [.bazel:test:reporting:ci_links]
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+  after_script:
+    - !reference [.install_python_dependencies]
+    - !reference [.bazel:test:reporting, after_script]
+
+bazel:test:macos-amd64:
+  extends: [.bazel:runner:macos-amd64, .bazel:test:macos]
+
+bazel:test:macos-arm64:
+  extends: [.bazel:runner:macos-arm64, .bazel:test:macos]
 
 # Windows splits the build from the Go tests, unlike the other platforms: the
 # runner has 16 CPUs, and compiling the rest of the repo alongside ~1k

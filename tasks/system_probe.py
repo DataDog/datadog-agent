@@ -42,7 +42,7 @@ from tasks.schema.generate import schema_codegen
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 
-BPF_TAG = "linux_bpf"
+BPF_TAG = "bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 
@@ -171,22 +171,14 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     return
 
 
-def get_libpcap_cgo_flags(ctx, install_path: str = None):
-    """Return a dictionary with the CGO flags needed to link against libpcap.
-    If install_path is provided, then we expect this path to contain libpcap as a shared library.
-    """
-    if install_path is not None:
-        return {
-            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
-        }
-    else:
-        embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
-        return {
-            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
-        }
+def get_libpcap_cgo_flags(ctx):
+    """Return CGO flags for the development tree where build_libpcap installs its output."""
+    embedded_path = get_embedded_path(ctx)
+    assert embedded_path, "Failed to find embedded path"
+    return {
+        'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
+        'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
+    }
 
 
 @task
@@ -273,7 +265,7 @@ def build_sysprobe_binary(
 
     if not is_windows and "pcap" in build_tags:
         build_libpcap(ctx, arch=arch_obj, env=env)
-        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
+        cgo_flags = get_libpcap_cgo_flags(ctx)
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
@@ -961,6 +953,7 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/ebpf/testdata/c:logdebug-test",
     "//pkg/ebpf/testdata/c:error_telemetry",
     "//pkg/ebpf/testdata/c:sleepable",
+    "//pkg/ebpf/testdata/c:preempt_test",
     "//pkg/ebpf/testdata/c:uprobe_attacher-test",
     "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
 ]
@@ -1784,7 +1777,7 @@ def build_usm_debugger(
     go_build(
         ctx,
         "./pkg/network/usm/debugger/cmd/usm-debugger",
-        build_tags=["linux_bpf", "usm_debugger"],
+        build_tags=["bpf", "usm_debugger"],
         ldflags=ldflags,
         bin_path="bin/usm-debugger",
         env=env,
@@ -1863,7 +1856,7 @@ def ninja_add_dyninst_test_programs(
     progs_path = f"{testprogs_path}/progs"
     progs_prefix = f"{dd_module}/{progs_path}/"
     output_base = f"{output_root}/{testprogs_path}/binaries"
-    build_tags = ["test", "linux_bpf"]
+    build_tags = ["test", "bpf"]
 
     # Find the dependencies of the test programs.
     tags_flag = f"-tags \"{','.join(build_tags)}\""

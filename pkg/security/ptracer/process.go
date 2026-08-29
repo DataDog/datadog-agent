@@ -134,7 +134,6 @@ func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
 type ProcessCache struct {
 	pid2Process map[int]*Process
 	tgid2Pid    map[int][]int
-	tgid2Span   map[int]*SpanTLS
 }
 
 // NewProcessCache returns a new thread cache
@@ -142,7 +141,6 @@ func NewProcessCache() *ProcessCache {
 	return &ProcessCache{
 		pid2Process: make(map[int]*Process),
 		tgid2Pid:    make(map[int][]int),
-		tgid2Span:   make(map[int]*SpanTLS),
 	}
 }
 
@@ -211,19 +209,4 @@ func (tc *ProcessCache) Remove(process *Process) {
 // Get return the process entry for the given pid
 func (tc *ProcessCache) Get(pid int) *Process {
 	return tc.pid2Process[pid]
-}
-
-// GetSpan returns the span TLS entry for the given pid
-func (tc *ProcessCache) GetSpan(tgid int) *SpanTLS {
-	return tc.tgid2Span[tgid]
-}
-
-// SetSpanTLS sets the span TLS entry for the given pid
-func (tc *ProcessCache) SetSpanTLS(tgid int, span *SpanTLS) {
-	tc.tgid2Span[tgid] = span
-}
-
-// UnsetSpan unsets the span TLS entry for the given pid
-func (tc *ProcessCache) UnsetSpan(tgid int) {
-	delete(tc.tgid2Span, tgid)
 }

@@ -7,7 +7,7 @@ package embedded
 
 import (
 	"fmt"
-	"path"
+	"io/fs"
 	"strings"
 	"testing"
 
@@ -15,47 +15,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// embeddedUnits lists the .service files embedded under tmpl/gen/<dir>. It reads the embed.FS
-// rather than the filesystem, so a missing //go:embed directive or embedsrcs entry shows up here.
-// path.Join, not filepath.Join: embed.FS names are always slash-separated, so the backslashes
-// filepath.Join emits on Windows would never resolve.
-func embeddedUnits(t *testing.T, dir string) []string {
-	t.Helper()
-	entries, err := systemdUnits.ReadDir(path.Join("tmpl/gen", dir))
-	require.NoError(t, err)
-
-	units := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if strings.HasSuffix(entry.Name(), ".service") {
-			units = append(units, entry.Name())
-		}
-	}
-	require.NotEmpty(t, units, "no .service files embedded for %s", dir)
-	return units
-}
-
-// TestGetSystemdUnitEmbedsAllVariants ensures every unit in every directory GetSystemdUnit can
-// construct at runtime is actually compiled into systemdUnits. The "-nocap" variants are only
-// selected on hosts whose kernel predates ambient capabilities, so a missing //go:embed directive
-// for them is invisible to every test that reads the template tree from disk instead of from the
-// embed.FS. Enumerating the units rather than spot-checking one also catches codegen dropping a
-// single file from a "-nocap" directory, which the glob-based embed cannot detect on its own.
-//
-// The base and "-nocap" sets are compared against each other because the two are embedded from
-// different sources under Bazel: BUILD.bazel lists the base units explicitly in service_srcs but
-// globs the "-nocap" ones. Enumerating only one side would leave codegen additions missing from
-// the other side invisible.
+// TestGetSystemdUnitEmbedsAllVariants ensures every unit GetSystemdUnit can construct at runtime is
+// actually compiled into systemdUnits, for both the ambient-capability and "-nc" variants.
+// Enumerating the units rather than spot-checking one catches codegen dropping a single file from
+// one variant's directory.
 func TestGetSystemdUnitEmbedsAllVariants(t *testing.T) {
-	for _, unitType := range []SystemdUnitType{SystemdUnitTypeOCI, SystemdUnitTypeDebRpm} {
-		units := embeddedUnits(t, string(unitType))
-		assert.ElementsMatch(t, units, embeddedUnits(t, string(unitType)+"-nocap"),
-			"embedded unit sets differ between %s and %s-nocap", unitType, unitType)
+	for _, unitType := range []UnitType{UnitTypeOCI, UnitTypeDebRpm} {
+		units := embeddedUnitsInDir(t, "tmpl/gen/sd/"+string(unitType))
+		assert.ElementsMatch(t, units, embeddedUnitsInDir(t, "tmpl/gen/sd/"+string(unitType)+"-nc"),
+			"embedded unit sets differ between %s and %s-nc", unitType, unitType)
 
 		for _, unit := range units {
 			for _, ambiantCapabilitiesSupported := range []bool{true, false} {
 				name := fmt.Sprintf("%s/%s/ambiantCapabilitiesSupported=%t", unitType, unit, ambiantCapabilitiesSupported)
 				t.Run(name, func(t *testing.T) {
 					content, err := GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
+					require.NoError(t, err)
+					assert.NotEmpty(t, content)
+				})
+			}
+		}
+	}
+}
+
+// TestGetProcmgrUnitEmbedsAllVariants is the procmgr-unit-set equivalent of
+// TestGetSystemdUnitEmbedsAllVariants: it ensures every unit GetProcmgrUnit can construct at
+// runtime is actually compiled into procmgrUnits, for both the ambient-capability and "-nc"
+// variants.
+func TestGetProcmgrUnitEmbedsAllVariants(t *testing.T) {
+	for _, unitType := range []UnitType{UnitTypeOCI, UnitTypeDebRpm} {
+		units := embeddedUnitsInPmDir(t, "tmpl/gen/pm/"+string(unitType))
+		assert.ElementsMatch(t, units, embeddedUnitsInPmDir(t, "tmpl/gen/pm/"+string(unitType)+"-nc"),
+			"embedded unit sets differ between %s and %s-nc", unitType, unitType)
+
+		for _, unit := range units {
+			for _, ambiantCapabilitiesSupported := range []bool{true, false} {
+				name := fmt.Sprintf("%s/%s/ambiantCapabilitiesSupported=%t", unitType, unit, ambiantCapabilitiesSupported)
+				t.Run(name, func(t *testing.T) {
+					content, err := GetProcmgrUnit(unit, unitType, ambiantCapabilitiesSupported)
 					require.NoError(t, err)
 					assert.NotEmpty(t, content)
 				})
@@ -74,7 +71,7 @@ func TestGetSystemdUnitEmbedsAllVariants(t *testing.T) {
 // fail this assertion. That gap is a separate pre-existing template defect, not a property of the
 // embed directives under test here.
 func TestGetSystemdUnitSelectsNocapVariant(t *testing.T) {
-	for _, unitType := range []SystemdUnitType{SystemdUnitTypeOCI, SystemdUnitTypeDebRpm} {
+	for _, unitType := range []UnitType{UnitTypeOCI, UnitTypeDebRpm} {
 		t.Run(string(unitType), func(t *testing.T) {
 			withCap, err := GetSystemdUnit("datadog-agent.service", unitType, true)
 			require.NoError(t, err)
@@ -85,4 +82,28 @@ func TestGetSystemdUnitSelectsNocapVariant(t *testing.T) {
 			assert.NotContains(t, string(withoutCap), "AmbientCapabilities=")
 		})
 	}
+}
+
+func embeddedUnitsInDir(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := systemdUnits.ReadDir(dir)
+	require.NoError(t, err)
+	return serviceNames(entries)
+}
+
+func embeddedUnitsInPmDir(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := procmgrUnits.ReadDir(dir)
+	require.NoError(t, err)
+	return serviceNames(entries)
+}
+
+func serviceNames(entries []fs.DirEntry) []string {
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".service") {
+			names = append(names, entry.Name())
+		}
+	}
+	return names
 }

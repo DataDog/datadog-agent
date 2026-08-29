@@ -37,9 +37,11 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
+            "//pkg/ebpf/lockcontention",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
+            "//pkg/ebpf/lockcontention",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/network/driver",
