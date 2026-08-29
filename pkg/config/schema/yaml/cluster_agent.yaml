@@ -137,10 +137,6 @@ properties:
             api_key:
               type: string
               default: ''
-            api_key_setting:
-              type: string
-              default: ''
-              description: Optional config path watched for runtime API key updates for this client.
             rc_dd_url:
               type: string
               default: ''

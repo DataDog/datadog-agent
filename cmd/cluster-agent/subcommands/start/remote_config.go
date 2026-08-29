@@ -88,7 +88,6 @@ var processLevelRemoteConfigProducts = map[string]struct{}{
 type additionalRemoteConfigClientSpec struct {
 	Name             string
 	APIKey           string
-	APIKeySetting    string
 	RCDDURL          string
 	Site             string
 	ConfigRoot       string
@@ -316,7 +315,6 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 		spec := additionalRemoteConfigClientSpec{
 			Name:             strings.TrimSpace(name),
 			APIKey:           stringFromConfigMap(rawSpec, "api_key"),
-			APIKeySetting:    stringFromConfigMap(rawSpec, "api_key_setting"),
 			RCDDURL:          stringFromConfigMap(rawSpec, "rc_dd_url"),
 			Site:             stringFromConfigMap(rawSpec, "site"),
 			ConfigRoot:       stringFromConfigMap(rawSpec, "config_root"),
@@ -330,8 +328,8 @@ func getAdditionalRemoteConfigClientSpecs(cfg config.Component) ([]additionalRem
 		if spec.RCDDURL == "" {
 			return nil, fmt.Errorf("%s.%s.rc_dd_url must be set", additionalRemoteConfigClientsConfig, spec.Name)
 		}
-		if spec.APIKey == "" && spec.APIKeySetting == "" {
-			return nil, fmt.Errorf("%s.%s must set api_key or api_key_setting", additionalRemoteConfigClientsConfig, spec.Name)
+		if spec.APIKey == "" {
+			return nil, fmt.Errorf("%s.%s.api_key must be set", additionalRemoteConfigClientsConfig, spec.Name)
 		}
 		// The client name selects the products it owns. There is no per-client
 		// product list: a client that owned nothing would never be selected, and
@@ -372,11 +370,7 @@ func newAdditionalRemoteConfigService(
 	hostnameGetter hostnameinterface.Component,
 	spec additionalRemoteConfigClientSpec,
 ) (*remoteconfig.CoreAgentService, error) {
-	apiKey := spec.APIKey
-	if apiKey == "" && spec.APIKeySetting != "" {
-		apiKey = cfg.GetString(spec.APIKeySetting)
-	}
-	apiKey = configUtils.SanitizeAPIKey(apiKey)
+	apiKey := configUtils.SanitizeAPIKey(spec.APIKey)
 	if apiKey == "" {
 		return nil, fmt.Errorf("%s.%s API key is empty", additionalRemoteConfigClientsConfig, spec.Name)
 	}
@@ -385,7 +379,9 @@ func newAdditionalRemoteConfigService(
 
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(apiKey),
-		remoteconfig.WithAPIKeyUpdateSetting(spec.APIKeySetting),
+		// Each client has its own static key; a process-wide api_key update
+		// must not replace it.
+		remoteconfig.WithoutAPIKeyUpdates(),
 		remoteconfig.WithTraceAgentEnv(configUtils.GetTraceAgentDefaultEnv(cfg)),
 		remoteconfig.WithDatabaseFileName(spec.DatabaseFileName),
 		remoteconfig.WithConfigRootOverride(site, spec.ConfigRoot),

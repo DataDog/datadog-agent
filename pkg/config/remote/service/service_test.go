@@ -1018,49 +1018,6 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	assert.Equal(t, "BAD_ORG", updatedKey)
 
 }
-
-func TestWithApiKeyUpdateSetting(t *testing.T) {
-	api := &mockAPI{}
-	uptaneClient := &mockCoreAgentUptane{}
-	updatedKey := "notUpdated"
-
-	api.On("UpdateAPIKey", "updated").Run(func(args mock.Arguments) {
-		updatedKey = args.Get(0).(string)
-	})
-	orgResponse := pbgo.OrgDataResponse{
-		Uuid: "firstUuid",
-	}
-	api.On("FetchOrgData", mock.Anything).Return(&orgResponse, nil)
-	uptaneClient.On("StoredOrgUUID").Return("firstUuid", nil)
-
-	cfg := configmock.New(t)
-	dir := t.TempDir()
-	cfg.SetInTest("run_path", dir)
-
-	baseRawURL := "https://localhost"
-	mockTelemetryReporter := (&telemetryReporter{})
-	options := []Option{
-		WithAPIKey("initialKey"),
-		WithAPIKeyUpdateSetting("remote_configuration.api_key"),
-		uptaneFactoryOption(uptaneClient),
-	}
-	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, service.Stop())
-	})
-	service.api = api
-	service.mu.uptane = uptaneClient
-
-	cfg.SetInTest("api_key", "ignored")
-	assert.Equal(t, "notUpdated", updatedKey)
-
-	cfg.SetInTest("remote_configuration.api_key", " updated ")
-	assert.Equal(t, "updated", updatedKey)
-	api.AssertExpectations(t)
-	uptaneClient.AssertExpectations(t)
-}
-
 func TestWithApiKeyUpdateDisabled(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}
@@ -1073,7 +1030,7 @@ func TestWithApiKeyUpdateDisabled(t *testing.T) {
 	mockTelemetryReporter := (&telemetryReporter{})
 	options := []Option{
 		WithAPIKey("initialKey"),
-		WithAPIKeyUpdateSetting(""),
+		WithoutAPIKeyUpdates(),
 		uptaneFactoryOption(uptaneClient),
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)

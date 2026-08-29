@@ -23,7 +23,6 @@ import (
 	"path"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -199,7 +198,7 @@ type CoreAgentService struct {
 	stopConfigPoller chan struct{}
 	stopOnce         sync.Once
 
-	apiKeyUpdateSetting string
+	disableAPIKeyUpdates bool
 
 	// The set of products to which calls to CreateConfigSubscription can
 	// subscribe. At the time of writing, this is a single-entry map in
@@ -413,7 +412,7 @@ type options struct {
 	databaseFilePath               string
 	configRootOverride             string
 	directorRootOverride           string
-	apiKeyUpdateSetting            string
+	disableAPIKeyUpdates           bool
 	clientCacheBypassLimit         int
 	refresh                        time.Duration
 	refreshIntervalOverrideAllowed bool
@@ -451,7 +450,7 @@ var defaultOptions = options{
 	databaseFilePath:                    "",
 	configRootOverride:                  "",
 	directorRootOverride:                "",
-	apiKeyUpdateSetting:                 "api_key",
+	disableAPIKeyUpdates:                false,
 	clientCacheBypassLimit:              defaultCacheBypassLimit,
 	refresh:                             defaultRefreshInterval,
 	refreshIntervalOverrideAllowed:      true,
@@ -558,15 +557,16 @@ func WithAPIKey(apiKey string) func(s *options) {
 	return func(s *options) { s.apiKey = apiKey }
 }
 
-// WithAPIKeyUpdateSetting sets the config path watched for API key runtime updates.
-// An empty setting disables API key update watching for this service instance.
-func WithAPIKeyUpdateSetting(setting string) func(s *options) {
-	return func(s *options) { s.apiKeyUpdateSetting = strings.TrimSpace(setting) }
+// WithoutAPIKeyUpdates stops the service from following runtime updates to the
+// "api_key" setting. Services given their own static key need this, otherwise a
+// process-wide api_key update would replace it.
+func WithoutAPIKeyUpdates() func(s *options) {
+	return func(s *options) { s.disableAPIKeyUpdates = true }
 }
 
 // WithStatusInstance sets the status instance name used for exported RC state.
 func WithStatusInstance(instance string) func(s *options) {
-	return func(s *options) { s.statusInstance = strings.TrimSpace(instance) }
+	return func(s *options) { s.statusInstance = instance }
 }
 
 // WithPARJWT sets the JWT for the private action runner
@@ -732,7 +732,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
 		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval, status),
 		status:                              status,
-		apiKeyUpdateSetting:                 options.apiKeyUpdateSetting,
+		disableAPIKeyUpdates:                options.disableAPIKeyUpdates,
 	}
 	cas.mu.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
@@ -746,7 +746,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	cas.mu.newProducts = make(map[rdata.Product]struct{})
 	cas.mu.uptane = uptaneClient
 
-	if cas.apiKeyUpdateSetting != "" {
+	if !cas.disableAPIKeyUpdates {
 		cfg.OnUpdate(cas.apiKeyUpdateCallback())
 	}
 
@@ -1253,7 +1253,7 @@ func makeFileMetaMap(targetFileMetas []*pbgo.TargetFileMeta) (map[string]data.Fi
 
 func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any, any, uint64) {
 	return func(setting string, _ model.Source, _, newvalue any, _ uint64) {
-		if setting != s.apiKeyUpdateSetting {
+		if setting != "api_key" {
 			return
 		}
 
@@ -1263,7 +1263,6 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 			log.Errorf("Could not convert API key to string")
 			return
 		}
-		newKey = strings.TrimSpace(newKey)
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
