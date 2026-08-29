@@ -208,11 +208,11 @@ require (
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
 	github.com/DataDog/dd-trace-go/v2 v2.9.2
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
-	github.com/DataDog/ebpf-manager v0.8.2
+	github.com/DataDog/ebpf-manager v0.8.3
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.4
 	github.com/DataDog/jsonapi v0.13.0
-	github.com/DataDog/rshell v0.0.24
+	github.com/DataDog/rshell v0.0.25
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
@@ -271,7 +271,6 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/fatih/structtag v1.2.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
-	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344
 	github.com/glaslos/ssdeep v1.0.0
 	github.com/go-delve/delve v1.27.1
 	github.com/go-jose/go-jose/v4 v4.1.4
@@ -281,7 +280,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gobwas/glob v0.2.3
-	github.com/goccy/go-yaml v1.19.2
 	github.com/gocomply/scap v0.1.3
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/godror/godror v0.50.0
@@ -292,7 +290,7 @@ require (
 	github.com/google/btree v1.1.3
 	github.com/google/cel-go v0.31.0
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-containerregistry v0.21.7
+	github.com/google/go-containerregistry v0.21.9
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
@@ -334,7 +332,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.50
 	github.com/mdlayher/netlink v1.11.2
 	github.com/mdlayher/vsock v1.3.0
-	github.com/miekg/dns v1.1.72
+	github.com/miekg/dns v1.1.73
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/docker-image-spec v1.3.1
 	github.com/moby/moby/api v1.55.0
@@ -360,7 +358,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pierrec/lz4/v4 v4.1.28
+	github.com/pierrec/lz4/v4 v4.1.29
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.24.1
@@ -368,25 +366,25 @@ require (
 	github.com/prometheus/common v0.70.1
 	github.com/prometheus/procfs v0.21.1
 	github.com/qri-io/jsonpointer v0.1.1
-	github.com/rabbitmq/amqp091-go v1.13.0
+	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/rickar/props v1.1.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846
 	github.com/safchain/ethtool v0.7.0
 	github.com/samber/lo v1.53.0
-	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/sassoftware/go-rpmutils v0.4.0
 	github.com/shirou/gopsutil/v4 v4.26.7
 	github.com/sijms/go-ora/v2 v2.9.0
-	github.com/sirupsen/logrus v1.10.0
+	github.com/sirupsen/logrus v1.10.1
 	github.com/skydive-project/go-debouncer v1.0.1
 	github.com/smira/go-xz v0.1.0
 	github.com/spf13/afero v1.15.0
 	github.com/spf13/cast v1.10.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	github.com/swaggest/jsonschema-go v0.3.79
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.4
@@ -457,7 +455,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.44.1-0.20260622141720-fbe3d073ba93
 	go.opentelemetry.io/otel/trace v1.45.0
 	go.temporal.io/api v1.63.5
-	go.temporal.io/sdk v1.47.0
+	go.temporal.io/sdk v1.48.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/dig v1.19.0
@@ -484,7 +482,7 @@ require (
 	golang.org/x/text v0.41.0
 	golang.org/x/time v0.15.0
 	golang.org/x/tools v0.49.0
-	google.golang.org/grpc v1.83.0
+	google.golang.org/grpc v1.83.1
 	google.golang.org/grpc/examples v0.0.0-20230512210959-5dcfb37c0b43
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/ini.v1 v1.67.3
@@ -660,7 +658,7 @@ require (
 	github.com/digitalocean/godo v1.196.0 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
-	github.com/docker/cli v29.6.1+incompatible // indirect
+	github.com/docker/cli v29.6.2+incompatible // indirect
 	github.com/docker/docker v29.3.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
@@ -721,6 +719,7 @@ require (
 	github.com/go-test/deep v1.1.1 // indirect
 	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/gocql/gocql v1.6.0 // indirect
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/godror/knownpb v0.3.0 // indirect
@@ -893,7 +892,7 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nexus-rpc/nexus-proto-annotations v0.1.0 // indirect
-	github.com/nexus-rpc/sdk-go v0.6.0 // indirect
+	github.com/nexus-rpc/sdk-go v0.7.0 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/oklog/run v1.2.0 // indirect
@@ -1001,11 +1000,10 @@ require (
 	github.com/rust-secure-code/go-rustaudit v0.0.0-20250226111315-e20ec32e963c // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/samber/oops v1.18.1 // indirect
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/saracen/walker v0.1.2 // indirect
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.37 // indirect
-	github.com/secure-systems-lab/go-securesystemslib v0.11.0 // indirect
+	github.com/secure-systems-lab/go-securesystemslib v0.11.1 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
 	github.com/sethvargo/go-limiter v0.7.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect

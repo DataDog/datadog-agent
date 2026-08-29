@@ -37,6 +37,6 @@ under two start/stop mechanisms to verify both work correctly:
 
 ## CI
 
-Jobs are in `.gitlab/windows/test/e2e/windows.yml` under
+Jobs are in `.gitlab/windows/test/e2e/windows_products.yml` under
 `new-e2e-windows-service-test`. Each test function runs as its own parallel
 job via a `parallel: matrix`.
