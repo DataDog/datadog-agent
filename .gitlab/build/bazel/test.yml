@@ -128,7 +128,7 @@ bazel:test:macos-arm64:
       & (Join-Path $env:CI_PROJECT_DIR 'tools/ci/collect-bazel-failed-testlogs.ps1')
     }
     catch {
-      Write-Host "collect-bazel-failed-testlogs: after_script collection failed: $_"
+      Write-Host ('collect-bazel-failed-testlogs: after_script collection failed: ' + $_)
     }
 
 .bazel:test:windows:
@@ -153,31 +153,9 @@ bazel:test:macos-arm64:
 bazel:test:windows-amd64:
   extends: [.bazel:runner:windows-amd64, .bazel:test:windows]
   variables:
-    POWERSHELL_SCRIPT: |
-      $PSNativeCommandUseErrorActionPreference = $false
-      bazel test --config=gorace --config=no-dd-agent-go-tests --keep_going --remote_download_outputs=toplevel --build_event_json_file=bazel-bep.json //... -- -//test/new-e2e/... -//bazel/rules/dd_packaging/... -//packages/agent/linux/...
-      $testExit = $LASTEXITCODE
-      try {
-        $projectDir = if ($env:CI_PROJECT_DIR) { $env:CI_PROJECT_DIR } else { (Get-Location).Path }
-        & (Join-Path $projectDir 'tools/ci/collect-bazel-failed-testlogs.ps1') -ProjectDir $projectDir
-      }
-      catch {
-        Write-Host "collect-bazel-failed-testlogs: in-container collection failed: $_"
-      }
-      exit $testExit
+    POWERSHELL_SCRIPT: .\tools\ci\run-bazel-test-with-failed-log-collection.ps1
 
 bazel:test:windows-amd64:go:
   extends: [.bazel:runner:windows-amd64, .bazel:test:windows]
   variables:
-    POWERSHELL_SCRIPT: |
-      $PSNativeCommandUseErrorActionPreference = $false
-      bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=bazel-bep.json //... -- -//test/new-e2e/... -//bazel/rules/dd_packaging/... -//packages/agent/linux/...
-      $testExit = $LASTEXITCODE
-      try {
-        $projectDir = if ($env:CI_PROJECT_DIR) { $env:CI_PROJECT_DIR } else { (Get-Location).Path }
-        & (Join-Path $projectDir 'tools/ci/collect-bazel-failed-testlogs.ps1') -ProjectDir $projectDir
-      }
-      catch {
-        Write-Host "collect-bazel-failed-testlogs: in-container collection failed: $_"
-      }
-      exit $testExit
+    POWERSHELL_SCRIPT: .\tools\ci\run-bazel-test-with-failed-log-collection.ps1 -GoTestsOnly
