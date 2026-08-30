@@ -159,6 +159,7 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 		EnablePeriodicScanNewProcesses: true,
 		ScanProcessesInterval:          scanTerminatedProcessesInterval,
 		OnSyncCallback:                 prog.cleanupDeadPids,
+		EnableMultiAttach:              uprobes.CanUseMultiAttach(),
 	}
 
 	if c.GoTLSExcludeSelf {

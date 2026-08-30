@@ -172,6 +172,7 @@ func newIstioMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol
 		EbpfConfig:                     &c.Config,
 		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 		EnablePeriodicScanNewProcesses: true,
+		EnableMultiAttach:              uprobes.CanUseMultiAttach(),
 	}
 	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, istioAttacherName, attachCfg, mgr, nil, uprobes.AttacherDependencies{
 		Inspector:      &uprobes.NativeBinaryInspector{},

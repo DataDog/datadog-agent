@@ -250,6 +250,15 @@ type AttacherConfig struct {
 	// when EnablePeriodicScanNewProcesses is true. Useful to avoid re-scanning processes that have already
 	// been scanned, specially when shared libraries are being traced as scanning the maps file can be expensive.
 	MaxPeriodicScansPerProcess int
+
+	// EnableMultiAttach opts this attacher into uprobe_multi links, which put every probe point of
+	// a program behind a single bpf_link instead of one perf_event fd per point. This is only legal
+	// if the caller loaded its programs with expected_attach_type == BPF_TRACE_UPROBE_MULTI; that
+	// value is fixed at load time and cannot be changed afterwards, so an attacher whose manager did
+	// not mark its programs must leave this false or every attach will fail with EINVAL. Callers
+	// that set it should gate on CanUseMultiAttach() so they fall back to the per-probe path on
+	// kernels without uprobe_multi support.
+	EnableMultiAttach bool
 }
 
 // SetDefaults configures the AttacherConfig with default values for those fields for which the compiler
@@ -428,7 +437,8 @@ type UprobeAttacher struct {
 	// from manager.GetProbe.
 	fileIDToMultiLinks map[utils.PathIdentifier]map[string]link.Link
 
-	// useMultiAttach caches whether this host supports uprobe_multi links.
+	// useMultiAttach mirrors AttacherConfig.EnableMultiAttach: whether this attacher's programs
+	// were loaded for uprobe_multi links and should be attached that way.
 	useMultiAttach bool
 
 	// onAttachCallback is a callback that is called whenever a probe is attached
@@ -488,7 +498,7 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		onAttachCallback:       onAttachCallback,
 		fileIDToAttachedProbes: make(map[utils.PathIdentifier][]manager.ProbeIdentificationPair),
 		fileIDToMultiLinks:     make(map[utils.PathIdentifier]map[string]link.Link),
-		useMultiAttach:         canUseMultiAttach(),
+		useMultiAttach:         config.EnableMultiAttach,
 		done:                   make(chan struct{}),
 		inspector:              deps.Inspector,
 		processMonitor:         deps.ProcessMonitor,

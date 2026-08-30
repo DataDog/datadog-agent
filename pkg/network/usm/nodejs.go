@@ -228,6 +228,7 @@ func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protoco
 		PerformInitialScan:             true,
 		EnablePeriodicScanNewProcesses: true,
 		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
+		EnableMultiAttach:              uprobes.CanUseMultiAttach(),
 	}
 
 	procMon := monitor.GetProcessMonitor()
