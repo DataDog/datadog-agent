@@ -3,13 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+#[cfg(not(windows))]
 use super::super::startup;
 use super::super::*;
 #[cfg(not(windows))]
 use super::sleep_def;
 use super::{auto_start_for_test, loader, startup_runtime_context, uuid_gen};
 use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy};
+#[cfg(not(windows))]
 use crate::state::ProcessState;
+#[cfg(not(windows))]
 use std::time::Duration;
 
 #[tokio::test]

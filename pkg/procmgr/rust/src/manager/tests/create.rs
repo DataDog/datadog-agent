@@ -6,7 +6,9 @@
 use super::super::*;
 #[cfg(not(windows))]
 use super::sleep_def;
-use super::{loader, test_runtime_context, uuid_gen, wait_until_running};
+#[cfg(not(windows))]
+use super::wait_until_running;
+use super::{loader, test_runtime_context, uuid_gen};
 use crate::config::ProcessConfig;
 use crate::state::ProcessState;
 use crate::test_helpers;

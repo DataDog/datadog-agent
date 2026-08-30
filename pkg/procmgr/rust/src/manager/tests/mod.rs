@@ -106,6 +106,8 @@ pub fn true_def(name: &str) -> ProcessDefinition {
 
 mod boot;
 mod create;
+#[cfg(not(windows))]
 mod resolve;
+#[cfg(not(windows))]
 mod restart;
 mod spawn;

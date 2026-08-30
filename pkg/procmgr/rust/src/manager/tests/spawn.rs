@@ -6,9 +6,13 @@
 use super::super::*;
 #[cfg(not(windows))]
 use super::sleep_def;
-use super::{loader, test_runtime_context, uuid_gen, wait_until_running};
+#[cfg(not(windows))]
+use super::wait_until_running;
+use super::{loader, test_runtime_context, uuid_gen};
+#[cfg(not(windows))]
 use crate::config::{ProcessConfig, ProcessDefinition};
 use crate::state::ProcessState;
+#[cfg(not(windows))]
 use crate::test_helpers;
 use std::time::Duration;
 
