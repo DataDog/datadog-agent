@@ -40,7 +40,9 @@ fn resolve_spawn_user(process_name: &str, profile: SpawnProfile) -> anyhow::Resu
 
 #[cfg(test)]
 mod tests {
-    use super::super::profile::{SpawnProfile, profile_for};
+    use super::super::profile::SpawnProfile;
+    #[cfg(not(windows))]
+    use super::super::profile::profile_for;
     use super::*;
 
     #[cfg(not(windows))]

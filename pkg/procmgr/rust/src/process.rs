@@ -1224,6 +1224,7 @@ impl StopWaitContext for ManagedProcess {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    #[cfg(not(windows))]
     use crate::config::ProcessConfig;
     use crate::env::expand_vars_with;
     use crate::test_helpers;

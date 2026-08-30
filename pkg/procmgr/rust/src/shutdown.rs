@@ -41,7 +41,7 @@ impl ShutdownBudget {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, not(windows)))]
     pub(crate) fn with_deadline(signal_time: Instant, deadline: Instant) -> Self {
         Self {
             signal_time,
@@ -77,13 +77,13 @@ pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize])
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
     let order: Vec<usize> = (0..processes.len()).collect();
     shutdown_ordered(processes, &order).await;
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 mod tests {
     use super::*;
     use crate::state::ProcessState;

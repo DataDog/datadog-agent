@@ -63,7 +63,7 @@ fn log_join_result(result: Result<(), tokio::task::JoinError>) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 pub(in crate::manager) fn clear_deferred_spawn_joins_for_test() {
     DEFERRED_SPAWN_JOINS.lock().unwrap().clear();
 }

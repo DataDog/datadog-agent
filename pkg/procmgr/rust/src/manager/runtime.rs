@@ -27,7 +27,7 @@ impl CommandHandlers {
         self.handles.lock().unwrap().push(handle);
     }
 
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg_attr(any(not(test), windows), allow(dead_code))]
     pub(in crate::manager) async fn join_all(&self) {
         self.join_all_with_budget(None, ShutdownBudget::unlimited(Instant::now()))
             .await;
