@@ -18,7 +18,7 @@ import (
 // shows up as a test failure here.
 var normalizedNames = map[string]string{
 	// bad metric names, need remapping
-	"test*&(*._-_Metrictastic*(*)(  wtf_who_doesthis??": "test.Metrictastic_wtf_who_doesthis",
+	"test*&(*._-_Metrictastic*(*)(  wut_who_doesthis??": "test.Metrictastic_wut_who_doesthis",
 	"?does.this.work?":                        "does.this.work",
 	"5-2 arsenal over spurs":                  "arsenal_over_spurs",
 	"dd.crawler.amazon web services.run_time": "dd.crawler.amazon_web_services.run_time",
