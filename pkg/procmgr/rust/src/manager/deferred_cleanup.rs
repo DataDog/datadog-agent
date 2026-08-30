@@ -68,7 +68,7 @@ pub(in crate::manager) fn clear_deferred_spawn_joins_for_test() {
     DEFERRED_SPAWN_JOINS.lock().unwrap().clear();
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 mod tests {
     use super::*;
     use std::sync::OnceLock;

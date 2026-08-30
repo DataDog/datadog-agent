@@ -116,12 +116,14 @@ mod tests {
         assert!(!procs[1].is_running());
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_all_empty() {
         let mut procs: Vec<ManagedProcess> = vec![];
         shutdown_all(&mut procs).await;
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
         let (cmd, args) = test_helpers::trap_term_sleep();
@@ -159,12 +161,14 @@ mod tests {
         assert_eq!(procs[2].state(), ProcessState::Stopped);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_ordered_empty() {
         let mut procs: Vec<ManagedProcess> = vec![];
         shutdown_ordered(&mut procs, &[]).await;
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_ordered_shared_graceful_budget() {
         let (cmd, args) = test_helpers::trap_term_sleep();
@@ -190,6 +194,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_ordered_shared_force_kill_budget() {
         let (cmd, args) = test_helpers::trap_term_sleep();

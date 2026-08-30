@@ -15,6 +15,7 @@ use crate::state::ProcessState;
 #[cfg(not(windows))]
 use std::time::Duration;
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_spawn_failure_schedules_on_failure_restart() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(

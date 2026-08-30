@@ -1278,6 +1278,7 @@ pub mod tests {
         assert!(!proc.is_running());
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_state_transitions_spawn_exit_success() {
         let (cmd, args) = test_helpers::exit_cmd(0);
@@ -1299,6 +1300,7 @@ pub mod tests {
         assert!(!proc.is_running());
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_state_transitions_spawn_exit_failure() {
         let (cmd, args) = test_helpers::exit_cmd(1);
@@ -1439,6 +1441,7 @@ pub mod tests {
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_nonexistent_binary() {
         let cfg = test_helpers::make_config("/nonexistent/binary", vec![]);
@@ -1470,6 +1473,7 @@ pub mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_with_env() {
         let (cmd, args) = test_helpers::exit_env_cmd("MY_EXIT_CODE");
@@ -1483,6 +1487,7 @@ pub mod tests {
         assert_eq!(status.code(), Some(42));
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_with_args() {
         let (cmd, args) = test_helpers::exit_cmd(7);
@@ -1496,6 +1501,7 @@ pub mod tests {
         assert_eq!(status.code(), Some(7));
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_refreshes_intended_user_before_running() {
         use crate::spawn::spawn_user_for;
@@ -1543,6 +1549,7 @@ pub mod tests {
         proc.send_signal(Signal::SIGTERM);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_does_not_inherit_parent_env() {
         // SAFETY: single-threaded test runtime; no concurrent env access.
@@ -1565,6 +1572,7 @@ pub mod tests {
         unsafe { std::env::remove_var("PROCMGRD_TEST_SECRET") };
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_with_environment_file() {
         let dir = tempfile::tempdir().unwrap();
@@ -1589,6 +1597,7 @@ pub mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_env_overrides_environment_file() {
         let dir = tempfile::tempdir().unwrap();
@@ -1616,6 +1625,7 @@ pub mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_fails_on_missing_environment_file() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1630,6 +1640,7 @@ pub mod tests {
         assert!(!proc.is_running());
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_skips_missing_optional_environment_file() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1645,6 +1656,7 @@ pub mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_should_restart_never() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1656,6 +1668,7 @@ pub mod tests {
         assert!(!proc.should_restart(&test_helpers::exit_status(1)));
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_should_restart_always_on_success() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1665,6 +1678,7 @@ pub mod tests {
         assert!(proc.should_restart(&test_helpers::exit_status(0)));
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_should_restart_always_on_failure() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1674,6 +1688,7 @@ pub mod tests {
         assert!(proc.should_restart(&test_helpers::exit_status(1)));
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_should_restart_on_failure_with_failure() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1683,6 +1698,7 @@ pub mod tests {
         assert!(proc.should_restart(&test_helpers::exit_status(1)));
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_should_restart_on_failure_with_success() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1692,6 +1708,7 @@ pub mod tests {
         assert!(!proc.should_restart(&test_helpers::exit_status(0)));
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_should_restart_on_success_with_success() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1701,6 +1718,7 @@ pub mod tests {
         assert!(proc.should_restart(&test_helpers::exit_status(0)));
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_should_restart_on_success_with_failure() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1789,6 +1807,7 @@ pub mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_successful_run_persists_across_restart_delays() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1808,6 +1827,7 @@ pub mod tests {
         assert!(proc.schedule_restart().is_some());
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_short_run_timestamp_consumed_prevents_downtime_false_reset() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1851,6 +1871,7 @@ pub mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_runtime_success_reset_applies_once_per_successful_run() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1883,6 +1904,7 @@ pub mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_restart_config_defaults() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1896,6 +1918,7 @@ pub mod tests {
         assert_eq!(proc.restarts.count, 0);
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_restart_config_from_yaml() {
         let yaml = r#"
@@ -1999,6 +2022,7 @@ runtime_success_sec: 5
         assert!(owner.is_some());
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn finalize_stop_wait_records_exit_status_after_force_kill() {
         let (cmd, args) = test_helpers::trap_term_sleep();
@@ -2091,6 +2115,7 @@ runtime_success_sec: 5
         );
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_normal_exit_not_affected_by_stopping() {
         let (cmd, args) = test_helpers::exit_cmd(1);

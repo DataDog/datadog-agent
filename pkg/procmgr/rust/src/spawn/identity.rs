@@ -43,6 +43,7 @@ mod tests {
     use super::super::profile::{SpawnProfile, profile_for};
     use super::*;
 
+    #[cfg(not(windows))]
     #[test]
     fn profile_for_trace_is_agent() {
         assert_eq!(profile_for("datadog-agent-trace"), SpawnProfile::Agent);

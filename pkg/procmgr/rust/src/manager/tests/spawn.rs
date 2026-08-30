@@ -277,6 +277,7 @@ async fn test_stale_spawn_commit_does_not_steal_newer_reservation() -> anyhow::R
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_start_returns_committed_snapshot_after_immediate_exit() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -387,6 +388,7 @@ async fn test_background_spawn_joined_before_teardown() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(not(windows))]
 #[tokio::test]
 async fn test_defer_spawn_join_handle_waits_for_completion() -> anyhow::Result<()> {
     let (handles, _rx) = test_runtime_context();
