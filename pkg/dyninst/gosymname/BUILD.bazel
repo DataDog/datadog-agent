@@ -34,8 +34,8 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":gosymname"],
     deps = [
-        "@com_github_goccy_go_yaml//:go-yaml",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

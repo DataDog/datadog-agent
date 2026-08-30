@@ -15,59 +15,59 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-// Baseline selection accumulates admitted CNM path byte volume over a
+// Basic selection accumulates admitted CNM path byte volume over a
 // five-minute bootstrap window and subsequent hourly intervals. It uses
 // bounded weighted Space-Saving to emit up to five one-shot paths per window.
 // Windows restart when flushed, and missed windows are not replayed.
 const (
-	baselineSelectionsPerWindow = 5
-	baselineCandidateLimit      = 32
-	baselineBootstrapWindow     = 5 * time.Minute
-	baselineSelectionInterval   = time.Hour
+	basicSelectionsPerWindow = 5
+	basicCandidateLimit      = 32
+	basicBootstrapWindow     = 5 * time.Minute
+	basicSelectionInterval   = time.Hour
 )
 
-type baselineCandidate struct {
+type basicCandidate struct {
 	path  common.Pathtest
 	hash  uint64
 	bytes uint64
 }
 
-func (candidate baselineCandidate) betterThan(other baselineCandidate) bool {
+func (candidate basicCandidate) betterThan(other basicCandidate) bool {
 	if candidate.bytes != other.bytes {
 		return candidate.bytes > other.bytes
 	}
 	return candidate.hash < other.hash
 }
 
-// baselineSelector approximates the highest-volume paths in each window using
+// basicSelector approximates the highest-volume paths in each window using
 // weighted Space-Saving. Exact top-N accuracy is unnecessary for this
-// best-effort baseline, while memory bounded independently of path count is a
+// best-effort mode, while memory bounded independently of path count is a
 // critical safety property for the Agent on high-cardinality hosts.
-type baselineSelector struct {
+type basicSelector struct {
 	mu         sync.Mutex
 	deadline   time.Time
-	candidates map[uint64]baselineCandidate
+	candidates map[uint64]basicCandidate
 }
 
-func newBaselineSelector() *baselineSelector {
-	return &baselineSelector{
-		candidates: make(map[uint64]baselineCandidate, baselineCandidateLimit),
+func newBasicSelector() *basicSelector {
+	return &basicSelector{
+		candidates: make(map[uint64]basicCandidate, basicCandidateLimit),
 	}
 }
 
-func (selector *baselineSelector) start(now time.Time) {
+func (selector *basicSelector) start(now time.Time) {
 	selector.mu.Lock()
 	defer selector.mu.Unlock()
 	selector.startLocked(now)
 }
 
-func (selector *baselineSelector) startLocked(now time.Time) {
+func (selector *basicSelector) startLocked(now time.Time) {
 	if selector.deadline.IsZero() {
-		selector.deadline = now.Add(baselineBootstrapWindow)
+		selector.deadline = now.Add(basicBootstrapWindow)
 	}
 }
 
-func (selector *baselineSelector) add(path common.Pathtest, bytes uint64, now time.Time) {
+func (selector *basicSelector) add(path common.Pathtest, bytes uint64, now time.Time) {
 	selector.mu.Lock()
 	defer selector.mu.Unlock()
 
@@ -75,7 +75,7 @@ func (selector *baselineSelector) add(path common.Pathtest, bytes uint64, now ti
 	if bytes == 0 {
 		return
 	}
-	// Reuse the existing path-test identity so baseline ranking and downstream
+	// Reuse the existing path-test identity so basic ranking and downstream
 	// scheduling deduplicate the same normalized path. Scores and attribution
 	// remain mutable metadata instead of splitting one path into candidates.
 	hash := path.GetHash()
@@ -86,8 +86,8 @@ func (selector *baselineSelector) add(path common.Pathtest, bytes uint64, now ti
 		return
 	}
 
-	candidate := baselineCandidate{path: path, hash: hash, bytes: bytes}
-	if len(selector.candidates) < baselineCandidateLimit {
+	candidate := basicCandidate{path: path, hash: hash, bytes: bytes}
+	if len(selector.candidates) < basicCandidateLimit {
 		selector.candidates[hash] = candidate
 		return
 	}
@@ -100,8 +100,8 @@ func (selector *baselineSelector) add(path common.Pathtest, bytes uint64, now ti
 	selector.candidates[hash] = candidate
 }
 
-func (selector *baselineSelector) worstCandidateLocked() baselineCandidate {
-	var worst baselineCandidate
+func (selector *basicSelector) worstCandidateLocked() basicCandidate {
+	var worst basicCandidate
 	first := true
 	for _, candidate := range selector.candidates {
 		if first || worst.betterThan(candidate) {
@@ -113,7 +113,7 @@ func (selector *baselineSelector) worstCandidateLocked() baselineCandidate {
 }
 
 // flush returns the current winners only after the active window has closed.
-func (selector *baselineSelector) flush(now time.Time) []common.Pathtest {
+func (selector *basicSelector) flush(now time.Time) []common.Pathtest {
 	selector.mu.Lock()
 	defer selector.mu.Unlock()
 
@@ -122,25 +122,25 @@ func (selector *baselineSelector) flush(now time.Time) []common.Pathtest {
 		return nil
 	}
 
-	candidates := make([]baselineCandidate, 0, len(selector.candidates))
+	candidates := make([]basicCandidate, 0, len(selector.candidates))
 	for _, candidate := range selector.candidates {
 		candidates = append(candidates, candidate)
 	}
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].betterThan(candidates[j]) })
-	if len(candidates) > baselineSelectionsPerWindow {
-		candidates = candidates[:baselineSelectionsPerWindow]
+	if len(candidates) > basicSelectionsPerWindow {
+		candidates = candidates[:basicSelectionsPerWindow]
 	}
 
 	paths := make([]common.Pathtest, len(candidates))
 	for i, candidate := range candidates {
 		paths[i] = candidate.path
-		paths[i].DynamicTestProfile = payload.DynamicTestProfileBaseline
+		paths[i].DynamicTestProfile = payload.DynamicTestProfileBasic
 		paths[i].RunOnce = true
 	}
 
 	clear(selector.candidates)
 	// Start a fresh window from this flush; missed windows are not replayed.
-	selector.deadline = now.Add(baselineSelectionInterval)
+	selector.deadline = now.Add(basicSelectionInterval)
 	return paths
 }
 

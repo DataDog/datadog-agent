@@ -38,6 +38,12 @@ spec:
               # Drop default capabilities and add only the ones the Host Profiler needs.
               drop: ["ALL"]
               add: ["BPF", "PERFMON", "SYS_PTRACE", "SYS_RESOURCE", "DAC_READ_SEARCH", "SYSLOG", "CHECKPOINT_RESTORE", "IPC_LOCK"]
+            # Keep AppArmor unconfined so it does not block cross-process access.
+            appArmorProfile:
+              type: Unconfined
+            # Use spc_t, or an equivalent type, so SELinux permits the required host and process access.
+            seLinuxOptions:
+              type: spc_t
           # Explicit zero requests avoid reserving CPU or memory on every node,
           # while limits cap runaway usage.
           resources:
