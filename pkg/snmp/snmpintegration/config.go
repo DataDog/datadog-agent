@@ -56,3 +56,56 @@ func (pc *PackedPingConfig) UnmarshalYAML(unmarshal func(interface{}) error) err
 	*pc = PackedPingConfig(pingCfg)
 	return nil
 }
+
+// DeviceTagsSource controls where the device tags on SNMP metrics come from.
+type DeviceTagsSource string
+
+const (
+	// DeviceTagsSourceResource attaches only the `dd.internal.resource:ndm_device` tag to metrics
+	// and lets the backend enrich them with the device tags from the metadata payload.
+	DeviceTagsSourceResource DeviceTagsSource = "resource"
+	// DeviceTagsSourceAgent stamps the device tags on every metric and omits the resource tag,
+	// so no backend enrichment happens.
+	DeviceTagsSourceAgent DeviceTagsSource = "agent"
+	// DeviceTagsSourceBoth stamps the device tags on every metric and also sends the resource tag.
+	// The backend enrichment still applies on top, which can surface both the previous and the new
+	// value of a tag while the metadata payload catches up with a change.
+	DeviceTagsSourceBoth DeviceTagsSource = "both"
+
+	// DefaultDeviceTagsSource is used when the setting is unset or empty.
+	DefaultDeviceTagsSource = DeviceTagsSourceResource
+)
+
+// IsValid returns true if the source is one of the supported values.
+func (s DeviceTagsSource) IsValid() bool {
+	switch s {
+	case DeviceTagsSourceResource, DeviceTagsSourceAgent, DeviceTagsSourceBoth:
+		return true
+	}
+	return false
+}
+
+// SendResourceTag returns true if the `dd.internal.resource:ndm_device` tag must be attached to metrics.
+func (s DeviceTagsSource) SendResourceTag() bool {
+	return s != DeviceTagsSourceAgent
+}
+
+// SendDeviceTags returns true if the Agent must stamp the device tags on every metric.
+func (s DeviceTagsSource) SendDeviceTags() bool {
+	return s != DeviceTagsSourceResource
+}
+
+// ParseDeviceTagsSource resolves a raw config value to a DeviceTagsSource. An empty value yields
+// DefaultDeviceTagsSource. An unknown value yields DefaultDeviceTagsSource and an error, so callers
+// can warn and keep running with the default.
+func ParseDeviceTagsSource(raw string) (DeviceTagsSource, error) {
+	if raw == "" {
+		return DefaultDeviceTagsSource, nil
+	}
+	source := DeviceTagsSource(raw)
+	if !source.IsValid() {
+		return DefaultDeviceTagsSource, fmt.Errorf("invalid device_tags_source %q, must be one of %q, %q or %q, defaulting to %q",
+			raw, DeviceTagsSourceResource, DeviceTagsSourceAgent, DeviceTagsSourceBoth, DefaultDeviceTagsSource)
+	}
+	return source, nil
+}

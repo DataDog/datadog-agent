@@ -26,6 +26,7 @@ import (
 	"github.com/cenkalti/backoff/v7"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -34,6 +35,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -331,9 +333,11 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 
 	c.log.Infof("Applying config snapshot (seq_id: %d, settings: %d)", snapshot.SequenceId, len(snapshot.Settings))
 
+	settings := make([]pkgconfigmodel.DirectSetting, 0, len(snapshot.Settings))
 	for _, setting := range snapshot.Settings {
-		configstreambootstrap.ApplySetting(setting.Key, setting.Value, setting.Source)
+		settings = append(settings, toDirectSetting(setting))
 	}
+	configstreambootstrap.Config().DirectBulkSet(settings)
 	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 
@@ -346,6 +350,24 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	})
 
 	return nil
+}
+
+// toDirectSetting decodes a streamed setting into the form the config builder takes.
+func toDirectSetting(setting *pb.ConfigSetting) pkgconfigmodel.DirectSetting {
+	return pkgconfigmodel.DirectSetting{
+		Key:    setting.Key,
+		Value:  pbValueToGo(setting.Value),
+		Source: pkgconfigmodel.Source(setting.Source),
+	}
+}
+
+// pbValueToGo converts a protobuf Value to a Go value. structpb has no integer type, so numbers
+// arrive as float64; narrowing is left to the declared default type.
+func pbValueToGo(v *structpb.Value) any {
+	if v == nil {
+		return nil
+	}
+	return v.AsInterface()
 }
 
 func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
@@ -361,7 +383,10 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 
 	c.log.Debugf("Applying config update (seq_id: %d, key: %s)", update.SequenceId, update.Setting.Key)
 
-	configstreambootstrap.ApplySetting(update.Setting.Key, update.Setting.Value, update.Setting.Source)
+	setting := toDirectSetting(update.Setting)
+	// Updates never carry env-var-sourced settings, so Set's guardrail is not in the way and
+	// registered receivers still get notified.
+	configstreambootstrap.Config().Set(setting.Key, setting.Value, setting.Source)
 	c.lastSeqID.Store(update.SequenceId)
 	c.lastSeqIDMetric.Set(float64(update.SequenceId))
 
