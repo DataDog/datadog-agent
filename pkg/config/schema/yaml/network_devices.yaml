@@ -150,6 +150,19 @@ properties:
         visibility: public
         description: Enable collection of VPN tunnels and route table data
         example: 'true'
+      device_tags_source:
+        node_type: setting
+        type: string
+        default: resource
+        visibility: public
+        description: |-
+          Where the device tags on metrics come from.
+          `resource`: only the resource tag is sent and the backend attaches the device tags from
+          the metadata payload.
+          `agent`: the Agent attaches the device tags to every metric it submits and no resource
+          tag is sent, so the backend does not enrich the metrics.
+          `both`: the Agent attaches the device tags and the backend enrichment applies on top.
+          This has no effect when `collect_device_metadata` is disabled.
       ping:
         node_type: section
         type: object
@@ -954,6 +967,24 @@ properties:
             node_type: setting
             type: boolean
             default: false
+      store:
+        node_type: section
+        type: object
+        properties:
+          max_configs_per_device:
+            node_type: setting
+            type: integer
+            default: 50
+          max_raw_config_store_bytes:
+            node_type: setting
+            type: integer
+            default: 2000000000
+            tags:
+            - golang_type:int64
+          min_configs_per_device:
+            node_type: setting
+            type: integer
+            default: 3
   metadata:
     node_type: section
     type: object
