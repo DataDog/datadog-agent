@@ -63,12 +63,12 @@ fn log_join_result(result: Result<(), tokio::task::JoinError>) {
     }
 }
 
-#[cfg(all(test, not(windows)))]
+#[cfg(test)]
 pub(in crate::manager) fn clear_deferred_spawn_joins_for_test() {
     DEFERRED_SPAWN_JOINS.lock().unwrap().clear();
 }
 
-#[cfg(all(test, not(windows)))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::OnceLock;
