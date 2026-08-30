@@ -8,10 +8,12 @@ use super::runtime::RuntimeReceivers;
 use super::startup;
 use super::*;
 use crate::config::{ConfigLoader, ProcessConfig, ProcessDefinition, StaticConfigLoader};
+#[cfg(not(windows))]
 use crate::state::ProcessState;
 use crate::test_helpers;
 use crate::uuid_gen::{UuidGenerator, V4UuidGenerator};
 use std::sync::Arc;
+#[cfg(not(windows))]
 use std::time::Duration;
 
 pub fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
