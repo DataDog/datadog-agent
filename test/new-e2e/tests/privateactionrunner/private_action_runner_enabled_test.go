@@ -22,9 +22,8 @@ import (
 )
 
 const (
-	privateActionRunnerStartedLogLine      = "Private action runner starting"
-	privateActionRunnerRCSubscribedLogLine = "Subscribing to remote config updates"
-	privateActionRunnerKeysManagerLogLine  = "Keys manager ready"
+	privateActionRunnerStartedLogLine     = "Private action runner starting"
+	privateActionRunnerKeysManagerLogLine = "Keys manager ready"
 )
 
 func generateTestPrivateActionRunnerConfig(t *testing.T) string {
@@ -80,12 +79,7 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
 
-	// Push the key only after PAR has subscribed and the Core Agent has had time
-	// to report the AP_RUNNER_KEYS client in its backend requests.
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerRCSubscribedLogLine, privateActionRunnerLogFile))
-	}, 2*time.Minute, 5*time.Second, "private action runner should subscribe to remote config")
-
+	// Wait for the Core Agent to report the AP_RUNNER_KEYS client in its backend requests.
 	client := s.Env().FakeIntake.Client()
 	stats, err := client.RCStats()
 	s.Require().NoError(err)

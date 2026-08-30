@@ -124,6 +124,10 @@ type reconcilingConfigManager struct {
 
 	// staticConfigIndex is a shared name set published to listeners so they
 	// can deduplicate templates against static configs (see ProcessService).
+	// It also tracks the namespace root (see listeners.NamespaceRoot) of every
+	// scheduled static openmetrics/prometheus config, so a configuration-
+	// discovery template can be suppressed when a host-wide generic-scraper
+	// config already claims its metric namespace (see filterTemplatesDiscovery).
 	// May be nil; callers that don't need cross-listener dedup can omit it.
 	staticConfigIndex *listeners.StaticConfigIndex
 
@@ -283,6 +287,17 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		// duplicate scheduled until something else perturbs the service.
 		if len(decryptedConfig.Instances) > 0 {
 			cm.staticConfigIndex.Add(config.Name)
+
+			// Also index the namespace root(s) of host-wide static
+			// openmetrics/prometheus configs under the same set, so discovery
+			// templates for a dedicated integration can be suppressed when
+			// such a config is already claiming the same metric namespace
+			// (see filterTemplatesDiscovery).
+			if listeners.IsGenericIntegrationCheckName(config.Name) {
+				for _, root := range listeners.GenericIntegrationNamespaceRoots(decryptedConfig) {
+					cm.staticConfigIndex.Add(root)
+				}
+			}
 		}
 	}
 
@@ -339,6 +354,12 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 			// Update the cross-listener index.
 			if len(config.Instances) > 0 {
 				cm.staticConfigIndex.Remove(config.Name)
+
+				if listeners.IsGenericIntegrationCheckName(config.Name) {
+					for _, root := range listeners.GenericIntegrationNamespaceRoots(config) {
+						cm.staticConfigIndex.Remove(root)
+					}
+				}
 			}
 		}
 

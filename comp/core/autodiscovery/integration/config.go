@@ -130,7 +130,14 @@ type Config struct {
 }
 
 // DiscoveryConfig holds per-template configuration-discovery options.
-type DiscoveryConfig struct{}
+type DiscoveryConfig struct {
+	// MetricsPrefix is the integration's own metric namespace/prefix, as
+	// declared by its auto_conf.yaml's `discovery.metrics_prefix` field.
+	// Empty when the integration doesn't declare one, in which case
+	// consumers may fall back to the check name as the expected namespace
+	// root instead.
+	MetricsPrefix string `yaml:"metrics_prefix,omitempty"`
+}
 
 // MatchingProgram is an interface for matching objects against filter rules.
 type MatchingProgram interface {
@@ -481,7 +488,7 @@ func (c *Config) IntDigest() uint64 {
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 	if c.Discovery != nil {
-		_, _ = h.Write([]byte("discovery"))
+		_, _ = h.Write([]byte("discovery:" + c.Discovery.MetricsPrefix))
 	}
 
 	return h.Sum64()
@@ -508,7 +515,7 @@ func (c *Config) FastDigest() uint64 {
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 	if c.Discovery != nil {
-		_, _ = h.Write([]byte("discovery"))
+		_, _ = h.Write([]byte("discovery:" + c.Discovery.MetricsPrefix))
 	}
 
 	return h.Sum64()

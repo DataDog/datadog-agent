@@ -189,7 +189,7 @@ type Injection struct {
 	IstioNamespace string
 
 	// EnvoyGatewayNamespace is the namespace where Envoy Gateway runs its data-plane proxy pods; it scopes
-	// which pods the sidecar webhook injects into (IsNamespaceEligible). Defaults to envoy-gateway-system.
+	// which pods the sidecar webhook injects into. Defaults to envoy-gateway-system.
 	EnvoyGatewayNamespace string
 
 	// EnvoyGatewayControllerNamespace is the namespace of the Envoy Gateway control plane, where the

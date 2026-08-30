@@ -120,6 +120,49 @@ func hasAPMInjectionAnnotation(pod *corev1.Pod) bool {
 	return false
 }
 
+// RestartUntil deletes and recreates the app pod until ready returns true.
+func RestartUntil(t *testing.T, client kubeClient.Interface, namespace, appName string, ready func(*corev1.Pod) bool) *corev1.Pod {
+	t.Helper()
+	var pod *corev1.Pod
+	require.Eventually(t, func() bool {
+		RestartPod(t, client, namespace, appName)
+		pod = FindPodInNamespace(t, client, namespace, appName)
+		return ready(pod)
+	}, 4*time.Minute, 5*time.Second, "pod %s in namespace %s did not reach the expected admission state", appName, namespace)
+	return pod
+}
+
+func containerEnv(pod *corev1.Pod, container, key string) (string, bool) {
+	for _, c := range pod.Spec.Containers {
+		if c.Name != container {
+			continue
+		}
+		for _, e := range c.Env {
+			if e.Name == key {
+				return e.Value, true
+			}
+		}
+		return "", false
+	}
+	return "", false
+}
+
+func hasInstallType(container, want string) func(*corev1.Pod) bool {
+	return func(pod *corev1.Pod) bool {
+		val, ok := containerEnv(pod, container, "DD_INSTRUMENTATION_INSTALL_TYPE")
+		return ok && val == want
+	}
+}
+
+// noInjection is the deny-policy signal: MutatePod returns nil and writes no
+// APM annotations, so "webhook processed" cannot be used as a readiness check.
+func noInjection(container string) func(*corev1.Pod) bool {
+	return func(pod *corev1.Pod) bool {
+		_, hasPreload := containerEnv(pod, container, "LD_PRELOAD")
+		return !hasPreload
+	}
+}
+
 func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName string) []*trace.TracerPayload {
 	filtered := []*trace.TracerPayload{}
 	serviceNameTag := "service:" + serviceName

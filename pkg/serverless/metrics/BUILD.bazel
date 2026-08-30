@@ -35,6 +35,7 @@ dd_agent_go_test(
         "//comp/core/tagger/impl-noop",
         "//comp/filterlist/fx-mock",
         "//comp/forwarder/defaultforwarder/def",
+        "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/noop-impl",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
