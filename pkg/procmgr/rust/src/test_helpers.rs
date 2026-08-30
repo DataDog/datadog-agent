@@ -42,10 +42,7 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
 /// Command + args for sleeping `secs` seconds.
 /// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
 /// minimal Windows CI containers.
-///
-/// No Windows unit test calls this today (sleep-based tests are Unix-only).
 #[cfg(windows)]
-#[allow(dead_code)]
 pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
     (
         "ping.exe",

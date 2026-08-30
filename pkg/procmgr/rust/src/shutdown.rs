@@ -86,20 +86,16 @@ pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(not(windows))]
     use crate::state::ProcessState;
-    #[cfg(not(windows))]
     use crate::test_helpers;
     #[cfg(not(windows))]
     use std::time::Duration;
 
-    #[cfg(not(windows))]
     fn sleep_config() -> crate::config::ProcessConfig {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         test_helpers::make_config(cmd, args)
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_all_graceful() {
         let cfg1 = sleep_config();
@@ -141,7 +137,6 @@ mod tests {
         assert_eq!(procs[0].state(), ProcessState::Stopped);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_ordered_reverse() {
         let mut p1 =

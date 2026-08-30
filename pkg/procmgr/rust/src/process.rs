@@ -536,7 +536,7 @@ impl ManagedProcess {
             .and_then(|s| platform::last_signal(&s))
     }
 
-    #[cfg(all(test, not(windows)))]
+    #[cfg(test)]
     pub(crate) fn config_mut(&mut self) -> &mut ProcessConfig {
         &mut self.config
     }
@@ -1316,7 +1316,6 @@ pub mod tests {
         assert_eq!(proc.state(), ProcessState::Failed);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_state_after_take_handle_still_running() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1421,7 +1420,6 @@ pub mod tests {
         assert!(!proc.is_running());
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_and_is_running() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1448,7 +1446,6 @@ pub mod tests {
         assert_eq!(proc.state(), ProcessState::Failed);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_spawn_failure_after_stop_goes_through_starting_to_failed() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1461,7 +1458,7 @@ pub mod tests {
         proc.stop().await;
         assert_eq!(proc.state(), ProcessState::Stopped);
 
-        proc.config_mut().command = "/nonexistent/binary".to_string();
+        proc.config_mut().command = test_helpers::nonexistent_binary_path().to_string();
         assert!(proc.spawn().is_err());
         assert_eq!(
             proc.state(),
@@ -1917,8 +1914,6 @@ runtime_success_sec: 5
         assert_eq!(cfg.runtime_success_sec, Some(5));
     }
 
-    // Graceful stop on sleep_cmd children is Unix-only (Windows uses ping in sleep_cmd).
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_stop_transitions_to_stopped() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1935,7 +1930,6 @@ runtime_success_sec: 5
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn finalize_orphaned_stop_wait_marks_stopped() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1957,7 +1951,6 @@ runtime_success_sec: 5
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn set_last_status_preserves_stop_wait_owner_until_complete() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1980,7 +1973,6 @@ runtime_success_sec: 5
         assert!(!proc.stop_wait_generation.is_claimed());
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn run_stop_wait_returns_owner_when_stop_finishes_during_finalize() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -2020,7 +2012,6 @@ runtime_success_sec: 5
         );
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn complete_stop_wait_ignores_stale_owner_after_replacement_claim() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -2050,7 +2041,6 @@ runtime_success_sec: 5
         assert!(proc.stop_wait_generation.owns(replacement_owner));
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_stop_start_then_crash_restarts_on_failure() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -2074,7 +2064,6 @@ runtime_success_sec: 5
         );
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_stop_skips_restart() {
         let (cmd, args) = test_helpers::sleep_cmd(60);

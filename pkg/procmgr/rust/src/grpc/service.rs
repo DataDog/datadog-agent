@@ -446,7 +446,6 @@ mod tests {
         assert_eq!(detail.user, "unknown");
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_process_to_proto_running_with_pid() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
