@@ -398,10 +398,9 @@ mod tests {
         );
     }
 
-    #[cfg(not(windows))]
     #[test]
     fn test_process_to_proto() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = test_helpers::true_cmd();
         let expected_args = args.clone();
         let cfg = ProcessConfig {
             command: cmd.to_string(),

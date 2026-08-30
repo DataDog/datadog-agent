@@ -215,6 +215,26 @@ pub fn temp_dir_str() -> String {
     std::env::temp_dir().display().to_string()
 }
 
+#[cfg(unix)]
+pub fn nonexistent_binary_path() -> &'static str {
+    "/nonexistent/binary"
+}
+
+#[cfg(windows)]
+pub fn nonexistent_binary_path() -> &'static str {
+    r"C:\nonexistent\binary.exe"
+}
+
+#[cfg(unix)]
+pub fn nonexistent_env_file_path() -> &'static str {
+    "/nonexistent/env"
+}
+
+#[cfg(windows)]
+pub fn nonexistent_env_file_path() -> &'static str {
+    r"C:\nonexistent\env"
+}
+
 /// Fixed UUID for deterministic tests.
 pub fn test_uuid() -> String {
     "00000000-0000-0000-0000-000000000000".to_string()
