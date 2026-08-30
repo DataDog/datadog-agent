@@ -67,6 +67,7 @@ type Requires struct {
 	Lifecycle     compdef.Lifecycle
 	Shutdowner    compdef.Shutdowner
 	RcClient      rcclient.Component
+	KeysManager   taskverifier.KeysManager
 	Hostname      hostname.Component
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
@@ -105,7 +106,8 @@ type PrivateActionRunner struct {
 	executorDone    chan struct{}
 	shutdowner      compdef.Shutdowner
 
-	telemetry *telemetry.Telemetry
+	telemetry   *telemetry.Telemetry
+	keysManager taskverifier.KeysManager
 
 	started     bool
 	startOnce   sync.Once
@@ -134,6 +136,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
@@ -161,6 +164,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
 	runner.shutdowner = reqs.Shutdowner
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -294,7 +298,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
+	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
 	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
@@ -343,6 +347,13 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+func (p *PrivateActionRunner) getKeysManager() taskverifier.KeysManager {
+	if p.keysManager == nil {
+		p.keysManager = taskverifier.NewKeyManager(p.rcClient)
+	}
+	return p.keysManager
 }
 
 func executorIdleTimeout(idleSeconds int) time.Duration {
@@ -424,7 +435,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	p.logger.Info("==> API Host : " + cfg.DDApiHost)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
+	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 

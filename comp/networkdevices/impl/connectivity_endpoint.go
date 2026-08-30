@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -21,6 +23,12 @@ func (c *networkDevicesImpl) ConnectivityCheckEndpointHandler() http.HandlerFunc
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httputils.SetJSONError(w, err, http.StatusBadRequest)
 			return
+		}
+
+		// Reset the `server_timeout` deadline for this connection as checking a large
+		// subnet can take much longer than the default timeout.
+		if conn, ok := apiutils.GetConnection(r); ok {
+			_ = conn.SetDeadline(time.Time{})
 		}
 
 		res, err := c.CheckConnectivity(r.Context(), req)

@@ -182,8 +182,12 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("timeout", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(100 * time.Millisecond)
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-r.Context().Done():
+			case <-time.After(3 * time.Second):
+				t.Error("server handler did not unblock within 3 seconds")
+			}
 			w.WriteHeader(http.StatusOK)
 		}
 		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)

@@ -1724,11 +1724,11 @@ properties:
             description: Enables Network Path Dynamic Test for monitoring network
               connections via Network Path.
             example: 'true'
-          baseline_tests_enabled:
+          basic_tests_enabled:
             node_type: setting
             type: boolean
             default: false
-            description: Enables baseline Network Path Dynamic Tests for a representative subset of
+            description: Enables basic Network Path Dynamic Tests for a representative subset of
               eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and
               system-probe traceroute. Standard connection-monitoring Dynamic Tests take precedence
               when both options are enabled.

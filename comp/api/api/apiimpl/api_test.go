@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"slices"
 	"strconv"
@@ -114,9 +115,14 @@ func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
 }
 
 func TestStartBothServersWithObservability(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+
 	deps := getAPIServer(t, map[string]interface{}{
 		"cmd_port":       0,
-		"agent_ipc.port": 56789,
+		"agent_ipc.port": port,
 	})
 
 	registry := deps.Telemetry.GetRegistry()

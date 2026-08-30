@@ -7,19 +7,12 @@ use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessState {
-    /// Config loaded, never started.
     Created,
-    /// Spawn requested, child not yet confirmed alive.
     Starting,
-    /// Child process is alive.
     Running,
-    /// Stop requested, waiting for child to exit.
     Stopping,
-    /// Exited with code 0.
     Exited,
-    /// Exited with non-zero code or signal.
     Failed,
-    /// Explicitly stopped during shutdown.
     Stopped,
 }
 
@@ -36,8 +29,6 @@ impl ProcessState {
         matches!(
             (self, next),
             (Created, Starting)
-                | (Created, Running)
-                | (Created, Failed)
                 | (Starting, Running)
                 | (Starting, Failed)
                 | (Running, Stopping)
@@ -45,14 +36,9 @@ impl ProcessState {
                 | (Running, Failed)
                 | (Running, Stopped)
                 | (Stopping, Stopped)
-                | (Stopping, Exited)
-                | (Stopping, Failed)
                 | (Exited, Starting)
-                | (Exited, Running)
                 | (Failed, Starting)
-                | (Failed, Running)
                 | (Stopped, Starting)
-                | (Stopped, Running)
         )
     }
 }

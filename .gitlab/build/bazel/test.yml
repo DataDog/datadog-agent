@@ -52,6 +52,8 @@
       - coverage-bazel-*.out
   variables:
     KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "64Gi"
+    KUBERNETES_MEMORY_LIMIT: "64Gi"
 
 bazel:coverage:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux]

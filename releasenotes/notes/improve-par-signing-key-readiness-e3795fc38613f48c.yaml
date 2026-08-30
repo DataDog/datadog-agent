@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix Private Action Runner startup delays when signing keys are already
+    available from Remote Config.
