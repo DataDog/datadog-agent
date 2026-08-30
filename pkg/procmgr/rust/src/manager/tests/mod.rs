@@ -49,6 +49,7 @@ pub async fn test_manager_lock() -> tokio::sync::MutexGuard<'static, ()> {
     guard
 }
 
+#[cfg(not(windows))]
 pub fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
     PendingRestart {
         uuid: proc.uuid().to_owned(),
@@ -56,6 +57,7 @@ pub fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
     }
 }
 
+#[cfg(not(windows))]
 pub async fn wait_until_running(mgr: &ProcessManager, name: &str) {
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {

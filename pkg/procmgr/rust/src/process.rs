@@ -536,7 +536,7 @@ impl ManagedProcess {
             .and_then(|s| platform::last_signal(&s))
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, not(windows)))]
     pub(crate) fn config_mut(&mut self) -> &mut ProcessConfig {
         &mut self.config
     }
