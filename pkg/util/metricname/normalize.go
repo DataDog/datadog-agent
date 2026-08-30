@@ -13,8 +13,7 @@
 //
 // This is a faithful port of `NormMetricNameParse` / `ValidateMetricName` in
 // dd-go (`model/metric.go`). Keep the two in sync: a divergence here silently
-// changes which metrics get filtered. See `normalisation.md` at the repository
-// root for the full rule set and its provenance.
+// changes which metrics get filtered.
 package metricname
 
 // MaxLength is the maximum allowed length of a metric name in bytes.
