@@ -144,6 +144,7 @@
 /.gitlab/build/pkg_metrics/*                                              @DataDog/agent-devx
 /.gitlab/.pre/setup/*                                                     @DataDog/agent-devx
 /.gitlab/deploy/trigger_distribution.yml                                  @DataDog/agent-delivery
+/.gitlab/deploy/config_schema/*                                           @DataDog/fleet-automation
 /.gitlab/distribute/trigger_release/*                                     @DataDog/agent-devx @DataDog/agent-delivery
 /.gitlab/build/binary_build/cws_instrumentation.yml                       @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/build/binary_build/linux.yml                                     @DataDog/agent-devx @DataDog/agent-build
