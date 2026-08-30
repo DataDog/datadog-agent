@@ -1031,6 +1031,67 @@ collect_vpn: true
 	assert.False(t, config.CollectVPN)
 }
 
+func Test_buildConfig_deviceTagsSource(t *testing.T) {
+	tests := []struct {
+		name         string
+		instanceYaml string
+		initYaml     string
+		expected     snmpintegration.DeviceTagsSource
+	}{
+		{
+			name:     "resource by default",
+			expected: snmpintegration.DeviceTagsSourceResource,
+		},
+		{
+			name:     "set in init config",
+			initYaml: "device_tags_source: agent",
+			expected: snmpintegration.DeviceTagsSourceAgent,
+		},
+		{
+			name:         "set in instance config",
+			instanceYaml: "device_tags_source: both",
+			expected:     snmpintegration.DeviceTagsSourceBoth,
+		},
+		{
+			name:         "instance config overrides init config",
+			instanceYaml: "device_tags_source: resource",
+			initYaml:     "device_tags_source: agent",
+			expected:     snmpintegration.DeviceTagsSourceResource,
+		},
+		{
+			name:         "invalid value falls back to the default",
+			instanceYaml: "device_tags_source: nope",
+			expected:     snmpintegration.DeviceTagsSourceResource,
+		},
+		{
+			name:         "forced to both when device metadata is not collected",
+			instanceYaml: "device_tags_source: resource\ncollect_device_metadata: false",
+			expected:     snmpintegration.DeviceTagsSourceBoth,
+		},
+		{
+			name:         "agent is also forced to both when device metadata is not collected",
+			instanceYaml: "device_tags_source: agent\ncollect_device_metadata: false",
+			expected:     snmpintegration.DeviceTagsSourceBoth,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// language=yaml
+			rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+` + tt.instanceYaml)
+			// language=yaml
+			rawInitConfig := []byte(`
+oid_batch_size: 10
+` + tt.initYaml)
+			config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expected, config.DeviceTagsSource)
+		})
+	}
+}
+
 func Test_buildConfig_namespace(t *testing.T) {
 	mockConfig := configmock.New(t)
 
