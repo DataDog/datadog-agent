@@ -26,14 +26,11 @@ const (
 	checkTagCardinality     = "check_tag_cardinality"
 )
 
-// v1CheckKeys holds the suffixes of the keys defining a v1 check
-// configuration. ignore_autodiscovery_tags and logs are left out on purpose:
-// they can be read next to a v2 check configuration, so setting them alongside
-// one does not mean they are ignored. For instance, ignore_autodiscovery_tags is
-// applied to v2 configurations when
-// cluster_checks.support_hybrid_ignore_ad_tags is enabled.
+// v1CheckKeys holds the suffixes of the keys making up a v1 check
+// configuration. logs is left out on purpose: it is read next to a v2 check
+// configuration, so setting it alongside one does not mean it is ignored.
 //
-// check_tag_cardinality is also left out, for a different reason: a standalone
+// check_tag_cardinality is left out too, for a different reason: a standalone
 // one is dropped next to a v2 configuration, but that happens whether or not v1
 // keys are set, so it is a separate gap rather than a consequence of mixing
 // formats.
@@ -41,6 +38,7 @@ var v1CheckKeys = []string{
 	checkNamePath,
 	initConfigPath,
 	instancePath,
+	ignoreAutodiscoveryTags,
 }
 
 // ExtractTemplatesFromMap looks for autodiscovery configurations in a given
@@ -272,7 +270,7 @@ func extractCheckNamesFromMap(annotations map[string]string, prefix string, lega
 	return nil, nil
 }
 
-func extractTemplatesFromMapWithV2(entityName string, annotations map[string]string, prefix string, legacyPrefix string) ([]integration.Config, []error) {
+func extractTemplatesFromMapWithV2(entityName string, annotations map[string]string, prefix string, legacyPrefix string, hybridIgnoreADTags bool) ([]integration.Config, []error) {
 	var (
 		configs      []integration.Config
 		errors       []error
@@ -282,6 +280,12 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 	var prefixCandidates = []string{prefix}
 	if legacyPrefix != "" {
 		prefixCandidates = append(prefixCandidates, legacyPrefix)
+	}
+
+	// The callers that do apply it only read it from the non-legacy prefix.
+	consumedKey := ""
+	if hybridIgnoreADTags {
+		consumedKey = prefix + ignoreAutodiscoveryTags
 	}
 
 	if checksJSON, found := annotations[prefix+checksPath]; found {
@@ -297,7 +301,7 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 		// v1 and legacy check configurations are not applied when a v2 one
 		// is set on the same entity. Report them, as they would otherwise
 		// be dropped without any feedback.
-		if ignored := findIgnoredCheckKeys(annotations, prefixCandidates); len(ignored) > 0 {
+		if ignored := findIgnoredCheckKeys(annotations, prefixCandidates, consumedKey); len(ignored) > 0 {
 			errors = append(errors, ignoredCheckKeysError(prefix+checksPath, ignored))
 		}
 	} else {
@@ -315,7 +319,7 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 
 			// Same as above for the formats with a lower priority than the one that was found.
 			lowerPriority := lowerPriorityPrefixes(prefixCandidates, actualPrefix)
-			if ignored := findIgnoredCheckKeys(annotations, lowerPriority); len(ignored) > 0 {
+			if ignored := findIgnoredCheckKeys(annotations, lowerPriority, consumedKey); len(ignored) > 0 {
 				errors = append(errors, ignoredCheckKeysError(actualPrefix+checkNamePath, ignored))
 			}
 		}
@@ -369,12 +373,17 @@ func lowerPriorityPrefixes(prefixes []string, usedPrefix string) []string {
 // not applied because a configuration with a higher priority was found on the
 // same entity. Autodiscovery only applies one check configuration format per
 // entity, so mixing them drops part of the configuration.
-func findIgnoredCheckKeys(input map[string]string, ignoredPrefixes []string) []string {
+//
+// consumedKey, when not empty, is the one key the caller still applies itself.
+func findIgnoredCheckKeys(input map[string]string, ignoredPrefixes []string, consumedKey string) []string {
 	var ignored []string
 
 	for _, prefix := range ignoredPrefixes {
 		for _, suffix := range v1CheckKeys {
 			key := prefix + suffix
+			if key == consumedKey {
+				continue
+			}
 			if _, found := input[key]; found {
 				ignored = append(ignored, key)
 			}
