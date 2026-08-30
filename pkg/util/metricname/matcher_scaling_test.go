@@ -54,7 +54,6 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -509,22 +508,21 @@ func measureAlloc(fn func()) (bytes, allocs float64) {
 // TestMatcherLookupCostIsFlat pins the experiment's central result: lookup is
 // O(log n), so per-metric cost is effectively flat as the list grows.
 //
-// The assertion is deliberately *relative* -- the ratio of the median lookup at
-// 100k entries to the median at 10k -- rather than an absolute nanosecond bound.
-// An absolute bound cannot work here: CI runs this package under
+// Two things about the measurement, both learned from CI:
+//
+// It asserts a *ratio* -- cost at 100k entries over cost at 10k -- not an
+// absolute nanosecond bound. CI runs this package under
 // `bazel coverage --config=gorace`, and race plus coverage instrumentation
-// inflates a ~80 ns lookup to ~21 us, a factor of ~260. Any bound loose enough
-// to survive that is too loose to mean anything uninstrumented.
+// inflates a ~150 ns lookup to ~21 us, a factor of ~140. No absolute bound is
+// both survivable there and meaningful uninstrumented. A ratio is invariant to
+// instrumentation because both sides are slowed equally, while still catching
+// the regression that matters: a linear scan makes 10x the entries cost ~10x the
+// time, and that O(n) term outgrows the fixed per-call overhead either way.
 //
-// A ratio is invariant to that, because both measurements are slowed equally,
-// while still catching the regression that matters. If matching degraded to a
-// linear scan the 10x more entries would cost ~10x more time, and the O(n) term
-// grows past the fixed per-call overhead in both instrumented and
-// uninstrumented runs. Measured ratios: ~1.04 plain, ~1.01 under race+coverage;
-// a linear scan would be ~10.
-//
-// The p50/p95/p99 table is logged for comparison against the numbers recorded
-// in the experiment's README.
+// It times a *batch* of lookups rather than each one. Per-call time.Since cannot
+// work: the clock read costs about as much as the lookup, and on Windows the
+// timer granularity is coarser than the lookup itself, so every sample read
+// zero and this test failed there.
 func TestMatcherLookupCostIsFlat(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping latency sweep in -short mode")
@@ -534,76 +532,80 @@ func TestMatcherLookupCostIsFlat(t *testing.T) {
 	// ~13); O(n) predicts ~10x.
 	const maxGrowth = 3.0
 
-	t.Logf("%-6s %-8s %-10s %-10s %-10s", "layout", "n", "p50(ns)", "p95(ns)", "p99(ns)")
+	t.Logf("%-6s %-8s %9s %12s %12s", "layout", "n", "lookups", "total", "ns/lookup")
 	for _, layout := range layouts {
-		medians := make(map[int]time.Duration, len(testSizes))
+		perLookup := make(map[int]float64, len(testSizes))
 		for _, n := range testSizes {
-			medians[n] = measureLookupPercentiles(t, layout, n)
+			perLookup[n] = measureLookupCost(t, layout, n)
 		}
 
 		smallest, largest := testSizes[0], testSizes[len(testSizes)-1]
-		if medians[smallest] <= 0 {
-			t.Fatalf("layout=%s: median at n=%d measured as %v, clock resolution too coarse",
-				layout, smallest, medians[smallest])
-		}
-
-		growth := float64(medians[largest]) / float64(medians[smallest])
-		t.Logf("layout=%-6s median growth %dk -> %dk: %.2fx", layout, smallest/1000, largest/1000, growth)
+		growth := perLookup[largest] / perLookup[smallest]
+		t.Logf("layout=%-6s cost growth %dk -> %dk: %.2fx", layout, smallest/1000, largest/1000, growth)
 		if growth > maxGrowth {
-			t.Errorf("layout=%s: median lookup grew %.2fx from %d to %d entries (%v -> %v), want <= %.1fx; matching may no longer be O(log n)",
-				layout, growth, smallest, largest, medians[smallest], medians[largest], maxGrowth)
+			t.Errorf("layout=%s: lookup cost grew %.2fx from %d to %d entries (%.1f -> %.1f ns), want <= %.1fx; matching may no longer be O(log n)",
+				layout, growth, smallest, largest, perLookup[smallest], perLookup[largest], maxGrowth)
 		}
 	}
 }
 
-// measureLookupPercentiles times a representative mixed workload against a
-// matcher of n entries, logs p50/p95/p99, and returns the median.
+// measureLookupCost times lookups against a matcher of n entries and returns the
+// mean nanoseconds per lookup.
+//
+// The batch size grows until the total is comfortably measurable, which keeps
+// this both meaningful on platforms whose clock granularity is coarser than a
+// single lookup, and quick under race plus coverage instrumentation where a
+// lookup costs ~140x more. A fixed batch cannot satisfy both.
 //
 // The traffic mix matches the lading configuration in the paired SMP cases: 90%
 // random background names that miss, 5% guaranteed match from the shared corpus,
 // 5% guaranteed non-match from the disjoint namespace.
-func measureLookupPercentiles(t *testing.T, layout string, n int) time.Duration {
+func measureLookupCost(t *testing.T, layout string, n int) float64 {
 	t.Helper()
 
-	// 20k samples give stable percentiles while keeping this cheap under the
-	// race detector, where each iteration costs ~21 us.
-	const samples = 20_000
+	const (
+		probeCount = 8192
+		minTotal   = 5 * time.Millisecond
+		maxLookups = 1 << 21
+	)
 
 	rng := rand.New(rand.NewSource(42))
 	m := NewMatcher(buildNames(n, layout), false)
 
-	lookups := make([]string, samples)
-	for i := range lookups {
+	probes := make([]string, probeCount)
+	for i := range probes {
 		switch roll := rng.Float64(); {
 		case roll < 0.90:
-			lookups[i] = fmt.Sprintf("bg.random.metric.%d.%d", rng.Int63(), i)
+			probes[i] = fmt.Sprintf("bg.random.metric.%d.%d", rng.Int63(), i)
 		case roll < 0.95:
-			lookups[i] = metricName(rng.Intn(matchCorpusSize), layout)
+			probes[i] = metricName(rng.Intn(matchCorpusSize), layout)
 		default:
-			lookups[i] = nomatchName(rng.Intn(matchCorpusSize), layout)
+			probes[i] = nomatchName(rng.Intn(matchCorpusSize), layout)
 		}
 	}
 
-	durations := make([]time.Duration, samples)
-	for i, name := range lookups {
+	// Warm caches so the first size measured is not penalised.
+	for _, p := range probes[:1000] {
+		m.Test(p)
+	}
+
+	for lookups := 1024; ; lookups *= 4 {
 		start := time.Now()
-		m.Test(name)
-		durations[i] = time.Since(start)
-	}
-	sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
-
-	pct := func(p float64) time.Duration {
-		idx := int(p * float64(len(durations)))
-		if idx >= len(durations) {
-			idx = len(durations) - 1
+		for i := 0; i < lookups; i++ {
+			m.Test(probes[i%len(probes)])
 		}
-		return durations[idx]
+		total := time.Since(start)
+
+		if total >= minTotal {
+			perLookup := float64(total.Nanoseconds()) / float64(lookups)
+			t.Logf("%-6s %-8d %9d %12v %12.1f", layout, n, lookups, total, perLookup)
+			return perLookup
+		}
+		if lookups*4 > maxLookups {
+			t.Fatalf("layout=%s n=%d: %d lookups still took only %v, cannot measure reliably",
+				layout, n, lookups, total)
+		}
 	}
-
-	t.Logf("%-6s %-8d %-10d %-10d %-10d", layout, n,
-		pct(0.50).Nanoseconds(), pct(0.95).Nanoseconds(), pct(0.99).Nanoseconds())
-
-	return pct(0.50)
 }
 
 // BenchmarkMatcherConstruction measures NewMatcher, the one-time cost paid at
