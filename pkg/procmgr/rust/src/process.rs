@@ -1279,7 +1279,6 @@ pub mod tests {
         assert!(!proc.is_running());
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_state_transitions_spawn_exit_success() {
         let (cmd, args) = test_helpers::exit_cmd(0);
@@ -1301,7 +1300,6 @@ pub mod tests {
         assert!(!proc.is_running());
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_state_transitions_spawn_exit_failure() {
         let (cmd, args) = test_helpers::exit_cmd(1);

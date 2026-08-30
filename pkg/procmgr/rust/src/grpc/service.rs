@@ -471,7 +471,6 @@ mod tests {
         test_helpers::cleanup_process(proto.pid);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_process_to_proto_failed() {
         let (cmd, args) = test_helpers::exit_cmd(1);

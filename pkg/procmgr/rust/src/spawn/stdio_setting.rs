@@ -38,7 +38,7 @@ pub(super) fn require_inherit_or_null(
     Ok(())
 }
 
-#[cfg(all(test, not(windows)))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

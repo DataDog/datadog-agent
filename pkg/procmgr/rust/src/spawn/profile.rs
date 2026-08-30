@@ -46,7 +46,6 @@ mod tests {
         assert_eq!(profile_for("datadog-agent-process"), SpawnProfile::Agent);
     }
 
-    #[cfg(not(windows))]
     #[test]
     fn unknown_and_other_processes_use_agent_profile() {
         for name in [

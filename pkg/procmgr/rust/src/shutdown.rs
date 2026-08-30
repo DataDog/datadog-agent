@@ -77,17 +77,20 @@ pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize])
     }
 }
 
-#[cfg(all(test, not(windows)))]
+#[cfg(test)]
 pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
     let order: Vec<usize> = (0..processes.len()).collect();
     shutdown_ordered(processes, &order).await;
 }
 
-#[cfg(all(test, not(windows)))]
+#[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(windows))]
     use crate::state::ProcessState;
+    #[cfg(not(windows))]
     use crate::test_helpers;
+    #[cfg(not(windows))]
     use std::time::Duration;
 
     #[cfg(not(windows))]
@@ -116,7 +119,6 @@ mod tests {
         assert!(!procs[1].is_running());
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_all_empty() {
         let mut procs: Vec<ManagedProcess> = vec![];
@@ -161,7 +163,6 @@ mod tests {
         assert_eq!(procs[2].state(), ProcessState::Stopped);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_ordered_empty() {
         let mut procs: Vec<ManagedProcess> = vec![];
