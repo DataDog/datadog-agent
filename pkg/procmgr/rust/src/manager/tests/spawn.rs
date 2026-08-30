@@ -4,17 +4,24 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::super::*;
-#[cfg(not(windows))]
 use super::sleep_def;
-#[cfg(not(windows))]
 use super::wait_until_running;
 use super::{loader, test_runtime_context, uuid_gen};
-#[cfg(not(windows))]
 use crate::config::{ProcessConfig, ProcessDefinition};
 use crate::state::ProcessState;
-#[cfg(not(windows))]
 use crate::test_helpers;
 use std::time::Duration;
+
+fn stop_while_full_test_timeout() -> Duration {
+    #[cfg(windows)]
+    {
+        Duration::from_secs(30)
+    }
+    #[cfg(not(windows))]
+    {
+        Duration::from_secs(10)
+    }
+}
 
 #[cfg(unix)]
 #[tokio::test]
@@ -115,7 +122,6 @@ async fn test_concurrent_start_rejected_while_spawn_in_flight() -> anyhow::Resul
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_concurrent_start_only_one_succeeds() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -277,7 +283,6 @@ async fn test_stale_spawn_commit_does_not_steal_newer_reservation() -> anyhow::R
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_start_returns_committed_snapshot_after_immediate_exit() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -311,7 +316,6 @@ async fn test_start_returns_committed_snapshot_after_immediate_exit() -> anyhow:
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_create_auto_start_respects_in_flight_reservation() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
@@ -330,17 +334,7 @@ async fn test_create_auto_start_respects_in_flight_reservation() -> anyhow::Resu
     )
     .await?;
 
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            let procs = mgr.processes().await;
-            if procs[0].state() == ProcessState::Running {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .expect("auto-start should reach running");
+    wait_until_running(&mgr, "auto-svc").await;
 
     test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
     Ok(())
@@ -388,7 +382,6 @@ async fn test_background_spawn_joined_before_teardown() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_defer_spawn_join_handle_waits_for_completion() -> anyhow::Result<()> {
     let (handles, _rx) = test_runtime_context();
@@ -416,7 +409,6 @@ async fn test_defer_spawn_join_handle_waits_for_completion() -> anyhow::Result<(
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_stop_completes_while_exit_channel_is_full() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -462,7 +454,7 @@ async fn test_stop_completes_while_exit_channel_is_full() -> anyhow::Result<()> 
             .expect("exit channel should accept prefilled events");
     }
 
-    tokio::time::timeout(Duration::from_secs(10), mgr.handle_stop("stop-svc"))
+    tokio::time::timeout(stop_while_full_test_timeout(), mgr.handle_stop("stop-svc"))
         .await
         .expect("stop should complete while exit channel is full")
         .map_err(|status| anyhow::anyhow!("stop failed: {status}"))?;
@@ -475,7 +467,6 @@ async fn test_stop_completes_while_exit_channel_is_full() -> anyhow::Result<()> 
 }
 
 // Duplicate Stop RPC coalescing is covered on Unix (sleep-based child).
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_concurrent_stop_waiters_coalesce() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;

@@ -3,26 +3,33 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-#[cfg(not(windows))]
 use super::super::startup;
 use super::super::*;
-#[cfg(not(windows))]
 use super::sleep_def;
 use super::{auto_start_for_test, loader, startup_runtime_context, uuid_gen};
 use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy};
-#[cfg(not(windows))]
 use crate::state::ProcessState;
-#[cfg(not(windows))]
+use crate::test_helpers;
 use std::time::Duration;
 
-#[cfg(not(windows))]
+fn boot_test_timeout() -> Duration {
+    #[cfg(windows)]
+    {
+        Duration::from_secs(30)
+    }
+    #[cfg(not(windows))]
+    {
+        Duration::from_secs(5)
+    }
+}
+
 #[tokio::test]
 async fn test_spawn_failure_schedules_on_failure_restart() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(
         loader(vec![ProcessDefinition {
             name: "bad-spawn".to_string(),
             config: ProcessConfig {
-                command: "/nonexistent/dd-procmgr-spawn-fail".to_string(),
+                command: test_helpers::nonexistent_binary_path().to_string(),
                 restart: RestartPolicy::OnFailure,
                 restart_sec: Some(0.05),
                 ..Default::default()
@@ -36,7 +43,7 @@ async fn test_spawn_failure_schedules_on_failure_restart() -> anyhow::Result<()>
 
     assert!(!mgr.processes().await[0].is_running());
     let expected_uuid = mgr.processes().await[0].uuid().to_owned();
-    let pending = tokio::time::timeout(std::time::Duration::from_secs(1), rx.restart_rx.recv())
+    let pending = tokio::time::timeout(Duration::from_secs(5), rx.restart_rx.recv())
         .await
         .expect("timed out waiting for restart after spawn failure");
     assert_eq!(
@@ -46,7 +53,6 @@ async fn test_spawn_failure_schedules_on_failure_restart() -> anyhow::Result<()>
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -65,7 +71,7 @@ async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow
         startup::run(&mgr_task, &handles_task, shutdown.as_mut()).await
     });
 
-    tokio::time::timeout(Duration::from_secs(5), async {
+    tokio::time::timeout(boot_test_timeout(), async {
         loop {
             let procs = mgr.processes().await;
             if procs
@@ -103,7 +109,6 @@ async fn test_auto_start_all_skips_remaining_children_after_shutdown() -> anyhow
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -122,7 +127,7 @@ async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Resu
         startup::run(&mgr_task, &handles_task, shutdown.as_mut()).await
     });
 
-    tokio::time::timeout(Duration::from_secs(5), async {
+    tokio::time::timeout(boot_test_timeout(), async {
         loop {
             let procs = mgr.processes().await;
             if procs
@@ -149,7 +154,6 @@ async fn test_auto_start_all_releases_catalog_lock_on_shutdown() -> anyhow::Resu
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_shutdown_during_auto_start_transitions_lifecycle() {
     let _guard = super::test_manager_lock().await;

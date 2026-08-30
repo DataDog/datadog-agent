@@ -5,19 +5,14 @@
 
 use super::lifecycle::Lifecycle;
 use super::runtime::RuntimeReceivers;
-#[cfg(not(windows))]
 use super::startup;
 use super::*;
-#[cfg(not(windows))]
 use crate::config::ProcessConfig;
 use crate::config::{ConfigLoader, ProcessDefinition, StaticConfigLoader};
-#[cfg(not(windows))]
 use crate::state::ProcessState;
-#[cfg(not(windows))]
 use crate::test_helpers;
 use crate::uuid_gen::{UuidGenerator, V4UuidGenerator};
 use std::sync::Arc;
-#[cfg(not(windows))]
 use std::time::Duration;
 
 pub fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
@@ -34,14 +29,12 @@ pub fn test_runtime_context() -> (RuntimeContext, RuntimeReceivers) {
     RuntimeContext::new(lifecycle)
 }
 
-#[cfg(not(windows))]
 pub fn startup_runtime_context() -> (Lifecycle, RuntimeContext, RuntimeReceivers) {
     let lifecycle = Lifecycle::new();
     let (ctx, rx) = RuntimeContext::new(lifecycle.clone());
     (lifecycle, ctx, rx)
 }
 
-#[cfg(not(windows))]
 pub async fn auto_start_for_test(mgr: &ProcessManager, ctx: &RuntimeContext) {
     let _guard = test_manager_lock().await;
     crate::platform::reset_shutdown_state_for_test();
@@ -53,12 +46,15 @@ pub async fn auto_start_for_test(mgr: &ProcessManager, ctx: &RuntimeContext) {
 #[cfg(unix)]
 pub async fn test_manager_lock() -> tokio::sync::MutexGuard<'static, ()> {
     let guard = crate::platform::test_shutdown_lock().await;
-    #[cfg(unix)]
     super::spawn::reset_spawn_gate_for_test();
     guard
 }
 
-#[cfg(not(windows))]
+#[cfg(windows)]
+pub async fn test_manager_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    crate::platform::test_shutdown_lock().await
+}
+
 pub fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
     PendingRestart {
         uuid: proc.uuid().to_owned(),
@@ -66,9 +62,19 @@ pub fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
     }
 }
 
-#[cfg(not(windows))]
+fn manager_test_timeout() -> Duration {
+    #[cfg(windows)]
+    {
+        Duration::from_secs(30)
+    }
+    #[cfg(not(windows))]
+    {
+        Duration::from_secs(5)
+    }
+}
+
 pub async fn wait_until_running(mgr: &ProcessManager, name: &str) {
-    tokio::time::timeout(Duration::from_secs(5), async {
+    tokio::time::timeout(manager_test_timeout(), async {
         loop {
             if mgr
                 .processes()
@@ -85,12 +91,10 @@ pub async fn wait_until_running(mgr: &ProcessManager, name: &str) {
     .unwrap_or_else(|_| panic!("timed out waiting for '{name}' to start"));
 }
 
-#[cfg(not(windows))]
 pub fn sleep_def(name: &str) -> ProcessDefinition {
     sleep_def_secs(name, 60)
 }
 
-#[cfg(not(windows))]
 fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
     let (cmd, args) = test_helpers::sleep_cmd(secs);
     ProcessDefinition {
@@ -103,7 +107,6 @@ fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
     }
 }
 
-#[cfg(not(windows))]
 pub fn true_def(name: &str) -> ProcessDefinition {
     let (cmd, args) = test_helpers::true_cmd();
     ProcessDefinition {
@@ -116,12 +119,8 @@ pub fn true_def(name: &str) -> ProcessDefinition {
     }
 }
 
-#[cfg(not(windows))]
 mod boot;
 mod create;
-#[cfg(not(windows))]
 mod resolve;
-#[cfg(not(windows))]
 mod restart;
-#[cfg(not(windows))]
 mod spawn;

@@ -4,9 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::super::*;
-#[cfg(not(windows))]
 use super::sleep_def;
-#[cfg(not(windows))]
 use super::wait_until_running;
 use super::{loader, test_runtime_context, uuid_gen};
 use crate::config::ProcessConfig;
@@ -102,7 +100,6 @@ async fn test_create_accepts_valid_name() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_startup_order_indices_match_processes() {
     let mgr = ProcessManager::new(
@@ -120,7 +117,6 @@ async fn test_startup_order_indices_match_processes() {
     assert_eq!(names, vec!["alpha", "bravo", "charlie"]);
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]), uuid_gen());
@@ -150,7 +146,6 @@ async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Resu
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
@@ -187,7 +182,6 @@ async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_create_auto_start_false_stays_created() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
@@ -222,7 +216,7 @@ async fn test_create_auto_start_bad_command_still_created() -> anyhow::Result<()
         .handle_create(
             "bad-cmd".to_string(),
             ProcessConfig {
-                command: "/nonexistent/binary".to_string(),
+                command: test_helpers::nonexistent_binary_path().to_string(),
                 auto_start: true,
                 ..Default::default()
             },
@@ -239,7 +233,6 @@ async fn test_create_auto_start_bad_command_still_created() -> anyhow::Result<()
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
@@ -251,7 +244,7 @@ async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
             command: cmd.to_string(),
             args,
             auto_start: true,
-            condition_path_exists: Some("/nonexistent/path/that/should/not/exist".to_string()),
+            condition_path_exists: Some(test_helpers::nonexistent_env_file_path().to_string()),
             ..Default::default()
         },
         &handles,

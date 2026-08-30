@@ -4,13 +4,23 @@
 // Copyright 2026-present Datadog, Inc.
 
 use super::super::*;
-#[cfg(not(windows))]
 use super::sleep_def;
 use super::{current_pending_restart, loader, test_runtime_context, uuid_gen, wait_until_running};
 use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy};
 use crate::test_helpers;
+use std::time::Duration;
 
-#[cfg(not(windows))]
+fn restart_test_timeout() -> Duration {
+    #[cfg(windows)]
+    {
+        Duration::from_secs(5)
+    }
+    #[cfg(not(windows))]
+    {
+        Duration::from_secs(1)
+    }
+}
+
 #[tokio::test]
 async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::Result<()> {
     let (cmd, _args) = test_helpers::sleep_cmd(60);
@@ -36,7 +46,7 @@ async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::
         (procs[0].pid().unwrap(), procs[0].name().to_owned())
     };
 
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
     test_helpers::cleanup_process(pid);
     mgr.handle_exit(
         ExitEvent {
@@ -48,19 +58,19 @@ async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::
     )
     .await;
 
-    let pending = tokio::time::timeout(std::time::Duration::from_secs(1), rx.restart_rx.recv())
+    let pending = tokio::time::timeout(restart_test_timeout(), rx.restart_rx.recv())
         .await
         .expect("timed out waiting for first queued restart")
         .expect("expected first queued restart event");
 
     {
         let mut procs = mgr.catalog.write_processes().await;
-        procs[0].config_mut().command = "/nonexistent/dd-procmgr-failed-respawn".to_string();
+        procs[0].config_mut().command = test_helpers::nonexistent_binary_path().to_string();
     }
 
     mgr.complete_restart(pending, &handles).await;
 
-    let pending = tokio::time::timeout(std::time::Duration::from_secs(1), rx.restart_rx.recv())
+    let pending = tokio::time::timeout(restart_test_timeout(), rx.restart_rx.recv())
         .await
         .expect("timed out waiting for second queued restart")
         .expect("expected second queued restart event");
@@ -78,7 +88,6 @@ async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_stale_restart_timer_invalidated_after_manual_start() -> anyhow::Result<()> {
     let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -153,7 +162,7 @@ async fn test_stale_restart_timer_invalidated_after_manual_start() -> anyhow::Re
         "stale queued restart must not respawn after a newer manual start"
     );
 
-    let pending = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+    let pending = tokio::time::timeout(Duration::from_secs(10), async {
         while let Some(p) = rx.restart_rx.recv().await {
             if p.spawn_seq == 2 {
                 return Some(p);
@@ -173,7 +182,6 @@ async fn test_stale_restart_timer_invalidated_after_manual_start() -> anyhow::Re
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![sleep_def("svc")]), uuid_gen());
@@ -195,7 +203,6 @@ async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_complete_restart_honors_policy_for_auto_start_false() -> anyhow::Result<()> {
     let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -246,7 +253,6 @@ async fn test_complete_restart_honors_policy_for_auto_start_false() -> anyhow::R
     Ok(())
 }
 
-#[cfg(not(windows))]
 #[tokio::test]
 async fn test_complete_restart_skips_retry_when_restart_policy_revoked() -> anyhow::Result<()> {
     let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -273,7 +279,7 @@ async fn test_complete_restart_skips_retry_when_restart_policy_revoked() -> anyh
         (procs[0].pid().unwrap(), procs[0].name().to_owned())
     };
 
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
     test_helpers::cleanup_process(pid);
     mgr.handle_exit(
         ExitEvent {
@@ -285,7 +291,7 @@ async fn test_complete_restart_skips_retry_when_restart_policy_revoked() -> anyh
     )
     .await;
 
-    let pending = tokio::time::timeout(std::time::Duration::from_secs(1), rx.restart_rx.recv())
+    let pending = tokio::time::timeout(restart_test_timeout(), rx.restart_rx.recv())
         .await
         .expect("timed out waiting for queued restart")
         .expect("expected queued restart event");
