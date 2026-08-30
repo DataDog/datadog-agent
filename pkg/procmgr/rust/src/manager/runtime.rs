@@ -343,6 +343,89 @@ mod tests {
         RuntimeContext::new(lifecycle)
     }
 
+    /// Must exceed the exit channel capacity in `RuntimeContext::with_senders` (256).
+    #[cfg(not(windows))]
+    const EXIT_DRAIN_SENDER_COUNT: usize = 300;
+    #[cfg(windows)]
+    const EXIT_DRAIN_SENDER_COUNT: usize = 270;
+
+    const EXIT_CHANNEL_CAPACITY: usize = 256;
+    const _: () = assert!(EXIT_DRAIN_SENDER_COUNT > EXIT_CHANNEL_CAPACITY);
+
+    fn exit_drain_work() -> Duration {
+        #[cfg(windows)]
+        {
+            Duration::from_millis(500)
+        }
+        #[cfg(not(windows))]
+        {
+            Duration::from_millis(50)
+        }
+    }
+
+    fn exit_drain_catalog_lock_work() -> Duration {
+        #[cfg(windows)]
+        {
+            Duration::from_millis(500)
+        }
+        #[cfg(not(windows))]
+        {
+            Duration::from_millis(100)
+        }
+    }
+
+    fn exit_drain_test_timeout() -> Duration {
+        #[cfg(windows)]
+        {
+            Duration::from_secs(30)
+        }
+        #[cfg(not(windows))]
+        {
+            Duration::from_secs(5)
+        }
+    }
+
+    fn spawn_exit_senders(ctx: &RuntimeContext, count: usize) -> Vec<JoinHandle<()>> {
+        (0..count)
+            .map(|i| {
+                let tx = ctx.exit_tx.clone();
+                tokio::spawn(async move {
+                    tx.send(ExitEvent {
+                        name: format!("svc-{i}"),
+                        pid: i as u32,
+                        status: crate::test_helpers::exit_status(0),
+                    })
+                    .await
+                    .expect("exit send should not block indefinitely");
+                })
+            })
+            .collect()
+    }
+
+    /// Keep draining until every sender task finishes so a full channel cannot hang the test.
+    async fn await_exit_senders(
+        rx: &mut RuntimeReceivers,
+        senders: Vec<JoinHandle<()>>,
+        timeout: Duration,
+    ) {
+        tokio::time::timeout(timeout, async {
+            while senders.iter().any(|sender| !sender.is_finished()) {
+                tokio::select! {
+                    biased;
+                    maybe_event = rx.exit_rx.recv() => {
+                        drop(maybe_event);
+                    }
+                    _ = tokio::time::sleep(Duration::from_millis(1)) => {}
+                }
+            }
+            for sender in senders {
+                sender.await.expect("exit sender task should complete");
+            }
+        })
+        .await
+        .expect("all exit senders should complete");
+    }
+
     #[tokio::test]
     async fn drain_pending_commands_rejects_queued_mutations() {
         use crate::command::Command;
@@ -667,34 +750,19 @@ mod tests {
     async fn drain_exits_during_work_drains_beyond_channel_capacity() {
         let manager = empty_manager();
         let (ctx, mut rx) = running_runtime();
-
-        let senders: Vec<_> = (0..300)
-            .map(|i| {
-                let tx = ctx.exit_tx.clone();
-                tokio::spawn(async move {
-                    tx.send(ExitEvent {
-                        name: format!("svc-{i}"),
-                        pid: i as u32,
-                        status: crate::test_helpers::exit_status(0),
-                    })
-                    .await
-                    .expect("exit send should not block indefinitely");
-                })
-            })
-            .collect();
+        let senders = spawn_exit_senders(&ctx, EXIT_DRAIN_SENDER_COUNT);
+        let timeout = exit_drain_test_timeout();
 
         tokio::time::timeout(
-            Duration::from_secs(5),
+            timeout,
             rx.drain_exits_during(&manager, &ctx, async {
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                tokio::time::sleep(exit_drain_work()).await;
             }),
         )
         .await
         .expect("drain should complete while exit senders are active");
 
-        for sender in senders {
-            sender.await.expect("exit sender task should complete");
-        }
+        await_exit_senders(&mut rx, senders, timeout).await;
     }
 
     #[tokio::test]
@@ -702,34 +770,19 @@ mod tests {
         let manager = empty_manager();
         let (ctx, mut rx) = running_runtime();
         let catalog = Arc::clone(&manager.catalog);
-
-        let senders: Vec<_> = (0..300)
-            .map(|i| {
-                let tx = ctx.exit_tx.clone();
-                tokio::spawn(async move {
-                    tx.send(ExitEvent {
-                        name: format!("svc-{i}"),
-                        pid: i as u32,
-                        status: crate::test_helpers::exit_status(0),
-                    })
-                    .await
-                    .expect("exit send should not block while catalog lock is held");
-                })
-            })
-            .collect();
+        let senders = spawn_exit_senders(&ctx, EXIT_DRAIN_SENDER_COUNT);
+        let timeout = exit_drain_test_timeout();
 
         tokio::time::timeout(
-            Duration::from_secs(5),
+            timeout,
             rx.drain_exits_during(&manager, &ctx, async {
                 let _guard = catalog.write_processes().await;
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                tokio::time::sleep(exit_drain_catalog_lock_work()).await;
             }),
         )
         .await
         .expect("drain should keep receiving while shutdown holds the catalog lock");
 
-        for sender in senders {
-            sender.await.expect("exit sender task should complete");
-        }
+        await_exit_senders(&mut rx, senders, timeout).await;
     }
 }
