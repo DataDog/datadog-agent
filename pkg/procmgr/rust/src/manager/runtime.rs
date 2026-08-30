@@ -468,6 +468,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn command_handlers_join_does_not_finalize_orphan_while_handler_in_flight() {
         use super::super::catalog::ProcessCatalog;
@@ -529,6 +530,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn command_handlers_join_finalizes_orphan_after_abort() {
         use super::super::catalog::ProcessCatalog;
@@ -663,6 +665,7 @@ mod tests {
         platform::reset_shutdown_state_for_test();
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn drain_exits_during_work_drains_beyond_channel_capacity() {
         let manager = empty_manager();
@@ -697,6 +700,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn drain_exits_during_work_drains_while_catalog_write_locked() {
         let manager = empty_manager();
