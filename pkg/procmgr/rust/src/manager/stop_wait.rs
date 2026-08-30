@@ -123,9 +123,10 @@ mod tests {
             catalog: &catalog,
             idx: 0,
         };
-        let still_waiting = tokio::time::timeout(Duration::from_millis(100), ctx.await_stop_progress())
-            .await
-            .expect("await_stop_progress should return promptly");
+        let still_waiting =
+            tokio::time::timeout(Duration::from_millis(100), ctx.await_stop_progress())
+                .await
+                .expect("await_stop_progress should return promptly");
 
         assert!(!still_waiting);
     }
