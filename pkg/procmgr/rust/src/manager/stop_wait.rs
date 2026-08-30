@@ -82,46 +82,57 @@ mod tests {
     use std::sync::Arc;
     use std::time::{Duration, Instant};
 
-    #[tokio::test]
-    async fn await_stop_progress_returns_false_when_stop_finishes_before_wait() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let catalog = ProcessCatalog::load(
+    fn stop_wait_test_timeout() -> Duration {
+        #[cfg(windows)]
+        {
+            Duration::from_secs(30)
+        }
+        #[cfg(not(windows))]
+        {
+            Duration::from_secs(5)
+        }
+    }
+
+    fn stop_wait_catalog() -> ProcessCatalog {
+        let (cmd, args) = test_helpers::sleep_cmd(5);
+        let mut config = test_helpers::make_config(cmd, args);
+        config.stop_timeout = Some(1);
+        ProcessCatalog::load(
             &StaticConfigLoader::new(vec![ProcessDefinition {
                 name: "svc".into(),
-                config: test_helpers::make_config(cmd, args),
+                config,
             }]),
             Arc::new(V4UuidGenerator),
-        );
+        )
+    }
+
+    #[tokio::test]
+    async fn await_stop_progress_returns_false_when_stop_finishes_before_wait() {
+        let catalog = stop_wait_catalog();
 
         {
             let mut procs = catalog.write_processes().await;
             procs[0].spawn().unwrap();
             procs[0].request_stop();
-            procs[0].stop().await;
+            tokio::time::timeout(stop_wait_test_timeout(), procs[0].stop())
+                .await
+                .expect("stop should complete within test budget");
         }
 
         let mut ctx = CatalogProcessStopWait {
             catalog: &catalog,
             idx: 0,
         };
-        let still_waiting =
-            tokio::time::timeout(Duration::from_millis(100), ctx.await_stop_progress())
-                .await
-                .unwrap();
+        let still_waiting = tokio::time::timeout(Duration::from_millis(100), ctx.await_stop_progress())
+            .await
+            .expect("await_stop_progress should return promptly");
 
         assert!(!still_waiting);
     }
 
     #[tokio::test]
     async fn concurrent_wait_for_process_stop_does_not_hang() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let catalog = Arc::new(ProcessCatalog::load(
-            &StaticConfigLoader::new(vec![ProcessDefinition {
-                name: "svc".into(),
-                config: test_helpers::make_config(cmd, args),
-            }]),
-            Arc::new(V4UuidGenerator),
-        ));
+        let catalog = Arc::new(stop_wait_catalog());
 
         {
             let mut procs = catalog.write_processes().await;
@@ -132,14 +143,14 @@ mod tests {
         let budget = ShutdownBudget::unlimited(Instant::now());
         let catalog_a = Arc::clone(&catalog);
         let catalog_b = Arc::clone(&catalog);
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(stop_wait_test_timeout(), async {
             tokio::join!(
                 wait_for_process_stop(catalog_a.as_ref(), 0, budget),
                 wait_for_process_stop(catalog_b.as_ref(), 0, budget),
             );
         })
         .await
-        .unwrap();
+        .expect("concurrent stop wait should finish within test budget");
 
         let procs = catalog.read_processes().await;
         assert_eq!(procs[0].state(), ProcessState::Stopped);
