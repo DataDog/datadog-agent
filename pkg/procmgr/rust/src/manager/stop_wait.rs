@@ -71,7 +71,7 @@ pub(in crate::manager) async fn wait_for_process_stop(
     }
 }
 
-#[cfg(all(test, not(windows)))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::{ProcessDefinition, StaticConfigLoader};
