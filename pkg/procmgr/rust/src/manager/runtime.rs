@@ -27,7 +27,7 @@ impl CommandHandlers {
         self.handles.lock().unwrap().push(handle);
     }
 
-    #[cfg_attr(any(not(test), windows), allow(dead_code))]
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(in crate::manager) async fn join_all(&self) {
         self.join_all_with_budget(None, ShutdownBudget::unlimited(Instant::now()))
             .await;
@@ -371,7 +371,6 @@ mod tests {
         assert_eq!(err.code(), tonic::Code::Unavailable);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn drain_commands_during_grpc_shutdown_rejects_late_commands() {
         use crate::command::Command;
@@ -411,7 +410,6 @@ mod tests {
         assert_eq!(err.code(), tonic::Code::Unavailable);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn drain_commands_during_grpc_shutdown_respects_budget() {
         let (cmd_tx, cmd_rx) = mpsc::channel(64);
@@ -438,7 +436,6 @@ mod tests {
         );
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn command_handlers_join_all_with_budget_times_out() {
         use tokio::sync::oneshot;
@@ -471,8 +468,6 @@ mod tests {
         );
     }
 
-    // Orphan finalize tests spawn sleep_cmd children (Unix-only).
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn command_handlers_join_does_not_finalize_orphan_while_handler_in_flight() {
         use super::super::catalog::ProcessCatalog;
@@ -534,7 +529,6 @@ mod tests {
         }
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn command_handlers_join_finalizes_orphan_after_abort() {
         use super::super::catalog::ProcessCatalog;
@@ -581,7 +575,6 @@ mod tests {
         assert_eq!(procs[0].state(), ProcessState::Stopped);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn command_handlers_join_waits_for_in_flight_handlers() {
         use tokio::sync::oneshot;
@@ -617,7 +610,6 @@ mod tests {
             .expect("join task should complete after handler releases");
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn background_spawns_join_all_with_budget_times_out() {
         let background_spawns = BackgroundSpawns::default();
@@ -671,7 +663,6 @@ mod tests {
         platform::reset_shutdown_state_for_test();
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn drain_exits_during_work_drains_beyond_channel_capacity() {
         let manager = empty_manager();
@@ -706,7 +697,6 @@ mod tests {
         }
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn drain_exits_during_work_drains_while_catalog_write_locked() {
         let manager = empty_manager();
