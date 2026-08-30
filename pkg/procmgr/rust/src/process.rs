@@ -1991,11 +1991,10 @@ runtime_success_sec: 5
         assert!(owner.is_some());
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn finalize_stop_wait_records_exit_status_after_force_kill() {
         let (cmd, args) = test_helpers::trap_term_sleep();
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::make_config(&cmd, args);
         cfg.stop_timeout = Some(1);
         let mut proc =
             ManagedProcess::new_config("stubborn".into(), test_helpers::test_uuid(), cfg);

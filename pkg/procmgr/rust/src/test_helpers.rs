@@ -118,9 +118,9 @@ pub fn false_config_yaml() -> &'static str {
 /// the shell (which traps SIGTERM) restarts it, keeping the process alive
 /// until SIGKILL arrives.
 #[cfg(unix)]
-pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
+pub fn trap_term_sleep() -> (String, Vec<String>) {
     (
-        "/bin/sh",
+        "/bin/sh".into(),
         vec![
             "-c".into(),
             "trap '' TERM; while true; do sleep 60; done".into(),
@@ -134,11 +134,22 @@ pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
 /// PowerShell ignores CTRL_BREAK_EVENT by default, so the process
 /// outlives any stop_timeout and forces escalation to TerminateProcess.
 #[cfg(windows)]
-pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
+pub fn trap_term_sleep() -> (String, Vec<String>) {
     (
-        "powershell.exe",
-        vec!["-Command".into(), "while($true){Start-Sleep 60}".into()],
+        powershell_path(),
+        vec![
+            "-NoProfile".into(),
+            "-Command".into(),
+            "while($true){Start-Sleep 60}".into(),
+        ],
     )
+}
+
+#[cfg(windows)]
+fn powershell_path() -> String {
+    std::env::var("SystemRoot")
+        .map(|root| format!(r"{root}\System32\WindowsPowerShell\v1.0\powershell.exe"))
+        .unwrap_or_else(|_| r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe".into())
 }
 
 /// Shell command that exits with the value of the given environment variable.

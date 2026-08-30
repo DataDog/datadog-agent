@@ -41,7 +41,7 @@ impl ShutdownBudget {
         }
     }
 
-    #[cfg(all(test, not(windows)))]
+    #[cfg(test)]
     pub(crate) fn with_deadline(signal_time: Instant, deadline: Instant) -> Self {
         Self {
             signal_time,
@@ -88,7 +88,6 @@ mod tests {
     use super::*;
     use crate::state::ProcessState;
     use crate::test_helpers;
-    #[cfg(not(windows))]
     use std::time::Duration;
 
     fn sleep_config() -> crate::config::ProcessConfig {
@@ -121,11 +120,10 @@ mod tests {
         shutdown_all(&mut procs).await;
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
         let (cmd, args) = test_helpers::trap_term_sleep();
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::make_config(&cmd, args);
         cfg.stop_timeout = Some(1);
         let mut proc =
             ManagedProcess::new_config("stubborn".into(), test_helpers::test_uuid(), cfg);
@@ -164,11 +162,10 @@ mod tests {
         shutdown_ordered(&mut procs, &[]).await;
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_ordered_shared_graceful_budget() {
         let (cmd, args) = test_helpers::trap_term_sleep();
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::make_config(&cmd, args);
         cfg.stop_timeout = Some(2);
 
         let mut p1 =
@@ -190,11 +187,10 @@ mod tests {
         );
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_shutdown_ordered_shared_force_kill_budget() {
         let (cmd, args) = test_helpers::trap_term_sleep();
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::make_config(&cmd, args);
         cfg.stop_timeout = Some(1);
 
         let mut procs: Vec<ManagedProcess> = (0..3)
