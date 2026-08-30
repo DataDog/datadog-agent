@@ -32,16 +32,14 @@ import (
 type mutatorCore struct {
 	config           *Config
 	wmeta            workloadmeta.Component
-	filter           mutatecommon.MutationFilter
 	imageResolver    imageresolver.Resolver
 	csiDriverWatcher libraryinjection.CSIDriverWatcher
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) *mutatorCore {
 	return &mutatorCore{
 		config:           config,
 		wmeta:            wmeta,
-		filter:           filter,
 		imageResolver:    imageResolver,
 		csiDriverWatcher: csiDriverWatcher,
 	}
@@ -66,14 +64,14 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		m.kpiEnvVarsMutator(config),
 		// Injects APM injector + language-specific library init containers, volumes, and env vars
 		m.apmInjectionMutator(config, autoDetected, injectionType),
-		// Injects DD_VERSION and DD_ENV from pod labels/annotations
-		m.ustEnvVarsPodMutator(),
+		// Injects DD_VERSION and DD_ENV from pod labels/annotations (SSI only)
+		m.ustEnvVarsPodMutator(config),
 		// Injects language detection annotations
 		m.languageDetectionMutator(config),
 		// Injects library config from annotations (admission.datadoghq.com/all-lib.config.v1)
 		m.libConfigFromAnnotationsMutator(config, autoDetected, injectionType),
-		// Injects default library config for SSI-eligible namespaces
-		m.defaultLibConfigMutator(pod.Namespace),
+		// Injects default library config for SSI matches
+		m.defaultLibConfigMutator(config),
 	} {
 		if err := mutator.mutatePod(pod); err != nil {
 			lastError = err
@@ -246,12 +244,12 @@ func (m *mutatorCore) libConfigFromAnnotationsMutator(config extractedPodLibInfo
 }
 
 // defaultLibConfigMutator returns a mutator that injects default library configuration
-// for namespaces eligible to Single Step Instrumentation.
+// when the pod was matched by SSI (target/policy), not for annotation-only lib-injection.
 // Defaults: DD_TRACE_ENABLED=true, DD_LOGS_INJECTION=true,
 // DD_TRACE_HEALTH_METRICS_ENABLED=true, DD_RUNTIME_METRICS_ENABLED=true.
-func (m *mutatorCore) defaultLibConfigMutator(namespace string) podMutator {
+func (m *mutatorCore) defaultLibConfigMutator(config extractedPodLibInfo) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		if !m.filter.IsNamespaceEligible(namespace) {
+		if !config.source.isSingleStep() {
 			return nil
 		}
 
@@ -260,9 +258,9 @@ func (m *mutatorCore) defaultLibConfigMutator(namespace string) podMutator {
 }
 
 // ustEnvVarsPodMutator returns a mutator that injects UST env vars (DD_VERSION, DD_ENV) to filtered containers.
-func (m *mutatorCore) ustEnvVarsPodMutator() podMutator {
+func (m *mutatorCore) ustEnvVarsPodMutator(config extractedPodLibInfo) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		return m.mutatePodContainers(pod, m.ustEnvVarMutator(pod), true)
+		return m.mutatePodContainers(pod, m.ustEnvVarMutator(pod, config), true)
 	})
 }
 
@@ -296,14 +294,14 @@ func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
 	return newServiceNameMutator(pod, m.config.podMetaAsTags)
 }
 
-// ustEnvVarMutator will attempt to find a ust env var to inject into the pods containers if SSI is enabled.
+// ustEnvVarMutator will attempt to find a ust env var to inject into the pods containers if SSI matched.
 //
 // This is used to inject the version and env tags into the pods containers.
 //
 // The service tag/name is handled separately in the serviceNameMutator for legacy reasons.
-func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
+func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod, config extractedPodLibInfo) containerMutator {
 	var mutators containerMutators
-	if !m.filter.IsNamespaceEligible(pod.Namespace) {
+	if !config.source.isSingleStep() {
 		return mutators
 	}
 
@@ -323,15 +321,15 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
 	return mutators
 }
 
-func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
-	// it's possible to get here without single step being enabled, and the pod having
-	// annotations on it to opt it into pod mutation, we disambiguate those two cases.
+func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod, ssi bool) extractedPodLibInfo {
+	// SSI vs lib-injection is decided by whether a target/policy matched the
+	// pod, not by a namespace-level eligibility check.
 	var (
 		source            = libInfoSourceLibInjection
 		languageDetection *libInfoLanguageDetection
 	)
 
-	if m.filter.IsNamespaceEligible(pod.Namespace) {
+	if ssi {
 		source = libInfoSourceSingleStepInstrumentation
 		languageDetection = m.getLibrariesLanguageDetection(pod)
 	}
@@ -449,6 +447,11 @@ func (s libInfoSource) injectionType() string {
 	default:
 		return "unknown"
 	}
+}
+
+// isSingleStep reports whether this source is SSI (including language-detection).
+func (s libInfoSource) isSingleStep() bool {
+	return s.injectionType() == singleStepInstrumentationInstallType
 }
 
 // isFromLanguageDetection tells us whether this source comes from
