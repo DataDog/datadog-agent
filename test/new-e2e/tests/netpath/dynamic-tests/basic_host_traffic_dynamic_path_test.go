@@ -17,19 +17,19 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
-//go:embed config/baseline_host_traffic_dynamic_path.yaml
-var baselineHostTrafficDynamicPathAgentConfig string
+//go:embed config/basic_host_traffic_dynamic_path.yaml
+var basicHostTrafficDynamicPathAgentConfig string
 
-type baselineHostTrafficDynamicPathSuite struct {
+type basicHostTrafficDynamicPathSuite struct {
 	hostTrafficDynamicPathSuite
 }
 
-// TestBaselineHostTrafficDynamicPathSuite verifies baseline tests from packaged Agent configuration through fakeintake.
-func TestBaselineHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &baselineHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("baselineHostTrafficDynamicPath", baselineHostTrafficDynamicPathAgentConfig)))
+// TestBasicHostTrafficDynamicPathSuite verifies basic tests from packaged Agent configuration through fakeintake.
+func TestBasicHostTrafficDynamicPathSuite(t *testing.T) {
+	e2e.Run(t, &basicHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("basicHostTrafficDynamicPath", basicHostTrafficDynamicPathAgentConfig)))
 }
 
-func (s *baselineHostTrafficDynamicPathSuite) SetupSuite() {
+func (s *basicHostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
@@ -42,14 +42,14 @@ func (s *baselineHostTrafficDynamicPathSuite) SetupSuite() {
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 }
 
-func (s *baselineHostTrafficDynamicPathSuite) TearDownSuite() {
+func (s *basicHostTrafficDynamicPathSuite) TearDownSuite() {
 	s.stopHostTrafficGenerator()
 	s.restoreAgentResolver()
 	s.stopHostTrafficDNSServer()
 	s.BaseSuite.TearDownSuite()
 }
 
-func (s *baselineHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
+func (s *basicHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 	fakeintake := s.Env().FakeIntake.Client()
 	s.startHostTrafficGenerator(6 * time.Minute)
 
@@ -59,11 +59,11 @@ func (s *baselineHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath(
 		require.NotEmpty(c, netpaths, "no network path events")
 
 		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
-		require.NotNil(c, match, "no baseline host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
+		require.NotNil(c, match, "no basic host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
 
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
-		assert.Equal(c, payload.DynamicTestProfileBaseline, match.DynamicTestProfile)
+		assert.Equal(c, payload.DynamicTestProfileBasic, match.DynamicTestProfile)
 		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
 		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
 		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")

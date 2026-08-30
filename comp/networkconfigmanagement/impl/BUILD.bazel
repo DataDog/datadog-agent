@@ -47,8 +47,10 @@ dd_agent_go_test(
     srcs = [
         "devicemap_test.go",
         "networkdeviceconfig_test.go",
+        "newcomponent_test.go",
     ],
     embed = [":impl"],
+    gotags_sets = [["ncm"]],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
