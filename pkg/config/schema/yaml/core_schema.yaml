@@ -6887,6 +6887,34 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      max_concurrent_requests:
+        node_type: setting
+        type: integer
+        default: 8
+        comment: |-
+          Maximum number of requests the dogstatsd http server handles at once,
+          across every endpoint. Requests arriving with no slot free are
+          rejected immediately with 503 and are expected to be retried by the
+          client. Set to 0 to disable the limit.
+      max_payload_size:
+        node_type: setting
+        type: integer
+        default: 262144
+        comment: |-
+          Maximum size, in bytes, of a request body the dogstatsd http server
+          will buffer. Defaults to 256KiB. Set to 0 to disable the limit.
+        tags:
+        - golang_type:int64
+      read_timeout:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        comment: |-
+          Maximum time the dogstatsd http server will spend reading a request,
+          headers and body together. Set to 0 to disable the limit.
+        tags:
+        - golang_type:duration
       listen_address:
         node_type: setting
         type: string

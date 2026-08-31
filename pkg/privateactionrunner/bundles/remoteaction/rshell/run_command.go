@@ -54,6 +54,7 @@ type RunCommandHandlerConfig struct {
 	OperatorAllowedPaths          []string
 	OperatorAllowedCommands       []string
 	OperatorAllowedSystemServices map[string][]string
+	DisableDetailedTelemetry      bool
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -82,6 +83,7 @@ type RunCommandHandler struct {
 	operatorAllowedPaths          []string
 	operatorAllowedCommands       []string
 	operatorAllowedSystemServices map[string][]string
+	disableCommandTelemetry       bool
 	mode                          interp.Mode
 }
 
@@ -104,6 +106,7 @@ func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCom
 		operatorAllowedPaths:          reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
 		operatorAllowedCommands:       commands,
 		operatorAllowedSystemServices: services,
+		disableCommandTelemetry:       cfg.DisableDetailedTelemetry,
 		mode:                          mode,
 	}
 }
@@ -307,11 +310,15 @@ func (h *RunCommandHandler) Run(
 	runnerOptions := []interp.RunnerOption{
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.WarningsWriter(io.Discard),
+		interp.Script(inputs.Command),
 		interp.AllowedPaths(effectiveAllowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(effectiveAllowedCommands),
 		interp.AllowedSystemServices(effectiveAllowedSystemServices),
 		interp.WithMode(h.mode),
+	}
+	if h.disableCommandTelemetry {
+		runnerOptions = append(runnerOptions, interp.DisableDetailedTelemetry())
 	}
 	if runtime.GOOS == "linux" {
 		runnerOptions = append(runnerOptions, interp.WithSystemdTarget(resolveSystemdTarget()))

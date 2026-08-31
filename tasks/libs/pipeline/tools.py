@@ -123,9 +123,9 @@ def cancel_pipelines_with_confirmation(repo: Project, pipelines: list[ProjectPip
 def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_cancel_stages):
     """
     Gracefully cancel pipeline
-    - Cancel all the jobs that did not start to run yet
+    - Cancel all queued and running jobs
     - Do not cancel jobs containing 'cleanup' in their name
-    - Jobs in the stages specified in 'force_cancel_stages' variables will always be canceled even if running
+    - Jobs in the stages specified in 'force_cancel_stages' variables will always be canceled
     - Do not cancel jobs in the no_cancel_override list
     """
 
@@ -141,7 +141,7 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
             continue
 
         if job.stage in force_cancel_stages or (
-            job.status not in ["running", "canceled", "success", "manual"] and "cleanup" not in job.name
+            job.status not in ["canceled", "success", "manual"] and "cleanup" not in job.name
         ):
             repo.jobs.get(job.id, lazy=True).cancel()
 

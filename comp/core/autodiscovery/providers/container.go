@@ -233,6 +233,8 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 				containerEntity,
 				entity.Annotations,
 				adIdentifier,
+				// Pod annotations do not support the hybrid ignore_autodiscovery_tags overlay.
+				false,
 			)
 
 			// container_collect_all configs must be added after

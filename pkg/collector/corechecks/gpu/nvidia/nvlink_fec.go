@@ -75,8 +75,9 @@ func newNVLinkFECCollector(device ddnvml.Device, deps *CollectorDependencies) (C
 	return c, nil
 }
 
-func (c *nvlinkFECCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *nvlinkFECCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *nvlinkFECCollector) Name() CollectorName {

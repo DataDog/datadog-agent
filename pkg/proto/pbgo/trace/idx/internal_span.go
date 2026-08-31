@@ -739,6 +739,19 @@ func (c *InternalTraceChunk) LegacyTraceID() uint64 {
 	return binary.BigEndian.Uint64(buf[8:])
 }
 
+// TraceIDHigh returns the high-order 8 bytes of the trace chunk's TraceID as a uint64.
+// A trace ID shorter than the full 16 bytes is right-aligned into a zero-padded 16-byte
+// buffer first (matching LegacyTraceID's interpretation of short trace IDs), so any
+// high-order bytes that were actually supplied are still reflected in the result.
+func (c *InternalTraceChunk) TraceIDHigh() uint64 {
+	if len(c.TraceID) >= 16 {
+		return binary.BigEndian.Uint64(c.TraceID[:8])
+	}
+	var buf [16]byte
+	copy(buf[16-len(c.TraceID):], c.TraceID)
+	return binary.BigEndian.Uint64(buf[:8])
+}
+
 // SetLegacyTraceID sets the trace ID of the chunk from a legacy uint64 trace ID, additional bits are set to 0
 // Warning: This method does not remove any attributes from the chunk or contained spans which might be referring to the upper 8 bytes of the trace ID.
 func (c *InternalTraceChunk) SetLegacyTraceID(legacyTraceID uint64) {

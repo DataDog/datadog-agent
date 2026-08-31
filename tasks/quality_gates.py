@@ -11,7 +11,7 @@ from tasks.git import get_ancestor
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import (
-    get_commit_sha,
+    get_default_branch,
     is_a_release_branch,
 )
 from tasks.libs.package.size import InfraError
@@ -99,14 +99,15 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
     nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
+    is_on_main_branch = branch == get_default_branch()
 
     # Early PR lookup - cache for later use in metrics and PR comment
-    # Skip for release branches since they don't have associated PRs
+    # Skip for release branches since they don't have associated PRs, and for main whose open PRs target other branches
     pr = None
     pr_number = None
     pr_author = None
     if not is_a_release_branch(ctx, branch):
-        pr = get_pr_for_branch(branch)
+        pr = None if is_on_main_branch else get_pr_for_branch(branch)
         if pr:
             print(color_message(f"Found PR #{pr.number}: {pr.title}", "cyan"))
             pr_number = str(pr.number)
@@ -174,8 +175,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     ancestor = get_ancestor(ctx, branch)
     metric_handler.generate_relative_size(ancestor=ancestor)
     metric_handler.send_metrics_to_datadog()
-    current_commit = get_commit_sha(ctx)
-    is_on_main_branch = ancestor == current_commit
     is_merge_queue = branch.startswith("mq-working-branch-")
 
     # Take a decision on gate results based on measurements

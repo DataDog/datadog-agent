@@ -247,7 +247,8 @@ def query_gate_metrics_for_commit(commit_sha: str, lookback: str = "now-7d") -> 
 
     for metric_key, metric_name in metrics_to_query.items():
         # Query all gates at once using "by {gate_name}" aggregation
-        query = f"avg:{metric_name}{{ci_commit_sha:{commit_sha}}} by {{gate_name}}"
+        # `max` because `avg` includes 0s from concurrent pipelines that are still running, dividing the result by 2+
+        query = f"max:{metric_name}{{ci_commit_sha:{commit_sha}}} by {{gate_name}}"
 
         try:
             series_list = query_metrics(query, lookback, "now")

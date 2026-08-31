@@ -12,7 +12,6 @@ See this [RFC](https://docs.google.com/document/d/1VS1aI_rKRSfx9qx-bZaHJKRq8_oZd
 The crate is Linux/Windows-only. On macOS, use the Linux dev VM to run commands and tests:
 
 ```bash
-dda env dev run -- cargo test -p par-control
 dda env dev run -- bazel test //pkg/privateactionrunner/par-control:par-control_test
 ```
 

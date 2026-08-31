@@ -27,7 +27,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.collector import OTEL_CONTRIB_VERSION
-from tasks.coverage import PROFILE_COV, CodecovWorkaround
+from tasks.coverage import PROFILE_COV, GotestsumCoverageWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
@@ -471,7 +471,7 @@ def test_flavor(
     res = None
     for batch in batches:
         batch_packages = ' '.join(batch)
-        with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
+        with GotestsumCoverageWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
             formatted_cmd = cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)
             if sys.platform == "aix":
                 # AIX has no Bazel yet. ctx.run goes through a shell, so build the

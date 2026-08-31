@@ -711,6 +711,20 @@ func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
 	assert.Equal(t, "hello\n", result.Stdout)
 }
 
+func TestRunCommandWithDisableDetailedTelemetryStillExecutes(t *testing.T) {
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.DisableDetailedTelemetry = true
+	handler := NewRunCommandHandler(cfg)
+
+	out, err := handler.Run(context.Background(),
+		makeTask("echo hello", []string{"rshell:echo"}), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+}
+
 func TestRunCommandPassesSystemServicePolicyToRshell(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
 	task := makeTaskWithSystemServices("echo hello", []string{"rshell:echo"}, map[string]*structpb.ListValue{

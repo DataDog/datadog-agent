@@ -17,7 +17,6 @@ import (
 )
 
 func TestNewKeysManagerProvidesRCListener(t *testing.T) {
-	t.Setenv("DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION", "false")
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
 		privateactionrunner.PAREnabled: true,
 	})
@@ -31,7 +30,6 @@ func TestNewKeysManagerProvidesRCListener(t *testing.T) {
 }
 
 func TestNewKeysManagerDoesNotRegisterWhenPARIsDisabled(t *testing.T) {
-	t.Setenv("DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION", "false")
 	cfg := coreconfig.NewMock(t)
 
 	provides := newKeysManager(cfg)

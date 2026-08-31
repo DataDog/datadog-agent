@@ -33,6 +33,7 @@ dd_agent_go_test(
     name = "process_test",
     srcs = ["bundle_test.go"],
     embed = [":process"],
+    env_inherit = ["PATH"],  # hostinfo collection invokes ioreg on macOS
     deps = [
         "//comp/core",
         "//comp/core/config",

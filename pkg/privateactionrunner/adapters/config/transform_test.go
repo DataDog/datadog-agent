@@ -639,6 +639,28 @@ private_action_runner:
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 	assert.Nil(t, cfg.RShellAllowedSystemServices)
+	assert.False(t, cfg.RShellDisableDetailedTelemetry)
+}
+
+func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetryUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellDisableDetailedTelemetry)
+}
+
+func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetrySet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellDisableDetailedTelemetry, true)
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellDisableDetailedTelemetry)
 }
 
 func TestNewMetricsClient(t *testing.T) {
