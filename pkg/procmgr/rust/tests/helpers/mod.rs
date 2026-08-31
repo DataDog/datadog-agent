@@ -60,8 +60,6 @@ pub enum ProcessExpect {
     Running,
     Stopped,
     Failed,
-    #[allow(dead_code)] // reserved for list/describe migration
-    Exited,
 }
 
 impl ProcessExpect {
@@ -71,7 +69,6 @@ impl ProcessExpect {
             Self::Running => "Running",
             Self::Stopped => "Stopped",
             Self::Failed => "Failed",
-            Self::Exited => "Exited",
         }
     }
 }
@@ -841,17 +838,6 @@ impl TestEnv {
         }
     }
 
-    #[allow(dead_code)] // convenience wrapper for migrated tests
-    pub fn assert_process_state_within(&self, name: &str, expected: ProcessExpect) {
-        self.wait_for_process_state(name, expected, default_process_wait_timeout())
-            .unwrap_or_else(|e| {
-                panic!(
-                    "expected process '{name}' in state {}: {e}",
-                    expected.as_str()
-                )
-            });
-    }
-
     pub fn start_process(&self, name: &str) -> Result<(), String> {
         let out = self.cli(&["start", name]);
         if !out.status.success() {
@@ -1081,10 +1067,7 @@ fn assert_status_field(field: &str, actual: u32, expected: Option<u32>, status: 
 
 fn process_matches_expect(process: &ProcessSnapshot, expected: ProcessExpect) -> bool {
     match expected {
-        ProcessExpect::Created
-        | ProcessExpect::Stopped
-        | ProcessExpect::Failed
-        | ProcessExpect::Exited => process.pid == 0,
+        ProcessExpect::Created | ProcessExpect::Stopped | ProcessExpect::Failed => process.pid == 0,
         ProcessExpect::Running => {
             let pid = process.pid as u32;
             pid > 0 && pid_is_alive(pid)
