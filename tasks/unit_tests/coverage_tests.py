@@ -111,7 +111,3 @@ class TestProcessE2ECoverageFolders(unittest.TestCase):
                 f"go tool covdata textfmt -i={coverage_folder} -o={coverage_folder.parent / 'coverage.txt'}",
                 echo=True,
             )
-
-
-if __name__ == '__main__':
-    unittest.main()
