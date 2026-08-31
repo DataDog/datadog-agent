@@ -288,7 +288,7 @@ func TestNVLinkFieldsCollectorReturnsErrorsForUnsupportedCollectedFields(t *test
 	require.NoError(t, err)
 	collecting = true
 
-	var collected []*Metric
+	var collected []Sample
 	var collectErr error
 	require.NotPanics(t, func() {
 		collected, collectErr = collector.Collect()
