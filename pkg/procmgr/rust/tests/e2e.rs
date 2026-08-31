@@ -450,16 +450,27 @@ fn test_cli_list_terminal_table_fields() {
     procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
     procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
 
+    let python = test_helpers::python_exe();
     procmgr
         .cli(&["list"])
         .assert_success()
         .assert_table_row(
             "exit_ok",
-            &[("STATE", "Exited"), ("PID", "-"), ("LAST EXIT", "exit 0")],
+            &[
+                ("STATE", "Exited"),
+                ("PID", "-"),
+                ("LAST EXIT", "exit 0"),
+                ("COMMAND", &python),
+            ],
         )
         .assert_table_row(
             "exit_fail",
-            &[("STATE", "Failed"), ("PID", "-"), ("LAST EXIT", "exit 1")],
+            &[
+                ("STATE", "Failed"),
+                ("PID", "-"),
+                ("LAST EXIT", "exit 1"),
+                ("COMMAND", &python),
+            ],
         )
         .assert_table_row_count(2);
 }
