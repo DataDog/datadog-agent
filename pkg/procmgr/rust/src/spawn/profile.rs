@@ -11,18 +11,12 @@ pub enum SpawnProfile {
     Privileged,
 }
 
-impl SpawnProfile {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Agent => "agent",
-            Self::Privileged => "privileged",
-        }
-    }
-}
-
 impl std::fmt::Display for SpawnProfile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
+        f.write_str(match self {
+            Self::Agent => "agent",
+            Self::Privileged => "privileged",
+        })
     }
 }
 
