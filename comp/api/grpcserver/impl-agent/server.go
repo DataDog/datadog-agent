@@ -6,7 +6,6 @@
 package agentimpl
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,7 +17,6 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
@@ -390,10 +388,11 @@ func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.Workl
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
 }
 
-func (s *serverSecure) RemoteQueryExecute(_ context.Context, _ *pb.RemoteQueryExecuteRequest) (*pb.RemoteQueryExecuteResponse, error) {
-	return remoteQueryExecuteErrorResponse(remotequeriesimpl.RemoteQueryStatusInvalidRequest, "remote queries require RemoteQueryExecuteStream with operation copy_stream"), nil
-}
-
+// RemoteQueryExecuteStream executes an Agent-local Remote Queries request through a
+// matched integration check. The Agent is a control-plane forwarder: the integration
+// uploads bounded JSON page files directly to its-agent-intake, so the stream carries
+// only progress metadata, the final compact run receipt, and errors — never bulk
+// result bytes.
 func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteRequest, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
 	if s.remoteQueries == nil {
 		return remoteQueryExecuteStreamError(remotequeriesimpl.RemoteQueryStatusExecutorUnavailable, "remote query executor is unavailable", stream)
@@ -404,155 +403,66 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 		return remoteQueryExecuteStreamError(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error(), stream)
 	}
 
-	coalescer := newRemoteQueryIPCStreamCoalescer(stream)
-	result := s.remoteQueries.ExecuteStream(stream.Context(), execReq, coalescer.Send)
+	forwarder := newRemoteQueryIPCStreamForwarder(stream, req.GetIntegration())
+	result := s.remoteQueries.ExecuteStream(stream.Context(), execReq, forwarder.Send)
 	if result.Error != nil {
-		if err := coalescer.Flush(); err != nil {
-			return err
-		}
-		return remoteQueryExecuteStreamErrorAt(result.Error.Code, result.Error.Message, stream, coalescer.NextChunkIndex())
+		return remoteQueryExecuteStreamErrorAt(result.Error.Code, result.Error.Message, stream, forwarder.NextChunkIndex())
 	}
-	if err := coalescer.Flush(); err != nil {
-		return err
-	}
-	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: coalescer.NextChunkIndex(), Final: true})
+	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: forwarder.NextChunkIndex(), Final: true})
 }
 
-const remoteQuerySecureIPCDataFlushBytes = 4_000_000
-
-type remoteQueryIPCStreamCoalescer struct {
+// remoteQueryIPCStreamForwarder streams metadata-only events over the secure IPC
+// boundary. It owns chunk indexing and appends agent-side timing attributes to the
+// final event; there is no data buffering because no bulk bytes ever flow.
+type remoteQueryIPCStreamForwarder struct {
 	stream      pb.AgentSecure_RemoteQueryExecuteStreamServer
+	integration string
 	chunkIndex  int32
-	data        bytes.Buffer
-	dataOffset  uint64
-	dataSeq     uint64
-	dataStarted bool
-	dataChunks  uint64
 
-	start               time.Time
-	firstEventAt        time.Time
-	firstDataAt         time.Time
-	lastDataAt          time.Time
-	upstreamDataEvents  uint64
-	upstreamDataBytes   uint64
-	coalescedDataEvents uint64
-	sendCalls           uint64
-	sendDuration        time.Duration
-	dataSendDuration    time.Duration
-	maxSendDuration     time.Duration
-	maxDataSendDuration time.Duration
+	start           time.Time
+	firstEventAt    time.Time
+	sendCalls       uint64
+	sendDuration    time.Duration
+	maxSendDuration time.Duration
 }
 
-func newRemoteQueryIPCStreamCoalescer(stream pb.AgentSecure_RemoteQueryExecuteStreamServer) *remoteQueryIPCStreamCoalescer {
-	return &remoteQueryIPCStreamCoalescer{stream: stream, start: time.Now()}
+func newRemoteQueryIPCStreamForwarder(stream pb.AgentSecure_RemoteQueryExecuteStreamServer, integration string) *remoteQueryIPCStreamForwarder {
+	return &remoteQueryIPCStreamForwarder{stream: stream, integration: integration, start: time.Now()}
 }
 
-func (c *remoteQueryIPCStreamCoalescer) NextChunkIndex() int32 {
-	return c.chunkIndex
+func (f *remoteQueryIPCStreamForwarder) NextChunkIndex() int32 {
+	return f.chunkIndex
 }
 
-func (c *remoteQueryIPCStreamCoalescer) Send(event check.RemoteQueryStreamEvent) error {
-	if c.firstEventAt.IsZero() {
-		c.firstEventAt = time.Now()
+// Send converts one check stream event into a typed proto event and sends it as one chunk.
+func (f *remoteQueryIPCStreamForwarder) Send(event check.RemoteQueryStreamEvent) error {
+	if f.firstEventAt.IsZero() {
+		f.firstEventAt = time.Now()
 	}
-	protoEvent, err := remoteQueryStreamEventFromCheckEvent(event)
+	protoEvent, err := remoteQueryStreamEventFromCheckEvent(event, f.integration)
 	if err != nil {
 		return err
 	}
-	data := protoEvent.GetData()
-	if data == nil {
-		if err := c.Flush(); err != nil {
-			return err
-		}
-		c.addTimingAttributes(protoEvent)
-		_, err := c.sendProtoEvent(protoEvent)
-		return err
-	}
-
-	now := time.Now()
-	if c.firstDataAt.IsZero() {
-		c.firstDataAt = now
-	}
-	c.lastDataAt = now
-	c.upstreamDataEvents++
-	c.upstreamDataBytes += uint64(len(data.GetPayload()))
-
-	if c.dataStarted && data.GetOffset() != c.dataOffset+uint64(c.data.Len()) {
-		if err := c.Flush(); err != nil {
-			return err
-		}
-	}
-	if !c.dataStarted {
-		c.dataStarted = true
-		c.dataOffset = data.GetOffset()
-		c.dataSeq = protoEvent.GetSequence()
-	}
-	if _, err := c.data.Write(data.GetPayload()); err != nil {
-		return err
-	}
-	for c.data.Len() >= remoteQuerySecureIPCDataFlushBytes {
-		if err := c.flushData(remoteQuerySecureIPCDataFlushBytes); err != nil {
-			return err
-		}
-	}
-	return nil
+	f.addTimingAttributes(protoEvent)
+	return f.sendProtoEvent(protoEvent)
 }
 
-func (c *remoteQueryIPCStreamCoalescer) Flush() error {
-	if !c.dataStarted || c.data.Len() == 0 {
-		c.data.Reset()
-		c.dataStarted = false
-		return nil
-	}
-	return c.flushData(c.data.Len())
-}
-
-func (c *remoteQueryIPCStreamCoalescer) flushData(size int) error {
-	payload := append([]byte(nil), c.data.Bytes()[:size]...)
-	protoEvent := &pb.RemoteQueryExecuteStreamEvent{
-		Sequence: c.dataSeq + c.dataChunks,
-		Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{
-			Payload: payload,
-			Offset:  c.dataOffset,
-			Bytes:   uint64(len(payload)),
-		}},
-	}
-	duration, err := c.sendProtoEvent(protoEvent)
-	if err != nil {
-		return err
-	}
-	c.coalescedDataEvents++
-	c.dataSendDuration += duration
-	if duration > c.maxDataSendDuration {
-		c.maxDataSendDuration = duration
-	}
-	remaining := append([]byte(nil), c.data.Bytes()[size:]...)
-	c.data.Reset()
-	_, _ = c.data.Write(remaining)
-	c.dataOffset += uint64(len(payload))
-	c.dataChunks++
-	if c.data.Len() == 0 {
-		c.dataStarted = false
-	}
-	return nil
-}
-
-func (c *remoteQueryIPCStreamCoalescer) sendProtoEvent(event *pb.RemoteQueryExecuteStreamEvent) (time.Duration, error) {
+func (f *remoteQueryIPCStreamForwarder) sendProtoEvent(event *pb.RemoteQueryExecuteStreamEvent) error {
 	start := time.Now()
-	if err := c.stream.Send(&pb.RemoteQueryExecuteChunk{Event: event, ChunkIndex: c.chunkIndex}); err != nil {
-		return 0, err
+	if err := f.stream.Send(&pb.RemoteQueryExecuteChunk{Event: event, ChunkIndex: f.chunkIndex}); err != nil {
+		return err
 	}
 	duration := time.Since(start)
-	c.sendCalls++
-	c.sendDuration += duration
-	if duration > c.maxSendDuration {
-		c.maxSendDuration = duration
+	f.sendCalls++
+	f.sendDuration += duration
+	if duration > f.maxSendDuration {
+		f.maxSendDuration = duration
 	}
-	c.chunkIndex++
-	return duration, nil
+	f.chunkIndex++
+	return nil
 }
 
-func (c *remoteQueryIPCStreamCoalescer) addTimingAttributes(event *pb.RemoteQueryExecuteStreamEvent) {
+func (f *remoteQueryIPCStreamForwarder) addTimingAttributes(event *pb.RemoteQueryExecuteStreamEvent) {
 	final := event.GetFinal()
 	if final == nil {
 		return
@@ -560,21 +470,12 @@ func (c *remoteQueryIPCStreamCoalescer) addTimingAttributes(event *pb.RemoteQuer
 	if final.Attributes == nil {
 		final.Attributes = map[string]string{}
 	}
-	elapsed := time.Since(c.start)
-	final.Attributes["agent_coalesce_flush_bytes"] = strconv.Itoa(remoteQuerySecureIPCDataFlushBytes)
-	final.Attributes["agent_upstream_data_events"] = strconv.FormatUint(c.upstreamDataEvents, 10)
-	final.Attributes["agent_upstream_data_bytes"] = strconv.FormatUint(c.upstreamDataBytes, 10)
-	final.Attributes["agent_coalesced_data_events"] = strconv.FormatUint(c.coalescedDataEvents, 10)
-	final.Attributes["agent_ipc_send_calls"] = strconv.FormatUint(c.sendCalls, 10)
-	final.Attributes["agent_first_event_latency_ms"] = formatDurationMillis(c.firstEventAt.Sub(c.start))
-	final.Attributes["agent_first_data_latency_ms"] = formatDurationMillis(c.firstDataAt.Sub(c.start))
-	final.Attributes["agent_upstream_data_span_ms"] = formatDurationMillis(c.lastDataAt.Sub(c.firstDataAt))
+	elapsed := time.Since(f.start)
+	final.Attributes["agent_ipc_send_calls"] = strconv.FormatUint(f.sendCalls+1, 10)
+	final.Attributes["agent_first_event_latency_ms"] = formatDurationMillis(f.firstEventAt.Sub(f.start))
 	final.Attributes["agent_total_stream_ms"] = formatDurationMillis(elapsed)
-	final.Attributes["agent_total_stream_mib_per_second"] = formatMiBPerSecond(c.upstreamDataBytes, elapsed)
-	final.Attributes["agent_ipc_send_total_ms"] = formatDurationMillis(c.sendDuration)
-	final.Attributes["agent_ipc_send_max_ms"] = formatDurationMillis(c.maxSendDuration)
-	final.Attributes["agent_ipc_data_send_total_ms"] = formatDurationMillis(c.dataSendDuration)
-	final.Attributes["agent_ipc_data_send_max_ms"] = formatDurationMillis(c.maxDataSendDuration)
+	final.Attributes["agent_ipc_send_total_ms"] = formatDurationMillis(f.sendDuration)
+	final.Attributes["agent_ipc_send_max_ms"] = formatDurationMillis(f.maxSendDuration)
 }
 
 func formatDurationMillis(duration time.Duration) string {
@@ -584,13 +485,6 @@ func formatDurationMillis(duration time.Duration) string {
 	return strconv.FormatFloat(duration.Seconds()*1000, 'f', 3, 64)
 }
 
-func formatMiBPerSecond(bytes uint64, duration time.Duration) string {
-	if bytes == 0 || duration <= 0 {
-		return "0"
-	}
-	return strconv.FormatFloat((float64(bytes)/1024/1024)/duration.Seconds(), 'f', 3, 64)
-}
-
 func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remotequeriesimpl.RemoteQueryExecuteRequest, error) {
 	target := remotequeriesimpl.RemoteQueryExecuteTarget{
 		Host:             req.GetTarget().GetHost(),
@@ -598,29 +492,44 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 		DBName:           req.GetTarget().GetDbname(),
 		DatabaseInstance: req.GetTarget().GetDatabaseInstance(),
 	}
-	if req.GetOperation() != "copy_stream" {
-		return remotequeriesimpl.RemoteQueryExecuteRequest{}, errors.New("operation must be copy_stream")
-	}
-	return remotequeriesimpl.NewRemoteQueryCopyStreamExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetFormat(), remoteQueryCopyLimitsFromProto(req.GetCopyLimits()), remoteQueryResultDeliveryFromProto(req.GetResultDelivery()))
+	return remotequeriesimpl.NewRemoteQueryExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetIncludeSchema(), remoteQueryResultDeliveryFromProto(req.GetResultDelivery()))
 }
 
+// remoteQueryResultDeliveryFromProto maps the backend-injected upload instructions. The
+// Agent forwards baseUrl and token opaquely: the intake mints and owns the URL, the token
+// is scoped to the upload session, and neither is ever logged.
 func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) *remotequeriesimpl.RemoteQueryResultDelivery {
 	if delivery == nil {
 		return nil
 	}
-	return &remotequeriesimpl.RemoteQueryResultDelivery{
-		Mode:        delivery.GetMode(),
-		UploadID:    delivery.GetUploadId(),
-		BaseURL:     delivery.GetBaseUrl(),
-		Token:       delivery.GetToken(),
-		PartBytes:   int(delivery.GetPartBytes()),
-		MaxBytes:    int(delivery.GetMaxBytes()),
-		Format:      delivery.GetFormat(),
-		Compression: delivery.GetCompression(),
+	out := &remotequeriesimpl.RemoteQueryResultDelivery{
+		RunID:           delivery.GetRunId(),
+		TaskID:          delivery.GetTaskId(),
+		ArtifactVersion: int(delivery.GetArtifactVersion()),
+		UploadID:        delivery.GetUploadId(),
+		BaseURL:         delivery.GetBaseUrl(),
+		Token:           delivery.GetToken(),
+		PartBytes:       int(delivery.GetPartBytes()),
 	}
+	if limits := delivery.GetLimits(); limits != nil {
+		out.Limits = &remotequeriesimpl.RemoteQueryUploadLimits{
+			MaxFileBytes:   int(limits.GetMaxFileBytes()),
+			MaxResultBytes: int(limits.GetMaxResultBytes()),
+			MaxRowBytes:    int(limits.GetMaxRowBytes()),
+			MaxColumns:     int(limits.GetMaxColumns()),
+			MaxSchemaBytes: int(limits.GetMaxSchemaBytes()),
+			MaxPages:       int(limits.GetMaxPages()),
+			TimeoutMs:      int(limits.GetTimeoutMs()),
+		}
+	}
+	return out
 }
 
-func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent) (*pb.RemoteQueryExecuteStreamEvent, error) {
+// remoteQueryStreamEventFromCheckEvent converts a metadata-only check event into the
+// typed proto stream event. The integration name is attached by the Agent from the
+// dispatch request. Unknown event types — including any legacy inline data event — fail
+// closed so a stale integration cannot smuggle bulk bytes through AgentSecure.
+func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent, integration string) (*pb.RemoteQueryExecuteStreamEvent, error) {
 	metadata := map[string]interface{}{}
 	if strings.TrimSpace(event.MetadataJSON) != "" {
 		if err := json.Unmarshal([]byte(event.MetadataJSON), &metadata); err != nil {
@@ -631,26 +540,16 @@ func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent) (*
 	out := &pb.RemoteQueryExecuteStreamEvent{Sequence: sequence}
 	switch event.Type {
 	case "metadata":
-		attrs := stringAttributes(metadata, "operation", "integration", "format", "sequence")
 		out.Event = &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{
 			Operation:   stringFromMetadata(metadata, "operation"),
-			Integration: stringFromMetadata(metadata, "integration"),
-			Format:      stringFromMetadata(metadata, "format"),
-			Attributes:  attrs,
-		}}
-	case "data":
-		out.Event = &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{
-			Payload: append([]byte(nil), event.Payload...),
-			Offset:  uint64FromMetadata(metadata, "offset"),
-			Bytes:   uint64FromMetadata(metadata, "bytes"),
+			Integration: integration,
+			Attributes:  stringAttributes(metadata, "operation", "sequence"),
 		}}
 	case "final":
 		out.Event = &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
 			Status:        stringFromMetadata(metadata, "status"),
-			BytesEmitted:  uint64FromMetadata(metadata, "bytes_emitted", "bytesEmitted", "bytes"),
-			ChunksEmitted: uint64FromMetadata(metadata, "chunks_emitted", "chunksEmitted", "chunks"),
-			Attributes:    stringAttributes(metadata, "status", "sequence", "bytes_emitted", "bytesEmitted", "chunks_emitted", "chunksEmitted", "upload_receipt"),
 			UploadReceipt: uploadReceiptFromMetadata(metadata),
+			Attributes:    progressAttributes(metadata, "status", "sequence", "upload_receipt"),
 		}}
 	case "error":
 		errorMetadata := mapFromMetadata(metadata, "error")
@@ -670,7 +569,7 @@ func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent) (*
 			Code:       code,
 			Message:    message,
 			Retryable:  retryable,
-			Attributes: stringAttributes(metadata, "code", "message", "retryable", "error", "sequence"),
+			Attributes: progressAttributes(metadata, "code", "message", "retryable", "error", "sequence"),
 		}}
 	default:
 		return nil, errors.New("unknown remote query stream event type")
@@ -748,29 +647,24 @@ func int64FromMetadata(metadata map[string]interface{}, keys ...string) int64 {
 	return 0
 }
 
-func int32FromMetadata(metadata map[string]interface{}, keys ...string) int32 {
-	return int32(int64FromMetadata(metadata, keys...))
-}
-
-// uploadReceiptFromMetadata parses the Agent-enriched upload receipt carried in the final
-// event metadata into the typed proto receipt. Returns nil when no receipt is present.
+// uploadReceiptFromMetadata parses the compact run receipt carried in the final event
+// metadata into the typed proto receipt: exactly uploadId, pageCount, totalRows,
+// totalBytes. Returns nil when no receipt is present.
 func uploadReceiptFromMetadata(metadata map[string]interface{}) *pb.RemoteQueryUploadReceipt {
 	raw, ok := metadata["upload_receipt"].(map[string]interface{})
 	if !ok {
 		return nil
 	}
 	return &pb.RemoteQueryUploadReceipt{
-		Mode:       stringFromMetadata(raw, "mode"),
 		UploadId:   stringFromMetadata(raw, "uploadId"),
-		BucketName: stringFromMetadata(raw, "bucketName"),
-		ObjectPath: stringFromMetadata(raw, "objectPath"),
-		TotalBytes: int64FromMetadata(raw, "totalBytes"),
+		PageCount:  int64FromMetadata(raw, "pageCount"),
 		TotalRows:  int64FromMetadata(raw, "totalRows"),
-		PartCount:  int32FromMetadata(raw, "partCount"),
-		Sha256:     stringFromMetadata(raw, "sha256"),
+		TotalBytes: int64FromMetadata(raw, "totalBytes"),
 	}
 }
 
+// stringAttributes maps scalar metadata values into string attributes, skipping the
+// excluded keys and any nested objects (the resultDelivery echo never surfaces).
 func stringAttributes(metadata map[string]interface{}, exclude ...string) map[string]string {
 	excluded := make(map[string]struct{}, len(exclude))
 	for _, key := range exclude {
@@ -793,6 +687,26 @@ func stringAttributes(metadata map[string]interface{}, exclude ...string) map[st
 	return attrs
 }
 
+// progressAttributes extends stringAttributes with the flattened run progress stats the
+// integration reports (rowsEmitted, pagesEmitted, partsEmitted, bytesEmitted,
+// elapsedMs). The stats are compact counters, never bulk result bytes.
+func progressAttributes(metadata map[string]interface{}, exclude ...string) map[string]string {
+	attrs := stringAttributes(metadata, exclude...)
+	if stats, ok := metadata["stats"].(map[string]interface{}); ok {
+		for key, value := range stats {
+			switch v := value.(type) {
+			case string:
+				attrs["stats."+key] = v
+			case float64:
+				attrs["stats."+key] = strconv.FormatFloat(v, 'f', -1, 64)
+			case bool:
+				attrs["stats."+key] = strconv.FormatBool(v)
+			}
+		}
+	}
+	return attrs
+}
+
 func remoteQueryExecuteStreamError(code string, message string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
 	return remoteQueryExecuteStreamErrorAt(code, message, stream, 0)
 }
@@ -808,110 +722,4 @@ func remoteQueryExecuteStreamErrorAt(code string, message string, stream pb.Agen
 		return err
 	}
 	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: chunkIndex + 1, Final: true})
-}
-
-func remoteQueryCopyLimitsFromProto(limits *pb.RemoteQueryExecuteCopyLimits) *remotequeriesimpl.RemoteQueryExecuteCopyLimits {
-	if limits == nil {
-		return nil
-	}
-	return &remotequeriesimpl.RemoteQueryExecuteCopyLimits{
-		ChunkBytes:  int(limits.GetChunkBytes()),
-		MaxBytes:    int(limits.GetMaxBytes()),
-		MaxRowBytes: int(limits.GetMaxRowBytes()),
-		TimeoutMs:   int(limits.GetTimeoutMs()),
-	}
-}
-
-func remoteQueryExecuteErrorResponse(code string, message string) *pb.RemoteQueryExecuteResponse {
-	return &pb.RemoteQueryExecuteResponse{
-		Status: code,
-		Error:  &pb.RemoteQueryExecuteError{Code: code, Message: message},
-	}
-}
-
-type remoteQueryExecuteJSONResponse struct {
-	Status    string                   `json:"status"`
-	Error     *remoteQueryExecuteError `json:"error,omitempty"`
-	Columns   []map[string]interface{} `json:"columns,omitempty"`
-	Rows      []map[string]interface{} `json:"rows,omitempty"`
-	Truncated bool                     `json:"truncated,omitempty"`
-	Stats     map[string]interface{}   `json:"stats,omitempty"`
-}
-
-type remoteQueryExecuteError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-func remoteQueryExecuteResponseFromJSON(responseJSON string) (*pb.RemoteQueryExecuteResponse, error) {
-	var payload remoteQueryExecuteJSONResponse
-	decoder := json.NewDecoder(strings.NewReader(responseJSON))
-	decoder.UseNumber()
-	if err := decoder.Decode(&payload); err != nil {
-		return nil, status.Error(codes.Internal, "remote query executor returned invalid JSON")
-	}
-	if payload.Status == "" {
-		return nil, status.Error(codes.Internal, "remote query executor response missing status")
-	}
-
-	out := &pb.RemoteQueryExecuteResponse{
-		Status:    payload.Status,
-		Truncated: payload.Truncated,
-	}
-	if payload.Error != nil {
-		out.Error = &pb.RemoteQueryExecuteError{Code: payload.Error.Code, Message: payload.Error.Message}
-	}
-	for _, column := range payload.Columns {
-		pbColumn, err := structpb.NewStruct(normalizeRemoteQueryStruct(column))
-		if err != nil {
-			return nil, status.Error(codes.Internal, "remote query executor returned invalid column data")
-		}
-		out.Columns = append(out.Columns, pbColumn)
-	}
-	for _, row := range payload.Rows {
-		pbRow, err := structpb.NewStruct(normalizeRemoteQueryStruct(row))
-		if err != nil {
-			return nil, status.Error(codes.Internal, "remote query executor returned invalid row data")
-		}
-		out.Rows = append(out.Rows, pbRow)
-	}
-	if payload.Stats != nil {
-		stats, err := structpb.NewStruct(normalizeRemoteQueryStruct(payload.Stats))
-		if err != nil {
-			return nil, status.Error(codes.Internal, "remote query executor returned invalid stats data")
-		}
-		out.Stats = stats
-	}
-	return out, nil
-}
-
-func normalizeRemoteQueryStruct(in map[string]interface{}) map[string]interface{} {
-	out := make(map[string]interface{}, len(in))
-	for key, value := range in {
-		out[key] = normalizeRemoteQueryValue(value)
-	}
-	return out
-}
-
-func normalizeRemoteQueryValue(value interface{}) interface{} {
-	switch v := value.(type) {
-	case json.Number:
-		if i, err := strconv.ParseInt(v.String(), 10, 64); err == nil {
-			return i
-		}
-		if f, err := strconv.ParseFloat(v.String(), 64); err == nil {
-			return f
-		}
-		return v.String()
-	case map[string]interface{}:
-		return normalizeRemoteQueryStruct(v)
-	case []interface{}:
-		out := make([]interface{}, len(v))
-		for i, item := range v {
-			out[i] = normalizeRemoteQueryValue(item)
-		}
-		return out
-	default:
-		return v
-	}
 }

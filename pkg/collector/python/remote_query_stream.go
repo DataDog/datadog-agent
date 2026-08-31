@@ -22,16 +22,17 @@ import (
 
 //export remoteQueryStreamEmitBridge
 func remoteQueryStreamEmitBridge(eventType *C.char, metadataJSON *C.char, payload *C.uint8_t, payloadLen C.size_t, userdata unsafe.Pointer) C.int {
+	if payloadLen > 0 {
+		// Bulk result bytes never cross the integration bridge: the paged-JSON
+		// contract uploads page files directly, so an emitted payload means a
+		// stale or divergent integration. Fail closed instead of dropping it.
+		return 1
+	}
 	h := cgo.Handle(uintptr(userdata))
 	emit := h.Value().(func(checkbase.RemoteQueryStreamEvent) error)
 	event := checkbase.RemoteQueryStreamEvent{
 		Type:         C.GoString(eventType),
 		MetadataJSON: C.GoString(metadataJSON),
-	}
-	if payloadLen > 0 {
-		event.Payload = C.GoBytes(unsafe.Pointer(payload), C.int(payloadLen))
-	} else {
-		event.Payload = []byte{}
 	}
 	if err := emit(event); err != nil {
 		return 1

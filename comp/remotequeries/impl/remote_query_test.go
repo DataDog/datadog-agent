@@ -7,6 +7,7 @@ package remotequeriesimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -399,28 +400,53 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 		},
 		{
 			name:      "empty query",
-			body:      `{"integration":"postgres","operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":""}`,
+			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":""}`,
 			wantError: "query is required",
 		},
 		{
+			name:      "missing result delivery",
+			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`,
+			wantError: "result_delivery is required",
+		},
+		{
+			name:      "unknown result delivery field",
+			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":%s}`, deliveryJSONObject(t, "extra", true)),
+			wantError: "resultDelivery contains unknown field",
+		},
+		{
 			name:      "unknown limits field",
-			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000,"extra":true}}`,
+			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":%s}`, deliveryJSONObject(t, "limits.extra", true)),
 			wantError: "limits contains unknown field",
 		},
 		{
 			name:      "credential-like limits field is unknown",
-			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000,"password":"secret-value"}}`,
+			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":%s}`, deliveryJSONObject(t, "limits.password", "secret-value")),
 			wantError: "limits contains unknown field",
 		},
 		{
-			name:      "string maxRows",
-			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":"10","maxBytes":1048576,"timeoutMs":5000}}`,
-			wantError: "limits.maxRows must be an integer",
+			name:      "string includeSchema",
+			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","includeSchema":"true","resultDelivery":%s}`, validDeliveryJSON),
+			wantError: "includeSchema must be a boolean",
 		},
 		{
-			name:      "zero timeout",
-			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":0}}`,
-			wantError: "limits.timeoutMs must be at least 1",
+			name:      "string runId",
+			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":%s}`, deliveryJSONObject(t, "runId", 243021)),
+			wantError: "resultDelivery.runId must be a string",
+		},
+		{
+			name:      "string partBytes",
+			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":%s}`, deliveryJSONObject(t, "partBytes", "8388608")),
+			wantError: "resultDelivery.partBytes must be an integer",
+		},
+		{
+			name:      "string maxFileBytes",
+			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":%s}`, deliveryJSONObject(t, "limits.maxFileBytes", "33554432")),
+			wantError: "resultDelivery.limits.maxFileBytes must be an integer",
+		},
+		{
+			name:      "string limits object",
+			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":%s}`, deliveryJSONObject(t, "limits", "33554432")),
+			wantError: "limits must be an object",
 		},
 	}
 
@@ -429,7 +455,7 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 
-			_, _, err := parseExecuteRequest(req)
+			_, err := parseExecuteRequest(req)
 			require.Error(t, err)
 			assert.Equal(t, tt.wantError, err.Error())
 			assert.NotContains(t, err.Error(), "secret-value")
@@ -437,28 +463,98 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 	}
 }
 
-func TestParseExecuteRequestAllowsNonProofQuery(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT * FROM arbitrary_table"}`,
-	))
+// validDeliveryJSON is a compact, fully valid backend-injected result delivery. The
+// values mirror the POC defaults: 8 MiB parts, 32 MiB pages, 10 GiB total cap, 1024
+// columns, 1 MiB schema, 128 pages, 30s timeout.
+const validDeliveryJSON = `{"runId":"run-proof","taskId":"task-proof","artifactVersion":1,"uploadId":"upload-proof","baseUrl":"https://dd.datad0g.com/api/unstable/its-agent-intake","token":"scoped-upload-token","partBytes":8388608,"limits":{"maxFileBytes":33554432,"maxResultBytes":10737418240,"maxRowBytes":33554432,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":128,"timeoutMs":30000}}`
+
+// deliveryJSONObject returns the valid delivery JSON with one field overridden. Nested
+// limit fields use the "limits.<field>" path.
+func deliveryJSONObject(t *testing.T, path string, value interface{}) string {
+	t.Helper()
+	var delivery map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(validDeliveryJSON), &delivery))
+	if path == "" {
+		encoded, err := json.Marshal(value)
+		require.NoError(t, err)
+		return string(encoded)
+	}
+	if key, nested := strings.CutPrefix(path, "limits."); nested {
+		limits, ok := delivery["limits"].(map[string]interface{})
+		require.True(t, ok)
+		limits[key] = value
+	} else {
+		delivery[path] = value
+	}
+	encoded, err := json.Marshal(delivery)
+	require.NoError(t, err)
+	return string(encoded)
+}
+
+// deliveryJSONWithout returns the valid delivery JSON with fields removed. Nested limit
+// fields use the "limits.<field>" path.
+func deliveryJSONWithout(t *testing.T, paths ...string) string {
+	t.Helper()
+	var delivery map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(validDeliveryJSON), &delivery))
+	for _, path := range paths {
+		if key, nested := strings.CutPrefix(path, "limits."); nested {
+			limits, ok := delivery["limits"].(map[string]interface{})
+			require.True(t, ok)
+			delete(limits, key)
+		} else {
+			delete(delivery, path)
+		}
+	}
+	encoded, err := json.Marshal(delivery)
+	require.NoError(t, err)
+	return string(encoded)
+}
+
+func executeRequestBody(deliveryJSON string) string {
+	return fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","includeSchema":true,"resultDelivery":%s}`, deliveryJSON)
+}
+
+func TestParseExecuteRequestBuildsTypedPagedJSONRequest(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(executeRequestBody(validDeliveryJSON)))
 	req.Header.Set("Content-Type", "application/json")
 
-	parsed, requestJSON, err := parseExecuteRequest(req)
+	parsed, err := parseExecuteRequest(req)
 	require.NoError(t, err)
-	assert.Equal(t, "SELECT * FROM arbitrary_table", parsed.Query)
-	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT * FROM arbitrary_table","format":"csv"}`, requestJSON)
+	assert.Equal(t, "postgres", parsed.Integration)
+	assert.Equal(t, RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, parsed.Target)
+	assert.Equal(t, "SELECT 1 AS value", parsed.Query)
+	assert.True(t, parsed.IncludeSchema)
+	require.NotNil(t, parsed.ResultDelivery)
+	assert.Equal(t, "run-proof", parsed.ResultDelivery.RunID)
+	assert.Equal(t, "task-proof", parsed.ResultDelivery.TaskID)
+	assert.Equal(t, RemoteQueryArtifactVersion, parsed.ResultDelivery.ArtifactVersion)
+	assert.Equal(t, "upload-proof", parsed.ResultDelivery.UploadID)
+	assert.Equal(t, "https://dd.datad0g.com/api/unstable/its-agent-intake", parsed.ResultDelivery.BaseURL)
+	assert.Equal(t, "scoped-upload-token", parsed.ResultDelivery.Token)
+	assert.Equal(t, 8<<20, parsed.ResultDelivery.PartBytes)
+	require.NotNil(t, parsed.ResultDelivery.Limits)
+	assert.Equal(t, &RemoteQueryUploadLimits{
+		MaxFileBytes:   32 << 20,
+		MaxResultBytes: 10 << 30,
+		MaxRowBytes:    32 << 20,
+		MaxColumns:     1024,
+		MaxSchemaBytes: 1 << 20,
+		MaxPages:       128,
+		TimeoutMs:      30000,
+	}, parsed.ResultDelivery.Limits)
 }
 
 func TestParseExecuteRequestAllowsDatabaseInstanceTarget(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"Rq-Proof-A1-DB1"},"query":"SELECT * FROM arbitrary_table"}`,
-	))
+	body := strings.Replace(executeRequestBody(validDeliveryJSON),
+		`"target":{"host":"localhost","port":5432,"dbname":"postgres"}`,
+		`"target":{"database_instance":"Rq-Proof-A1-DB1"}`, 1)
+	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	parsed, requestJSON, err := parseExecuteRequest(req)
+	parsed, err := parseExecuteRequest(req)
 	require.NoError(t, err)
-	assert.Equal(t, remoteQueryTarget{DatabaseInstance: "Rq-Proof-A1-DB1"}, parsed.Target)
-	assert.JSONEq(t, `{"operation":"copy_stream","target":{"database_instance":"Rq-Proof-A1-DB1"},"query":"SELECT * FROM arbitrary_table","format":"csv"}`, requestJSON)
+	assert.Equal(t, RemoteQueryExecuteTarget{DatabaseInstance: "Rq-Proof-A1-DB1"}, parsed.Target)
 }
 
 func TestParseExecuteRequestRejectsMixedDatabaseInstanceTargetSelectors(t *testing.T) {
@@ -468,23 +564,23 @@ func TestParseExecuteRequestRejectsMixedDatabaseInstanceTargetSelectors(t *testi
 	}{
 		{
 			name: "non-empty tuple fields",
-			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT * FROM arbitrary_table"}`,
+			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
 		},
 		{
 			name: "empty host field",
-			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","host":""},"query":"SELECT * FROM arbitrary_table"}`,
+			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":""},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
 		},
 		{
 			name: "empty dbname field",
-			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","dbname":""},"query":"SELECT * FROM arbitrary_table"}`,
+			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":""},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
 		},
 		{
 			name: "null host field",
-			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","host":null},"query":"SELECT * FROM arbitrary_table"}`,
+			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":null},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
 		},
 		{
 			name: "port field",
-			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","port":5432},"query":"SELECT * FROM arbitrary_table"}`,
+			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","port":5432},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
 		},
 	}
 
@@ -493,92 +589,64 @@ func TestParseExecuteRequestRejectsMixedDatabaseInstanceTargetSelectors(t *testi
 			req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 
-			_, _, err := parseExecuteRequest(req)
+			_, err := parseExecuteRequest(req)
 			require.Error(t, err)
 			assert.Equal(t, "target must specify exactly one selector mode", err.Error())
 		})
 	}
 }
 
-func TestParseExecuteRequestRejectsInvalidFormat(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"postgres","operation":"copy_stream","format":"json","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`,
-	))
-	req.Header.Set("Content-Type", "application/json")
+func TestParseExecuteRequestRejectsOmittedResultDeliveryFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		delivery  string
+		wantError string
+	}{
+		{name: "no delivery", delivery: ``, wantError: "result_delivery is required"},
+		{name: "missing runId", delivery: deliveryJSONWithout(t, "runId"), wantError: "result_delivery.runId is required"},
+		{name: "missing taskId", delivery: deliveryJSONWithout(t, "taskId"), wantError: "result_delivery.taskId is required"},
+		{name: "missing artifactVersion", delivery: deliveryJSONWithout(t, "artifactVersion"), wantError: "result_delivery.artifactVersion is required"},
+		{name: "missing uploadId", delivery: deliveryJSONWithout(t, "uploadId"), wantError: "result_delivery.uploadId is required"},
+		{name: "missing baseUrl", delivery: deliveryJSONWithout(t, "baseUrl"), wantError: "result_delivery.baseUrl is required"},
+		{name: "missing token", delivery: deliveryJSONWithout(t, "token"), wantError: "result_delivery.token is required"},
+		{name: "missing partBytes", delivery: deliveryJSONWithout(t, "partBytes"), wantError: "result_delivery.partBytes is required"},
+		{name: "missing limits", delivery: deliveryJSONWithout(t, "limits"), wantError: "result_delivery.limits is required"},
+		{name: "missing maxFileBytes", delivery: deliveryJSONWithout(t, "limits.maxFileBytes"), wantError: "result_delivery.limits.maxFileBytes is required"},
+		{name: "missing maxResultBytes", delivery: deliveryJSONWithout(t, "limits.maxResultBytes"), wantError: "result_delivery.limits.maxResultBytes is required"},
+		{name: "missing maxRowBytes", delivery: deliveryJSONWithout(t, "limits.maxRowBytes"), wantError: "result_delivery.limits.maxRowBytes is required"},
+		{name: "missing maxColumns", delivery: deliveryJSONWithout(t, "limits.maxColumns"), wantError: "result_delivery.limits.maxColumns is required"},
+		{name: "missing maxSchemaBytes", delivery: deliveryJSONWithout(t, "limits.maxSchemaBytes"), wantError: "result_delivery.limits.maxSchemaBytes is required"},
+		{name: "missing maxPages", delivery: deliveryJSONWithout(t, "limits.maxPages"), wantError: "result_delivery.limits.maxPages is required"},
+		{name: "missing timeoutMs", delivery: deliveryJSONWithout(t, "limits.timeoutMs"), wantError: "result_delivery.limits.timeoutMs is required"},
+	}
 
-	_, _, err := parseExecuteRequest(req)
-	require.Error(t, err)
-	assert.Equal(t, "format must be csv or binary", err.Error())
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"`
+			if tt.delivery != "" {
+				body += `,"resultDelivery":` + tt.delivery
+			}
+			body += `}`
 
-func TestParseExecuteRequestNormalizesAndMarshalsCopyStreamExecutorJSON(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":" LocalHost. ","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","copyLimits":{"chunkBytes":1024,"maxBytes":1048576,"maxRowBytes":1048576,"timeoutMs":5000}}`,
-	))
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+			req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 
-	parsed, requestJSON, err := parseExecuteRequest(req)
-	require.NoError(t, err)
-	assert.Equal(t, "postgres", parsed.Integration)
-	assert.Equal(t, "copy_stream", parsed.Operation)
-	assert.Equal(t, "csv", parsed.Format)
-	assert.Equal(t, remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, parsed.Target)
-	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","format":"csv","limits":{"chunkBytes":1024,"maxBytes":1048576,"maxRowBytes":1048576,"timeoutMs":5000}}`, requestJSON)
-	assert.NotContains(t, requestJSON, "integration")
+			_, err := parseExecuteRequest(req)
+			require.Error(t, err)
+			assert.Equal(t, tt.wantError, err.Error())
+			assert.NotContains(t, err.Error(), "scoped-upload-token")
+		})
+	}
 }
 
 func TestParseExecuteRequestRejectsInvalidIntegration(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"my-sql","target":{"host":"localhost","port":3306,"dbname":"mysql"},"query":"SELECT 1 AS value"}`,
-	))
+	body := strings.Replace(executeRequestBody(validDeliveryJSON), `"integration":"postgres"`, `"integration":"my-sql"`, 1)
+	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	_, _, err := parseExecuteRequest(req)
+	_, err := parseExecuteRequest(req)
 	require.Error(t, err)
-	assert.Equal(t, "integration contains invalid characters", err.Error())
-}
-
-func TestParseExecuteRequestRejectsOmittedOperation(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`,
-	))
-	req.Header.Set("Content-Type", "application/json")
-
-	_, _, err := parseExecuteRequest(req)
-	require.Error(t, err)
-	assert.Equal(t, "operation must be copy_stream", err.Error())
-}
-
-func TestParseExecuteRequestAllowsFixtureTableProofQuery(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city"}`,
-	))
-	req.Header.Set("Content-Type", "application/json")
-
-	parsed, requestJSON, err := parseExecuteRequest(req)
-	require.NoError(t, err)
-	assert.Equal(t, remoteQueryFixtureTableProofQuery, parsed.Query)
-	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","format":"csv"}`, requestJSON)
-	assert.NotContains(t, requestJSON, "integration")
-}
-
-func TestParseExecuteRequestAllowsMatrixIdentityProofQuery(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT current_database() AS current_db, expected_agent_hostname, expected_postgres_host, expected_postgres_port, expected_dbname, marker FROM remote_query_identity"}`,
-	))
-	req.Header.Set("Content-Type", "application/json")
-
-	parsed, requestJSON, err := parseExecuteRequest(req)
-	require.NoError(t, err)
-	assert.Equal(t, remoteQueryMatrixIdentityProofQuery, parsed.Query)
-	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT current_database() AS current_db, expected_agent_hostname, expected_postgres_host, expected_postgres_port, expected_dbname, marker FROM remote_query_identity","format":"csv"}`, requestJSON)
-	assert.NotContains(t, requestJSON, "integration")
-}
-
-func TestNewRemoteQueryExecuteRequestRejectsInlineMode(t *testing.T) {
-	_, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: " LocalHost. ", Port: 5432, DBName: "postgres"}, remoteQueryFixtureTableProofQuery, &RemoteQueryExecuteLimits{MaxRows: 2, MaxBytes: 1024, TimeoutMs: 1000})
-	require.Error(t, err)
-	assert.EqualError(t, err, "operation must be copy_stream")
+	assert.Contains(t, err.Error(), "integration contains invalid characters")
 }
 
 func TestRemoteQueriesQueryAllowlistEnabledConfigDefault(t *testing.T) {
@@ -601,50 +669,100 @@ func TestRemoteQueriesQueryAllowlistEnabledConfigDefault(t *testing.T) {
 	})
 }
 
-func TestNewRemoteQueryCopyStreamExecuteRequestValidation(t *testing.T) {
+// pagedTestDelivery builds a fully valid typed delivery so cap and relation tests only
+// vary the fields under test.
+func pagedTestDelivery() *RemoteQueryResultDelivery {
+	return &RemoteQueryResultDelivery{
+		RunID:           "run-proof",
+		TaskID:          "task-proof",
+		ArtifactVersion: RemoteQueryArtifactVersion,
+		UploadID:        "upload-proof",
+		BaseURL:         "https://dd.datad0g.com/api/unstable/its-agent-intake",
+		Token:           "scoped-upload-token",
+		PartBytes:       8 << 20,
+		Limits: &RemoteQueryUploadLimits{
+			MaxFileBytes:   32 << 20,
+			MaxResultBytes: 10 << 30,
+			MaxRowBytes:    32 << 20,
+			MaxColumns:     1024,
+			MaxSchemaBytes: 1 << 20,
+			MaxPages:       128,
+			TimeoutMs:      30000,
+		},
+	}
+}
+
+func TestNewRemoteQueryExecuteRequestValidation(t *testing.T) {
 	target := RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}
 
-	t.Run("allows non proof query", func(t *testing.T) {
-		req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, "SELECT * FROM arbitrary_table", "csv", nil, nil)
+	t.Run("valid delivery accepted", func(t *testing.T) {
+		req, err := NewRemoteQueryExecuteRequest("postgres", target, "SELECT * FROM arbitrary_table", true, pagedTestDelivery())
 		require.NoError(t, err)
 		assert.Equal(t, "SELECT * FROM arbitrary_table", req.Query)
+		assert.True(t, req.IncludeSchema)
 	})
 
 	t.Run("empty query", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, "", "csv", nil, nil)
+		_, err := NewRemoteQueryExecuteRequest("postgres", target, "", false, pagedTestDelivery())
 		require.Error(t, err)
 		assert.EqualError(t, err, "query is required")
 	})
 
-	t.Run("bad operation", func(t *testing.T) {
-		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, &RemoteQueryExecuteLimits{MaxRows: 2, MaxBytes: 1024, TimeoutMs: 1000})
-		require.Error(t, err)
-		assert.EqualError(t, err, "operation must be copy_stream")
-	})
-
 	t.Run("bad target", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "", Port: 5432, DBName: "postgres"}, remoteQueryFixtureTableProofQuery, "csv", nil, nil)
+		_, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "", Port: 5432, DBName: "postgres"}, remoteQueryFixtureTableProofQuery, false, pagedTestDelivery())
 		require.Error(t, err)
 		assert.EqualError(t, err, "target.host is required")
 	})
 
 	t.Run("bad database instance target", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: " rq-proof-a1-db1 "}, remoteQueryFixtureTableProofQuery, "csv", nil, nil)
+		_, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: " rq-proof-a1-db1 "}, remoteQueryFixtureTableProofQuery, false, pagedTestDelivery())
 		require.Error(t, err)
 		assert.EqualError(t, err, "target.database_instance must not contain surrounding whitespace")
 	})
 
-	t.Run("bad format", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "json", nil, nil)
-		require.Error(t, err)
-		assert.EqualError(t, err, "format must be csv or binary")
-	})
+	invalidDeliveries := []struct {
+		name    string
+		mutate  func(*RemoteQueryResultDelivery)
+		wantErr string
+	}{
+		{name: "nil delivery", mutate: func(*RemoteQueryResultDelivery) {}, wantErr: "result_delivery is required"},
+		{name: "missing runId", mutate: func(d *RemoteQueryResultDelivery) { d.RunID = "" }, wantErr: "result_delivery.runId is required"},
+		{name: "missing taskId", mutate: func(d *RemoteQueryResultDelivery) { d.TaskID = "" }, wantErr: "result_delivery.taskId is required"},
+		{name: "artifact version drift", mutate: func(d *RemoteQueryResultDelivery) { d.ArtifactVersion = 2 }, wantErr: "result_delivery.artifactVersion must be 1"},
+		{name: "missing uploadId", mutate: func(d *RemoteQueryResultDelivery) { d.UploadID = "" }, wantErr: "result_delivery.uploadId is required"},
+		{name: "uploadId with separators", mutate: func(d *RemoteQueryResultDelivery) { d.UploadID = "upload/proof" }, wantErr: "result_delivery.uploadId contains invalid characters"},
+		{name: "missing baseUrl", mutate: func(d *RemoteQueryResultDelivery) { d.BaseURL = "" }, wantErr: "result_delivery.baseUrl is required"},
+		{name: "missing token", mutate: func(d *RemoteQueryResultDelivery) { d.Token = "" }, wantErr: "result_delivery.token is required"},
+		{name: "zero partBytes", mutate: func(d *RemoteQueryResultDelivery) { d.PartBytes = 0 }, wantErr: "result_delivery.partBytes must be at least 1"},
+		{name: "partBytes above 128 MiB cap", mutate: func(d *RemoteQueryResultDelivery) { d.PartBytes = (128 << 20) + 1 }, wantErr: fmt.Sprintf("result_delivery.partBytes must not exceed %d", remoteQueryUploadMaxPartBytes)},
+		{name: "partBytes above page cap", mutate: func(d *RemoteQueryResultDelivery) { d.PartBytes = (32 << 20) + 1 }, wantErr: "result_delivery.partBytes must not exceed limits.maxFileBytes"},
+		{name: "nil limits", mutate: func(d *RemoteQueryResultDelivery) { d.Limits = nil }, wantErr: "result_delivery.limits is required"},
+		{name: "zero maxFileBytes", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxFileBytes = 0 }, wantErr: "result_delivery.limits.maxFileBytes must be at least 1"},
+		{name: "maxFileBytes above 128 MiB ceiling", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxFileBytes = (128 << 20) + 1 }, wantErr: fmt.Sprintf("result_delivery.limits.maxFileBytes must not exceed %d", remoteQueryUploadMaxFileBytes)},
+		{name: "zero maxResultBytes", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxResultBytes = 0 }, wantErr: "result_delivery.limits.maxResultBytes must be at least 1"},
+		{name: "maxResultBytes above 10 GiB cap", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxResultBytes = (10 << 30) + 1 }, wantErr: fmt.Sprintf("result_delivery.limits.maxResultBytes must not exceed %d", remoteQueryUploadMaxResultBytes)},
+		{name: "zero maxRowBytes", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxRowBytes = 0 }, wantErr: "result_delivery.limits.maxRowBytes must be at least 1"},
+		{name: "maxRowBytes above page cap", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxRowBytes = (32 << 20) + 1 }, wantErr: "result_delivery.limits.maxRowBytes must not exceed maxFileBytes"},
+		{name: "zero maxColumns", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxColumns = 0 }, wantErr: "result_delivery.limits.maxColumns must be at least 1"},
+		{name: "zero maxSchemaBytes", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxSchemaBytes = 0 }, wantErr: "result_delivery.limits.maxSchemaBytes must be at least 1"},
+		{name: "zero maxPages", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxPages = 0 }, wantErr: "result_delivery.limits.maxPages must be at least 1"},
+		{name: "zero timeoutMs", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.TimeoutMs = 0 }, wantErr: "result_delivery.limits.timeoutMs must be at least 1"},
+		{name: "page cap above total cap", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxResultBytes = 16 << 20 }, wantErr: "result_delivery.limits.maxFileBytes must not exceed maxResultBytes"},
+	}
 
-	t.Run("bad limits", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv", &RemoteQueryExecuteCopyLimits{ChunkBytes: 0, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000}, nil)
-		require.Error(t, err)
-		assert.EqualError(t, err, "copyLimits.chunkBytes must be at least 1")
-	})
+	for _, tt := range invalidDeliveries {
+		t.Run(tt.name, func(t *testing.T) {
+			delivery := pagedTestDelivery()
+			if tt.name != "nil delivery" {
+				tt.mutate(delivery)
+			} else {
+				delivery = nil
+			}
+			_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
+			require.Error(t, err)
+			assert.EqualError(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestRemoteQueryExecuteHandlerDisabled(t *testing.T) {
@@ -659,24 +777,27 @@ func TestRemoteQueryExecuteHandlerDisabled(t *testing.T) {
 func TestRemoteQueryExecuteHandlerRejectsInlineHTTPExecution(t *testing.T) {
 	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: &fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}}}}}}
 
-	recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"LOCALHOST.","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+	// A fully valid paged-JSON request is accepted by shape validation but still
+	// rejected: Remote Queries execute only over the AgentSecure streaming RPC.
+	recorder := callExecuteHandler(handler, executeRequestBody(validDeliveryJSON))
 
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), "streaming executor")
+	assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
+	assert.Contains(t, recorder.Body.String(), "streaming RPC")
 	assert.NotContains(t, recorder.Body.String(), "secret-value")
+	assert.NotContains(t, recorder.Body.String(), "scoped-upload-token")
 }
 
-func TestRemoteQueryExecuteServiceCopyStreamDispatch(t *testing.T) {
+func TestRemoteQueryExecuteServiceDispatchesPagedJSONRequest(t *testing.T) {
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
 		events: []check.RemoteQueryStreamEvent{
-			{Type: "metadata", MetadataJSON: `{"status":"STARTED"}`},
-			{Type: "data", MetadataJSON: `{"sequence":0,"offset":0,"bytes":3}`, Payload: []byte{0x00, 0xff, 0x80}},
-			{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
+			{Type: "metadata", MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages","includeSchema":true}`},
+			{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":2,"totalBytes":18}}`},
 		},
 	}
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"}, "SELECT city, country FROM cities ORDER BY city", "csv", &RemoteQueryExecuteCopyLimits{ChunkBytes: 4, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000}, nil)
+	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"}, "SELECT city, country FROM cities ORDER BY city", true, pagedTestDelivery())
 	require.NoError(t, err)
 
 	var events []check.RemoteQueryStreamEvent
@@ -688,24 +809,41 @@ func TestRemoteQueryExecuteServiceCopyStreamDispatch(t *testing.T) {
 	require.Nil(t, result.Error)
 	assert.Equal(t, runner.events, events)
 	assert.Equal(t, 1, runner.streamCalls)
-	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","format":"csv","limits":{"chunkBytes":4,"maxBytes":1024,"maxRowBytes":1024,"timeoutMs":1000}}`, runner.streamSeen)
+	assert.JSONEq(t, `{
+		"operation": "produce_json_pages",
+		"target": {"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query": "SELECT city, country FROM cities ORDER BY city",
+		"includeSchema": true,
+		"resultDelivery": {
+			"runId": "run-proof",
+			"taskId": "task-proof",
+			"artifactVersion": 1,
+			"uploadId": "upload-proof",
+			"baseUrl": "https://dd.datad0g.com/api/unstable/its-agent-intake",
+			"token": "scoped-upload-token",
+			"partBytes": 8388608,
+			"limits": {"maxFileBytes": 33554432, "maxResultBytes": 10737418240, "maxRowBytes": 33554432, "maxColumns": 1024, "maxSchemaBytes": 1048576, "maxPages": 128, "timeoutMs": 30000}
+		}
+	}`, runner.streamSeen)
 	assert.NotContains(t, runner.streamSeen, "integration")
+	assert.NotContains(t, runner.streamSeen, "secret-value")
 }
 
-func TestRemoteQueryExecuteServiceCopyStreamDispatchesDatabaseInstanceTarget(t *testing.T) {
+func TestRemoteQueryExecuteServiceDispatchesDatabaseInstanceTarget(t *testing.T) {
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"}},
-		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
+		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
 	}
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false, nil)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1"}, "SELECT * FROM arbitrary_table", "csv", nil, nil)
+	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 	require.NoError(t, err)
 
 	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
 	require.Nil(t, result.Error)
 	assert.Equal(t, 1, runner.streamCalls)
-	assert.JSONEq(t, `{"operation":"copy_stream","target":{"database_instance":"rq-proof-a1-db1"},"query":"SELECT * FROM arbitrary_table","format":"csv"}`, runner.streamSeen)
+	assert.Contains(t, runner.streamSeen, `"database_instance":"rq-proof-a1-db1"`)
+	assert.Contains(t, runner.streamSeen, `"operation":"produce_json_pages"`)
 	assert.NotContains(t, runner.streamSeen, "secret-value")
 }
 
@@ -714,7 +852,7 @@ func TestRemoteQueryExecuteServiceRejectsNonAllowlistedQueryByDefault(t *testing
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
 	}
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", "csv", nil, nil)
+	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 	require.NoError(t, err)
 
 	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
@@ -729,10 +867,10 @@ func TestRemoteQueryExecuteServiceRejectsNonAllowlistedQueryByDefault(t *testing
 func TestRemoteQueryExecuteServiceAllowsNonAllowlistedQueryWhenAllowlistDisabled(t *testing.T) {
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
-		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
+		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
 	}
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false, nil)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", "csv", nil, nil)
+	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 	require.NoError(t, err)
 
 	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
@@ -742,70 +880,87 @@ func TestRemoteQueryExecuteServiceAllowsNonAllowlistedQueryWhenAllowlistDisabled
 	assert.Contains(t, runner.streamSeen, "SELECT * FROM arbitrary_table")
 }
 
-func TestRemoteQueryExecuteHandlerRejectsInvalidIntegration(t *testing.T) {
-	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{}}
-
-	recorder := callExecuteHandler(handler, `{"integration":"my-sql","target":{"host":"localhost","port":3306,"dbname":"mysql"},"query":"SELECT 1 AS value"}`)
-
-	assert.Equal(t, http.StatusBadRequest, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
-	assert.Contains(t, recorder.Body.String(), "integration contains invalid characters")
-	assert.NotContains(t, recorder.Body.String(), "mysql")
-}
-
-func TestRemoteQueryExecuteHandlerNoMatchAndAmbiguous(t *testing.T) {
+func TestRemoteQueryExecuteServiceNoMatchAndAmbiguousAreSanitized(t *testing.T) {
 	t.Run("no match", func(t *testing.T) {
-		handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
-		}}}
+		}}, true, true, nil)
+		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "other"}, "SELECT 1 AS value", false, pagedTestDelivery())
+		require.NoError(t, err)
 
-		recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"other"},"query":"SELECT 1 AS value"}`)
+		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
-		assert.Equal(t, http.StatusBadRequest, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
-		assert.NotContains(t, recorder.Body.String(), "secret-value")
-		assert.NotContains(t, recorder.Body.String(), "other")
+		require.NotNil(t, result.Error)
+		assert.Equal(t, statusTargetNotFound, result.Error.Code)
+		assert.Equal(t, "no matching integration check found", result.Error.Message)
+		assert.NotContains(t, result.Error.Message, "secret-value")
+		assert.NotContains(t, result.Error.Message, "other")
 	})
 
 	t.Run("ambiguous", func(t *testing.T) {
-		handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-one\n"}},
 			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"}},
-		}}}
+		}}, true, true, nil)
+		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
+		require.NoError(t, err)
 
-		recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
-		assert.Equal(t, http.StatusBadRequest, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
-		assert.NotContains(t, recorder.Body.String(), "secret-one")
-		assert.NotContains(t, recorder.Body.String(), "secret-two")
+		require.NotNil(t, result.Error)
+		assert.Equal(t, statusAmbiguous, result.Error.Code)
+		assert.Equal(t, "multiple matching integration checks found", result.Error.Message)
+		assert.NotContains(t, result.Error.Message, "secret-one")
+		assert.NotContains(t, result.Error.Message, "secret-two")
 	})
 }
 
-func TestRemoteQueryExecuteHandlerUnsupportedAndRunnerErrorAreSanitized(t *testing.T) {
+func TestRemoteQueryExecuteServiceUnsupportedAndRunnerErrorAreSanitized(t *testing.T) {
 	t.Run("unsupported", func(t *testing.T) {
-		handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
-		}}}
+		}}, true, true, nil)
+		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
+		require.NoError(t, err)
 
-		recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
-		assert.Equal(t, http.StatusBadRequest, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
-		assert.NotContains(t, recorder.Body.String(), "secret-value")
+		require.NotNil(t, result.Error)
+		assert.Equal(t, statusExecutorUnavailable, result.Error.Code)
+		assert.Equal(t, "matched integration check does not support remote query streaming", result.Error.Message)
+		assert.NotContains(t, result.Error.Message, "secret-value")
 	})
 
 	t.Run("runner error", func(t *testing.T) {
-		handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
-			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}, err: assert.AnError},
-		}}}
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
+			&fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}}, err: assert.AnError},
+		}}, true, true, nil)
+		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
+		require.NoError(t, err)
 
-		recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
-		assert.Equal(t, http.StatusBadRequest, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
-		assert.NotContains(t, recorder.Body.String(), "secret-value")
-		assert.NotContains(t, recorder.Body.String(), assert.AnError.Error())
+		require.NotNil(t, result.Error)
+		assert.Equal(t, statusExecutorUnavailable, result.Error.Code)
+		assert.Equal(t, "remote query stream executor failed", result.Error.Message)
+		assert.NotContains(t, result.Error.Message, "secret-value")
+		assert.NotContains(t, result.Error.Message, assert.AnError.Error())
+	})
+}
+
+func TestRemoteQueryExecuteServiceMissingReceiptAndMalformedFinalAreExecutorErrors(t *testing.T) {
+	t.Run("emit callback unavailable", func(t *testing.T) {
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
+			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
+		}}, true, true, nil)
+		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
+		require.NoError(t, err)
+
+		result := service.ExecuteStream(context.Background(), req, nil)
+
+		require.NotNil(t, result.Error)
+		assert.Equal(t, statusExecutorUnavailable, result.Error.Code)
+		assert.Equal(t, "remote query stream emitter is unavailable", result.Error.Message)
 	})
 }
 
@@ -827,7 +982,6 @@ func (f fakeWrappedCheck) Unwrap() check.Check {
 
 type fakeRunnerCheck struct {
 	fakeCheck
-	err error
 }
 
 type fakeStreamRunnerCheck struct {
@@ -835,11 +989,16 @@ type fakeStreamRunnerCheck struct {
 	events      []check.RemoteQueryStreamEvent
 	streamSeen  string
 	streamCalls int
+	err         error
 }
 
 func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error {
 	if integration != "postgres" {
 		return assert.AnError
+	}
+	if f.err != nil {
+		f.streamCalls++
+		return f.err
 	}
 	f.streamCalls++
 	f.streamSeen = requestJSON
@@ -852,97 +1011,85 @@ func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, request
 }
 
 const (
-	remoteQueryMultipartPartCap  = 128 << 20 // 128 MiB hard part cap
-	remoteQueryMultipartTotalCap = 10 << 30  // 10 GiB hard total cap
+	remoteQueryPagedPartCap     = 128 << 20 // 128 MiB hard part cap
+	remoteQueryPagedFileCeiling = 128 << 20 // 128 MiB hard page cap ceiling
+	remoteQueryPagedTotalCap    = 10 << 30  // 10 GiB hard total cap
 )
 
-// multipartDeliveryForCapTest builds a valid multipart result-delivery handle with the given
-// part/total sizes so cap and copyLimits-interaction tests only vary the fields under test.
-func multipartDeliveryForCapTest(partBytes, maxBytes int) *RemoteQueryResultDelivery {
-	return &RemoteQueryResultDelivery{
-		Mode:        RemoteQueryResultDeliveryModeMultipartUpload,
-		UploadID:    "upload-cap-test",
-		BaseURL:     "https://dd.datad0g.com/api/unstable/its-agent-intake",
-		Token:       "scoped-upload-token",
-		PartBytes:   partBytes,
-		MaxBytes:    maxBytes,
-		Format:      "csv",
-		Compression: "none",
-	}
-}
-
-func TestRemoteQueryResultDeliveryMultipartCaps(t *testing.T) {
+// TestRemoteQueryResultDeliveryPagedCaps proves the forwarding caps fail closed at the
+// exact platform ceilings: 128 MiB parts and pages, 10 GiB total result bytes.
+func TestRemoteQueryResultDeliveryPagedCaps(t *testing.T) {
 	target := RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}
 
-	t.Run("128 MiB part cap accepted", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
-			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: remoteQueryMultipartTotalCap, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
-			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, remoteQueryMultipartTotalCap))
+	t.Run("128 MiB part accepted", func(t *testing.T) {
+		delivery := pagedTestDelivery()
+		delivery.PartBytes = remoteQueryPagedPartCap
+		delivery.Limits.MaxFileBytes = remoteQueryPagedFileCeiling
+		delivery.Limits.MaxRowBytes = remoteQueryPagedFileCeiling
+		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
 		require.NoError(t, err)
 	})
 
 	t.Run("128 MiB plus one part rejected", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
-			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: remoteQueryMultipartTotalCap, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
-			multipartDeliveryForCapTest(remoteQueryMultipartPartCap+1, remoteQueryMultipartTotalCap))
+		delivery := pagedTestDelivery()
+		delivery.PartBytes = remoteQueryPagedPartCap + 1
+		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
 		require.Error(t, err)
-		assert.EqualError(t, err, fmt.Sprintf("result_delivery.partBytes must not exceed %d", remoteQueryMultipartPartCap))
+		assert.EqualError(t, err, fmt.Sprintf("result_delivery.partBytes must not exceed %d", remoteQueryPagedPartCap))
 	})
 
-	t.Run("10 GiB total cap accepted without copyLimits", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv", nil,
-			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, remoteQueryMultipartTotalCap))
+	t.Run("128 MiB page accepted", func(t *testing.T) {
+		delivery := pagedTestDelivery()
+		delivery.Limits.MaxFileBytes = remoteQueryPagedFileCeiling
+		delivery.Limits.MaxRowBytes = remoteQueryPagedFileCeiling
+		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
+		require.NoError(t, err)
+	})
+
+	t.Run("128 MiB plus one page rejected", func(t *testing.T) {
+		delivery := pagedTestDelivery()
+		delivery.Limits.MaxFileBytes = remoteQueryPagedFileCeiling + 1
+		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
+		require.Error(t, err)
+		assert.EqualError(t, err, fmt.Sprintf("result_delivery.limits.maxFileBytes must not exceed %d", remoteQueryPagedFileCeiling))
+	})
+
+	t.Run("10 GiB total accepted", func(t *testing.T) {
+		delivery := pagedTestDelivery()
+		delivery.Limits.MaxResultBytes = remoteQueryPagedTotalCap
+		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
 		require.NoError(t, err)
 	})
 
 	t.Run("10 GiB plus one total rejected", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv", nil,
-			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, remoteQueryMultipartTotalCap+1))
+		delivery := pagedTestDelivery()
+		delivery.Limits.MaxResultBytes = remoteQueryPagedTotalCap + 1
+		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
 		require.Error(t, err)
-		assert.EqualError(t, err, fmt.Sprintf("result_delivery.maxBytes must not exceed %d", remoteQueryMultipartTotalCap))
-	})
-
-	t.Run("partBytes may exceed copyLimits chunkBytes", func(t *testing.T) {
-		// COPY reads and multipart parts are independent: multiple 1 MiB COPY reads aggregate
-		// into one 64 MiB multipart part, so partBytes > copyLimits.chunkBytes is valid.
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
-			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: remoteQueryMultipartTotalCap, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
-			multipartDeliveryForCapTest(64<<20, remoteQueryMultipartTotalCap))
-		require.NoError(t, err)
-	})
-
-	t.Run("10 GiB upload accepted when extraction cap is 10 GiB", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
-			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: remoteQueryMultipartTotalCap, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
-			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, remoteQueryMultipartTotalCap))
-		require.NoError(t, err)
-	})
-
-	t.Run("upload limit exceeding extraction cap rejected", func(t *testing.T) {
-		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "csv",
-			&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: 5 << 30, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
-			multipartDeliveryForCapTest(remoteQueryMultipartPartCap, 10<<30))
-		require.Error(t, err)
-		assert.EqualError(t, err, "result_delivery.maxBytes must not exceed copyLimits.maxBytes")
+		assert.EqualError(t, err, fmt.Sprintf("result_delivery.limits.maxResultBytes must not exceed %d", remoteQueryPagedTotalCap))
 	})
 }
 
-// TestRemoteQueryResultDelivery10GiBJSONFidelity proves the 10 GiB result cap survives the
-// Agent -> integration request JSON boundary as an exact JSON number. The Go int fields marshal
-// 10 GiB without truncation, so the integration receives the backend-owned cap verbatim.
+// TestRemoteQueryResultDelivery10GiBJSONFidelity proves the 10 GiB result cap survives
+// the Agent -> integration request JSON boundary as an exact JSON number. The Go int
+// fields marshal 10 GiB without truncation, so the integration receives the
+// backend-owned cap verbatim.
 func TestRemoteQueryResultDelivery10GiBJSONFidelity(t *testing.T) {
-	const tenGiB = 10 << 30
-	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres",
+	delivery := pagedTestDelivery()
+	delivery.PartBytes = 64 << 20
+	delivery.Limits.MaxFileBytes = 128 << 20
+	delivery.Limits.MaxRowBytes = 128 << 20
+	delivery.Limits.MaxResultBytes = 10 << 30
+	req, err := NewRemoteQueryExecuteRequest("postgres",
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
-		remoteQueryFixtureTableProofQuery, "csv",
-		&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: tenGiB, MaxRowBytes: 1 << 20, TimeoutMs: 1000},
-		multipartDeliveryForCapTest(64<<20, tenGiB))
+		remoteQueryFixtureTableProofQuery, false, delivery)
 	require.NoError(t, err)
 
 	requestJSON, err := marshalExecuteRequest(req.internal())
 	require.NoError(t, err)
 	assert.Contains(t, requestJSON, `"partBytes":67108864`)
-	assert.Contains(t, requestJSON, `"maxBytes":10737418240`)
+	assert.Contains(t, requestJSON, `"maxResultBytes":10737418240`)
+	assert.Contains(t, requestJSON, `"timeoutMs":30000`)
 	assert.NotContains(t, requestJSON, "api_key")
 	assert.NotContains(t, requestJSON, "application_key")
 }
