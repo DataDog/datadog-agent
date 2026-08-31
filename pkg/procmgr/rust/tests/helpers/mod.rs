@@ -8,6 +8,7 @@ use nix::sys::signal::{self, Signal};
 #[cfg(unix)]
 use nix::unistd::Pid;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -134,6 +135,180 @@ impl ReloadSnapshot {
                 list.label()
             );
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+struct DescribeSnapshot {
+    pub uuid: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    pub state: String,
+    pub pid: u64,
+    #[serde(default)]
+    pub profile: String,
+    #[serde(default)]
+    pub user: String,
+    pub command: String,
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub working_dir: String,
+    #[serde(default)]
+    pub env: BTreeMap<String, String>,
+    #[serde(default)]
+    pub restart_policy: String,
+    pub restart_count: u64,
+    pub last_exit_code: Option<i32>,
+    pub last_signal: Option<i32>,
+    pub auto_start: bool,
+    #[serde(default)]
+    pub stdout: String,
+    #[serde(default)]
+    pub stderr: String,
+    #[serde(default)]
+    pub condition_path_exists: String,
+    #[serde(default)]
+    pub after: Vec<String>,
+    #[serde(default)]
+    pub before: Vec<String>,
+    #[serde(default)]
+    pub runtime_user: String,
+}
+
+/// Unset fields are not checked (same pattern as ReloadExpect / StatusProcessesCount).
+#[derive(Debug, Clone, Default)]
+pub struct DescribeExpect {
+    pub name: Option<String>,
+    pub state: Option<String>,
+    pub uuid: Option<String>,
+    pub pid: Option<u64>,
+    pub command: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub description: Option<String>,
+    pub working_dir: Option<String>,
+    pub restart_policy: Option<String>,
+    pub auto_start: Option<bool>,
+    pub restart_count: Option<u64>,
+    pub last_exit_code: Option<Option<i32>>,
+    pub env_contains: Option<BTreeMap<String, String>>,
+    pub after: Option<Vec<String>>,
+    pub has_uuid: Option<bool>,
+    pub has_stdout_path: Option<bool>,
+    pub has_stderr_path: Option<bool>,
+    pub pid_alive: Option<bool>,
+}
+
+impl DescribeSnapshot {
+    fn assert_matches(&self, expected: &DescribeExpect) {
+        assert_describe_field("name", &self.name, &expected.name, self);
+        assert_describe_field("state", &self.state, &expected.state, self);
+        assert_describe_field("uuid", &self.uuid, &expected.uuid, self);
+        assert_describe_field("pid", &self.pid, &expected.pid, self);
+        assert_describe_field("command", &self.command, &expected.command, self);
+        assert_describe_field("args", &self.args, &expected.args, self);
+        assert_describe_field(
+            "description",
+            &self.description,
+            &expected.description,
+            self,
+        );
+        assert_describe_field(
+            "working_dir",
+            &self.working_dir,
+            &expected.working_dir,
+            self,
+        );
+        assert_describe_field(
+            "restart_policy",
+            &self.restart_policy,
+            &expected.restart_policy,
+            self,
+        );
+        assert_describe_field("auto_start", &self.auto_start, &expected.auto_start, self);
+        assert_describe_field(
+            "restart_count",
+            &self.restart_count,
+            &expected.restart_count,
+            self,
+        );
+        assert_describe_field(
+            "last_exit_code",
+            &self.last_exit_code,
+            &expected.last_exit_code,
+            self,
+        );
+        if let Some(expected_env) = &expected.env_contains {
+            for (key, value) in expected_env {
+                assert_eq!(
+                    self.env.get(key),
+                    Some(value),
+                    "describe env[{key}]: expected {value:?}, got {:?}\nfull: {self:?}",
+                    self.env.get(key)
+                );
+            }
+        }
+        if let Some(expected_after) = &expected.after {
+            if expected_after.is_empty() {
+                assert!(
+                    self.after.is_empty(),
+                    "expected describe after to be empty, got {self:?}"
+                );
+            } else {
+                for name in expected_after {
+                    assert!(
+                        self.after.iter().any(|n| n == name),
+                        "expected '{name}' in describe after, got {self:?}"
+                    );
+                }
+            }
+        }
+        assert_describe_present("uuid", &self.uuid, expected.has_uuid, self);
+        assert_describe_present("stdout", &self.stdout, expected.has_stdout_path, self);
+        assert_describe_present("stderr", &self.stderr, expected.has_stderr_path, self);
+        if let Some(expected_alive) = expected.pid_alive {
+            let alive = self.pid > 0 && pid_is_alive(self.pid as u32);
+            assert_eq!(
+                alive,
+                expected_alive,
+                "describe pid_alive: expected {expected_alive}, pid {} alive={}\nfull: {self:?}",
+                self.pid,
+                pid_is_alive(self.pid as u32)
+            );
+        }
+    }
+}
+
+fn assert_describe_field<T: PartialEq + std::fmt::Debug>(
+    field: &str,
+    actual: &T,
+    expected: &Option<T>,
+    snapshot: &DescribeSnapshot,
+) {
+    if let Some(expected) = expected {
+        assert_eq!(
+            actual, expected,
+            "describe {field}: expected {expected:?}, got {actual:?}\nfull: {snapshot:?}"
+        );
+    }
+}
+
+fn assert_describe_present(
+    field: &str,
+    actual: &str,
+    expected: Option<bool>,
+    snapshot: &DescribeSnapshot,
+) {
+    match expected {
+        Some(true) => assert!(
+            !actual.is_empty(),
+            "describe {field} should be present, got {snapshot:?}"
+        ),
+        Some(false) => assert!(
+            actual.is_empty(),
+            "describe {field} should be empty, got {snapshot:?}"
+        ),
+        None => {}
     }
 }
 
@@ -760,13 +935,18 @@ impl TestEnv {
         install_process_fixture(self.env_root(), &self.config_dir, name);
     }
 
+    /// Render `fixture` into `{name}.yaml` (simulates operator replacing a process file).
+    pub fn overwrite_with_fixture(&self, name: &str, fixture: &str) {
+        install_process_fixture_as(self.env_root(), &self.config_dir, fixture, name);
+    }
+
     pub fn remove_process_yaml(&self, name: &str) {
         let path = self.config_dir.join(format!("{name}.yaml"));
         std::fs::remove_file(&path)
             .unwrap_or_else(|e| panic!("failed to remove {}: {e}", path.display()));
     }
 
-    fn env_root(&self) -> &Path {
+    pub fn env_root(&self) -> &Path {
         self._dir.path()
     }
 
@@ -1018,6 +1198,29 @@ impl TestEnv {
             .pid
     }
 
+    fn describe(&self, name_or_uuid: &str) -> Result<DescribeSnapshot, String> {
+        let out = self.cli(&["describe", "--json", name_or_uuid]);
+        if !out.status.success() {
+            return Err(format!(
+                "describe --json {name_or_uuid} failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        serde_json::from_str(&out.stdout)
+            .map_err(|e| format!("failed to parse describe JSON: {e}\nstdout: {}", out.stdout))
+    }
+
+    fn assert_describe(&self, name_or_uuid: &str) -> DescribeSnapshot {
+        self.describe(name_or_uuid)
+            .unwrap_or_else(|e| panic!("expected describe of '{name_or_uuid}' to succeed: {e}"))
+    }
+
+    pub fn assert_describe_matches(&self, name_or_uuid: &str, expected: DescribeExpect) {
+        self.assert_describe(name_or_uuid).assert_matches(&expected);
+    }
+
     fn format_wait_failure(&self, last_err: String) -> String {
         let logs = self
             .daemon
@@ -1166,7 +1369,7 @@ impl TestEnv {
         self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
-    pub fn assert_process_pid_alive(&self, name: &str) {
+    fn assert_process_pid_alive(&self, name: &str) {
         let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
         let pid = process.pid as u32;
         assert!(
@@ -1177,6 +1380,20 @@ impl TestEnv {
             pid_is_alive(pid),
             "PID {pid} for process '{name}' should be alive"
         );
+    }
+
+    pub fn assert_pid_gone(&self, pid: u64) {
+        assert!(
+            wait_for_pid_gone(pid as u32, DEFAULT_TIMEOUT),
+            "PID {pid} should be gone"
+        );
+    }
+
+    pub fn assert_process_pid_changed(&self, name: &str, old_pid: u64) {
+        self.assert_pid_gone(old_pid);
+        self.assert_process_running(name);
+        let new_pid = self.require_process_pid(name);
+        assert_ne!(old_pid, new_pid, "PID should change for {name}");
     }
 
     /// Create a sleep process via CLI with optional extra args
@@ -1289,8 +1506,17 @@ fn fixtures_root() -> PathBuf {
 }
 
 fn install_process_fixture(env_root: &Path, config_dir: &Path, name: &str) {
-    let bundle = fixtures_root().join(name);
-    let yaml_src = bundle.join(format!("{name}.yaml"));
+    install_process_fixture_as(env_root, config_dir, name, name);
+}
+
+fn install_process_fixture_as(
+    env_root: &Path,
+    config_dir: &Path,
+    fixture: &str,
+    process_name: &str,
+) {
+    let bundle = fixtures_root().join(fixture);
+    let yaml_src = bundle.join(format!("{fixture}.yaml"));
     assert!(
         yaml_src.is_file(),
         "fixture yaml not found: {}",
@@ -1301,8 +1527,8 @@ fn install_process_fixture(env_root: &Path, config_dir: &Path, name: &str) {
     std::fs::create_dir_all(&scripts_dir)
         .unwrap_or_else(|e| panic!("failed to create {}: {e}", scripts_dir.display()));
 
-    let script_path = scripts_dir.join(format!("{name}.py"));
-    let py_src = bundle.join(format!("{name}.py"));
+    let script_path = scripts_dir.join(format!("{fixture}.py"));
+    let py_src = bundle.join(format!("{fixture}.py"));
     if py_src.is_file() {
         std::fs::copy(&py_src, &script_path).unwrap_or_else(|e| {
             panic!(
@@ -1317,12 +1543,12 @@ fn install_process_fixture(env_root: &Path, config_dir: &Path, name: &str) {
         .unwrap_or_else(|e| panic!("failed to read fixture yaml {}: {e}", yaml_src.display()));
     let rendered = render_fixture_yaml(
         &template,
-        name,
+        fixture,
         env_root,
         config_dir,
         py_src.is_file().then_some(script_path.as_path()),
     );
-    write_config(config_dir, name, &rendered);
+    write_config(config_dir, process_name, &rendered);
 }
 
 fn render_fixture_yaml(
