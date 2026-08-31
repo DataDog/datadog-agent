@@ -84,19 +84,19 @@ where
                 tokio::select! {
                     _ = &mut shutdown => {
                         info!("shutdown requested while waiting; stopping orchestration loop");
-                        break;
+                        break tokio::time::Instant::now() + self.params.drain_timeout;
                     }
                     _ = tokio::time::sleep($duration) => {}
                 }
             };
         }
 
-        loop {
+        let shutdown_deadline = loop {
             // Acquire capacity before leasing work from OPMS.
             let permit = tokio::select! {
                 _ = &mut shutdown => {
                     info!("shutdown requested; stopping orchestration loop");
-                    break;
+                    break tokio::time::Instant::now() + self.params.drain_timeout;
                 }
                 permit = Arc::clone(&sem).acquire_owned() => {
                     permit.expect("semaphore unexpectedly closed")
@@ -107,7 +107,7 @@ where
                 _ = &mut shutdown => {
                     info!("shutdown requested during dequeue; stopping orchestration loop");
                     drop(permit);
-                    break;
+                    break tokio::time::Instant::now() + self.params.drain_timeout;
                 }
                 result = self.opms.dequeue() => result,
             };
@@ -138,20 +138,43 @@ where
                     );
                     let ready = tokio::select! {
                         _ = &mut shutdown => {
+                            let deadline = tokio::time::Instant::now() + self.params.drain_timeout;
                             info!("shutdown requested before task {} could be dispatched", task.task_id);
-                            self.report_dispatch_failure(&task, "runner stopped before dispatch").await;
+                            if tokio::time::timeout_at(
+                                deadline,
+                                self.report_dispatch_failure(&task, "runner stopped before dispatch"),
+                            )
+                            .await
+                            .is_err()
+                            {
+                                error!("shutdown deadline exceeded while publishing failure for task {}", task.task_id);
+                            }
                             stop_background_task(stop_hb, hb_done).await;
                             drop(permit);
-                            break;
+                            break deadline;
                         }
                         result = self.ensure_ready() => result,
                     };
                     if let Err(e) = ready {
                         error!("executor did not become ready: {e:#}");
-                        self.report_dispatch_failure(&task, &format!("executor unavailable: {e}"))
-                            .await;
+                        let detail = format!("executor unavailable: {e}");
+                        let report = self.report_dispatch_failure(&task, &detail);
+                        tokio::pin!(report);
+                        let deadline = tokio::select! {
+                            _ = &mut shutdown => {
+                                let deadline = tokio::time::Instant::now() + self.params.drain_timeout;
+                                if tokio::time::timeout_at(deadline, &mut report).await.is_err() {
+                                    error!("shutdown deadline exceeded while publishing failure for task {}", task.task_id);
+                                }
+                                Some(deadline)
+                            }
+                            _ = &mut report => None,
+                        };
                         stop_background_task(stop_hb, hb_done).await;
                         drop(permit);
+                        if let Some(deadline) = deadline {
+                            break deadline;
+                        }
                         continue;
                     }
 
@@ -226,7 +249,7 @@ where
                     sleep_or_shutdown!(delay);
                 }
             }
-        }
+        };
 
         let inflight = self.inflight.load(Ordering::SeqCst);
         if inflight > 0 {
@@ -237,8 +260,7 @@ where
             .pool_size
             .try_into()
             .expect("executor pool size exceeds semaphore capacity");
-        match tokio::time::timeout(self.params.drain_timeout, sem.acquire_many(drain_permits)).await
-        {
+        match tokio::time::timeout_at(shutdown_deadline, sem.acquire_many(drain_permits)).await {
             Ok(Ok(_drained)) if inflight > 0 => info!("all in-flight actions finished"),
             Ok(Ok(_drained)) => {}
             Ok(Err(_)) => error!("semaphore unexpectedly closed while draining"),
@@ -953,6 +975,47 @@ mod tests {
         let state = fakes.state.lock().unwrap();
         assert_eq!(state.published, 1);
         assert_eq!(state.failures, 1);
+    }
+
+    #[tokio::test]
+    async fn shutdown_bounds_predispatch_failure_publication() {
+        let fakes = Arc::new(Fakes {
+            state: Mutex::new(FakeState {
+                not_ready_checks_remaining: usize::MAX,
+                ..Default::default()
+            }),
+            tasks_to_serve: 1,
+            block_publish: true,
+            ..Default::default()
+        });
+        let mut params = test_params(1, Duration::from_secs(3600));
+        params.drain_timeout = Duration::from_millis(20);
+        let orch = Orchestrator::new(
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            params,
+        );
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            orch.run(async {
+                let _ = rx.await;
+            })
+            .await;
+        });
+
+        wait_until(
+            || fakes.state.lock().unwrap().executor_health_checks > 0,
+            "executor readiness did not start",
+        )
+        .await;
+
+        tx.send(()).unwrap();
+        tokio::time::timeout(Duration::from_millis(100), handle)
+            .await
+            .expect("predispatch publication exceeded the shutdown deadline")
+            .expect("orchestrator task panicked");
+        assert_eq!(fakes.state.lock().unwrap().publish_attempts, 1);
     }
 
     #[tokio::test]
