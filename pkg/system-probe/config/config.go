@@ -263,7 +263,7 @@ func tracerouteEnabled(cfg, coreCfg pkgconfigmodel.Reader, npmEnabled bool) bool
 	if !enabled && !cfg.IsConfigured(tracerouteNS("enabled")) {
 		return npmEnabled && dynamicTestsEnabled
 	}
-	if cfg.IsConfigured(tracerouteNS("enabled")) && !enabled && npmEnabled && dynamicTestsEnabled {
+	if !enabled && cfg.IsConfigured(tracerouteNS("enabled")) && npmEnabled && dynamicTestsEnabled {
 		log.Warn("Network Path Dynamic Tests are enabled, but system-probe traceroute was explicitly disabled")
 	}
 	return enabled
