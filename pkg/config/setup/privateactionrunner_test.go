@@ -197,6 +197,22 @@ func TestPrivateActionRunnerRestrictedShellAllowedCommandsJSONArrayEnv(t *testin
 	}
 }
 
+func TestPrivateActionRunnerRestrictedShellDisableDetailedTelemetryUnsetByDefault(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.IsConfigured(PARRestrictedShellDisableDetailedTelemetry))
+	assert.False(t, cfg.GetBool(PARRestrictedShellDisableDetailedTelemetry))
+}
+
+func TestPrivateActionRunnerRestrictedShellDisableDetailedTelemetryFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_DISABLE_DETAILED_TELEMETRY", "true")
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARRestrictedShellDisableDetailedTelemetry))
+	assert.True(t, cfg.GetBool(PARRestrictedShellDisableDetailedTelemetry))
+}
+
 // TestPrivateActionRunnerRestrictedShellAllowedPathsInvalidJSONEnv pins
 // that malformed bracketed input is rejected by the parser. The parser
 // logs an error and returns nil; the env var still counts as "set" (so
