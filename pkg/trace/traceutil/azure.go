@@ -101,7 +101,7 @@ func getRuntime(websiteOS string) (rt string) {
 	switch websiteOS {
 	case "windows":
 		rt = getWindowsRuntime()
-	case "linux", "darwin":
+	case "linux", "darwin", "aix":
 		rt = getLinuxRuntime()
 	default:
 		rt = unknown

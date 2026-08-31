@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !linux_bpf || !cgo
+//go:build !linux || !bpf || !cgo
 
 package module
 
@@ -15,7 +15,7 @@ import (
 )
 
 // errRustLibraryUnavailable is returned when the binary was built without the
-// linux_bpf+cgo combination required to link libdd_discovery (for example,
+// bpf+cgo combination required to link libdd_discovery (for example,
 // non-system-probe agent test builds or CGO_ENABLED=0 toolchain runs).
 var errRustLibraryUnavailable = errors.New("libdd_discovery unavailable in this build")
 

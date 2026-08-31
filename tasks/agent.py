@@ -468,7 +468,7 @@ def hacky_dev_image_build(
         # of truth: ENABLED_CHECKS in the rustchecks BUILD.bazel). The `:install`
         # target lays each cdylib into <destdir>/checks.d with 0500 perms.
         checks_d_staging = "bin/agent/dist/checks.d"
-        bazel(ctx, "run", "//pkg/collector/sharedlibrary/rustchecks:install", "--", "--destdir=bin/agent/dist")
+        bazel("run", "//pkg/collector/sharedlibrary/rustchecks:install", "--", "--destdir=bin/agent/dist")
         if os.path.isdir(checks_d_staging) and any(
             f.startswith("libdatadog-agent-") for f in os.listdir(checks_d_staging)
         ):

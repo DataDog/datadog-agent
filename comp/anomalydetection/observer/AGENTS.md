@@ -34,7 +34,7 @@ and the testbench use the same engine.
 | `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
 | `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
-| `impl/storage.go` | In-memory columnar time-series storage (1s buckets, read-time aggregation) |
+| `impl/storage.go` | In-memory bucketed time-series storage (1s buckets, read-time aggregation) |
 | `impl/scheduler.go` | Scheduling policy: when to advance analysis |
 | `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation, log tap |
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
@@ -42,7 +42,6 @@ and the testbench use the same engine.
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
 | `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
 | `impl/anomaly_correlator_time_cluster.go` | Time-proximity correlator |
-| `impl/anomaly_correlator_passthrough.go` | Passthrough correlator (one ActiveCorrelation per anomaly) |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
@@ -60,7 +59,6 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Detector | `rrcf` | on |
 | Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | off |
-| Correlator | `cross_signal`, `passthrough` | off |
 | Correlator | `anomaly_scorer` | off |
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
@@ -115,8 +113,8 @@ analysis to T-1. This ensures deterministic replay: same data → same anomalies
 
 ### Read-time aggregation
 
-Storage keeps full summary stats (sum/count/min/max) per 1-second bucket.
-Aggregation kind (avg, sum, count, min, max) is chosen when reading, not when
+Storage keeps sum/count summary stats per 1-second bucket.
+Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
 ### Non-blocking ingestion
@@ -135,7 +133,7 @@ are unaffected.
 
 All correlation event deduplication lives **inside each correlator**, not in reporters.
 `correlationEmitter` (`impl/correlation_emitter.go`) is a shared helper embedded in
-every non-scorer correlator (`TimeCluster`, `CrossSignal`, `Passthrough`). It tracks
+every non-scorer correlator (`TimeCluster`). It tracks
 first-seen / recurrence state and produces `CorrelatorEventCorrelationDetected` events
 via `PendingEvents()`. The engine collects pending events after each `Advance` call and
 forwards them to reporters via `ReportOutput.CorrelatorEvents`.
@@ -197,6 +195,15 @@ dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 ```bash
 dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
+
+# Headless logs-only smoke test for one detector. The testbench-only
+# passthrough adapter serializes raw anomalies as anomaly_periods.
+bin/anomalydetection-testbench \
+  --headless <scenario> \
+  --scenarios-dir ./comp/anomalydetection/observer/scenarios \
+  --output /tmp/observer-smoke.json \
+  --only <detector>,passthrough \
+  --logs-only --verbose
 ```
 
 Reads scenarios from `observer/scenarios/`. See

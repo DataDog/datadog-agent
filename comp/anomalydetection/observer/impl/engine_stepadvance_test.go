@@ -18,6 +18,23 @@ type fixedDetector struct {
 	fired     bool
 }
 
+type inactiveEvictionDetector struct {
+	seenSeries int
+	removed    []observer.SeriesRef
+}
+
+func (*inactiveEvictionDetector) Name() string { return "inactive_eviction" }
+func (*inactiveEvictionDetector) Ready() bool  { return true }
+
+func (d *inactiveEvictionDetector) Detect(storage observer.StorageReader, _ int64) observer.DetectionResult {
+	d.seenSeries = len(storage.ListSeries(observer.WorkloadSeriesFilter()))
+	return observer.DetectionResult{}
+}
+
+func (d *inactiveEvictionDetector) RemoveSeries(refs []observer.SeriesRef) {
+	d.removed = append(d.removed, refs...)
+}
+
 func (d *fixedDetector) Name() string { return "fixed" }
 func (*fixedDetector) Ready() bool    { return true }
 
@@ -187,4 +204,59 @@ func TestStepAdvance_SingleGroupWithinWindow(t *testing.T) {
 	accumulated := e.AccumulatedCorrelations()
 	t.Logf("Accumulated: %d correlations", len(accumulated))
 	assert.NotEmpty(t, accumulated, "cluster within window should always be accumulated")
+}
+
+func TestEngine_EvictsInactiveSeriesBeforeDetectionAtConfiguredCadence(t *testing.T) {
+	storageCfg := DefaultStorageConfig()
+	storageCfg.PointRetentionSecs = 0
+	storageCfg.MaxSeries = 0
+	storageCfg.InactiveSeriesTTLSeconds = 1_200
+	storageCfg.InactiveSeriesCheckIntervalSeconds = 300
+	storage := newTimeSeriesStorageWith(storageCfg)
+	old := storage.Add("ns", "old", 1, 100, nil).Ref
+	active := storage.Add("ns", "active", 1, 101, nil).Ref
+	detector := &inactiveEvictionDetector{}
+	e := newEngine(engineConfig{storage: storage, detectors: []observer.Detector{detector}})
+
+	var evictionReasons []string
+	e.onStorageSeriesEvicted = func(reason string, _ int) {
+		evictionReasons = append(evictionReasons, reason)
+	}
+
+	// The first advance always scans. At this exact cutoff old is stale while
+	// active remains; the detector must only see active.
+	e.Advance(1_300)
+	assert.Nil(t, storage.GetSeriesMeta(old))
+	assert.NotNil(t, storage.GetSeriesMeta(active))
+	assert.Equal(t, 1, detector.seenSeries)
+	assert.Equal(t, []observer.SeriesRef{old}, detector.removed)
+	assert.Equal(t, []string{"inactive"}, evictionReasons)
+
+	// Add an already-stale series after the first scan. It is retained until
+	// the full 5-minute advance interval elapses.
+	pending := storage.Add("ns", "pending", 1, 200, nil).Ref
+	e.Advance(1_599)
+	assert.NotNil(t, storage.GetSeriesMeta(pending))
+	assert.Len(t, detector.removed, 1)
+
+	// At the exact interval boundary the next scan removes both remaining
+	// stale series and notifies the detector.
+	e.Advance(1_600)
+	assert.Nil(t, storage.GetSeriesMeta(active))
+	assert.Nil(t, storage.GetSeriesMeta(pending))
+	assert.ElementsMatch(t, []observer.SeriesRef{old, active, pending}, detector.removed)
+	assert.Equal(t, []string{"inactive", "inactive"}, evictionReasons)
+}
+
+func TestEngine_InactiveSeriesEvictionDisabled(t *testing.T) {
+	storageCfg := DefaultStorageConfig()
+	storageCfg.PointRetentionSecs = 0
+	storageCfg.InactiveSeriesTTLSeconds = 0
+	storage := newTimeSeriesStorageWith(storageCfg)
+	ref := storage.Add("ns", "old", 1, 0, nil).Ref
+	e := newEngine(engineConfig{storage: storage})
+
+	e.Advance(10_000)
+
+	assert.NotNil(t, storage.GetSeriesMeta(ref))
 }

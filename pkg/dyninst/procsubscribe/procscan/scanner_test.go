@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package procscan
 
@@ -23,12 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/goccy/go-yaml"
-	"github.com/goccy/go-yaml/ast"
-	"github.com/goccy/go-yaml/lexer"
-	"github.com/goccy/go-yaml/parser"
-	"github.com/goccy/go-yaml/token"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
@@ -74,13 +70,12 @@ func runScannerSnapshotTest(t *testing.T, file string, rewrite bool) {
 		"file must contain at least the commands document",
 	)
 
-	// Parse commands from first document using AST to preserve nodes.
+	// Parse commands from first document into a YAML node tree to preserve its structure.
 	input := documentChunks[0]
-	tokens := lexer.Tokenize(string(input))
-	astFile, err := parser.Parse(tokens, 0)
-	require.NoError(t, err, "failed to parse commands")
+	var yamlNode yaml.Node
+	require.NoError(t, yaml.Unmarshal(input, &yamlNode), "failed to parse commands")
 
-	commands, commandNodes, err := parseCommandsFromAST(astFile)
+	commands, commandNodes, err := parseCommandsFromYAML(&yamlNode)
 	require.NoError(t, err, "failed to extract commands")
 
 	// Initialize test state.
@@ -454,11 +449,11 @@ type scannerStateSnapshot struct {
 
 // Output structures for test commands.
 type commandOutput struct {
-	Command ast.Node `yaml:"command"`
+	Command *yaml.Node `yaml:"command"`
 }
 
 type scanOutput struct {
-	Command ast.Node             `yaml:"command"`
+	Command *yaml.Node           `yaml:"command"`
 	New     []procSnapshot       `yaml:"new,omitempty,flow"`
 	Removed []int                `yaml:"removed,omitempty,flow"`
 	State   scannerStateSnapshot `yaml:"state"`
@@ -507,7 +502,7 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 
 func (ts *scannerTestState) generateOutput(
 	t *testing.T,
-	cmdNode ast.Node,
+	cmdNode *yaml.Node,
 ) []byte {
 	var outputStruct any
 
@@ -549,12 +544,12 @@ func (ts *scannerTestState) generateOutput(
 		}
 	}
 
-	bytes, err := yaml.MarshalWithOptions(
-		outputStruct,
-		yaml.Indent(2),
-	)
-	require.NoError(t, err)
-	return bytes
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	require.NoError(t, enc.Encode(outputStruct))
+	require.NoError(t, enc.Close())
+	return buf.Bytes()
 }
 
 type scanResult struct {
@@ -562,29 +557,25 @@ type scanResult struct {
 	Removed []ProcessID
 }
 
-func parseCommandsFromAST(
-	file *ast.File,
-) ([]command, []ast.Node, error) {
-	if len(file.Docs) == 0 {
-		return nil, nil, errors.New("no documents in file")
-	}
-
-	doc := file.Docs[0]
-	if doc.Body == nil {
+func parseCommandsFromYAML(
+	node *yaml.Node,
+) ([]command, []*yaml.Node, error) {
+	if len(node.Content) == 0 {
 		return nil, nil, errors.New("empty document")
 	}
 
 	// The body should be a sequence.
-	seq, ok := doc.Body.(*ast.SequenceNode)
-	if !ok {
+	body := node.Content[0]
+	if body.Kind != yaml.SequenceNode {
 		return nil, nil, fmt.Errorf(
-			"expected sequence node, got %T", doc.Body,
+			"expected sequence node, got %q", body.Tag,
 		)
 	}
 
-	commands := make([]command, 0, len(seq.Values))
-	nodes := make([]ast.Node, 0, len(seq.Values))
-	for _, val := range seq.Values {
+	commands := make([]command, 0, len(body.Content))
+	nodes := make([]*yaml.Node, 0, len(body.Content))
+	for _, val := range body.Content {
+		stripComments(val) // for comparison
 		nodes = append(nodes, val)
 		cmd, err := parseCommand(val)
 		if err != nil {
@@ -596,54 +587,21 @@ func parseCommandsFromAST(
 	return commands, nodes, nil
 }
 
-func parseCommand(node ast.Node) (command, error) {
+func parseCommand(node *yaml.Node) (command, error) {
 	// Extract the command type from the YAML tag.
-	var cmdType string
+	cmdType, ok := strings.CutPrefix(node.Tag, "!")
 
-	// Tags in goccy/go-yaml are stored in tokens.
-	// The tag token appears just before the content token.
-	tok := node.GetToken()
-	if tok != nil {
-		// Check if this token itself is a tag.
-		if tok.Type == token.TagType {
-			cmdType = strings.TrimPrefix(tok.Value, "!")
-		} else {
-			// Walk backwards to find a tag token.
-			for t := tok.Prev; t != nil; t = t.Prev {
-				if t.Type == token.TagType {
-					cmdType = strings.TrimPrefix(t.Value, "!")
-					break
-				}
-				// Stop if we hit a sequence entry marker.
-				if t.Type == token.SequenceEntryType {
-					break
-				}
-			}
-		}
-	}
-
-	if cmdType == "" {
+	// Check that a !custom tag is explicitly set, not a !!standard one.
+	if !ok || strings.HasPrefix(cmdType, "!") {
 		return nil, fmt.Errorf(
-			"command missing type tag (token type: %v)", tok.Type,
+			"command missing type tag (tag: %q)", node.Tag,
 		)
-	}
-
-	// Convert the AST node to a Go value, which strips the tag.
-	var dataValue any
-	if err := yaml.NodeToValue(node, &dataValue); err != nil {
-		return nil, fmt.Errorf("failed to convert node to value: %w", err)
-	}
-
-	// Marshal the value to YAML bytes (now without the tag).
-	dataBytes, err := yaml.Marshal(dataValue)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal node data: %w", err)
 	}
 
 	switch cmdType {
 	case "create-process":
 		var cmd createProcessCommand
-		if err := yaml.Unmarshal(dataBytes, &cmd); err != nil {
+		if err := node.Decode(&cmd); err != nil {
 			return nil, fmt.Errorf(
 				"failed to decode create-process: %w", err,
 			)
@@ -652,7 +610,7 @@ func parseCommand(node ast.Node) (command, error) {
 
 	case "remove-process":
 		var cmd removeProcessCommand
-		if err := yaml.Unmarshal(dataBytes, &cmd); err != nil {
+		if err := node.Decode(&cmd); err != nil {
 			return nil, fmt.Errorf(
 				"failed to decode remove-process: %w", err,
 			)
@@ -661,7 +619,7 @@ func parseCommand(node ast.Node) (command, error) {
 
 	case "advance-time":
 		var cmd advanceTimeCommand
-		if err := yaml.Unmarshal(dataBytes, &cmd); err != nil {
+		if err := node.Decode(&cmd); err != nil {
 			return nil, fmt.Errorf(
 				"failed to decode advance-time: %w", err,
 			)
@@ -673,7 +631,7 @@ func parseCommand(node ast.Node) (command, error) {
 
 	case "initialize":
 		var cmd initializeCommand
-		if err := yaml.Unmarshal(dataBytes, &cmd); err != nil {
+		if err := node.Decode(&cmd); err != nil {
 			return nil, fmt.Errorf(
 				"failed to decode initialize: %w", err,
 			)
@@ -707,4 +665,16 @@ func splitYAMLDocuments(content []byte) ([][]byte, error) {
 		documents = append(documents, currentDocument)
 	}
 	return documents, nil
+}
+
+func stripComments(node *yaml.Node) {
+	if node == nil {
+		return
+	}
+	node.HeadComment = ""
+	node.LineComment = ""
+	node.FootComment = ""
+	for _, child := range node.Content {
+		stripComments(child)
+	}
 }

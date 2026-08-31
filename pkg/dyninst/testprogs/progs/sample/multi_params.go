@@ -5,6 +5,12 @@
 
 package main
 
+import (
+	"context"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
+
 /***********************/
 /* Multiple Parameters */
 /***********************/
@@ -83,7 +89,10 @@ func testMultipleCompositeParams(a [3]string, b aStruct, c []int, d map[string]s
 }
 
 //nolint:all
-func executeMultiParamFuncs() {
+func executeMultiParamFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.multi_params")
+	defer span.Finish()
+
 	testMultipleSimpleParams(false, 42, 'z', 1337, "xyz")
 
 	// fails because slices and maps are not supported

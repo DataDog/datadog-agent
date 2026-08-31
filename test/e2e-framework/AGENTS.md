@@ -75,6 +75,14 @@ awshost.Provisioner(
 )
 ```
 
+### Kubernetes resource ownership
+
+Pulumi resource names and component parents only make Pulumi URNs unique. Kubernetes
+resource identity is still the combination of kind, namespace, and metadata name. When
+components can be installed together, give independently owned resources distinct
+Kubernetes names or make one component the explicit owner; do not create the same
+Kubernetes object under multiple Pulumi parents.
+
 ### BaseSuite
 
 All E2E tests embed `e2e.BaseSuite[Env]` and use `e2e.Run()`:
@@ -133,6 +141,24 @@ and the standalone driver — keep them in sync.
 
 Reference consumer: `cmd/ai-sandbox/main.go` (provisions a host, runs an AI agent on it,
 retrieves a directory), wrapped by the `dda inv ai-sandbox.run` invoke task.
+
+## Agent installers outside Pulumi
+
+`testing/installers` exposes agent installation independently of a Pulumi program.
+Packages are organized first by environment type, then by installation method:
+
+- `testing/installers/kubernetes/helm` installs the Helm chart in an
+  `environments.Kubernetes` through `helm.Install(ctx, env, params)`.
+- `testing/installers/host/installscript` runs the official install script in an
+  `environments.Host` through `installscript.Install(ctx, env, params)`. It configures
+  the environment's FakeIntake automatically and accepts additional Agent YAML and
+  integration configs through `installscript.Params`.
+
+Installers resolve API and application keys through the active runner profile's
+secret parameter store. They take initialized environments rather than state files or other
+provisioner-specific representations and update `env.Agent`. The same installer
+therefore works with Pulumi, `StaticStackProvisioner`, or another provisioner.
+State serialization and persistence belong to the caller that owns that state.
 
 ## Beyond out of the box environments
 

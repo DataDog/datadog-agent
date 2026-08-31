@@ -4,9 +4,6 @@
 # TODO(alopezz): These exceptions, matching files that are stored with CRLF endings in
 # git, are transitional while migrating to LF as the default eol for all text files.
 *.ps1 -text
-Dockerfiles/agent/windows/amd64/Dockerfile -text
-cmd/ai_prompt_logger/Cargo.toml -text
-cmd/ai_prompt_logger/src/main.rs -text
 cmd/trace-agent/test/testsuite/testdata/trace_with_rates.json -text
 comp/core/gui/impl/views/private/images/datadog_icon_white.svg -text
 deps/msodbcsql18/LICENSE.txt -text
@@ -17,6 +14,8 @@ tasks/unit_tests/testdata/secret.tar.gz/*.xml -text
 # Set batch file line endings to CRLF so that they can be executed on Windows
 *.bat text eol=crlf
 *.cmd text eol=crlf
+# Set C# file line endings to CRLF to match dotnet format's expectation on Windows
+*.cs text eol=crlf
 *.bin binary
 
 go.sum -diff -merge linguist-generated=true

@@ -15,7 +15,7 @@ dd_agent_go_test(
         "encoding_test.go",
     ],
     embed = [":encoding"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     deps = select({
         "@rules_go//go/platform:android": [

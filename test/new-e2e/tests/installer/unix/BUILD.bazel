@@ -37,7 +37,6 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/utils/e2e/client",
-        "//test/new-e2e/tests/ddot",
         "//test/new-e2e/tests/installer/host",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

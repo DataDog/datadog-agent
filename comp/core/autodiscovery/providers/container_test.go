@@ -164,7 +164,9 @@ func TestGenerateConfig(t *testing.T) {
 					Source:        "container:docker://3b8efe0c50e8",
 				},
 			},
-			expectedErr: nil,
+			expectedErr: types.ErrorMsgSet{
+				"ad.datadoghq.com/apache.checks takes precedence, ignoring ad.datadoghq.com/apache.check_names, ad.datadoghq.com/apache.init_configs, ad.datadoghq.com/apache.instances: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)": {},
+			},
 		},
 		{
 			name: "New + old, new takes over",
@@ -195,7 +197,9 @@ func TestGenerateConfig(t *testing.T) {
 					Source:        "container:docker://3b8efe0c50e8",
 				},
 			},
-			expectedErr: nil,
+			expectedErr: types.ErrorMsgSet{
+				"ad.datadoghq.com/apache.check_names takes precedence, ignoring service-discovery.datadoghq.com/apache.check_names, service-discovery.datadoghq.com/apache.init_configs, service-discovery.datadoghq.com/apache.instances: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)": {},
+			},
 		},
 		{
 			name: "New annotation prefix, two templates",

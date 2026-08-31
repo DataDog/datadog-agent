@@ -345,6 +345,33 @@ fake_check.discover_config_service_json = None`, message)
 	return err
 }
 
+func setFakeDiscoverConfigExceptionLoneSurrogate() error {
+	// Python source escape, not a Go UTF-8 string: a lone surrogate is not valid UTF-8.
+	code := `import fake_check
+fake_check.discover_config_return = "[]"
+fake_check.discover_config_exception = "bad \ud800 data"
+fake_check.discover_config_service_json = None`
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeRunExceptionLoneSurrogate() error {
+	code := `import fake_check
+fake_check.run_exception = "\ud800"`
+
+	_, err := runString(code)
+	return err
+}
+
+func resetFakeRunException() error {
+	code := `import fake_check
+fake_check.run_exception = None`
+
+	_, err := runString(code)
+	return err
+}
+
 func runFakeGetWarnings() ([]string, error) {
 	var module *C.rtloader_pyobject_t
 	var class *C.rtloader_pyobject_t
