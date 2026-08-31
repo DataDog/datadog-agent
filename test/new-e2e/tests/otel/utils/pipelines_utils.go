@@ -325,8 +325,17 @@ func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 		// Verify container tags from infraattributes processor
 		if iaParams.InfraAttributes {
 			testInfraTags(s.T(), tags, iaParams)
-			if !iaParams.SkipCustomLabelTag {
-				testCustomLabelAsMetricTag(s.T(), tags, iaParams.MetricsAttributesAsTags)
+			// When metrics_attributes_as_tags is enabled, the custom tagger-derived
+			// tag (customLabelTag) is promoted under the `datadog.container.tag.`
+			// prefix so it survives the metrics translator's allowlist and appears
+			// as a real metric tag. Only the positive case is asserted here: the
+			// feature-off behavior is not uniform across suites -- suites that
+			// enable resource_attributes_as_tags surface customLabelTag on metrics
+			// regardless of this feature -- and the drop-by-default path is covered
+			// authoritatively by the infraattributesprocessor unit test.
+			if iaParams.MetricsAttributesAsTags && !iaParams.SkipCustomLabelTag {
+				assert.Equal(s.T(), customLabelValue, tags[customLabelTag],
+					"expected %q to be promoted to a metric tag when metrics_attributes_as_tags is enabled", customLabelTag)
 			}
 		}
 	}
@@ -1043,22 +1052,6 @@ func testCustomLabelAsTag(t *testing.T, log *aggregator.Log, logsTagsAsDDTags bo
 	_, hasTag := tagMap[customLabelTag]
 	assert.False(t, hasTag, "expected %q to not be a log tag by default", customLabelTag)
 	assert.Equal(t, customLabelValue, fmt.Sprint(attrs[customLabelTag]))
-}
-
-// testCustomLabelAsMetricTag verifies that the custom tagger-derived tag
-// customLabelTag (from labels-as-tags on the calendar app's customLabelKey
-// pod label) is surfaced as a real metric tag when metricsAttributesAsTags is
-// enabled, and dropped otherwise -- this is the default, unchanged behavior of
-// the infraattributes processor, whose metrics translator drops tags that are
-// not known Datadog or OpenTelemetry conventions.
-func testCustomLabelAsMetricTag(t *testing.T, tags map[string]string, metricsAttributesAsTags bool) {
-	if metricsAttributesAsTags {
-		assert.Equal(t, customLabelValue, tags[customLabelTag])
-		return
-	}
-
-	_, hasTag := tags[customLabelTag]
-	assert.False(t, hasTag, "expected %q to not be a metric tag by default", customLabelTag)
 }
 
 func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
