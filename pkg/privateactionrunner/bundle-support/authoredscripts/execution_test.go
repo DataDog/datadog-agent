@@ -25,7 +25,7 @@ import (
 )
 
 func TestExecuteCommand_Success(t *testing.T) {
-	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "echo hello; echo world 1>&2")
+	cmd := exec.Command("/bin/sh", "-c", "echo hello; echo world 1>&2")
 
 	result, err := ExecuteCommand(context.Background(), cmd)
 
@@ -58,7 +58,7 @@ func TestExecuteCommand_NilContext(t *testing.T) {
 func TestExecuteCommand_ContextTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "sleep 5")
+	cmd := exec.Command("/bin/sh", "-c", "sleep 5")
 
 	_, err := ExecuteCommand(ctx, cmd)
 
