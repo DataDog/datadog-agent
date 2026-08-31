@@ -140,11 +140,20 @@ type tagInternEntry struct {
 	count int
 }
 
-// pointBucket contains the summary statistics for one one-second bucket.
+// pointBucket contains the timestamp and sum for one one-second bucket.
+// A count of one is implicit; seriesStats allocates a parallel count vector
+// only after multiple samples land in the same bucket.
 type pointBucket struct {
 	timestamp int64
 	sum       float64
-	count     int64
+}
+
+// bucketCounts holds explicit per-bucket sample counts for series that have
+// observed at least one same-second merge. Keeping the slice behind a pointer
+// adds one word per series while reducing the common point payload from 24 to
+// 16 bytes. Series whose buckets all contain one sample never allocate it.
+type bucketCounts struct {
+	values []int64
 }
 
 // seriesStats contains accumulated statistics for a time series (internal).
@@ -173,6 +182,7 @@ type seriesStats struct {
 	writeGeneration int64
 
 	buckets []pointBucket
+	counts  *bucketCounts
 }
 
 func aggregateMask(agg observer.Aggregate) uint8 {
@@ -184,12 +194,58 @@ func (s *seriesStats) pointCount() int {
 	return len(s.buckets)
 }
 
+// countAt returns the sample count for bucket i. A nil explicit count vector
+// means every bucket contains exactly one sample.
+func (s *seriesStats) countAt(i int) int64 {
+	if s.counts == nil {
+		return 1
+	}
+	return s.counts.values[i]
+}
+
+// incrementCount materializes exact counts on the first same-second merge.
+func (s *seriesStats) incrementCount(i int) {
+	if s.counts == nil {
+		// Most merged series keep receiving samples. A small initial reserve
+		// avoids growing the parallel vector on every early bucket without
+		// imposing the full retention-window cost on a one-off merge.
+		countCapacity := max(8, cap(s.buckets))
+		values := make([]int64, len(s.buckets), countCapacity)
+		for j := range values {
+			values[j] = 1
+		}
+		s.counts = &bucketCounts{values: values}
+	}
+	s.counts.values[i]++
+}
+
+// insertCount appends the implicit count for a newly inserted bucket when a
+// series already has an explicit count vector.
+func (s *seriesStats) insertCount(i int) {
+	if s.counts == nil {
+		return
+	}
+	values := append(s.counts.values, 0)
+	copy(values[i+1:], values[i:])
+	values[i] = 1
+	s.counts.values = values
+}
+
+// trimBuckets removes the oldest n buckets and keeps an explicit count vector
+// aligned with the point data.
+func (s *seriesStats) trimBuckets(n int) {
+	s.buckets = trimFront(s.buckets, n)
+	if s.counts != nil {
+		s.counts.values = trimFront(s.counts.values, n)
+	}
+}
+
 // sampleCount returns the total number of samples for a series.
 // A point can contain multiple samples if it is aggregated.
 func (s *seriesStats) sampleCount() int64 {
 	count := int64(0)
-	for _, bucket := range s.buckets {
-		count += bucket.count
+	for i := range s.buckets {
+		count += s.countAt(i)
 	}
 	return count
 }
@@ -207,16 +263,17 @@ const (
 // aggregateAt extracts the specified statistic at index i.
 func (s *seriesStats) aggregateAt(i int, agg Aggregate) float64 {
 	bucket := s.buckets[i]
+	count := s.countAt(i)
 	switch agg {
 	case AggregateAverage:
-		if bucket.count == 0 {
+		if count == 0 {
 			return 0
 		}
-		return bucket.sum / float64(bucket.count)
+		return bucket.sum / float64(count)
 	case AggregateSum:
 		return bucket.sum
 	case AggregateCount:
-		return float64(bucket.count)
+		return float64(count)
 	default:
 		return 0
 	}
@@ -359,15 +416,15 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	if idx < len(stats.buckets) && stats.buckets[idx].timestamp == bucket {
 		// Update existing bucket in-place.
 		stats.buckets[idx].sum += value
-		stats.buckets[idx].count++
+		stats.incrementCount(idx)
 		return res
 	}
 
 	stats.buckets = insertBucket(stats.buckets, idx, pointBucket{
 		timestamp: bucket,
 		sum:       value,
-		count:     1,
 	})
+	stats.insertCount(idx)
 
 	retentionSecs := s.cfg.PointRetentionSecs
 	if stats.retentionOverrideSecs > 0 {
@@ -379,13 +436,13 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		// points don't shift the cutoff backwards and over-retain stale data.
 		latestTS := stats.buckets[len(stats.buckets)-1].timestamp
 		if trim := searchAfter(stats.buckets, latestTS-retentionSecs-1); trim > 0 {
-			stats.buckets = trimFront(stats.buckets, trim)
+			stats.trimBuckets(trim)
 		}
 	}
 	if s.cfg.MaxPointsPerSeries > 0 {
 		physicalCapacity := s.cfg.MaxPointsPerSeries + 1
 		if trim := len(stats.buckets) - physicalCapacity; trim > 0 {
-			stats.buckets = trimFront(stats.buckets, trim)
+			stats.trimBuckets(trim)
 		}
 	}
 	return res
@@ -967,7 +1024,7 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 			ds.Points = append(ds.Points, dumpPoint{
 				Timestamp: st.buckets[i].timestamp,
 				Sum:       st.buckets[i].sum,
-				Count:     st.buckets[i].count,
+				Count:     st.countAt(i),
 			})
 		}
 		out = append(out, ds)
@@ -1507,7 +1564,7 @@ func (s *timeSeriesStorage) GetSeriesRange(ref observer.SeriesRef, start, end in
 		for i := 0; i < resultLen; i++ {
 			points[i] = observer.Point{
 				Timestamp: stats.buckets[lo+i].timestamp,
-				Value:     float64(stats.buckets[lo+i].count),
+				Value:     float64(stats.countAt(lo + i)),
 			}
 		}
 	default: // AggregateAverage and any unknown
@@ -1625,8 +1682,8 @@ func (s *timeSeriesStorage) SumRange(ref observer.SeriesRef, start, end int64, a
 			total += bucket.sum
 		}
 	case AggregateCount:
-		for _, bucket := range stats.buckets[lo:hi] {
-			total += float64(bucket.count)
+		for i := lo; i < hi; i++ {
+			total += float64(stats.countAt(i))
 		}
 	default: // AggregateAverage
 		for i := lo; i < hi; i++ {
