@@ -26,9 +26,9 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, bazel_build_binary
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
-from tasks.libs.common.go import bazel_build_binary, go_build
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     _resolve_target_platform,
@@ -199,7 +199,7 @@ def build(
 
     with gitlab_section("Build agent", collapsed=True):
         if enable_bazel:
-            bazel_build_binary(ctx, target=f"//cmd/{flavor_cmd}", bin_path=agent_bin, embedded_path=embedded_path)
+            bazel_build_binary(ctx, bin_path=agent_bin, embedded_path=embedded_path)
         else:
             go_build(
                 ctx,
@@ -509,6 +509,8 @@ def hacky_dev_image_build(
             development=development,
             build_exclude=build_exclude,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
+            # TODO: this is the last usage of this flag, we should remove it once this
+            # task has been deprecated long enough
             legacy_rtloader_cmake=True,
         )
         ctx.run(

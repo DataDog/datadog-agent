@@ -346,16 +346,6 @@ path length (see the Windows section). When `dd_agent_go_test` fails with a path
 short suffix for the combination to `_TAG_SET_SUFFIX_ALIASES` in
 `//bazel/rules/go:dd_agent_go_test.bzl`.
 
-## Building `cmd/agent` via Bazel
-
-`//cmd/agent` has a working `dd_agent_go_binary` target, and `dda inv agent.build --enable-bazel`
-uses it to compile the binary instead of `go build`, for local developer-desktop use only (not CI,
-not packaging/omnibus). Its `gotags` are a static constant (`AGENT_TAGS`), so this only works for
-the default agent flavor with no `--build-include`/`--build-exclude`/`--no-glibc`/`--race`, and is
-not supported on Windows. It also doesn't stamp `pkg/version.Commit`/`FullCommit` yet (needs a
-`bazel/repo/git_info.bzl` repository rule plus `--stamp` support, neither of which exist). See
-`tasks/agent.py`'s `build()` docstring and `tasks/libs/common/go.py`'s `bazel_build_binary()`.
-
 ## Starlark language
 
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:
