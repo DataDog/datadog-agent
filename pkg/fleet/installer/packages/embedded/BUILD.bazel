@@ -32,6 +32,11 @@ nocap_service_srcs = glob([
     "tmpl/gen/sd/oci-nc/*.service",
 ])
 
+# The launchd job definitions for macOS: the stable set and the -exp set, read by
+# GetLaunchdJob. Both sets are rendered from the same templates.
+# keep
+launchd_job_srcs = glob(["tmpl/gen/darwin/*.plist"])
+
 go_library(
     name = "embedded",
     srcs = ["embed.go"],
@@ -40,7 +45,7 @@ go_library(
         "scripts/dd-cleanup",
         "scripts/dd-container-install",
         "scripts/dd-host-install",
-    ] + service_srcs + nocap_service_srcs,
+    ] + service_srcs + nocap_service_srcs + launchd_job_srcs,
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
     visibility = ["//visibility:public"],
 )
@@ -50,6 +55,10 @@ go_library(
     name = "tmpl_lib",
     srcs = ["tmpl/main.go"],
     embedsrcs = [
+        "tmpl/com.datadoghq.agent.plist.tmpl",
+        "tmpl/com.datadoghq.data-plane.plist.tmpl",
+        "tmpl/com.datadoghq.installer.plist.tmpl",
+        "tmpl/com.datadoghq.sysprobe.plist.tmpl",
         "tmpl/datadog-agent-action-executor.yaml.tmpl",
         "tmpl/datadog-agent-action-executor-windows.yaml.tmpl",
         "tmpl/datadog-agent-action.service.tmpl",

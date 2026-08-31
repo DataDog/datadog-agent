@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows && !darwin
+//go:build darwin
 
 package packages
 
@@ -15,7 +15,9 @@ import (
 
 var (
 	// packagesHooks is a map of package names to their hooks
-	packagesHooks = map[string]hooks{}
+	packagesHooks = map[string]hooks{
+		agentPackage: datadogAgentPackage,
+	}
 
 	// AsyncPreRemoveHooks is called before a package is removed from the disk.
 	// It can block the removal of the package files until a condition is met without blocking
@@ -27,12 +29,12 @@ var (
 	packageCommands = map[string]PackageCommandHandler{}
 )
 
-// InstrumentAPMInjector instruments the APM injector
+// InstrumentAPMInjector instruments the APM injector (no-op on darwin)
 func InstrumentAPMInjector(_ context.Context, _ string) (err error) {
 	return nil
 }
 
-// UninstrumentAPMInjector uninstruments the APM injector
+// UninstrumentAPMInjector uninstruments the APM injector (no-op on darwin)
 func UninstrumentAPMInjector(_ context.Context, _ string) (err error) {
 	return nil
 }

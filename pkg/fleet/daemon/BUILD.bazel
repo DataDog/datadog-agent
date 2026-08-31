@@ -8,6 +8,9 @@ go_library(
         "local_api.go",
         "local_api_unix.go",
         "local_api_windows.go",
+        "method_gate.go",
+        "method_gate_darwin.go",
+        "method_gate_nondarwin.go",
         "remote_config.go",
         "task_db.go",
     ],
@@ -49,6 +52,7 @@ dd_agent_go_test(
     srcs = [
         "daemon_test.go",
         "local_api_test.go",
+        "method_gate_test.go",
         "remote_config_test.go",
         "task_db_test.go",
     ],
