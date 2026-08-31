@@ -147,6 +147,11 @@ pkg_install(
 # Tests
 # ============================================================================
 
+filegroup(
+    name = "test_fixtures",
+    srcs = ["tests/fixtures/.marker"] + glob(["tests/fixtures/**"]),
+)
+
 rust_test(
     name = "dd-procmgrd_test",
     crate = ":dd-procmgrd-lib",
@@ -174,6 +179,7 @@ rust_test(
     data = [
         ":dd-procmgr",
         ":dd-procmgrd",
+        ":test_fixtures",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
     ],
     edition = "2024",
@@ -181,11 +187,13 @@ rust_test(
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
+        "PROCMGR_TEST_FIXTURES_MARKER": "$(rootpath tests/fixtures/.marker)",
     },
     # E2E tests use UDS for transport and spawn the Linux daemon binary.
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":dd-procmgrd-lib-testhelpers",
+        "@crates//:serde",
         "@crates//:serde_json",
         "@crates//:tempfile",
     ] + select({

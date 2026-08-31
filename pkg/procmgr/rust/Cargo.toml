@@ -57,6 +57,8 @@ windows-sys = { workspace = true, features = [
 nix = { workspace = true, features = ["signal", "process", "user"] }
 
 [dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 tempfile.workspace = true
 
 [[test]]

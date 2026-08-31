@@ -7,6 +7,7 @@
 use nix::sys::signal::{self, Signal};
 #[cfg(unix)]
 use nix::unistd::Pid;
+use serde::Deserialize;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -14,6 +15,149 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+const DEFAULT_START_TIMEOUT: Duration = Duration::from_secs(30);
+const DEFAULT_PROCESS_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+const DEFAULT_STABLE_RUNNING: Duration = Duration::from_secs(5);
+const START_TIMEOUT_ENV: &str = "PROCMGR_TEST_START_TIMEOUT_SECS";
+const PROCESS_WAIT_TIMEOUT_ENV: &str = "PROCMGR_TEST_PROCESS_WAIT_TIMEOUT_SECS";
+const STABLE_RUNNING_ENV: &str = "PROCMGR_TEST_STABLE_RUNNING_SECS";
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct DaemonStatus {
+    pub ready: bool,
+    pub version: String,
+    pub uptime_seconds: u64,
+    pub total_processes: u32,
+    pub running_processes: u32,
+    pub created_processes: u32,
+    pub stopped_processes: u32,
+    pub failed_processes: u32,
+    pub exited_processes: u32,
+    pub starting_processes: u32,
+    pub stopping_processes: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ProcessSnapshot {
+    pub uuid: String,
+    pub name: String,
+    pub state: String,
+    pub pid: u64,
+    #[serde(default)]
+    pub profile: String,
+    #[serde(default)]
+    pub user: String,
+    pub command: String,
+    pub args: Vec<String>,
+    pub restart_count: u64,
+    pub last_exit_code: Option<i32>,
+    pub last_signal: Option<String>,
+}
+
+/// Unset fields are not checked.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct StatusProcessesCount {
+    pub total: Option<u32>,
+    pub running: Option<u32>,
+    pub created: Option<u32>,
+    pub stopped: Option<u32>,
+    pub failed: Option<u32>,
+    pub exited: Option<u32>,
+    pub starting: Option<u32>,
+    pub stopping: Option<u32>,
+}
+
+impl StatusProcessesCount {
+    pub fn zeros() -> Self {
+        Self {
+            total: Some(0),
+            running: Some(0),
+            created: Some(0),
+            stopped: Some(0),
+            failed: Some(0),
+            exited: Some(0),
+            starting: Some(0),
+            stopping: Some(0),
+        }
+    }
+}
+
+fn duration_from_env(env: &str, default: Duration) -> Duration {
+    match std::env::var(env) {
+        Ok(raw) => match raw.parse::<u64>() {
+            Ok(secs) => Duration::from_secs(secs),
+            Err(_) => {
+                eprintln!("invalid {env}={raw:?}, using {default:?}");
+                default
+            }
+        },
+        Err(_) => default,
+    }
+}
+
+fn default_start_timeout() -> Duration {
+    duration_from_env(START_TIMEOUT_ENV, DEFAULT_START_TIMEOUT)
+}
+
+fn default_process_wait_timeout() -> Duration {
+    duration_from_env(PROCESS_WAIT_TIMEOUT_ENV, DEFAULT_PROCESS_WAIT_TIMEOUT)
+}
+
+fn stable_running_duration() -> Duration {
+    duration_from_env(STABLE_RUNNING_ENV, DEFAULT_STABLE_RUNNING)
+}
+
+struct StatusClient {
+    runner: CliRunner,
+}
+
+impl StatusClient {
+    fn new(socket_path: &Path) -> Self {
+        Self {
+            runner: CliRunner::new(socket_path),
+        }
+    }
+
+    fn status(&self) -> Result<DaemonStatus, String> {
+        let out = self.runner.run(&["status", "--json"]);
+        if !out.status.success() {
+            return Err(format!(
+                "status --json failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        serde_json::from_str(&out.stdout)
+            .map_err(|e| format!("failed to parse status JSON: {e}\nstdout: {}", out.stdout))
+    }
+}
+
+struct ListClient {
+    runner: CliRunner,
+}
+
+impl ListClient {
+    fn new(socket_path: &Path) -> Self {
+        Self {
+            runner: CliRunner::new(socket_path),
+        }
+    }
+
+    fn list(&self) -> Result<Vec<ProcessSnapshot>, String> {
+        let out = self.runner.run(&["list", "--json"]);
+        if !out.status.success() {
+            return Err(format!(
+                "list --json failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        serde_json::from_str(&out.stdout)
+            .map_err(|e| format!("failed to parse list JSON: {e}\nstdout: {}", out.stdout))
+    }
+}
 
 // ---------------------------------------------------------------------------
 // DaemonHandle
@@ -104,6 +248,11 @@ impl DaemonHandle {
     pub fn count_log_matches(&self, pattern: &str) -> usize {
         let lines = self.log_lines.lock().unwrap();
         lines.iter().filter(|l| l.contains(pattern)).count()
+    }
+
+    /// Snapshot of captured stdout/stderr lines (timeout diagnostics).
+    pub fn captured_logs(&self) -> Vec<String> {
+        self.log_lines.lock().unwrap().clone()
     }
 
     /// Wait until the count of log lines matching `pattern` reaches at least `n`.
@@ -442,8 +591,6 @@ impl CliRunner {
 // TestEnv
 // ---------------------------------------------------------------------------
 
-/// Self-contained test environment: temp dir, daemon, and CLI runner.
-/// Drop stops the daemon and cleans up the temp dir.
 pub struct TestEnv {
     _dir: tempfile::TempDir,
     config_dir: PathBuf,
@@ -453,9 +600,19 @@ pub struct TestEnv {
 
 impl TestEnv {
     pub fn new() -> Self {
+        Self::new_inner(true)
+    }
+
+    pub fn with_missing_config_dir() -> Self {
+        Self::new_inner(false)
+    }
+
+    fn new_inner(create_config_dir: bool) -> Self {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let config_dir = dir.path().join("processes.d");
-        std::fs::create_dir_all(&config_dir).expect("failed to create config dir");
+        if create_config_dir {
+            std::fs::create_dir_all(&config_dir).expect("failed to create config dir");
+        }
         let socket_path = dir.path().join("daemon.sock");
         Self {
             _dir: dir,
@@ -465,26 +622,274 @@ impl TestEnv {
         }
     }
 
-    /// Write a process YAML config into the config dir before starting.
     pub fn with_config(self, name: &str, yaml: &str) -> Self {
         write_config(&self.config_dir, name, yaml);
         self
     }
 
-    /// The path to the config directory (useful for asserting `config` output).
+    pub fn with_process(self, name: &str) -> Self {
+        install_process_fixture(self.env_root(), &self.config_dir, name);
+        self
+    }
+
+    fn env_root(&self) -> &Path {
+        self._dir.path()
+    }
+
     pub fn config_dir(&self) -> &Path {
         &self.config_dir
     }
 
-    /// Start the daemon and wait until gRPC is ready.
-    pub fn start(mut self) -> Self {
+    pub fn start(self) -> Self {
+        self.start_with_timeout(default_start_timeout())
+    }
+
+    pub fn start_with_timeout(mut self, timeout: Duration) -> Self {
         let daemon = DaemonHandle::start(&self.config_dir, &self.socket_path);
-        assert!(
-            daemon.wait_for_log_default("gRPC server listening on"),
-            "daemon gRPC server should be ready"
-        );
         self.daemon = Some(daemon);
+        self.wait_until_ready(timeout)
+            .unwrap_or_else(|e| panic!("daemon did not become ready within {timeout:?}: {e}"));
         self
+    }
+
+    fn wait_until_ready(&self, timeout: Duration) -> Result<DaemonStatus, String> {
+        let client = StatusClient::new(&self.socket_path);
+        let deadline = Instant::now() + timeout;
+        loop {
+            let last_err = match client.status() {
+                Ok(status) if status.ready => return Ok(status),
+                Ok(status) => format!("daemon not ready yet: {status:?}"),
+                Err(e) => e,
+            };
+            if Instant::now() >= deadline {
+                let logs = self
+                    .daemon
+                    .as_ref()
+                    .map(|d| d.captured_logs().join("\n"))
+                    .unwrap_or_default();
+                return Err(format!(
+                    "{last_err}\n--- daemon logs ---\n{logs}\n--- end daemon logs ---"
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    pub fn status(&self) -> Result<DaemonStatus, String> {
+        StatusClient::new(&self.socket_path).status()
+    }
+
+    fn require_status(&self) -> DaemonStatus {
+        self.status()
+            .unwrap_or_else(|e| panic!("failed to get daemon status: {e}"))
+    }
+
+    pub fn assert_status_err(&self) -> String {
+        self.status().expect_err("expected status to fail")
+    }
+
+    pub fn assert_status_ready(&self) {
+        let status = self.require_status();
+        assert!(status.ready, "expected daemon ready, got {status:?}");
+    }
+
+    pub fn assert_status_version_not_empty(&self) {
+        let status = self.require_status();
+        assert!(
+            !status.version.is_empty(),
+            "expected non-empty status version, got {status:?}"
+        );
+    }
+
+    pub fn assert_status_processes_count(&self, expected: StatusProcessesCount) {
+        let status = self.require_status();
+        assert_status_field(
+            "total_processes",
+            status.total_processes,
+            expected.total,
+            &status,
+        );
+        assert_status_field(
+            "running_processes",
+            status.running_processes,
+            expected.running,
+            &status,
+        );
+        assert_status_field(
+            "created_processes",
+            status.created_processes,
+            expected.created,
+            &status,
+        );
+        assert_status_field(
+            "stopped_processes",
+            status.stopped_processes,
+            expected.stopped,
+            &status,
+        );
+        assert_status_field(
+            "failed_processes",
+            status.failed_processes,
+            expected.failed,
+            &status,
+        );
+        assert_status_field(
+            "exited_processes",
+            status.exited_processes,
+            expected.exited,
+            &status,
+        );
+        assert_status_field(
+            "starting_processes",
+            status.starting_processes,
+            expected.starting,
+            &status,
+        );
+        assert_status_field(
+            "stopping_processes",
+            status.stopping_processes,
+            expected.stopping,
+            &status,
+        );
+    }
+
+    pub fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
+        ListClient::new(&self.socket_path).list()
+    }
+
+    pub fn wait_for_process_running(&self, name: &str) -> Result<ProcessSnapshot, String> {
+        self.wait_for_process_running_with_timeout(name, default_process_wait_timeout())
+    }
+
+    pub fn wait_for_process_running_with_timeout(
+        &self,
+        name: &str,
+        timeout: Duration,
+    ) -> Result<ProcessSnapshot, String> {
+        self.wait_for_process_running_with_stable(name, timeout, stable_running_duration())
+    }
+
+    pub fn wait_for_process_running_with_stable(
+        &self,
+        name: &str,
+        timeout: Duration,
+        stable_for: Duration,
+    ) -> Result<ProcessSnapshot, String> {
+        let client = ListClient::new(&self.socket_path);
+        let deadline = Instant::now() + timeout;
+        let mut running_since: Option<Instant> = None;
+        let mut stable_pid: Option<u64> = None;
+        loop {
+            let last_err = match client.list() {
+                Ok(processes) => match processes.iter().find(|p| p.name == name) {
+                    Some(process) if process.state == "Running" && process.pid > 0 => {
+                        let reset = stable_pid != Some(process.pid);
+                        if reset || running_since.is_none() {
+                            running_since = Some(Instant::now());
+                            stable_pid = Some(process.pid);
+                        }
+                        let since = running_since.expect("running_since set above");
+                        if since.elapsed() >= stable_for {
+                            return Ok(process.clone());
+                        }
+                        format!(
+                            "process '{name}' running (pid {}) but not stable for {stable_for:?} yet ({:?} elapsed)",
+                            process.pid,
+                            since.elapsed()
+                        )
+                    }
+                    Some(process) => {
+                        running_since = None;
+                        stable_pid = None;
+                        format!("process '{name}' not running yet: {process:?}")
+                    }
+                    None => {
+                        running_since = None;
+                        stable_pid = None;
+                        format!("process '{name}' not in list: {processes:?}")
+                    }
+                },
+                Err(e) => {
+                    running_since = None;
+                    stable_pid = None;
+                    e
+                }
+            };
+            if Instant::now() >= deadline {
+                let logs = self
+                    .daemon
+                    .as_ref()
+                    .map(|d| d.captured_logs().join("\n"))
+                    .unwrap_or_default();
+                return Err(format!(
+                    "{last_err}\n--- daemon logs ---\n{logs}\n--- end daemon logs ---"
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    pub fn assert_process_running(&self, name: &str) {
+        self.wait_for_process_running(name)
+            .unwrap_or_else(|e| panic!("expected process '{name}' running: {e}"));
+        self.check_process_pid_alive(name);
+    }
+
+    pub fn assert_process_state(&self, name: &str, expected_state: &str) {
+        let process = self
+            .list_processes()
+            .unwrap_or_else(|e| panic!("failed to list processes for '{name}': {e}"))
+            .into_iter()
+            .find(|p| p.name == name)
+            .unwrap_or_else(|| panic!("process '{name}' not found"));
+        assert_eq!(
+            process.state, expected_state,
+            "process '{name}': expected state {expected_state}, got {process:?}"
+        );
+        if expected_state == "Created" {
+            assert_eq!(
+                process.pid, 0,
+                "process '{name}' in Created should have no PID, got {process:?}"
+            );
+        }
+    }
+
+    pub fn assert_process_absent(&self, name: &str) {
+        let processes = self
+            .list_processes()
+            .unwrap_or_else(|e| panic!("failed to list processes: {e}"));
+        assert!(
+            !processes.iter().any(|p| p.name == name),
+            "process '{name}' should not be in catalog, got {processes:?}"
+        );
+    }
+
+    pub fn assert_daemon_log_line_contains(&self, patterns: &[&str]) {
+        let logs = self.daemon().captured_logs();
+        assert!(
+            logs.iter()
+                .any(|line| patterns.iter().all(|pattern| line.contains(pattern))),
+            "expected a daemon log line containing all of {patterns:?}, got:\n{}",
+            logs.join("\n")
+        );
+    }
+
+    fn check_process_pid_alive(&self, name: &str) {
+        let process = self
+            .list_processes()
+            .unwrap_or_else(|e| panic!("failed to list processes for '{name}': {e}"))
+            .into_iter()
+            .find(|p| p.name == name)
+            .unwrap_or_else(|| panic!("process '{name}' not found after wait"));
+        let pid = process.pid as u32;
+        assert!(
+            pid > 0,
+            "process '{name}' should have a PID, got {process:?}"
+        );
+        assert!(
+            pid_is_alive(pid),
+            "PID {pid} for process '{name}' should be alive"
+        );
     }
 
     /// Create a sleep process via CLI with optional extra args
@@ -536,6 +941,15 @@ impl Drop for TestEnv {
 // Free functions
 // ---------------------------------------------------------------------------
 
+fn assert_status_field(field: &str, actual: u32, expected: Option<u32>, status: &DaemonStatus) {
+    if let Some(expected) = expected {
+        assert_eq!(
+            actual, expected,
+            "status {field}: expected {expected}, got {actual}\nfull status: {status:?}"
+        );
+    }
+}
+
 fn spawn_log_reader<R: std::io::Read + Send + 'static>(
     stream: R,
     tag: &str,
@@ -557,6 +971,82 @@ fn spawn_log_reader<R: std::io::Read + Send + 'static>(
 }
 
 use dd_procmgrd::test_helpers;
+
+fn fixtures_root() -> PathBuf {
+    if let Some(marker) = option_env!("PROCMGR_TEST_FIXTURES_MARKER") {
+        let marker = PathBuf::from(marker);
+        return marker
+            .parent()
+            .unwrap_or_else(|| {
+                panic!(
+                    "invalid PROCMGR_TEST_FIXTURES_MARKER (expected .../fixtures/.marker): {}",
+                    marker.display()
+                )
+            })
+            .to_path_buf();
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+}
+
+fn install_process_fixture(env_root: &Path, config_dir: &Path, name: &str) {
+    let bundle = fixtures_root().join(name);
+    let yaml_src = bundle.join(format!("{name}.yaml"));
+    assert!(
+        yaml_src.is_file(),
+        "fixture yaml not found: {}",
+        yaml_src.display()
+    );
+
+    let scripts_dir = env_root.join("scripts");
+    std::fs::create_dir_all(&scripts_dir)
+        .unwrap_or_else(|e| panic!("failed to create {}: {e}", scripts_dir.display()));
+
+    let script_path = scripts_dir.join(format!("{name}.py"));
+    let py_src = bundle.join(format!("{name}.py"));
+    if py_src.is_file() {
+        std::fs::copy(&py_src, &script_path).unwrap_or_else(|e| {
+            panic!(
+                "failed to copy {} -> {}: {e}",
+                py_src.display(),
+                script_path.display()
+            )
+        });
+    }
+
+    let template = std::fs::read_to_string(&yaml_src)
+        .unwrap_or_else(|e| panic!("failed to read fixture yaml {}: {e}", yaml_src.display()));
+    let rendered = render_fixture_yaml(
+        &template,
+        name,
+        env_root,
+        config_dir,
+        py_src.is_file().then_some(script_path.as_path()),
+    );
+    write_config(config_dir, name, &rendered);
+}
+
+fn render_fixture_yaml(
+    template: &str,
+    name: &str,
+    env_root: &Path,
+    config_dir: &Path,
+    script_path: Option<&Path>,
+) -> String {
+    let python = test_helpers::python_exe();
+    let root = env_root.display().to_string();
+    let config_dir = config_dir.display().to_string();
+    let script = script_path
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+
+    let mut rendered = template.to_string();
+    rendered = rendered.replace(&format!("{{{{script:{name}}}}}"), &script);
+    rendered = rendered.replace("{{script}}", &script);
+    rendered = rendered.replace("{{python}}", &python);
+    rendered = rendered.replace("{{root}}", &root);
+    rendered = rendered.replace("{{config_dir}}", &config_dir);
+    rendered
+}
 
 /// Write a YAML config file into `dir` with the given process `name`.
 pub fn write_config(dir: &Path, name: &str, yaml: &str) {
