@@ -82,6 +82,39 @@ fn invalid_syntax_fixture_skipped() {
 }
 
 #[test]
+fn missing_binary_fixture_fails_to_spawn() {
+    let env = TestEnv::new().with_process("missing_binary");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        failed: Some(1),
+        running: Some(0),
+        created: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_state("missing_binary", ProcessExpect::Failed);
+}
+
+#[test]
+fn condition_blocked_fixture_stays_created() {
+    let env = TestEnv::new().with_process("condition_blocked");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        created: Some(1),
+        running: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_state("condition_blocked", ProcessExpect::Created);
+    procmgr.assert_condition_path_not_met_logged(
+        "condition_blocked",
+        "/nonexistent/path/procmgr-condition-test",
+    );
+}
+
+#[test]
 fn test_cli_config_basic() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())

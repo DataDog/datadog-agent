@@ -57,12 +57,14 @@ pub struct ProcessSnapshot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessExpect {
     Created,
+    Failed,
 }
 
 impl ProcessExpect {
     fn as_str(self) -> &'static str {
         match self {
             Self::Created => "Created",
+            Self::Failed => "Failed",
         }
     }
 }
@@ -847,10 +849,10 @@ impl TestEnv {
             process.state, expected_state,
             "process '{name}': expected state {expected_state}, got {process:?}"
         );
-        if expected == ProcessExpect::Created {
+        if expected == ProcessExpect::Created || expected == ProcessExpect::Failed {
             assert_eq!(
                 process.pid, 0,
-                "process '{name}' in Created should have no PID, got {process:?}"
+                "process '{name}' in {expected_state} should have no PID, got {process:?}"
             );
         }
     }
@@ -876,8 +878,13 @@ impl TestEnv {
     }
 
     pub fn assert_config_skip_logged(&self, name: &str) {
-        let yaml = format!("{name}.yaml:");
-        self.assert_daemon_log_line_contains(&["skipping", &yaml]);
+        let prefix = format!("[{name}] skipping config");
+        self.assert_daemon_log_line_contains(&[&prefix]);
+    }
+
+    pub fn assert_condition_path_not_met_logged(&self, name: &str, path: &str) {
+        let prefix = format!("[{name}] condition_path_exists not met");
+        self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
     fn check_process_pid_alive(&self, name: &str) {
