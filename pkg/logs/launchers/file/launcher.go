@@ -345,6 +345,8 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
 				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
 				filesTailed[scanKey] = true
+			} else {
+				s.oldInfoMap[scanKey] = oldInfo
 			}
 		} else {
 			// Normal case - no stored info
