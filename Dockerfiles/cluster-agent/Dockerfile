@@ -22,7 +22,7 @@ RUN if [ "$CI" = "true" ]; then \
         /etc/apt/sources.list.d/ubuntu.sources; \
     fi; \
     fi
-RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN apt-get update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
@@ -82,9 +82,8 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 #  same time for speed.
 # For agent install and operation: ca-certificates, tzdata, adduser
 # For TSE operations: curl
-RUN apt-get update \
-    && apt full-upgrade -y \
-    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
+RUN apt full-upgrade -y \
+    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser \
     && rm -rf \
       /var/cache/debconf/*-old \
       /var/lib/apt/lists/* \
