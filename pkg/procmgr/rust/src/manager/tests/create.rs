@@ -11,6 +11,7 @@ use crate::config::ProcessConfig;
 use crate::state::ProcessState;
 use crate::test_helpers;
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_create_auto_start_reserves_before_return() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;

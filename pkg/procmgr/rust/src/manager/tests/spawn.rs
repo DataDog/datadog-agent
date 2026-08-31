@@ -83,6 +83,7 @@ async fn test_stop_during_in_flight_spawn_aborts_child() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_concurrent_start_rejected_while_spawn_in_flight() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -165,6 +166,7 @@ async fn test_concurrent_start_only_one_succeeds() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -220,6 +222,7 @@ async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> any
     Ok(())
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_stale_spawn_commit_does_not_steal_newer_reservation() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -347,6 +350,7 @@ async fn test_create_auto_start_respects_in_flight_reservation() -> anyhow::Resu
     Ok(())
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_background_spawn_joined_before_teardown() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;

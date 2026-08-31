@@ -151,6 +151,12 @@ rust_test(
     name = "dd-procmgrd_test",
     crate = ":dd-procmgrd-lib",
     edition = "2024",
+    env = select({
+        "@platforms//os:windows": {
+            "RUST_TEST_THREADS": "1",
+        },
+        "//conditions:default": {},
+    }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = ["@crates//:tempfile"],
