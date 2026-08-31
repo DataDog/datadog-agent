@@ -76,21 +76,32 @@ def run_golangci_lint(
         include_python="python" in tags,
     )
 
-    verbosity = "-v" if verbose else ""
-    concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
     tags_arg = ",".join(sorted(set(tags)))
     timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
     # Compose the targets string for the command
-    targets_rec = [f"{target}/..." if not target.endswith("/...") else target for target in targets]
-    targets_str = " ".join(targets_rec if recursive else targets)
-    cmd = (
-        f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} '
-        f'--build-tags "{tags_arg}" --path-prefix "{base_path}" {golangci_lint_kwargs} {targets_str}'
-    )
+    target_patterns = [t if t.endswith("/...") else f"{t}/..." for t in targets] if recursive else targets
+    targets_str = " ".join(target_patterns)
+    cmd = ["run"]
+    if verbose:
+        cmd.append("-v")
+    cmd += ["--timeout", timeout_arg_value]
+    if concurrency is not None:
+        cmd += ["--concurrency", str(concurrency)]
+    cmd += ["--build-tags", tags_arg, "--path-prefix", base_path] + golangci_lint_kwargs.split() + target_patterns
     if not headless_mode:
         print(f"running golangci-lint on: {targets_str}")
     result, time_result = TimedOperationResult.run(
-        lambda: ctx.run(cmd, env=env, warn=True), "golangci-lint", f"Lint {targets_str}"
+        lambda: bazel(
+            ctx,
+            "run",
+            *(f"--run_env={k}={v}" for k, v in env.items()),
+            "//internal/tools:golangci-lint",
+            "--",
+            *cmd,
+            ignore_errors=True,
+        ),
+        "golangci-lint",
+        f"Lint {targets_str}",
     )
     return [result], [time_result]
 

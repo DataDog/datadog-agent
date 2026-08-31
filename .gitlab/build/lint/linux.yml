@@ -5,8 +5,9 @@
   - dda inv -- -e linter.go --cpus $KUBERNETES_CPU_REQUEST --debug $FLAVORS $EXTRA_OPTS
 
 .linux_lint:
+  extends: .bazel:defs:cache:progressive
   stage: lint
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps"]
   variables:
     FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
@@ -14,7 +15,6 @@
     KUBERNETES_MEMORY_LIMIT: 32Gi
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
   script:
     - !reference [.lint_script]
 
@@ -35,10 +35,6 @@ lint_linux-arm64:
   extends:
     - .linux_lint
     - .linux_arm64
-  needs: ["go_deps", "go_tools_deps_arm64"]
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps_arm64]
 
 lint_flavor_iot_linux-x64:
   extends:

@@ -30,6 +30,7 @@ if defined XDG_CACHE_HOME (
     exit /b 2
   )
   set "GOCACHE=!XDG_CACHE_HOME!\go-build"
+  set "GOLANGCI_LINT_CACHE=!XDG_CACHE_HOME!\golangci-lint"
   set "GOMODCACHE=!XDG_CACHE_HOME!\go\mod"
   set "PIP_CACHE_DIR=!XDG_CACHE_HOME!\pip"
   :: https://github.com/bazelbuild/bazel/issues/27808

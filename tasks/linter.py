@@ -93,14 +93,14 @@ def go(
     Args:
         timeout: Number of minutes after which the linter should time out.
         headless_mode: Allows you to output the result in a single json file.
-        debug: prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
+        debug: prints the go version to help debugging lint discrepancies between versions.
 
     Example invokation:
         $ dda inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         $ dda inv linter.go --module=.
     """
 
-    check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
+    check_tools_version(ctx, ['go'], debug=debug)
 
     modules, flavor = process_input_args(
         ctx,

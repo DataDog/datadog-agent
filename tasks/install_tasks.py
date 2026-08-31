@@ -15,7 +15,6 @@ TOOL_LIST = [
     'github.com/bazelbuild/bazelisk',
     'github.com/frapposelli/wwhrd',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
-    'github.com/golangci/golangci-lint/v2/cmd/golangci-lint',
     'github.com/goware/modvendor',
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v3',

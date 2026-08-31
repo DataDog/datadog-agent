@@ -985,6 +985,8 @@ workflow:
   - changes:
       paths:
         - .gitlab/test/e2e/e2e.yml
+        - bazel/rules/go_shim/**/* # Runs bazelified Go tools
+        - internal/tools/**/* # Go tools: golangci-lint, etc. (incident-59251/59255/59256/59257/59258)
         - test/e2e-framework/**/*
         - test/new-e2e/go.mod
         - flakes.yaml

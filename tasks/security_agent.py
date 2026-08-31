@@ -355,7 +355,7 @@ def build_functional_tests(
         results, _ = run_golangci_lint(ctx, base_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
-            if result.exited != 0:
+            if result.returncode != 0:
                 raise Exit(code=1)
         print("golangci-lint found no issues")
 
