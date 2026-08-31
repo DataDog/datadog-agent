@@ -5,7 +5,7 @@
 
 // Package store provides the interface for the health platform store component.
 // The store is the central state owner: it receives issue reports, owns the
-// in-memory issue map, persists state to disk, and exposes the local
+// in-memory issue map, persists lifecycle state, and exposes the local
 // /health-platform/issues HTTP endpoint.
 package store
 
@@ -15,12 +15,19 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
+// RemotePersistenceParams enables backend-backed issue restoration for the
+// long-running Agent process. Other processes that wire the Health Platform
+// bundle, such as one-shot CLI commands, intentionally leave this unsupplied.
+type RemotePersistenceParams struct {
+	Enabled bool
+}
+
 // IssuesObserver holds the channels the store writes issue events into.
 // It is the extension point for reactive integrations — e.g. an MCP server
 // exposing issues to AI agents for proactive remediation.
 type IssuesObserver struct {
 	// ResolvedCh receives issues when they transition to RESOLVED, including
-	// resolved issues recovered from disk on startup.
+	// resolved issues recovered from persistence on startup.
 	ResolvedCh chan *healthplatformpayload.Issue
 }
 
@@ -28,7 +35,7 @@ type IssuesObserver struct {
 type Component interface {
 	// RegisterIssuesObserver registers a state-change listener. Multiple observers
 	// may be registered. Observers registered before OnStart also receive
-	// resolved issues recovered from disk on startup.
+	// resolved issues recovered from persistence on startup.
 	RegisterIssuesObserver(obs IssuesObserver)
 
 	// ReportIssue records a new or ongoing issue keyed by issue.Id. Two calls
