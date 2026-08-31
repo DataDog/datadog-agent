@@ -80,11 +80,11 @@ func (m *Matcher) Test(name string) bool {
 	}
 
 	// Fast path: already normalized, so compare the name as given.
-	if IsNormalized(name) {
+	if isNormalized(name) {
 		return m.search(name)
 	}
 
-	var buf [MaxLength]byte
+	var buf [maxLength]byte
 	key, ok := normalizeAppend(buf[:0], name)
 	if !ok {
 		return false

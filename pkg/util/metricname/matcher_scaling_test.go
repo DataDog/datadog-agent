@@ -158,7 +158,7 @@ func rawName(i int, layout string) string {
 func TestMatcherFixturesAreNormalized(t *testing.T) {
 	for _, layout := range layouts {
 		for _, name := range []string{metricName(0, layout), metricName(matchCorpusSize, layout), nomatchName(0, layout)} {
-			if !IsNormalized(name) {
+			if !isNormalized(name) {
 				t.Errorf("fixture %q is not a normalized metric name; benchmarks would measure the rewrite path", name)
 			}
 			if len(name) != targetNameLength {
@@ -231,7 +231,7 @@ func TestMatcherTestAllocationsForNonNormalizedName(t *testing.T) {
 
 	// Self-check the fixture: it must not already be normalized, and it must
 	// normalize onto the entry, otherwise this measures the wrong thing.
-	if IsNormalized(raw) {
+	if isNormalized(raw) {
 		t.Fatalf("test input %q is already normalized, it cannot exercise the rewrite path", raw)
 	}
 	if got, ok := normalize(raw); !ok || got != normalized {
@@ -249,7 +249,7 @@ func TestMatcherTestAllocationsForNonNormalizedName(t *testing.T) {
 
 	// The name is also longer than a typical one, to exercise the buffer nearer
 	// its bound without reallocating.
-	long := "9" + strings.Repeat("a-", (MaxLength-1)/2)
+	long := "9" + strings.Repeat("a-", (maxLength-1)/2)
 	if _, ok := normalize(long); !ok {
 		t.Fatalf("fixture %q should be storable", long[:20])
 	}
@@ -289,7 +289,7 @@ func TestMatcherTestIsAllocationFreeOnLadingTraffic(t *testing.T) {
 	var normalized, rewritten, unstorable int
 	for _, n := range names {
 		switch {
-		case IsNormalized(n):
+		case isNormalized(n):
 			normalized++
 		default:
 			if _, ok := normalize(n); ok {
@@ -388,8 +388,8 @@ func BenchmarkMatcherTestPaths(b *testing.B) {
 	} {
 		// Guard each variant's premise: it must take the intended path and still
 		// match, or it is measuring something other than what it claims.
-		if got := IsNormalized(c.probes[0]); got != c.wantNormalized {
-			b.Fatalf("%s: IsNormalized(%q) = %v, want %v", c.name, c.probes[0], got, c.wantNormalized)
+		if got := isNormalized(c.probes[0]); got != c.wantNormalized {
+			b.Fatalf("%s: isNormalized(%q) = %v, want %v", c.name, c.probes[0], got, c.wantNormalized)
 		}
 		if got, ok := normalize(c.probes[0]); !ok || got != c.entries[0] {
 			b.Fatalf("%s: normalize(%q) = (%q, %v), want (%q, true)",

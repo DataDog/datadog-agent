@@ -18,7 +18,7 @@ import (
 // via normalizeAppend instead, so this deliberately exists only in tests -- see
 // Matcher.Test.
 func normalize(name string) (string, bool) {
-	got, ok := normalizeAppend(make([]byte, 0, MaxLength), name)
+	got, ok := normalizeAppend(make([]byte, 0, maxLength), name)
 	if !ok {
 		return name, false
 	}
@@ -85,7 +85,7 @@ var unstorableNames = []string{
 	"...",
 	"123",
 	"🍣",
-	strings.Repeat("a", MaxLength+1),
+	strings.Repeat("a", maxLength+1),
 }
 
 func TestNormalize(t *testing.T) {
@@ -121,8 +121,8 @@ func TestNormalizeUnstorableNames(t *testing.T) {
 }
 
 func TestNormalizeMaxLength(t *testing.T) {
-	// A name of exactly MaxLength bytes is accepted.
-	atLimit := strings.Repeat("a", MaxLength)
+	// A name of exactly maxLength bytes is accepted.
+	atLimit := strings.Repeat("a", maxLength)
 	actual, ok := normalize(atLimit)
 	require.True(t, ok)
 	assert.Equal(t, atLimit, actual)
@@ -135,7 +135,7 @@ func TestNormalizeMaxLength(t *testing.T) {
 
 	// A name that would fit only after normalization is still rejected, because
 	// the intake checks the length of the raw name.
-	shrinks := strings.Repeat("a-", MaxLength)
+	shrinks := strings.Repeat("a-", maxLength)
 	_, ok = normalize(shrinks)
 	assert.False(t, ok)
 }
@@ -143,19 +143,19 @@ func TestNormalizeMaxLength(t *testing.T) {
 func TestIsNormalized(t *testing.T) {
 	for input, expected := range normalizedNames {
 		t.Run(input, func(t *testing.T) {
-			assert.Equal(t, input == expected, IsNormalized(input))
+			assert.Equal(t, input == expected, isNormalized(input))
 		})
 	}
 
 	for _, input := range unstorableNames {
 		t.Run(input, func(t *testing.T) {
-			assert.False(t, IsNormalized(input))
+			assert.False(t, isNormalized(input))
 		})
 	}
 }
 
 // TestIsNormalizedMatchesNormalize asserts the property the fast path in
-// Normalize relies on: IsNormalized(s) is true exactly when normalize(s)
+// Normalize relies on: isNormalized(s) is true exactly when normalize(s)
 // returns s unchanged.
 func TestIsNormalizedMatchesNormalize(t *testing.T) {
 	inputs := []string{
@@ -167,7 +167,7 @@ func TestIsNormalizedMatchesNormalize(t *testing.T) {
 	for _, input := range inputs {
 		t.Run(input, func(t *testing.T) {
 			normalized, ok := normalize(input)
-			assert.Equal(t, ok && normalized == input, IsNormalized(input))
+			assert.Equal(t, ok && normalized == input, isNormalized(input))
 		})
 	}
 }
@@ -183,8 +183,8 @@ func FuzzIsNormalizedMatchesNormalize(f *testing.F) {
 	f.Fuzz(func(t *testing.T, name string) {
 		normalized, ok := normalize(name)
 
-		assert.Equal(t, ok && normalized == name, IsNormalized(name),
-			"IsNormalized disagrees with Normalize for %q", name)
+		assert.Equal(t, ok && normalized == name, isNormalized(name),
+			"isNormalized disagrees with Normalize for %q", name)
 
 		if !ok {
 			assert.Equal(t, name, normalized)
@@ -192,7 +192,7 @@ func FuzzIsNormalizedMatchesNormalize(f *testing.F) {
 		}
 
 		// Normalization must always produce a storable, stable name.
-		assert.True(t, IsNormalized(normalized),
+		assert.True(t, isNormalized(normalized),
 			"Normalize produced a non-normalized name %q from %q", normalized, name)
 
 		again, ok := normalize(normalized)
