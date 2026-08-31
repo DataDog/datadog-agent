@@ -1089,18 +1089,19 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		p.probe.sendEventToConsumers(event)
 	}
 
-	// handle sbom resolution
-	if p.Resolvers.SBOMResolver != nil {
-		if !event.ProcessContext.Process.ContainerContext.IsNull() {
-			if event.GetEventType() == model.ExecEventType {
-				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
-			} else if event.GetEventType() == model.FileOpenEventType {
-				// force resolution of the file path
-				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
+	// handle sbom resolution. An event with no container ID belongs to the host,
+	// which the resolver indexes only when the host SBOM is enabled, so skipping it
+	// otherwise saves resolving the path of every open event the host samples.
+	if p.Resolvers.SBOMResolver != nil &&
+		(!event.ProcessContext.Process.ContainerContext.IsNull() || p.Resolvers.SBOMResolver.HostEnabled()) {
+		if event.GetEventType() == model.ExecEventType {
+			p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
+		} else if event.GetEventType() == model.FileOpenEventType {
+			// force resolution of the file path
+			p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
 
-				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
-				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
-			}
+			// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
+			p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
 		}
 	}
 

@@ -8,6 +8,7 @@
 package sbom
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -16,9 +17,12 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // TestRefreshScanResetsStateForRescan checks that refreshing a workload clears
@@ -375,4 +379,332 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 	})
 
 	wg.Wait()
+}
+
+// hostResolver builds a resolver holding a computed host index over the given
+// packages, the state Start leaves behind when the host SBOM is enabled.
+func hostResolver(t *testing.T, cfg *config.RuntimeSecurityConfig, report []sbomtypes.PackageWithInstalledFiles) *Resolver {
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](2, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+
+	r := &Resolver{
+		Notifier:              utils.NewNotifier[Event, *sbompkg.ScanResult](),
+		cfg:                   cfg,
+		dataCache:             dataCache,
+		sboms:                 sboms,
+		scanChan:              make(chan *SBOM, 10),
+		pendingFileEvents:     newPendingFileEvents(t),
+		sbomGenerations:       atomic.NewUint64(0),
+		failedSBOMGenerations: atomic.NewUint64(0),
+		sbomsCacheHit:         atomic.NewUint64(0),
+		sbomsCacheMiss:        atomic.NewUint64(0),
+	}
+	r.hostSBOM = NewSBOM("", nil, hostWorkloadKey)
+	r.hostSBOM.setReport(report)
+	r.hostSBOM.state.Store(computedState)
+	return r
+}
+
+var hostReport = []sbomtypes.PackageWithInstalledFiles{{
+	Package:        sbomtypes.Package{Name: "shadow-utils", Version: "4.15.1"},
+	InstalledFiles: []string{"/usr/bin/su"},
+}}
+
+// TestResolvePackageEnrichesHostPackages checks that a file access from a process
+// with no container resolves against the host index and records the usage on the
+// owning package. The core agent merges those properties onto the host SBOM it
+// scans itself, so an access that stopped at the container check would leave the
+// host reported as running nothing.
+func TestResolvePackageEnrichesHostPackages(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{
+		SBOMResolverEnrichmentInterval: time.Minute,
+		SBOMResolverForwardInterval:    time.Hour,
+	}, hostReport)
+	defer r.hostSBOM.stop()
+
+	pc := &model.ProcessContext{Process: model.Process{Credentials: model.Credentials{UID: 0}}}
+	file := &model.FileEvent{
+		FileFields:            model.FileFields{Mode: 04755},
+		PathnameStr:           "/usr/bin/su",
+		IsPathnameStrResolved: true,
+	}
+
+	pkg := r.ResolvePackage(pc, file)
+	if pkg == nil {
+		t.Fatalf("no package resolved for a host file access")
+	}
+	if pkg.Name != "shadow-utils" {
+		t.Errorf("package = %q, want shadow-utils", pkg.Name)
+	}
+	if pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want last access and both sticky properties set", *pkg)
+	}
+}
+
+// TestResolvePackageWithoutHostIndex checks that a host file access resolves to
+// nothing and queues nothing when the host index is disabled, which is the state
+// of an agent collecting container SBOMs alone.
+func TestResolvePackageWithoutHostIndex(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{}, hostReport)
+	r.hostSBOM = nil
+
+	// The probe reads this to skip resolving host events entirely, which is what
+	// keeps a container-only deployment off the host path.
+	if r.HostEnabled() {
+		t.Errorf("HostEnabled reports the host is indexed while it is disabled")
+	}
+
+	pc := &model.ProcessContext{}
+	file := &model.FileEvent{
+		FileFields:            model.FileFields{Mode: 0755},
+		PathnameStr:           "/usr/bin/su",
+		IsPathnameStrResolved: true,
+	}
+
+	if pkg := r.ResolvePackage(pc, file); pkg != nil {
+		t.Errorf("package = %+v, want none", *pkg)
+	}
+	if r.pendingFileEvents.Len() != 0 {
+		t.Errorf("host file access was queued, and nothing would ever drain it")
+	}
+}
+
+// TestLookupPackageRecordsNothing checks that the lookup used to read package
+// metadata for its own sake, such as resolving the version of a systemd unit,
+// leaves the runtime usage properties alone. Owning a file is not running it.
+func TestLookupPackageRecordsNothing(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{}, hostReport)
+
+	pkg := r.LookupPackage("", "/usr/bin/su")
+	if pkg == nil {
+		t.Fatalf("no package resolved for /usr/bin/su")
+	}
+	if pkg.Version != "4.15.1" {
+		t.Errorf("version = %q, want 4.15.1", pkg.Version)
+	}
+	if !pkg.LastAccess.IsZero() || pkg.SuidBit || pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want no usage recorded", *pkg)
+	}
+}
+
+// TestForwardHostSBOMWithoutImageStatus checks that the host report is forwarded
+// straight away. The container path waits for the image's Trivy SBOM to leave the
+// pending state, and the host has no image to wait for, so sharing that wait would
+// hold the report until maxForwardWait expired and then drop it.
+func TestForwardHostSBOMWithoutImageStatus(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Millisecond}, hostReport)
+
+	results := make(chan *sbompkg.ScanResult, 1)
+	if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+		results <- result
+	}); err != nil {
+		t.Fatalf("RegisterListener: %v", err)
+	}
+
+	sbom := r.hostSBOM
+	sbom.Lock()
+	r.triggerForwarding(sbom)
+	sbom.Unlock()
+	defer sbom.stop()
+
+	select {
+	case result := <-results:
+		report, ok := result.Report.(*PackagesReport)
+		if !ok {
+			t.Fatalf("report type = %T, want *PackagesReport", result.Report)
+		}
+		if !report.IsHost() {
+			t.Errorf("report is not marked as the host's, so it would be merged onto a container image")
+		}
+		if result.RequestID != "" {
+			t.Errorf("RequestID = %q, want empty", result.RequestID)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatalf("host report was not forwarded")
+	}
+}
+
+// TestDoScanHostUsesHostRoot checks that rescanning the host reads the host root.
+// A host process writing the package database fires the bundled refresh_sbom rule
+// with no container id, and the host SBOM has no cgroup to take a scan root from.
+func TestDoScanHostUsesHostRoot(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{}, hostReport)
+	r.hostRoot = t.TempDir()
+
+	scanned := ""
+	r.sbomCollector = scanFunc(func(_ context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
+		scanned = root
+		return hostReport, nil
+	})
+
+	report, err := r.doScan(r.hostSBOM)
+	if err != nil {
+		t.Fatalf("doScan: %v", err)
+	}
+	if scanned != r.hostRoot {
+		t.Errorf("scanned %q, want the host root %q", scanned, r.hostRoot)
+	}
+	if len(report) != 1 {
+		t.Errorf("report has %d packages, want 1", len(report))
+	}
+}
+
+// TestDropQueuedHostSBOMKeepsIndex checks that a full scan queue leaves the host
+// index in place. A container SBOM is dropped from the cache, which releases
+// everything indexed by its container ID, while the host lives outside that cache
+// and would lose the properties of every package it already knows.
+func TestDropQueuedHostSBOMKeepsIndex(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{}, hostReport)
+	r.hostSBOM.state.Store(pendingState)
+
+	r.dropQueuedSBOM(r.hostSBOM)
+
+	if !r.hostSBOM.IsComputed() {
+		t.Errorf("host SBOM state = %d, want computed", r.hostSBOM.state.Load())
+	}
+	if r.hostSBOM.data == nil || len(r.hostSBOM.data.packages) != 1 {
+		t.Errorf("host index was dropped along with the queued scan")
+	}
+}
+
+// scanFunc adapts a function to the sbomCollector interface.
+type scanFunc func(ctx context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error)
+
+func (f scanFunc) ScanInstalledPackages(ctx context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
+	return f(ctx, root)
+}
+
+// TestStartWithoutReadableHostRoot checks that a host whose packages cannot be
+// read leaves the probe running. Start is called from Init, so returning the
+// error would stop system-probe from starting at all, taking the rest of what it
+// does down with the enrichment.
+func TestStartWithoutReadableHostRoot(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{SBOMResolverHostEnabled: true}, hostReport)
+	r.hostSBOM = nil
+	r.hostRoot = "/does-not-exist"
+	r.sbomCollector = scanFunc(func(_ context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
+		return nil, fmt.Errorf("cannot read the package database under %s", root)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := r.Start(ctx); err != nil {
+		t.Errorf("Start = %v, want the host scan failure to be absorbed", err)
+	}
+	// The entry is kept so a later refresh can read the database that was
+	// unreadable now, and it stays uncomputed so nothing resolves against it.
+	if r.hostSBOM == nil {
+		t.Fatalf("the host entry was dropped, so no refresh can ever retry the scan")
+	}
+	if r.hostSBOM.IsComputed() {
+		t.Errorf("the host index is marked computed while its scan failed")
+	}
+	pc := &model.ProcessContext{}
+	file := &model.FileEvent{PathnameStr: "/usr/bin/su", IsPathnameStrResolved: true}
+	if pkg := r.ResolvePackage(pc, file); pkg != nil {
+		t.Errorf("package = %+v, want none from an index that was never computed", *pkg)
+	}
+}
+
+// TestRefreshHostPeriodicallyQueuesRescan checks that the host index is re-queued
+// for a scan on the configured interval. A container is scanned whenever its
+// workload appears, while the host is scanned once at startup, so without this a
+// package upgraded afterwards stops matching the index and everything it owns is
+// reported as never running.
+func TestRefreshHostPeriodicallyQueuesRescan(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{
+		SBOMResolverHostEnabled:         true,
+		SBOMResolverHostRefreshInterval: time.Millisecond,
+	}, hostReport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go r.refreshHostPeriodically(ctx)
+
+	select {
+	case queued := <-r.scanChan:
+		if queued != r.hostSBOM {
+			t.Errorf("queued %v, want the host SBOM", queued)
+		}
+		if queued.IsComputed() {
+			t.Errorf("the host SBOM was queued while still marked computed, so analyzeWorkload would drop the rescan")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatalf("the host SBOM was never re-queued for a scan")
+	}
+}
+
+// TestDropQueuedHostSBOMWithoutIndexStaysPending checks that giving up on a
+// queued scan leaves an index that was never computed in the pending state. A
+// host whose first scan failed has an empty index, and marking it computed would
+// have every file access resolve against it and find nothing.
+func TestDropQueuedHostSBOMWithoutIndexStaysPending(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{}, nil)
+	r.hostSBOM = NewSBOM("", nil, hostWorkloadKey)
+
+	r.dropQueuedSBOM(r.hostSBOM)
+
+	if r.hostSBOM.IsComputed() {
+		t.Errorf("an index that was never computed is marked computed")
+	}
+}
+
+// TestTerminalScanFailureReleasesPendingScan checks that a scan which exhausts
+// its retries releases its pending entry. addPendingScan refuses a workload
+// already listed, so a stale entry would leave the host's periodic refresh
+// unable to queue anything for the lifetime of the process.
+func TestTerminalScanFailureReleasesPendingScan(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{
+		SBOMResolverHostEnabled:         true,
+		SBOMResolverHostRefreshInterval: time.Millisecond,
+	}, hostReport)
+	r.hostRoot = "/does-not-exist"
+	r.sbomCollector = scanFunc(func(_ context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
+		return nil, fmt.Errorf("cannot read the package database under %s", root)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := r.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// The refresher and the scan loop both run, so a released entry shows up as a
+	// second queued scan following the first failure.
+	for range 2 {
+		select {
+		case <-r.scanChan:
+		case <-time.After(15 * time.Second):
+			t.Fatalf("a failed scan kept its pending entry, so no later refresh could be queued")
+		}
+		r.removePendingScan("")
+	}
+}
+
+// TestRefreshHostPeriodicallyOffByInterval checks that a zero interval leaves the
+// host index alone, so the refresh can be turned off.
+func TestRefreshHostPeriodicallyOffByInterval(t *testing.T) {
+	r := hostResolver(t, &config.RuntimeSecurityConfig{SBOMResolverHostEnabled: true}, hostReport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() { r.refreshHostPeriodically(ctx); close(done) }()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("refreshHostPeriodically did not return for a zero interval")
+	}
+	if len(r.scanChan) != 0 {
+		t.Errorf("a scan was queued while the refresh is off")
+	}
 }

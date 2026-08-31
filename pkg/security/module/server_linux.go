@@ -19,7 +19,7 @@ import (
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
+	sbomresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -316,7 +316,7 @@ func (a *SBOMAPIServer) collectSBOMS() {
 
 	if sbomResolver := ebpfProbe.Resolvers.SBOMResolver; sbomResolver != nil {
 		seclog.Debugf("registering SBOM listener")
-		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
+		if err := sbomResolver.RegisterListener(sbomresolver.SBOMComputed, func(sbom *sbompkg.ScanResult) {
 			select {
 			case a.sboms <- sbom:
 				seclog.Debugf("SBOM for %s sent to APIServer channel", sbom.RequestID)
@@ -351,6 +351,10 @@ func (a *SBOMAPIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.
 				Data: data,
 				Kind: string(workloadmeta.KindContainer),
 				ID:   sbom.RequestID,
+			}
+			if report, ok := sbom.Report.(*sbomresolver.PackagesReport); ok && report.IsHost() {
+				msg.Kind = sbompkg.HostEntityKind
+				msg.ID = ""
 			}
 
 			if err := stream.Send(msg); err != nil {
