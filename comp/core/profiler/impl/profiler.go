@@ -81,7 +81,7 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 			endpoint.Scheme = "https"
 		}
 		return func(path string) ([]byte, error) {
-			return p.ipcClient.Get(endpoint.String()+path, ipchttp.WithLeaveConnectionOpen, ipchttp.WithNoAuthToken)
+			return p.ipcClient.Get(endpoint.String()+path, ipchttp.WithLeaveConnectionOpen, ipchttp.WithoutAuthToken)
 		}
 	}
 
@@ -223,7 +223,7 @@ func (p profiler) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error
 	// goroutines, and gracefully produces no file when the agent is unreachable
 	// (e.g. local flare mode) instead of capturing the CLI's own goroutines.
 	pprofURL := "http://127.0.0.1:" + strconv.Itoa(p.cfg.GetInt("expvar_port")) + "/debug/pprof/goroutine?debug=2"
-	if data, err := p.ipcClient.Get(pprofURL, ipchttp.WithLeaveConnectionOpen, ipchttp.WithNoAuthToken); err == nil {
+	if data, err := p.ipcClient.Get(pprofURL, ipchttp.WithLeaveConnectionOpen, ipchttp.WithoutAuthToken); err == nil {
 		fb.AddFile("go-routine-dump.log", data) //nolint:errcheck
 	}
 

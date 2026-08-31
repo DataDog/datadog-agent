@@ -442,7 +442,7 @@ func (r *RemoteFlareProvider) getHTTPCallContent(url string) ([]byte, error) {
 		return nil, err
 	}
 
-	resp, err := r.IPC.GetClient().Do(req.WithContext(ctx), ipchttp.WithNoAuthToken)
+	resp, err := r.IPC.GetClient().Do(req.WithContext(ctx), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return nil, err
 	}

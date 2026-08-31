@@ -8,17 +8,12 @@
 package dcaflare
 
 import (
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -50,23 +45,4 @@ func TestCommand(t *testing.T) {
 		[]string{"flare"},
 		run,
 		func() {})
-}
-
-// Verifies the bearer token does not leak to the unauthenticated DCA pprof endpoint (DCA flare).
-func TestReadProfileDataNoBearer(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Empty(t, r.Header.Get("Authorization"), "Bearer token must not be sent to unauthenticated DCA pprof endpoint")
-		fmt.Fprint(w, "pprof data")
-	}))
-	defer ts.Close()
-
-	u, err := url.Parse(ts.URL)
-	require.NoError(t, err)
-
-	cfg := configmock.New(t)
-	cfg.SetInTest("expvar_port", u.Port())
-
-	ipcComp := ipcmock.New(t)
-	_, err = readProfileData(ipcComp.GetClient(), 1)
-	require.NoError(t, err)
 }

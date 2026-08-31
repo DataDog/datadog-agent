@@ -53,11 +53,8 @@ dd_agent_go_test(
     deps = [
         "//cmd/agent/command",
         "//comp/core",
-        "//comp/core/ipc/mock",
-        "//pkg/config/mock",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
-        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )

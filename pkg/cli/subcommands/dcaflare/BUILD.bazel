@@ -45,7 +45,6 @@ dd_agent_go_test(
     include_default = False,
     deps = select({
         "@rules_go//go/platform:aix": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -55,7 +54,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:android": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -65,7 +63,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:darwin": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -75,7 +72,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -85,7 +81,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:freebsd": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -95,7 +90,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:illumos": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -105,7 +99,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -115,7 +108,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:js": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -125,7 +117,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -135,7 +126,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:netbsd": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -145,7 +135,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:openbsd": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -155,7 +144,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:osx": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -165,7 +153,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:plan9": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -175,7 +162,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:qnx": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
@@ -185,7 +171,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:solaris": [
-            "//comp/core/ipc/mock",
             "//pkg/config/mock",
             "//pkg/config/model",
             "//pkg/util/defaultpaths",
