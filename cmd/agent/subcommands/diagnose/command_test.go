@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -168,9 +169,8 @@ func TestShowHealthIssuesCommand(t *testing.T) {
 
 // Verifies the bearer token does not leak to the unauthenticated /telemetry endpoint.
 func TestPrintAgentFullTelemetryNoBearer(t *testing.T) {
-	var capturedAuth string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedAuth = r.Header.Get("Authorization")
+		assert.Empty(t, r.Header.Get("Authorization"), "Bearer token must not be sent to unauthenticated telemetry endpoint")
 		fmt.Fprint(w, "telemetry")
 	}))
 	defer ts.Close()
@@ -184,5 +184,4 @@ func TestPrintAgentFullTelemetryNoBearer(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	err = printAgentFullTelemetry(cfg, ipcComp.GetClient())
 	require.NoError(t, err)
-	require.Empty(t, capturedAuth, "Bearer token must not be sent to unauthenticated telemetry endpoint")
 }

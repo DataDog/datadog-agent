@@ -54,9 +54,8 @@ func TestCommand(t *testing.T) {
 
 // Verifies the bearer token does not leak to the unauthenticated DCA pprof endpoint (DCA flare).
 func TestReadProfileDataNoBearer(t *testing.T) {
-	var capturedAuth string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedAuth = r.Header.Get("Authorization")
+		assert.Empty(t, r.Header.Get("Authorization"), "Bearer token must not be sent to unauthenticated DCA pprof endpoint")
 		fmt.Fprint(w, "pprof data")
 	}))
 	defer ts.Close()
@@ -70,5 +69,4 @@ func TestReadProfileDataNoBearer(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	_, err = readProfileData(ipcComp.GetClient(), 1)
 	require.NoError(t, err)
-	assert.Empty(t, capturedAuth, "Bearer token must not be sent to unauthenticated DCA pprof endpoint")
 }

@@ -65,9 +65,8 @@ func TestGoRoutines(t *testing.T) {
 
 // Verifies the bearer token does not leak to the unauthenticated pprof endpoint (CLI flare goroutine dump).
 func TestGetGoRoutineDumpNoBearer(t *testing.T) {
-	var capturedAuth string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedAuth = r.Header.Get("Authorization")
+		assert.Empty(t, r.Header.Get("Authorization"), "Bearer token must not be sent to unauthenticated pprof endpoint")
 		fmt.Fprint(w, "goroutine dump")
 	}))
 	defer ts.Close()
@@ -83,7 +82,6 @@ func TestGetGoRoutineDumpNoBearer(t *testing.T) {
 
 	_, err = remoteProvider.GetGoRoutineDump()
 	require.NoError(t, err)
-	assert.Empty(t, capturedAuth, "Bearer token must not be sent to unauthenticated pprof endpoint")
 }
 
 func createTestFile(t *testing.T, filename string) string {

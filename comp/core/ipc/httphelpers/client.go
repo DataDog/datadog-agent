@@ -182,7 +182,10 @@ func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byt
 	client.Timeout = params.Timeout
 
 	req.Header.Set("Content-Type", contentType)
-	if !params.NoAuthToken {
+	if params.NoAuthToken {
+		// Ensure no Authorization is sent, even if the caller pre-set the header.
+		req.Header.Del("Authorization")
+	} else {
 		req.Header.Set("Authorization", "Bearer "+s.authToken)
 	}
 
