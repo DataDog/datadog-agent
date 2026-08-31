@@ -26,11 +26,12 @@ Continue using:
 - `system_inputs.remote_action.allowed_paths`
 - `system_inputs.remote_action.allowed_commands`
 - `inputs.elevatableCommands`
-- The root-provisioned helper credential's local allowlists
+- The optional root-provisioned helper policy's local allowlists
 
-The helper already independently verifies the original signed envelope and
-produces effective `AllowedPaths`, `AllowedCommands`, and
-`ElevatableCommands`.
+The helper independently verifies the original signed envelope. When the
+optional local policy exists, it intersects its allowlists with the signed
+backend values to produce effective `AllowedPaths`, `AllowedCommands`, and
+`ElevatableCommands`; otherwise, the signed backend values are effective.
 
 PAR continues forwarding the signed envelope through
 `pkg/privateactionrunner/bundles/remoteaction/rshell/run_command.go`. It should

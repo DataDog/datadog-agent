@@ -281,6 +281,8 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task)
 		},
 		VerificationKeys: []privilegedhelper.CredentialKey{{
 			ID: verificationKey.DirectorProof.TargetPath, Type: directorProofKeyType, PEM: string(proofJSON),
+		}, {
+			ID: verificationKey.ID, Type: privilegedhelper.KeyType(verificationKey.KeyType), PEM: verificationKey.PEM,
 		}},
 	}
 	response, err := (privilegedhelper.Client{SocketPath: h.privilegedSocket}).Execute(ctx, request)
