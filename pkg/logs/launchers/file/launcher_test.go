@@ -1565,22 +1565,49 @@ func (suite *LauncherTestSuite) TestUnsupportedFingerprintFlagsKeepActiveTailerU
 
 	files := suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry)
 	suite.Require().Len(files, 1)
-	suite.s.cleanUpRotatedTailers()
-	suite.s.resolveActiveTailers(files)
+	suite.s.resolveScan(files)
 
 	activeTailer, found := suite.s.tailers.Get(scanKey)
 	suite.Require().True(found)
 	suite.Same(initialTailer, activeTailer, "a fingerprint failure must not replace a working tailer")
+	reported := suite.source.GetInfoStatus()[fingerprintOpenFlagsInfoKey]
+	suite.Require().NotEmpty(reported)
+	suite.Contains(strings.Join(reported, "\n"), openFlagsFailureMessage)
+	suite.Contains(strings.Join(reported, "\n"), "direct I/O rejected")
+
 	_, err := suite.testFile.WriteString("still tailing\n")
 	suite.Require().NoError(err)
 	msg := <-suite.outputChan
 	suite.Equal("still tailing", string(msg.GetContent()))
 
 	files = suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry)
-	suite.s.cleanUpRotatedTailers()
-	suite.s.resolveActiveTailers(files)
+	suite.s.resolveScan(files)
 
 	recoveredTailer, found := suite.s.tailers.Get(scanKey)
 	suite.Require().True(found)
 	suite.Same(initialTailer, recoveredTailer, "successful retry should keep the same tailer when no rotation occurred")
+	_, present := suite.source.GetInfoStatus()[fingerprintOpenFlagsInfoKey]
+	suite.False(present, "the status error must clear after recovery")
+}
+
+// TestFingerprintOpenFlagsErrorClearsWhenFileDisappears covers retraction: a stale entry
+// would leave the status page reporting a problem that no longer exists. The source holding
+// the entry is deliberately not one the scan walks.
+func (suite *LauncherTestSuite) TestFingerprintOpenFlagsErrorClearsWhenFileDisappears() {
+	disappearedPath := suite.testPath + ".gone"
+	disappearedFile, err := suite.ops.create(disappearedPath)
+	suite.Require().NoError(err)
+	suite.Require().NoError(disappearedFile.Close())
+
+	disappearedSource := sources.NewLogSource("disappeared", &config.LogsConfig{Type: config.FileType, Path: disappearedPath})
+	suite.s.openFlagsErrors.report(filetailer.NewFile(disappearedPath, disappearedSource, false), errDirectIORejected)
+	suite.Require().NotEmpty(disappearedSource.GetInfoStatus()[fingerprintOpenFlagsInfoKey])
+
+	suite.Require().NoError(suite.ops.remove(disappearedPath))
+
+	files := suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry)
+	suite.s.resolveScan(files)
+
+	_, present := disappearedSource.GetInfoStatus()[fingerprintOpenFlagsInfoKey]
+	suite.False(present, "a file that no longer fails must leave no stale error")
 }

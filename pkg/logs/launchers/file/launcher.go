@@ -64,10 +64,11 @@ type Launcher struct {
 	filesChan               chan []*tailer.File
 	filesTailedBetweenScans []*tailer.File
 	// Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
-	oldInfoMap    map[string]*oldTailerInfo
-	fileOpener    opener.FileOpener
-	fingerprinter tailer.Fingerprinter
-	stopOnce      sync.Once
+	oldInfoMap      map[string]*oldTailerInfo
+	fileOpener      opener.FileOpener
+	fingerprinter   tailer.Fingerprinter
+	openFlagsErrors *openFlagsErrorReporter
+	stopOnce        sync.Once
 }
 
 const (
@@ -124,6 +125,7 @@ func NewLauncher(
 		oldInfoMap:             make(map[string]*oldTailerInfo),
 		fileOpener:             fileOpener,
 		fingerprinter:          fingerprinter,
+		openFlagsErrors:        newOpenFlagsErrorReporter(),
 	}
 }
 
@@ -177,8 +179,7 @@ func (s *Launcher) run() {
 				s.filesChan <- s.fileProvider.FilesToTail(ctx, s.validatePodContainerID, inputSources, s.registry)
 			}(scannedSources)
 		case files := <-s.filesChan:
-			s.cleanUpRotatedTailers()
-			s.resolveActiveTailers(files)
+			s.resolveScan(files)
 			scanTicker.Reset(s.scanPeriod)
 		case <-s.stop:
 			// Cancel the context passed to fileProvider.FilesToTail
@@ -188,6 +189,12 @@ func (s *Launcher) run() {
 			return
 		}
 	}
+}
+
+func (s *Launcher) resolveScan(files []*tailer.File) {
+	s.cleanUpRotatedTailers()
+	s.openFlagsErrors.reset()
+	s.resolveActiveTailers(files)
 }
 
 // cleanup all tailers
@@ -263,7 +270,11 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			if s.fingerprinter.ShouldFileFingerprint(tailedFile) {
 				didRotate, err = tailered.DidRotateViaFingerprint(s.fingerprinter)
 				if err != nil {
-					log.Debugf("failed to detect log rotation via fingerprint: %v", err)
+					if directOpenFlagsActiveForFile(s.fingerprinter, tailedFile) {
+						s.openFlagsErrors.report(tailedFile, err)
+					} else {
+						log.Debugf("failed to detect log rotation via fingerprint: %v", err)
+					}
 					didRotate = false
 				}
 				if didRotate {
@@ -366,6 +377,9 @@ func (s *Launcher) resolveFingerprint(file *tailer.File) (*types.Fingerprint, bo
 
 	fingerprint, err := s.fingerprinter.ComputeFingerprint(file)
 	if err != nil || fingerprint == nil || !fingerprint.ValidFingerprint() {
+		if err != nil && directOpenFlagsActiveForFile(s.fingerprinter, file) {
+			s.openFlagsErrors.report(file, err)
+		}
 		return nil, false
 	}
 	return fingerprint, true
@@ -460,7 +474,8 @@ func (s *Launcher) tailerPosition(file *tailer.File, t *tailer.Tailer, m config.
 
 	offset, whence, err := Position(s.registry, t.Identifier(), mode, s.fingerprinter, s.fileOpener, fingerprint)
 	if err != nil {
-		if tailer.FingerprintOpenFlagsActive(s.fingerprinter.GetEffectiveConfigForFile(file)) {
+		if directOpenFlagsActiveForFile(s.fingerprinter, file) {
+			s.openFlagsErrors.report(file, err)
 			return 0, 0, false
 		}
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)

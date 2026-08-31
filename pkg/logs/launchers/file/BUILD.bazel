@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "file",
     srcs = [
+        "fingerprint_open_flags.go",
+        "fingerprint_open_flags_active.go",
         "launcher.go",
         "position.go",
     ],
@@ -35,6 +37,7 @@ go_library(
 dd_agent_go_test(
     name = "file_test",
     srcs = [
+        "fingerprint_open_flags_test.go",
         "launcher_privileged_logs_test.go",
         "launcher_test.go",
         "position_test.go",
