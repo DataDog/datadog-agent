@@ -218,3 +218,107 @@ func BenchmarkNormalizeNeedsRewrite(b *testing.B) {
 		normalize(name)
 	}
 }
+
+// referenceNormalize is an independent transcription of NormMetricNameParse in
+// dd-go model/metric.go, deliberately written as one straightforward pass with no
+// fast path. It is the oracle for TestNormalizationMatchesReference, so that test
+// pins this package against dd-go's behaviour rather than against itself.
+//
+// Keep it a transcription. If it is ever "simplified" to call the production code
+// it stops being an oracle.
+func referenceNormalize(name string) (string, bool) {
+	if len(name) == 0 || len(name) > maxLength {
+		return name, false
+	}
+	start := -1
+	for i := 0; i < len(name); i++ {
+		if isAlpha(name[i]) {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return name, false
+	}
+
+	res := make([]byte, 0, len(name))
+	for i := start; i < len(name); i++ {
+		switch c := name[i]; {
+		case isAlphaNum(c):
+			res = append(res, c)
+		case c == '.':
+			if res[len(res)-1] == '_' {
+				res[len(res)-1] = '.'
+			} else {
+				res = append(res, '.')
+			}
+		default:
+			if last := res[len(res)-1]; last != '.' && last != '_' {
+				res = append(res, '_')
+			}
+		}
+	}
+	if res[len(res)-1] == '_' {
+		res = res[:len(res)-1]
+	}
+	return string(res), true
+}
+
+// TestNormalizationMatchesReferenceExhaustive checks this package against the
+// dd-go transcription above over every string up to length 6 drawn from an
+// alphabet that reaches every branch: letter, digit, period, underscore, a byte
+// that becomes an underscore, and a byte of a multi-byte rune. 137,257 cases,
+// a few milliseconds.
+//
+// This exists because the fuzz targets in this file are weaker than they look:
+// Bazel's test binary rejects -test.fuzz, so under `bazel test` they only ever
+// replay their seed corpus. Exhaustive enumeration is the coverage that actually
+// runs in CI.
+//
+// It also pins the equivalence that isNormalized's fast path depends on, since a
+// name reported as already normalized must normalise to itself.
+func TestNormalizationMatchesReferenceExhaustive(t *testing.T) {
+	alphabet := []byte{'a', 'B', '1', '.', '_', '-', 0xC3}
+
+	var buf []byte
+	checked := 0
+	var rec func(depth int)
+	rec = func(depth int) {
+		name := string(buf)
+		checked++
+
+		wantStr, wantOK := referenceNormalize(name)
+		gotStr, gotOK := normalize(name)
+		if wantOK != gotOK {
+			t.Fatalf("storability disagrees for %q: reference %v, package %v",
+				name, wantOK, gotOK)
+		}
+		if wantOK {
+			if wantStr != gotStr {
+				t.Fatalf("normalisation disagrees for %q: reference %q, package %q",
+					name, wantStr, gotStr)
+			}
+			// The fast path in Matcher.Test skips the rewrite entirely for names
+			// isNormalized accepts, so that must imply the rewrite is a no-op.
+			if isNormalized(name) && gotStr != name {
+				t.Fatalf("%q is reported normalized but normalises to %q", name, gotStr)
+			}
+			// And the output must itself be a fixed point.
+			if !isNormalized(gotStr) {
+				t.Fatalf("normalising %q produced %q, which is not normalized",
+					name, gotStr)
+			}
+		}
+
+		if depth == 0 {
+			return
+		}
+		for _, c := range alphabet {
+			buf = append(buf, c)
+			rec(depth - 1)
+			buf = buf[:len(buf)-1]
+		}
+	}
+	rec(6)
+	t.Logf("checked %d strings against the dd-go transcription", checked)
+}
