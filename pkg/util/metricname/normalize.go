@@ -146,15 +146,19 @@ func normalizeAppend(dst []byte, name string) ([]byte, bool) {
 		case isAlphaNum(c):
 			dst = append(dst, c)
 		case c == '.':
-			if dst[len(dst)-1] == '_' {
-				// Overwrite an underscore that happens just before a period.
+			switch dst[len(dst)-1] {
+			// overwrite underscores that happens before periods
+			case '_':
 				dst[len(dst)-1] = '.'
-			} else {
+			default:
 				dst = append(dst, '.')
 			}
 		default:
-			// No double underscores and no underscore after a period.
-			if last := dst[len(dst)-1]; last != '.' && last != '_' {
+			// we skipped all non-alpha chars up front so we have seen at least one
+			switch dst[len(dst)-1] {
+			// no double underscores and no underscore after a period.
+			case '.', '_':
+			default:
 				dst = append(dst, '_')
 			}
 		}
