@@ -3100,4 +3100,3 @@ func TestAddConntrackStatsFromProcFileHexParsing(t *testing.T) {
 	assert.Equal(t, float64(1), stats[7].ClashResolve)
 	assert.Equal(t, float64(7), stats[7].ChainTooLong)
 }
-
