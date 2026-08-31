@@ -302,7 +302,7 @@ func WithLeaveConnectionOpen(req *ipc.RequestParams) {
 }
 
 // WithNoAuthToken skips attaching the IPC bearer token to the request.
-// Use for plain HTTP endpoints (expvar, pprof, /telemetry) that do not verify the token.
+// Use for unauthenticated endpoints (expvar, pprof, /telemetry) that do not verify the token.
 func WithNoAuthToken(req *ipc.RequestParams) {
 	req.NoAuthToken = true
 }
