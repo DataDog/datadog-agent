@@ -871,6 +871,9 @@ def run(
             result_junit=partial_result_junit,
             result_json=partial_result_json,
             recursive=recursive,
+            # A Bazel server outlives the canceled GitLab shell and may continue
+            # provisioning E2E resources while after_script tries to clean them.
+            bazel_batch=running_in_ci(),
         )
         if test_res is None:
             ctx.run("datadog-ci tag --level job --tags 'e2e.skipped_all_tests:true'")
@@ -946,6 +949,7 @@ def run(
             env=env_vars,
             result_junit="",  # No need to store JUnit results for teardown-only runs
             result_json="",  # No need to store results for teardown-only runs
+            bazel_batch=running_in_ci(),
         )
 
     # Merge all the partial result JSON files into the final result JSON

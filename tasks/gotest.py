@@ -406,6 +406,7 @@ def test_flavor(
     recursive: bool = True,
     exclude_packages: set[str] | None = None,
     skip_tests_covered_by_bazel: bool = False,
+    bazel_batch: bool = False,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -489,6 +490,7 @@ def test_flavor(
                 )
             else:
                 res = bazel(
+                    *(["--batch"] if bazel_batch else []),
                     "run",
                     "//internal/tools:gotestsum",
                     "--",
