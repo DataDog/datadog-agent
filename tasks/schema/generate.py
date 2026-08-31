@@ -156,7 +156,7 @@ def schema_codegen(ctx):
 
     run_codegen(core_schema, SETUP_INIT_DIR)
     run_codegen(system_probe_schema, SETUP_INIT_DIR, sysprobe=True)
-    run_core_constant_codegen(core_schema, system_probe_schema, SETUP_INIT_DIR)
+    run_core_constant_codegen(core_schema, SETUP_INIT_DIR)
     run_constants_codegen(core_schema, system_probe_schema, os.path.join(SETUP_INIT_DIR, "constants"))
 
 

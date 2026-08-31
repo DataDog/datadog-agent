@@ -281,12 +281,11 @@ def setting_sourcecode(name, node):
     return sourcecode
 
 
-def gen_delegated_auth_map(core_schema, system_probe_schema):
+def gen_delegated_auth_map(core_schema):
     """
     Generate the delegated auth constant map for pkg/config/setup/generated.go.
 
-    core_schema          - loaded core schema object
-    system_probe_schema  - loaded system-probe schema object, unused
+    core_schema - loaded core schema object
     """
     out = file_header.split('\n') + constant_header.split('\n')
     out.append("""type delegatedAuthConfig struct {
@@ -314,19 +313,16 @@ var delegatedAuthKeys = []delegatedAuthConfig{""")
     return out
 
 
-def run_core_constant_codegen(core_schema, system_probe_schema, outsource_dir):
+def run_core_constant_codegen(core_schema, outsource_dir):
     """
     Generate pkg/config/setup/generated.go: the delegated auth constant map.
 
-    core_schema         - loaded core schema object
-    system_probe_schema - loaded system-probe schema object
-    outsource_dir       - the directory to output source code to
+    core_schema   - loaded core schema object
+    outsource_dir - the directory to output source code to
     """
     print('Output generated.go')
     os.makedirs(outsource_dir, exist_ok=True)
-    _write_uniform_lines(
-        os.path.join(outsource_dir, "generated.go"), gen_delegated_auth_map(core_schema, system_probe_schema)
-    )
+    _write_uniform_lines(os.path.join(outsource_dir, "generated.go"), gen_delegated_auth_map(core_schema))
 
 
 GENERATE_CONST_PREFIX = "generate_const:"

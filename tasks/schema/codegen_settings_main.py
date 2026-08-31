@@ -32,7 +32,7 @@ def main():
 
     run_codegen(core_schema, output_dir)
     run_codegen(system_probe_schema, output_dir, sysprobe=True)
-    run_core_constant_codegen(core_schema, system_probe_schema, output_dir)
+    run_core_constant_codegen(core_schema, output_dir)
 
 
 if __name__ == "__main__":
