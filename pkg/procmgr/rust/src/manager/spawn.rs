@@ -234,7 +234,7 @@ pub(in crate::manager) fn defer_spawn_join_handle(
 }
 
 fn spawn_managed_child_sync(name: &str, config: &ProcessConfig) -> Result<ManagedChildSpawn> {
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     wait_for_test_spawn_gate();
     #[cfg(windows)]
     let _console_guard = platform::console_lock();
@@ -316,38 +316,38 @@ fn abort_uncommitted(spawn_result: Result<ManagedChildSpawn>) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 static SPAWN_GATE: std::sync::OnceLock<(std::sync::Mutex<bool>, std::sync::Condvar)> =
     std::sync::OnceLock::new();
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn spawn_gate() -> &'static (std::sync::Mutex<bool>, std::sync::Condvar) {
     SPAWN_GATE.get_or_init(|| (std::sync::Mutex::new(true), std::sync::Condvar::new()))
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(in crate::manager) struct SpawnGateGuard;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 impl Drop for SpawnGateGuard {
     fn drop(&mut self) {
         open_spawn_gate_for_test();
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(in crate::manager) fn close_spawn_gate_for_test() -> SpawnGateGuard {
     *spawn_gate().0.lock().unwrap() = false;
     SpawnGateGuard
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(in crate::manager) fn open_spawn_gate_for_test() {
     *spawn_gate().0.lock().unwrap() = true;
     spawn_gate().1.notify_all();
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn wait_for_test_spawn_gate() {
     let (lock, cv) = spawn_gate();
     let mut open = lock.lock().unwrap();
@@ -356,7 +356,7 @@ fn wait_for_test_spawn_gate() {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(in crate::manager) fn reset_spawn_gate_for_test() {
     open_spawn_gate_for_test();
 }

@@ -45,6 +45,7 @@ pub async fn auto_start_for_test(mgr: &ProcessManager, ctx: &RuntimeContext) {
 
 pub async fn test_manager_lock() -> tokio::sync::MutexGuard<'static, ()> {
     let guard = crate::platform::test_shutdown_lock().await;
+    #[cfg(unix)]
     super::spawn::reset_spawn_gate_for_test();
     guard
 }

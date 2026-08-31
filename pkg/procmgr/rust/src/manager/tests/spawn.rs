@@ -23,15 +23,9 @@ fn stop_while_full_test_timeout() -> Duration {
     }
 }
 
+#[cfg(unix)]
 fn in_flight_spawn_test_timeout() -> Duration {
-    #[cfg(windows)]
-    {
-        Duration::from_secs(30)
-    }
-    #[cfg(not(windows))]
-    {
-        Duration::from_secs(5)
-    }
+    Duration::from_secs(5)
 }
 
 #[cfg(unix)]
