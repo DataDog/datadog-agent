@@ -51,7 +51,7 @@ pub struct ProcessSnapshot {
     pub args: Vec<String>,
     pub restart_count: u64,
     pub last_exit_code: Option<i32>,
-    pub last_signal: Option<String>,
+    pub last_signal: Option<i32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
