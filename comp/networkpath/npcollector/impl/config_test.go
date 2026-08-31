@@ -30,10 +30,10 @@ func TestNetworkPathCollectorEnabled(t *testing.T) {
 	config.connectionsMonitoringEnabled = false
 	assert.False(t, config.networkPathCollectorEnabled())
 
-	config.baselineTestsEnabled = true
+	config.basicTestsEnabled = true
 	assert.True(t, config.networkPathCollectorEnabled())
 
-	config.baselineTestsEnabled = false
+	config.basicTestsEnabled = false
 	config.netflowMonitoringEnabled = true
 	assert.True(t, config.networkPathCollectorEnabled())
 }
@@ -51,7 +51,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
-				baselineTestsEnabled:         false,
+				basicTestsEnabled:            false,
 				netflowMonitoringEnabled:     false,
 				workers:                      4,
 				timeout:                      1000 * time.Millisecond,
@@ -125,7 +125,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
-				baselineTestsEnabled:         false,
+				basicTestsEnabled:            false,
 				netflowMonitoringEnabled:     false,
 				workers:                      8,
 				timeout:                      5000 * time.Millisecond,

@@ -34,6 +34,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 type logLevel int
@@ -104,7 +105,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
-	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	pkgconfig.BindEnvAndSetDefault("log_level", "info")
 
 	pkgconfigsetup.InitConfig(pkgconfig)
@@ -328,7 +328,8 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("api_key", string(ddc.API.Key), pkgconfigmodel.SourceFile)
 	pkgconfig.Set("site", ddc.API.Site, pkgconfigmodel.SourceFile)
 
-	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
+	ddURL := ddc.Metrics.Endpoint
+	pkgconfig.Set("dd_url", ddURL, pkgconfigmodel.SourceFile)
 	if ddc.ClientConfig.TLS.InsecureSkipVerify {
 		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	}
@@ -336,12 +337,15 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Compression: the otel-agent (DDOT) uses zstd for every signal (metrics, traces,
 	// logs) so the compression algorithm stays consistent across signals. The level
 	// defaults to 3 but stays overridable via DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL
-	// (SourceDefault < SourceEnvVar). DDOT deliberately stays on the v2 metrics intake:
-	// zstd is v3-compatible, but moving to v3 is a separate effort, so v3 is disabled
-	// here regardless of the compressor.
+	// (SourceDefault < SourceEnvVar). zstd also makes the v3 series intake viable for DDOT
+	// (v3 rejects zlib); the v3 series opt-in is handled below (after proxy resolution).
 	pkgconfig.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("serializer_zstd_compressor_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
-	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
+
+	// The v3beta sketches shadow validates the upcoming v3 sketch payload against
+	// core Agent traffic; DDOT is out of scope for that validation, so opt out of
+	// the non-zero default sample rate.
+	pkgconfig.Set("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
@@ -409,6 +413,43 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Without this, LoadDatadog is never called when no core config is given, and proxy
 	// env vars are silently ignored.
 	pkgconfigsetup.LoadProxyFromEnv(pkgconfig)
+
+	// V3 series metrics enbling for DDOT. The global "use_v3_api.series.enabled" default is ("datadog_only")
+	// and apply v3 (using IsDatadogURL) only to app.<site>. While Datadog exporter targets api.<site>
+	//
+	// All guards:
+	//   - dd_url is the exporter's default derived endpoint (https://api.<site>), not a
+	//     custom endpoint the operator set explicitly;
+	//   - <site> is a recognized Datadog site (IsDatadogURL on its app.<site> form).
+	//   - no forwarding proxy is configured.  a proxied Agent stays on v2 (per the v3 migration RFC);
+	// https://datadoghq.atlassian.net/wiki/spaces/AM/pages/6164349836/Validating+Customer+Migration+to+V3+payload#Agent-Behind-a-Proxy
+	//   - use_v3_api.series.enabled is still the datadog_only default.
+	if strings.ToLower(strings.TrimSpace(pkgconfig.GetString("use_v3_api.series.enabled"))) == "datadog_only" {
+		proxyConfigured := pkgconfig.GetString("proxy.https") != "" || pkgconfig.GetString("proxy.http") != ""
+		seriesEndpoints := pkgconfig.GetStringMapString("use_v3_api.series.endpoints")
+		_, alreadySet := seriesEndpoints[ddURL]
+		defaultEndpoint := ddURL == "https://api."+ddc.API.Site
+		datadogSite := configutils.IsDatadogURL("https://app." + ddc.API.Site)
+		switch {
+		case alreadySet:
+			// explicit per-endpoint entry — leave it untouched
+		case defaultEndpoint && datadogSite && !proxyConfigured:
+			merged := make(map[string]string, len(seriesEndpoints)+1)
+			for url, v3 := range seriesEndpoints {
+				merged[url] = v3
+			}
+			merged[ddURL] = "true"
+			pkgconfig.Set("use_v3_api.series.endpoints", merged, pkgconfigmodel.SourceAgentRuntime)
+		default:
+			// datadog_only requested but a guard blocks v3 — report why and how to enable.
+			fmt.Printf("[WARN] DDOT: metrics v3 series intake NOT enabled (use_v3_api.series.enabled=datadog_only); series stay on v2.\n"+
+				"  All of the following are required to enable v3:\n"+
+				"    - default endpoint (dd_url == https://api.<site>; dd_url=%q): %t\n"+
+				"    - recognized Datadog site (site=%q): %t\n"+
+				"    - no proxy configured: %t\n",
+				ddURL, defaultEndpoint, ddc.API.Site, datadogSite, !proxyConfigured)
+		}
+	}
 
 	return pkgconfig, nil
 }
