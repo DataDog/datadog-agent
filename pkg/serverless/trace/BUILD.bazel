@@ -32,6 +32,7 @@ go_library(
         "//pkg/trace/traceutil",
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 

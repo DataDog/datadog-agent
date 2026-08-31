@@ -170,7 +170,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	require.NotNil(t, collector)
 
 	// initially, no device should be registered before the first metrics collection
-	require.Equal(t, uuid, collector.DeviceUUID())
+	require.Equal(t, uuid, collector.Device().GetDeviceInfo().UUID)
 	require.Equal(t, deviceEvents, collector.Name())
 	require.Empty(t, cache.uuids)
 

@@ -126,22 +126,16 @@ properties:
     node_type: setting
     type: number
     default: 4
-    tags:
-    - golang_type:float64
     comment: Multiplier applied to workersNeeded when computing the stickiness bias.
   stickiness_lower_limit:
     node_type: setting
     type: number
     default: 0.05
-    tags:
-    - golang_type:float64
     comment: Minimum stickiness bias applied when stickiness is enabled.
   stickiness_upper_limit:
     node_type: setting
     type: number
     default: 1
-    tags:
-    - golang_type:float64
     comment: Maximum stickiness bias applied regardless of workersNeeded.
   support_hybrid_ignore_ad_tags:
     node_type: setting
