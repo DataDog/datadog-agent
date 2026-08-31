@@ -38,3 +38,5 @@ services:
             ]
           }
         }
+    volumes:
+      - ${CONFIG_FILES_DISCOVERY_POSTGRES_CONFIG_DIR}/10-add-config.sh:/docker-entrypoint-initdb.d/10-add-config.sh:ro
