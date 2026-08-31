@@ -57,7 +57,7 @@ func TestGetBatteryInfoMultipleBatteries(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, infos, 3)
 
-	assert.Equal(t, []string{"battery_slot:1", "battery_serial:serial-1", "battery_device_name:simbatt_one"}, infos[0].tags)
+	assert.Equal(t, []string{"battery_slot:root_battery_0000", "battery_serial:serial-1", "battery_device_name:simbatt_one"}, infos[0].tags)
 	assertOptionValue(t, infos[0].currentChargePct, 75)
 	assertOptionValue(t, infos[0].cycleCount, 101)
 	assertOptionValue(t, infos[0].voltage, 12000)
@@ -102,7 +102,7 @@ func TestGetBatteryInfoSuppressesPartialTotal(t *testing.T) {
 		{devicePath: "battery-1", instanceID: `ROOT\BATTERY\0001`},
 	}
 	battery := &windowsBattery{
-		descriptor: descriptors[0],
+		descriptor: descriptors[1],
 		info: BATTERY_INFORMATION{
 			Capabilities:        BATTERY_SYSTEM_BATTERY,
 			DesignedCapacity:    6000,
@@ -111,7 +111,7 @@ func TestGetBatteryInfoSuppressesPartialTotal(t *testing.T) {
 		status: BATTERY_STATUS{Capacity: 4050, Voltage: 12000, Rate: -900},
 	}
 	restoreWindowsBatteryMocks(t, descriptors, func(descriptor batteryDeviceDescriptor) (*windowsBattery, error) {
-		if descriptor.devicePath == "battery-1" {
+		if descriptor.devicePath == "battery-0" {
 			return nil, errors.New("query failed")
 		}
 		return battery, nil
@@ -120,41 +120,33 @@ func TestGetBatteryInfoSuppressesPartialTotal(t *testing.T) {
 	infos, err := getBatteryInfo()
 	require.NoError(t, err)
 	require.Len(t, infos, 1)
-	assert.Equal(t, "battery_slot:1", infos[0].tags[0])
+	assert.Equal(t, "battery_slot:root_battery_0001", infos[0].tags[0])
 }
 
-func TestAssignBatterySlotsUsesUINumber(t *testing.T) {
-	batteries := []windowsBattery{
-		{descriptor: batteryDeviceDescriptor{devicePath: "battery-c", instanceID: `ACPI\BATTERY\0002`, uiNumber: 30, hasUINumber: true}},
-		{descriptor: batteryDeviceDescriptor{devicePath: "battery-a", instanceID: `ACPI\BATTERY\0000`, uiNumber: 10, hasUINumber: true}},
-		{descriptor: batteryDeviceDescriptor{devicePath: "battery-b", instanceID: `ACPI\BATTERY\0001`, uiNumber: 20, hasUINumber: true}},
+func TestBatterySlotValueUsesUINumber(t *testing.T) {
+	descriptor := batteryDeviceDescriptor{
+		devicePath:  "battery-a",
+		instanceID:  `ACPI\BATTERY\0000`,
+		uiNumber:    30,
+		hasUINumber: true,
 	}
 
-	assignBatterySlots(batteries)
-
-	assert.Equal(t, "battery-a", batteries[0].descriptor.devicePath)
-	assert.Equal(t, "1", batteries[0].descriptor.slot)
-	assert.Equal(t, "battery-b", batteries[1].descriptor.devicePath)
-	assert.Equal(t, "2", batteries[1].descriptor.slot)
-	assert.Equal(t, "battery-c", batteries[2].descriptor.devicePath)
-	assert.Equal(t, "3", batteries[2].descriptor.slot)
+	assert.Equal(t, "30", batterySlotValue(descriptor))
 }
 
-func TestAssignBatterySlotsFallsBackToInstanceIDForAllBatteries(t *testing.T) {
-	batteries := []windowsBattery{
-		{descriptor: batteryDeviceDescriptor{devicePath: "battery-root-1", instanceID: `ROOT\BATTERY\0001`, uiNumber: 10, hasUINumber: true}},
-		{descriptor: batteryDeviceDescriptor{devicePath: "battery-root-0", instanceID: `ROOT\BATTERY\0000`}},
-		{descriptor: batteryDeviceDescriptor{devicePath: "battery-acpi", instanceID: `ACPI\PNP0C0A\0`, uiNumber: 30, hasUINumber: true}},
+func TestBatterySlotValueFallsBackToInstanceID(t *testing.T) {
+	descriptor := batteryDeviceDescriptor{
+		devicePath: "battery-root-0",
+		instanceID: `ROOT\BATTERY\0000`,
 	}
 
-	assignBatterySlots(batteries)
+	assert.Equal(t, `ROOT\BATTERY\0000`, batterySlotValue(descriptor))
+}
 
-	assert.Equal(t, "battery-acpi", batteries[0].descriptor.devicePath)
-	assert.Equal(t, "1", batteries[0].descriptor.slot)
-	assert.Equal(t, "battery-root-0", batteries[1].descriptor.devicePath)
-	assert.Equal(t, "2", batteries[1].descriptor.slot)
-	assert.Equal(t, "battery-root-1", batteries[2].descriptor.devicePath)
-	assert.Equal(t, "3", batteries[2].descriptor.slot)
+func TestBatterySlotValueFallsBackToDevicePath(t *testing.T) {
+	descriptor := batteryDeviceDescriptor{devicePath: `\\?\battery#device`}
+
+	assert.Equal(t, `\\?\battery#device`, batterySlotValue(descriptor))
 }
 
 func restoreWindowsBatteryMocks(t *testing.T, descriptors []batteryDeviceDescriptor, query func(batteryDeviceDescriptor) (*windowsBattery, error)) {

@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sort"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -133,7 +132,6 @@ type batteryDeviceDescriptor struct {
 	instanceID  string
 	uiNumber    uint32
 	hasUINumber bool
-	slot        string
 }
 
 type windowsBattery struct {
@@ -274,9 +272,9 @@ func getBatteryInfo() ([]batteryInfo, error) {
 				descriptor.devicePath, battery.info.DesignedCapacity, battery.info.FullChargedCapacity)
 			continue
 		}
+		battery.descriptor = descriptor
 		batteries = append(batteries, *battery)
 	}
-	assignBatterySlots(batteries)
 
 	infos := make([]batteryInfo, 0, len(batteries)+1)
 	for i := range batteries {
@@ -397,7 +395,7 @@ func buildPerBatteryInfo(battery *windowsBattery) batteryInfo {
 		maximumCapacityPct: option.New(math.Round(float64(battery.info.FullChargedCapacity) / float64(battery.info.DesignedCapacity) * 100)),
 		powerState:         getPowerState(battery.status.PowerState),
 		tags: []string{
-			"battery_slot:" + normalizeTagValue(battery.descriptor.slot),
+			"battery_slot:" + normalizeTagValue(batterySlotValue(battery.descriptor)),
 			"battery_serial:" + normalizeTagValue(orUnknown(battery.serial)),
 			"battery_device_name:" + normalizeTagValue(orUnknown(battery.deviceName)),
 		},
@@ -494,39 +492,18 @@ func queryBatteryString(handle windows.Handle, tag uint32, level BATTERY_QUERY_I
 	return "", errors.New("battery string exceeds maximum supported size")
 }
 
-// assignBatterySlots follows the ordering Windows documents for its battery UI:
-// use the firmware-provided UI number (_SUN) when every battery has one;
-// otherwise sort every battery by its full device instance ID. The displayed
-// slot is the one-based position, not the raw _SUN value.
-func assignBatterySlots(batteries []windowsBattery) {
-	allHaveUINumber := len(batteries) > 0
-	for i := range batteries {
-		if !batteries[i].descriptor.hasUINumber {
-			allHaveUINumber = false
-			break
-		}
+// batterySlotValue returns the identity Windows reports for the battery slot.
+// DEVPKEY_Device_UINumber exposes the firmware _SUN value. Devices without
+// that property use their full PnP instance ID, with the interface path as a
+// final fallback.
+func batterySlotValue(descriptor batteryDeviceDescriptor) string {
+	if descriptor.hasUINumber {
+		return strconv.FormatUint(uint64(descriptor.uiNumber), 10)
 	}
-
-	sort.SliceStable(batteries, func(i, j int) bool {
-		left := &batteries[i].descriptor
-		right := &batteries[j].descriptor
-		if allHaveUINumber && left.uiNumber != right.uiNumber {
-			return left.uiNumber < right.uiNumber
-		}
-		leftID := left.instanceID
-		if leftID == "" {
-			leftID = left.devicePath
-		}
-		rightID := right.instanceID
-		if rightID == "" {
-			rightID = right.devicePath
-		}
-		return strings.ToLower(leftID) < strings.ToLower(rightID)
-	})
-
-	for i := range batteries {
-		batteries[i].descriptor.slot = strconv.Itoa(i + 1)
+	if descriptor.instanceID != "" {
+		return descriptor.instanceID
 	}
+	return descriptor.devicePath
 }
 
 func orUnknown(value string) string {
