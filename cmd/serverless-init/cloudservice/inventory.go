@@ -5,6 +5,12 @@
 
 package cloudservice
 
+import (
+	"os"
+
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
+)
+
 const (
 	// Downstream workload_type values, from the allowlist enforced by the
 	// dd-go event-platform-resource-writer service.
@@ -14,6 +20,7 @@ const (
 	workloadTypeAzureContainerApp = "azure_container_app"
 	workloadTypeAzureAppService   = "azure_app_service"
 	workloadTypeAzureFunction     = "azure_function"
+	workloadTypeAWSMicroVM        = "aws_microvm"
 )
 
 // InventoryData holds the per-platform serverless fields that feed the
@@ -69,8 +76,22 @@ type InventoryData struct {
 // TODO(SVLS): derive real per-platform inventory fields.
 func (l *LocalService) GetInventoryData() InventoryData { return InventoryData{} }
 
-// GetInventoryData returns the inventory metadata fields for AWS MicroVM.
+// GetInventoryData returns the inventory metadata fields for AWS MicroVM,
+// derived from the image ARN env var.
 //
-// TODO(SVLS): derive the MicroVM workload_type (pending the downstream decoder
-// allowlist), CCRID, and region from the MicroVM environment.
-func (m *MicroVM) GetInventoryData() InventoryData { return InventoryData{} }
+// The per-instance MicroVM id is not known at derivation time (the platform
+// only delivers it in the /run lifecycle hook body), so DeploymentID is left
+// empty here and filled in at submission time.
+func (m *MicroVM) GetInventoryData() InventoryData {
+	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
+	if arn == "" {
+		return InventoryData{WorkloadType: workloadTypeAWSMicroVM}
+	}
+	region, _, imageName := parseMicroVMARN(arn)
+	return InventoryData{
+		WorkloadType: workloadTypeAWSMicroVM,
+		ResourceID:   arn,
+		ResourceName: imageName,
+		Region:       region,
+	}
+}
