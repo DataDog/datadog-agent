@@ -3,7 +3,6 @@ Description=Datadog rshell privileged helper socket
 After=datadog-agent.service datadog-agent-action.service
 BindsTo=datadog-agent.service datadog-agent-action.service
 Conflicts=datadog-agent-rshell-privileged-exp.socket
-ConditionPathExists=/etc/datadog-agent/rshell-privileged-helper.json
 
 [Socket]
 ListenStream=/run/datadog/rshell-privileged.sock
