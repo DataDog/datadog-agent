@@ -24,6 +24,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -236,6 +237,11 @@ func (c *Check) Run() error {
 				return nil
 			}
 			c.processor.processProcfsScanResult(scanResult)
+		case bom, ok := <-usage.HostOverlays():
+			if !ok {
+				return nil
+			}
+			c.processor.processHostUsage(bom)
 		case <-containerRefresher.tick():
 			containerRefresher.step()
 		case <-hostPeriodicRefreshTicker.C:
