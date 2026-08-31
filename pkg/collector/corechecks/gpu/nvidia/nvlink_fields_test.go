@@ -111,7 +111,7 @@ func TestNVLinkFieldsCollectorQueriesForcedScopeForEachPort(t *testing.T) {
 	}
 
 	var speeds []*Metric
-	for _, metric := range collected {
+	for _, metric := range requireMetrics(t, collected) {
 		if metric.Name == "nvlink.speed" {
 			speeds = append(speeds, metric)
 		}
