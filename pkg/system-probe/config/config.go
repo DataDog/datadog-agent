@@ -260,7 +260,7 @@ func tracerouteEnabled(cfg, coreCfg pkgconfigmodel.Reader, npmEnabled bool) bool
 		coreCfg.GetBool("network_path.connections_monitoring.basic_tests_enabled")
 	enabled := cfg.GetBool(tracerouteNS("enabled"))
 
-	if !cfg.IsConfigured(tracerouteNS("enabled")) {
+	if !enabled && !cfg.IsConfigured(tracerouteNS("enabled")) {
 		return npmEnabled && dynamicTestsEnabled
 	}
 	if !enabled && npmEnabled && dynamicTestsEnabled {

@@ -83,3 +83,19 @@ func TestTracerouteModule(t *testing.T) {
 		})
 	}
 }
+
+func TestTracerouteModuleUnsetDefaultTrue(t *testing.T) {
+	mock.New(t)
+	sysprobeCfg := mock.NewSystemProbe(t)
+	sysprobeCfg.SetDefault("traceroute.enabled", true)
+	assert.False(t, sysprobeCfg.IsConfigured("traceroute.enabled"))
+	assert.True(t, sysprobeCfg.GetBool("traceroute.enabled"))
+
+	cfg, err := load()
+	require.NoError(t, err)
+
+	assert.True(t, cfg.ModuleIsEnabled(TracerouteModule))
+	assert.True(t, sysprobeCfg.IsConfigured("traceroute.enabled"))
+	assert.True(t, sysprobeCfg.GetBool("traceroute.enabled"))
+	assert.Equal(t, pkgconfigmodel.SourceAgentRuntime, sysprobeCfg.GetSource("traceroute.enabled"))
+}
