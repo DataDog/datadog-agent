@@ -7,6 +7,7 @@ go_library(
         "file.go",
         "fingerprint.go",
         "fingerprint_mock.go",
+        "missed_bytes.go",
         "rotate.go",
         "rotate_nix.go",
         "rotate_windows.go",

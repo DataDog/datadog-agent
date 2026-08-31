@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -302,36 +301,6 @@ func (t *Tailer) Stop() {
 	t.file.Source.RemoveInput(t.file.Path)
 	// wait for the decoder to be flushed
 	<-t.done
-}
-
-// missedBytesIdentity resolves the (source, service) tuple reported for bytes
-// lost to a rotation. Both LogsConfig fields can legitimately be empty, so the
-// fallbacks keep unlabelled configs from collapsing onto one empty tuple.
-func missedBytesIdentity(cfg *config.LogsConfig) (source string, service string) {
-	const unknown = "unknown"
-	if cfg == nil {
-		return unknown, unknown
-	}
-
-	source = unknown
-	switch {
-	case cfg.Source != "":
-		source = cfg.Source
-	case cfg.IntegrationName != "":
-		source = cfg.IntegrationName
-	}
-
-	service = unknown
-	switch {
-	case cfg.Service != "":
-		service = cfg.Service
-	case cfg.Source != "":
-		service = cfg.Source
-	case cfg.IntegrationName != "":
-		service = cfg.IntegrationName
-	}
-
-	return source, service
 }
 
 // StopAfterFileRotation prepares the tailer to stop after a timeout

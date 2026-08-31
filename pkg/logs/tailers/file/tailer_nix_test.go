@@ -23,8 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
 
-// newMissedBytesTailer builds a tailer with no filesystem or pipeline behind it.
-// Callers arm the platform's own loss measurement and drive
+// A tailer with no filesystem or pipeline behind it; callers drive
 // StopAfterFileRotation directly.
 func newMissedBytesTailer(t *testing.T, readOffset int64) *Tailer {
 	t.Helper()
@@ -54,9 +53,8 @@ func newMissedBytesTailer(t *testing.T, readOffset int64) *Tailer {
 	return tailer
 }
 
-// awaitRotationClose waits for the goroutine StopAfterFileRotation spawned.
-// It signals t.stop after the accounting, so this is a synchronization point
-// rather than a poll.
+// The goroutine signals t.stop after the accounting, so this synchronizes rather
+// than polls.
 func awaitRotationClose(t *testing.T, tailer *Tailer) {
 	t.Helper()
 	select {
@@ -66,16 +64,14 @@ func awaitRotationClose(t *testing.T, tailer *Tailer) {
 	}
 }
 
-// armRotationLoss gives the tailer an open handle reporting fileSize, which is
-// what StopAfterFileRotation stats to size the loss.
+// StopAfterFileRotation stats this handle to size the loss.
 func armRotationLoss(t *testing.T, tailer *Tailer, fileSize int64) {
 	t.Helper()
 	tailer.osFile = opener.NewMockFile(tailer.file.Path, [][]byte{make([]byte, fileSize)})
 }
 
-// stopAfterRotationHavingRead drives a rotation where the tailer read n more
-// bytes before the close timeout expired, which is the pre-existing condition
-// for the loss to be accounted for at all.
+// Drives a rotation where the tailer read n more bytes before the close timeout,
+// the pre-existing condition for the loss to be accounted at all.
 func stopAfterRotationHavingRead(t *testing.T, tailer *Tailer, n int64) {
 	t.Helper()
 	tailer.StopAfterFileRotation()
@@ -99,8 +95,7 @@ func TestStopAfterFileRotationRecordsMissedBytes(t *testing.T) {
 	require.Equal(t, int64(1), summaries[0].Rotations)
 }
 
-// TestStopAfterFileRotationFullyRead is the common rotation: the tailer finished
-// the file, so there is no loss and no issue to raise.
+// The common rotation: the tailer finished the file, so there is no loss.
 func TestStopAfterFileRotationFullyRead(t *testing.T) {
 	metrics.ResetMissedBytesForTest()
 	defer metrics.ResetMissedBytesForTest()
@@ -112,8 +107,7 @@ func TestStopAfterFileRotationFullyRead(t *testing.T) {
 	require.Empty(t, metrics.MissedBytesSnapshot())
 }
 
-// TestStopAfterFileRotationTruncated covers the offset outrunning the file, which
-// is loss the tailer cannot quantify rather than loss of zero bytes.
+// The offset outruns the file: loss the tailer cannot quantify, not zero loss.
 func TestStopAfterFileRotationTruncated(t *testing.T) {
 	metrics.ResetMissedBytesForTest()
 	defer metrics.ResetMissedBytesForTest()
@@ -125,8 +119,7 @@ func TestStopAfterFileRotationTruncated(t *testing.T) {
 	require.Empty(t, metrics.MissedBytesSnapshot())
 }
 
-// TestStopAfterFileRotationNothingReadAfterTimeout pins the pre-existing gate:
-// with no read after the rotation, the loss goes unreported here.
+// Pins the pre-existing gate: with no read after the rotation, loss goes unreported.
 func TestStopAfterFileRotationNothingReadAfterTimeout(t *testing.T) {
 	metrics.ResetMissedBytesForTest()
 	defer metrics.ResetMissedBytesForTest()
