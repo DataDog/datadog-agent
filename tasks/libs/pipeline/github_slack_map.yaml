@@ -405,7 +405,7 @@
   review:
     name: '#serverless-agent'
     id: 'C017ES2MY05'
-'@datadog/serverless-azure-gcp':
+'@datadog/serverless-azure-and-gcp':
   notification:
     name: '#serverless-azure-gcp-team'
     id: 'C06P8R33PD3'
