@@ -60,6 +60,7 @@ pub enum ProcessExpect {
     Running,
     Stopped,
     Failed,
+    Exited,
 }
 
 impl ProcessExpect {
@@ -69,6 +70,7 @@ impl ProcessExpect {
             Self::Running => "Running",
             Self::Stopped => "Stopped",
             Self::Failed => "Failed",
+            Self::Exited => "Exited",
         }
     }
 }
@@ -1067,7 +1069,10 @@ fn assert_status_field(field: &str, actual: u32, expected: Option<u32>, status: 
 
 fn process_matches_expect(process: &ProcessSnapshot, expected: ProcessExpect) -> bool {
     match expected {
-        ProcessExpect::Created | ProcessExpect::Stopped | ProcessExpect::Failed => process.pid == 0,
+        ProcessExpect::Created
+        | ProcessExpect::Stopped
+        | ProcessExpect::Failed
+        | ProcessExpect::Exited => process.pid == 0,
         ProcessExpect::Running => {
             let pid = process.pid as u32;
             pid > 0 && pid_is_alive(pid)

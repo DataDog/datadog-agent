@@ -5,6 +5,8 @@ filegroup(
     srcs = [
         ".marker",
         "//pkg/procmgr/rust/tests/fixtures/condition_blocked",
+        "//pkg/procmgr/rust/tests/fixtures/exit_fail",
+        "//pkg/procmgr/rust/tests/fixtures/exit_ok",
         "//pkg/procmgr/rust/tests/fixtures/invalid_syntax",
         "//pkg/procmgr/rust/tests/fixtures/missing_binary",
         "//pkg/procmgr/rust/tests/fixtures/sleeper",

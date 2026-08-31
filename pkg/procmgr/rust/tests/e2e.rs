@@ -97,6 +97,36 @@ fn missing_binary_fixture_fails_to_spawn() {
 }
 
 #[test]
+fn exit_ok_fixture_exits_cleanly() {
+    let env = TestEnv::new().with_process("exit_ok");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        exited: Some(1),
+        running: Some(0),
+        failed: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_state("exit_ok", ProcessExpect::Exited);
+}
+
+#[test]
+fn exit_fail_fixture_exits_with_failure() {
+    let env = TestEnv::new().with_process("exit_fail");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        failed: Some(1),
+        running: Some(0),
+        exited: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_state("exit_fail", ProcessExpect::Failed);
+}
+
+#[test]
 fn condition_blocked_fixture_stays_created() {
     let env = TestEnv::new().with_process("condition_blocked");
     let procmgr = env.start();
