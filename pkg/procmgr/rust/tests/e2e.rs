@@ -167,7 +167,7 @@ fn start_process_transitions_created_to_running() {
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_running("sleeper_idle");
+    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Running);
 }
 
 #[test]
