@@ -13,11 +13,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -126,10 +124,6 @@ type timeSeriesStorage struct {
 	// reference count. When the count drops to zero on eviction the entry is
 	// deleted. Protected by s.mu (write lock).
 	tagIntern map[uint64]*tagInternEntry
-
-	// Invalid-value logging is limited globally across metric names so input
-	// cardinality cannot create retained per-metric state.
-	droppedValueLogLimit *pkglog.Limit
 }
 
 // tagInternEntry is the value stored in timeSeriesStorage.tagIntern.
@@ -317,7 +311,6 @@ func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 		seriesIDStats:         make(map[observer.SeriesRef]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
-		droppedValueLogLimit:  pkglog.NewLogLimit(3, 10*time.Minute),
 	}
 }
 
@@ -331,7 +324,7 @@ type AddResult struct {
 }
 
 // Add inserts a (namespace, name, value, timestamp, tags) point into storage.
-// Invalid values are dropped at ingest with rate-limited logging.
+// Invalid values are dropped at ingest.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
@@ -339,13 +332,11 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	defer s.mu.Unlock()
 
 	if math.IsInf(value, 0) || math.IsNaN(value) {
-		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
 		return AddResult{Ref: -1}
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
-		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return AddResult{Ref: -1}
 	}
 	h := seriesKeyHash(namespace, name, tags)
@@ -461,13 +452,6 @@ func insertBucket(s []pointBucket, idx int, v pointBucket) []pointBucket {
 	copy(s[idx+1:], s[idx:])
 	s[idx] = v
 	return s
-}
-
-func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, value float64, timestamp int64, tags []string) {
-	if s.droppedValueLogLimit != nil && s.droppedValueLogLimit.ShouldLog() {
-		logging.Warnf("dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v",
-			reason, namespace, name, value, timestamp, tags)
-	}
 }
 
 // GetSeries returns the series using the specified aggregation.
