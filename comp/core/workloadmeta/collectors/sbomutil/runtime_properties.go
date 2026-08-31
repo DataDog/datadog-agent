@@ -37,9 +37,10 @@ func normalizeVersion(version string) (normalized string, hasEpoch bool) {
 // MergeRuntimeProperties merges runtime properties from newBom into existingBom.
 // Returns a new BOM whose component list is deduplicated (by name+normalised version) and
 // enriched with runtime properties (LastSeenRunning / HasSetSuidBit / RunningAsRoot) taken
-// from newBom.  Deduplication is necessary because a previously-merged SBOM stored in the
-// image entity may already carry both an original Trivy entry and a runtime-enriched copy of
-// the same package; without it every merge round would re-emit both copies.
+// from newBom.  Deduplication is necessary because a previously-merged SBOM, whether stored
+// in an image entity or held by the sbom check for the host, may already carry both an
+// original Trivy entry and a runtime-enriched copy of the same package: without it every
+// merge round would re-emit both copies.
 func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_v1_4.Bom {
 	if newBom == nil || len(newBom.Components) == 0 {
 		return existingBom
