@@ -114,7 +114,6 @@ func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 	assert.Equal(t, int64(12000), got[0].Bytes)
 	assert.Equal(t, "source-02", got[len(got)-1].Source, "the two smallest losses are the ones dropped")
 
-	// Totals still account for the omitted tuples.
 	var want int64
 	for i := 0; i < total; i++ {
 		want += int64(i+1) * 1000
