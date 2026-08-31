@@ -75,19 +75,17 @@ TEST_TIMEOUTS = {
 }
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
 
-# eBPF objects that are worth shipping compressed. bytecode.GetReader
-# transparently reads "<name>.gz" / "<name>.xz" when "<name>" is absent, so this
-# only trades a few tens of milliseconds of startup CPU for a large on-disk
-# saving. Only the CWS objects are listed: because the three probe variants
-# duplicate almost all of the same __always_inline code, each is ~10 MB and
-# shrinks by 8x (gzip) to 19x (xz). The other objects are small enough that
-# compressing them would not pay for the added indirection.
-COMPRESSIBLE_EBPF_OBJECTS = [
-    "runtime-security.o",
-    "runtime-security-syscall-wrapper.o",
-    "runtime-security-fentry.o",
-    "runtime-security-offset-guesser.o",
-]
+# Bazel package prefixes selecting which eBPF programs ship compressed.
+#
+# The mechanism itself is program-agnostic — bytecode.GetReader transparently
+# reads "<name>.gz" / "<name>.xz" for any asset when "<name>" is absent — but it
+# is only turned on for the CWS programs under pkg/security. Because their three
+# probe variants duplicate almost all of the same __always_inline code, each
+# object is ~10 MB and shrinks 8x (gzip) to 25x (xz), which is worth a few tens
+# of milliseconds of startup CPU. Every other program is small enough that
+# compressing it would not pay for the extra indirection. Adding a prefix here is
+# all it takes to enable another package.
+COMPRESSED_EBPF_PACKAGES = ["//pkg/security/"]
 
 # Compression formats understood by bytecode.GetReader, plus "none" to opt out.
 # Keep in sync with compressedAssetExtensions in pkg/ebpf/bytecode/compressed_asset.go.
@@ -1259,28 +1257,65 @@ def build_object_files(
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
+def compressed_ebpf_objects() -> list[str]:
+    """
+    Object file paths, relative to an eBPF asset directory, that ship compressed.
+
+    Derived from the Bazel target lists rather than hardcoded, so a program added
+    to a package listed in COMPRESSED_EBPF_PACKAGES is picked up automatically.
+    The returned paths keep the subdirectory the program is installed under, so
+    they resolve against both pkg/ebpf/bytecode/build/<arch> and an installed
+    embedded/share/system-probe/ebpf.
+    """
+    # Subdirectory, relative to the eBPF asset root, that each target list lands in.
+    targets_by_subdir = {
+        "": _BAZEL_EBPF_PREBUILT_TARGETS,
+        "co-re": _BAZEL_EBPF_CORE_TARGETS,
+    }
+
+    objects = []
+    for subdir, targets in targets_by_subdir.items():
+        for target in targets:
+            if not any(target.startswith(pkg) for pkg in COMPRESSED_EBPF_PACKAGES):
+                continue
+            name = target.rsplit(":", 1)[1]
+            objects.append(os.path.join(subdir, f"{name}.o"))
+    return objects
+
+
 @task(
     help={
-        "directory": "eBPF asset directory to generate the compressed objects in",
+        "directory": "eBPF asset directory to put the compressed objects in",
         "compression": f"format to compress with, one of {', '.join(EBPF_COMPRESSION_FORMATS)}",
-        "replace": "delete the plain object once its compressed counterpart exists",
+        "source": "eBPF asset directory to take already-compressed objects from, instead of compressing",
+        "replace": "delete the plain object once its compressed counterpart is in place",
     }
 )
 def compress_ebpf_objects(
-    ctx: Context, directory: str = EMBEDDED_SHARE_DIR, compression: str = EBPF_COMPRESSION, replace: bool = False
+    ctx: Context,
+    directory: str = EMBEDDED_SHARE_DIR,
+    compression: str = EBPF_COMPRESSION,
+    source: str | None = None,
+    replace: bool = False,
 ):
     """
-    Generate the compressed form of the large CWS eBPF objects in an eBPF asset
-    directory.
+    Put the compressed form of the eBPF objects selected by
+    COMPRESSED_EBPF_PACKAGES — today the CWS programs under pkg/security — into an
+    eBPF asset directory.
 
     system-probe reads "<name>.gz" / "<name>.xz" transparently when "<name>" is
     missing (see pkg/ebpf/bytecode.GetReader), so nothing else needs to know that
     the objects were compressed.
 
-    By default the plain object is kept alongside the compressed one, which is
-    what pkg/ebpf/bytecode/build needs: bundled (--bundle-ebpf) builds embed the
-    plain ELF, and the verifier-stats tests and pahole read it directly. Pass
-    --replace when staging an install tree, so only the compressed object ships.
+    Called two ways:
+
+    * on pkg/ebpf/bytecode/build/<arch> by the eBPF build, to generate the
+      compressed objects next to the plain ones. The plain object has to stay:
+      bundled (--bundle-ebpf) builds embed the plain ELF, and the verifier-stats
+      tests and pahole read it directly.
+    * on a staged install tree by packaging, with --source pointing at the build
+      directory and --replace, so the compressed object built once is copied in
+      and only it ships.
 
     Idempotent: an up-to-date compressed object is left alone.
     """
@@ -1302,7 +1337,7 @@ def compress_ebpf_objects(
     # tree and at staging trees the caller already owns, so gate on actual
     # writability rather than on being root.
     sudo = "" if os.access(directory, os.W_OK) else "sudo"
-    for obj in COMPRESSIBLE_EBPF_OBJECTS:
+    for obj in compressed_ebpf_objects():
         target = os.path.join(directory, obj)
         compressed = f"{target}.{compression}"
 
@@ -1311,27 +1346,30 @@ def compress_ebpf_objects(
         for stale in (ext for ext in ("gz", "xz") if ext != compression):
             ctx.run(f"{sudo} rm -f {target}.{stale}")
 
-        if not os.path.exists(target):
-            if not os.path.exists(compressed):
-                print(color_message(f"warning: {target} not found, skipping", "orange"))
-            continue
+        if source is not None:
+            src = os.path.join(source, f"{obj}.{compression}")
+            if not os.path.exists(src):
+                raise Exit(f"{src} not found: run system-probe.build-object-files first", code=1)
+            ctx.run(f"{sudo} mkdir -p {os.path.dirname(compressed)}")
+            ctx.run(f"{sudo} cp -p {src} {compressed}")
+            ctx.run(f"{sudo} chmod 0644 {compressed}")
+        else:
+            if not os.path.exists(target):
+                if not os.path.exists(compressed):
+                    print(color_message(f"warning: {target} not found, skipping", "orange"))
+                continue
 
-        # In the build tree the plain object is the source of truth, so a stale
-        # compressed copy is refreshed after an eBPF rebuild. In a staging tree
-        # (--replace) the compressed artifact was copied in from the build tree and
-        # is authoritative, so an existing one is never recompressed.
-        needs_compression = not os.path.exists(compressed)
-        if not needs_compression and not replace:
-            needs_compression = os.path.getmtime(compressed) < os.path.getmtime(target)
-
-        if needs_compression:
-            # -k keeps the plain object; -n omits the name and timestamp from the
-            # gzip header so the output is reproducible across builds. -9 because
-            # these are compressed once here and decompressed on every
-            # system-probe start, so the ratio matters and the build cost does not.
-            flags = "-9 -n -k -f" if compression == "gz" else "-9 -k -f"
-            ctx.run(f"{sudo} {tool} {flags} {target}")
-            print(color_message(f"compressed {target} -> {compressed}", "green"))
+            # The plain object is the source of truth here, so a compressed copy
+            # left stale by an eBPF rebuild is refreshed.
+            if not os.path.exists(compressed) or os.path.getmtime(compressed) < os.path.getmtime(target):
+                # -k keeps the plain object; -n omits the name and timestamp from
+                # the gzip header so the output is reproducible across builds. -9
+                # because these are compressed once here and decompressed on every
+                # system-probe start, so the ratio matters and the build cost does
+                # not.
+                flags = "-9 -n -k -f" if compression == "gz" else "-9 -k -f"
+                ctx.run(f"{sudo} {tool} {flags} {target}")
+                print(color_message(f"compressed {target} -> {compressed}", "green"))
 
         if replace:
             ctx.run(f"{sudo} rm -f {target}")

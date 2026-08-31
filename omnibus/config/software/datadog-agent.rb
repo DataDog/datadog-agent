@@ -257,18 +257,19 @@ build do
 
     copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
 
-    # The three CWS probe variants are ~10 MB each because they duplicate almost
-    # all of the same inlined code, and they are only ever read from disk.
-    # system-probe decompresses them transparently (pkg/ebpf/bytecode.GetReader),
-    # so shipping only the compressed form cuts ~24 MiB off the package for a few
-    # tens of milliseconds of startup CPU. The eBPF build already generated these
-    # next to the plain objects, so this copies them in and drops the plain ones.
+    # Ship the CWS eBPF programs compressed. Their three probe variants are ~10 MB
+    # each because they duplicate almost all of the same inlined code, and they are
+    # only ever read from disk; system-probe decompresses them transparently
+    # (pkg/ebpf/bytecode.GetReader), so this cuts ~24 MiB off the package for a few
+    # tens of milliseconds of startup CPU. The eBPF build already generated the
+    # compressed objects next to the plain ones, so this copies them in from the
+    # build directory and drops the plain ones. Which programs are selected lives
+    # in COMPRESSED_EBPF_PACKAGES (tasks/system_probe.py), not here.
     # EBPF_COMPRESSION (read by tasks/system_probe.py too) selects "gz" (default),
     # "xz" for a smaller package with a slower start, or "none" for plain objects.
     ebpf_compression = ENV['EBPF_COMPRESSION'] || 'gz'
     if ebpf_compression != 'none'
-      copy "pkg/ebpf/bytecode/build/#{arch}/*.o.#{ebpf_compression}", "#{install_dir}/embedded/share/system-probe/ebpf/"
-      command "dda inv -- -e system-probe.compress-ebpf-objects --directory=#{install_dir}/embedded/share/system-probe/ebpf --compression=#{ebpf_compression} --replace", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "dda inv -- -e system-probe.compress-ebpf-objects --directory=#{install_dir}/embedded/share/system-probe/ebpf --source=pkg/ebpf/bytecode/build/#{arch} --compression=#{ebpf_compression} --replace", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     end
 
   end
