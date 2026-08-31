@@ -347,3 +347,48 @@ func TestDeviceCacheRefresh_Concurrent(t *testing.T) {
 
 	wg.Wait()
 }
+
+// TestMIGChildrenCarryComputeInstanceID pins that fillMigChildren populates
+// ComputeInstanceID from NVML rather than leaving the zero value. It matters
+// because the DRA container->device resolution compares the compute instance:
+// a MIG child that reported CI 0 when the driver actually said 1 would be
+// attributed to the wrong container on a multi-CI GPU instance.
+func TestMIGChildrenCarryComputeInstanceID(t *testing.T) {
+	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithMIGComputeInstance(1),
+	)
+	WithMockNVML(t, mockNvml)
+
+	cache := NewDeviceCache()
+	require.NoError(t, cache.Refresh())
+
+	migDevices, err := cache.AllMigDevices()
+	require.NoError(t, err)
+	require.NotEmpty(t, migDevices)
+
+	for _, dev := range migDevices {
+		mig, ok := dev.(*MIGDevice)
+		require.True(t, ok)
+		require.Equal(t, 1, mig.ComputeInstanceID,
+			"MIG child %s did not take its compute instance ID from NVML", mig.UUID)
+	}
+}
+
+// TestNewMIGDeviceDefaultsComputeInstanceToUnknown pins the -1 convention at
+// the constructor. 0 is a real compute instance ID, so a MIGDevice built
+// outside fillMigChildren must not silently claim to be CI 0.
+func TestNewMIGDeviceDefaultsComputeInstanceToUnknown(t *testing.T) {
+	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithSymbolsMock(allSymbols),
+	)
+	WithMockNVML(t, mockNvml)
+
+	migMock := testutil.GetMIGDeviceMock(testutil.DefaultMIGParentDeviceIdx, 0)
+	dev, err := NewMIGDevice(&safeDeviceImpl{
+		nvmlDevice: migMock,
+		lib:        &safeNvml{capabilities: allSymbols},
+	})
+	require.NoError(t, err)
+	require.Equal(t, -1, dev.ComputeInstanceID)
+}

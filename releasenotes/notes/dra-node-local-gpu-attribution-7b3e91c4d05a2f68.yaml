@@ -1,0 +1,19 @@
+---
+enhancements:
+  - |
+    The Agent now resolves Dynamic Resource Allocation GPU devices to their real
+    NVML UUID on the node, so GPU metrics keep their pod tags on DRA clusters --
+    including MIG instances, whose pool-scoped device names
+    (``gpu-0-mig-1g18gb-19-0``) could not previously be matched to a device.
+    Resolution reads the claim's CDI specification and, for MIG, the kernel's
+    ``mig-minors`` table. This requires ``/var/run/cdi`` and ``/dev/nvidia-caps``
+    to be visible to the Agent container; without them the Agent falls back to
+    the previous behavior.
+fixes:
+  - |
+    Fixed GPU metrics losing their pod tags for every container on a node as
+    soon as a single MIG device was allocated through Dynamic Resource
+    Allocation. Container-to-device matching previously gave up entirely when
+    any MIG device was present, which also affected containers holding whole
+    cards. This fix applies to the GPU core check; GPU monitoring in
+    system-probe is unchanged.
