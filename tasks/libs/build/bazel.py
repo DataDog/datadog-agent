@@ -12,6 +12,7 @@ from typing import IO, NamedTuple
 
 from invoke import Exit
 from invoke.context import Context
+from invoke.runners import Result
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import get_repo_root
@@ -97,17 +98,14 @@ def bazel(
     ctx: Context,
     *args: str,
     capture_output: bool = False,
-    capture_stderr: bool = False,
     ignore_errors: bool = False,
     input_stream: IO[str] | bool = False,
     sudo: bool = False,
-) -> str:
+) -> str | Result:
     """Execute a bazel command.
 
     capture_output: capture stdout.
-    capture_stderr: also capture stderr and append it to the returned string.
-        Use this when Bazel writes important output (e.g.  test results) to stderr
-        and the caller needs to process it.
+    ignore_errors: do not fail fast, but instead return the raw `Result`, whether the Bazel command succeeded or not.
     """
 
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
@@ -120,21 +118,14 @@ def bazel(
     # In every other libray, that would be called capture, and the
     # act of capturing it would hide it from the user.
     # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
-    if capture_output and capture_stderr:
-        kwargs["hide"] = "both"
-    elif capture_output:
+    if capture_output:
         kwargs["hide"] = "out"
-    elif capture_stderr:
-        kwargs["hide"] = "err"
     elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
         kwargs["pty"] = True
     result = ctx.run(cmdline, echo=False, in_stream=input_stream, warn=ignore_errors, **kwargs)
-    captured = []
-    if capture_output and result.ok:
-        captured.append(result.stdout)
-    if capture_stderr:
-        captured.append(result.stderr)
-    return "".join(captured)
+    if ignore_errors:
+        return result
+    return result.stdout if capture_output else ""
 
 
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:

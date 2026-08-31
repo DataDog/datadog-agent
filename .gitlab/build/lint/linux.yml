@@ -5,6 +5,7 @@
   - dda inv -- -e linter.go --cpus $KUBERNETES_CPU_REQUEST --debug $FLAVORS $EXTRA_OPTS
 
 .linux_lint:
+  extends: .bazel:defs:cache:progressive
   stage: lint
   needs: ["go_deps", "go_tools_deps"]
   variables:

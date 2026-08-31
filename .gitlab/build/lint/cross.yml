@@ -5,7 +5,7 @@
 
 .cross_lint:
   stage: lint
-  extends: .linux_x64
+  extends: [.linux_x64, .bazel:defs:cache:progressive]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: "--flavor base"

@@ -1,4 +1,6 @@
-# Tools-only module (//go:build tools tracker for `go install` dependencies).
-# No Bazel targets are generated; the empty BUILD.bazel keeps bazelify_go_work
-# happy without compiling anything.
-# gazelle:ignore
+load("//bazel/rules/go_shim:defs.bzl", "go_shim")
+
+go_shim(
+    name = "golangci-lint",
+    tool = "@com_github_golangci_golangci_lint_v2//cmd/golangci-lint",
+)
