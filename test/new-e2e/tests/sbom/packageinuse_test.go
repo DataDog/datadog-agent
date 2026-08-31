@@ -111,6 +111,10 @@ var pkgInUseDistros = []pkgInUseDistro{
 //   - the core-agent enrichment collector (DD_SBOM_ENRICHMENT_USAGE_ENABLED) that
 //     merges those runtime properties onto the Trivy container-image SBOM.
 //
+// The host SBOM is collected too, so the same enrichment is verified on the node
+// itself, which is the dimension a containerized Agent reaches through the host
+// pid namespace (useHostPID) rather than through a container filesystem.
+//
 // The enrichment/forward intervals are shortened so a package's in-use timestamp
 // surfaces within the test window instead of the 1m default.
 func packageInUseHelmValues() string {
@@ -123,6 +127,9 @@ func packageInUseHelmValues() string {
     runtime:
       enabled: true
   sbom:
+    host:
+      enabled: true
+      analyzers: ["os"]
     containerImage:
       enabled: true
       uncompressedLayersSupport: true
@@ -144,11 +151,16 @@ agents:
         # "unknown service datadog.sbom.SBOMCollector".
         - name: DD_SBOM_ENRICHMENT_USAGE_ENABLED
           value: "true"
+        # The resolver builds its host package index when it sees the Agent
+        # collecting a host SBOM to enrich, and it reads that from its own
+        # container's environment. The chart's datadog.sbom.host.enabled reaches
+        # the agent container, which is what produces the host SBOM, so without
+        # this the host is scanned but never enriched.
+        - name: DD_SBOM_HOST_ENABLED
+          value: "true"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENABLED
           value: "true"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENRICHMENT_INTERVAL
-          value: "10s"
-        - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENRICHMENT_TICKER
           value: "10s"
         # forward_interval x maxRetryForwarding(10) is the window the resolver
         # waits for the image's Trivy SBOM to be available before giving up
@@ -611,4 +623,71 @@ func lastSeenRunning(comp *cyclonedx_v1_4.Component) (int64, bool) {
 		}
 	}
 	return maxTS, true
+}
+
+// hostAlwaysRunningPkgs are packages whose binaries a kubeadm node always runs.
+// Which one is observed depends on what the resolver samples, so the assertion
+// below accepts any of them rather than naming one and drifting with the AMI.
+var hostAlwaysRunningPkgs = []string{
+	"systemd", "glibc", "coreutils", "coreutils-single", "bash",
+	"containerd", "containerd.io", "kubelet", "openssh-server",
+}
+
+// TestHostPackageInUse verifies the enrichment on the node's own SBOM, which
+// covers the deployment the container phases leave out: an Agent in a container
+// enriching the host it runs on, reading the host package database through the
+// host pid namespace. The node's processes cannot be driven from a workload pod,
+// whose cgroup makes any process it starts a container's, so the assertion rests
+// on the packages the node already runs: the merge must have produced the
+// properties, at least one always-running package must be reported in use, and
+// some package must be reported not in use so the two are told apart.
+func (s *packageInUseSuite) TestHostPackageInUse() {
+	s.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+
+		ids, err := s.Fakeintake.GetSBOMIDs()
+		require.NoErrorf(c, err, "Failed to query fake intake")
+		payloads := lo.FlatMap(ids, func(id string, _ int) []*aggregator.SBOMPayload {
+			p, err := s.Fakeintake.FilterSBOMs(id)
+			assert.NoErrorf(c, err, "Failed to query fake intake")
+			return p
+		})
+		payloads = lo.Filter(payloads, func(p *aggregator.SBOMPayload, _ int) bool {
+			return p.GetType() == sbom.SBOMSourceType_HOST_FILE_SYSTEM &&
+				p.Status == sbom.SBOMStatus_SUCCESS && p.GetCyclonedx() != nil
+		})
+		require.NotEmptyf(c, payloads, "No successful host SBOM yet")
+
+		// Keep the newest timestamp seen for each package, the way the container
+		// phases do: counting per payload would let one stale payload stand in for
+		// a package that has since started running.
+		newest := map[string]int64{}
+		for _, p := range payloads {
+			for _, comp := range p.GetCyclonedx().Components {
+				ts, ok := lastSeenRunning(comp)
+				if !ok {
+					continue
+				}
+				if prev, seen := newest[comp.GetName()]; !seen || ts > prev {
+					newest[comp.GetName()] = ts
+				}
+			}
+		}
+		require.NotEmptyf(c, newest, "no host component carries a %s property, the enrichment never merged onto the host SBOM", propLastSeenRunning)
+
+		var inUse, idle []string
+		for pkg, ts := range newest {
+			if ts > 0 {
+				inUse = append(inUse, pkg)
+			} else {
+				idle = append(idle, pkg)
+			}
+		}
+		s.T().Logf("PKG-IN-USE[host] enriched=%d in-use=%d not-in-use=%d; in use: %v", len(newest), len(inUse), len(idle), inUse)
+
+		running := lo.Filter(hostAlwaysRunningPkgs, func(pkg string, _ int) bool { return newest[pkg] > 0 })
+		assert.NotEmptyf(c, running, "none of the node's always-running packages %v is reported in use", hostAlwaysRunningPkgs)
+		assert.NotEmptyf(c, idle, "every enriched host package is reported in use, so not-in-use is indistinguishable")
+	}, 15*time.Minute, 20*time.Second, "The host SBOM never carried the runtime usage enrichment")
 }
