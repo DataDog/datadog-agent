@@ -90,7 +90,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		fx.Provide(func() ipc.Component { return ipcmock.New(suite.T()) }),
 	))
 
-	mockConfig.SetInTest("container_exclude", "name:agent-excluded")
+	mockConfig.SetInTest("container_exclude", []string{"name:agent-excluded"})
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
 	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger, nil)
