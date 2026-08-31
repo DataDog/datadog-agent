@@ -102,7 +102,7 @@ pkg_deb(
     priority = "extra",
     recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
     section = "utils",
-    version = make_version(),
+    version = make_version() + "-1",
 )
 
 pkg_rpm(
