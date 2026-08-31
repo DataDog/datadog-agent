@@ -54,6 +54,89 @@ pub struct ProcessSnapshot {
     pub last_signal: Option<i32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct ReloadSnapshot {
+    added: Vec<String>,
+    removed: Vec<String>,
+    modified: Vec<String>,
+    unchanged: Vec<String>,
+}
+
+/// Unset list fields are not checked. An empty vec requires the list to be empty.
+/// A non-empty vec requires every name to appear in the list.
+#[derive(Debug, Clone, Default)]
+pub struct ReloadExpect {
+    pub added: Option<Vec<String>>,
+    pub removed: Option<Vec<String>>,
+    pub modified: Option<Vec<String>>,
+    pub unchanged: Option<Vec<String>>,
+    /// Running processes whose PID must not change across reload.
+    pub preserve_running_pids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReloadList {
+    Added,
+    Removed,
+    Modified,
+    Unchanged,
+}
+
+impl ReloadList {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Added => "added",
+            Self::Removed => "removed",
+            Self::Modified => "modified",
+            Self::Unchanged => "unchanged",
+        }
+    }
+
+    fn names(self, snapshot: &ReloadSnapshot) -> &[String] {
+        match self {
+            Self::Added => &snapshot.added,
+            Self::Removed => &snapshot.removed,
+            Self::Modified => &snapshot.modified,
+            Self::Unchanged => &snapshot.unchanged,
+        }
+    }
+}
+
+impl ReloadSnapshot {
+    fn assert_matches(&self, expected: &ReloadExpect) {
+        Self::assert_list_expect(self, ReloadList::Added, &expected.added);
+        Self::assert_list_expect(self, ReloadList::Removed, &expected.removed);
+        Self::assert_list_expect(self, ReloadList::Modified, &expected.modified);
+        Self::assert_list_expect(self, ReloadList::Unchanged, &expected.unchanged);
+    }
+
+    fn assert_list_expect(
+        snapshot: &ReloadSnapshot,
+        list: ReloadList,
+        expected: &Option<Vec<String>>,
+    ) {
+        let Some(expected) = expected else {
+            return;
+        };
+        let actual = list.names(snapshot);
+        if expected.is_empty() {
+            assert!(
+                actual.is_empty(),
+                "expected reload {} to be empty, got {snapshot:?}",
+                list.label()
+            );
+            return;
+        }
+        for name in expected {
+            assert!(
+                actual.iter().any(|n| n == name),
+                "expected '{name}' in reload {}, got {snapshot:?}",
+                list.label()
+            );
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessExpect {
     Created,
@@ -599,19 +682,19 @@ fn extract_column(row: &str, col_idx: usize, columns: &[(&str, usize)]) -> Strin
 // ---------------------------------------------------------------------------
 
 /// Runs dd-procmgr CLI commands against a daemon socket.
-pub struct CliRunner {
+struct CliRunner {
     socket_path: PathBuf,
 }
 
 impl CliRunner {
-    pub fn new(socket_path: &Path) -> Self {
+    fn new(socket_path: &Path) -> Self {
         Self {
             socket_path: socket_path.to_path_buf(),
         }
     }
 
     /// Run a dd-procmgr command and capture output.
-    pub fn run(&self, args: &[&str]) -> CliOutput {
+    fn run(&self, args: &[&str]) -> CliOutput {
         let bin = env!("CARGO_BIN_EXE_dd-procmgr");
         let output = Command::new(bin)
             .arg("--socket")
@@ -671,6 +754,16 @@ impl TestEnv {
     pub fn with_process(self, name: &str) -> Self {
         install_process_fixture(self.env_root(), &self.config_dir, name);
         self
+    }
+
+    pub fn install_fixture(&self, name: &str) {
+        install_process_fixture(self.env_root(), &self.config_dir, name);
+    }
+
+    pub fn remove_process_yaml(&self, name: &str) {
+        let path = self.config_dir.join(format!("{name}.yaml"));
+        std::fs::remove_file(&path)
+            .unwrap_or_else(|e| panic!("failed to remove {}: {e}", path.display()));
     }
 
     fn env_root(&self) -> &Path {
@@ -881,6 +974,48 @@ impl TestEnv {
     pub fn assert_stop_process(&self, name: &str) {
         self.stop_process(name)
             .unwrap_or_else(|e| panic!("expected stop of '{name}' to succeed: {e}"));
+    }
+
+    fn reload(&self) -> Result<ReloadSnapshot, String> {
+        let out = self.cli(&["reload", "--json"]);
+        if !out.status.success() {
+            return Err(format!(
+                "reload --json failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        serde_json::from_str(&out.stdout)
+            .map_err(|e| format!("failed to parse reload JSON: {e}\nstdout: {}", out.stdout))
+    }
+
+    fn assert_reload(&self) -> ReloadSnapshot {
+        self.reload()
+            .unwrap_or_else(|e| panic!("expected reload to succeed: {e}"))
+    }
+
+    pub fn assert_reload_matches(&self, expected: ReloadExpect) {
+        let pids_before: Vec<(&str, u64)> = expected
+            .preserve_running_pids
+            .iter()
+            .map(|name| (name.as_str(), self.require_process_pid(name)))
+            .collect();
+        self.assert_reload().assert_matches(&expected);
+        for (name, pid_before) in pids_before {
+            self.assert_process_running(name);
+            assert_eq!(
+                self.require_process_pid(name),
+                pid_before,
+                "unchanged reload should not respawn {name}"
+            );
+        }
+    }
+
+    fn require_process_pid(&self, name: &str) -> u64 {
+        self.find_process(name)
+            .unwrap_or_else(|e| panic!("{e}"))
+            .pid
     }
 
     fn format_wait_failure(&self, last_err: String) -> String {
