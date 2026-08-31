@@ -5459,6 +5459,25 @@ properties:
             type: boolean
             default: false
             comment: Appsec Proxy Config Injection (Experimental)
+          gke:
+            node_type: section
+            type: object
+            properties:
+              gateway_classes:
+                node_type: setting
+                type: array
+                default:
+                - gke-l7-global-external-managed
+                - gke-l7-regional-external-managed
+                items:
+                  type: string
+                comment: |-
+                  The default is the set of external-managed single-cluster GatewayClasses Datadog
+                  has tested, not the full set GKE supports: gke-l7-rilb also supports
+                  GCPTrafficExtension callouts, whereas classic gke-l7-gxlb does not.
+                  Multi-cluster classes (names ending in -mc) are always skipped, even when added
+                  here, because they require a net.gke.io ServiceImport backendRef which this
+                  reconciler does not emit. Override via this key to widen the tested set.
           processor:
             node_type: section
             type: object

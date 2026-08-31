@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 
 	"github.com/stretchr/testify/assert"
@@ -3149,6 +3150,15 @@ func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 }
 
 func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
+	// The `test` build tag makes pkg/util/log write debug output to *stdout* (see
+	// pkg/util/log/log_test_init.go). That interleaves with the `go test -bench`
+	// result lines and makes the output unparseable by the benchmarking platform's
+	// GoBench parser, so silence it for the duration of the benchmark.
+	pkglog.SetupLogger(pkglog.Default(), "off")
+
+	// Disable the HTTP server to avoid colliding with a real agent on dev/CI machines.
+	c.ReceiverPort = 0
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
