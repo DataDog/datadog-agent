@@ -31,24 +31,31 @@ type anomalyDedupKey struct {
 }
 
 const (
-	maxLiveAnomalyDedupEntries         = 5_000
-	anomalyDedupEvictionReasonCapacity = "capacity"
-	anomalyDedupEvictionReasonSeries   = "series_evicted"
+	maxLiveAnomalyDedupEntries          = 5_000
+	anomalyDedupEvictionReasonCapacity  = "capacity"
+	anomalyDedupEvictionReasonSeries    = "series_evicted"
+	anomalyDedupEvictionReasonRetention = "retention"
 )
+
+type anomalyDedupEntry struct {
+	// expiresAt is expressed in data time. Zero disables time-based expiry.
+	expiresAt int64
+}
 
 // anomalyDeduper suppresses detector outputs that are re-emitted across
 // consecutive advances. Live mode uses a fixed-size LRU; testbench history mode
 // intentionally uses an unbounded map for finite replays.
 type anomalyDeduper struct {
-	live   *simplelru.LRU[anomalyDedupKey, struct{}]
-	replay map[anomalyDedupKey]struct{}
+	live       *simplelru.LRU[anomalyDedupKey, anomalyDedupEntry]
+	replay     map[anomalyDedupKey]struct{}
+	nextExpiry int64
 }
 
 func newAnomalyDeduper(maxEntries int) anomalyDeduper {
 	if maxEntries == 0 {
 		return anomalyDeduper{replay: make(map[anomalyDedupKey]struct{})}
 	}
-	cache, err := simplelru.NewLRU[anomalyDedupKey, struct{}](maxEntries, nil)
+	cache, err := simplelru.NewLRU[anomalyDedupKey, anomalyDedupEntry](maxEntries, nil)
 	if err != nil {
 		panic(err) // maxEntries is always a positive constant in live mode
 	}
@@ -78,7 +85,7 @@ func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
 	return key
 }
 
-func (d *anomalyDeduper) accept(key anomalyDedupKey) (accepted bool, capacityEvicted int) {
+func (d *anomalyDeduper) accept(key anomalyDedupKey, expiresAt int64) (accepted bool, capacityEvicted int) {
 	if d.live == nil {
 		if _, duplicate := d.replay[key]; duplicate {
 			return false, 0
@@ -89,10 +96,39 @@ func (d *anomalyDeduper) accept(key anomalyDedupKey) (accepted bool, capacityEvi
 	if _, duplicate := d.live.Get(key); duplicate {
 		return false, 0
 	}
-	if d.live.Add(key, struct{}{}) {
+	if expiresAt > 0 && (d.nextExpiry == 0 || expiresAt < d.nextExpiry) {
+		d.nextExpiry = expiresAt
+	}
+	if d.live.Add(key, anomalyDedupEntry{expiresAt: expiresAt}) {
 		return true, 1
 	}
 	return true, 0
+}
+
+// removeExpired discards live dedup entries after their source series can no
+// longer retain the point that produced them. Replay mode keeps complete history.
+func (d *anomalyDeduper) removeExpired(dataTime int64) int {
+	if d.live == nil || d.nextExpiry == 0 || dataTime <= d.nextExpiry {
+		return 0
+	}
+	removed := 0
+	nextExpiry := int64(0)
+	for _, key := range d.live.Keys() {
+		entry, exists := d.live.Peek(key)
+		if !exists || entry.expiresAt == 0 {
+			continue
+		}
+		if dataTime > entry.expiresAt {
+			d.live.Remove(key)
+			removed++
+			continue
+		}
+		if nextExpiry == 0 || entry.expiresAt < nextExpiry {
+			nextExpiry = entry.expiresAt
+		}
+	}
+	d.nextExpiry = nextExpiry
+	return removed
 }
 
 // removeSourceRefs discards live dedup entries for storage series that no longer
@@ -612,6 +648,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	// restored their real last-observation activity time, and before detectors
 	// can recreate state for series that are no longer relevant.
 	e.evictInactiveSeries(upToSec, detectors)
+	e.removeExpiredAnomalyDedup(upToSec)
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
@@ -833,10 +870,11 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 // when testbench history is enabled, stores the accepted anomaly for display.
 // Returns true if the anomaly was new, false if it was a duplicate.
 func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
+	expiresAt := e.anomalyDedupExpiry(anomaly)
 	e.rawAnomalyMu.Lock()
 	e.totalAnomalyCount++
 
-	accepted, capacityEvicted := e.anomalyDeduper.accept(anomalyDedupKeyFor(anomaly))
+	accepted, capacityEvicted := e.anomalyDeduper.accept(anomalyDedupKeyFor(anomaly), expiresAt)
 	if accepted && e.trackAnomalyHistory {
 		if e.uniqueAnomalySources == nil {
 			e.uniqueAnomalySources = make(map[string]bool)
@@ -851,6 +889,25 @@ func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
 
 	e.recordAnomalyDedupEviction(anomalyDedupEvictionReasonCapacity, capacityEvicted)
 	return accepted
+}
+
+func (e *engine) anomalyDedupExpiry(anomaly observerdef.Anomaly) int64 {
+	ref := observerdef.SeriesRef(-1)
+	if anomaly.SourceRef != nil {
+		ref = anomaly.SourceRef.Ref
+	}
+	retentionSecs := e.storage.pointRetentionForSeries(ref)
+	if retentionSecs <= 0 {
+		return 0
+	}
+	return anomaly.Timestamp + retentionSecs
+}
+
+func (e *engine) removeExpiredAnomalyDedup(dataTime int64) {
+	e.rawAnomalyMu.Lock()
+	removed := e.anomalyDeduper.removeExpired(dataTime)
+	e.rawAnomalyMu.Unlock()
+	e.recordAnomalyDedupEviction(anomalyDedupEvictionReasonRetention, removed)
 }
 
 func (e *engine) removeAnomalyDedupSourceRefs(refs []observerdef.SeriesRef) {

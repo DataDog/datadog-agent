@@ -33,6 +33,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordStorageSeriesEvicted("capacity", 3)
 	tel.recordStorageCapacityHit()
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonCapacity, 2)
+	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 1)
 	tel.recordAdvanceSkipped("input")
 	tel.recordInputRateLimiterDropped("internal", "high")
 	tel.recordDetectorEmission("bocpd", "medium")
@@ -53,6 +54,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.recordDetectorEmission("bocpd", "medium")
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonCapacity, 3)
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonSeries, 4)
+	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 5)
 	tel.setLogPatternCount(3)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
 
@@ -64,6 +66,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryDetectorEmissions, map[string]string{"detector": "bocpd", "severity": "medium"}).GetCounter().GetValue())
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonCapacity}).GetCounter().GetValue())
 	assert.Equal(t, 4.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonSeries}).GetCounter().GetValue())
+	assert.Equal(t, 5.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonRetention}).GetCounter().GetValue())
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
 }

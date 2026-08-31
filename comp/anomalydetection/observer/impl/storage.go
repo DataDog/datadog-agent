@@ -1165,6 +1165,18 @@ func (s *timeSeriesStorage) SetSeriesRetention(ref observer.SeriesRef, retention
 	}
 }
 
+// pointRetentionForSeries returns the effective point-retention window for a
+// series. Missing series use the storage-wide value, which also provides the
+// fallback for anomalies that do not have a storage-backed source.
+func (s *timeSeriesStorage) pointRetentionForSeries(ref observer.SeriesRef) int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if stats := s.resolveByID(ref); stats != nil && stats.retentionOverrideSecs > 0 {
+		return stats.retentionOverrideSecs
+	}
+	return s.cfg.PointRetentionSecs
+}
+
 // SetSeriesActivityTimestamp overrides the timestamp used to rank a series for
 // capacity eviction. Materialized log-count series use the last real log time
 // so synthetic zero buckets do not keep an idle series artificially hot.
