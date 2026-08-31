@@ -45,6 +45,74 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCollectorTelemetryTags(t *testing.T) {
+	deviceInfo := ddnvml.DeviceInfo{
+		Name:               "NVIDIA A100-SXM4-80GB",
+		Architecture:       nvml.DEVICE_ARCH_AMPERE,
+		VirtualizationMode: nvml.GPU_VIRTUALIZATION_MODE_VGPU,
+		NVLinkLinkCount:    4,
+		NVLinkVersion:      "4",
+	}
+	migParent := &ddnvml.PhysicalDevice{
+		DeviceInfo: deviceInfo,
+		MIGChildren: []*ddnvml.MIGDevice{
+			{},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		device   ddnvml.Device
+		expected []string
+	}{
+		{
+			name:   "physical device",
+			device: &ddnvml.PhysicalDevice{DeviceInfo: deviceInfo},
+			expected: []string{
+				"test",
+				"nvidia_a100-sxm4-80gb",
+				"vgpu",
+				"ampere",
+				"none",
+				"true",
+				"4",
+				driverVersionForTelemetry(),
+			},
+		},
+		{
+			name:   "MIG parent",
+			device: migParent,
+			expected: []string{
+				"test",
+				"nvidia_a100-sxm4-80gb",
+				"vgpu",
+				"ampere",
+				"mig-parent",
+				"true",
+				"4",
+				driverVersionForTelemetry(),
+			},
+		},
+		{
+			name:     "MIG device",
+			device:   &ddnvml.MIGDevice{DeviceInfo: deviceInfo, Parent: migParent},
+			expected: []string{"test", "nvidia_a100-sxm4-80gb", "vgpu", "ampere", "mig", "true", "4", driverVersionForTelemetry()},
+		},
+	}
+
+	require.Len(t, collectorCreationTelemetryTagNames, len(collectorTelemetryTagNames)+1)
+	require.Equal(t, "status", collectorCreationTelemetryTagNames[0])
+	require.Equal(t, collectorTelemetryTagNames, collectorCreationTelemetryTagNames[1:])
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tags := collectorTelemetryTags("test", tt.device)
+			require.Len(t, tags, len(collectorTelemetryTagNames))
+			require.Equal(t, tt.expected, tags)
+		})
+	}
+}
+
 func TestGetDeviceTagsMapping(t *testing.T) {
 	tests := []struct {
 		name        string

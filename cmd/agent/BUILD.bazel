@@ -16,7 +16,10 @@ go_library(
         "main_linux_no_cgo.go",
         "main_windows.go",
     ],
-    cgo = True,
+    cgo = select({
+        "@platforms//os:linux": True,
+        "//conditions:default": False,
+    }),  # keep
     importpath = "github.com/DataDog/datadog-agent/cmd/agent",
     visibility = ["//visibility:private"],
     deps = [

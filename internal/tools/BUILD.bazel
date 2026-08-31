@@ -8,17 +8,6 @@ go_shim(
     tool = "@com_github_golangci_golangci_lint_v2//cmd/golangci-lint",
 )
 
-pkg_files(
-    name = "golangci-lint_exe",
-    srcs = ["@com_github_golangci_golangci_lint_v2//cmd/golangci-lint"],
-    attributes = pkg_attributes(mode = "0755"),
-)
-
-pkg_install(
-    name = "install_golangci-lint",
-    srcs = [":golangci-lint_exe"],
-)
-
 go_shim(
     name = "gotestsum",
     tool = "@tools_gotest_gotestsum//:gotestsum",

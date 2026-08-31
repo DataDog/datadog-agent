@@ -24,6 +24,7 @@ import (
 
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics/metricstest"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
@@ -47,6 +48,10 @@ type mockSpanModifier struct {
 }
 
 func (m mockSpanModifier) ModifySpan(tc *pb.TraceChunk, s *pb.Span) {
+	m.traceChan <- struct{}{}
+}
+
+func (m mockSpanModifier) ModifySpanV1(tc *idx.InternalTraceChunk, s *idx.InternalSpan) {
 	m.traceChan <- struct{}{}
 }
 

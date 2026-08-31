@@ -7,13 +7,11 @@
 
 package autoinstrumentation
 
-// This file is a behavioral characterization (golden master) of the target
-// matcher: which target a pod resolves to for every supported selector shape
-// and for the "first match wins" ordering rule. It exercises the matcher
-// exclusively through the public TargetMutator API (NewTargetMutator +
-// getMatchingTarget), so the exact same suite runs against the legacy
-// label-selector implementation and the policy-engine implementation and proves
-// they agree.
+// This file is a behavioral characterization of the target matcher: which
+// target a pod resolves to for every supported selector shape, configuration
+// first-wins (targets reversed at construction so the last-TRUE-wins matcher
+// preserves config order), and static vs remote-config source precedence. It
+// exercises matching through NewTargetMutator + getMatchingTarget.
 
 import (
 	"testing"
@@ -31,6 +29,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/dd-policy-engine/go/policies"
 )
 
 // matchCase is a single (pod -> matched target name) expectation.
@@ -84,8 +83,8 @@ func runMatchCases(t *testing.T, yamlCfg string, cases []matchCase, namespaces .
 	}
 }
 
-// TestMatching_Precedence verifies the "first match wins" ordering rule when a
-// pod satisfies more than one target.
+// TestMatching_Precedence verifies configuration first-wins when a pod satisfies
+// more than one target.
 func TestMatching_Precedence(t *testing.T) {
 	const cfg = `
 apm_config:
@@ -115,6 +114,139 @@ apm_config:
 		{name: "pod matching router and catch-all resolves to router", podLabels: map[string]string{"webserver": "user", "x": "y"}, want: "router"},
 		{name: "unrelated pod falls through to catch-all", podLabels: map[string]string{"other": "x"}, want: "catch-all"},
 		{name: "empty pod falls through to catch-all", podLabels: map[string]string{}, want: "catch-all"},
+	})
+}
+
+// TestMatching_EvaluationSources pins which source wins: static targets
+// (including enabledNamespaces), remote-config policies (wire last-TRUE-wins),
+// then the SSI inject-all default when both are absent.
+//
+//	SSI | static targets | RC          | Decision
+//	off | —              | none        | nothing
+//	off | —              | policies    | last matching policy, else nothing
+//	on  | none           | none        | everything
+//	on  | none           | policies    | last matching policy, else nothing
+//	on  | present        | none        | first matching target, else nothing
+//	on  | present        | policies    | first matching target, else last matching policy, else nothing
+func TestMatching_EvaluationSources(t *testing.T) {
+	const ssiOff = `
+apm_config:
+  instrumentation:
+    enabled: false
+`
+	const ssiOnNoTargets = `
+apm_config:
+  instrumentation:
+    enabled: true
+`
+	const ssiOnEnabledNamespaces = `
+apm_config:
+  instrumentation:
+    enabled: true
+    enabled_namespaces:
+      - app-ns
+`
+	const ssiOnTargets = `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "helm-python"
+        podSelector:
+          matchLabels:
+            language: "python"
+        ddTraceVersions:
+          python: "default"
+      - name: "helm-python-also"
+        podSelector:
+          matchLabels:
+            language: "python"
+        ddTraceVersions:
+          python: "v1"
+`
+
+	rcPolicies := []policies.Policy{
+		{
+			Name:    "rc-default",
+			Rules:   policies.AlwaysTrue(),
+			Outcome: policies.Outcome{Inject: true, InjectSet: true, TracerVersions: map[string]string{"java": "default"}},
+		},
+		podLabelPolicy("rc-db", "app", "db", true, map[string]string{"java": "v1"}),
+		podLabelPolicy("rc-legacy-deny", "app", "legacy", false, nil),
+	}
+
+	type want struct {
+		name       string
+		fromPolicy bool
+	}
+	nothing := want{}
+	helm := func(name string) want { return want{name: name} }
+	rc := func(name string) want { return want{name: name, fromPolicy: true} }
+
+	assertMatch := func(t *testing.T, m *TargetMutator, ns string, labels map[string]string, w want) {
+		t.Helper()
+		name, fromPolicy := matchedTarget(t, m, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Labels: labels}})
+		require.Equal(t, w.name, name)
+		require.Equal(t, w.fromPolicy, fromPolicy)
+	}
+
+	t.Run("ssi off / no RC / nothing", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOff, newMatchTestWmeta(t))
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
+		assertMatch(t, m, "ns", map[string]string{"app": "other"}, nothing)
+	})
+
+	t.Run("ssi off / RC / last matching policy, else nothing", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOff, newMatchTestWmeta(t))
+		require.NoError(t, m.SetRemotePolicies(rcPolicies))
+		assertMatch(t, m, "ns", map[string]string{"app": "legacy"}, nothing)
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, rc("rc-db"))
+		assertMatch(t, m, "ns", map[string]string{"app": "other"}, rc("rc-default"))
+	})
+
+	t.Run("ssi on / no targets / no RC / everything", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOnNoTargets, newMatchTestWmeta(t))
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, helm("default"))
+		assertMatch(t, m, "ns", map[string]string{"app": "other"}, helm("default"))
+	})
+
+	t.Run("ssi on / no targets / RC / last matching policy, else nothing", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOnNoTargets, newMatchTestWmeta(t))
+		require.NoError(t, m.SetRemotePolicies(rcPolicies))
+		assertMatch(t, m, "ns", map[string]string{"app": "legacy"}, nothing)
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, rc("rc-db"))
+		assertMatch(t, m, "ns", map[string]string{"app": "other"}, rc("rc-default"))
+	})
+
+	t.Run("ssi on / enabledNamespaces / no RC / first matching target, else nothing", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOnEnabledNamespaces, newMatchTestWmeta(t))
+		assertMatch(t, m, "app-ns", map[string]string{"app": "db"}, helm("default"))
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
+	})
+
+	t.Run("ssi on / enabledNamespaces / RC / first matching target, else last matching policy, else nothing", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOnEnabledNamespaces, newMatchTestWmeta(t))
+		require.NoError(t, m.SetRemotePolicies(rcPolicies))
+		assertMatch(t, m, "app-ns", map[string]string{"app": "legacy"}, helm("default"))
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, rc("rc-db"))
+		assertMatch(t, m, "ns", map[string]string{"app": "legacy"}, nothing)
+		assertMatch(t, m, "ns", map[string]string{"app": "other"}, rc("rc-default"))
+	})
+
+	t.Run("ssi on / targets / no RC / first matching target, else nothing", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOnTargets, newMatchTestWmeta(t))
+		assertMatch(t, m, "ns", map[string]string{"language": "python"}, helm("helm-python"))
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
+	})
+
+	t.Run("ssi on / targets / RC / first matching target, else last matching policy, else nothing", func(t *testing.T) {
+		m := newMatchMutator(t, ssiOnTargets, newMatchTestWmeta(t))
+		require.NoError(t, m.SetRemotePolicies(rcPolicies))
+		assertMatch(t, m, "ns", map[string]string{"language": "python"}, helm("helm-python"))
+		assertMatch(t, m, "ns", map[string]string{"language": "python", "app": "db"}, helm("helm-python"))
+		assertMatch(t, m, "ns", map[string]string{"app": "db"}, rc("rc-db"))
+		assertMatch(t, m, "ns", map[string]string{"app": "legacy"}, nothing)
+		assertMatch(t, m, "ns", map[string]string{"app": "other"}, rc("rc-default"))
 	})
 }
 

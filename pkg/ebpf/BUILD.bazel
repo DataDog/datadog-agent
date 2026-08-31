@@ -188,7 +188,6 @@ go_library(
         "time.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf",
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/setup",

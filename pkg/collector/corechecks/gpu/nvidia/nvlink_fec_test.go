@@ -35,7 +35,7 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
 	require.Equal(t, nvlinkFEC, collector.Name())
-	require.Equal(t, mockDevice.GetDeviceInfo().UUID, collector.DeviceUUID())
+	require.Equal(t, mockDevice.GetDeviceInfo().UUID, collector.Device().GetDeviceInfo().UUID)
 
 	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)

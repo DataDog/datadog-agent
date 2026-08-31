@@ -33,17 +33,17 @@ import (
 type rcServerState struct {
 	mu sync.Mutex
 
-	enabled     bool
-	orgUUID     string
-	configs     map[string]rcstore.Config
-	version     uint64
-	polls       uint64
-	lastPoll    time.Time
-	applyStates []api.RCApplyState
+	enabled  bool
+	orgUUID  string
+	configs  map[string]rcstore.Config
+	version  uint64
+	polls    uint64
+	lastPoll time.Time
 
-	signing  ed25519.PrivateKey
-	keyID    string
-	rootJSON []byte
+	signing   ed25519.PrivateKey
+	keyID     string
+	rootJSON  []byte
+	tufExpiry string
 
 	keyPath          string
 	keyData          string // hex-encoded seed; takes precedence over keyPath when non-empty
@@ -74,38 +74,25 @@ func (s *rcServerState) deleteConfig(key string) bool {
 }
 
 func (s *rcServerState) snapshot() []rcstore.Config {
-	cfgs, _ := s.versionedSnapshot()
+	cfgs, _, _ := s.versionedSnapshot()
 	return cfgs
 }
 
-func (s *rcServerState) versionedSnapshot() ([]rcstore.Config, uint64) {
+func (s *rcServerState) versionedSnapshot() ([]rcstore.Config, uint64, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]rcstore.Config, 0, len(s.configs))
 	for _, c := range s.configs {
 		out = append(out, c)
 	}
-	return out, s.version
+	return out, s.version, s.tufExpiry
 }
 
-func (s *rcServerState) recordPoll(now time.Time, clients []*core.Client) {
+func (s *rcServerState) recordPoll(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.polls++
 	s.lastPoll = now
-	s.applyStates = nil
-	for _, client := range clients {
-		for _, configState := range client.GetState().GetConfigStates() {
-			s.applyStates = append(s.applyStates, api.RCApplyState{
-				ClientID:   client.GetId(),
-				ConfigID:   configState.GetId(),
-				Product:    configState.GetProduct(),
-				Version:    configState.GetVersion(),
-				ApplyState: configState.GetApplyState(),
-				ApplyError: configState.GetApplyError(),
-			})
-		}
-	}
 }
 
 // --- Options ---
@@ -127,10 +114,11 @@ func WithRemoteConfig(orgUUID string) Option {
 			orgUUID = "42"
 		}
 		fi.rc = &rcServerState{
-			enabled: true,
-			orgUUID: orgUUID,
-			configs: make(map[string]rcstore.Config),
-			version: 1,
+			enabled:   true,
+			orgUUID:   orgUUID,
+			configs:   make(map[string]rcstore.Config),
+			version:   1,
+			tufExpiry: rcstore.TUFExpires,
 		}
 	}
 }
@@ -293,16 +281,16 @@ func (fi *Server) handleRCConfigurations(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "decode request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	rc.recordPoll(fi.clock.Now().UTC(), req.GetActiveClients())
+	rc.recordPoll(fi.clock.Now().UTC())
 
 	// Serve the complete repository.
-	cfgs, version := rc.versionedSnapshot()
+	cfgs, version, expires := rc.versionedSnapshot()
 	if len(cfgs) == 0 {
 		log.Printf("Remote Config: serving empty response for products %v",
 			append(req.GetProducts(), req.GetNewProducts()...))
 	}
 
-	metas, err := rcstore.GenerateTUFMetas(cfgs, rc.signing, rc.keyID, rc.rootJSON, version)
+	metas, err := rcstore.GenerateTUFMetasWithExpiration(cfgs, rc.signing, rc.keyID, rc.rootJSON, version, expires)
 	if err != nil {
 		http.Error(w, "build metas: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -424,6 +412,27 @@ func (fi *Server) handleRCAddConfig(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+func (fi *Server) handleRCSetExpiration(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if fi.rc == nil {
+		http.Error(w, "remote config not enabled", http.StatusNotFound)
+		return
+	}
+	var req api.RCSetExpirationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ExpiresAt.IsZero() {
+		http.Error(w, "valid expires_at is required", http.StatusBadRequest)
+		return
+	}
+	fi.rc.mu.Lock()
+	fi.rc.tufExpiry = req.ExpiresAt.UTC().Format(time.RFC3339)
+	fi.rc.version++
+	fi.rc.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (fi *Server) handleRCListConfigs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -480,7 +489,6 @@ func (fi *Server) handleRCStats(w http.ResponseWriter, r *http.Request) {
 		LastPoll:     fi.rc.lastPoll,
 		Version:      fi.rc.version,
 		ConfigsCount: len(fi.rc.configs),
-		ApplyStates:  append([]api.RCApplyState(nil), fi.rc.applyStates...),
 		KeyID:        fi.rc.keyID,
 		PublicKey:    rcstore.PublicKeyHex(fi.rc.signing),
 		RootJSON:     string(fi.rc.rootJSON),

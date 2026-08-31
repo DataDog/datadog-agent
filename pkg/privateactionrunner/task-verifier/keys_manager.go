@@ -14,10 +14,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -36,16 +34,7 @@ type keysManager struct {
 	firstCallbackCompleted bool
 }
 
-// noOpKeysManager satisfies KeysManager without requiring Remote Config.
-// WaitForReady returns immediately. Used when DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true.
-type noOpKeysManager struct{}
-
-func (n *noOpKeysManager) Start(_ context.Context)          {}
-func (n *noOpKeysManager) GetKey(_ string) types.DecodedKey { return nil }
-func (n *noOpKeysManager) WaitForReady()                    {}
-
-// NewKeyManager returns a KeysManager appropriate for the current environment.
-// When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, a no-op manager is returned.
+// NewKeyManager returns a key manager backed by Remote Config.
 func NewKeyManager(rcClient rcclient.Client) KeysManager {
 	manager, _ := NewKeyManagerWithCallback()
 	if manager, ok := manager.(*keysManager); ok {
@@ -57,9 +46,6 @@ func NewKeyManager(rcClient rcclient.Client) KeysManager {
 // NewKeyManagerWithCallback returns a key manager and the callback to register
 // with Remote Config before its polling loop starts.
 func NewKeyManagerWithCallback() (KeysManager, UpdateCallback) {
-	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" {
-		return &noOpKeysManager{}, nil
-	}
 	manager := &keysManager{
 		stopChan: make(chan bool),
 		keys:     make(map[string]types.DecodedKey),

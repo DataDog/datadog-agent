@@ -25,6 +25,7 @@ func NewRshellBundle(cfg *config.Config) types.Bundle {
 		OperatorAllowedPaths:          cfg.RShellAllowedPaths,
 		OperatorAllowedCommands:       cfg.RShellAllowedCommands,
 		OperatorAllowedSystemServices: cfg.RShellAllowedSystemServices,
+		DisableDetailedTelemetry:      cfg.RShellDisableDetailedTelemetry,
 	}
 	return &RshellBundle{
 		actions: map[string]types.Action{

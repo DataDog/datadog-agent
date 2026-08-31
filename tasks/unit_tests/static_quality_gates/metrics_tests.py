@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+from tasks.libs.common.datadog_api import query_gate_metrics_for_commit
 from tasks.static_quality_gates.metrics import (
     GateMetricsData,
     _extract_gate_name_from_scope,
@@ -316,6 +317,27 @@ class TestGateMetricsData(unittest.TestCase):
         self.assertEqual(metrics.max_on_wire_size, 75)
         self.assertEqual(metrics.relative_on_disk_size, 10)
         self.assertEqual(metrics.relative_on_wire_size, 5)
+
+
+class TestQueryGateMetricsForCommit(unittest.TestCase):
+    """Test the query_gate_metrics_for_commit function."""
+
+    @patch("tasks.libs.common.datadog_api.query_metrics")
+    def test_keeps_the_largest_measurement(self, mock_query):
+        """Should not average the series of the pipelines having built the commit."""
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "max:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 188744948]]),
+            },
+        ]
+
+        result = query_gate_metrics_for_commit("abc123def456")
+
+        for call in mock_query.call_args_list:
+            self.assertTrue(call.args[0].startswith("max:"), call.args[0])
+        self.assertEqual(result["static_quality_gate_agent_deb_amd64"]["current_on_wire_size"], 188744948)
 
 
 if __name__ == '__main__':

@@ -373,7 +373,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 		actualUUIDs := map[string]int{}
 		for _, c := range collectors {
-			actualUUIDs[c.DeviceUUID()]++
+			actualUUIDs[c.Device().GetDeviceInfo().UUID]++
 		}
 
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
@@ -441,7 +441,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		// Count collectors by UUID
 		actualUUIDs := map[string]int{}
 		for _, c := range collectors {
-			actualUUIDs[c.DeviceUUID()]++
+			actualUUIDs[c.Device().GetDeviceInfo().UUID]++
 		}
 
 		// Build expected UUIDs
@@ -672,8 +672,10 @@ func (m *mockCollector) Name() nvidia.CollectorName {
 	return m.name
 }
 
-func (m *mockCollector) DeviceUUID() string {
-	return m.deviceUUID
+func (m *mockCollector) Device() ddnvml.Device {
+	return &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{UUID: m.deviceUUID},
+	}
 }
 
 func mockMatchesTags(expectedTags []string) interface{} {
@@ -1126,7 +1128,7 @@ func TestExcludedDevicesConfiguration(t *testing.T) {
 
 	assert.Equal(t, []string{includedDeviceUUID}, createdCollectorUUIDs)
 	require.Len(t, check.collectors, 1)
-	assert.Equal(t, includedDeviceUUID, check.collectors[0].DeviceUUID())
+	assert.Equal(t, includedDeviceUUID, check.collectors[0].Device().GetDeviceInfo().UUID)
 }
 
 func TestMetricsFollowSpec(t *testing.T) {

@@ -24,6 +24,7 @@ const (
 	defaultOTAgentImageTag           = "nightly-full-main-jmx"
 	jmxSuffix                        = "-jmx"
 	otelSuffix                       = "-7-full"
+	otelFIPSSuffix                   = "-7-fips-full"
 	fipsSuffix                       = "-fips"
 	linuxOnlySuffix                  = "-linux"
 )
@@ -63,10 +64,9 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 	if e.PipelineID() != "" && e.CommitSHA() != "" && imageTag == "" {
 		tag := fmt.Sprintf("%s-%s", e.PipelineID(), e.CommitSHA())
 		switch {
-		case useOtel && useFIPS && useJMX:
-			panic("Unsupported: no image with FIPS, JMX and OTel exists yet")
 		case useOtel && useFIPS:
-			panic("Unsupported: no image with FIPS and OTel exists yet")
+			// OTel full images are already Linux-only and include JMX.
+			tag += otelFIPSSuffix
 		case useLinuxOnly && useFIPS && useJMX:
 			tag += fipsSuffix + linuxOnlySuffix + jmxSuffix
 		case useLinuxOnly && useFIPS:
