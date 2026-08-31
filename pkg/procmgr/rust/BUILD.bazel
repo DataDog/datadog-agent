@@ -149,7 +149,10 @@ pkg_install(
 
 filegroup(
     name = "test_fixtures",
-    srcs = ["tests/fixtures/.marker"] + glob(["tests/fixtures/**"]),
+    srcs = ["tests/fixtures/.marker"] + glob(
+        ["tests/fixtures/**"],
+        exclude = ["tests/fixtures/.marker"],
+    ),
 )
 
 rust_test(
@@ -180,6 +183,7 @@ rust_test(
         ":dd-procmgr",
         ":dd-procmgrd",
         ":test_fixtures",
+        "tests/fixtures/.marker",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
     ],
     edition = "2024",
