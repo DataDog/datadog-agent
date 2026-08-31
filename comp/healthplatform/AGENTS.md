@@ -290,7 +290,9 @@ Required test cases:
 
 ### Integration tests with fakeintake — when the issue is self-contained
 
-Use a fakeintake-backed integration test when the issue can be triggered and verified entirely in-process — no provisioned VM or real agent binary needed. These live in **`comp/healthplatform/bundle_test.go`** alongside the existing bundle tests.
+Use a fakeintake-backed integration test when the issue can be triggered and verified entirely in-process — no provisioned VM or real agent binary needed. These live in package `healthplatform`, either in **`comp/healthplatform/bundle_test.go`** alongside the existing bundle tests or, for a module with more than one case to cover, in its own **`comp/healthplatform/<module>_integration_test.go`** (see `missedbytes_integration_test.go`).
+
+Assert only what the unit tests cannot: that the report became the right issue type and that whatever the bundle transforms on the way through (aggregation, `Extra` structuring, state transitions) survived. Re-asserting every proto field duplicates `issue_test.go` and makes every wording change a two-file edit.
 
 The pattern (see `TestIssueStateLifecycleForwarded`):
 1. Start an in-process fakeintake server: `fi := fakeintakeserver.NewServer(...); fi.Start()`
