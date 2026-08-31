@@ -780,7 +780,7 @@ properties:
         visibility: public
         description: |-
           Set to true to enable the Traceroute Module of the System Probe.
-          When this setting is unset, the module is enabled automatically if Network Performance Monitoring
+          When this setting is unset, the module is enabled automatically if Cloud Network Monitoring
           and either Standard or Basic Network Path Dynamic Tests are enabled. Set to false explicitly to
           prevent automatic enablement.
   runtime_security_config:

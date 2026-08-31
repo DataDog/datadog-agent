@@ -253,7 +253,7 @@ func load() (*types.Config, error) {
 
 // tracerouteEnabled reports whether the traceroute module should be enabled.
 // An explicit traceroute.enabled value always takes precedence. When the setting
-// is unset, CNM Dynamic Tests enable traceroute only when NPM is also enabled.
+// is unset, CNM Dynamic Tests enable traceroute only when CNM is also enabled.
 // It logs a warning when Dynamic Tests require traceroute but it was explicitly disabled.
 func tracerouteEnabled(cfg, coreCfg pkgconfigmodel.Reader, npmEnabled bool) bool {
 	dynamicTestsEnabled := coreCfg.GetBool("network_path.connections_monitoring.enabled") ||
