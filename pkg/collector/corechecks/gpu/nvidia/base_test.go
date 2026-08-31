@@ -110,7 +110,7 @@ func TestNewBaseCollector(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, collector)
-				require.Equal(t, testutil.GPUUUIDs[0], collector.DeviceUUID())
+				require.Equal(t, testutil.GPUUUIDs[0], collector.Device().GetDeviceInfo().UUID)
 				require.Equal(t, CollectorName("test"), collector.Name())
 			}
 		})
