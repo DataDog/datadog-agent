@@ -22,17 +22,16 @@
     - !reference [.except_mergequeue]
     - !reference [.manual]
   variables:
-    # SSH connection details for the AIX LPAR.
-    # TODO: move to Vault
-    AIX_HOST: "cloud3.siteox.com"
-    AIX_PORT: "42222"
-    AIX_USER: "root"
+    # SSH connection details for the AIX LPAR (fetched from Vault below).
     # Where the agent source is cloned on the AIX host.
     AIX_AGENT_SRC: "/opt/dd-build/datadog-agent"
     AIX_GIT_REMOTE: "https://github.com/DataDog/datadog-agent.git"
     GIT_DEPTH: 1
   before_script:
-    # Fetch the AIX host SSH private key from Vault and install it for this job.
+    # Fetch the AIX host SSH connection details and private key from Vault.
+    - export AIX_HOST="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER hostname)"
+    - export AIX_PORT="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER port)"
+    - export AIX_USER="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER user)"
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - touch ~/.ssh/aix_ci_key && chmod 600 ~/.ssh/aix_ci_key
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER key > ~/.ssh/aix_ci_key || exit $?
