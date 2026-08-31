@@ -642,9 +642,9 @@ deferred ForwarderTransport -- see: comp/forwarder/eventplatform
     -- Event-platform forwarder delivery semantics (HTTP intake selection,
     -- retry policy, backpressure, payload draining at shutdown) are owned
     -- by comp/forwarder/eventplatform and not specified here. The reporter
-    -- requires only that SendEventPlatformEventBlocking returns an error
-    -- when delivery fails synchronously; asynchronous failures are not
-    -- surfaced.
+    -- uses SendEventPlatformEvent so a full forwarder queue returns an error
+    -- instead of blocking the observer's advance loop; asynchronous failures
+    -- are not surfaced.
 
 deferred AnomalyProduction -- see: comp/anomalydetection/observer
     -- How Anomaly and Correlation values are produced (extractors,
