@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -60,6 +61,29 @@ func TestGoRoutines(t *testing.T) {
 	content, err := remoteProvider.getHTTPCallContent(ts.URL)
 	require.NoError(t, err)
 	assert.Equal(t, expected, string(content))
+}
+
+// Verifies the bearer token does not leak to the unauthenticated pprof endpoint (CLI flare goroutine dump).
+func TestGetGoRoutineDumpNoBearer(t *testing.T) {
+	var capturedAuth string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuth = r.Header.Get("Authorization")
+		fmt.Fprint(w, "goroutine dump")
+	}))
+	defer ts.Close()
+
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("expvar_port", u.Port())
+
+	ipcComp := ipcmock.New(t)
+	remoteProvider := RemoteFlareProvider{IPC: ipcComp}
+
+	_, err = remoteProvider.GetGoRoutineDump()
+	require.NoError(t, err)
+	assert.Empty(t, capturedAuth, "Bearer token must not be sent to unauthenticated pprof endpoint")
 }
 
 func createTestFile(t *testing.T, filename string) string {

@@ -6,6 +6,9 @@
 package profilerimpl
 
 import (
+	"context"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"runtime"
@@ -87,6 +90,33 @@ func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler
 	)
 
 	return deps.Comp.(profiler)
+}
+
+// Verifies the bearer token does not leak to the unauthenticated pprof endpoint (RC flare goroutine dump).
+func TestFillFlareGoRoutineDumpNoBearer(t *testing.T) {
+	var capturedAuth string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuth = r.Header.Get("Authorization")
+		fmt.Fprint(w, "goroutine dump")
+	}))
+	defer ts.Close()
+
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("expvar_port", u.Port())
+
+	ipcComp := ipcmock.New(t)
+	p := profiler{
+		cfg:       mockConfig,
+		ipcClient: ipcComp.GetClient(),
+	}
+
+	fb := helpers.NewFlareBuilderMockWithArgs(t, false, types.FlareArgs{})
+	err = p.fillFlare(context.Background(), fb)
+	require.NoError(t, err)
+	assert.Empty(t, capturedAuth, "Bearer token must not be sent to unauthenticated pprof endpoint")
 }
 
 func TestProfileSetting(t *testing.T) {

@@ -6,15 +6,22 @@
 package diagnose
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -158,4 +165,25 @@ func TestShowHealthIssuesCommand(t *testing.T) {
 		[]string{"diagnose", "show-metadata", "health-issues"},
 		printHealthPlatformIssues,
 		func(_ core.BundleParams) {})
+}
+
+// Verifies the bearer token does not leak to the unauthenticated /telemetry endpoint.
+func TestPrintAgentFullTelemetryNoBearer(t *testing.T) {
+	var capturedAuth string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuth = r.Header.Get("Authorization")
+		fmt.Fprint(w, "telemetry")
+	}))
+	defer ts.Close()
+
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("expvar_port", u.Port())
+
+	ipcComp := ipcmock.New(t)
+	err = printAgentFullTelemetry(cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+	assert.Empty(t, capturedAuth, "Bearer token must not be sent to unauthenticated telemetry endpoint")
 }
