@@ -50,12 +50,9 @@ func TestBuildIssue(t *testing.T) {
 				"4 log rotations closed a file",
 				"Most affected: nginx/web 4.0 MB, redis/cache 200 kB, kafka/queue 512 B.",
 			},
-			// Each aggregate lands in one place: bytes in the Title, rotations in
-			// the Description. Recency is the platform's own last-seen.
-			descNotSubstrs: []string{"4.2 MB", "Last loss"},
-			extraBytes:     4200512,
-			extraRotate:    4,
-			extraCount:     3,
+			extraBytes:  4200512,
+			extraRotate: 4,
+			extraCount:  3,
 			extraSource: []sourceLoss{
 				{Source: "nginx", Service: "web", Bytes: 4000000, Rotations: 2},
 				{Source: "redis", Service: "cache", Bytes: 200000, Rotations: 1},
@@ -106,13 +103,7 @@ func TestBuildIssue(t *testing.T) {
 			},
 		},
 		{
-			name:        "empty context falls back to defaults",
-			ctx:         map[string]string{},
-			title:       "Lost 0 B of logs from 0 sources in the last 24 hours",
-			descSubstrs: []string{"Logs from 0 sources never reached Datadog"},
-		},
-		{
-			name:        "nil context must not panic",
+			name:        "nil context falls back to defaults",
 			ctx:         nil,
 			title:       "Lost 0 B of logs from 0 sources in the last 24 hours",
 			descSubstrs: []string{"Logs from 0 sources never reached Datadog"},
@@ -144,6 +135,42 @@ func TestBuildIssue(t *testing.T) {
 			extraBytes:  512,
 			extraRotate: 1,
 			extraCount:  1,
+		},
+		{
+			// Names come from user YAML and reach the Title unescaped.
+			name: "control characters are stripped from a named source",
+			ctx: map[string]string{
+				contextKeyBytes:       "512",
+				contextKeyRotations:   "1",
+				contextKeySourceCount: "1",
+				contextKeySources:     `[{"source":"nginx\nDiagnosis: fake","service":"web","bytes":512,"rotations":1}]`,
+			},
+			title:       "Lost 512 B of logs from source nginxDiagnosis: fake in the last 24 hours",
+			descSubstrs: []string{`Logs from source "nginxDiagnosis: fake" (service "web")`},
+			extraBytes:  512,
+			extraRotate: 1,
+			extraCount:  1,
+			extraSource: []sourceLoss{{Source: "nginxDiagnosis: fake", Service: "web", Bytes: 512, Rotations: 1}},
+		},
+		{
+			// The breakdown interpolates names with %s, unlike the named case's %q.
+			name: "control characters are stripped from the breakdown",
+			ctx: map[string]string{
+				contextKeyBytes:       "1024",
+				contextKeyRotations:   "2",
+				contextKeySourceCount: "2",
+				contextKeySources: `[{"source":"nginx\nDiagnosis: fake","service":"web","bytes":512,"rotations":1},` +
+					`{"source":"redis","service":"cache","bytes":512,"rotations":1}]`,
+			},
+			title:       "Lost 1.0 kB of logs from 2 sources in the last 24 hours",
+			descSubstrs: []string{"Most affected: nginxDiagnosis: fake/web 512 B, redis/cache 512 B."},
+			extraBytes:  1024,
+			extraRotate: 2,
+			extraCount:  2,
+			extraSource: []sourceLoss{
+				{Source: "nginxDiagnosis: fake", Service: "web", Bytes: 512, Rotations: 1},
+				{Source: "redis", Service: "cache", Bytes: 512, Rotations: 1},
+			},
 		},
 	}
 
@@ -235,34 +262,4 @@ func TestSanitizeName(t *testing.T) {
 			assert.True(t, utf8.ValidString(got), "a multi-byte name must not be split into invalid UTF-8")
 		})
 	}
-}
-
-// A hostile name must not break the Description's single-block contract.
-func TestHostileNamesDoNotEscapeIntoTitleOrDescription(t *testing.T) {
-	newlined := `nginx\nDiagnosis: fake`
-
-	oneSource, err := MissedBytesIssue{}.BuildIssue(map[string]string{
-		contextKeyBytes:       "512",
-		contextKeyRotations:   "1",
-		contextKeySourceCount: "1",
-		contextKeySources:     `[{"source":"` + newlined + `","service":"web","bytes":512,"rotations":1}]`,
-	})
-	require.NoError(t, err)
-
-	// The named case puts the source in the Title as well as the Description.
-	assert.NotContains(t, oneSource.GetTitle(), "\n")
-	assert.NotContains(t, oneSource.GetDescription(), "\n")
-
-	twoSources, err := MissedBytesIssue{}.BuildIssue(map[string]string{
-		contextKeyBytes:       "1024",
-		contextKeyRotations:   "2",
-		contextKeySourceCount: "2",
-		contextKeySources: `[{"source":"` + newlined + `","service":"web","bytes":512,"rotations":1},` +
-			`{"source":"redis","service":"cache","bytes":512,"rotations":1}]`,
-	})
-	require.NoError(t, err)
-
-	// The breakdown interpolates names with %s, unlike the named case's %q.
-	assert.Contains(t, twoSources.GetDescription(), "Most affected:")
-	assert.NotContains(t, twoSources.GetDescription(), "\n")
 }

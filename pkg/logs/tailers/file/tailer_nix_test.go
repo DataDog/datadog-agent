@@ -24,8 +24,9 @@ import (
 )
 
 // A tailer with no filesystem or pipeline behind it; callers drive
-// StopAfterFileRotation directly.
-func newMissedBytesTailer(t *testing.T, readOffset int64) *Tailer {
+// StopAfterFileRotation directly. fileSize backs the handle that path stats to
+// size the loss.
+func newMissedBytesTailer(t *testing.T, readOffset, fileSize int64) *Tailer {
 	t.Helper()
 
 	const path = "rotated.log"
@@ -49,84 +50,55 @@ func newMissedBytesTailer(t *testing.T, readOffset int64) *Tailer {
 	})
 	tailer.lastReadOffset.Store(readOffset)
 	tailer.closeTimeout = 10 * time.Millisecond
+	tailer.osFile = opener.NewMockFile(path, [][]byte{make([]byte, fileSize)})
 
 	return tailer
 }
 
-// The goroutine signals t.stop after the accounting, so this synchronizes rather
-// than polls.
-func awaitRotationClose(t *testing.T, tailer *Tailer) {
-	t.Helper()
-	select {
-	case <-tailer.stop:
-	case <-time.After(10 * time.Second):
-		t.Fatal("rotation close goroutine never finished")
+func TestStopAfterFileRotationMissedBytes(t *testing.T) {
+	tests := []struct {
+		name       string
+		readOffset int64
+		fileSize   int64
+		// Read between the rotation and the close timeout. Non-zero is the
+		// pre-existing condition for a loss to be accounted at all.
+		readAfterRotation int64
+		wantBytes         int64
+	}{
+		{"loss is recorded against the source and service", 1024, 4096, 512, 3072},
+		{"a fully read file lost nothing", 4096, 4096, 512, 0},
+		{"a truncated file is unquantifiable, not lossless", 4096, 0, 512, 0},
+		{"nothing read after the rotation leaves the loss unreported", 1024, 4096, 0, 0},
 	}
-}
 
-// StopAfterFileRotation stats this handle to size the loss.
-func armRotationLoss(t *testing.T, tailer *Tailer, fileSize int64) {
-	t.Helper()
-	tailer.osFile = opener.NewMockFile(tailer.file.Path, [][]byte{make([]byte, fileSize)})
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			metrics.ResetMissedBytesForTest()
+			t.Cleanup(metrics.ResetMissedBytesForTest)
 
-// Drives a rotation where the tailer read n more bytes before the close timeout,
-// the pre-existing condition for the loss to be accounted at all.
-func stopAfterRotationHavingRead(t *testing.T, tailer *Tailer, n int64) {
-	t.Helper()
-	tailer.StopAfterFileRotation()
-	tailer.bytesRead.Add(n)
-	awaitRotationClose(t, tailer)
-}
+			tailer := newMissedBytesTailer(t, tc.readOffset, tc.fileSize)
+			tailer.StopAfterFileRotation()
+			tailer.bytesRead.Add(tc.readAfterRotation)
 
-func TestStopAfterFileRotationRecordsMissedBytes(t *testing.T) {
-	metrics.ResetMissedBytesForTest()
-	defer metrics.ResetMissedBytesForTest()
+			// The goroutine signals stop after the accounting, so this synchronizes
+			// rather than polls.
+			select {
+			case <-tailer.stop:
+			case <-time.After(10 * time.Second):
+				t.Fatal("rotation close goroutine never finished")
+			}
 
-	tailer := newMissedBytesTailer(t, 1024)
-	armRotationLoss(t, tailer, 4096)
-	stopAfterRotationHavingRead(t, tailer, 512)
+			summaries := metrics.MissedBytesSnapshot()
+			if tc.wantBytes == 0 {
+				require.Empty(t, summaries)
+				return
+			}
 
-	summaries := metrics.MissedBytesSnapshot()
-	require.Len(t, summaries, 1)
-	require.Equal(t, "missed-bytes-source", summaries[0].Source)
-	require.Equal(t, "missed-bytes-service", summaries[0].Service)
-	require.Equal(t, int64(3072), summaries[0].Bytes)
-	require.Equal(t, int64(1), summaries[0].Rotations)
-}
-
-// The common rotation: the tailer finished the file, so there is no loss.
-func TestStopAfterFileRotationFullyRead(t *testing.T) {
-	metrics.ResetMissedBytesForTest()
-	defer metrics.ResetMissedBytesForTest()
-
-	tailer := newMissedBytesTailer(t, 4096)
-	armRotationLoss(t, tailer, 4096)
-	stopAfterRotationHavingRead(t, tailer, 512)
-
-	require.Empty(t, metrics.MissedBytesSnapshot())
-}
-
-// The offset outruns the file: loss the tailer cannot quantify, not zero loss.
-func TestStopAfterFileRotationTruncated(t *testing.T) {
-	metrics.ResetMissedBytesForTest()
-	defer metrics.ResetMissedBytesForTest()
-
-	tailer := newMissedBytesTailer(t, 4096)
-	armRotationLoss(t, tailer, 0)
-	stopAfterRotationHavingRead(t, tailer, 512)
-
-	require.Empty(t, metrics.MissedBytesSnapshot())
-}
-
-// Pins the pre-existing gate: with no read after the rotation, loss goes unreported.
-func TestStopAfterFileRotationNothingReadAfterTimeout(t *testing.T) {
-	metrics.ResetMissedBytesForTest()
-	defer metrics.ResetMissedBytesForTest()
-
-	tailer := newMissedBytesTailer(t, 1024)
-	armRotationLoss(t, tailer, 4096)
-	stopAfterRotationHavingRead(t, tailer, 0)
-
-	require.Empty(t, metrics.MissedBytesSnapshot())
+			require.Len(t, summaries, 1)
+			require.Equal(t, "missed-bytes-source", summaries[0].Source)
+			require.Equal(t, "missed-bytes-service", summaries[0].Service)
+			require.Equal(t, tc.wantBytes, summaries[0].Bytes)
+			require.Equal(t, int64(1), summaries[0].Rotations)
+		})
+	}
 }

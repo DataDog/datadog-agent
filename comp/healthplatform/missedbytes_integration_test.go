@@ -87,11 +87,6 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 
-	const (
-		waitTimeout  = 5 * time.Second
-		waitInterval = 50 * time.Millisecond
-	)
-
 	var received *healthplatformpayload.Issue
 	require.Eventually(t, func() bool {
 		payloads, err := fiClient.GetAgentHealth()
@@ -105,7 +100,7 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 			}
 		}
 		return false
-	}, waitTimeout, waitInterval, "log-data-lost-after-rotation issue never reached fakeintake")
+	}, 5*time.Second, tickInterval, "log-data-lost-after-rotation issue never reached fakeintake")
 
 	// Field-level content is issue_test.go's job. Assert only what the trip changes:
 	// both tuples folded into one issue, breakdown arriving as objects not a string.

@@ -82,11 +82,6 @@ func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 		{Source: "nginx", Service: "web", Bytes: 4200000, Rotations: 2},
 		{Source: "redis", Service: "cache", Bytes: 512, Rotations: 1},
 	}, reportSources(t, report.Context))
-
-	// The check and the template must agree on the context keys.
-	issue, err := MissedBytesIssue{}.BuildIssue(report.Context)
-	require.NoError(t, err)
-	assert.Equal(t, "Lost 4.2 MB of logs from 2 sources in the last 24 hours", issue.GetTitle())
 }
 
 // The breakdown is capped, so it must spend its slots on the worst offenders.

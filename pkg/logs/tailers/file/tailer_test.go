@@ -695,58 +695,22 @@ func TestMissedBytesIdentity(t *testing.T) {
 	tests := []struct {
 		name            string
 		cfg             *config.LogsConfig
-		expectedSource  string
-		expectedService string
+		source, service string
 	}{
-		{
-			name:            "nil config",
-			cfg:             nil,
-			expectedSource:  "unknown",
-			expectedService: "unknown",
-		},
-		{
-			name:            "only the required fields are set",
-			cfg:             &config.LogsConfig{Type: config.FileType, Path: "/var/log/app.log"},
-			expectedSource:  "unknown",
-			expectedService: "unknown",
-		},
-		{
-			name:            "both set",
-			cfg:             &config.LogsConfig{Source: "nginx", Service: "web"},
-			expectedSource:  "nginx",
-			expectedService: "web",
-		},
-		{
-			name:            "service falls back to source",
-			cfg:             &config.LogsConfig{Source: "nginx"},
-			expectedSource:  "nginx",
-			expectedService: "nginx",
-		},
-		{
-			name:            "both fall back to the integration name",
-			cfg:             &config.LogsConfig{IntegrationName: "nginx-int"},
-			expectedSource:  "nginx-int",
-			expectedService: "nginx-int",
-		},
-		{
-			name:            "source falls back while service is set",
-			cfg:             &config.LogsConfig{IntegrationName: "nginx-int", Service: "web"},
-			expectedSource:  "nginx-int",
-			expectedService: "web",
-		},
-		{
-			name:            "source wins over the integration name",
-			cfg:             &config.LogsConfig{IntegrationName: "nginx-int", Source: "nginx"},
-			expectedSource:  "nginx",
-			expectedService: "nginx",
-		},
+		{"nil config", nil, "unknown", "unknown"},
+		{"only the required fields are set", &config.LogsConfig{Type: config.FileType, Path: "/var/log/app.log"}, "unknown", "unknown"},
+		{"both set", &config.LogsConfig{Source: "nginx", Service: "web"}, "nginx", "web"},
+		{"service falls back to source", &config.LogsConfig{Source: "nginx"}, "nginx", "nginx"},
+		{"both fall back to the integration name", &config.LogsConfig{IntegrationName: "nginx-int"}, "nginx-int", "nginx-int"},
+		{"source falls back while service is set", &config.LogsConfig{IntegrationName: "nginx-int", Service: "web"}, "nginx-int", "web"},
+		{"source wins over the integration name", &config.LogsConfig{IntegrationName: "nginx-int", Source: "nginx"}, "nginx", "nginx"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			source, service := missedBytesIdentity(tc.cfg)
-			require.Equal(t, tc.expectedSource, source)
-			require.Equal(t, tc.expectedService, service)
+			require.Equal(t, tc.source, source)
+			require.Equal(t, tc.service, service)
 		})
 	}
 }

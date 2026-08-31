@@ -20,7 +20,6 @@ import (
 	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
-// errLogsAgentNotRunning means the check cannot establish state either way.
 var errLogsAgentNotRunning = errors.New("missedbytes: logs agent not running")
 
 // maxBreakdownSources caps the tuples listed individually; totals cover them all.
