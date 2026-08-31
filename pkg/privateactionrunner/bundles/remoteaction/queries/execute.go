@@ -8,13 +8,11 @@ package com_datadoghq_remoteaction_queries
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"google.golang.org/grpc"
 
@@ -24,9 +22,16 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
+// remoteQueryOperationProduceJSONPages is the one supported integration operation: the
+// integration produces bounded JSON page files and uploads them directly to
+// its-agent-intake. The AP input carries no operation field; the native request mapping
+// emits it.
+const remoteQueryOperationProduceJSONPages = "produce_json_pages"
+
 // BridgeClient is the narrow AgentSecure gRPC client surface required by this action.
+// Only the streaming RPC exists: bulk result bytes never traverse AgentSecure, so there
+// is no unary inline-result call.
 type BridgeClient interface {
-	RemoteQueryExecute(ctx context.Context, in *pb.RemoteQueryExecuteRequest, opts ...grpc.CallOption) (*pb.RemoteQueryExecuteResponse, error)
 	RemoteQueryExecuteStream(ctx context.Context, in *pb.RemoteQueryExecuteRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error)
 }
 
@@ -41,26 +46,39 @@ func NewExecuteAction(newBridgeClient BridgeClientFactory) *ExecuteAction {
 	return &ExecuteAction{newBridgeClient: newBridgeClient}
 }
 
+// ExecuteInputs is the AP action input injected by the backend: the integration,
+// target, query, the explicit includeSchema flag, and the backend-owned
+// resultDelivery (authoritative run/task identity, artifact version, scoped upload
+// instructions, and effective limits). The input carries no credentials: the org
+// API/application keys are read by the integration from Agent config, and the upload
+// token is scoped by the intake to the run session.
 type ExecuteInputs struct {
 	Integration    string                `json:"integration"`
-	Operation      string                `json:"operation,omitempty"`
 	Target         TargetInputs          `json:"target"`
 	Query          string                `json:"query"`
-	Format         string                `json:"format,omitempty"`
-	Limits         *LimitsInputs         `json:"limits,omitempty"`
-	CopyLimits     *CopyLimitsInputs     `json:"copyLimits,omitempty"`
-	ResultDelivery *ResultDeliveryInputs `json:"resultDelivery,omitempty"`
+	IncludeSchema  bool                  `json:"includeSchema"`
+	ResultDelivery *ResultDeliveryInputs `json:"resultDelivery"`
 }
 
 type ResultDeliveryInputs struct {
-	Mode        string `json:"mode"`
-	UploadID    string `json:"uploadId"`
-	BaseURL     string `json:"baseUrl"`
-	Token       string `json:"token"`
-	PartBytes   int    `json:"partBytes"`
-	MaxBytes    int    `json:"maxBytes"`
-	Format      string `json:"format"`
-	Compression string `json:"compression"`
+	RunID           string                `json:"runId"`
+	TaskID          string                `json:"taskId"`
+	ArtifactVersion int64                 `json:"artifactVersion"`
+	UploadID        string                `json:"uploadId"`
+	BaseURL         string                `json:"baseUrl"`
+	Token           string                `json:"token"`
+	PartBytes       int64                 `json:"partBytes"`
+	Limits          *DeliveryLimitsInputs `json:"limits"`
+}
+
+type DeliveryLimitsInputs struct {
+	MaxFileBytes   int64 `json:"maxFileBytes"`
+	MaxResultBytes int64 `json:"maxResultBytes"`
+	MaxRowBytes    int64 `json:"maxRowBytes"`
+	MaxColumns     int64 `json:"maxColumns"`
+	MaxSchemaBytes int64 `json:"maxSchemaBytes"`
+	MaxPages       int64 `json:"maxPages"`
+	TimeoutMs      int64 `json:"timeoutMs"`
 }
 
 type TargetInputs struct {
@@ -108,19 +126,6 @@ func (t *TargetInputs) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type LimitsInputs struct {
-	MaxRows   int `json:"maxRows"`
-	MaxBytes  int `json:"maxBytes"`
-	TimeoutMs int `json:"timeoutMs"`
-}
-
-type CopyLimitsInputs struct {
-	ChunkBytes  int `json:"chunkBytes"`
-	MaxBytes    int `json:"maxBytes"`
-	MaxRowBytes int `json:"maxRowBytes"`
-	TimeoutMs   int `json:"timeoutMs"`
-}
-
 func validateTargetInputs(target TargetInputs) error {
 	databaseInstance := target.DatabaseInstance
 	hasHost := strings.TrimSpace(target.Host) != ""
@@ -147,6 +152,19 @@ func validateTargetInputs(target TargetInputs) error {
 	return nil
 }
 
+// validateDeliveryInputs performs the structural presence checks the bundle can do
+// without duplicating the Agent's authoritative value validation: a run cannot produce
+// page files without the backend-injected upload handle and limits.
+func validateDeliveryInputs(delivery *ResultDeliveryInputs) error {
+	if delivery == nil {
+		return errors.New("resultDelivery is required")
+	}
+	if delivery.Limits == nil {
+		return errors.New("resultDelivery.limits is required")
+	}
+	return nil
+}
+
 func (a *ExecuteAction) Run(
 	ctx context.Context,
 	task *types.Task,
@@ -162,6 +180,12 @@ func (a *ExecuteAction) Run(
 	}
 
 	if err := validateTargetInputs(inputs.Target); err != nil {
+		return nil, util.DefaultActionErrorWithDisplayError(
+			errors.New("invalid remote query action inputs"),
+			"invalid remote query action inputs",
+		)
+	}
+	if err := validateDeliveryInputs(inputs.ResultDelivery); err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(
 			errors.New("invalid remote query action inputs"),
 			"invalid remote query action inputs",
@@ -184,75 +208,75 @@ func (a *ExecuteAction) Run(
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
 	}
-	rpcCreatedAt := time.Now()
-	output, err := remoteQueryExecuteOutputFromStream(stream, inputs.Format)
+	output, err := remoteQueryExecuteOutputFromStream(stream, inputs.ResultDelivery.UploadID)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC response was invalid")
 	}
 	if timing, ok := output["stream_timing"].(map[string]interface{}); ok {
 		now := time.Now()
 		timing["action_total_ms"] = durationMillis(now.Sub(actionStart))
-		timing["rpc_create_ms"] = durationMillis(rpcCreatedAt.Sub(rpcStart))
-		timing["rpc_receive_and_assemble_ms"] = durationMillis(now.Sub(rpcCreatedAt))
+		timing["rpc_create_ms"] = durationMillis(now.Sub(rpcStart))
 	}
 	return output, nil
 }
 
+// remoteQueryExecuteRequestFromInputs maps the AP action input to the credential-free
+// AgentSecure request. The fixed operation is emitted by the Agent's native request
+// mapping; the bundle carries the integration, target, query, the explicit includeSchema
+// flag, and the backend-owned result delivery.
 func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryExecuteRequest {
 	req := &pb.RemoteQueryExecuteRequest{
 		Integration: inputs.Integration,
-		Operation:   inputs.Operation,
-		Format:      inputs.Format,
 		Target: &pb.RemoteQueryTarget{
 			Host:             inputs.Target.Host,
 			Port:             int32(inputs.Target.Port),
 			Dbname:           inputs.Target.DBName,
 			DatabaseInstance: inputs.Target.DatabaseInstance,
 		},
-		Query: inputs.Query,
+		Query:         inputs.Query,
+		IncludeSchema: inputs.IncludeSchema,
 	}
-	if inputs.Limits != nil {
-		req.Limits = &pb.RemoteQueryExecuteLimits{
-			MaxRows:   int32(inputs.Limits.MaxRows),
-			MaxBytes:  int32(inputs.Limits.MaxBytes),
-			TimeoutMs: int32(inputs.Limits.TimeoutMs),
+	if delivery := inputs.ResultDelivery; delivery != nil {
+		protoDelivery := &pb.RemoteQueryResultDelivery{
+			RunId:           delivery.RunID,
+			TaskId:          delivery.TaskID,
+			ArtifactVersion: int32(delivery.ArtifactVersion),
+			UploadId:        delivery.UploadID,
+			BaseUrl:         delivery.BaseURL,
+			Token:           delivery.Token,
+			PartBytes:       delivery.PartBytes,
 		}
-	}
-	if inputs.CopyLimits != nil {
-		req.CopyLimits = &pb.RemoteQueryExecuteCopyLimits{
-			ChunkBytes:  int32(inputs.CopyLimits.ChunkBytes),
-			MaxBytes:    int64(inputs.CopyLimits.MaxBytes),
-			MaxRowBytes: int32(inputs.CopyLimits.MaxRowBytes),
-			TimeoutMs:   int32(inputs.CopyLimits.TimeoutMs),
+		if limits := delivery.Limits; limits != nil {
+			protoDelivery.Limits = &pb.RemoteQueryUploadLimits{
+				MaxFileBytes:   limits.MaxFileBytes,
+				MaxResultBytes: limits.MaxResultBytes,
+				MaxRowBytes:    limits.MaxRowBytes,
+				MaxColumns:     limits.MaxColumns,
+				MaxSchemaBytes: limits.MaxSchemaBytes,
+				MaxPages:       limits.MaxPages,
+				TimeoutMs:      limits.TimeoutMs,
+			}
 		}
-	}
-	if inputs.ResultDelivery != nil {
-		req.ResultDelivery = &pb.RemoteQueryResultDelivery{
-			Mode:        inputs.ResultDelivery.Mode,
-			UploadId:    inputs.ResultDelivery.UploadID,
-			BaseUrl:     inputs.ResultDelivery.BaseURL,
-			Token:       inputs.ResultDelivery.Token,
-			PartBytes:   int32(inputs.ResultDelivery.PartBytes),
-			MaxBytes:    int64(inputs.ResultDelivery.MaxBytes),
-			Format:      inputs.ResultDelivery.Format,
-			Compression: inputs.ResultDelivery.Compression,
-		}
+		req.ResultDelivery = protoDelivery
 	}
 	return req
 }
 
-func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], requestedFormat string) (map[string]interface{}, error) {
+// remoteQueryExecuteOutputFromStream consumes the AgentSecure stream and builds the
+// receipt-only AP output. The stream carries progress metadata, the final compact run
+// receipt, and errors; there is no result-byte path, so the output never contains bulk
+// data. A successful final must carry the compact receipt, and its uploadId must match
+// the injected upload session.
+func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], requestedUploadID string) (map[string]interface{}, error) {
 	if stream == nil {
 		return nil, errors.New("remote query response stream missing")
 	}
 
-	typedStreamEvents := make([]map[string]interface{}, 0)
+	attributes := map[string]interface{}{}
+	var finalEvent *pb.RemoteQueryStreamFinal
+	var errorEvent *pb.RemoteQueryStreamError
 	streamStart := time.Now()
-	var firstChunkAt time.Time
-	var firstDataAt time.Time
 	var finalChunkAt time.Time
-	payloadBytes := 0
-	dataChunksReceived := 0
 	expectedChunkIndex := int32(0)
 	seenFinal := false
 	for {
@@ -266,9 +290,6 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		if chunk == nil {
 			return nil, errors.New("remote query response stream returned nil chunk")
 		}
-		if firstChunkAt.IsZero() {
-			firstChunkAt = time.Now()
-		}
 		if chunk.GetChunkIndex() != expectedChunkIndex {
 			return nil, errors.New("remote query response stream chunk index mismatch")
 		}
@@ -276,20 +297,18 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 			return nil, errors.New("remote query response stream sent chunk after final")
 		}
 		if event := chunk.GetEvent(); event != nil {
-			streamEvent, err := remoteQueryStreamEventFromProto(event)
-			if err != nil {
-				return nil, err
+			switch e := event.GetEvent().(type) {
+			case *pb.RemoteQueryExecuteStreamEvent_Metadata:
+				mergeStringAttributes(attributes, e.Metadata.GetAttributes())
+			case *pb.RemoteQueryExecuteStreamEvent_Final:
+				finalEvent = e.Final
+				mergeStringAttributes(attributes, e.Final.GetAttributes())
+			case *pb.RemoteQueryExecuteStreamEvent_Error:
+				errorEvent = e.Error
+				mergeStringAttributes(attributes, e.Error.GetAttributes())
+			default:
+				return nil, errors.New("remote query response stream contained unknown event")
 			}
-			if streamEvent["type"] == "data" {
-				if firstDataAt.IsZero() {
-					firstDataAt = time.Now()
-				}
-				if payload, ok := streamEvent["payload"].([]byte); ok {
-					payloadBytes += len(payload)
-				}
-				dataChunksReceived++
-			}
-			typedStreamEvents = append(typedStreamEvents, streamEvent)
 		} else if !chunk.GetFinal() {
 			return nil, errors.New("remote query response stream chunk missing typed event")
 		}
@@ -302,42 +321,73 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	if !seenFinal {
 		return nil, errors.New("remote query response stream missing final chunk")
 	}
-	if len(typedStreamEvents) == 0 {
-		return nil, errors.New("remote query response stream missing typed events")
-	}
-	output, err := remoteQueryExecuteOutputFromTypedEvents(typedStreamEvents, requestedFormat)
-	if err != nil {
-		return nil, err
-	}
-	if _, isError := output["error"]; !isError {
-		if _, isUpload := output["uploadReceipt"]; !isUpload {
-			output["stream_summary"] = map[string]interface{}{
-				"payload_bytes":   payloadBytes,
-				"chunks_received": dataChunksReceived,
+
+	if finalEvent == nil {
+		// Terminal-error propagation: an error event replaces the final event and the
+		// run reports no receipt.
+		if errorEvent != nil {
+			out := remoteQueryErrorOutput(errorEvent)
+			if len(attributes) > 0 {
+				out["attributes"] = attributes
 			}
-			if payloadBytes > 0 {
-				output["stream_timing"] = remoteQueryStreamTiming(streamStart, firstChunkAt, firstDataAt, finalChunkAt, payloadBytes, dataChunksReceived)
-			}
+			return out, nil
+		}
+		return nil, errors.New("remote query response stream missing final event")
+	}
+	if errorEvent != nil {
+		return nil, errors.New("remote query response stream sent both final and error events")
+	}
+	if finalEvent.GetStatus() == "" {
+		return nil, errors.New("remote query response stream final event missing status")
+	}
+
+	receipt := finalEvent.GetUploadReceipt()
+	if receipt == nil {
+		return nil, errors.New("remote query response stream final event missing upload receipt")
+	}
+	if receipt.GetUploadId() == "" {
+		return nil, errors.New("remote query upload receipt missing uploadId")
+	}
+	if requestedUploadID != "" && receipt.GetUploadId() != requestedUploadID {
+		return nil, errors.New("remote query upload receipt uploadId does not match the requested upload session")
+	}
+
+	output := map[string]interface{}{
+		"status": finalEvent.GetStatus(),
+		"uploadReceipt": map[string]interface{}{
+			"uploadId":   receipt.GetUploadId(),
+			"pageCount":  receipt.GetPageCount(),
+			"totalRows":  receipt.GetTotalRows(),
+			"totalBytes": receipt.GetTotalBytes(),
+		},
+	}
+	if len(attributes) > 0 {
+		output["attributes"] = attributes
+	}
+	if !finalChunkAt.IsZero() {
+		output["stream_timing"] = map[string]interface{}{
+			"final_chunk_ms": durationMillis(finalChunkAt.Sub(streamStart)),
+			"stream_loop_ms": durationMillis(time.Since(streamStart)),
 		}
 	}
 	return output, nil
 }
 
-func remoteQueryStreamTiming(streamStart time.Time, firstChunkAt time.Time, firstDataAt time.Time, finalChunkAt time.Time, payloadBytes int, chunksReceived int) map[string]interface{} {
-	streamEnd := time.Now()
-	dataDuration := finalChunkAt.Sub(firstDataAt)
-	if firstDataAt.IsZero() || finalChunkAt.IsZero() {
-		dataDuration = 0
-	}
+// remoteQueryErrorOutput propagates a terminal error event without a receipt.
+func remoteQueryErrorOutput(errEvent *pb.RemoteQueryStreamError) map[string]interface{} {
 	return map[string]interface{}{
-		"payload_bytes":                payloadBytes,
-		"chunks_received":              chunksReceived,
-		"first_chunk_latency_ms":       durationMillis(firstChunkAt.Sub(streamStart)),
-		"first_data_latency_ms":        durationMillis(firstDataAt.Sub(streamStart)),
-		"data_to_final_ms":             durationMillis(dataDuration),
-		"stream_loop_total_ms":         durationMillis(streamEnd.Sub(streamStart)),
-		"data_to_final_mib_per_second": mibPerSecond(payloadBytes, dataDuration),
-		"stream_loop_mib_per_second":   mibPerSecond(payloadBytes, streamEnd.Sub(streamStart)),
+		"status": errEvent.GetCode(),
+		"error": map[string]interface{}{
+			"code":      errEvent.GetCode(),
+			"message":   errEvent.GetMessage(),
+			"retryable": errEvent.GetRetryable(),
+		},
+	}
+}
+
+func mergeStringAttributes(out map[string]interface{}, attrs map[string]string) {
+	for key, value := range attrs {
+		out[key] = value
 	}
 }
 
@@ -346,149 +396,4 @@ func durationMillis(duration time.Duration) float64 {
 		return 0
 	}
 	return duration.Seconds() * 1000
-}
-
-func mibPerSecond(bytes int, duration time.Duration) float64 {
-	if bytes <= 0 || duration <= 0 {
-		return 0
-	}
-	return (float64(bytes) / 1024 / 1024) / duration.Seconds()
-}
-
-func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (map[string]interface{}, error) {
-	out := map[string]interface{}{"sequence": event.GetSequence()}
-	switch e := event.GetEvent().(type) {
-	case *pb.RemoteQueryExecuteStreamEvent_Metadata:
-		out["type"] = "metadata"
-		out["operation"] = e.Metadata.GetOperation()
-		out["integration"] = e.Metadata.GetIntegration()
-		out["format"] = e.Metadata.GetFormat()
-		if len(e.Metadata.GetAttributes()) > 0 {
-			out["attributes"] = e.Metadata.GetAttributes()
-		}
-	case *pb.RemoteQueryExecuteStreamEvent_Data:
-		out["type"] = "data"
-		payload := append([]byte(nil), e.Data.GetPayload()...)
-		out["payload"] = payload
-		out["offset"] = e.Data.GetOffset()
-		out["bytes"] = e.Data.GetBytes()
-	case *pb.RemoteQueryExecuteStreamEvent_Final:
-		out["type"] = "final"
-		out["status"] = e.Final.GetStatus()
-		out["bytes_emitted"] = e.Final.GetBytesEmitted()
-		out["chunks_emitted"] = e.Final.GetChunksEmitted()
-		if receipt := e.Final.GetUploadReceipt(); receipt != nil {
-			out["upload_receipt"] = map[string]interface{}{
-				"mode":       receipt.GetMode(),
-				"uploadId":   receipt.GetUploadId(),
-				"bucketName": receipt.GetBucketName(),
-				"objectPath": receipt.GetObjectPath(),
-				"totalBytes": receipt.GetTotalBytes(),
-				"totalRows":  receipt.GetTotalRows(),
-				"partCount":  receipt.GetPartCount(),
-				"sha256":     receipt.GetSha256(),
-			}
-		}
-		if len(e.Final.GetAttributes()) > 0 {
-			out["attributes"] = e.Final.GetAttributes()
-		}
-	case *pb.RemoteQueryExecuteStreamEvent_Error:
-		out["type"] = "error"
-		out["code"] = e.Error.GetCode()
-		out["message"] = e.Error.GetMessage()
-		out["retryable"] = e.Error.GetRetryable()
-		if len(e.Error.GetAttributes()) > 0 {
-			out["attributes"] = e.Error.GetAttributes()
-		}
-	default:
-		return nil, errors.New("remote query stream response contained unknown event")
-	}
-	return out, nil
-}
-
-func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}, requestedFormat string) (map[string]interface{}, error) {
-	var finalEvent map[string]interface{}
-	var errorEvent map[string]interface{}
-	var data bytes.Buffer
-	resultFormat := strings.TrimSpace(requestedFormat)
-	for _, event := range events {
-		switch event["type"] {
-		case "metadata":
-			if format, ok := event["format"].(string); ok && strings.TrimSpace(format) != "" {
-				resultFormat = format
-			}
-		case "data":
-			if payload, ok := event["payload"].([]byte); ok {
-				_, _ = data.Write(payload)
-			}
-		case "final":
-			finalEvent = event
-		case "error":
-			errorEvent = event
-		}
-	}
-	if finalEvent == nil {
-		if errorEvent != nil {
-			code, _ := errorEvent["code"].(string)
-			message, _ := errorEvent["message"].(string)
-			return map[string]interface{}{
-				"status": code,
-				"error":  map[string]interface{}{"code": code, "message": message},
-			}, nil
-		}
-		return nil, errors.New("remote query stream response missing final event")
-	}
-	if receipt, ok := finalEvent["upload_receipt"].(map[string]interface{}); ok {
-		return remoteQueryUploadOutput(finalEvent, receipt, resultFormat), nil
-	}
-	status, _ := finalEvent["status"].(string)
-	if status == "" {
-		return nil, errors.New("remote query stream final event missing status")
-	}
-	dataBytes := data.Bytes()
-	output := map[string]interface{}{
-		"status": status,
-		"bytes":  len(dataBytes),
-	}
-	if resultFormat != "" {
-		output["format"] = resultFormat
-	}
-	if strings.EqualFold(resultFormat, "binary") || !utf8.Valid(dataBytes) {
-		if resultFormat == "" {
-			output["format"] = "binary"
-		}
-		output["encoding"] = "base64"
-		output["data_base64"] = base64.StdEncoding.EncodeToString(dataBytes)
-		return output, nil
-	}
-	output["encoding"] = "utf8"
-	output["data"] = string(dataBytes)
-	return output, nil
-}
-
-// remoteQueryUploadOutput builds the compact upload-mode output: top-level status, bytes,
-// format, encoding plus the nested uploadReceipt. It never includes bulk data or data_base64.
-func remoteQueryUploadOutput(finalEvent map[string]interface{}, receipt map[string]interface{}, format string) map[string]interface{} {
-	status, _ := finalEvent["status"].(string)
-	if format == "" {
-		format = "csv"
-	}
-	return map[string]interface{}{
-		"status": status,
-		"bytes":  receipt["totalBytes"],
-		"format": format,
-		// encoding is the payload encoding (AP metadata: utf-8/base64). CSV receipt mode is
-		// utf-8; compression is reported separately by the intake receipt, not here.
-		"encoding": "utf-8",
-		"uploadReceipt": map[string]interface{}{
-			"mode":       receipt["mode"],
-			"uploadId":   receipt["uploadId"],
-			"bucketName": receipt["bucketName"],
-			"objectPath": receipt["objectPath"],
-			"totalBytes": receipt["totalBytes"],
-			"totalRows":  receipt["totalRows"],
-			"partCount":  receipt["partCount"],
-			"sha256":     receipt["sha256"],
-		},
-	}
 }

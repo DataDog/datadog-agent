@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -21,73 +20,162 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	testRunID    = "run-01k"
+	testTaskID   = "task-01k"
+	testUploadID = "upload-01k"
+	testBaseURL  = "https://dd.datad0g.com/api/unstable/its-agent-intake"
+	testToken    = "scoped-upload-token"
+)
+
+func resultDeliveryInputs() map[string]interface{} {
+	return map[string]interface{}{
+		"runId":           testRunID,
+		"taskId":          testTaskID,
+		"artifactVersion": 1,
+		"uploadId":        testUploadID,
+		"baseUrl":         testBaseURL,
+		"token":           testToken,
+		"partBytes":       8388608,
+		"limits": map[string]interface{}{
+			"maxFileBytes":   33554432,
+			"maxResultBytes": 10737418240,
+			"maxRowBytes":    33554432,
+			"maxColumns":     1024,
+			"maxSchemaBytes": 1048576,
+			"maxPages":       128,
+			"timeoutMs":      30000,
+		},
+	}
+}
+
+func metadataEvent(sequence uint64) *pb.RemoteQueryExecuteChunk {
+	return &pb.RemoteQueryExecuteChunk{
+		ChunkIndex: int32(sequence),
+		Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: sequence, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{
+			Operation:   remoteQueryOperationProduceJSONPages,
+			Integration: "postgres",
+			Attributes:  map[string]string{"status": "STARTED", "includeSchema": "true"},
+		}}},
+	}
+}
+
+func finalEvent(sequence uint64, receipt *pb.RemoteQueryUploadReceipt, attributes map[string]string) *pb.RemoteQueryExecuteChunk {
+	return &pb.RemoteQueryExecuteChunk{
+		ChunkIndex: int32(sequence),
+		Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: sequence, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
+			Status:        "SUCCEEDED",
+			UploadReceipt: receipt,
+			Attributes:    attributes,
+		}}},
+	}
+}
+
+func validReceipt() *pb.RemoteQueryUploadReceipt {
+	return &pb.RemoteQueryUploadReceipt{
+		UploadId:   testUploadID,
+		PageCount:  3,
+		TotalRows:  123456,
+		TotalBytes: 987654,
+	}
+}
+
+func finalMarker(sequence uint64) *pb.RemoteQueryExecuteChunk {
+	return &pb.RemoteQueryExecuteChunk{ChunkIndex: int32(sequence), Final: true}
+}
+
 func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Integration: "postgres", Format: "csv"}}}, ChunkIndex: 0},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte("Beautiful city of lights,France\nNew York,USA\n"), Offset: 0, Bytes: 42}}}, ChunkIndex: 1},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 2, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: 42, ChunksEmitted: 1}}}, ChunkIndex: 2},
-		{ChunkIndex: 3, Final: true},
+		metadataEvent(0),
+		finalEvent(1, validReceipt(), map[string]string{"agent_total_stream_ms": "12.345", "stats.rowsEmitted": "123456"}),
+		finalMarker(2),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) {
 		return client, nil
 	})
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration": "postgres",
-		"operation":   "copy_stream",
-		"format":      "csv",
-		"target": map[string]interface{}{
-			"host":   "localhost",
-			"port":   5432,
-			"dbname": "postgres",
-		},
-		"query": "SELECT city, country FROM cities ORDER BY city",
-		"copyLimits": map[string]interface{}{
-			"chunkBytes":  1024,
-			"maxBytes":    1024,
-			"maxRowBytes": 1024,
-			"timeoutMs":   1000,
-		},
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT city, country FROM cities ORDER BY city",
+		"includeSchema":  true,
+		"resultDelivery": resultDeliveryInputs(),
 	}), &privateconnection.PrivateCredentials{Tokens: []privateconnection.PrivateCredentialsToken{{Name: "password", Value: "secret-value"}}})
 
 	require.NoError(t, err)
 	require.NotNil(t, client.request)
 	assert.Equal(t, "postgres", client.request.GetIntegration())
-	assert.Equal(t, "copy_stream", client.request.GetOperation())
-	assert.Equal(t, "csv", client.request.GetFormat())
 	assert.Equal(t, "localhost", client.request.GetTarget().GetHost())
 	assert.Equal(t, int32(5432), client.request.GetTarget().GetPort())
 	assert.Equal(t, "postgres", client.request.GetTarget().GetDbname())
 	assert.Equal(t, "SELECT city, country FROM cities ORDER BY city", client.request.GetQuery())
-	assert.Equal(t, int32(1024), client.request.GetCopyLimits().GetChunkBytes())
+	assert.True(t, client.request.GetIncludeSchema())
+
+	// The AgentSecure request carries only the typed paged-JSON contract fields: no
+	// operation, format, or COPY-era field. The fixed operation is emitted by the
+	// Agent's native request mapping after the request crosses the boundary.
+	delivery := client.request.GetResultDelivery()
+	require.NotNil(t, delivery)
+	assert.Equal(t, testRunID, delivery.GetRunId())
+	assert.Equal(t, testTaskID, delivery.GetTaskId())
+	assert.Equal(t, int32(1), delivery.GetArtifactVersion())
+	assert.Equal(t, testUploadID, delivery.GetUploadId())
+	assert.Equal(t, testBaseURL, delivery.GetBaseUrl())
+	assert.Equal(t, testToken, delivery.GetToken())
+	assert.Equal(t, int64(8388608), delivery.GetPartBytes())
+	require.NotNil(t, delivery.GetLimits())
+	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxFileBytes())
+	assert.Equal(t, int64(10737418240), delivery.GetLimits().GetMaxResultBytes())
+	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxRowBytes())
+	assert.Equal(t, int64(1024), delivery.GetLimits().GetMaxColumns())
+	assert.Equal(t, int64(1048576), delivery.GetLimits().GetMaxSchemaBytes())
+	assert.Equal(t, int64(128), delivery.GetLimits().GetMaxPages())
+	assert.Equal(t, int64(30000), delivery.GetLimits().GetTimeoutMs())
+
+	// The scoped upload token and base URL are forwarded inside the delivery handle;
+	// the private credential tokens never reach the AgentSecure request.
 	requestEvidence, err := json.Marshal(client.request)
 	require.NoError(t, err)
+	assert.Contains(t, string(requestEvidence), testToken)
+	assert.Contains(t, string(requestEvidence), testBaseURL)
 	assert.NotContains(t, string(requestEvidence), "secret-value")
+
 	out, ok := output.(map[string]interface{})
 	require.True(t, ok)
-	expectedData := "Beautiful city of lights,France\nNew York,USA\n"
 	assert.Equal(t, "SUCCEEDED", out["status"])
-	assert.Equal(t, "csv", out["format"])
-	assert.Equal(t, "utf8", out["encoding"])
-	assert.Equal(t, len(expectedData), out["bytes"])
-	assert.Equal(t, expectedData, out["data"])
-	assertNoPayloadDuplicateFields(t, out)
-	assert.NotContains(t, out, "data_base64")
+	receipt, ok := out["uploadReceipt"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, map[string]interface{}{
+		"uploadId":   testUploadID,
+		"pageCount":  int64(3),
+		"totalRows":  int64(123456),
+		"totalBytes": int64(987654),
+	}, receipt)
+	attributes, ok := out["attributes"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "STARTED", attributes["status"])
+	assert.Equal(t, "true", attributes["includeSchema"])
+	assert.Equal(t, "12.345", attributes["agent_total_stream_ms"])
+	assert.Equal(t, "123456", attributes["stats.rowsEmitted"])
+	assertNoBulkDataFields(t, out)
+
+	encoded, err := json.Marshal(out)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), testToken)
 }
 
 func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED"}}}, ChunkIndex: 0},
-		{ChunkIndex: 1, Final: true},
+		finalEvent(0, validReceipt(), nil),
+		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration": "postgres",
-		"operation":   "copy_stream",
-		"format":      "csv",
-		"target":      map[string]interface{}{"database_instance": "Rq-Proof-A1-DB1"},
-		"query":       "SELECT city, country FROM cities ORDER BY city",
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"database_instance": "Rq-Proof-A1-DB1"},
+		"query":          "SELECT city, country FROM cities ORDER BY city",
+		"resultDelivery": resultDeliveryInputs(),
 	}), nil)
 
 	require.NoError(t, err)
@@ -121,10 +209,10 @@ func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.
 			})
 
 			_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-				"integration": "postgres",
-				"operation":   "copy_stream",
-				"target":      tt.target,
-				"query":       "SELECT city, country FROM cities ORDER BY city",
+				"integration":    "postgres",
+				"target":         tt.target,
+				"query":          "SELECT city, country FROM cities ORDER BY city",
+				"resultDelivery": resultDeliveryInputs(),
 			}), nil)
 
 			require.Error(t, err)
@@ -136,123 +224,173 @@ func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.
 	}
 }
 
-func TestExecuteActionReturnsCompactCSVOutputWithoutPayloadEvents(t *testing.T) {
-	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Format: "csv"}}}, ChunkIndex: 0},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte("Beautiful city of lights,France\n"), Offset: 0, Bytes: 32}}}, ChunkIndex: 1},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 2, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte("New York,USA\n"), Offset: 32, Bytes: 13}}}, ChunkIndex: 2},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 3, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: 45}}}, ChunkIndex: 3},
-		{ChunkIndex: 4, Final: true},
-	}}
-	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+// TestExecuteActionRejectsMissingResultDeliveryBeforeRPC proves a run cannot dispatch
+// without the backend-injected upload handle: there is no inline fallback path.
+func TestExecuteActionRejectsMissingResultDeliveryBeforeRPC(t *testing.T) {
+	tests := []struct {
+		name           string
+		resultDelivery map[string]interface{}
+	}{
+		{name: "missing delivery", resultDelivery: nil},
+		{name: "missing limits", resultDelivery: map[string]interface{}{
+			"runId": testRunID, "taskId": testTaskID, "artifactVersion": 1,
+			"uploadId": testUploadID, "baseUrl": testBaseURL, "token": testToken, "partBytes": 8388608,
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			action := NewExecuteAction(func() (BridgeClient, error) {
+				require.Fail(t, "bridge client should not be created without resultDelivery")
+				return nil, nil
+			})
 
-	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration": "postgres",
-		"operation":   "copy_stream",
-		"format":      "csv",
-		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-		"query":       "SELECT city, country FROM cities ORDER BY city",
-		"copyLimits":  map[string]interface{}{"chunkBytes": 32, "maxBytes": 1024, "maxRowBytes": 1024, "timeoutMs": 1000},
-	}), nil)
+			inputs := map[string]interface{}{
+				"integration": "postgres",
+				"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+				"query":       "SELECT city, country FROM cities ORDER BY city",
+			}
+			if tt.resultDelivery != nil {
+				inputs["resultDelivery"] = tt.resultDelivery
+			}
 
-	require.NoError(t, err)
-	assert.Equal(t, "copy_stream", client.request.GetOperation())
-	assert.Equal(t, "csv", client.request.GetFormat())
-	assert.Equal(t, int32(32), client.request.GetCopyLimits().GetChunkBytes())
+			_, err := action.Run(context.Background(), taskWithInputs(inputs), nil)
 
-	expectedData := "Beautiful city of lights,France\nNew York,USA\n"
-	out := output.(map[string]interface{})
-	assert.Equal(t, "SUCCEEDED", out["status"])
-	assert.Equal(t, "csv", out["format"])
-	assert.Equal(t, "utf8", out["encoding"])
-	assert.Equal(t, len(expectedData), out["bytes"])
-	assert.Equal(t, expectedData, out["data"])
-	assert.Equal(t, map[string]interface{}{"payload_bytes": len(expectedData), "chunks_received": 2}, out["stream_summary"])
-	assertNoPayloadDuplicateFields(t, out)
-	assert.NotContains(t, out, "data_base64")
+			require.Error(t, err)
+			var parErr util.PARError
+			require.ErrorAs(t, err, &parErr)
+			assert.Equal(t, "invalid remote query action inputs", parErr.Message)
+		})
+	}
 }
 
-func TestExecuteActionReturnsCompactBase64ForBinaryCopyStreamPayload(t *testing.T) {
-	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte{0x00, 0xff, 0x80}, Offset: 0, Bytes: 3}}}, ChunkIndex: 0},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: 3, ChunksEmitted: 1}}}, ChunkIndex: 1},
-		{ChunkIndex: 2, Final: true},
-	}}
-	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+func TestExecuteActionFailsClosedWhenFinalReceiptIsMissingOrMismatched(t *testing.T) {
+	t.Run("missing receipt", func(t *testing.T) {
+		client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+			finalEvent(0, nil, nil),
+			finalMarker(1),
+		}}
+		action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
-	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration": "postgres",
-		"operation":   "copy_stream",
-		"format":      "binary",
-		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-		"query":       "SELECT decode('00ff80', 'hex') AS payload",
-		"copyLimits":  map[string]interface{}{"chunkBytes": 32, "maxBytes": 1024, "maxRowBytes": 1024, "timeoutMs": 1000},
-	}), nil)
+		_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+			"integration":    "postgres",
+			"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+			"query":          "SELECT city, country FROM cities ORDER BY city",
+			"resultDelivery": resultDeliveryInputs(),
+		}), nil)
 
-	require.NoError(t, err)
-	out := output.(map[string]interface{})
-	assert.Equal(t, "SUCCEEDED", out["status"])
-	assert.Equal(t, "binary", out["format"])
-	assert.Equal(t, "base64", out["encoding"])
-	assert.Equal(t, 3, out["bytes"])
-	assert.Equal(t, "AP+A", out["data_base64"])
-	assert.Equal(t, map[string]interface{}{"payload_bytes": 3, "chunks_received": 1}, out["stream_summary"])
-	assertNoPayloadDuplicateFields(t, out)
-	assert.NotContains(t, out, "data")
+		require.Error(t, err)
+		var parErr util.PARError
+		require.ErrorAs(t, err, &parErr)
+		assert.Contains(t, parErr.Message, "missing upload receipt")
+	})
+
+	t.Run("receipt uploadId mismatch", func(t *testing.T) {
+		mismatched := validReceipt()
+		mismatched.UploadId = "upload-other"
+		client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+			finalEvent(0, mismatched, nil),
+			finalMarker(1),
+		}}
+		action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+		_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+			"integration":    "postgres",
+			"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+			"query":          "SELECT city, country FROM cities ORDER BY city",
+			"resultDelivery": resultDeliveryInputs(),
+		}), nil)
+
+		require.Error(t, err)
+		var parErr util.PARError
+		require.ErrorAs(t, err, &parErr)
+		assert.Contains(t, parErr.Message, "uploadId does not match")
+	})
 }
 
-func TestRemoteQueryExecuteOutputForFiveMiBCSVStaysUnderActionPlatformLimit(t *testing.T) {
-	const actionPlatformOutputLimitBytes = 15 * 1024 * 1024
-	payload := strings.Repeat("x", 5*1024*1024+1)
-	payloadBytes := []byte(payload)
-	stream := &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Format: "csv"}}}, ChunkIndex: 0},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: payloadBytes[:2*1024*1024], Offset: 0, Bytes: 2 * 1024 * 1024}}}, ChunkIndex: 1},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 2, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: payloadBytes[2*1024*1024 : 4*1024*1024], Offset: 2 * 1024 * 1024, Bytes: 2 * 1024 * 1024}}}, ChunkIndex: 2},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 3, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: payloadBytes[4*1024*1024:], Offset: 4 * 1024 * 1024, Bytes: uint64(len(payloadBytes) - 4*1024*1024)}}}, ChunkIndex: 3},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 4, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: uint64(len(payloadBytes)), ChunksEmitted: 3}}}, ChunkIndex: 4},
-		{ChunkIndex: 5, Final: true},
-	}}
+func TestExecuteActionRejectsStreamProtocolViolations(t *testing.T) {
+	tests := []struct {
+		name   string
+		chunks []*pb.RemoteQueryExecuteChunk
+	}{
+		{
+			name: "chunk index mismatch",
+			chunks: []*pb.RemoteQueryExecuteChunk{
+				metadataEvent(0),
+				metadataEvent(5),
+				finalMarker(6),
+			},
+		},
+		{
+			name: "chunk after final",
+			chunks: []*pb.RemoteQueryExecuteChunk{
+				finalEvent(0, validReceipt(), nil),
+				finalMarker(1),
+				metadataEvent(2),
+			},
+		},
+		{
+			name: "missing final chunk",
+			chunks: []*pb.RemoteQueryExecuteChunk{
+				metadataEvent(0),
+			},
+		},
+		{
+			name: "missing typed event",
+			chunks: []*pb.RemoteQueryExecuteChunk{
+				{ChunkIndex: 0},
+				finalMarker(1),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &captureBridgeClient{chunks: tt.chunks}
+			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
-	output, err := remoteQueryExecuteOutputFromStream(stream, "csv")
-	require.NoError(t, err)
-	assert.Equal(t, "SUCCEEDED", output["status"])
-	assert.Equal(t, "csv", output["format"])
-	assert.Equal(t, "utf8", output["encoding"])
-	assert.Equal(t, len(payloadBytes), output["bytes"])
-	data, ok := output["data"].(string)
-	require.True(t, ok)
-	assert.Len(t, data, len(payloadBytes))
-	assertNoPayloadDuplicateFields(t, output)
-	assert.NotContains(t, output, "data_base64")
+			_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+				"integration":    "postgres",
+				"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+				"query":          "SELECT city, country FROM cities ORDER BY city",
+				"resultDelivery": resultDeliveryInputs(),
+			}), nil)
 
-	encodedOutput, err := json.Marshal(output)
-	require.NoError(t, err)
-	assert.Less(t, len(encodedOutput), actionPlatformOutputLimitBytes)
+			require.Error(t, err)
+			var parErr util.PARError
+			require.ErrorAs(t, err, &parErr)
+			assert.Equal(t, "remote query AgentSecure streaming RPC response was invalid", parErr.ExternalMessage)
+		})
+	}
 }
 
 func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{Code: "target_not_found", Message: "no matching integration check found"}}}, ChunkIndex: 0},
-		{ChunkIndex: 1, Final: true},
+		{ChunkIndex: 0, Event: &pb.RemoteQueryExecuteStreamEvent{Event: &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{
+			Code: "target_not_found", Message: "no matching integration check found", Retryable: false,
+			Attributes: map[string]string{"stats.elapsedMs": "3"},
+		}}}},
+		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) {
 		return client, nil
 	})
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration": "postgres",
-		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "secret-db"},
-		"query":       "SELECT 1 AS value",
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "secret-db"},
+		"query":          "SELECT 1 AS value",
+		"resultDelivery": resultDeliveryInputs(),
 	}), nil)
 
+	// Terminal errors propagate through the AP output envelope without a receipt.
 	require.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{
 		"status": "target_not_found",
 		"error": map[string]interface{}{
-			"code":    "target_not_found",
-			"message": "no matching integration check found",
+			"code":      "target_not_found",
+			"message":   "no matching integration check found",
+			"retryable": false,
 		},
+		"attributes": map[string]interface{}{"stats.elapsedMs": "3"},
 	}, output)
 }
 
@@ -263,10 +401,11 @@ func TestExecuteActionSanitizesInputExtractionErrors(t *testing.T) {
 	})
 
 	_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration": "postgres",
-		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "secret-db"},
-		"query":       "SELECT secret FROM private_table",
-		"bad":         make(chan struct{}),
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "secret-db"},
+		"query":          "SELECT secret FROM private_table",
+		"resultDelivery": resultDeliveryInputs(),
+		"bad":            make(chan struct{}),
 	}), nil)
 
 	require.Error(t, err)
@@ -278,14 +417,42 @@ func TestExecuteActionSanitizesInputExtractionErrors(t *testing.T) {
 	assert.NotContains(t, err.Error(), "SELECT secret")
 }
 
-func assertNoPayloadDuplicateFields(t *testing.T, out map[string]interface{}) {
+// TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit proves the receipt-only
+// output is bounded by construction: with no inline result-byte path the AP artifact
+// stays tiny even for multi-page runs.
+func TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit(t *testing.T) {
+	const actionPlatformOutputLimitBytes = 15 * 1024 * 1024
+	stream := &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{
+		metadataEvent(0),
+		finalEvent(1, &pb.RemoteQueryUploadReceipt{
+			UploadId:   "upload-01k",
+			PageCount:  128,
+			TotalRows:  1099511627776,
+			TotalBytes: 10737418240,
+		}, nil),
+		finalMarker(2),
+	}}
+
+	output, err := remoteQueryExecuteOutputFromStream(stream, testUploadID)
+	require.NoError(t, err)
+	assert.Equal(t, "SUCCEEDED", output["status"])
+	assertNoBulkDataFields(t, output)
+
+	encoded, err := json.Marshal(output)
+	require.NoError(t, err)
+	assert.Less(t, len(encoded), actionPlatformOutputLimitBytes)
+}
+
+func assertNoBulkDataFields(t *testing.T, out map[string]interface{}) {
 	t.Helper()
 	assert.NotContains(t, out, "events")
 	assert.NotContains(t, out, "payload")
+	assert.NotContains(t, out, "data")
+	assert.NotContains(t, out, "data_base64")
 	assert.NotContains(t, out, "data_bytes")
-	_, hasData := out["data"]
-	_, hasBase64Data := out["data_base64"]
-	assert.False(t, hasData && hasBase64Data, "output must not contain both data and data_base64")
+	assert.NotContains(t, out, "csv")
+	assert.NotContains(t, out, "columns")
+	assert.NotContains(t, out, "rows")
 }
 
 func taskWithInputs(inputs map[string]interface{}) *types.Task {
@@ -302,11 +469,6 @@ type captureBridgeClient struct {
 	request *pb.RemoteQueryExecuteRequest
 	chunks  []*pb.RemoteQueryExecuteChunk
 	err     error
-}
-
-func (c *captureBridgeClient) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (*pb.RemoteQueryExecuteResponse, error) {
-	c.request = req
-	return nil, c.err
 }
 
 func (c *captureBridgeClient) RemoteQueryExecuteStream(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error) {
@@ -329,52 +491,4 @@ func (s *captureRemoteQueryExecuteStream) Recv() (*pb.RemoteQueryExecuteChunk, e
 	chunk := s.chunks[0]
 	s.chunks = s.chunks[1:]
 	return chunk, nil
-}
-
-func TestExecuteActionReturnsUploadReceiptWithoutBulkData(t *testing.T) {
-	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Integration: "postgres", Format: "csv"}}}, ChunkIndex: 0},
-		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: 18, ChunksEmitted: 3, UploadReceipt: &pb.RemoteQueryUploadReceipt{Mode: "POC_PUBLIC_MULTIPART_UPLOAD", UploadId: "upload-01k", BucketName: "rq-bucket", ObjectPath: "manifests/upload-01k.json", TotalBytes: 18, TotalRows: 2, PartCount: 3, Sha256: "abc123"}}}}, ChunkIndex: 1},
-		{ChunkIndex: 2, Final: true},
-	}}
-	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-
-	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration": "postgres",
-		"operation":   "copy_stream",
-		"format":      "csv",
-		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-		"query":       "SELECT city, country FROM cities ORDER BY city",
-		"copyLimits":  map[string]interface{}{"chunkBytes": 8, "maxBytes": 24, "maxRowBytes": 32, "timeoutMs": 1000},
-		"resultDelivery": map[string]interface{}{
-			"mode": "POC_PUBLIC_MULTIPART_UPLOAD", "uploadId": "upload-01k", "baseUrl": "https://api.datadoghq.com", "token": "scoped-upload-token", "partBytes": 8, "maxBytes": 24, "format": "csv", "compression": "none",
-		},
-	}), nil)
-
-	require.NoError(t, err)
-	// The request sent to AgentSecure carries the full delivery (incl. baseUrl/token); Agent Go retains the secrets.
-	require.NotNil(t, client.request.GetResultDelivery())
-	assert.Equal(t, "https://api.datadoghq.com", client.request.GetResultDelivery().GetBaseUrl())
-	assert.Equal(t, "scoped-upload-token", client.request.GetResultDelivery().GetToken())
-
-	out := output.(map[string]interface{})
-	assert.Equal(t, "SUCCEEDED", out["status"])
-	assert.Equal(t, "csv", out["format"])
-	assert.Equal(t, "utf-8", out["encoding"])
-	assert.Equal(t, int64(18), out["bytes"])
-	receipt, ok := out["uploadReceipt"].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "POC_PUBLIC_MULTIPART_UPLOAD", receipt["mode"])
-	assert.Equal(t, "upload-01k", receipt["uploadId"])
-	assert.Equal(t, "rq-bucket", receipt["bucketName"])
-	assert.Equal(t, "manifests/upload-01k.json", receipt["objectPath"])
-	assert.Equal(t, int64(18), receipt["totalBytes"])
-	assert.Equal(t, int64(2), receipt["totalRows"])
-	assert.Equal(t, int32(3), receipt["partCount"])
-	assert.Equal(t, "abc123", receipt["sha256"])
-	assertNoPayloadDuplicateFields(t, out)
-	assert.NotContains(t, out, "data")
-	assert.NotContains(t, out, "data_base64")
-	assert.NotContains(t, out, "stream_summary")
-	assert.NotContains(t, out, "stream_timing")
 }

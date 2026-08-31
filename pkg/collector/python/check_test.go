@@ -75,6 +75,10 @@ func TestRunRemoteQueryStream(t *testing.T) {
 	testRunRemoteQueryStream(t)
 }
 
+func TestRunRemoteQueryStreamRejectsPayload(t *testing.T) {
+	testRunRemoteQueryStreamRejectsPayload(t)
+}
+
 func TestRunRemoteQueryStreamEmitError(t *testing.T) {
 	testRunRemoteQueryStreamEmitError(t)
 }

@@ -15,31 +15,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
-// Synthetic producer proof for the M3 Agent role after the Go upload relay was removed.
+// Synthetic producer proof for the M3 Agent role in the paged-JSON contract.
 //
-// The Agent no longer owns an HTTP upload transport. In POC_PUBLIC_MULTIPART_UPLOAD mode it is a
-// control-plane forwarder only: it carries resultDelivery (including baseUrl and token) through
-// to the integration request JSON, exposes the org API key and POC application key to the
-// integration via datadog_agent.get_config, and passes the downstream emit callback straight
-// through without intercepting bulk data events. The integration uploads bounded multipart parts
-// directly to its-agent-intake over HTTP; only metadata/final/error events come back through
-// the stream.
+// The Agent is a control-plane forwarder only: it carries the backend-injected upload
+// instructions (including baseUrl and token) through to the integration request JSON,
+// and the org API key and POC application key are read by the integration via
+// datadog_agent.get_config, so they never appear on the request wire. The integration
+// uploads bounded JSON page files directly to its-agent-intake over HTTP; only
+// metadata/final/error events come back through the stream, and the only result
+// accounting that crosses the AgentSecure boundary is the compact run receipt.
 //
-// These tests drive ExecuteStream with a fake stream runner that captures the requestJSON the
-// integration receives and replays deterministic events through emit. They prove:
+// These tests drive ExecuteStream with a fake stream runner that captures the
+// requestJSON the integration receives and replays deterministic events through emit.
+// They prove:
 //
-//   1. The requestJSON forwarded to the integration carries resultDelivery.baseUrl and
-//      resultDelivery.token (the credentials the integration needs to upload directly).
-//   2. The requestJSON does NOT carry the org API key or POC application key: the integration
-//      reads those from Agent config via get_config, so they never appear on the request wire.
-//   3. The Agent passes emit straight through: the events the integration emits surface
-//      downstream byte-for-byte, including any data event payloads. The Agent does not buffer,
-//      re-upload, or suppress bulk bytes.
+//  1. The requestJSON forwarded to the integration emits the fixed operation
+//     produce_json_pages and carries the target, the query, the explicit includeSchema
+//     flag, and the full resultDelivery: runId, taskId, artifactVersion, uploadId,
+//     baseUrl, token, partBytes, and the seven nested limits including timeoutMs.
+//  2. The requestJSON does NOT carry the org API key or POC application key and carries
+//     no CSV/COPY-era fields: there is no format, no copyLimits, and no inline path.
+//  3. The Agent passes emit straight through: the events the integration emits surface
+//     downstream byte-for-byte, including the final compact run receipt.
 //
-// The 243021 reference (task contract id) is carried as the deterministic upload session id so
-// the forwarded handle is stable end-to-end.
+// The 243021 reference (task contract id) is carried through the run/task/upload ids
+// so the forwarded handle is stable end-to-end.
 
 const (
+	syntheticForwardRunID    = "run-243021"
+	syntheticForwardTaskID   = "task-243021"
 	syntheticForwardUploadID = "upload-243021"
 	syntheticForwardBaseURL  = "https://dd.datad0g.com/api/unstable/its-agent-intake"
 	syntheticForwardToken    = "scoped-upload-token-243021"
@@ -54,31 +58,39 @@ func newSyntheticForwardRunner(events []check.RemoteQueryStreamEvent) *fakeStrea
 
 func syntheticForwardDelivery() *RemoteQueryResultDelivery {
 	return &RemoteQueryResultDelivery{
-		Mode:        RemoteQueryResultDeliveryModeMultipartUpload,
-		UploadID:    syntheticForwardUploadID,
-		BaseURL:     syntheticForwardBaseURL,
-		Token:       syntheticForwardToken,
-		PartBytes:   1 << 20,  // 1 MiB
-		MaxBytes:    32 << 20, // 32 MiB
-		Format:      "csv",
-		Compression: "none",
+		RunID:           syntheticForwardRunID,
+		TaskID:          syntheticForwardTaskID,
+		ArtifactVersion: RemoteQueryArtifactVersion,
+		UploadID:        syntheticForwardUploadID,
+		BaseURL:         syntheticForwardBaseURL,
+		Token:           syntheticForwardToken,
+		PartBytes:       1 << 20, // 1 MiB
+		Limits: &RemoteQueryUploadLimits{
+			MaxFileBytes:   32 << 20, // 32 MiB page cap
+			MaxResultBytes: 32 << 20, // 32 MiB total cap
+			MaxRowBytes:    32 << 20,
+			MaxColumns:     1024,
+			MaxSchemaBytes: 1 << 20,
+			MaxPages:       128,
+			TimeoutMs:      30000,
+		},
 	}
 }
 
-// TestExecuteStreamForwardsResultDeliveryCredentialsToIntegration proves the Agent forwards
-// baseUrl and token to the integration and keeps the API/application key off the request wire.
-func TestExecuteStreamForwardsResultDeliveryCredentialsToIntegration(t *testing.T) {
+// TestExecuteStreamForwardsPagedJSONContractToIntegration proves the Agent forwards the
+// complete backend-injected contract to the integration and keeps the API/application
+// keys off the request wire.
+func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
-		{Type: "metadata", MetadataJSON: `{"status":"STARTED"}`},
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"mode":"POC_PUBLIC_MULTIPART_UPLOAD","uploadId":"upload-243021","bucketName":"rq-bucket","objectPath":"its-agent-intake/poc/upload-243021/result.csv","totalBytes":33554432,"totalRows":0,"partCount":32,"sha256":"aggregate-sha"}}`},
+		{Type: "metadata", MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages","includeSchema":true}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":3,"totalRows":123456,"totalBytes":987654}}`},
 	})
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest(
+	req, err := NewRemoteQueryExecuteRequest(
 		"postgres",
 		RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
 		"SELECT repeat('x', 33554432) AS payload",
-		"csv",
-		&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: 32 << 20, MaxRowBytes: 32 << 20, TimeoutMs: 30000},
+		true,
 		syntheticForwardDelivery(),
 	)
 	require.NoError(t, err)
@@ -92,96 +104,105 @@ func TestExecuteStreamForwardsResultDeliveryCredentialsToIntegration(t *testing.
 	require.Nil(t, result.Error)
 	assert.Equal(t, 1, runner.streamCalls)
 
-	// The integration receives the intake base URL and scoped upload token so it can upload
-	// directly. The org API key and POC application key are NOT on the request wire: the
-	// integration reads them from Agent config via datadog_agent.get_config.
-	assert.Contains(t, runner.streamSeen, `"baseUrl":"https://dd.datad0g.com/api/unstable/its-agent-intake"`)
-	assert.Contains(t, runner.streamSeen, `"token":"scoped-upload-token-243021"`)
-	assert.Contains(t, runner.streamSeen, `"uploadId":"upload-243021"`)
+	// The integration receives the fixed operation, the explicit schema flag, the
+	// normalized target, and the full upload handle including the intake base URL and
+	// scoped upload token so it can upload page files directly. The nested limits carry
+	// the backend-owned effective values including timeoutMs.
+	assert.JSONEq(t, `{
+		"operation": "produce_json_pages",
+		"target": {"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query": "SELECT repeat('x', 33554432) AS payload",
+		"includeSchema": true,
+		"resultDelivery": {
+			"runId": "run-243021",
+			"taskId": "task-243021",
+			"artifactVersion": 1,
+			"uploadId": "upload-243021",
+			"baseUrl": "https://dd.datad0g.com/api/unstable/its-agent-intake",
+			"token": "scoped-upload-token-243021",
+			"partBytes": 1048576,
+			"limits": {
+				"maxFileBytes": 33554432,
+				"maxResultBytes": 33554432,
+				"maxRowBytes": 33554432,
+				"maxColumns": 1024,
+				"maxSchemaBytes": 1048576,
+				"maxPages": 128,
+				"timeoutMs": 30000
+			}
+		}
+	}`, runner.streamSeen)
+
+	// The org API key and POC application key are NOT on the request wire: the
+	// integration reads them from Agent config via datadog_agent.get_config. No
+	// CSV/COPY-era field survives either: there is no format, compression, mode, or
+	// copyLimits anywhere in the forwarded request.
 	assert.NotContains(t, runner.streamSeen, "api_key")
 	assert.NotContains(t, runner.streamSeen, "application_key")
 	assert.NotContains(t, runner.streamSeen, "app_key")
+	assert.NotContains(t, runner.streamSeen, "format")
+	assert.NotContains(t, runner.streamSeen, "compression")
+	assert.NotContains(t, runner.streamSeen, "mode")
+	assert.NotContains(t, runner.streamSeen, "copy")
+	assert.NotContains(t, runner.streamSeen, "secret-value")
+	assert.NotContains(t, runner.streamSeen, "integration")
 
 	// The integration's metadata and final receipt surface downstream unmodified.
 	require.Len(t, seen, 2)
 	assert.Equal(t, "metadata", seen[0].Type)
 	assert.Equal(t, "final", seen[1].Type)
-	assert.Contains(t, seen[1].MetadataJSON, `"uploadId":"upload-243021"`)
-	assert.Contains(t, seen[1].MetadataJSON, `"objectPath":"its-agent-intake/poc/upload-243021/result.csv"`)
+	assert.JSONEq(t, `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":3,"totalRows":123456,"totalBytes":987654}}`, seen[1].MetadataJSON)
 }
 
-// TestExecuteStreamPassesDataEventsStraightThrough proves the Agent does not intercept bulk
-// data events in upload mode: there is no relay, so a data event the integration emits arrives
-// downstream with its payload intact. (In production the integration uploads bulk bytes over
-// HTTP and emits only metadata/final/error; this test confirms the Agent gets out of the way
-// if the integration does emit a data event.)
-func TestExecuteStreamPassesDataEventsStraightThrough(t *testing.T) {
-	payload := make([]byte, 1<<20) // 1 MiB
-	for i := range payload {
-		payload[i] = byte(i)
-	}
+// TestExecuteStreamForwardsOmittedSchemaExplicitly proves the includeSchema flag is
+// forwarded explicitly even when disabled: omitted or false both serialize as an
+// explicit false on the integration request so the schema switch is never implicit.
+func TestExecuteStreamForwardsOmittedSchemaExplicitly(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
-		{Type: "metadata", MetadataJSON: `{"status":"STARTED"}`},
-		{Type: "data", MetadataJSON: `{"sequence":0,"offset":0,"bytes":1048576}`, Payload: payload},
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","partCount":1,"totalBytes":1048576}}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":0,"totalRows":0,"totalBytes":0}}`},
 	})
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest(
+	req, err := NewRemoteQueryExecuteRequest(
 		"postgres",
-		RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
-		"SELECT repeat('x', 1048576) AS payload",
-		"csv",
-		&RemoteQueryExecuteCopyLimits{ChunkBytes: 1 << 20, MaxBytes: 32 << 20, MaxRowBytes: 32 << 20, TimeoutMs: 30000},
+		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+		"SELECT city, country FROM cities ORDER BY city",
+		false,
 		syntheticForwardDelivery(),
 	)
 	require.NoError(t, err)
 
-	var seen []check.RemoteQueryStreamEvent
-	result := service.ExecuteStream(context.Background(), req, func(event check.RemoteQueryStreamEvent) error {
-		seen = append(seen, event)
-		return nil
-	})
+	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
 	require.Nil(t, result.Error)
-
-	// The data event arrives downstream with its full payload intact: the Agent did not
-	// buffer, re-upload, or suppress it. There is no Go relay in the upload path.
-	require.Len(t, seen, 3)
-	assert.Equal(t, "data", seen[1].Type)
-	require.NotNil(t, seen[1].Payload)
-	assert.Equal(t, payload, seen[1].Payload)
-	assert.Equal(t, 1<<20, len(seen[1].Payload))
+	assert.Contains(t, runner.streamSeen, `"includeSchema":false`)
 }
 
-// TestExecuteStreamOmittedResultDeliveryLeavesInlinePathUnchanged proves that without
-// resultDelivery the Agent behaves exactly as the inline streaming path: no upload handle is
-// forwarded and data events pass straight through.
-func TestExecuteStreamOmittedResultDeliveryLeavesInlinePathUnchanged(t *testing.T) {
-	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
-		{Type: "metadata", MetadataJSON: `{"status":"STARTED"}`},
-		{Type: "data", MetadataJSON: `{"sequence":0,"offset":0,"bytes":3}`, Payload: []byte{0x00, 0xff, 0x80}},
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
-	})
+// TestExecuteStreamOmittedResultDeliveryIsRejected proves there is no inline fallback:
+// without the backend-injected upload handle the request never reaches the integration.
+func TestExecuteStreamOmittedResultDeliveryIsRejected(t *testing.T) {
+	runner := newSyntheticForwardRunner(nil)
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
-	req, err := NewRemoteQueryCopyStreamExecuteRequest(
+
+	_, err := NewRemoteQueryExecuteRequest(
 		"postgres",
-		RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
+		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
 		"SELECT 1 AS value",
-		"csv",
-		&RemoteQueryExecuteCopyLimits{ChunkBytes: 4, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000},
+		false,
 		nil,
 	)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.EqualError(t, err, "result_delivery is required")
 
-	var seen []check.RemoteQueryStreamEvent
-	result := service.ExecuteStream(context.Background(), req, func(event check.RemoteQueryStreamEvent) error {
-		seen = append(seen, event)
-		return nil
-	})
+	// A hand-assembled request without a delivery fails the same way and never runs
+	// the matched check.
+	result := service.ExecuteStream(context.Background(), RemoteQueryExecuteRequest{
+		Integration: "postgres",
+		Target:      RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+		Query:       "SELECT 1 AS value",
+	}, func(check.RemoteQueryStreamEvent) error { return nil })
 
-	require.Nil(t, result.Error)
-	assert.Equal(t, runner.events, seen)
-	assert.NotContains(t, runner.streamSeen, "resultDelivery")
-	assert.NotContains(t, runner.streamSeen, "baseUrl")
-	assert.NotContains(t, runner.streamSeen, "token")
+	require.NotNil(t, result.Error)
+	assert.Equal(t, statusInvalidRequest, result.Error.Code)
+	assert.Equal(t, "result_delivery is required", result.Error.Message)
+	assert.Equal(t, 0, runner.streamCalls)
 }

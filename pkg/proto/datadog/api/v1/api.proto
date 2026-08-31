@@ -29,103 +29,73 @@ message RemoteQueryTarget {
     string database_instance = 4;
 }
 
-message RemoteQueryExecuteLimits {
-    int32 max_rows = 1;
-    int32 max_bytes = 2;
-    int32 timeout_ms = 3;
+// RemoteQueryUploadLimits carries the backend-owned effective limits of the paged
+// JSON result contract. The backend (its-agent) derives and injects every value; the
+// Agent forwards them opaquely and the integration enforces them.
+message RemoteQueryUploadLimits {
+    int64 max_file_bytes = 1;
+    int64 max_result_bytes = 2;
+    int64 max_row_bytes = 3;
+    int64 max_columns = 4;
+    int64 max_schema_bytes = 5;
+    int64 max_pages = 6;
+    int64 timeout_ms = 7;
 }
 
-message RemoteQueryExecuteCopyLimits {
-    int32 chunk_bytes = 1;
-    // max_bytes is the overall extraction safety ceiling. It is int64 so the
-    // backend-owned 10 GiB result cap is representable without overflow.
-    int64 max_bytes = 2;
-    int32 max_row_bytes = 3;
-    int32 timeout_ms = 4;
+// RemoteQueryResultDelivery carries the backend-injected upload-session
+// instructions for one run: the authoritative run/task identity used by every
+// page envelope, the page artifact contract version, the scoped its-agent-intake
+// session handle, and the effective limits. The Agent forwards base_url and
+// token to the integration check, which performs the HTTP upload itself; bulk
+// result bytes never traverse AgentSecure.
+message RemoteQueryResultDelivery {
+    string run_id = 1;
+    string task_id = 2;
+    int32 artifact_version = 3;
+    string upload_id = 4;
+    string base_url = 5;
+    string token = 6;
+    int64 part_bytes = 7;
+    RemoteQueryUploadLimits limits = 8;
 }
 
+// RemoteQueryExecuteRequest is the credential-free Remote Queries request. The
+// result contract is fixed: the integration produces bounded JSON page files
+// and uploads them directly to its-agent-intake. There is no inline result-byte
+// path, no caller-provided format, and no COPY mode. include_schema controls
+// the optional per-page schema emission; result_delivery is required.
 message RemoteQueryExecuteRequest {
     string integration = 1;
     RemoteQueryTarget target = 2;
     string query = 3;
-    RemoteQueryExecuteLimits limits = 4;
-    string operation = 5;
-    string format = 6;
-    RemoteQueryExecuteCopyLimits copy_limits = 7;
-    // Optional result-delivery instructions. When omitted, the existing inline
-    // streaming event path is unchanged. When present with mode
-    // POC_PUBLIC_MULTIPART_UPLOAD, the Agent Go side forwards the upload handle
-    // to the integration check, which uploads bounded parts directly to the
-    // Datadog intake service, suppressing bulk data from crossing the
-    // AgentSecure boundary; only the compact upload receipt is surfaced
-    // downstream.
-    RemoteQueryResultDelivery result_delivery = 8;
-}
-
-// RemoteQueryResultDelivery carries optional upload-session instructions. The
-// Agent Go side retains base_url, token, and the org API key; only the
-// sanitized, non-secret fields are forwarded to the integration check.
-message RemoteQueryResultDelivery {
-    string mode = 1;
-    string upload_id = 2;
-    string base_url = 3;
-    string token = 4;
-    int32 part_bytes = 5;
-    // max_bytes is the multipart upload total cap. It is int64 so the
-    // backend-owned 10 GiB result cap is representable without overflow.
-    int64 max_bytes = 6;
-    string format = 7;
-    string compression = 8;
-}
-
-message RemoteQueryExecuteError {
-    string code = 1;
-    string message = 2;
-}
-
-message RemoteQueryExecuteResponse {
-    string status = 1;
-    RemoteQueryExecuteError error = 2;
-    repeated google.protobuf.Struct columns = 3;
-    repeated google.protobuf.Struct rows = 4;
-    bool truncated = 5;
-    google.protobuf.Struct stats = 6;
+    bool include_schema = 4;
+    RemoteQueryResultDelivery result_delivery = 5;
 }
 
 message RemoteQueryStreamMetadata {
     string operation = 1;
     string integration = 2;
-    string format = 3;
-    map<string, string> attributes = 4;
-}
-
-message RemoteQueryStreamData {
-    bytes payload = 1;
-    uint64 offset = 2;
-    uint64 bytes = 3;
+    map<string, string> attributes = 3;
 }
 
 message RemoteQueryStreamFinal {
     string status = 1;
-    uint64 bytes_emitted = 2;
-    uint64 chunks_emitted = 3;
-    map<string, string> attributes = 4;
-    // upload_receipt is set only in POC_PUBLIC_MULTIPART_UPLOAD mode, after the
-    // integration finalizes the upload session. It carries the compact final
-    // metadata that replaces the bulk data crossing the AgentSecure boundary.
-    RemoteQueryUploadReceipt upload_receipt = 5;
+    // upload_receipt is the compact run receipt, set after the integration
+    // finalizes the run-scoped upload session. It is the only result identity
+    // and accounting that crosses the AgentSecure boundary; bulk page bytes
+    // and schema stay in the uploaded page artifacts.
+    RemoteQueryUploadReceipt upload_receipt = 2;
+    map<string, string> attributes = 3;
 }
 
-// RemoteQueryUploadReceipt is the compact final metadata for a multipart upload.
+// RemoteQueryUploadReceipt is the compact run receipt: exactly uploadId,
+// pageCount, totalRows, totalBytes. Bucket names, object paths, part counts,
+// and checksums are owned by the intake control plane.
 message RemoteQueryUploadReceipt {
-    string mode = 1;
-    string upload_id = 2;
-    string bucket_name = 3;
-    string object_path = 4;
-    int64 total_bytes = 5;
-    int64 total_rows = 6;
-    int32 part_count = 7;
-    string sha256 = 8;
+    string upload_id = 1;
+    int64 page_count = 2;
+    int64 total_rows = 3;
+    int64 total_bytes = 4;
 }
 
 message RemoteQueryStreamError {
@@ -137,9 +107,10 @@ message RemoteQueryStreamError {
 
 message RemoteQueryExecuteStreamEvent {
     uint64 sequence = 1;
+    // 3 was the inline data event: bulk result bytes never traverse AgentSecure.
+    reserved 3;
     oneof event {
         RemoteQueryStreamMetadata metadata = 2;
-        RemoteQueryStreamData data = 3;
         RemoteQueryStreamFinal final = 4;
         RemoteQueryStreamError error = 5;
     }
@@ -204,9 +175,9 @@ service AgentSecure {
     rpc WorkloadFilterEvaluate(datadog.workloadfilter.WorkloadFilterEvaluateRequest) returns (datadog.workloadfilter.WorkloadFilterEvaluateResponse);
 
     // Executes an Agent-local Remote Queries request through a matched integration check.
-    rpc RemoteQueryExecute(RemoteQueryExecuteRequest) returns (RemoteQueryExecuteResponse);
-
-    // Executes an Agent-local Remote Queries COPY request and streams typed binary-safe events.
+    // The result contract is fixed: bounded JSON page files uploaded directly by the
+    // integration to its-agent-intake. The stream carries only progress metadata, the
+    // compact run receipt, and errors; bulk result bytes never traverse AgentSecure.
     rpc RemoteQueryExecuteStream(RemoteQueryExecuteRequest) returns (stream RemoteQueryExecuteChunk);
 
     // Streams pod-to-service metadata for a specific node.

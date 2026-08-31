@@ -305,12 +305,21 @@ func parseJSONRequestError(err error) error {
 		return errTargetUnknownField
 	case errors.Is(err, errTargetMustBeObject):
 		return errTargetMustBeObject
+	case errors.Is(err, errDeliveryUnknownField):
+		return errDeliveryUnknownField
+	case errors.Is(err, errDeliveryMustBeObject):
+		return errDeliveryMustBeObject
 	case errors.Is(err, errLimitsUnknownField):
 		return errLimitsUnknownField
 	case errors.Is(err, errLimitsMustBeObject):
 		return errLimitsMustBeObject
 	case isUnknownJSONFieldError(err):
 		return invalidRequestError("request contains unknown field")
+	}
+
+	var deliveryTypeErr remoteQueryDeliveryTypeError
+	if errors.As(err, &deliveryTypeErr) {
+		return deliveryTypeErr
 	}
 
 	var typeErr *json.UnmarshalTypeError
@@ -322,14 +331,10 @@ func parseJSONRequestError(err error) error {
 			return errors.New("target.database_instance must be a string")
 		case "target":
 			return errTargetMustBeObject
-		case "maxRows", "limits.maxRows":
-			return errors.New("limits.maxRows must be an integer")
-		case "maxBytes", "limits.maxBytes":
-			return errors.New("limits.maxBytes must be an integer")
-		case "timeoutMs", "limits.timeoutMs":
-			return errors.New("limits.timeoutMs must be an integer")
-		case "limits":
-			return errLimitsMustBeObject
+		case "includeSchema":
+			return errors.New("includeSchema must be a boolean")
+		case "resultDelivery":
+			return errDeliveryMustBeObject
 		}
 	}
 
