@@ -25,7 +25,7 @@ use windows_sys::Win32::Security::{
     TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
 use windows_sys::Win32::System::Registry::{
-    HKEY, HKEY_LOCAL_MACHINE, KEY_ALL_ACCESS, REG_OPTION_NON_VOLATILE, RegCloseKey, RegCopyTreeW,
+    HKEY, HKEY_LOCAL_MACHINE, KEY_ALL_ACCESS, REG_OPTION_VOLATILE, RegCloseKey, RegCopyTreeW,
     RegCreateKeyExW, RegDeleteTreeW, RegEnumKeyExW, RegOpenKeyExW,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
@@ -59,6 +59,7 @@ impl RegistryKey {
         Ok(Self(handle))
     }
 
+    // Volatile so crash leftovers do not persist across reboot.
     fn create(local_machine: HKEY, subkey: &str) -> Result<Self> {
         let subkey_w = wide::null_terminated(subkey);
         let mut handle = ptr::null_mut();
@@ -69,7 +70,7 @@ impl RegistryKey {
                 subkey_w.as_ptr(),
                 0,
                 ptr::null(),
-                REG_OPTION_NON_VOLATILE,
+                REG_OPTION_VOLATILE,
                 KEY_ALL_ACCESS,
                 ptr::null(),
                 &mut handle,
@@ -103,7 +104,7 @@ impl RegistryKey {
                 name_w.as_ptr(),
                 0,
                 ptr::null(),
-                REG_OPTION_NON_VOLATILE,
+                REG_OPTION_VOLATILE,
                 KEY_ALL_ACCESS,
                 ptr::null(),
                 &mut handle,
