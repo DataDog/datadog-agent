@@ -261,6 +261,10 @@ def build_binary_with_bazel(target: str, args: list[str] | None = None, bin_path
         os.makedirs(os.path.dirname(bin_path), exist_ok=True)
         shutil.copy2(src, bin_path)
         os.chmod(bin_path, 0o755)
+        uid = os.environ.get("HOST_UID", "-1")
+        gid = os.environ.get("HOST_GID", "-1")
+        if uid != "-1" and gid != "-1":
+            os.chown(bin_path, int(uid), int(gid))
 
 
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
