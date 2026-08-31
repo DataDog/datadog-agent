@@ -721,6 +721,16 @@ fn test_cli_list_shows_restart_count() {
 }
 
 #[test]
+fn test_cli_describe_last_exit_text() {
+    let env = TestEnv::new().with_process("exit_fail").start();
+    env.assert_process_state_within("exit_fail", ProcessExpect::Failed);
+
+    env.cli(&["describe", "exit_fail"])
+        .assert_success()
+        .assert_field("Last Exit", "exit 1");
+}
+
+#[test]
 fn test_cli_describe_after_restart() {
     let env = TestEnv::new()
         .with_config(
@@ -1059,6 +1069,28 @@ fn test_cli_create_env_vars() {
     let env_map = json["env"].as_object().expect("env should be an object");
     assert_eq!(env_map.get("FOO").and_then(|v| v.as_str()), Some("bar"));
     assert_eq!(env_map.get("BAZ").and_then(|v| v.as_str()), Some("qux"));
+}
+
+#[test]
+fn test_cli_reload_text_modified() {
+    let env = TestEnv::new().with_process("sleeper").start();
+    env.overwrite_with_fixture("sleeper", "sleeper_long");
+
+    env.cli(&["reload"])
+        .assert_success()
+        .assert_field("Modified", "sleeper");
+}
+
+#[test]
+fn test_cli_reload_text_added_removed() {
+    let env = TestEnv::new().with_process("sleeper").start();
+    env.remove_process_yaml("sleeper");
+    env.install_fixture("sleeper_idle");
+
+    env.cli(&["reload"])
+        .assert_success()
+        .assert_field("Added", "sleeper_idle")
+        .assert_field("Removed", "sleeper");
 }
 
 #[test]
