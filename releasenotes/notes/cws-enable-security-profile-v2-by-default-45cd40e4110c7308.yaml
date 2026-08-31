@@ -1,8 +1,0 @@
----
-features:
-  - |
-    Enable CWS security profile v2 (activity dump v2) by default when Cloud
-    Workload Security is enabled. The default event types are ``exec``,
-    ``open``, ``dns``, and ``bind``, with a max dump size of 2560 KiB.
-    To keep the previous manager, set
-    ``runtime_security_config.security_profile.v2.enabled`` to ``false``.
