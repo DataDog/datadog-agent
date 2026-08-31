@@ -6,5 +6,8 @@ runtime_security_config:
 #   # By disabling it, we get more predictable results from the generated load.
   activity_dump:
     enabled: false
+  security_profile:
+    v2:
+      enabled: false
 remote_configuration:
   enabled: false

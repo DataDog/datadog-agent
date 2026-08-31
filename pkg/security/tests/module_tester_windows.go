@@ -55,6 +55,9 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  security_profile:
+    v2:
+      enabled: false
 {{ if gt .EventServerRetention 0 }}
   event_server:
     retention: {{ .EventServerRetention }}
