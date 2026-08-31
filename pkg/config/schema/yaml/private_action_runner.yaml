@@ -94,7 +94,7 @@ properties:
   api_key_only_enrollment:
     node_type: setting
     type: boolean
-    default: false
+    default: true
   executor:
     node_type: section
     type: object
