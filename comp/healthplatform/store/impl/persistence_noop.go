@@ -5,10 +5,12 @@
 
 package storeimpl
 
-// noopPersistence is used in environments where disk persistence is not meaningful,
-// such as Kubernetes pods backed by emptyDir volumes where state is lost on restart anyway.
-// It silently discards all writes and returns no state on load.
+import "context"
+
+// noopPersistence is used when neither durable disk nor remote restoration is
+// appropriate for the current process. It silently discards all writes and
+// returns no state on load.
 type noopPersistence struct{}
 
-func (n *noopPersistence) load() (*PersistedState, error) { return nil, nil }
-func (n *noopPersistence) save(_ *PersistedState) error   { return nil }
+func (n *noopPersistence) load(_ context.Context) (*PersistedState, error) { return nil, nil }
+func (n *noopPersistence) save(_ *PersistedState) error                    { return nil }
