@@ -7,10 +7,12 @@ filegroup(
         "//pkg/procmgr/rust/tests/fixtures/condition_blocked",
         "//pkg/procmgr/rust/tests/fixtures/exit_fail",
         "//pkg/procmgr/rust/tests/fixtures/exit_ok",
+        "//pkg/procmgr/rust/tests/fixtures/full",
         "//pkg/procmgr/rust/tests/fixtures/invalid_syntax",
         "//pkg/procmgr/rust/tests/fixtures/missing_binary",
         "//pkg/procmgr/rust/tests/fixtures/sleeper",
         "//pkg/procmgr/rust/tests/fixtures/sleeper_idle",
+        "//pkg/procmgr/rust/tests/fixtures/sleeper_long",
     ],
     visibility = ["//pkg/procmgr/rust:__pkg__"],
 )
