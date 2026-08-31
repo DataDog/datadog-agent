@@ -6849,6 +6849,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "mount.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Mount.Mount.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "mount.mountpoint.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -6858,6 +6869,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mount.origin":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Mount.Mount.Origin)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "mount.retval":
@@ -37795,7 +37817,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"mmap.retval",
 		"mount.detached",
 		"mount.fs_type",
+		"mount.mount_id",
 		"mount.mountpoint.path",
+		"mount.origin",
 		"mount.retval",
 		"mount.root.path",
 		"mount.source.path",
@@ -40705,8 +40729,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mount", reflect.Bool, "bool", false, nil
 	case "mount.fs_type":
 		return "mount", reflect.String, "string", false, nil
+	case "mount.mount_id":
+		return "mount", reflect.Int, "int", false, nil
 	case "mount.mountpoint.path":
 		return "mount", reflect.String, "string", false, nil
+	case "mount.origin":
+		return "mount", reflect.Int, "int", false, nil
 	case "mount.retval":
 		return "mount", reflect.Int, "int", false, nil
 	case "mount.root.path":
@@ -45622,8 +45650,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("mount.detached", &ev.Mount.Mount.Detached, value)
 	case "mount.fs_type":
 		return ev.setStringFieldValue("mount.fs_type", &ev.Mount.Mount.FSType, value)
+	case "mount.mount_id":
+		return ev.setUint32FieldValue("mount.mount_id", &ev.Mount.Mount.MountID, value)
 	case "mount.mountpoint.path":
 		return ev.setStringFieldValue("mount.mountpoint.path", &ev.Mount.MountPointPath, value)
+	case "mount.origin":
+		return ev.setUint32FieldValue("mount.origin", &ev.Mount.Mount.Origin, value)
 	case "mount.retval":
 		return ev.setInt64FieldValue("mount.retval", &ev.Mount.SyscallEvent.Retval, value)
 	case "mount.root.path":

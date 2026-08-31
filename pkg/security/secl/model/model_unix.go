@@ -606,7 +606,7 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID              uint32   `field:"-"`
+	MountID              uint32   `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the mount`
 	MountIDUnique        uint64   `field:"-"`
 	Device               uint32   `field:"-"`
 	ParentPathKey        PathKey  `field:"-"`
@@ -619,7 +619,7 @@ type Mount struct {
 	MountPointStr        string   `field:"-"`
 	RootStr              string   `field:"-"`
 	Path                 string   `field:"-"`
-	Origin               uint32   `field:"-"`
+	Origin               uint32   `field:"origin"`   // SECLDoc[origin] Definition:`How this mount was created` Constants:`Mount origins` Example:`mount.origin == MOUNT_ORIGIN_PIVOT_ROOT` Description:`Matches a mount created by pivot_root`
 	Detached             bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
 	Visible              bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
 	NamespaceInode       uint32   `field:"-"`

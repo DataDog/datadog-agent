@@ -1245,6 +1245,20 @@ var (
 		"PR_RISCV_V_SET_CONTROL":        unix.PR_RISCV_V_SET_CONTROL,
 		"PR_RISCV_SET_ICACHE_FLUSH_CTX": unix.PR_RISCV_SET_ICACHE_FLUSH_CTX,
 	}
+
+	// MountOriginConstants is the list of mount origin constants
+	// generate_constants:Mount origins,Mount origins describe how a mount was created.
+	MountOriginConstants = map[string]uint32{
+		"MOUNT_ORIGIN_UNKNOWN":    MountOriginUnknown,
+		"MOUNT_ORIGIN_PROCFS":     MountOriginProcfs,
+		"MOUNT_ORIGIN_EVENT":      MountOriginEvent,
+		"MOUNT_ORIGIN_UNSHARE":    MountOriginUnshare,
+		"MOUNT_ORIGIN_FSMOUNT":    MountOriginFsmount,
+		"MOUNT_ORIGIN_OPEN_TREE":  MountOriginOpenTree,
+		"MOUNT_ORIGIN_LISTMOUNT":  MountOriginListmount,
+		"MOUNT_ORIGIN_MOVE_MOUNT": MountOriginMoveMount,
+		"MOUNT_ORIGIN_PIVOT_ROOT": MountOriginPivotRoot,
+	}
 )
 
 func initVMConstants() {
@@ -1469,6 +1483,13 @@ func initPrCtlOptionConstants() {
 		prctlOptionStrings[v] = k
 	}
 }
+
+func initMountOriginConstants() {
+	for k, v := range MountOriginConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+	}
+}
+
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	var strs []string
 	var result int

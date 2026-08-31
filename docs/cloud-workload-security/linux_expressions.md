@@ -1260,7 +1260,9 @@ A filesystem was mounted
 | -------- | ------------- |
 | [`mount.detached`](#mount-detached-doc) | Mount is detached from the VFS |
 | [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
+| [`mount.mount_id`](#mount-mount_id-doc) | Mount ID of the mount |
 | [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
+| [`mount.origin`](#mount-origin-doc) | How this mount was created |
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`mount.root.path`](#mount-root-path-doc) | Root path of the mount |
 | [`mount.source.path`](#mount-source-path-doc) | Source path of a bind mount |
@@ -4459,12 +4461,38 @@ Definition: Type of the mounted file system
 
 
 
+### `mount.mount_id` {#mount-mount_id-doc}
+Type: int
+
+Definition: Mount ID of the mount
+
+
+
 ### `mount.mountpoint.path` {#mount-mountpoint-path-doc}
 Type: string
 
 Definition: Path of the mount point
 
 
+
+### `mount.origin` {#mount-origin-doc}
+Type: int
+
+Definition: How this mount was created
+
+
+Constants: [Mount origins](#mount-origins)
+
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+mount.origin == MOUNT_ORIGIN_PIVOT_ROOT
+{{< /code-block >}}
+
+Matches a mount created by pivot_root
 
 ### `mount.root.path` {#mount-root-path-doc}
 Type: string
@@ -5956,6 +5984,21 @@ MMap flags are the supported flags for the mmap syscall.
 | `MAP_HUGE_2GB` | all |
 | `MAP_HUGE_16GB` | all |
 | `MAP_32BIT` | amd64 |
+
+### `Mount origins` {#mount-origins}
+Mount origins describe how a mount was created.
+
+| Name | Architectures |
+| ---- |---------------|
+| `MOUNT_ORIGIN_UNKNOWN` | all |
+| `MOUNT_ORIGIN_PROCFS` | all |
+| `MOUNT_ORIGIN_EVENT` | all |
+| `MOUNT_ORIGIN_UNSHARE` | all |
+| `MOUNT_ORIGIN_FSMOUNT` | all |
+| `MOUNT_ORIGIN_OPEN_TREE` | all |
+| `MOUNT_ORIGIN_LISTMOUNT` | all |
+| `MOUNT_ORIGIN_MOVE_MOUNT` | all |
+| `MOUNT_ORIGIN_PIVOT_ROOT` | all |
 
 ### `Network Address Family constants` {#network-address-family-constants}
 Network Address Family constants are the supported network address families.

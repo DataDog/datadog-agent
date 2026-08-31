@@ -3784,3 +3784,79 @@ rules:
           signal: SIGKILL
           scope: process
 `
+
+func TestPivotRootMountIDVariable(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "capture_rootfs_mount_id",
+				Expression: `mount.origin == MOUNT_ORIGIN_PIVOT_ROOT`,
+				Actions: []*ActionDefinition{{
+					Filter: stringPtr(`${process.rootfs_mount_id} == 0`),
+					Set: &SetDefinition{
+						Name:  "rootfs_mount_id",
+						Field: "mount.mount_id",
+						Scope: ScopeProcess,
+					},
+				}},
+			},
+			{
+				ID:         "write_to_rootfs",
+				Expression: `open.file.path == "/tmp/rootfs-write" && open.file.mount_id == ${process.rootfs_mount_id} && ${process.rootfs_mount_id} != 0`,
+			},
+			{
+				ID:         "exec_from_volume",
+				Expression: `exec.file.path == "/tmp/bin" && exec.file.mount_id != ${process.rootfs_mount_id} && ${process.rootfs_mount_id} != 0`,
+			},
+		},
+	}
+
+	rs, errs := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+	require.NoError(t, errs.ErrorOrNil())
+
+	pce := &model.ProcessCacheEntry{}
+
+	pivotRoot := model.NewFakeEvent()
+	pivotRoot.Type = uint32(model.PivotRootEventType)
+	pivotRoot.ProcessCacheEntry = pce
+	require.NoError(t, pivotRoot.SetFieldValue("mount.origin", int(model.MountOriginPivotRoot)))
+	require.NoError(t, pivotRoot.SetFieldValue("mount.mount_id", 42))
+
+	require.True(t, rs.Evaluate(pivotRoot), "expected pivot_root event to match the capture rule")
+
+	duplicatePivotRoot := model.NewFakeEvent()
+	duplicatePivotRoot.Type = uint32(model.PivotRootEventType)
+	duplicatePivotRoot.ProcessCacheEntry = pce
+	require.NoError(t, duplicatePivotRoot.SetFieldValue("mount.origin", int(model.MountOriginPivotRoot)))
+	require.NoError(t, duplicatePivotRoot.SetFieldValue("mount.mount_id", 99))
+	require.True(t, rs.Evaluate(duplicatePivotRoot), "expected later pivot_root event to still match the capture rule")
+
+	writeOnRootfs := model.NewFakeEvent()
+	writeOnRootfs.Type = uint32(model.FileOpenEventType)
+	writeOnRootfs.ProcessCacheEntry = pce
+	require.NoError(t, writeOnRootfs.SetFieldValue("open.file.path", "/tmp/rootfs-write"))
+	require.NoError(t, writeOnRootfs.SetFieldValue("open.file.mount_id", 42))
+	require.True(t, rs.Evaluate(writeOnRootfs), "expected write on the captured mount id to match")
+
+	writeOnOtherMount := model.NewFakeEvent()
+	writeOnOtherMount.Type = uint32(model.FileOpenEventType)
+	writeOnOtherMount.ProcessCacheEntry = pce
+	require.NoError(t, writeOnOtherMount.SetFieldValue("open.file.path", "/tmp/rootfs-write"))
+	require.NoError(t, writeOnOtherMount.SetFieldValue("open.file.mount_id", 7))
+	require.False(t, rs.Evaluate(writeOnOtherMount), "expected write on a different mount id not to match")
+
+	writeOnSecondPivot := model.NewFakeEvent()
+	writeOnSecondPivot.Type = uint32(model.FileOpenEventType)
+	writeOnSecondPivot.ProcessCacheEntry = pce
+	require.NoError(t, writeOnSecondPivot.SetFieldValue("open.file.path", "/tmp/rootfs-write"))
+	require.NoError(t, writeOnSecondPivot.SetFieldValue("open.file.mount_id", 99))
+	require.False(t, rs.Evaluate(writeOnSecondPivot), "expected the captured mount id to stay the first pivot_root")
+
+	execFromVolume := model.NewFakeEvent()
+	execFromVolume.Type = uint32(model.ExecEventType)
+	execFromVolume.ProcessCacheEntry = pce
+	execFromVolume.Exec.Process = &model.Process{}
+	require.NoError(t, execFromVolume.SetFieldValue("exec.file.path", "/tmp/bin"))
+	require.NoError(t, execFromVolume.SetFieldValue("exec.file.mount_id", 7))
+	require.True(t, rs.Evaluate(execFromVolume), "expected exec from a non-rootfs mount to match")
+}
