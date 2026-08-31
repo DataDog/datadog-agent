@@ -53,20 +53,26 @@ func (m *missedBytesModule) BuildIssue(context map[string]string) (*healthplatfo
 }
 
 // BuiltInPeriodicHealthCheck omits Interval to take the scheduler's 15-minute
-// default; the tracker's window is 24 hours. The logs_enabled gate is inside Fn,
-// not here, so a logs-disabled agent still resolves an issue a prior run left.
+// default; the tracker's window is 24 hours. The logs gate is inside Fn, not here,
+// so a logs-disabled agent still resolves an issue a prior run left.
 func (m *missedBytesModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return &runnerdef.BuiltInPeriodicHealthCheck{
 		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
 			Source: checkSource,
 			Fn: func() ([]runnerdef.IssueReport, error) {
-				if !m.cfg.GetBool("logs_enabled") {
+				if !logsEnabled(m.cfg) {
 					return nil, nil
 				}
 				return m.checker.Run()
 			},
 		},
 	}
+}
+
+// logsEnabled mirrors the logs agent's own gate, which still honours the
+// deprecated log_enabled (comp/logs/agent/impl/agent.go).
+func logsEnabled(cfg config.Component) bool {
+	return cfg.GetBool("logs_enabled") || cfg.GetBool("log_enabled")
 }
 
 // BuiltInStartupHealthCheck returns nil: loss accrues while the agent runs.

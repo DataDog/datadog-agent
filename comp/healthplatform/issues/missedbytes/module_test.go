@@ -47,14 +47,19 @@ func TestModule_LogsDisabledIsQuietAndResolves(t *testing.T) {
 	assert.Zero(t, n, "no reports, so a stale issue from a previous logs-enabled run resolves")
 }
 
-// The logs_enabled gate must not swallow a real report.
+// The logs gate must not swallow a real report. Deprecated log_enabled still
+// starts the logs agent, so it must reach the check too.
 func TestModule_LogsEnabledWithLossReports(t *testing.T) {
-	logsmetrics.ResetMissedBytesForTest()
-	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RecordMissedBytes("nginx", "web", 4096)
+	for _, yaml := range []string{"logs_enabled: true", "log_enabled: true"} {
+		t.Run(yaml, func(t *testing.T) {
+			logsmetrics.ResetMissedBytesForTest()
+			logsmetrics.MarkLogsAgentRunning()
+			logsmetrics.RecordMissedBytes("nginx", "web", 4096)
 
-	n, err := runModule(t, "logs_enabled: true")
+			n, err := runModule(t, yaml)
 
-	require.NoError(t, err)
-	assert.Equal(t, 1, n)
+			require.NoError(t, err)
+			assert.Equal(t, 1, n)
+		})
+	}
 }
