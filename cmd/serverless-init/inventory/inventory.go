@@ -148,6 +148,18 @@ func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id stri
 	ia.Set("resource_id", id)
 }
 
+// SetDeploymentID sets the deployment_id serverless field, for platforms that
+// only learn their deployment/instance identifier after the initial Inject
+// (e.g. delivered by a lifecycle hook rather than the environment). It is a
+// no-op while the serverless.inventory_enabled ramp gate is off, preserving the
+// invariant that no serverless field reaches a payload while the ramp is off.
+func SetDeploymentID(ia inventoryagent.Component, conf configmodel.Reader, id string) {
+	if !conf.GetBool("serverless.inventory_enabled") {
+		return
+	}
+	ia.Set(serverlessFieldPrefix+"deployment_id", id)
+}
+
 // buildFields flattens the per-platform inventory data and process-level
 // serverless context into the (unprefixed) agent_metadata keys.
 //
