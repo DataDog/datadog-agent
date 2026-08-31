@@ -1077,7 +1077,7 @@ func TestNormalizeTraceChunkV1TraceIDLength(t *testing.T) {
 
 func TestNormalizeUsesLiveRegistry(t *testing.T) {
 	// Custom registry: ConceptDDEnv maps to "x.test.env" instead of "env".
-	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"env":{"canonical":"env","fallbacks":[{"name":"x.test.env","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test","metadata":{"content_hash":"sha256:23301ec2e06aeeaef6ae1dbbbf8d7ae47a29dd10e5cab911d12c5c81a6f5663f"},"concepts":{"env":{"canonical":"env","fallbacks":[{"name":"x.test.env","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	original, err := semantics.NewEmbeddedRegistry()

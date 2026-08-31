@@ -6,6 +6,7 @@
 package info
 
 import (
+	"encoding/json"
 	"expvar"
 	"testing"
 
@@ -44,7 +45,8 @@ func TestPublishTraceSemanticsInfo_Embedded(t *testing.T) {
 func TestPublishTraceSemanticsInfo_RemoteConfig(t *testing.T) {
 	restoreEmbeddedRegistry(t)
 
-	const rcJSON = `{"version":"rc-1.0","metadata":{"content_hash":"hash-rc"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
+	const contentHash = "sha256:a055d6c59d7d4d260cb9d0c99a29b5d894f05b8e48cf8f2ccaaa86ed956e7e73"
+	const rcJSON = `{"version":"rc-1.0","metadata":{"content_hash":"` + contentHash + `"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
 	reg, err := semantics.NewRegistryFromJSON([]byte(rcJSON))
 	require.NoError(t, err)
 	semantics.UpdateRegistry(reg)
@@ -52,7 +54,7 @@ func TestPublishTraceSemanticsInfo_RemoteConfig(t *testing.T) {
 	info, ok := publishTraceSemanticsInfo().(TraceSemanticsInfo)
 	require.True(t, ok)
 	require.Equal(t, semantics.SourceRemoteConfig, info.Source)
-	require.Equal(t, "hash-rc", info.ContentHash)
+	require.Equal(t, contentHash, info.ContentHash)
 	require.Equal(t, "rc-1.0", info.Version)
 }
 
@@ -66,8 +68,20 @@ func TestPublishTraceSemanticsInfo_RemoteConfigMatchingEmbeddedHash(t *testing.T
 	embedded, err := semantics.NewEmbeddedRegistry()
 	require.NoError(t, err)
 
-	rcJSON := `{"version":"rc-same","metadata":{"content_hash":"` + embedded.ContentHash() + `"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
-	reg, err := semantics.NewRegistryFromJSON([]byte(rcJSON))
+	concepts := make(map[string]any)
+	for concept, fallbacks := range embedded.GetAllEquivalences() {
+		concepts[string(concept)] = map[string]any{
+			"canonical": string(concept),
+			"fallbacks": fallbacks,
+		}
+	}
+	rcJSON, err := json.Marshal(map[string]any{
+		"version":  "rc-same",
+		"metadata": map[string]string{"content_hash": embedded.ContentHash()},
+		"concepts": concepts,
+	})
+	require.NoError(t, err)
+	reg, err := semantics.NewRegistryFromJSON(rcJSON)
 	require.NoError(t, err)
 	semantics.UpdateRegistry(reg)
 

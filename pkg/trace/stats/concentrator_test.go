@@ -206,7 +206,7 @@ func TestConcentrator_PeerTagKeysFollowRegistry(t *testing.T) {
 	assert.Contains(t, originalKeys, "peer.service", "embedded registry maps peer.service concept")
 
 	// Install a registry with a different Version() and a remapped peer.service concept.
-	customJSON := `{"version":"test-custom-1","metadata":{"content_hash":"hash-a"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test-custom-1","metadata":{"content_hash":"sha256:df4ae1091ddfb8a32683b44f52afed1525573187ebf43a7f2c4f0f7a686db25d"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	semantics.UpdateRegistry(custom)

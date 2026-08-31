@@ -166,7 +166,7 @@ func TestEnableOPMFetchDefault(t *testing.T) {
 
 func TestConfiguredPeerTagsUsesLiveRegistry(t *testing.T) {
 	// Custom registry: ConceptPeerService maps to "x.custom.peer" instead of "peer.service".
-	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test","metadata":{"content_hash":"sha256:df4ae1091ddfb8a32683b44f52afed1525573187ebf43a7f2c4f0f7a686db25d"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	original, err := semantics.NewEmbeddedRegistry()
