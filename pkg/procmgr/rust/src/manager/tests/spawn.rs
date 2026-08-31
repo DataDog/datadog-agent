@@ -34,6 +34,7 @@ fn in_flight_spawn_test_timeout() -> Duration {
     }
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn test_stop_during_in_flight_spawn_aborts_child() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
