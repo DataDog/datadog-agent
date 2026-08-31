@@ -1,12 +1,15 @@
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-VERSION = "0.0.0-placeholder"
+VERSION = "v134388233-bbe56870"
 
-SOURCE_URL_BASE = "https://binaries.ddbuild.io/agent-check-runner"
+# FIXME(check-runner): the "/dev" segment is ACR's dev publish channel. ADP publishes to
+# a channel with no such segment ("/saluki"). Drop it once ACR CI promotes release
+# tarballs to a stable prefix.
+SOURCE_URL_BASE = "https://binaries.ddbuild.io/agent-check-runner/dev"
 
 HASHES = {
-    "linux-amd64": "0000000000000000000000000000000000000000000000000000000000000000",
-    "linux-arm64": "0000000000000000000000000000000000000000000000000000000000000000",
+    "linux-amd64": "69936d9062316432bb41182bff6e2fef63c0e1c9bcc520d8ec6f150bbdf17f57",
+    "linux-arm64": "aaa4f7303ab135b9ee105d5ae782ea3cd9df70e400d54bfddc22160885503809",
 }
 
 # Unlike Agent Data Plane, which is a single static binary, the Agent Check Runner (ACR) ships a
