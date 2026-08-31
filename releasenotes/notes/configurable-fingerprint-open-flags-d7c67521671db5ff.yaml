@@ -1,0 +1,18 @@
+---
+features:
+  - |
+    Add an optional Linux file-open flag for log file fingerprint reads. File
+    log sources can set ``fingerprint_config.open_flags`` to ``["direct"]`` to
+    request ``O_DIRECT`` for the short-lived fingerprint descriptor. Normal
+    log tailing keeps its existing open mode. The flag only takes effect on
+    Linux; on other platforms it is accepted and ignored so the same
+    configuration stays portable.
+
+    If the requested flags are not usable for a file, the Agent does not
+    silently fall back to a buffered fingerprint read. A new tailer is not
+    started. An active tailer keeps reading its open descriptor, but rotation
+    detection is unavailable until a later fingerprint succeeds. Affected
+    files are listed per source under ``Fingerprint Open Flags Errors`` in
+    ``agent status``, alongside a warning in the Agent log. Remove
+    ``open_flags`` from the source, or scope the source so it only matches
+    files that support them.

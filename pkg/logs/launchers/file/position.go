@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,7 +52,7 @@ func offsetBeyondEndOfFile(fileOpener opener.FileOpener, path string, offset int
 }
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter, fileOpener opener.FileOpener) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter, fileOpener opener.FileOpener, currentFingerprint *types.Fingerprint) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
@@ -74,6 +75,9 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 		if prevFingerprint != nil {
 			newFingerprint, ferr := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
 			if ferr != nil {
+				if currentFingerprint != nil && tailer.FingerprintOpenFlagsActive(currentFingerprint.Config) {
+					return 0, 0, ferr
+				}
 				// The fingerprint could not be computed, so keep trusting the stored offset rather
 				// than re-reading the file from the start and sending its contents twice.
 				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, ferr)

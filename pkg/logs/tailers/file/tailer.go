@@ -473,6 +473,11 @@ func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
 }
 
+// File returns the tailer's own file, whose Source can differ from a freshly scanned one.
+func (t *Tailer) File() *File {
+	return t.file
+}
+
 // GetID returns the tailer's unique identifier
 func (t *Tailer) GetID() string {
 	return t.file.GetScanKey()

@@ -9,8 +9,10 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -51,6 +53,28 @@ func (s *RegularTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 
 type LauncherTestSuite struct {
 	BaseLauncherTestSuite
+}
+
+type oneShotErrorFingerprinter struct {
+	filetailer.Fingerprinter
+	err             error
+	effectiveConfig *types.FingerprintConfig
+}
+
+func (f *oneShotErrorFingerprinter) ComputeFingerprint(file *filetailer.File) (*types.Fingerprint, error) {
+	if f.err != nil {
+		err := f.err
+		f.err = nil
+		return nil, err
+	}
+	return f.Fingerprinter.ComputeFingerprint(file)
+}
+
+func (f *oneShotErrorFingerprinter) GetEffectiveConfigForFile(file *filetailer.File) *types.FingerprintConfig {
+	if f.effectiveConfig != nil {
+		return f.effectiveConfig
+	}
+	return f.Fingerprinter.GetEffectiveConfigForFile(file)
 }
 
 func (suite *LauncherTestSuite) SetupSuite() {
@@ -1517,4 +1541,46 @@ func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
 	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show per-source origin")
 	suite.Equal(500, fingerprint.Config.Count, "Config values should be preserved")
 	suite.Equal(types.InvalidFingerprintValue, int(fingerprint.Value), "Fingerprint value should be invalid when disabled")
+}
+
+func (suite *LauncherTestSuite) TestUnsupportedFingerprintFlagsKeepActiveTailerUntilRecovery() {
+	if runtime.GOOS != "linux" {
+		suite.T().Skip("fingerprint open_flags apply on Linux only")
+	}
+
+	scanKey := getScanKey(suite.testPath, suite.source)
+	initialTailer, found := suite.s.tailers.Get(scanKey)
+	suite.Require().True(found)
+
+	mockFingerprinter := filetailer.NewFingerprinterMock()
+	mockFingerprinter.SetInvalidFingerprint(suite.testPath)
+	suite.s.fingerprinter = &oneShotErrorFingerprinter{
+		Fingerprinter: mockFingerprinter,
+		err:           errors.New("direct I/O rejected"),
+		effectiveConfig: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+			OpenFlags:           []types.FileOpenFlag{types.FileOpenFlagDirect},
+		},
+	}
+
+	files := suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry)
+	suite.Require().Len(files, 1)
+	suite.s.cleanUpRotatedTailers()
+	suite.s.resolveActiveTailers(files)
+
+	activeTailer, found := suite.s.tailers.Get(scanKey)
+	suite.Require().True(found)
+	suite.Same(initialTailer, activeTailer, "a fingerprint failure must not replace a working tailer")
+	_, err := suite.testFile.WriteString("still tailing\n")
+	suite.Require().NoError(err)
+	msg := <-suite.outputChan
+	suite.Equal("still tailing", string(msg.GetContent()))
+
+	files = suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry)
+	suite.s.cleanUpRotatedTailers()
+	suite.s.resolveActiveTailers(files)
+
+	recoveredTailer, found := suite.s.tailers.Get(scanKey)
+	suite.Require().True(found)
+	suite.Same(initialTailer, recoveredTailer, "successful retry should keep the same tailer when no rotation occurred")
 }

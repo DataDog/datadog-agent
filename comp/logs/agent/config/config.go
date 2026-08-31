@@ -208,6 +208,10 @@ func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
 		return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, disabled. Got: %s", config.FingerprintStrategy)
 	}
 
+	if err := validateFingerprintOpenFlags(config.OpenFlags, config.FingerprintStrategy); err != nil {
+		return err
+	}
+
 	// Skip validation if fingerprinting is disabled
 	if config.FingerprintStrategy == types.FingerprintStrategyDisabled {
 		return nil
@@ -226,6 +230,30 @@ func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
 	// Validate MaxBytes (must be positive if set, only relevant for line-based fingerprinting)
 	if config.MaxBytes <= 0 && config.FingerprintStrategy == "line_checksum" {
 		return fmt.Errorf("max_bytes must be greater than zero for line-based fingerprinting, got: %d", config.MaxBytes)
+	}
+
+	return nil
+}
+
+// validateFingerprintOpenFlags checks that the requested flags are well-formed.
+// Validated on every platform but the flag is only supported on Linux currently
+func validateFingerprintOpenFlags(openFlags []types.FileOpenFlag, strategy types.FingerprintStrategy) error {
+	if len(openFlags) == 0 {
+		return nil
+	}
+	if strategy == types.FingerprintStrategyDisabled {
+		return errors.New("fingerprint open_flags cannot be set when fingerprinting is disabled")
+	}
+
+	seen := make(map[types.FileOpenFlag]struct{}, len(openFlags))
+	for _, openFlag := range openFlags {
+		if err := openFlag.Validate(); err != nil {
+			return fmt.Errorf("fingerprint open_flags must contain only direct: %w", err)
+		}
+		if _, found := seen[openFlag]; found {
+			return fmt.Errorf("fingerprint open_flags contains duplicate flag %q", openFlag)
+		}
+		seen[openFlag] = struct{}{}
 	}
 
 	return nil
