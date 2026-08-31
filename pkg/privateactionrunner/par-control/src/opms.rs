@@ -159,17 +159,17 @@ pub trait Opms: Send + Sync {
 }
 
 fn dequeue_body(runner_started_at: &str, last_task_received_at: Option<&str>) -> Vec<u8> {
-    let mut attributes = serde_json::Map::new();
-    attributes.insert(
-        "runner_started_at".into(),
-        serde_json::Value::String(runner_started_at.to_string()),
-    );
-    if let Some(last) = last_task_received_at {
-        attributes.insert(
-            "last_task_received_at".into(),
-            serde_json::Value::String(last.to_string()),
-        );
+    #[derive(serde::Serialize)]
+    struct Attributes<'a> {
+        runner_started_at: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        last_task_received_at: Option<&'a str>,
     }
+
+    let attributes = Attributes {
+        runner_started_at,
+        last_task_received_at,
+    };
     let body = serde_json::json!({ "data": { "type": "dequeue", "attributes": attributes } });
     serde_json::to_vec(&body).expect("serializing dequeue body")
 }
