@@ -208,12 +208,13 @@ func TestPostgresGetConfigArgFromCommandline(t *testing.T) {
 	}{
 		{name: "explicit config file", args: []string{"postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"}, wantPath: "/etc/postgresql/postgresql.conf", wantOK: true},
 		{name: "long explicit config file", args: []string{"postgres", "--config-file=/etc/postgresql/postgresql.conf"}, wantPath: "/etc/postgresql/postgresql.conf", wantOK: true},
+		{name: "last explicit config file wins", args: []string{"postgres", "-c", "config_file=/one/postgresql.conf", "-c", "config_file=/two/postgresql.conf"}, wantPath: "/two/postgresql.conf", wantOK: true},
 		{name: "data directory", args: []string{"postgres", "-D", "/var/lib/postgresql/data"}, wantPath: "/var/lib/postgresql/data/postgresql.conf", wantOK: true},
 		{name: "attached data directory", args: []string{"postgres", "-D/var/lib/postgresql/data"}, wantPath: "/var/lib/postgresql/data/postgresql.conf", wantOK: true},
+		{name: "last data directory wins", args: []string{"postgres", "-D", "/one", "-D", "/two"}, wantPath: "/two/postgresql.conf", wantOK: true},
 		{name: "explicit config file wins over data directory", args: []string{"postgres", "-D", "/var/lib/postgresql/data", "-c", "config_file=/etc/postgresql/postgresql.conf"}, wantPath: "/etc/postgresql/postgresql.conf", wantOK: true},
 		{name: "shell wrapper", args: []string{"/bin/sh", "-c", "postgres -D /var/lib/postgresql/data"}, wantPath: "/var/lib/postgresql/data/postgresql.conf", wantOK: true},
 		{name: "no path", args: []string{"postgres"}},
-		{name: "conflicting data directories", args: []string{"postgres", "-D", "/one", "-D", "/two"}, wantOK: true},
 		{name: "non postgres command", args: []string{"redis-server", "/etc/redis/redis.conf"}},
 	}
 

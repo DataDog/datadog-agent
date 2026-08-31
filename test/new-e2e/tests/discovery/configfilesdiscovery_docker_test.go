@@ -374,7 +374,7 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisEnvVarsDiscoveredWithoutConfi
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for redis env var discovery payload")
 }
 
-func (s *configFilesDiscoveryDockerSuite) TestPostgresEnvVarsDiscovered() {
+func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscovered() {
 	t := s.T()
 	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
 		integrationName: postgresIntegrationName,

@@ -206,11 +206,6 @@ func postgresGetExplicitConfigArg(args []string) (string, bool) {
 			value = path
 		}
 
-		if foundConfigPath && configPath != value {
-			// Returning a found-but-unresolvable value stops readConfigFile from
-			// falling back to a path the process did not unambiguously select.
-			return "", true
-		}
 		configPath = value
 		foundConfigPath = true
 	}
@@ -232,9 +227,6 @@ func postgresGetDataDirConfigArg(args []string) (string, bool) {
 			continue
 		}
 		if value == "" {
-			return "", true
-		}
-		if dataDir != "" && dataDir != value {
 			return "", true
 		}
 		dataDir = value
