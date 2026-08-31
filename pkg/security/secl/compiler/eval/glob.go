@@ -104,7 +104,11 @@ func (g *Glob) matchesPrefix(filename string) bool {
 		return true
 	}
 
-	return PatternMatchesWithSegments(elp, elf, g.caseInsensitive) && i+1 == len(g.prefix)
+	if !PatternMatchesWithSegments(elp, elf, g.caseInsensitive) {
+		return false
+	}
+
+	return i+1 == len(g.prefix) || (i+2 == len(g.prefix) && g.prefix[i+1].pattern == "**")
 }
 
 func (g *Glob) matchesSuffix(filename string) bool {
