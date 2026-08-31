@@ -140,8 +140,8 @@ type EBPFProbe struct {
 	hostname  string
 
 	// TC Classifier & raw packets
-	rawPacketFilterCollection *lib.Collection
-	rawPacketActionCollection *lib.Collection
+	rawPacketFilterCollections [2]*lib.Collection
+	rawPacketActionCollection  *lib.Collection
 
 	// Ring
 	eventStream EventStream
@@ -840,8 +840,19 @@ func (p *EBPFProbe) applyAllowFiltersOnRouterBuffer(allowFilters []rawpacket.Fil
 		}
 	}
 
-	// add or close if none
-	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketFilterKey, probes.RawPacketMaxTailCall, &p.rawPacketFilterCollection, writeInactiveBuffer)
+	// Determine which physical buffer slot this write targets so each slot has
+	// its own Collection and the two calls in applyAllowFiltersToBothRouterBuffers
+	// do not close each other's programs.
+	active, err := probes.GetActiveRawPacketMapNumber(p.Manager.Get())
+	if err != nil {
+		return err
+	}
+	bufferIdx := active
+	if writeInactiveBuffer {
+		bufferIdx = 1 - active
+	}
+
+	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketFilterKey, probes.RawPacketMaxTailCall, &p.rawPacketFilterCollections[bufferIdx], writeInactiveBuffer)
 }
 
 func (p *EBPFProbe) applyAllowFiltersToBothRouterBuffers(allowFilters []rawpacket.Filter) error {
@@ -2688,8 +2699,11 @@ func (p *EBPFProbe) Stop() {
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
-	if p.rawPacketFilterCollection != nil {
-		p.rawPacketFilterCollection.Close()
+	for i, col := range p.rawPacketFilterCollections {
+		if col != nil {
+			col.Close()
+			p.rawPacketFilterCollections[i] = nil
+		}
 	}
 
 	if p.rawPacketActionCollection != nil {
@@ -2957,7 +2971,7 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 }
 
 func (p *EBPFProbe) flipRawPacketRouterBuffer() error {
-	if active, err := probes.GetActiveRawPacketMapNumber(p.Manager); err != nil {
+	if active, err := probes.GetActiveRawPacketMapNumber(p.Manager.Get()); err != nil {
 		return fmt.Errorf("unable to read raw_packet_router_sel: %v", err)
 	} else if err := p.swapRawPacketRouterSelValue(active); err != nil {
 		return fmt.Errorf("unable to swap raw_packet_router_sel: %v", err)
