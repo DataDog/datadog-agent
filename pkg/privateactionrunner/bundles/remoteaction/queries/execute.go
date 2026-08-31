@@ -12,7 +12,6 @@ import (
 	"errors"
 	"io"
 	"strings"
-	"time"
 
 	"google.golang.org/grpc"
 
@@ -170,7 +169,6 @@ func (a *ExecuteAction) Run(
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	actionStart := time.Now()
 	inputs, err := types.ExtractInputs[ExecuteInputs](task)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(
@@ -203,7 +201,6 @@ func (a *ExecuteAction) Run(
 		return nil, util.DefaultActionError(errors.New("remote query action requires an AgentSecure client"))
 	}
 
-	rpcStart := time.Now()
 	stream, err := client.RemoteQueryExecuteStream(ctx, remoteQueryExecuteRequestFromInputs(inputs))
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
@@ -211,11 +208,6 @@ func (a *ExecuteAction) Run(
 	output, err := remoteQueryExecuteOutputFromStream(stream, inputs.ResultDelivery.UploadID)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC response was invalid")
-	}
-	if timing, ok := output["stream_timing"].(map[string]interface{}); ok {
-		now := time.Now()
-		timing["action_total_ms"] = durationMillis(now.Sub(actionStart))
-		timing["rpc_create_ms"] = durationMillis(now.Sub(rpcStart))
 	}
 	return output, nil
 }
@@ -263,20 +255,20 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 }
 
 // remoteQueryExecuteOutputFromStream consumes the AgentSecure stream and builds the
-// receipt-only AP output. The stream carries progress metadata, the final compact run
-// receipt, and errors; there is no result-byte path, so the output never contains bulk
-// data. A successful final must carry the compact receipt, and its uploadId must match
-// the injected upload session.
+// AP action output. The output matches the strict AP metadata schema exactly:
+// {status, uploadReceipt} on success and {status, error{code, message}} on terminal
+// error — no other key, because the AP output validation rejects unknown fields.
+// Progress metadata and agent timing stay on the internal AgentSecure stream events;
+// bulk result bytes never appear because the integration uploads page files directly.
+// A successful final must carry the compact receipt, and its uploadId must match the
+// injected upload session.
 func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], requestedUploadID string) (map[string]interface{}, error) {
 	if stream == nil {
 		return nil, errors.New("remote query response stream missing")
 	}
 
-	attributes := map[string]interface{}{}
 	var finalEvent *pb.RemoteQueryStreamFinal
 	var errorEvent *pb.RemoteQueryStreamError
-	streamStart := time.Now()
-	var finalChunkAt time.Time
 	expectedChunkIndex := int32(0)
 	seenFinal := false
 	for {
@@ -299,13 +291,12 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		if event := chunk.GetEvent(); event != nil {
 			switch e := event.GetEvent().(type) {
 			case *pb.RemoteQueryExecuteStreamEvent_Metadata:
-				mergeStringAttributes(attributes, e.Metadata.GetAttributes())
+				// Progress metadata travels on the internal stream only; the AP
+				// output schema has no field for it.
 			case *pb.RemoteQueryExecuteStreamEvent_Final:
 				finalEvent = e.Final
-				mergeStringAttributes(attributes, e.Final.GetAttributes())
 			case *pb.RemoteQueryExecuteStreamEvent_Error:
 				errorEvent = e.Error
-				mergeStringAttributes(attributes, e.Error.GetAttributes())
 			default:
 				return nil, errors.New("remote query response stream contained unknown event")
 			}
@@ -313,9 +304,6 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 			return nil, errors.New("remote query response stream chunk missing typed event")
 		}
 		seenFinal = chunk.GetFinal()
-		if seenFinal {
-			finalChunkAt = time.Now()
-		}
 		expectedChunkIndex++
 	}
 	if !seenFinal {
@@ -326,11 +314,7 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		// Terminal-error propagation: an error event replaces the final event and the
 		// run reports no receipt.
 		if errorEvent != nil {
-			out := remoteQueryErrorOutput(errorEvent)
-			if len(attributes) > 0 {
-				out["attributes"] = attributes
-			}
-			return out, nil
+			return remoteQueryErrorOutput(errorEvent), nil
 		}
 		return nil, errors.New("remote query response stream missing final event")
 	}
@@ -352,7 +336,7 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		return nil, errors.New("remote query upload receipt uploadId does not match the requested upload session")
 	}
 
-	output := map[string]interface{}{
+	return map[string]interface{}{
 		"status": finalEvent.GetStatus(),
 		"uploadReceipt": map[string]interface{}{
 			"uploadId":   receipt.GetUploadId(),
@@ -360,40 +344,18 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 			"totalRows":  receipt.GetTotalRows(),
 			"totalBytes": receipt.GetTotalBytes(),
 		},
-	}
-	if len(attributes) > 0 {
-		output["attributes"] = attributes
-	}
-	if !finalChunkAt.IsZero() {
-		output["stream_timing"] = map[string]interface{}{
-			"final_chunk_ms": durationMillis(finalChunkAt.Sub(streamStart)),
-			"stream_loop_ms": durationMillis(time.Since(streamStart)),
-		}
-	}
-	return output, nil
+	}, nil
 }
 
-// remoteQueryErrorOutput propagates a terminal error event without a receipt.
+// remoteQueryErrorOutput propagates a terminal error event without a receipt. The error
+// object carries exactly code and message: the AP metadata ExecutionError schema is
+// strict and the worker reads only those two fields.
 func remoteQueryErrorOutput(errEvent *pb.RemoteQueryStreamError) map[string]interface{} {
 	return map[string]interface{}{
 		"status": errEvent.GetCode(),
 		"error": map[string]interface{}{
-			"code":      errEvent.GetCode(),
-			"message":   errEvent.GetMessage(),
-			"retryable": errEvent.GetRetryable(),
+			"code":    errEvent.GetCode(),
+			"message": errEvent.GetMessage(),
 		},
 	}
-}
-
-func mergeStringAttributes(out map[string]interface{}, attrs map[string]string) {
-	for key, value := range attrs {
-		out[key] = value
-	}
-}
-
-func durationMillis(duration time.Duration) float64 {
-	if duration <= 0 {
-		return 0
-	}
-	return duration.Seconds() * 1000
 }

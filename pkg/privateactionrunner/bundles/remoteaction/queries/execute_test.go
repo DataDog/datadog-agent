@@ -142,26 +142,26 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 
 	out, ok := output.(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, "SUCCEEDED", out["status"])
-	receipt, ok := out["uploadReceipt"].(map[string]interface{})
-	require.True(t, ok)
+	// The AP action output matches the strict AP metadata schema exactly:
+	// status and uploadReceipt and nothing else. Progress metadata and agent
+	// timing stay on the internal AgentSecure stream events.
 	assert.Equal(t, map[string]interface{}{
-		"uploadId":   testUploadID,
-		"pageCount":  int64(3),
-		"totalRows":  int64(123456),
-		"totalBytes": int64(987654),
-	}, receipt)
-	attributes, ok := out["attributes"].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "STARTED", attributes["status"])
-	assert.Equal(t, "true", attributes["includeSchema"])
-	assert.Equal(t, "12.345", attributes["agent_total_stream_ms"])
-	assert.Equal(t, "123456", attributes["stats.rowsEmitted"])
+		"status": "SUCCEEDED",
+		"uploadReceipt": map[string]interface{}{
+			"uploadId":   testUploadID,
+			"pageCount":  int64(3),
+			"totalRows":  int64(123456),
+			"totalBytes": int64(987654),
+		},
+	}, out)
 	assertNoBulkDataFields(t, out)
 
 	encoded, err := json.Marshal(out)
 	require.NoError(t, err)
 	assert.NotContains(t, string(encoded), testToken)
+	assert.NotContains(t, string(encoded), "STARTED")
+	assert.NotContains(t, string(encoded), "stats.rowsEmitted")
+	assert.NotContains(t, string(encoded), "agent_total_stream_ms")
 }
 
 func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
@@ -382,15 +382,16 @@ func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 	}), nil)
 
 	// Terminal errors propagate through the AP output envelope without a receipt.
+	// The error object carries exactly code and message: the AP metadata
+	// ExecutionError schema is strict, and progress metadata stays on the
+	// internal stream.
 	require.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{
 		"status": "target_not_found",
 		"error": map[string]interface{}{
-			"code":      "target_not_found",
-			"message":   "no matching integration check found",
-			"retryable": false,
+			"code":    "target_not_found",
+			"message": "no matching integration check found",
 		},
-		"attributes": map[string]interface{}{"stats.elapsedMs": "3"},
 	}, output)
 }
 
@@ -453,6 +454,10 @@ func assertNoBulkDataFields(t *testing.T, out map[string]interface{}) {
 	assert.NotContains(t, out, "csv")
 	assert.NotContains(t, out, "columns")
 	assert.NotContains(t, out, "rows")
+	// The AP metadata ExecuteOutputs schema is additionalProperties:false with
+	// exactly status, error, and uploadReceipt.
+	assert.NotContains(t, out, "attributes")
+	assert.NotContains(t, out, "stream_timing")
 }
 
 func taskWithInputs(inputs map[string]interface{}) *types.Task {
