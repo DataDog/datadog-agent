@@ -248,6 +248,10 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*pb.PreparedTra
 // WriteChunksV1 serializes the provided chunks, enqueueing them to be sent
 // Chunks must not be used after this point as the trace writer may modify the payload in-place.
 func (w *TraceWriterV1) WriteChunksV1(pkg *SampledChunksV1) {
+	if len(pkg.TracerPayload.Chunks) == 0 {
+		return
+	}
+
 	w.stats.Spans.Add(pkg.SpanCount)
 	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
 	w.stats.Events.Add(pkg.EventCount)

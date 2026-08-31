@@ -64,6 +64,28 @@ func TestTraceWriterV1(t *testing.T) {
 	}
 }
 
+func TestTraceWriterV1IgnoresEmptyPayload(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40, FlushPeriodSeconds: 1_000},
+	}
+	tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent())
+
+	tw.WriteChunksV1(&SampledChunksV1{
+		TracerPayload: &idx.InternalTracerPayload{Strings: idx.NewStringTable()},
+	})
+	tw.Stop()
+
+	assert.Zero(t, srv.Accepted())
+}
+
 func TestTraceWriterV1PayloadSplitting(t *testing.T) {
 	compressor := zstd.NewComponent()
 	srv := newTestServer()
