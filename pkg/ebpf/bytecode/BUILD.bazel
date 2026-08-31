@@ -137,28 +137,28 @@ go_library(
     srcs = [
         "asset_reader.go",
         "asset_reader_nobindata.go",
+        "compressed_asset.go",
         "permissions.go",
         "permissions_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode",
     visibility = ["//visibility:public"],
+    deps = ["@com_github_xi2_xz//:xz"],
 )
 
 dd_agent_go_test(
     name = "bytecode_test",
-    srcs = ["permissions_test.go"],
+    srcs = [
+        "asset_reader_nobindata_test.go",
+        "compressed_asset_test.go",
+        "permissions_test.go",
+    ],
+    data = glob(["testdata/**"]),
     embed = [":bytecode"],
-    deps = select({
-        "@rules_go//go/platform:android": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:linux": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "//conditions:default": [],
-    }),
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
 
 dd_agent_go_test(
