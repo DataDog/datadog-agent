@@ -52,6 +52,7 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/config/setup/constants",
         "//pkg/config/utils",
+        "//pkg/credential",
         "//pkg/logs/types",
         "//pkg/util/log",
         "//pkg/util/pointer",
