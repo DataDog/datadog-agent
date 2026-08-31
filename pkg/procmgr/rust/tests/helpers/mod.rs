@@ -54,6 +54,19 @@ pub struct ProcessSnapshot {
     pub last_signal: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessExpect {
+    Created,
+}
+
+impl ProcessExpect {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Created => "Created",
+        }
+    }
+}
+
 /// Unset fields are not checked.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StatusProcessesCount {
@@ -703,65 +716,36 @@ impl TestEnv {
 
     pub fn assert_status_processes_count(&self, expected: StatusProcessesCount) {
         let status = self.require_status();
-        assert_status_field(
-            "total_processes",
-            status.total_processes,
-            expected.total,
-            &status,
-        );
-        assert_status_field(
-            "running_processes",
-            status.running_processes,
-            expected.running,
-            &status,
-        );
-        assert_status_field(
-            "created_processes",
-            status.created_processes,
-            expected.created,
-            &status,
-        );
-        assert_status_field(
-            "stopped_processes",
-            status.stopped_processes,
-            expected.stopped,
-            &status,
-        );
-        assert_status_field(
-            "failed_processes",
-            status.failed_processes,
-            expected.failed,
-            &status,
-        );
-        assert_status_field(
-            "exited_processes",
-            status.exited_processes,
-            expected.exited,
-            &status,
-        );
-        assert_status_field(
-            "starting_processes",
-            status.starting_processes,
-            expected.starting,
-            &status,
-        );
-        assert_status_field(
-            "stopping_processes",
-            status.stopping_processes,
-            expected.stopping,
-            &status,
-        );
+        let fields = [
+            ("total_processes", status.total_processes, expected.total),
+            ("running_processes", status.running_processes, expected.running),
+            ("created_processes", status.created_processes, expected.created),
+            ("stopped_processes", status.stopped_processes, expected.stopped),
+            ("failed_processes", status.failed_processes, expected.failed),
+            ("exited_processes", status.exited_processes, expected.exited),
+            ("starting_processes", status.starting_processes, expected.starting),
+            ("stopping_processes", status.stopping_processes, expected.stopping),
+        ];
+        for (field, actual, exp) in fields {
+            assert_status_field(field, actual, exp, &status);
+        }
     }
 
-    pub fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
+    fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
         ListClient::new(&self.socket_path).list()
     }
 
-    pub fn wait_for_process_running(&self, name: &str) -> Result<ProcessSnapshot, String> {
+    fn find_process(&self, name: &str) -> Result<ProcessSnapshot, String> {
+        self.list_processes()?.into_iter().find(|p| p.name == name).ok_or_else(|| {
+            format!("process '{name}' not found")
+        })
+    }
+
+    fn wait_for_process_running(&self, name: &str) -> Result<ProcessSnapshot, String> {
         self.wait_for_process_running_with_timeout(name, default_process_wait_timeout())
     }
 
-    pub fn wait_for_process_running_with_timeout(
+    fn wait_for_process_running_with_timeout(
         &self,
         name: &str,
         timeout: Duration,
@@ -769,7 +753,7 @@ impl TestEnv {
         self.wait_for_process_running_with_stable(name, timeout, stable_running_duration())
     }
 
-    pub fn wait_for_process_running_with_stable(
+    fn wait_for_process_running_with_stable(
         &self,
         name: &str,
         timeout: Duration,
@@ -835,18 +819,16 @@ impl TestEnv {
         self.check_process_pid_alive(name);
     }
 
-    pub fn assert_process_state(&self, name: &str, expected_state: &str) {
+    pub fn assert_process_state(&self, name: &str, expected: ProcessExpect) {
         let process = self
-            .list_processes()
-            .unwrap_or_else(|e| panic!("failed to list processes for '{name}': {e}"))
-            .into_iter()
-            .find(|p| p.name == name)
-            .unwrap_or_else(|| panic!("process '{name}' not found"));
+            .find_process(name)
+            .unwrap_or_else(|e| panic!("{e}"));
+        let expected_state = expected.as_str();
         assert_eq!(
             process.state, expected_state,
             "process '{name}': expected state {expected_state}, got {process:?}"
         );
-        if expected_state == "Created" {
+        if expected == ProcessExpect::Created {
             assert_eq!(
                 process.pid, 0,
                 "process '{name}' in Created should have no PID, got {process:?}"
@@ -874,13 +856,15 @@ impl TestEnv {
         );
     }
 
+    pub fn assert_config_skip_logged(&self, name: &str) {
+        let yaml = format!("{name}.yaml:");
+        self.assert_daemon_log_line_contains(&["skipping", &yaml]);
+    }
+
     fn check_process_pid_alive(&self, name: &str) {
         let process = self
-            .list_processes()
-            .unwrap_or_else(|e| panic!("failed to list processes for '{name}': {e}"))
-            .into_iter()
-            .find(|p| p.name == name)
-            .unwrap_or_else(|| panic!("process '{name}' not found after wait"));
+            .find_process(name)
+            .unwrap_or_else(|e| panic!("{e}"));
         let pid = process.pid as u32;
         assert!(
             pid > 0,

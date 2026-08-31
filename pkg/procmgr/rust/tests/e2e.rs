@@ -6,7 +6,7 @@
 mod helpers;
 
 use dd_procmgrd::test_helpers;
-use helpers::{StatusProcessesCount, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone, write_config};
+use helpers::{ProcessExpect, StatusProcessesCount, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone, write_config};
 use std::time::Duration;
 
 #[test]
@@ -57,7 +57,7 @@ fn sleeper_fixture_no_auto_start() {
         running: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("sleeper_idle", "Created");
+    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn invalid_syntax_fixture_skipped() {
     });
     procmgr.assert_process_running("sleeper");
     procmgr.assert_process_absent("invalid_syntax");
-    procmgr.assert_daemon_log_line_contains(&["skipping", "invalid_syntax.yaml:"]);
+    procmgr.assert_config_skip_logged("invalid_syntax");
 }
 
 #[test]
