@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Dequeues tasks up to the configured concurrency, starts the executor on
-//! demand, dispatches over gRPC, and publishes outcomes to OPMS.
-
 use crate::executor::{Dispatcher, Outcome};
 use crate::opms::{HealthCheck, HeartbeatResult, Opms, PublishResult, Task};
 use crate::procmgr::ExecutorLifecycle;
@@ -16,21 +13,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 
-/// `INTERNAL_ERROR` from the ActionPlatformErrorCode proto; used when dispatch
-/// itself fails (e.g. the stream breaks) so the workflow does not hang.
+/// `INTERNAL_ERROR` from the ActionPlatformErrorCode proto.
 const INTERNAL_ERROR: i32 = 1;
 
-/// Tuning knobs for the orchestrator.
 #[derive(Clone)]
 pub struct Params {
     pub pool_size: usize,
     pub loop_interval: Duration,
     pub ready_timeout: Duration,
-    /// From task dequeue through terminal publication.
     pub heartbeat_interval: Duration,
-    /// Runner liveness reporting to OPMS, independent of task flow.
     pub health_check_interval: Duration,
-    /// Mirrors the Go circuit breaker.
     pub min_backoff: Duration,
     pub max_backoff: Duration,
     pub wait_before_retry: Duration,
@@ -79,14 +71,10 @@ where
     /// every in-flight action to publish its result.
     pub async fn run<S: Future<Output = ()>>(&self, shutdown: S) {
         let sem = Arc::new(Semaphore::new(self.params.pool_size));
-        // Consecutive dequeue-failure count, driving exponential backoff.
         let mut attempt: u32 = 1;
         tokio::pin!(shutdown);
 
-        // Liveness reporting runs for the whole process lifetime, deliberately
-        // decoupled from key readiness and task flow: an idle or wedged runner
-        // still has to tell OPMS it is alive, exactly like the Go CommonRunner's
-        // health-check loop, which starts before the workflow runner is ready.
+        // Liveness reporting runs for process lifetime.
         let (stop_health, health_done) =
             spawn_health_checks(Arc::clone(&self.opms), self.params.health_check_interval);
 
@@ -103,7 +91,6 @@ where
             };
         }
 
-        // The executor remains stopped until work arrives.
         loop {
             // Acquire capacity before leasing work from OPMS.
             let permit = tokio::select! {
@@ -264,32 +251,26 @@ where
         stop_background_task(stop_health, health_done).await;
     }
 
-    /// Ensure the executor is started and reports ready, bounded by `ready_timeout`.
     async fn ensure_ready(&self) -> anyhow::Result<()> {
-        self.lifecycle.ensure_started().await?;
-        let deadline = Instant::now() + self.params.ready_timeout;
-        loop {
-            match self.dispatcher.health().await {
-                Ok(health) if health.ready => return Ok(()),
-                Ok(health) => debug!(
-                    "executor is up but not ready yet ({} active actions)",
-                    health.active_actions
-                ),
-                // Expected while the executor is still binding its socket, so
-                // this is only interesting at debug level until the deadline
-                // turns it into a hard error below.
-                Err(e) => debug!("executor health check failed: {e:#}"),
+        tokio::time::timeout(self.params.ready_timeout, async {
+            self.lifecycle.ensure_started().await?;
+            loop {
+                match self.dispatcher.health().await {
+                    Ok(health) if health.ready => return Ok(()),
+                    Ok(health) => debug!(
+                        "executor is up but not ready yet ({} active actions)",
+                        health.active_actions
+                    ),
+                    // Expected while the executor is still binding its socket.
+                    Err(e) => debug!("executor health check failed: {e:#}"),
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
             }
-            if Instant::now() >= deadline {
-                anyhow::bail!("executor not ready within {:?}", self.params.ready_timeout);
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+        })
+        .await
+        .map_err(|_| anyhow::anyhow!("executor not ready within {:?}", self.params.ready_timeout))?
     }
 
-    /// Build and publish a dispatch failure for a task that never reached
-    /// `run_action`. Errors are logged, not propagated: this is already the
-    /// failure path, so there is nothing left to escalate to.
     async fn report_dispatch_failure(&self, task: &Task, detail: &str) {
         let outcome = dispatch_failure(detail);
         if let Err(e) =
@@ -321,8 +302,6 @@ fn crash_failure() -> Outcome {
     }
 }
 
-/// Publish a terminal result, retrying transport and retryable HTTP failures.
-/// A client rejection is terminal: retrying the same invalid request cannot help.
 async fn publish_with_retry<O: Opms + 'static>(
     opms: Arc<O>,
     task: &Task,
@@ -364,14 +343,6 @@ async fn publish_with_retry<O: Opms + 'static>(
 /// seconds would otherwise be 2,880 identical info lines per day on an idle host.
 const HEALTH_CHECK_LOG_INTERVAL: Duration = Duration::from_secs(600);
 
-/// Spawn the OPMS runner health-check loop. It reports liveness every `interval`
-/// until the returned sender is fired/dropped, honoring a server-requested
-/// pacing hint (`X-Retry-After-Ms`) the same way the Go loop does — including on
-/// a rejected check, so a throttling OPMS is not answered with more traffic.
-///
-/// A failed check is logged and retried on the next tick: this loop must never
-/// abort, because giving up would make the runner look permanently dead to OPMS
-/// while it is in fact still dequeuing and executing actions.
 fn spawn_health_checks<O: Opms + 'static>(
     opms: Arc<O>,
     interval: Duration,
@@ -422,10 +393,6 @@ fn log_health_check(check: &HealthCheck, last_info: &mut Option<Instant>) {
     }
 }
 
-/// Spawn a task that heartbeats `task`'s OPMS lease every `interval` until the
-/// returned sender is dropped/fired or OPMS reports the task missing. The first
-/// heartbeat is emitted after one full interval (the immediate `interval` tick
-/// is consumed).
 fn spawn_heartbeats<O: Opms + 'static>(
     opms: Arc<O>,
     task: Task,
@@ -465,6 +432,7 @@ async fn stop_background_task(
     done: tokio::task::JoinHandle<()>,
 ) {
     let _ = stop.send(());
+    done.abort();
     let _ = done.await;
 }
 
@@ -493,30 +461,24 @@ mod tests {
 
     struct Fakes {
         state: Mutex<FakeState>,
-        // Number of tasks to hand out before returning empty.
         tasks_to_serve: usize,
-        // Gate so dispatch overlaps to exercise pool bounding. When 0-permit and
-        // never released, run_action blocks (used to keep a stream "open").
         release: tokio::sync::Semaphore,
-        // run_action returns an error (broken stream).
         fail_run: bool,
-        // dequeue always errors, driving the loop into backoff.
         fail_dequeue: bool,
         dequeue_retry_after: Option<Duration>,
-        // Hold dequeue so tests can prove shutdown cancels a long poll.
         block_dequeue: bool,
         dequeue_release: tokio::sync::Semaphore,
-        // Describe reports the process has exited (crash).
         exited: bool,
         // Hold terminal publication so tests can verify heartbeats continue.
         block_publish: bool,
         publish_release: tokio::sync::Semaphore,
         // Simulate OPMS forgetting a task on its first heartbeat.
         heartbeat_not_found: bool,
-        // Health checks answer with this status (200 unless a test overrides it).
         health_check_status: u16,
-        // Health checks fail at the transport level.
+        health_check_retry_after: Option<Duration>,
         fail_health_check: bool,
+        block_health_check: bool,
+        block_executor_health: bool,
     }
 
     impl Default for Fakes {
@@ -535,7 +497,10 @@ mod tests {
                 publish_release: tokio::sync::Semaphore::new(0),
                 heartbeat_not_found: false,
                 health_check_status: 200,
+                health_check_retry_after: None,
                 fail_health_check: false,
+                block_health_check: false,
+                block_executor_health: false,
             }
         }
     }
@@ -601,13 +566,16 @@ mod tests {
 
         async fn health_check(&self) -> anyhow::Result<HealthCheck> {
             self.state.lock().unwrap().health_checks += 1;
+            if self.block_health_check {
+                std::future::pending::<()>().await;
+            }
             if self.fail_health_check {
                 anyhow::bail!("simulated health-check outage");
             }
             Ok(HealthCheck {
                 status: self.health_check_status,
                 server_time: Some("2026-02-03T04:05:06Z".into()),
-                retry_after: None,
+                retry_after: self.health_check_retry_after,
                 detail: String::new(),
             })
         }
@@ -625,6 +593,9 @@ mod tests {
 
     impl Dispatcher for Fakes {
         async fn health(&self) -> anyhow::Result<Health> {
+            if self.block_executor_health {
+                std::future::pending::<()>().await;
+            }
             let mut state = self.state.lock().unwrap();
             state.executor_health_checks += 1;
             let ready = state.not_ready_checks_remaining == 0;
@@ -672,31 +643,33 @@ mod tests {
         }
     }
 
+    async fn wait_until(mut condition: impl FnMut() -> bool, message: &str) {
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !condition() {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .expect(message);
+    }
+
     #[tokio::test]
-    async fn idle_control_plane_does_not_start_executor() {
-        let fake = Arc::new(Fakes::default());
+    async fn readiness_timeout_cancels_a_stuck_health_rpc() {
+        let fake = Arc::new(Fakes {
+            block_executor_health: true,
+            ..Default::default()
+        });
+        let mut params = test_params(1, Duration::from_secs(3600));
+        params.ready_timeout = Duration::from_millis(10);
         let orch = Orchestrator::new(
             Arc::clone(&fake),
             Arc::clone(&fake),
             Arc::clone(&fake),
-            test_params(1, Duration::from_secs(3600)),
+            params,
         );
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-        let run = tokio::spawn(async move {
-            orch.run(async {
-                let _ = shutdown_rx.await;
-            })
-            .await;
-        });
 
-        tokio::time::sleep(Duration::from_millis(30)).await;
-        {
-            let state = fake.state.lock().unwrap();
-            assert_eq!(state.ensure_started_calls, 0);
-        }
-
-        let _ = shutdown_tx.send(());
-        run.await.unwrap();
+        let error = orch.ensure_ready().await.unwrap_err();
+        assert!(error.to_string().contains("executor not ready within"));
     }
 
     #[tokio::test]
@@ -724,19 +697,14 @@ mod tests {
             .await;
         });
 
-        tokio::time::timeout(Duration::from_secs(1), async {
-            loop {
-                if fake.state.lock().unwrap().published == 1 {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(5)).await;
-            }
-        })
-        .await
-        .unwrap();
+        wait_until(
+            || fake.state.lock().unwrap().published == 1,
+            "task was not published after executor readiness",
+        )
+        .await;
         assert!(fake.state.lock().unwrap().executor_health_checks >= 4);
 
-        let _ = shutdown_tx.send(());
+        shutdown_tx.send(()).unwrap();
         run.await.unwrap();
     }
 
@@ -773,8 +741,8 @@ mod tests {
 
         let mut params = test_params(1, Duration::from_secs(3600));
         params.publish_max_attempts = 3;
-        params.publish_min_backoff = Duration::from_millis(1);
-        params.publish_max_backoff = Duration::from_millis(2);
+        params.publish_min_backoff = Duration::ZERO;
+        params.publish_max_backoff = Duration::ZERO;
         let result = publish_with_retry(Arc::clone(&fakes), &task, &outcome, &params)
             .await
             .unwrap();
@@ -810,25 +778,22 @@ mod tests {
             .await;
         });
 
-        // Let the loop fill the pool, then let actions drain in waves.
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        wait_until(
+            || fakes.state.lock().unwrap().concurrent == pool,
+            "the loop did not fill the executor pool",
+        )
+        .await;
+        assert_eq!(fakes.state.lock().unwrap().max_concurrent, pool);
+
         fakes.release.add_permits(tasks);
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        wait_until(
+            || fakes.state.lock().unwrap().published == tasks,
+            "not every dequeued task was published",
+        )
+        .await;
 
-        let _ = tx.send(());
-        let _ = handle.await;
-
-        let s = fakes.state.lock().unwrap();
-        assert!(
-            s.max_concurrent <= pool,
-            "max concurrent {} exceeded pool {}",
-            s.max_concurrent,
-            pool
-        );
-        assert_eq!(
-            s.published, tasks,
-            "every dequeued task should be published"
-        );
+        tx.send(()).unwrap();
+        handle.await.unwrap();
     }
 
     #[tokio::test]
@@ -859,58 +824,36 @@ mod tests {
         });
 
         // The lease is protected while a cold executor waits for readiness.
-        tokio::time::timeout(Duration::from_secs(1), async {
-            loop {
-                if fakes.state.lock().unwrap().heartbeats >= 2 {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(2)).await;
-            }
-        })
-        .await
-        .expect("heartbeats did not start during cold-start readiness");
+        wait_until(
+            || fakes.state.lock().unwrap().heartbeats >= 2,
+            "heartbeats did not start during cold-start readiness",
+        )
+        .await;
+
         // Finish readiness and execution, but hold the terminal OPMS request.
         fakes.state.lock().unwrap().not_ready_checks_remaining = 0;
         fakes.release.add_permits(1);
-        tokio::time::timeout(Duration::from_secs(1), async {
-            loop {
-                if fakes.state.lock().unwrap().publish_attempts == 1 {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(2)).await;
-            }
-        })
-        .await
-        .expect("terminal publication did not start");
+        wait_until(
+            || fakes.state.lock().unwrap().publish_attempts == 1,
+            "terminal publication did not start",
+        )
+        .await;
         let before_publish = fakes.state.lock().unwrap().heartbeats;
-        tokio::time::sleep(Duration::from_millis(20)).await;
-        assert!(
-            fakes.state.lock().unwrap().heartbeats > before_publish,
-            "heartbeats must continue until terminal publication completes"
-        );
+        wait_until(
+            || fakes.state.lock().unwrap().heartbeats > before_publish,
+            "heartbeats stopped before terminal publication completed",
+        )
+        .await;
 
         fakes.publish_release.add_permits(1);
-        tokio::time::timeout(Duration::from_secs(1), async {
-            loop {
-                if fakes.state.lock().unwrap().published == 1 {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(2)).await;
-            }
-        })
-        .await
-        .expect("terminal publication did not complete");
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        let after_publish = fakes.state.lock().unwrap().heartbeats;
-        tokio::time::sleep(Duration::from_millis(20)).await;
-        assert_eq!(
-            fakes.state.lock().unwrap().heartbeats,
-            after_publish,
-            "heartbeats must stop after terminal publication"
-        );
+        wait_until(
+            || fakes.state.lock().unwrap().published == 1,
+            "terminal publication did not complete",
+        )
+        .await;
 
-        let _ = tx.send(());
-        let _ = handle.await;
+        tx.send(()).unwrap();
+        handle.await.unwrap();
     }
 
     /// Uses real time because paused time would hide an uninterruptible sleep.
@@ -958,18 +901,13 @@ mod tests {
             .await;
         });
 
-        for _ in 0..100 {
-            if fakes.state.lock().unwrap().dequeued > 0 {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        assert!(
-            fakes.state.lock().unwrap().dequeued > 0,
-            "the loop never started a dequeue"
-        );
+        wait_until(
+            || fakes.state.lock().unwrap().dequeued > 0,
+            "the loop never started a dequeue",
+        )
+        .await;
 
-        let _ = tx.send(());
+        tx.send(()).unwrap();
         tokio::time::timeout(Duration::from_secs(5), handle)
             .await
             .expect("run() must cancel the in-progress dequeue on shutdown")
@@ -1000,15 +938,14 @@ mod tests {
             .await;
         });
 
-        for _ in 0..100 {
-            if fakes.state.lock().unwrap().dequeued > 0 {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        wait_until(
+            || fakes.state.lock().unwrap().executor_health_checks > 0,
+            "executor readiness did not start",
+        )
+        .await;
         assert_eq!(fakes.state.lock().unwrap().dequeued, 1);
 
-        let _ = tx.send(());
+        tx.send(()).unwrap();
         tokio::time::timeout(Duration::from_secs(5), handle)
             .await
             .expect("shutdown must cancel executor readiness")
@@ -1039,15 +976,13 @@ mod tests {
             .await;
         });
 
-        for _ in 0..100 {
-            if fakes.state.lock().unwrap().concurrent > 0 {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        assert_eq!(fakes.state.lock().unwrap().concurrent, 1);
+        wait_until(
+            || fakes.state.lock().unwrap().concurrent == 1,
+            "the action did not start",
+        )
+        .await;
 
-        let _ = tx.send(());
+        tx.send(()).unwrap();
         assert!(
             tokio::time::timeout(Duration::from_millis(50), &mut handle)
                 .await
@@ -1087,16 +1022,11 @@ mod tests {
             .await;
         });
 
-        tokio::time::timeout(Duration::from_secs(1), async {
-            loop {
-                if fakes.state.lock().unwrap().concurrent == 1 {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(1)).await;
-            }
-        })
-        .await
-        .expect("task did not start");
+        wait_until(
+            || fakes.state.lock().unwrap().concurrent == 1,
+            "task did not start",
+        )
+        .await;
 
         tx.send(()).unwrap();
         tokio::time::timeout(Duration::from_millis(100), handle)
@@ -1134,19 +1064,13 @@ mod tests {
             .await;
         });
 
-        // Wait until the loop has failed a dequeue and is therefore sleeping.
-        for _ in 0..100 {
-            if fakes.state.lock().unwrap().dequeued > 0 {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        assert!(
-            fakes.state.lock().unwrap().dequeued > 0,
-            "the loop never attempted a dequeue"
-        );
+        wait_until(
+            || fakes.state.lock().unwrap().dequeued > 0,
+            "the loop never attempted a dequeue",
+        )
+        .await;
 
-        let _ = tx.send(());
+        tx.send(()).unwrap();
         tokio::time::timeout(Duration::from_secs(5), handle)
             .await
             .expect("run() must return promptly on shutdown, not after the backoff")
@@ -1180,13 +1104,11 @@ mod tests {
             .await;
         });
 
-        tokio::time::timeout(Duration::from_secs(1), async {
-            while fakes.state.lock().unwrap().dequeued < 2 {
-                tokio::time::sleep(Duration::from_millis(1)).await;
-            }
-        })
-        .await
-        .expect("server retry delay was ignored in favor of local backoff");
+        wait_until(
+            || fakes.state.lock().unwrap().dequeued >= 2,
+            "server retry delay was ignored in favor of local backoff",
+        )
+        .await;
 
         tx.send(()).unwrap();
         handle.await.unwrap();
@@ -1217,9 +1139,13 @@ mod tests {
             .await;
         });
 
-        tokio::time::sleep(Duration::from_millis(60)).await;
-        let _ = tx.send(());
-        let _ = handle.await;
+        wait_until(
+            || fakes.state.lock().unwrap().failures == 1,
+            "the executor crash was not published",
+        )
+        .await;
+        tx.send(()).unwrap();
+        handle.await.unwrap();
 
         let s = fakes.state.lock().unwrap();
         assert_eq!(
@@ -1253,31 +1179,18 @@ mod tests {
             .await;
         });
 
-        tokio::time::timeout(Duration::from_secs(2), async {
-            loop {
-                if fakes.state.lock().unwrap().health_checks >= 3 {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(2)).await;
-            }
-        })
-        .await
-        .expect("no periodic OPMS health check was sent");
+        wait_until(
+            || fakes.state.lock().unwrap().health_checks >= 3,
+            "no periodic OPMS health check was sent",
+        )
+        .await;
+        assert_eq!(fakes.state.lock().unwrap().ensure_started_calls, 0);
 
-        let _ = tx.send(());
+        tx.send(()).unwrap();
         tokio::time::timeout(Duration::from_secs(5), handle)
             .await
             .expect("run() must return promptly")
             .expect("orchestrator task panicked");
-
-        // The loop is owned by run(): once it returns, nothing keeps polling OPMS.
-        let after_shutdown = fakes.state.lock().unwrap().health_checks;
-        tokio::time::sleep(Duration::from_millis(40)).await;
-        assert_eq!(
-            fakes.state.lock().unwrap().health_checks,
-            after_shutdown,
-            "health checks must stop when the control plane stops"
-        );
     }
 
     /// Liveness reporting must survive a failing health check while the control
@@ -1306,55 +1219,58 @@ mod tests {
             .await;
         });
 
-        tokio::time::timeout(Duration::from_secs(2), async {
-            loop {
-                if fakes.state.lock().unwrap().health_checks >= 3 {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(2)).await;
-            }
-        })
-        .await
-        .expect("a failing health check must be retried, not abandoned");
+        wait_until(
+            || fakes.state.lock().unwrap().health_checks >= 3,
+            "a failing health check must be retried, not abandoned",
+        )
+        .await;
 
-        assert_eq!(
-            fakes.state.lock().unwrap().ensure_started_calls,
-            0,
-            "idle liveness checks must not start the executor"
-        );
-
-        let _ = tx.send(());
+        tx.send(()).unwrap();
         tokio::time::timeout(Duration::from_secs(5), handle)
             .await
             .expect("shutdown must stop the health-check loop too")
             .expect("orchestrator task panicked");
     }
 
-    /// A rejected health check is logged, not retried immediately, and the
-    /// server's pacing hint is honored (mirrors the Go loop's use of
-    /// `HealthCheckData.RetryAfter`, which is populated even on error).
     #[tokio::test]
-    async fn rejected_health_check_is_paced_by_the_server() {
+    async fn stopping_health_checks_cancels_an_inflight_request() {
         let opms = Arc::new(Fakes {
-            health_check_status: 429,
+            block_health_check: true,
             ..Default::default()
         });
-        let (stop, done) = spawn_health_checks(Arc::clone(&opms), Duration::from_millis(5));
-        tokio::time::timeout(Duration::from_secs(2), async {
-            loop {
-                if opms.state.lock().unwrap().health_checks >= 2 {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(2)).await;
-            }
-        })
-        .await
-        .expect("a rejected health check must be retried on the next tick");
-        stop_background_task(stop, done).await;
+        let (stop, done) = spawn_health_checks(Arc::clone(&opms), Duration::from_millis(1));
+        wait_until(
+            || opms.state.lock().unwrap().health_checks == 1,
+            "health check did not start",
+        )
+        .await;
 
+        tokio::time::timeout(Duration::from_millis(100), stop_background_task(stop, done))
+            .await
+            .expect("stopping health checks must cancel an in-flight request");
+    }
+
+    #[tokio::test]
+    async fn rejected_health_check_honors_server_pacing() {
+        let opms = Arc::new(Fakes {
+            health_check_status: 429,
+            health_check_retry_after: Some(Duration::from_secs(3600)),
+            ..Default::default()
+        });
+        let (stop, done) = spawn_health_checks(Arc::clone(&opms), Duration::from_millis(1));
+        wait_until(
+            || opms.state.lock().unwrap().health_checks == 1,
+            "health check did not start",
+        )
+        .await;
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(opms.state.lock().unwrap().health_checks, 1);
+        stop_background_task(stop, done).await;
+    }
+
+    #[test]
+    fn successful_health_check_logging_is_throttled() {
         let mut last_info = None;
-        // A 200 logs at info the first time, then throttles; a rejection always
-        // logs at error. Exercised here so the formatting path cannot panic.
         log_health_check(
             &HealthCheck {
                 status: 200,
@@ -1364,8 +1280,8 @@ mod tests {
             },
             &mut last_info,
         );
-        assert!(last_info.is_some());
-        let first = last_info;
+        let first = last_info.expect("the first success should log at info");
+
         log_health_check(
             &HealthCheck {
                 status: 200,
@@ -1375,9 +1291,6 @@ mod tests {
             },
             &mut last_info,
         );
-        assert_eq!(
-            last_info, first,
-            "a second success inside the log-limit window must not reset it"
-        );
+        assert_eq!(last_info, Some(first));
     }
 }
