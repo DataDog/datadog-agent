@@ -234,8 +234,8 @@ func TestMatcherTestAllocationsForNonNormalizedName(t *testing.T) {
 	if IsNormalized(raw) {
 		t.Fatalf("test input %q is already normalized, it cannot exercise the rewrite path", raw)
 	}
-	if got, ok := Normalize(raw); !ok || got != normalized {
-		t.Fatalf("Normalize(%q) = (%q, %v), want (%q, true)", raw, got, ok, normalized)
+	if got, ok := normalize(raw); !ok || got != normalized {
+		t.Fatalf("normalize(%q) = (%q, %v), want (%q, true)", raw, got, ok, normalized)
 	}
 
 	m := NewMatcher(buildNames(10_000, "tail"), false)
@@ -250,7 +250,7 @@ func TestMatcherTestAllocationsForNonNormalizedName(t *testing.T) {
 	// The name is also longer than a typical one, to exercise the buffer nearer
 	// its bound without reallocating.
 	long := "9" + strings.Repeat("a-", (MaxLength-1)/2)
-	if _, ok := Normalize(long); !ok {
+	if _, ok := normalize(long); !ok {
 		t.Fatalf("fixture %q should be storable", long[:20])
 	}
 	if allocs := testing.AllocsPerRun(100, func() { m.Test(long) }); allocs != 0 {
@@ -292,7 +292,7 @@ func TestMatcherTestIsAllocationFreeOnLadingTraffic(t *testing.T) {
 		case IsNormalized(n):
 			normalized++
 		default:
-			if _, ok := Normalize(n); ok {
+			if _, ok := normalize(n); ok {
 				rewritten++
 			} else {
 				unstorable++
@@ -391,8 +391,8 @@ func BenchmarkMatcherTestPaths(b *testing.B) {
 		if got := IsNormalized(c.probes[0]); got != c.wantNormalized {
 			b.Fatalf("%s: IsNormalized(%q) = %v, want %v", c.name, c.probes[0], got, c.wantNormalized)
 		}
-		if got, ok := Normalize(c.probes[0]); !ok || got != c.entries[0] {
-			b.Fatalf("%s: Normalize(%q) = (%q, %v), want (%q, true)",
+		if got, ok := normalize(c.probes[0]); !ok || got != c.entries[0] {
+			b.Fatalf("%s: normalize(%q) = (%q, %v), want (%q, true)",
 				c.name, c.probes[0], got, ok, c.entries[0])
 		}
 		if m := NewMatcher(c.entries, false); !m.Test(c.probes[0]) {

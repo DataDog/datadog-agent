@@ -13,6 +13,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// normalize is the string-returning form of normalizeAppend, for tests that
+// assert on the normalized name. Production code normalizes into a stack buffer
+// via normalizeAppend instead, so this deliberately exists only in tests -- see
+// Matcher.Test.
+func normalize(name string) (string, bool) {
+	got, ok := normalizeAppend(make([]byte, 0, MaxLength), name)
+	if !ok {
+		return name, false
+	}
+	return string(got), true
+}
+
 // normalizedNames mirrors the `testMetricNames` table in dd-go
 // (`model/metric_test.go`) so a divergence between the two implementations
 // shows up as a test failure here.
@@ -79,7 +91,7 @@ var unstorableNames = []string{
 func TestNormalize(t *testing.T) {
 	for input, expected := range normalizedNames {
 		t.Run(input, func(t *testing.T) {
-			actual, ok := Normalize(input)
+			actual, ok := normalize(input)
 			require.True(t, ok)
 			assert.Equal(t, expected, actual)
 		})
@@ -89,9 +101,9 @@ func TestNormalize(t *testing.T) {
 func TestNormalizeIsIdempotent(t *testing.T) {
 	for input := range normalizedNames {
 		t.Run(input, func(t *testing.T) {
-			once, ok := Normalize(input)
+			once, ok := normalize(input)
 			require.True(t, ok)
-			twice, ok := Normalize(once)
+			twice, ok := normalize(once)
 			require.True(t, ok)
 			assert.Equal(t, once, twice)
 		})
@@ -101,7 +113,7 @@ func TestNormalizeIsIdempotent(t *testing.T) {
 func TestNormalizeUnstorableNames(t *testing.T) {
 	for _, input := range unstorableNames {
 		t.Run(input, func(t *testing.T) {
-			actual, ok := Normalize(input)
+			actual, ok := normalize(input)
 			assert.False(t, ok, "expected %q to be rejected", input)
 			assert.Equal(t, input, actual, "rejected names must be returned unchanged")
 		})
@@ -111,20 +123,20 @@ func TestNormalizeUnstorableNames(t *testing.T) {
 func TestNormalizeMaxLength(t *testing.T) {
 	// A name of exactly MaxLength bytes is accepted.
 	atLimit := strings.Repeat("a", MaxLength)
-	actual, ok := Normalize(atLimit)
+	actual, ok := normalize(atLimit)
 	require.True(t, ok)
 	assert.Equal(t, atLimit, actual)
 
 	// One byte over is rejected, and is *not* truncated to fit.
 	overLimit := atLimit + "a"
-	actual, ok = Normalize(overLimit)
+	actual, ok = normalize(overLimit)
 	assert.False(t, ok)
 	assert.Equal(t, overLimit, actual)
 
 	// A name that would fit only after normalization is still rejected, because
 	// the intake checks the length of the raw name.
 	shrinks := strings.Repeat("a-", MaxLength)
-	_, ok = Normalize(shrinks)
+	_, ok = normalize(shrinks)
 	assert.False(t, ok)
 }
 
@@ -143,7 +155,7 @@ func TestIsNormalized(t *testing.T) {
 }
 
 // TestIsNormalizedMatchesNormalize asserts the property the fast path in
-// Normalize relies on: IsNormalized(s) is true exactly when Normalize(s)
+// Normalize relies on: IsNormalized(s) is true exactly when normalize(s)
 // returns s unchanged.
 func TestIsNormalizedMatchesNormalize(t *testing.T) {
 	inputs := []string{
@@ -154,7 +166,7 @@ func TestIsNormalizedMatchesNormalize(t *testing.T) {
 	}
 	for _, input := range inputs {
 		t.Run(input, func(t *testing.T) {
-			normalized, ok := Normalize(input)
+			normalized, ok := normalize(input)
 			assert.Equal(t, ok && normalized == input, IsNormalized(input))
 		})
 	}
@@ -169,7 +181,7 @@ func FuzzIsNormalizedMatchesNormalize(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, name string) {
-		normalized, ok := Normalize(name)
+		normalized, ok := normalize(name)
 
 		assert.Equal(t, ok && normalized == name, IsNormalized(name),
 			"IsNormalized disagrees with Normalize for %q", name)
@@ -183,7 +195,7 @@ func FuzzIsNormalizedMatchesNormalize(f *testing.F) {
 		assert.True(t, IsNormalized(normalized),
 			"Normalize produced a non-normalized name %q from %q", normalized, name)
 
-		again, ok := Normalize(normalized)
+		again, ok := normalize(normalized)
 		assert.True(t, ok)
 		assert.Equal(t, normalized, again, "Normalize is not idempotent for %q", name)
 	})
@@ -194,7 +206,7 @@ func BenchmarkNormalizeAlreadyNormalized(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		Normalize(name)
+		normalize(name)
 	}
 }
 
@@ -203,6 +215,6 @@ func BenchmarkNormalizeNeedsRewrite(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		Normalize(name)
+		normalize(name)
 	}
 }

@@ -55,15 +55,16 @@ func firstAlpha(name string) (int, bool) {
 	return 0, false
 }
 
-// IsNormalized reports whether name is already exactly what Normalize would
-// return, i.e. whether it is a name the intake would store unchanged.
+// IsNormalized reports whether name is a name the intake would store unchanged,
+// i.e. whether normalizing it would be the identity.
 //
-// It performs a single pass and never allocates, which lets Normalize (and
-// therefore filter list matching) stay allocation-free for the overwhelmingly
-// common case of an already-normalized name.
+// It performs a single pass and never allocates, which is what lets filter list
+// matching skip the rewrite entirely for the overwhelmingly common case of an
+// already-normalized name. See Matcher.Test.
 //
-// The predicate is exact: IsNormalized(s) is true if and only if
-// Normalize(s) returns (s, true).
+// The predicate is exact: IsNormalized(s) is true if and only if normalizing s
+// yields s unchanged. TestIsNormalizedMatchesNormalize and the fuzz target
+// beside it assert that equivalence.
 func IsNormalized(name string) bool {
 	if len(name) == 0 || len(name) > MaxLength {
 		return false
@@ -98,12 +99,13 @@ func IsNormalized(name string) bool {
 	return true
 }
 
-// Normalize returns the metric name as the Datadog intake will store it.
+// normalizeAppend appends the metric name as the Datadog intake will store it to
+// dst, and returns the extended slice.
 //
-// The bool result is false when the intake would reject the name outright
-// rather than rewrite it, which happens when the name is empty, longer than
-// MaxLength bytes, or contains no ASCII letter. In that case the name is
-// returned unchanged and callers should treat it as unstorable.
+// The bool is false when the intake would reject the name outright rather than
+// rewrite it, which happens when the name is empty, longer than MaxLength bytes,
+// or contains no ASCII letter. In that case dst is returned unmodified and
+// callers should treat the name as unstorable.
 //
 // The rules, applied byte-wise:
 //
@@ -118,29 +120,13 @@ func IsNormalized(name string) bool {
 // Because step 4 works on bytes, each byte of a multi-byte UTF-8 sequence is
 // treated separately and the sequence collapses to a single underscore.
 //
-// Normalize is idempotent.
-func Normalize(name string) (string, bool) {
-	// Fast path: already normalized, so return it as-is without allocating.
-	if IsNormalized(name) {
-		return name, true
-	}
-
-	res, ok := normalizeAppend(make([]byte, 0, len(name)), name)
-	if !ok {
-		return name, false
-	}
-
-	return string(res), true
-}
-
-// normalizeAppend appends the normalized form of name to dst and returns the
-// extended slice. The bool is false when the intake would reject name outright,
-// in which case dst is returned unmodified.
+// Normalizing is idempotent: the output always satisfies IsNormalized.
 //
 // A normalized name is never longer than its input, and firstAlpha rejects
 // anything longer than MaxLength, so a dst with MaxLength spare capacity is
-// enough for append never to reallocate. Callers relying on that (see
-// Matcher.Test) can therefore normalize into a stack buffer.
+// enough for append never to reallocate. That is what lets Matcher.Test
+// normalize into a stack buffer, and is why this appends rather than returning a
+// string: there is no production caller that wants the allocation.
 func normalizeAppend(dst []byte, name string) ([]byte, bool) {
 	start, ok := firstAlpha(name)
 	if !ok {
