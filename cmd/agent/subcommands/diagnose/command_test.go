@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -185,5 +184,5 @@ func TestPrintAgentFullTelemetryNoBearer(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	err = printAgentFullTelemetry(cfg, ipcComp.GetClient())
 	require.NoError(t, err)
-	assert.Empty(t, capturedAuth, "Bearer token must not be sent to unauthenticated telemetry endpoint")
+	require.Empty(t, capturedAuth, "Bearer token must not be sent to unauthenticated telemetry endpoint")
 }

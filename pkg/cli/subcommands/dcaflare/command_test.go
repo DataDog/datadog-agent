@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -64,11 +63,9 @@ func TestReadProfileDataNoBearer(t *testing.T) {
 
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
-	port, err := strconv.Atoi(u.Port())
-	require.NoError(t, err)
 
 	cfg := configmock.New(t)
-	cfg.SetInTest("expvar_port", port)
+	cfg.SetInTest("expvar_port", u.Port())
 
 	ipcComp := ipcmock.New(t)
 	_, err = readProfileData(ipcComp.GetClient(), 1)
