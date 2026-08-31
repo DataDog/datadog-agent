@@ -4,7 +4,4 @@ fixes:
     Fix the battery check to report every Windows system battery instead of
     only the first one. Battery metrics now include a ``battery_slot`` tag,
     with ``battery_slot:total`` providing host-level capacity and charge
-    totals even on single-battery systems. Physical battery slots use the
-    Windows firmware slot number when available and otherwise use the PnP
-    device instance ID. Per-battery series also include ``battery_serial`` and
-    ``battery_device_name`` tags.
+    totals even on single-battery systems.
