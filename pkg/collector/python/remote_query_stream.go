@@ -21,7 +21,7 @@ import (
 )
 
 //export remoteQueryStreamEmitBridge
-func remoteQueryStreamEmitBridge(eventType *C.char, metadataJSON *C.char, payload *C.uint8_t, payloadLen C.size_t, userdata unsafe.Pointer) C.int {
+func remoteQueryStreamEmitBridge(eventType *C.char, metadataJSON *C.char, _payload *C.uint8_t, payloadLen C.size_t, userdata unsafe.Pointer) C.int {
 	if payloadLen > 0 {
 		// Bulk result bytes never cross the integration bridge: the paged-JSON
 		// contract uploads page files directly, so an emitted payload means a
