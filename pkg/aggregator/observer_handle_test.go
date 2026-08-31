@@ -35,7 +35,7 @@ type recordedCall struct {
 	timestamp int64
 }
 
-func (h *recordingHandle) ObserveMetric(v observer.MetricView) {
+func (h *recordingHandle) ObserveMetric(v observer.MetricView, _ uint64) {
 	// copy values — the MetricView contract forbids retaining the view itself
 	tagsCopy := make([]string, len(v.GetRawTags()))
 	copy(tagsCopy, v.GetRawTags())

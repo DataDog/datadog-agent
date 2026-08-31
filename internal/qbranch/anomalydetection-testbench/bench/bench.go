@@ -27,6 +27,8 @@ import (
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // logDataView wraps a recorderdef.LogData and implements observerdef.LogView.
@@ -179,6 +181,8 @@ type Bench struct {
 
 	rawLogs                []observerdef.LogView
 	rawMetrics             []*parquetMetricView
+	replayKeyGenerator     *ckey.KeyGenerator
+	replayTags             *tagset.HashingTagsAccumulator
 	logAnomalies           []observerdef.Anomaly
 	logAnomaliesByDetector map[string][]observerdef.Anomaly
 
@@ -234,6 +238,8 @@ func New(obs observerdef.Component, debug observerimpl.DebugView, sseAccess test
 		settings:               cfg.ComponentSettings,
 		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
+		replayKeyGenerator:     ckey.NewKeyGenerator(),
+		replayTags:             tagset.NewHashingTagsAccumulator(),
 		sseStop:                stop,
 	}
 
@@ -553,7 +559,7 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 				tags:      metric.Tags,
 				timestamp: metric.Timestamp,
 			}
-			tb.debug.IngestMetricSync("parquet", &view)
+			tb.debug.IngestMetricSync("parquet", tb.replayMetricContextKey(&view), &view)
 			return nil
 		}
 
@@ -593,7 +599,7 @@ func (tb *Bench) extendStreamBounds(startSec, endSec int64) {
 // component toggle).
 func (tb *Bench) feedRawMetrics() {
 	for _, m := range tb.rawMetrics {
-		tb.debug.IngestMetricSync("parquet", m)
+		tb.debug.IngestMetricSync("parquet", tb.replayMetricContextKey(m), m)
 	}
 
 	// Re-add per-timestamp telemetry. These counters live in TelemetryNamespace
@@ -636,6 +642,15 @@ type parquetMetricView struct {
 	value     float64
 	tags      []string
 	timestamp int64
+}
+
+// replayMetricContextKey mirrors the metric pipeline's identity calculation
+// from the fields retained in parquet replay input. Host identity is carried in
+// the replay tags, as it is for testbench metric rows.
+func (tb *Bench) replayMetricContextKey(metric *parquetMetricView) uint64 {
+	tb.replayTags.Reset()
+	tb.replayTags.Append(metric.tags...)
+	return uint64(tb.replayKeyGenerator.Generate(metric.name, "", tb.replayTags))
 }
 
 func metricSeriesHash(name string, sortedTags []string) uint64 {

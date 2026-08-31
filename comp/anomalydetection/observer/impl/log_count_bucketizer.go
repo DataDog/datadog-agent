@@ -43,11 +43,12 @@ type logCountBucketInterval struct {
 }
 
 type logCountBucketSeries struct {
-	namespace string
-	name      string
-	tags      []string
-	context   *observerdef.MetricContext
-	anchor    int64
+	namespace  string
+	storageKey uint64
+	name       string
+	tags       []string
+	context    *observerdef.MetricContext
+	anchor     int64
 	// lastObserved is the latest real log timestamp. Synthetic zero buckets do
 	// not advance it, so storage can evict genuinely idle series first.
 	lastObserved int64
@@ -87,15 +88,26 @@ func (b *materializedLogCountBucketizer) handlesMetric(name string) bool {
 	return strings.HasSuffix(name, ".count")
 }
 
-// observe adds one extractor output to its pending bucket. False means the late
-// observation cannot be incorporated without rewriting or re-anchoring history.
+// observe is a convenience entry point for tests and debug callers.
 func (b *materializedLogCountBucketizer) observe(
 	namespace string,
 	metric observerdef.MetricOutput,
 	timestamp int64,
 	tags []string,
 ) bool {
-	key := seriesKeyHash(namespace, metric.Name, tags)
+	return b.observeWithKey(namespace, storageKeyForMetadata(namespace, metric.Name, tags), metric, timestamp, tags)
+}
+
+// observeWithKey adds one extractor output to its pending bucket. False
+// means the late observation cannot be incorporated without rewriting or
+// re-anchoring history.
+func (b *materializedLogCountBucketizer) observeWithKey(
+	namespace string,
+	key uint64,
+	metric observerdef.MetricOutput,
+	timestamp int64,
+	tags []string,
+) bool {
 	state := b.series[key]
 	if state == nil && timestamp <= b.flushedThrough {
 		return false
@@ -112,6 +124,7 @@ func (b *materializedLogCountBucketizer) observe(
 	if state == nil {
 		state = &logCountBucketSeries{
 			namespace:    namespace,
+			storageKey:   key,
 			name:         metric.Name,
 			tags:         append([]string(nil), tags...),
 			context:      metric.Context,
@@ -153,8 +166,9 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
 			for nextEnd <= interval.lastEnd && nextEnd <= upTo {
-				result := storage.Add(
+				result := storage.AddWithKey(
 					state.namespace,
+					state.storageKey,
 					state.name,
 					state.values[nextEnd],
 					nextEnd,

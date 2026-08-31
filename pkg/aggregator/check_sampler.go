@@ -78,7 +78,7 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
-		cs.observerHandle.ObserveMetric(metricSample)
+		cs.observerHandle.ObserveMetric(metricSample, uint64(contextKey))
 	}
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)

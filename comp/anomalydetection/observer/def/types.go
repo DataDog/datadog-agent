@@ -21,7 +21,8 @@ import (
 // Handle is the lightweight observation interface passed to other components.
 type Handle interface {
 	// ObserveMetric observes a DogStatsD metric sample.
-	ObserveMetric(sample MetricView)
+	// contextKey is the fully resolved aggregator ContextKey for this sample.
+	ObserveMetric(sample MetricView, contextKey uint64)
 
 	// ObserveLog observes a log message.
 	ObserveLog(msg LogView)

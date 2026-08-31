@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -99,7 +101,7 @@ const (
 type timeSeriesStorage struct {
 	cfg    StorageConfig
 	mu     sync.RWMutex
-	series map[uint64]*seriesStats // keyed by seriesKeyHash; no string retained per entry
+	series map[uint64]*seriesStats // keyed by the carried storage key
 
 	// observationTimestamps tracks all timestamps where observations occurred,
 	// even if no metric series was written for that timestamp.
@@ -159,12 +161,13 @@ type bucketCounts struct {
 // seriesStats contains accumulated statistics for a time series (internal).
 // Buckets are stored in timestamp order, enabling binary search for range queries.
 type seriesStats struct {
-	Namespace string
-	Name      string
-	Tags      []string
-	tagsHash  uint64                  // fnv64a hash of Tags; 0 means not interned
-	ref       observer.SeriesRef      // compact numeric ID assigned on creation
-	context   *observer.MetricContext // optional; set by extractors for anomaly enrichment
+	storageKey uint64
+	Namespace  string
+	Name       string
+	Tags       []string
+	tagsHash   uint64                  // fnv64a hash of Tags; 0 means not interned
+	ref        observer.SeriesRef      // compact numeric ID assigned on creation
+	context    *observer.MetricContext // optional; set by extractors for anomaly enrichment
 	// supportedAggregations is a bit mask. Zero means all aggregations are
 	// supported; materialized log count buckets set only Average because each
 	// stored point is already one aggregated window count.
@@ -335,7 +338,20 @@ type AddResult struct {
 // Invalid values are dropped at ingest with accounting and sampled logging.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
+// Add is a test helper for storage-only callers that do not participate in the
+// metrics pipeline. Production ingestion must use AddWithKey.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
+	return s.AddWithKey(namespace, storageKeyForMetadata(namespace, name, tags), name, value, timestamp, tags)
+}
+
+func storageKeyForMetadata(namespace, name string, tags []string) uint64 {
+	acc := tagset.NewHashingTagsAccumulatorWithTags(tags)
+	contextKey := ckey.NewKeyGenerator().Generate(name, "", acc)
+	return namespacedContextKey(newNamespaceSeed(namespace), uint64(contextKey))
+}
+
+// AddWithKey inserts a point using the key calculated by the metrics pipeline.
+func (s *timeSeriesStorage) AddWithKey(namespace string, key uint64, name string, value float64, timestamp int64, tags []string) AddResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -349,50 +365,30 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return AddResult{Ref: -1}
 	}
-	h := seriesKeyHash(namespace, name, tags)
-	// Skip the alloc when tags are already sorted. Both ingest paths (real metrics
-	// via prepareMetricIngest and virtual metrics via IngestLog) canonicalize before
-	// calling Add, so this fast path is hit on every normal call.
-	var canonTags []string
-	if tagsSorted(tags) {
-		canonTags = tags
-	} else {
-		canonTags = canonicalizeTags(tags)
-	}
-
-	stats, exists := s.series[h]
-	// Collision guard: verify full identity (namespace + name + sorted tags).
-	if exists && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonTags)) {
-		// Hash collision — extremely rare with FNV-64a (~10^-14 at 1000 series).
-		logging.Warnf("seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
-			h, stats.Namespace, stats.Name, namespace, name)
-		exists = false
-		for _, st := range s.seriesIDStats {
-			if st != nil && st.Namespace == namespace && st.Name == name && tagsEqual(st.Tags, canonTags) {
-				stats = st
-				exists = true
-				break
-			}
-		}
-	}
+	stats, exists := s.series[key]
 	if !exists {
+		// Tags are retained only for a new series. Existing storage keys reuse
+		// their established metadata, matching ContextKey collision semantics.
+		var canonTags []string
+		if tagsSorted(tags) {
+			canonTags = tags
+		} else {
+			canonTags = canonicalizeTags(tags)
+		}
 		// Only intern on new series creation so the ref count tracks exactly
 		// the number of live series holding the canonical slice.
-		canonical, th := s.internTags(tags)
+		canonical, th := s.internTags(canonTags)
 		id := s.nextSeriesRef
 		s.nextSeriesRef++
 		stats = &seriesStats{
-			Namespace: namespace,
-			Name:      name,
-			Tags:      canonical,
-			tagsHash:  th,
-			ref:       id,
+			storageKey: key,
+			Namespace:  namespace,
+			Name:       name,
+			Tags:       canonical,
+			tagsHash:   th,
+			ref:        id,
 		}
-		// Only claim the hash slot when empty to avoid displacing an existing
-		// collision-displaced series.
-		if _, occupied := s.series[h]; !occupied {
-			s.series[h] = stats
-		}
+		s.series[key] = stats
 		s.seriesIDStats[id] = stats
 		if namespace != observer.TelemetryNamespace {
 			s.liveSeriesCount++
@@ -493,28 +489,25 @@ func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64,
 	return s.droppedNonFinite, s.droppedExtreme, byMetric
 }
 
-// GetSeries returns the series using the specified aggregation.
-// If tags is nil, finds the first series matching namespace and name (ignoring tags).
+// GetSeries returns the series using the metadata-derived test key. Production
+// callers must retain the storage key and use GetSeriesByKey.
 func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg Aggregate) *observer.Series {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	if tags != nil {
-		// Exact match with tags.
-		stats := s.series[seriesKeyHash(namespace, name, tags)]
-		if stats == nil || stats.Namespace != namespace || stats.Name != name {
-			return nil
-		}
+	stats := s.series[storageKeyForMetadata(namespace, name, tags)]
+	if stats != nil {
 		series := stats.toSeries(agg)
 		return &series
 	}
+	return nil
+}
 
-	// tags is nil: find first series matching namespace and name (ignoring tags).
-	for _, stats := range s.seriesIDStats {
-		if stats != nil && stats.Namespace == namespace && stats.Name == name {
-			series := stats.toSeries(agg)
-			return &series
-		}
+func (s *timeSeriesStorage) GetSeriesByKey(key uint64, agg Aggregate) *observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if stats := s.series[key]; stats != nil {
+		series := stats.toSeries(agg)
+		return &series
 	}
 	return nil
 }
@@ -525,8 +518,8 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	stats := s.series[seriesKeyHash(namespace, name, tags)]
-	if stats == nil || stats.Namespace != namespace || stats.Name != name {
+	stats := s.series[storageKeyForMetadata(namespace, name, tags)]
+	if stats == nil {
 		return nil
 	}
 
@@ -746,7 +739,7 @@ func tagsEqual(a, b []string) bool {
 const tagInternMaxSize = 4096
 
 // hashTags computes a fnv64a hash over sorted tags without constructing the
-// joined string. Distinct from seriesKeyHash (which includes namespace+name).
+// joined string. This is used only for tag interning, not series identity.
 // Returns 0 only for empty input; remaps the rare zero hash to 1 as sentinel.
 func hashTags(tags []string) uint64 {
 	if len(tags) == 0 {
@@ -769,8 +762,8 @@ func hashTags(tags []string) uint64 {
 	return h
 }
 
-// internTags sorts tags (if needed), hashes, and either returns the canonical
-// []string from the pool (incrementing its ref count) or inserts a new entry.
+// internTags hashes canonical tags and either returns the canonical []string
+// from the pool (incrementing its ref count) or inserts a new entry.
 // Returns the canonical slice and its hash. Hash 0 means not interned (cap or
 // collision). Must be called with s.mu write-locked.
 func (s *timeSeriesStorage) internTags(tags []string) ([]string, uint64) {
@@ -779,9 +772,6 @@ func (s *timeSeriesStorage) internTags(tags []string) ([]string, uint64) {
 	}
 	sorted := make([]string, len(tags))
 	copy(sorted, tags)
-	if len(sorted) > 1 && !tagsSorted(sorted) {
-		sort.Strings(sorted)
-	}
 	th := hashTags(sorted)
 	if entry, ok := s.tagIntern[th]; ok {
 		if tagsEqual(entry.tags, sorted) {
@@ -822,27 +812,21 @@ func (s *timeSeriesStorage) TagInternedCount() int {
 	return len(s.tagIntern)
 }
 
-// seriesKeyHash computes FNV-1a over namespace|name|tag1,tag2,... without
-// allocating a string. Produces the same value as fnv64aString(seriesKey(...)).
-func seriesKeyHash(namespace, name string, tags []string) uint64 {
-	if len(tags) > 1 && !tagsSorted(tags) {
-		tags = canonicalizeTags(tags)
-	}
-	h := fnv64aString(namespace)
-	h = fnv64aMix(h, name)
-	h ^= uint64('|')
-	h *= fnvPrime64
-	for i, t := range tags {
-		if i > 0 {
-			h ^= uint64(',')
-			h *= fnvPrime64
-		}
-		for j := 0; j < len(t); j++ {
-			h ^= uint64(t[j])
-			h *= fnvPrime64
-		}
-	}
-	return h
+// namespacedContextKey derives the storage key from a precomputed namespace
+// seed and an aggregator ContextKey.
+func namespacedContextKey(namespaceSeed, contextKey uint64) uint64 {
+	const namespaceDomain = uint64(0x9e3779b97f4a7c15)
+	return fmix64(contextKey ^ namespaceSeed ^ namespaceDomain)
+}
+
+// fmix64 is the MurmurHash3 64-bit avalanche finalizer.
+func fmix64(v uint64) uint64 {
+	v ^= v >> 33
+	v *= 0xff51afd7ed558ccd
+	v ^= v >> 33
+	v *= 0xc4ceb9fe1a85ec53
+	v ^= v >> 33
+	return v
 }
 
 // resolveByID returns the seriesStats for a numeric series ID.
@@ -854,15 +838,14 @@ func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
 	return s.seriesIDStats[ref]
 }
 
-// FindRefsByHashes returns the SeriesRef for each hash present in storage.
-// Uses the existing s.series hash map for O(1) per lookup; hashes with no
-// matching series are silently skipped.
+// FindRefsByHashes returns the SeriesRef for each series key present in
+// storage. Missing hashes are silently skipped.
 func (s *timeSeriesStorage) FindRefsByHashes(hashes map[uint64]struct{}) []observer.SeriesRef {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	refs := make([]observer.SeriesRef, 0, len(hashes))
-	for h := range hashes {
-		if stats := s.series[h]; stats != nil {
+	for hash := range hashes {
+		if stats := s.series[hash]; stats != nil {
 			refs = append(refs, stats.ref)
 		}
 	}
@@ -884,6 +867,17 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 		Name:      ss.Name,
 		Tags:      ss.Tags,
 	}
+}
+
+// StorageKey returns the carried key for a live storage ref.
+func (s *timeSeriesStorage) StorageKey(ref observer.SeriesRef) (uint64, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return 0, false
+	}
+	return stats.storageKey, true
 }
 
 // seriesMeta is lightweight series metadata including point count,
@@ -973,18 +967,6 @@ const (
 // converting to []byte.
 func fnv64aString(s string) uint64 {
 	h := fnvOffsetBasis64
-	for i := 0; i < len(s); i++ {
-		h ^= uint64(s[i])
-		h *= fnvPrime64
-	}
-	return h
-}
-
-// fnv64aMix folds an additional string into an existing FNV-1a hash, separated
-// by '|'. Useful for hashing multiple fields without concatenating them first.
-func fnv64aMix(h uint64, s string) uint64 {
-	h ^= uint64('|')
-	h *= fnvPrime64
 	for i := 0; i < len(s); i++ {
 		h ^= uint64(s[i])
 		h *= fnvPrime64
@@ -1112,9 +1094,8 @@ func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
 		return false
 	}
 	s.releaseTagIntern(stats.tagsHash)
-	h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
-	if s.series[h] == stats {
-		delete(s.series, h)
+	if s.series[stats.storageKey] == stats {
+		delete(s.series, stats.storageKey)
 	}
 	delete(s.seriesIDStats, stats.ref)
 	if stats.Namespace != observer.TelemetryNamespace {
@@ -1330,9 +1311,8 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 		aggStr = nameWithAgg[idx+1:]
 	}
 
-	// Look up by hash; verify identity to guard against hash collisions.
-	stats := s.series[seriesKeyHash(namespace, baseName, tags)]
-	if stats == nil || stats.Namespace != namespace || stats.Name != baseName {
+	stats := s.series[storageKeyForMetadata(namespace, baseName, tags)]
+	if stats == nil {
 		return fullKey
 	}
 

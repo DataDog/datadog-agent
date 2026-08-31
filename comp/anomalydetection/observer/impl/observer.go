@@ -68,10 +68,33 @@ type observation struct {
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
 type metricObs struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp int64
+	name       string
+	value      float64
+	tags       []string
+	timestamp  int64
+	storageKey uint64
+}
+
+const (
+	dogstatsdNamespaceSeed uint64 = 0x4ec3d2a19f8576b0
+	checkNamespaceSeed     uint64 = 0x8a1c76e4d5b2093f
+	agentNamespaceSeed     uint64 = 0xd41f39a67c02be85
+)
+
+// newNamespaceSeed runs once when a source handle is created (or an extractor
+// is registered). The returned seed is then carried by that source; it is not
+// recomputed for every metric.
+func newNamespaceSeed(source string) uint64 {
+	switch source {
+	case "dogstatsd":
+		return dogstatsdNamespaceSeed
+	case "check":
+		return checkNamespaceSeed
+	case observerdef.AgentNamespace:
+		return agentNamespaceSeed
+	default:
+		return fmix64(fnv64aString(source))
+	}
 }
 
 // Ensure metricObs implements observerdef.MetricView
@@ -746,7 +769,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // metricDropHandle so external metrics are dropped at the edge, while
 // ObserveLog calls still pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter}
+	h := &handle{ch: o.obsCh, source: name, namespaceSeed: newNamespaceSeed(name), telemetry: o.telemetry, filter: o.metricFilter}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -764,8 +787,8 @@ type metricDropHandle struct{ inner observerdef.Handle }
 
 var _ observerdef.Handle = (*metricDropHandle)(nil)
 
-func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView) {}
-func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
+func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
+func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ uint64) bool {
 	return true
 }
 func (m *metricDropHandle) ObserveLog(msg observerdef.LogView) { m.inner.ObserveLog(msg) }
@@ -779,8 +802,8 @@ func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
 // noopObserveHandle discards all observations.
 type noopObserveHandle struct{}
 
-func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView) {}
-func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
+func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
+func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ uint64) bool {
 	return false
 }
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
@@ -977,7 +1000,8 @@ func (o *observerImpl) ExtractorCount() int {
 
 // AddTelemetry writes a data point into the telemetry namespace. Implements DebugView.
 func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64, tags []string) {
-	_ = o.engine.storage.Add(observerdef.TelemetryNamespace, name, value, timestamp, tags)
+	key := storageKeyForMetadata(observerdef.TelemetryNamespace, name, tags)
+	_ = o.engine.storage.AddWithKey(observerdef.TelemetryNamespace, key, name, value, timestamp, tags)
 }
 
 // ReplayStoredData resets analysis state (preserving extractor context) then
@@ -1069,7 +1093,7 @@ type metricIngestDecision struct {
 	metric *metricObs
 }
 
-func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
+func prepareMetricIngest(source string, namespaceSeed, contextKey uint64, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
 	normalizedSource := normalizeMetricSource(name, source)
 	precheck := filter.precheck(name, normalizedSource)
@@ -1077,10 +1101,14 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 		return metricIngestDecision{source: normalizedSource}
 	}
 
-	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
+	// Canonicalize once so the mute key matches the storage key in
 	// storage, and downstream Add calls hit the tagsSorted fast path.
 	tags := canonicalizeTags(sample.GetRawTags())
-	if filter.isMuted(name, normalizedSource, tags) ||
+	if normalizedSource == observerdef.AgentNamespace {
+		namespaceSeed = agentNamespaceSeed
+	}
+	key := namespacedContextKey(namespaceSeed, contextKey)
+	if filter.isMutedHash(key) ||
 		(precheck.needsTags && !filter.isAllowedByRulesFrom(name, normalizedSource, tags, precheck.firstCandidate)) {
 		return metricIngestDecision{source: normalizedSource}
 	}
@@ -1092,10 +1120,11 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 	return metricIngestDecision{
 		source: normalizedSource,
 		metric: &metricObs{
-			name:      name,
-			value:     sample.GetValue(),
-			tags:      tags,
-			timestamp: timestamp,
+			name:       name,
+			value:      sample.GetValue(),
+			tags:       tags,
+			timestamp:  timestamp,
+			storageKey: key,
 		},
 	}
 }
@@ -1103,8 +1132,8 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 // IngestMetricSync feeds a metric directly into the engine, bypassing the
 // dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
 // the non-blocking channel send. Implements DebugView.
-func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
-	decision := prepareMetricIngest(source, sample, o.metricFilter)
+func (o *observerImpl) IngestMetricSync(source string, contextKey uint64, sample observerdef.MetricView) {
+	decision := prepareMetricIngest(source, newNamespaceSeed(source), contextKey, sample, o.metricFilter)
 	if decision.metric == nil {
 		if o.telemetry != nil && decision.source != "" {
 			o.telemetry.recordFilteredMetric(decision.source)
@@ -1130,11 +1159,12 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
-	ch        chan<- observation
-	source    string
-	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
-	telemetry *observerTelemetry
-	filter    *metricsFilterRules
+	ch            chan<- observation
+	source        string
+	namespaceSeed uint64
+	dropCount     atomic.Int64 // per-handle drop counter, collected by engine at advance time
+	telemetry     *observerTelemetry
+	filter        *metricsFilterRules
 
 	// The overwhelmingly common filtered-metric source for a handle is its
 	// source. Bind that Prometheus counter lazily to avoid a label lookup and a
@@ -1145,16 +1175,16 @@ type handle struct {
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
-func (h *handle) ObserveMetric(sample observerdef.MetricView) {
-	_ = h.ObserveMetricAndReportDrop(sample)
+func (h *handle) ObserveMetric(sample observerdef.MetricView, contextKey uint64) {
+	_ = h.ObserveMetricAndReportDrop(sample, contextKey)
 }
 
 // ObserveMetricAndReportDrop observes a metric and reports whether this
 // specific call was dropped by observer backpressure (channel full).
 // Metrics rejected by processing rules are counted via telemetry but do not
 // report a channel drop.
-func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
-	decision := prepareMetricIngest(h.source, sample, h.filter)
+func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView, contextKey uint64) bool {
+	decision := prepareMetricIngest(h.source, h.namespaceSeed, contextKey, sample, h.filter)
 	if decision.metric == nil {
 		if h.telemetry != nil && decision.source != "" {
 			h.recordFilteredMetric(decision.source)

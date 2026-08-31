@@ -795,18 +795,42 @@ func TestTimeSeriesStorage_EvictToCapacityBreaksActivityTiesByRef(t *testing.T) 
 func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	s := newTimeSeriesStorage()
 
-	resA := s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
-	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
-	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
+	resA := s.AddWithKey("ns", 1, "a", 1.0, 1000, []string{"k:1"})
+	resB := s.AddWithKey("ns", 2, "b", 2.0, 1000, []string{"k:2"})
+	s.AddWithKey("ns", 3, "c", 3.0, 1000, []string{"k:3"})
 
-	hA := seriesKeyHash("ns", "a", []string{"k:1"})
-	hB := seriesKeyHash("ns", "b", []string{"k:2"})
-	hMissing := seriesKeyHash("ns", "ghost", nil)
+	hA := uint64(1)
+	hB := uint64(2)
+	hMissing := uint64(4)
 
 	refs := s.FindRefsByHashes(map[uint64]struct{}{hA: {}, hB: {}, hMissing: {}})
 
 	require.Len(t, refs, 2)
 	require.ElementsMatch(t, []observer.SeriesRef{resA.Ref, resB.Ref}, refs)
+}
+
+func TestTimeSeriesStorage_AddWithKeyMergesSameKey(t *testing.T) {
+	s := newTimeSeriesStorage()
+	sharedHash := uint64(42)
+	first := s.AddWithKey("check", sharedHash, "metric", 1, 1, nil)
+	second := s.AddWithKey("dogstatsd", sharedHash, "metric", 2, 1, nil)
+
+	assert.Equal(t, first.Ref, second.Ref)
+	assert.Len(t, s.ListSeries(observer.SeriesFilter{}), 1)
+	series := s.GetSeriesByKey(sharedHash, observer.AggregateAverage)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	assert.Equal(t, 1.5, series.Points[0].Value)
+}
+
+func TestNamespacedContextKey(t *testing.T) {
+	const contextKey = uint64(0x123456789abcdef0)
+	const checkNamespace = uint64(0x1111111111111111)
+	const dogstatsdNamespace = uint64(0x2222222222222222)
+
+	assert.Equal(t, namespacedContextKey(checkNamespace, contextKey), namespacedContextKey(checkNamespace, contextKey))
+	assert.NotEqual(t, namespacedContextKey(checkNamespace, contextKey), namespacedContextKey(dogstatsdNamespace, contextKey))
+	assert.NotEqual(t, namespacedContextKey(checkNamespace, contextKey), namespacedContextKey(checkNamespace, contextKey+1))
 }
 
 func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {

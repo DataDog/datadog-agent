@@ -44,7 +44,7 @@ type DebugView interface {
 	// IngestMetricSync feeds a metric directly into the engine, bypassing
 	// the dispatch channel. Synchronous: returns after IngestMetric and any
 	// scheduler-triggered advances complete. Testbench-only.
-	IngestMetricSync(source string, sample observerdef.MetricView)
+	IngestMetricSync(source string, contextKey uint64, sample observerdef.MetricView)
 	// IngestLogAndAdvance feeds a log directly into the engine and synchronously
 	// executes scheduler-triggered advances. Used by one-shot headless streams.
 	IngestLogAndAdvance(source string, msg observerdef.LogView)
