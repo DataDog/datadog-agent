@@ -26,7 +26,7 @@ use super::{open_datadog_agent_key, registry_nonempty_string};
 
 const NT_AUTHORITY: &str = "NT AUTHORITY";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum AgentAccount {
     LocalSystem,
     LocalService,
@@ -40,6 +40,27 @@ pub(crate) enum AgentAccount {
         domain: String,
         user: String,
     },
+}
+
+impl std::fmt::Debug for AgentAccount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LocalSystem => f.write_str("LocalSystem"),
+            Self::LocalService => f.write_str("LocalService"),
+            Self::NetworkService => f.write_str("NetworkService"),
+            Self::PasswordLogon { domain, user, .. } => f
+                .debug_struct("PasswordLogon")
+                .field("domain", domain)
+                .field("user", user)
+                .field("password", &"****")
+                .finish(),
+            Self::ServiceAccountLogon { domain, user } => f
+                .debug_struct("ServiceAccountLogon")
+                .field("domain", domain)
+                .field("user", user)
+                .finish(),
+        }
+    }
 }
 
 impl AgentAccount {
