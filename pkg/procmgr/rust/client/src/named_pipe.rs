@@ -10,7 +10,7 @@ use std::os::windows::io::RawHandle;
 use std::path::Path;
 use std::time::Duration;
 use tokio::net::windows::named_pipe::NamedPipeClient;
-use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+use windows_sys::Win32::Foundation::{ERROR_PIPE_BUSY, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_FLAG_OVERLAPPED, FILE_GENERIC_READ, FILE_WRITE_DATA,
     OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
@@ -39,8 +39,7 @@ async fn open_with_retry(name: &OsStr) -> io::Result<IpcStream> {
         match open_pipe_client(name) {
             Ok(client) => return Ok(client),
             Err(error)
-                if error.raw_os_error()
-                    == Some(windows_sys::Win32::Foundation::ERROR_PIPE_BUSY as i32)
+                if error.raw_os_error() == Some(ERROR_PIPE_BUSY as i32)
                     && attempt + 1 < PIPE_BUSY_RETRIES =>
             {
                 tokio::time::sleep(Duration::from_millis(backoff)).await;
