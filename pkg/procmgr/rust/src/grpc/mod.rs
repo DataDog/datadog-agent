@@ -45,6 +45,19 @@ mod tests {
         }
     }
 
+    fn grpc_sleep_cmd() -> (&'static str, Vec<String>) {
+        test_helpers::sleep_cmd(2)
+    }
+
+    fn grpc_sleep_config(command: &str, args: Vec<String>) -> ProcessConfig {
+        ProcessConfig {
+            command: command.to_string(),
+            args,
+            stop_timeout: Some(1),
+            ..Default::default()
+        }
+    }
+
     #[cfg(windows)]
     fn test_ipc_path() -> PathBuf {
         use std::sync::atomic::{AtomicU64, Ordering};
@@ -279,7 +292,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_status_not_ready_during_startup() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = grpc_sleep_cmd();
         let (cmd_tx, _cmd_rx) = mpsc::channel::<Command>(64);
         let mgr = ProcessManager::new(
             Arc::new(StaticConfigLoader::new(vec![ProcessDefinition {
@@ -514,18 +527,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_status_mixed_states() {
-        let (sleep_cmd, sleep_args) = test_helpers::sleep_cmd(60);
+        let (sleep_cmd, sleep_args) = grpc_sleep_cmd();
         let (fail_cmd, fail_args) = test_helpers::exit_cmd(1);
         let (exit_cmd, exit_args) = test_helpers::exit_cmd(0);
         let (true_cmd, true_args) = test_helpers::true_cmd();
         let defs = vec![
             ProcessDefinition {
                 name: "running-svc".to_string(),
-                config: ProcessConfig {
-                    command: sleep_cmd.to_string(),
-                    args: sleep_args.clone(),
-                    ..Default::default()
-                },
+                config: grpc_sleep_config(sleep_cmd, sleep_args.clone()),
             },
             ProcessDefinition {
                 name: "failed-svc".to_string(),
@@ -537,11 +546,7 @@ mod tests {
             },
             ProcessDefinition {
                 name: "stopped-svc".to_string(),
-                config: ProcessConfig {
-                    command: sleep_cmd.to_string(),
-                    args: sleep_args,
-                    ..Default::default()
-                },
+                config: grpc_sleep_config(sleep_cmd, sleep_args),
             },
             ProcessDefinition {
                 name: "exited-svc".to_string(),
@@ -623,14 +628,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_shows_running_pid() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = grpc_sleep_cmd();
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "live-proc".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
+            config: grpc_sleep_config(cmd, args),
         }])
         .await;
 
@@ -660,14 +661,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_rpc_success() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = grpc_sleep_cmd();
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "sleeper".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
+            config: grpc_sleep_config(cmd, args),
         }])
         .await;
 
@@ -716,14 +713,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_rpc_already_running() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = grpc_sleep_cmd();
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "running".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
+            config: grpc_sleep_config(cmd, args),
         }])
         .await;
 
@@ -752,14 +745,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_rpc_success() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = grpc_sleep_cmd();
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "to-stop".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
+            config: grpc_sleep_config(cmd, args),
         }])
         .await;
 
@@ -818,10 +807,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_rpc_not_running() {
+        let (cmd, args) = test_helpers::true_cmd();
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "idle".to_string(),
             config: ProcessConfig {
-                command: "/bin/true".to_string(),
+                command: cmd.to_string(),
+                args,
                 ..Default::default()
             },
         }])
@@ -838,14 +829,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_then_stop_round_trip() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = grpc_sleep_cmd();
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "lifecycle".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
+            config: grpc_sleep_config(cmd, args),
         }])
         .await;
 
@@ -883,7 +870,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_then_start() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = grpc_sleep_cmd();
         let (mut client, _shutdown) = start_test_server(vec![]).await;
 
         client
@@ -925,7 +912,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_auto_start() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = grpc_sleep_cmd();
         let (mut client, _shutdown) = start_test_server(vec![]).await;
 
         client
@@ -1157,14 +1144,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_stop_by_uuid_prefix() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = grpc_sleep_cmd();
         let defs = vec![ProcessDefinition {
             name: "svc-b".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
+            config: grpc_sleep_config(cmd, args),
         }];
         let (mut client, _shutdown) = start_test_server(defs).await;
 
