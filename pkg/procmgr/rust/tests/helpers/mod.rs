@@ -8,6 +8,7 @@ use nix::sys::signal::{self, Signal};
 #[cfg(unix)]
 use nix::unistd::Pid;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -54,17 +55,280 @@ pub struct ProcessSnapshot {
     pub last_signal: Option<i32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct ReloadSnapshot {
+    added: Vec<String>,
+    removed: Vec<String>,
+    modified: Vec<String>,
+    unchanged: Vec<String>,
+}
+
+/// Unset list fields are not checked. An empty vec requires the list to be empty.
+/// A non-empty vec requires every name to appear in the list.
+#[derive(Debug, Clone, Default)]
+pub struct ReloadExpect {
+    pub added: Option<Vec<String>>,
+    pub removed: Option<Vec<String>>,
+    pub modified: Option<Vec<String>>,
+    pub unchanged: Option<Vec<String>>,
+    /// Running processes whose PID must not change across reload.
+    pub preserve_running_pids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReloadList {
+    Added,
+    Removed,
+    Modified,
+    Unchanged,
+}
+
+impl ReloadList {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Added => "added",
+            Self::Removed => "removed",
+            Self::Modified => "modified",
+            Self::Unchanged => "unchanged",
+        }
+    }
+
+    fn names(self, snapshot: &ReloadSnapshot) -> &[String] {
+        match self {
+            Self::Added => &snapshot.added,
+            Self::Removed => &snapshot.removed,
+            Self::Modified => &snapshot.modified,
+            Self::Unchanged => &snapshot.unchanged,
+        }
+    }
+}
+
+impl ReloadSnapshot {
+    fn assert_matches(&self, expected: &ReloadExpect) {
+        Self::assert_list_expect(self, ReloadList::Added, &expected.added);
+        Self::assert_list_expect(self, ReloadList::Removed, &expected.removed);
+        Self::assert_list_expect(self, ReloadList::Modified, &expected.modified);
+        Self::assert_list_expect(self, ReloadList::Unchanged, &expected.unchanged);
+    }
+
+    fn assert_list_expect(
+        snapshot: &ReloadSnapshot,
+        list: ReloadList,
+        expected: &Option<Vec<String>>,
+    ) {
+        let Some(expected) = expected else {
+            return;
+        };
+        let actual = list.names(snapshot);
+        if expected.is_empty() {
+            assert!(
+                actual.is_empty(),
+                "expected reload {} to be empty, got {snapshot:?}",
+                list.label()
+            );
+            return;
+        }
+        for name in expected {
+            assert!(
+                actual.iter().any(|n| n == name),
+                "expected '{name}' in reload {}, got {snapshot:?}",
+                list.label()
+            );
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+struct DescribeSnapshot {
+    pub uuid: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    pub state: String,
+    pub pid: u64,
+    #[serde(default)]
+    pub profile: String,
+    #[serde(default)]
+    pub user: String,
+    pub command: String,
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub working_dir: String,
+    #[serde(default)]
+    pub env: BTreeMap<String, String>,
+    #[serde(default)]
+    pub restart_policy: String,
+    pub restart_count: u64,
+    pub last_exit_code: Option<i32>,
+    pub last_signal: Option<i32>,
+    pub auto_start: bool,
+    #[serde(default)]
+    pub stdout: String,
+    #[serde(default)]
+    pub stderr: String,
+    #[serde(default)]
+    pub condition_path_exists: String,
+    #[serde(default)]
+    pub after: Vec<String>,
+    #[serde(default)]
+    pub before: Vec<String>,
+    #[serde(default)]
+    pub runtime_user: String,
+}
+
+/// Unset fields are not checked (same pattern as ReloadExpect / StatusProcessesCount).
+#[derive(Debug, Clone, Default)]
+pub struct DescribeExpect {
+    pub name: Option<String>,
+    pub state: Option<String>,
+    pub uuid: Option<String>,
+    pub pid: Option<u64>,
+    pub command: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub description: Option<String>,
+    pub working_dir: Option<String>,
+    pub restart_policy: Option<String>,
+    pub auto_start: Option<bool>,
+    pub restart_count: Option<u64>,
+    pub last_exit_code: Option<Option<i32>>,
+    pub env_contains: Option<BTreeMap<String, String>>,
+    pub after: Option<Vec<String>>,
+    pub has_uuid: Option<bool>,
+    pub has_stdout_path: Option<bool>,
+    pub has_stderr_path: Option<bool>,
+    pub pid_alive: Option<bool>,
+}
+
+impl DescribeSnapshot {
+    fn assert_matches(&self, expected: &DescribeExpect) {
+        assert_describe_field("name", &self.name, &expected.name, self);
+        assert_describe_field("state", &self.state, &expected.state, self);
+        assert_describe_field("uuid", &self.uuid, &expected.uuid, self);
+        assert_describe_field("pid", &self.pid, &expected.pid, self);
+        assert_describe_field("command", &self.command, &expected.command, self);
+        assert_describe_field("args", &self.args, &expected.args, self);
+        assert_describe_field(
+            "description",
+            &self.description,
+            &expected.description,
+            self,
+        );
+        assert_describe_field(
+            "working_dir",
+            &self.working_dir,
+            &expected.working_dir,
+            self,
+        );
+        assert_describe_field(
+            "restart_policy",
+            &self.restart_policy,
+            &expected.restart_policy,
+            self,
+        );
+        assert_describe_field("auto_start", &self.auto_start, &expected.auto_start, self);
+        assert_describe_field(
+            "restart_count",
+            &self.restart_count,
+            &expected.restart_count,
+            self,
+        );
+        assert_describe_field(
+            "last_exit_code",
+            &self.last_exit_code,
+            &expected.last_exit_code,
+            self,
+        );
+        if let Some(expected_env) = &expected.env_contains {
+            for (key, value) in expected_env {
+                assert_eq!(
+                    self.env.get(key),
+                    Some(value),
+                    "describe env[{key}]: expected {value:?}, got {:?}\nfull: {self:?}",
+                    self.env.get(key)
+                );
+            }
+        }
+        if let Some(expected_after) = &expected.after {
+            if expected_after.is_empty() {
+                assert!(
+                    self.after.is_empty(),
+                    "expected describe after to be empty, got {self:?}"
+                );
+            } else {
+                for name in expected_after {
+                    assert!(
+                        self.after.iter().any(|n| n == name),
+                        "expected '{name}' in describe after, got {self:?}"
+                    );
+                }
+            }
+        }
+        assert_describe_present("uuid", &self.uuid, expected.has_uuid, self);
+        assert_describe_present("stdout", &self.stdout, expected.has_stdout_path, self);
+        assert_describe_present("stderr", &self.stderr, expected.has_stderr_path, self);
+        if let Some(expected_alive) = expected.pid_alive {
+            let alive = self.pid > 0 && pid_is_alive(self.pid as u32);
+            assert_eq!(
+                alive,
+                expected_alive,
+                "describe pid_alive: expected {expected_alive}, pid {} alive={}\nfull: {self:?}",
+                self.pid,
+                pid_is_alive(self.pid as u32)
+            );
+        }
+    }
+}
+
+fn assert_describe_field<T: PartialEq + std::fmt::Debug>(
+    field: &str,
+    actual: &T,
+    expected: &Option<T>,
+    snapshot: &DescribeSnapshot,
+) {
+    if let Some(expected) = expected {
+        assert_eq!(
+            actual, expected,
+            "describe {field}: expected {expected:?}, got {actual:?}\nfull: {snapshot:?}"
+        );
+    }
+}
+
+fn assert_describe_present(
+    field: &str,
+    actual: &str,
+    expected: Option<bool>,
+    snapshot: &DescribeSnapshot,
+) {
+    match expected {
+        Some(true) => assert!(
+            !actual.is_empty(),
+            "describe {field} should be present, got {snapshot:?}"
+        ),
+        Some(false) => assert!(
+            actual.is_empty(),
+            "describe {field} should be empty, got {snapshot:?}"
+        ),
+        None => {}
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessExpect {
     Created,
+    Running,
+    Stopped,
     Failed,
+    Exited,
 }
 
 impl ProcessExpect {
     fn as_str(self) -> &'static str {
         match self {
             Self::Created => "Created",
+            Self::Running => "Running",
+            Self::Stopped => "Stopped",
             Self::Failed => "Failed",
+            Self::Exited => "Exited",
         }
     }
 }
@@ -593,19 +857,19 @@ fn extract_column(row: &str, col_idx: usize, columns: &[(&str, usize)]) -> Strin
 // ---------------------------------------------------------------------------
 
 /// Runs dd-procmgr CLI commands against a daemon socket.
-pub struct CliRunner {
+struct CliRunner {
     socket_path: PathBuf,
 }
 
 impl CliRunner {
-    pub fn new(socket_path: &Path) -> Self {
+    fn new(socket_path: &Path) -> Self {
         Self {
             socket_path: socket_path.to_path_buf(),
         }
     }
 
     /// Run a dd-procmgr command and capture output.
-    pub fn run(&self, args: &[&str]) -> CliOutput {
+    fn run(&self, args: &[&str]) -> CliOutput {
         let bin = env!("CARGO_BIN_EXE_dd-procmgr");
         let output = Command::new(bin)
             .arg("--socket")
@@ -667,7 +931,22 @@ impl TestEnv {
         self
     }
 
-    fn env_root(&self) -> &Path {
+    pub fn install_fixture(&self, name: &str) {
+        install_process_fixture(self.env_root(), &self.config_dir, name);
+    }
+
+    /// Render `fixture` into `{name}.yaml` (simulates operator replacing a process file).
+    pub fn overwrite_with_fixture(&self, name: &str, fixture: &str) {
+        install_process_fixture_as(self.env_root(), &self.config_dir, fixture, name);
+    }
+
+    pub fn remove_process_yaml(&self, name: &str) {
+        let path = self.config_dir.join(format!("{name}.yaml"));
+        std::fs::remove_file(&path)
+            .unwrap_or_else(|e| panic!("failed to remove {}: {e}", path.display()));
+    }
+
+    pub fn env_root(&self) -> &Path {
         self._dir.path()
     }
 
@@ -773,8 +1052,12 @@ impl TestEnv {
         }
     }
 
-    fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
+    pub fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
         ListClient::new(&self.socket_path).list()
+    }
+
+    pub fn process(&self, name: &str) -> Result<ProcessSnapshot, String> {
+        self.find_process(name)
     }
 
     fn find_process(&self, name: &str) -> Result<ProcessSnapshot, String> {
@@ -784,8 +1067,167 @@ impl TestEnv {
             .ok_or_else(|| format!("process '{name}' not found"))
     }
 
-    fn wait_for_process_running(&self, name: &str) -> Result<ProcessSnapshot, String> {
-        self.wait_for_process_running_with_timeout(name, default_process_wait_timeout())
+    pub fn wait_for_process_running(
+        &self,
+        name: &str,
+        timeout: Duration,
+    ) -> Result<ProcessSnapshot, String> {
+        self.wait_for_process_running_with_timeout(name, timeout)
+    }
+
+    pub fn wait_for_process_state(
+        &self,
+        name: &str,
+        expected: ProcessExpect,
+        timeout: Duration,
+    ) -> Result<ProcessSnapshot, String> {
+        if expected == ProcessExpect::Running {
+            return self.wait_for_process_running_with_timeout(name, timeout);
+        }
+
+        let client = ListClient::new(&self.socket_path);
+        let deadline = Instant::now() + timeout;
+        let expected_state = expected.as_str();
+        loop {
+            let last_err = match client.list() {
+                Ok(processes) => match processes.iter().find(|p| p.name == name) {
+                    Some(process) if process.state == expected_state => {
+                        if process_matches_expect(process, expected) {
+                            return Ok(process.clone());
+                        }
+                        format!(
+                            "process '{name}' in state {expected_state} but PID expectation not met: {process:?}"
+                        )
+                    }
+                    Some(process) => {
+                        format!("process '{name}' not in {expected_state} yet: {process:?}")
+                    }
+                    None => format!("process '{name}' not in list: {processes:?}"),
+                },
+                Err(e) => e,
+            };
+            if Instant::now() >= deadline {
+                return Err(self.format_wait_failure(last_err));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    pub fn assert_process_state_within(&self, name: &str, expected: ProcessExpect) {
+        self.wait_for_process_state(name, expected, default_process_wait_timeout())
+            .unwrap_or_else(|e| panic!("expected process '{name}' in state {expected:?}: {e}"));
+    }
+
+    pub fn start_process(&self, name: &str) -> Result<(), String> {
+        let out = self.cli(&["start", name]);
+        if !out.status.success() {
+            return Err(format!(
+                "start {name} failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        self.wait_for_process_state(name, ProcessExpect::Running, default_process_wait_timeout())?;
+        Ok(())
+    }
+
+    pub fn stop_process(&self, name: &str) -> Result<(), String> {
+        let out = self.cli(&["stop", name]);
+        if !out.status.success() {
+            return Err(format!(
+                "stop {name} failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        self.wait_for_process_state(name, ProcessExpect::Stopped, default_process_wait_timeout())?;
+        Ok(())
+    }
+
+    pub fn assert_start_process(&self, name: &str) {
+        self.start_process(name)
+            .unwrap_or_else(|e| panic!("expected start of '{name}' to succeed: {e}"));
+    }
+
+    pub fn assert_stop_process(&self, name: &str) {
+        self.stop_process(name)
+            .unwrap_or_else(|e| panic!("expected stop of '{name}' to succeed: {e}"));
+    }
+
+    fn reload(&self) -> Result<ReloadSnapshot, String> {
+        let out = self.cli(&["reload", "--json"]);
+        if !out.status.success() {
+            return Err(format!(
+                "reload --json failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        serde_json::from_str(&out.stdout)
+            .map_err(|e| format!("failed to parse reload JSON: {e}\nstdout: {}", out.stdout))
+    }
+
+    fn assert_reload(&self) -> ReloadSnapshot {
+        self.reload()
+            .unwrap_or_else(|e| panic!("expected reload to succeed: {e}"))
+    }
+
+    pub fn assert_reload_matches(&self, expected: ReloadExpect) {
+        let pids_before: Vec<(&str, u64)> = expected
+            .preserve_running_pids
+            .iter()
+            .map(|name| (name.as_str(), self.require_process_pid(name)))
+            .collect();
+        self.assert_reload().assert_matches(&expected);
+        for (name, pid_before) in pids_before {
+            self.assert_process_running(name);
+            assert_eq!(
+                self.require_process_pid(name),
+                pid_before,
+                "unchanged reload should not respawn {name}"
+            );
+        }
+    }
+
+    fn require_process_pid(&self, name: &str) -> u64 {
+        self.find_process(name)
+            .unwrap_or_else(|e| panic!("{e}"))
+            .pid
+    }
+
+    fn describe(&self, name_or_uuid: &str) -> Result<DescribeSnapshot, String> {
+        let out = self.cli(&["describe", "--json", name_or_uuid]);
+        if !out.status.success() {
+            return Err(format!(
+                "describe --json {name_or_uuid} failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        serde_json::from_str(&out.stdout)
+            .map_err(|e| format!("failed to parse describe JSON: {e}\nstdout: {}", out.stdout))
+    }
+
+    fn assert_describe(&self, name_or_uuid: &str) -> DescribeSnapshot {
+        self.describe(name_or_uuid)
+            .unwrap_or_else(|e| panic!("expected describe of '{name_or_uuid}' to succeed: {e}"))
+    }
+
+    pub fn assert_describe_matches(&self, name_or_uuid: &str, expected: DescribeExpect) {
+        self.assert_describe(name_or_uuid).assert_matches(&expected);
+    }
+
+    fn format_wait_failure(&self, last_err: String) -> String {
+        let logs = self
+            .daemon
+            .as_ref()
+            .map(|d| d.captured_logs().join("\n"))
+            .unwrap_or_default();
+        format!("{last_err}\n--- daemon logs ---\n{logs}\n--- end daemon logs ---")
     }
 
     fn wait_for_process_running_with_timeout(
@@ -843,23 +1285,16 @@ impl TestEnv {
                 }
             };
             if Instant::now() >= deadline {
-                let logs = self
-                    .daemon
-                    .as_ref()
-                    .map(|d| d.captured_logs().join("\n"))
-                    .unwrap_or_default();
-                return Err(format!(
-                    "{last_err}\n--- daemon logs ---\n{logs}\n--- end daemon logs ---"
-                ));
+                return Err(self.format_wait_failure(last_err));
             }
             std::thread::sleep(Duration::from_millis(50));
         }
     }
 
     pub fn assert_process_running(&self, name: &str) {
-        self.wait_for_process_running(name)
+        self.wait_for_process_running(name, default_process_wait_timeout())
             .unwrap_or_else(|e| panic!("expected process '{name}' running: {e}"));
-        self.check_process_pid_alive(name);
+        self.assert_process_pid_alive(name);
     }
 
     pub fn assert_process_state(&self, name: &str, expected: ProcessExpect) {
@@ -869,12 +1304,19 @@ impl TestEnv {
             process.state, expected_state,
             "process '{name}': expected state {expected_state}, got {process:?}"
         );
-        if expected == ProcessExpect::Created || expected == ProcessExpect::Failed {
-            assert_eq!(
-                process.pid, 0,
-                "process '{name}' in {expected_state} should have no PID, got {process:?}"
-            );
-        }
+        assert!(
+            process_matches_expect(&process, expected),
+            "process '{name}' PID expectation not met for {expected_state}: {process:?}"
+        );
+    }
+
+    pub fn assert_process_last_exit_code(&self, name: &str, code: i32) {
+        let process = self.find_process(name).unwrap();
+        assert_eq!(
+            process.last_exit_code,
+            Some(code),
+            "process '{name}' last_exit_code: expected {code}, got {process:?}"
+        );
     }
 
     pub fn assert_process_absent(&self, name: &str) {
@@ -884,6 +1326,23 @@ impl TestEnv {
         assert!(
             !processes.iter().any(|p| p.name == name),
             "process '{name}' should not be in catalog, got {processes:?}"
+        );
+    }
+
+    pub fn assert_list_empty(&self) {
+        let processes = self.list_processes().expect("failed to list processes");
+        assert!(
+            processes.is_empty(),
+            "expected empty catalog, got {processes:?}"
+        );
+    }
+
+    pub fn assert_list_len(&self, expected: usize) {
+        let processes = self.list_processes().expect("failed to list processes");
+        assert_eq!(
+            processes.len(),
+            expected,
+            "expected {expected} process(es) in catalog, got {processes:?}"
         );
     }
 
@@ -906,7 +1365,7 @@ impl TestEnv {
         self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
-    fn check_process_pid_alive(&self, name: &str) {
+    fn assert_process_pid_alive(&self, name: &str) {
         let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
         let pid = process.pid as u32;
         assert!(
@@ -917,6 +1376,20 @@ impl TestEnv {
             pid_is_alive(pid),
             "PID {pid} for process '{name}' should be alive"
         );
+    }
+
+    pub fn assert_pid_gone(&self, pid: u64) {
+        assert!(
+            wait_for_pid_gone(pid as u32, DEFAULT_TIMEOUT),
+            "PID {pid} should be gone"
+        );
+    }
+
+    pub fn assert_process_pid_changed(&self, name: &str, old_pid: u64) {
+        self.assert_pid_gone(old_pid);
+        self.assert_process_running(name);
+        let new_pid = self.require_process_pid(name);
+        assert_ne!(old_pid, new_pid, "PID should change for {name}");
     }
 
     /// Create a sleep process via CLI with optional extra args
@@ -977,6 +1450,19 @@ fn assert_status_field(field: &str, actual: u32, expected: Option<u32>, status: 
     }
 }
 
+fn process_matches_expect(process: &ProcessSnapshot, expected: ProcessExpect) -> bool {
+    match expected {
+        ProcessExpect::Created
+        | ProcessExpect::Stopped
+        | ProcessExpect::Failed
+        | ProcessExpect::Exited => process.pid == 0,
+        ProcessExpect::Running => {
+            let pid = process.pid as u32;
+            pid > 0 && pid_is_alive(pid)
+        }
+    }
+}
+
 fn spawn_log_reader<R: std::io::Read + Send + 'static>(
     stream: R,
     tag: &str,
@@ -1016,8 +1502,17 @@ fn fixtures_root() -> PathBuf {
 }
 
 fn install_process_fixture(env_root: &Path, config_dir: &Path, name: &str) {
-    let bundle = fixtures_root().join(name);
-    let yaml_src = bundle.join(format!("{name}.yaml"));
+    install_process_fixture_as(env_root, config_dir, name, name);
+}
+
+fn install_process_fixture_as(
+    env_root: &Path,
+    config_dir: &Path,
+    fixture: &str,
+    process_name: &str,
+) {
+    let bundle = fixtures_root().join(fixture);
+    let yaml_src = bundle.join(format!("{fixture}.yaml"));
     assert!(
         yaml_src.is_file(),
         "fixture yaml not found: {}",
@@ -1028,8 +1523,8 @@ fn install_process_fixture(env_root: &Path, config_dir: &Path, name: &str) {
     std::fs::create_dir_all(&scripts_dir)
         .unwrap_or_else(|e| panic!("failed to create {}: {e}", scripts_dir.display()));
 
-    let script_path = scripts_dir.join(format!("{name}.py"));
-    let py_src = bundle.join(format!("{name}.py"));
+    let script_path = scripts_dir.join(format!("{fixture}.py"));
+    let py_src = bundle.join(format!("{fixture}.py"));
     if py_src.is_file() {
         std::fs::copy(&py_src, &script_path).unwrap_or_else(|e| {
             panic!(
@@ -1044,12 +1539,12 @@ fn install_process_fixture(env_root: &Path, config_dir: &Path, name: &str) {
         .unwrap_or_else(|e| panic!("failed to read fixture yaml {}: {e}", yaml_src.display()));
     let rendered = render_fixture_yaml(
         &template,
-        name,
+        fixture,
         env_root,
         config_dir,
         py_src.is_file().then_some(script_path.as_path()),
     );
-    write_config(config_dir, name, &rendered);
+    write_config(config_dir, process_name, &rendered);
 }
 
 fn render_fixture_yaml(
