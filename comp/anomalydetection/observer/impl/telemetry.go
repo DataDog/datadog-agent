@@ -24,7 +24,6 @@ const (
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Current number of active log patterns.
 	telemetryLogsAcceptedBytes               = "observer.logs.accepted_bytes"                 // Total bytes accepted into observer log ingestion.
 	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
-	telemetryInvalidMetricValuesDropped      = "observer.metrics.invalid_value_dropped"       // Number of invalid metric values dropped by reason.
 	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
@@ -46,7 +45,6 @@ type observerTelemetry struct {
 
 	logsAcceptedBytes    telemetry.Counter
 	filteredMetrics      telemetry.Counter
-	invalidMetricDrops   telemetry.Counter
 	seriesCount          telemetry.Gauge
 	logsInFlight         telemetry.Gauge
 	storageEvicted       telemetry.Counter
@@ -106,12 +104,6 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryFilteredMetrics,
 			[]string{"source"},
 			"Metrics filtered out before observer ingest, tagged by normalized source",
-		),
-		invalidMetricDrops: telemetryComp.NewCounter(
-			"observer",
-			telemetryInvalidMetricValuesDropped,
-			[]string{"reason"},
-			"Invalid metric values dropped before observer storage, tagged by reason",
 		),
 		seriesCount: telemetryComp.NewGauge(
 			"observer",
@@ -207,10 +199,6 @@ func (t *observerTelemetry) recordMetricAccepted(source string) {
 
 func (t *observerTelemetry) recordFilteredMetric(source string) {
 	t.filteredMetrics.Add(1, source)
-}
-
-func (t *observerTelemetry) recordInvalidMetricValueDropped(reason string) {
-	t.invalidMetricDrops.Add(1, reason)
 }
 
 func (t *observerTelemetry) incrementLogsInFlight(logSource string) {

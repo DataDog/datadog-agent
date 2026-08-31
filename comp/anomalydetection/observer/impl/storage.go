@@ -130,7 +130,6 @@ type timeSeriesStorage struct {
 	// Invalid-value logging is limited globally across metric names so input
 	// cardinality cannot create retained per-metric state.
 	droppedValueLogLimit *pkglog.Limit
-	onDroppedValue       func(reason string)
 }
 
 // tagInternEntry is the value stored in timeSeriesStorage.tagIntern.
@@ -332,7 +331,7 @@ type AddResult struct {
 }
 
 // Add inserts a (namespace, name, value, timestamp, tags) point into storage.
-// Invalid values are dropped at ingest with telemetry and rate-limited logging.
+// Invalid values are dropped at ingest with rate-limited logging.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
@@ -465,10 +464,6 @@ func insertBucket(s []pointBucket, idx int, v pointBucket) []pointBucket {
 }
 
 func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, value float64, timestamp int64, tags []string) {
-	if s.onDroppedValue != nil {
-		s.onDroppedValue(reason)
-	}
-
 	if s.droppedValueLogLimit != nil && s.droppedValueLogLimit.ShouldLog() {
 		logging.Warnf("dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v",
 			reason, namespace, name, value, timestamp, tags)

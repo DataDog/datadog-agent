@@ -279,10 +279,8 @@ func NewComponent(deps Requires) (Provides, error) {
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
 	}
 
-	storage := newTimeSeriesStorageWith(storageCfg)
-	storage.onDroppedValue = obsTelemetry.recordInvalidMetricValueDropped
 	eng := newEngine(engineConfig{
-		storage:         storage,
+		storage:         newTimeSeriesStorageWith(storageCfg),
 		extractors:      extractors,
 		detectors:       detectors,
 		correlators:     correlators,

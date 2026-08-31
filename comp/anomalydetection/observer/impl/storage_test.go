@@ -298,21 +298,16 @@ func TestAggSuffix(t *testing.T) {
 
 func TestTimeSeriesStorage_DropsNonFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
-	var reasons []string
-	s.onDroppedValue = func(reason string) { reasons = append(reasons, reason) }
 
 	s.Add("test", "my.metric", math.Inf(1), 1000, nil)
 	s.Add("test", "my.metric", math.NaN(), 1001, nil)
 
 	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
 	assert.Nil(t, series)
-	assert.Equal(t, []string{"non_finite", "non_finite"}, reasons)
 }
 
 func TestTimeSeriesStorage_DropsExtremeFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
-	var reasons []string
-	s.onDroppedValue = func(reason string) { reasons = append(reasons, reason) }
 
 	s.Add("test", "my.metric", math.MaxFloat64, 1000, nil)
 	s.Add("test", "my.metric", math.MaxFloat64/4, 1001, nil)
@@ -321,7 +316,6 @@ func TestTimeSeriesStorage_DropsExtremeFiniteValues(t *testing.T) {
 	require.NotNil(t, series)
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, math.MaxFloat64/4, series.Points[0].Value)
-	assert.Equal(t, []string{"extreme"}, reasons)
 }
 
 // --- Binary-search-based range query tests ---
