@@ -6,7 +6,10 @@
 mod helpers;
 
 use dd_procmgrd::test_helpers;
-use helpers::{ProcessExpect, StatusProcessesCount, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone, write_config};
+use helpers::{
+    ProcessExpect, StatusProcessesCount, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone,
+    write_config,
+};
 use std::time::Duration;
 
 #[test]

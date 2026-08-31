@@ -217,10 +217,10 @@ pub fn temp_dir_str() -> String {
 // ---------------------------------------------------------------------------
 
 pub fn python_exe() -> String {
-    if let Ok(python) = std::env::var("PYTHON") {
-        if !python.is_empty() {
-            return python;
-        }
+    if let Ok(python) = std::env::var("PYTHON")
+        && !python.is_empty()
+    {
+        return python;
     }
     #[cfg(unix)]
     {
