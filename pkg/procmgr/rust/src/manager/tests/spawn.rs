@@ -23,7 +23,17 @@ fn stop_while_full_test_timeout() -> Duration {
     }
 }
 
-#[cfg(unix)]
+fn in_flight_spawn_test_timeout() -> Duration {
+    #[cfg(windows)]
+    {
+        Duration::from_secs(30)
+    }
+    #[cfg(not(windows))]
+    {
+        Duration::from_secs(5)
+    }
+}
+
 #[tokio::test]
 async fn test_stop_during_in_flight_spawn_aborts_child() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -46,7 +56,7 @@ async fn test_stop_during_in_flight_spawn_aborts_child() -> anyhow::Result<()> {
         .await
     });
 
-    tokio::time::timeout(Duration::from_secs(1), async {
+    tokio::time::timeout(in_flight_spawn_test_timeout(), async {
         loop {
             let procs = mgr.processes().await;
             if procs[0].state() == ProcessState::Starting {
@@ -73,7 +83,6 @@ async fn test_stop_during_in_flight_spawn_aborts_child() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
 #[tokio::test]
 async fn test_concurrent_start_rejected_while_spawn_in_flight() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -96,7 +105,7 @@ async fn test_concurrent_start_rejected_while_spawn_in_flight() -> anyhow::Resul
         .await
     });
 
-    tokio::time::timeout(Duration::from_secs(1), async {
+    tokio::time::timeout(in_flight_spawn_test_timeout(), async {
         loop {
             if mgr.processes().await[0].state() == ProcessState::Starting {
                 return;
@@ -156,7 +165,6 @@ async fn test_concurrent_start_only_one_succeeds() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
 #[tokio::test]
 async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -179,7 +187,7 @@ async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> any
         .await
     });
 
-    tokio::time::timeout(Duration::from_secs(1), async {
+    tokio::time::timeout(in_flight_spawn_test_timeout(), async {
         loop {
             if mgr.processes().await[0].state() == ProcessState::Starting {
                 return;
@@ -212,7 +220,6 @@ async fn test_start_loses_spawn_reservation_returns_failed_precondition() -> any
     Ok(())
 }
 
-#[cfg(unix)]
 #[tokio::test]
 async fn test_stale_spawn_commit_does_not_steal_newer_reservation() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -235,7 +242,7 @@ async fn test_stale_spawn_commit_does_not_steal_newer_reservation() -> anyhow::R
         .await
     });
 
-    tokio::time::timeout(Duration::from_secs(1), async {
+    tokio::time::timeout(in_flight_spawn_test_timeout(), async {
         loop {
             if mgr.processes().await[0].state() == ProcessState::Starting {
                 return;
@@ -255,7 +262,7 @@ async fn test_stale_spawn_commit_does_not_steal_newer_reservation() -> anyhow::R
         async move { mgr.handle_start("token-svc", &handles).await }
     });
 
-    tokio::time::timeout(Duration::from_secs(1), async {
+    tokio::time::timeout(in_flight_spawn_test_timeout(), async {
         loop {
             if mgr.processes().await[0].state() == ProcessState::Starting {
                 return;
@@ -340,7 +347,6 @@ async fn test_create_auto_start_respects_in_flight_reservation() -> anyhow::Resu
     Ok(())
 }
 
-#[cfg(unix)]
 #[tokio::test]
 async fn test_background_spawn_joined_before_teardown() -> anyhow::Result<()> {
     let _guard = super::test_manager_lock().await;
@@ -358,7 +364,7 @@ async fn test_background_spawn_joined_before_teardown() -> anyhow::Result<()> {
         None,
     );
 
-    tokio::time::timeout(Duration::from_secs(1), async {
+    tokio::time::timeout(in_flight_spawn_test_timeout(), async {
         loop {
             if mgr.processes().await[0].state() == ProcessState::Starting {
                 return;

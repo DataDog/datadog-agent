@@ -43,16 +43,10 @@ pub async fn auto_start_for_test(mgr: &ProcessManager, ctx: &RuntimeContext) {
     startup::run(mgr, ctx, pending.as_mut()).await;
 }
 
-#[cfg(unix)]
 pub async fn test_manager_lock() -> tokio::sync::MutexGuard<'static, ()> {
     let guard = crate::platform::test_shutdown_lock().await;
     super::spawn::reset_spawn_gate_for_test();
     guard
-}
-
-#[cfg(windows)]
-pub async fn test_manager_lock() -> tokio::sync::MutexGuard<'static, ()> {
-    crate::platform::test_shutdown_lock().await
 }
 
 pub fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
