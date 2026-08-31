@@ -208,19 +208,28 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
 
 def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
-    syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
     arch = Arch.from_str(arch)
     _, _, env = get_build_flags(ctx, arch=arch)
 
-    go_build(
-        ctx,
-        f"{syscall_tester_go_dir}/syscall_go_tester.go",
-        build_tags=["syscalltesters", "osusergo", "netgo"],
-        ldflags="-extldflags=-static",
-        bin_path=syscall_tester_exe_file,
-        env=env,
-    )
-    return syscall_tester_exe_file
+    testers = {
+        "syscall_go_tester": f"{syscall_tester_go_dir}/syscall_go_tester.go",
+        "span_go_tester": f"{syscall_tester_go_dir}/span/span_go_tester.go",
+    }
+
+    exe_files = []
+    for name, source in testers.items():
+        exe_file = os.path.join(build_dir, name)
+        go_build(
+            ctx,
+            source,
+            build_tags=["syscalltesters", "osusergo", "netgo"],
+            ldflags="-extldflags=-static",
+            bin_path=exe_file,
+            env=env,
+        )
+        exe_files.append(exe_file)
+
+    return exe_files
 
 
 def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
@@ -357,7 +366,7 @@ def build_functional_tests(
         results, _ = run_golangci_lint(ctx, base_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
-            if result.exited != 0:
+            if result.returncode != 0:
                 raise Exit(code=1)
         print("golangci-lint found no issues")
 

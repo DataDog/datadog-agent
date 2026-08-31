@@ -8,17 +8,20 @@
 package authoredscripts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	securejoin "github.com/cyphar/filepath-securejoin"
 )
 
 const (
 	defaultExecutablePath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	parameterEnvVarPrefix = "PAR_ENV_"
 )
 
 // managedEnvironmentVariables are set by BuildEnvironment from session/package state.
@@ -31,7 +34,7 @@ var managedEnvironmentVariables = map[string]struct{}{
 }
 
 // BuildEnvironment creates the environment available to an authored script.
-func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
+func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]interface{}) ([]string, error) {
 	if pkg == nil || pkg.Manifest == nil {
 		return nil, errors.New("authored-script package is required")
 	}
@@ -68,6 +71,10 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 		environment[variable.Name] = value
 	}
 
+	if err := addParameterEnvironment(environment, parameters); err != nil {
+		return nil, err
+	}
+
 	result := make([]string, 0, len(environment))
 	for name, value := range environment {
 		if strings.IndexByte(value, 0) >= 0 {
@@ -76,6 +83,37 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 		result = append(result, name+"="+value)
 	}
 	return result, nil
+}
+
+// addParameterEnvironment converts input parameters into PAR_ENV_* environment
+// variable assignments in environment. String values pass through verbatim; all
+// other types are JSON-encoded. It errors if a parameter's environment variable
+// name collides with one already present in environment, whether from another
+// parameter or from a managed/allowed/session variable.
+func addParameterEnvironment(environment map[string]string, parameters map[string]interface{}) error {
+	for name, value := range parameters {
+		envName := parameterEnvName(name)
+		if _, exists := environment[envName]; exists {
+			return fmt.Errorf("authored-script parameter %q maps to environment variable %q, which is already set", name, envName)
+		}
+
+		var stringValue string
+		if s, ok := value.(string); ok {
+			stringValue = s
+		} else {
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				return fmt.Errorf("failed to encode authored-script parameter %q: %w", name, err)
+			}
+			stringValue = string(encoded)
+		}
+		environment[envName] = stringValue
+	}
+	return nil
+}
+
+func parameterEnvName(name string) string {
+	return parameterEnvVarPrefix + util.ToScreamingSnakeCase(name)
 }
 
 func buildExecutablePath(toolPaths []string) (string, error) {

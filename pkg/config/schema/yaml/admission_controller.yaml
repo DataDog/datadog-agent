@@ -491,8 +491,8 @@ properties:
         properties:
           enabled:
             node_type: setting
-            type: string
-            default: 'true'
+            type: boolean
+            default: true
           tls_verification:
             node_type: section
             type: object
