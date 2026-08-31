@@ -393,6 +393,69 @@ func TestRemoveExperimentPreservesUnmanagedFilesAndConfigACLs(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(stablePath, "conf.d", "new.d", "config.yaml"))
 }
 
+func TestRemoveExperimentPrunesEmptiedCheckDirectories(t *testing.T) {
+	stablePath := t.TempDir()
+	experimentPath := filepath.Join(t.TempDir(), "experiment")
+	require.NoError(t, os.WriteFile(filepath.Join(stablePath, "datadog.yaml"), []byte("log_level: info\n"), 0640))
+
+	dirs := &Directories{
+		StablePath:     stablePath,
+		ExperimentPath: experimentPath,
+	}
+	require.NoError(t, dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "adds-a-check",
+		FileOperations: []FileOperation{
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/conf.d/brand_new.d/config.yaml",
+				Patch:             []byte(`{"enabled": true}`),
+			},
+		},
+	}))
+	require.FileExists(t, filepath.Join(stablePath, "conf.d", "brand_new.d", "config.yaml"))
+
+	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+
+	assert.NoFileExists(t, filepath.Join(stablePath, "conf.d", "brand_new.d", "config.yaml"))
+	assert.NoDirExists(t, filepath.Join(stablePath, "conf.d", "brand_new.d"),
+		"rollback should not leave behind the check directory it emptied")
+	assert.NoDirExists(t, filepath.Join(stablePath, "conf.d"))
+	assert.FileExists(t, filepath.Join(stablePath, "datadog.yaml"))
+}
+
+// A check directory that already existed but held no config when the experiment started
+// must survive rollback. The backup is what distinguishes it from a directory the
+// experiment created, so it only works if the copy carries empty directories.
+func TestRemoveExperimentKeepsPreExistingEmptyCheckDirectory(t *testing.T) {
+	stablePath := t.TempDir()
+	experimentPath := filepath.Join(t.TempDir(), "experiment")
+	require.NoError(t, os.WriteFile(filepath.Join(stablePath, "datadog.yaml"), []byte("log_level: info\n"), 0640))
+
+	preExisting := filepath.Join(stablePath, "conf.d", "preexisting.d")
+	require.NoError(t, os.MkdirAll(preExisting, 0755))
+
+	dirs := &Directories{
+		StablePath:     stablePath,
+		ExperimentPath: experimentPath,
+	}
+	require.NoError(t, dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "writes-into-existing-check",
+		FileOperations: []FileOperation{
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/conf.d/preexisting.d/config.yaml",
+				Patch:             []byte(`{"enabled": true}`),
+			},
+		},
+	}))
+	require.FileExists(t, filepath.Join(preExisting, "config.yaml"))
+
+	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+
+	assert.NoFileExists(t, filepath.Join(preExisting, "config.yaml"), "experiment config must be cleaned up")
+	assert.DirExists(t, preExisting, "a check directory that predates the experiment must survive rollback")
+}
+
 func TestRemoveConfigFileMissingFromSourceRejectsJunctionAncestor(t *testing.T) {
 	targetDir := t.TempDir()
 	victimDir := t.TempDir()
@@ -426,7 +489,7 @@ func TestRemoveConfigFileMissingFromSourceRejectsJunctionAncestor(t *testing.T) 
 		_ = os.Remove(junctionPath)
 	})
 
-	err = removeConfigFileMissingFromSource(sourceRoot, targetRoot, relativePath)
+	_, err = removeConfigFileMissingFromSource(sourceRoot, targetRoot, relativePath)
 	require.Error(t, err)
 	assert.FileExists(t, victimConfig)
 	assert.FileExists(t, originalConfig)

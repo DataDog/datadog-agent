@@ -477,26 +477,101 @@ func removeConfigFilesMissingFromSource(sourcePath, targetPath string) error {
 	}
 	defer targetRoot.Close()
 
-	return walkFiles(targetRoot.FS(), ".", func(relativePath string, _ fs.DirEntry) error {
+	emptiedDirs := make(map[string]struct{})
+	err = walkFiles(targetRoot.FS(), ".", func(relativePath string, _ fs.DirEntry) error {
 		if !isManagedConfigYAML(relativePath) {
 			return nil
 		}
-		return removeConfigFileMissingFromSource(sourceRoot, targetRoot, relativePath)
+		removed, err := removeConfigFileMissingFromSource(sourceRoot, targetRoot, relativePath)
+		if err != nil {
+			return err
+		}
+		if removed {
+			if dir := path.Dir(relativePath); dir != "." {
+				emptiedDirs[dir] = struct{}{}
+			}
+		}
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	pruneEmptyManagedDirs(sourceRoot, targetRoot, emptiedDirs)
+	return nil
 }
 
-func removeConfigFileMissingFromSource(sourceRoot, targetRoot *os.Root, relativePath string) error {
+// removeConfigFileMissingFromSource removes relativePath from the target when the source
+// does not have it. It reports whether the file was removed.
+func removeConfigFileMissingFromSource(sourceRoot, targetRoot *os.Root, relativePath string) (bool, error) {
 	_, err := sourceRoot.Lstat(relativePath)
 	if err == nil {
-		return nil
+		return false, nil
 	}
 	if !os.IsNotExist(err) {
-		return fmt.Errorf("could not check source config file %q: %w", relativePath, err)
+		return false, fmt.Errorf("could not check source config file %q: %w", relativePath, err)
 	}
 	if err := targetRoot.Remove(relativePath); err != nil {
-		return fmt.Errorf("could not remove config file %q during rollback: %w", relativePath, err)
+		return false, fmt.Errorf("could not remove config file %q during rollback: %w", relativePath, err)
 	}
-	return nil
+	return true, nil
+}
+
+// pruneEmptyManagedDirs removes the directories that the cleanup above just emptied.
+//
+// Removing a config file leaves its directory behind, so an experiment that added
+// conf.d/<check>.d/conf.yaml would otherwise leave an empty conf.d/<check>.d in the stable
+// directory after every rollback. Only directories the cleanup actually emptied are
+// considered, and a directory is removed only when the source does not have it and it holds
+// no remaining entries, so unmanaged files always keep their directory alive.
+//
+// Pruning is best effort: a directory that cannot be removed is left in place rather than
+// failing an otherwise successful rollback.
+func pruneEmptyManagedDirs(sourceRoot, targetRoot *os.Root, emptiedDirs map[string]struct{}) {
+	for _, dir := range dirsDeepestFirst(emptiedDirs) {
+		if _, err := sourceRoot.Lstat(dir); err == nil || !os.IsNotExist(err) {
+			// The source still has this directory, or we cannot tell: keep it.
+			continue
+		}
+		if !isEmptyDir(targetRoot, dir) {
+			continue
+		}
+		// A directory that cannot be removed is left in place. Its parents cannot be
+		// empty either, so the rest of the pass skips them on its own.
+		_ = targetRoot.Remove(dir)
+	}
+}
+
+// dirsDeepestFirst expands dirs with their parent directories and orders them so that a
+// directory always comes before its parent, letting a parent that is emptied by the removal
+// of its last child be pruned in the same pass.
+func dirsDeepestFirst(dirs map[string]struct{}) []string {
+	all := make(map[string]struct{}, len(dirs))
+	for dir := range dirs {
+		for d := dir; d != "." && d != "/" && d != ""; d = path.Dir(d) {
+			all[d] = struct{}{}
+		}
+	}
+
+	ordered := make([]string, 0, len(all))
+	for d := range all {
+		ordered = append(ordered, d)
+	}
+	// A child path is its parent plus more, so reverse lexical order puts every child
+	// ahead of its parent.
+	sort.Sort(sort.Reverse(sort.StringSlice(ordered)))
+	return ordered
+}
+
+// isEmptyDir reports whether dir holds no entries at all, including unmanaged ones.
+func isEmptyDir(root *os.Root, dir string) bool {
+	f, err := root.Open(dir)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	_, err = f.Readdirnames(1)
+	return err == io.EOF
 }
 
 func walkFiles(fsys fs.FS, root string, fn func(relativePath string, entry fs.DirEntry) error) error {

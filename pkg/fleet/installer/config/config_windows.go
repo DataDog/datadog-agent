@@ -159,10 +159,13 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	// The target root is created with the source root's security descriptor before a backup,
 	// and the stable root is never removed before a restore. This prevents an unprivileged user
 	// from pre-creating the target between directory creation and robocopy applying /SEC.
+	// /E rather than /S so the copy carries empty directories, matching what /MIR did.
+	// The backup is what tells a rollback which directories predate the experiment, so a
+	// directory missing from it would be mistaken for one the experiment created.
 	cmd := telemetry.CommandContext(
 		ctx,
 		"robocopy",
-		"/S",
+		"/E",
 		"/SL",
 		"/SEC",
 		sourcePath,

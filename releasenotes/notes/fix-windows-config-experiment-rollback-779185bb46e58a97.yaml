@@ -4,4 +4,6 @@ fixes:
     Windows Fleet Automation config experiment rollbacks now preserve config
     file permissions and restrict cleanup to Fleet-managed configuration files.
     This prevents rollback from deleting unmanaged files or restoring Agent
-    configuration without its original ACLs.
+    configuration without its original ACLs. Rollback also removes the
+    directories it empties, so check directories created by an experiment no
+    longer accumulate in the configuration directory.
