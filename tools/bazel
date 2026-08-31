@@ -69,6 +69,13 @@ fi
 # "--startup cmd ..." -> "--startup cmd --config=ci ..."
 if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   args=()
+  if [ -n "${CI-}" ] ; then
+     # 5 minutes
+     args+=(--max_idle_secs=300)
+  else
+     # 8 hours
+     args+=(--max_idle_secs=28800)
+  fi
   cmd=
   for arg in "$@"; do
     args+=("$arg")
@@ -80,4 +87,5 @@ if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   set -- "${args[@]}"
 fi
 
+echo "$BAZEL_REAL" "$@"
 exec "$BAZEL_REAL" "$@"
