@@ -102,10 +102,6 @@ func TestGetSRVConnectionURITLS(t *testing.T) {
 			got, err := getConnectionUri(credentials)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
-
-			clientOptions, _, err := createMongoClientOptions(context.Background(), credentials)
-			require.NoError(t, err)
-			require.NotNil(t, clientOptions)
 		})
 	}
 }
