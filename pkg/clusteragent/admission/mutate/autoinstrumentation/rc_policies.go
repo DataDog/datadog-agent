@@ -56,11 +56,11 @@ func remotePolicyPathOrder(path string) int {
 }
 
 // subscribeRemoteConfig wires the remote-config client to the mutator so that
-// SSI policies delivered over remote config are layered on top of the
-// configuration baseline. It is a no-op when remote config is not available,
-// in which case the mutator keeps matching against its configuration baseline
-// only. The wire format is the dd-wls policies document; targets do not appear
-// on this path.
+// SSI policies delivered over remote config are evaluated after static targets.
+// RC policies are last-TRUE-wins on the wire order (default first, exceptions
+// after). It is a no-op when remote config is not available, in which case the
+// mutator keeps matching against its configuration baseline only. The wire
+// format is the dd-wls policies document; targets do not appear on this path.
 func (m *TargetMutator) subscribeRemoteConfig(client *rcclient.Client) {
 	if client == nil {
 		return
