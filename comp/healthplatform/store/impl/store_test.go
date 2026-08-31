@@ -32,14 +32,17 @@ import (
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
 type memPersistence struct {
-	mu    sync.Mutex
-	state *PersistedState
+	mu        sync.Mutex
+	state     *PersistedState
+	loadErr   error
+	loadCalls int
 }
 
-func (m *memPersistence) load() (*PersistedState, error) {
+func (m *memPersistence) load(_ context.Context) (*PersistedState, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.state, nil
+	m.loadCalls++
+	return m.state, m.loadErr
 }
 
 func (m *memPersistence) save(state *PersistedState) error {
@@ -125,6 +128,15 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 				"health_platform", "issues_detected", []string{"issue_type", "severity"}, ""),
 		},
 	}
+}
+
+func TestStartFailsOpenWhenPersistenceLoadFails(t *testing.T) {
+	h := newTestStore(t)
+	persistence := &memPersistence{loadErr: assert.AnError}
+	h.persistence = persistence
+
+	require.NoError(t, h.start(context.Background()))
+	assert.Equal(t, 1, persistence.loadCalls)
 }
 
 func TestReportIssueNil(t *testing.T) {
@@ -365,7 +377,7 @@ func TestPersistenceRoundTrip(t *testing.T) {
 
 	h2 := newTestStore(t)
 	h2.persistence = newDiskPersistence(path, logger)
-	require.NoError(t, h2.loadFromDisk())
+	require.NoError(t, h2.loadPersistedState(context.Background()))
 
 	// Detailed proto payload is not persisted — it is repopulated when the check re-runs.
 	// What must survive is the lifecycle state so that storeIssue can correctly
@@ -388,7 +400,7 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	assert.Equal(t, "permissions", h2.persistedIssues["t:id"].Category, "category must reflect the latest report")
 }
 
-func TestLoadFromDiskPreservesIssueTypeAndCategoryOnResolvedTombstone(t *testing.T) {
+func TestLoadPersistedStatePreservesIssueTypeAndCategoryOnResolvedTombstone(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "issues.json")
 	logger := logmock.New(t)
@@ -404,7 +416,7 @@ func TestLoadFromDiskPreservesIssueTypeAndCategoryOnResolvedTombstone(t *testing
 	h2.persistence = newDiskPersistence(path, logger)
 	ch := make(chan *healthplatformpayload.Issue, 1)
 	h2.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
-	require.NoError(t, h2.loadFromDisk())
+	require.NoError(t, h2.loadPersistedState(context.Background()))
 
 	require.Len(t, ch, 1)
 	got := <-ch
@@ -434,7 +446,7 @@ func TestPersistenceVersionMismatch(t *testing.T) {
 
 	h := newTestStore(t)
 	h.persistence = newDiskPersistence(path, logmock.New(t))
-	require.NoError(t, h.loadFromDisk())
+	require.NoError(t, h.loadPersistedState(context.Background()))
 
 	// Stale version: store must start fresh.
 	assert.Nil(t, h.GetIssue("t:id"))
@@ -452,7 +464,7 @@ func TestResolvedTTLPruning(t *testing.T) {
 
 	mem := &memPersistence{}
 	h.persistence = mem
-	require.NoError(t, h.saveToDisk())
+	require.NoError(t, h.savePersistedState())
 
 	require.NotNil(t, mem.state)
 	assert.NotContains(t, mem.state.Issues, "t:id",
