@@ -101,6 +101,7 @@ deploy_rpm_testing*                  @DataDog/agent-delivery
 deploy_suse_rpm_testing*             @DataDog/agent-delivery
 deploy_windows_testing*              @DataDog/agent-delivery
 deploy_dmg_testing*                @DataDog/agent-delivery
+deploy_fips_proxy_testing*           @DataDog/agent-devx
 
 # Image build
 docker_build*                        @DataDog/agent-build
@@ -167,7 +168,6 @@ deploy_containers-secret-generic-connector* @DataDog/fleet-automation
 # Trigger release
 trigger_manual_prod_release*            @DataDog/agent-delivery
 trigger_auto_staging_release*           @DataDog/agent-delivery
-generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
 
 # Trigger distribution
 trigger_distribution*         @DataDog/agent-delivery

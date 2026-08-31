@@ -129,7 +129,7 @@ func TestDeviceCacheSMVersionSet(t *testing.T) {
 func TestDeviceCacheAll(t *testing.T) {
 	// Create mock with all symbols available
 	mockNvml := testutil.NewMockNVML(
-		testutil.WithSymbolsMock(allSymbols), // Default mock, MIG enabled for configured devices
+		testutil.WithSymbolsMock(allSymbols), // MIG enabled for configured devices
 		testutil.WithDefaultMIGDevices(),
 	)
 

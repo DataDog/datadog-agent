@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Added retry-with-backoff to startup of the External Metrics Provider. The Cluster Agent now retries the external metrics server setup on transient APIServer failures instead of failing on the first attempt.

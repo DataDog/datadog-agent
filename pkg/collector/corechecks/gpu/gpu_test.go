@@ -463,7 +463,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
-	// Increase MIG children count to 2 (max for device index 5)
+	// Increase MIG children count to 2 (max for the configured parent)
 	migDeviceCount = 2
 	migChildren[1] = testutil.MIGUUIDs[1]
 	require.NoError(t, check.Run())

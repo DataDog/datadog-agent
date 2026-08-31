@@ -184,13 +184,6 @@ func WithMIGDeviceCountCallback(callback func(deviceIdx int) int) NvmlDeviceOpti
 	})
 }
 
-// WithDeviceUUID overrides the UUID returned by devices in this option's scope.
-func WithDeviceUUID(uuid string) NvmlDeviceOption {
-	return deviceOption(func(o *deviceOptions) {
-		o.uuid = &uuid
-	})
-}
-
 // WithFieldValuesFullOverride sets field values returned by GetFieldValues for all mock devices. Overrides the entire default set of field values.
 func WithFieldValuesFullOverride(values map[uint32]MockFieldValue) NvmlDeviceOption {
 	return deviceOption(func(o *deviceOptions) {
