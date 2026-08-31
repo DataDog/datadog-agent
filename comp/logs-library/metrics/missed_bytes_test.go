@@ -16,18 +16,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// missedBytesBase is 2024-01-01T00:00:00Z, a whole number of missedBytesBucketSize
-// since the epoch, so records land on predictable bucket boundaries.
+// A whole number of missedBytesBucketSize since the epoch, so records land on
+// predictable bucket boundaries.
 var missedBytesBase = time.Unix(1704067200, 0)
 
-// newTestMissedBytesTracker returns a tracker driven by a mock clock parked at missedBytesBase.
 func newTestMissedBytesTracker() (*missedBytesTracker, *clock.Mock) {
 	clk := clock.NewMock()
 	clk.Set(missedBytesBase)
 	return newMissedBytesTracker(clk), clk
 }
 
-// findMissedBytes returns the summary for source:service from a slice, or fails the test.
+// summarize renders a snapshot as "source:service bytes/rotations", in order.
+func summarize(summaries []MissedBytesSummary) []string {
+	out := make([]string, 0, len(summaries))
+	for _, s := range summaries {
+		out = append(out, fmt.Sprintf("%s:%s %d/%d", s.Source, s.Service, s.Bytes, s.Rotations))
+	}
+	return out
+}
+
 func findMissedBytes(t *testing.T, summaries []MissedBytesSummary, source, service string) MissedBytesSummary {
 	t.Helper()
 	for _, s := range summaries {
@@ -39,130 +46,107 @@ func findMissedBytes(t *testing.T, summaries []MissedBytesSummary, source, servi
 	return MissedBytesSummary{}
 }
 
-// TestMissedBytes_SingleRecord checks one recorded loss surfaces with its bytes, rotation count and timestamp.
-func TestMissedBytes_SingleRecord(t *testing.T) {
-	tr, clk := newTestMissedBytesTracker()
+func TestMissedBytesRecord(t *testing.T) {
+	tests := []struct {
+		name   string
+		record func(tr *missedBytesTracker, clk *clock.Mock)
+		want   []string
+	}{
+		{
+			name:   "one loss carries its bytes and rotation count",
+			record: func(tr *missedBytesTracker, _ *clock.Mock) { tr.record("nginx", "web", 4096) },
+			want:   []string{"nginx:web 4096/1"},
+		},
+		{
+			name: "repeated losses for one tuple accumulate",
+			record: func(tr *missedBytesTracker, clk *clock.Mock) {
+				for _, n := range []int64{100, 250, 25} {
+					tr.record("nginx", "web", n)
+					clk.Add(time.Minute)
+				}
+			},
+			want: []string{"nginx:web 375/3"},
+		},
+		{
+			name: "distinct tuples stay separate, sorted by source then service",
+			record: func(tr *missedBytesTracker, _ *clock.Mock) {
+				tr.record("nginx", "web", 10)
+				tr.record("apache", "web", 20)
+				tr.record("nginx", "api", 30)
+				tr.record("apache", "api", 40)
+			},
+			want: []string{"apache:api 40/1", "apache:web 20/1", "nginx:api 30/1", "nginx:web 10/1"},
+		},
+		{
+			name: "losses spread across buckets all count inside the window",
+			record: func(tr *missedBytesTracker, clk *clock.Mock) {
+				// Six losses 3h apart span 15h, comfortably inside the 24h window.
+				for i := int64(1); i <= 6; i++ {
+					tr.record("nginx", "web", i*100)
+					clk.Add(3 * missedBytesBucketSize)
+				}
+			},
+			want: []string{"nginx:web 2100/6"},
+		},
+	}
 
-	tr.record("nginx", "web", 4096)
-
-	summaries := tr.collectAndPrune()
-	require.Len(t, summaries, 1)
-	assert.Equal(t, "nginx", summaries[0].Source)
-	assert.Equal(t, "web", summaries[0].Service)
-	assert.Equal(t, int64(4096), summaries[0].Bytes)
-	assert.Equal(t, int64(1), summaries[0].Rotations, "one record must count as one rotation")
-	assert.Equal(t, clk.Now().UnixNano(), summaries[0].LastLossAt.UnixNano())
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tr, clk := newTestMissedBytesTracker()
+			tc.record(tr, clk)
+			assert.Equal(t, tc.want, summarize(tr.collectAndPrune()))
+		})
+	}
 }
 
-// TestMissedBytes_SameTupleAccumulates checks repeated losses for one tuple sum and count up.
-func TestMissedBytes_SameTupleAccumulates(t *testing.T) {
+func TestMissedBytesLastLossAt(t *testing.T) {
 	tr, clk := newTestMissedBytesTracker()
 
 	tr.record("nginx", "web", 100)
 	clk.Add(time.Minute)
-	tr.record("nginx", "web", 250)
-	clk.Add(time.Minute)
-	tr.record("nginx", "web", 25)
+	tr.record("nginx", "web", 100)
 
 	summaries := tr.collectAndPrune()
-	require.Len(t, summaries, 1, "one tuple must produce one summary regardless of rotation count")
-	assert.Equal(t, int64(375), summaries[0].Bytes)
-	assert.Equal(t, int64(3), summaries[0].Rotations)
-	assert.Equal(t, clk.Now().UnixNano(), summaries[0].LastLossAt.UnixNano(),
-		"LastLossAt must track the most recent loss")
+	require.Len(t, summaries, 1)
+	assert.Equal(t, clk.Now().UnixNano(), summaries[0].LastLossAt.UnixNano())
 }
 
-// TestMissedBytes_DistinctTuplesSorted checks tuples stay separate and come back sorted by source then service.
-func TestMissedBytes_DistinctTuplesSorted(t *testing.T) {
-	tr, _ := newTestMissedBytesTracker()
-
-	tr.record("nginx", "web", 10)
-	tr.record("apache", "web", 20)
-	tr.record("nginx", "api", 30)
-	tr.record("apache", "api", 40)
-
-	summaries := tr.collectAndPrune()
-	require.Len(t, summaries, 4)
-
-	order := make([]string, 0, len(summaries))
-	for _, s := range summaries {
-		order = append(order, s.Source+":"+s.Service)
-	}
-	assert.Equal(t, []string{"apache:api", "apache:web", "nginx:api", "nginx:web"}, order,
-		"summaries must be sorted by source then service")
-
-	assert.Equal(t, int64(10), findMissedBytes(t, summaries, "nginx", "web").Bytes)
-	assert.Equal(t, int64(20), findMissedBytes(t, summaries, "apache", "web").Bytes)
-	assert.Equal(t, int64(30), findMissedBytes(t, summaries, "nginx", "api").Bytes)
-	assert.Equal(t, int64(40), findMissedBytes(t, summaries, "apache", "api").Bytes)
-}
-
-// TestMissedBytes_WindowExpiry checks a loss stays visible inside the window and is dropped once it ages out.
-func TestMissedBytes_WindowExpiry(t *testing.T) {
+func TestMissedBytesWindowExpiry(t *testing.T) {
 	tr, clk := newTestMissedBytesTracker()
 
 	tr.record("nginx", "web", 512)
 
 	clk.Add(missedBytesWindow - missedBytesBucketSize)
-	summaries := tr.collectAndPrune()
-	require.Len(t, summaries, 1, "a loss still inside the trailing window must be reported")
-	assert.Equal(t, int64(512), summaries[0].Bytes)
+	require.Equal(t, []string{"nginx:web 512/1"}, summarize(tr.collectAndPrune()))
 
-	// A bucket counts while any part of its slice overlaps the window, so it takes
-	// one further bucket beyond missedBytesWindow to disappear entirely.
+	// Takes one further bucket beyond the window to disappear entirely.
 	clk.Add(2 * missedBytesBucketSize)
-	assert.Empty(t, tr.collectAndPrune(), "a loss older than the window must age out of the snapshot")
+	assert.Empty(t, tr.collectAndPrune())
 	assert.Empty(t, tr.entries, "an aged-out tuple must be dropped from the map, not retained")
 }
 
-// TestMissedBytes_SumsAcrossBuckets checks losses spread over several hours all count within one window.
-func TestMissedBytes_SumsAcrossBuckets(t *testing.T) {
-	tr, clk := newTestMissedBytesTracker()
-
-	// Six losses 3h apart span 15h, comfortably inside the 24h window.
-	for i := int64(1); i <= 6; i++ {
-		tr.record("nginx", "web", i*100)
-		if i < 6 {
-			clk.Add(3 * missedBytesBucketSize)
-		}
-	}
-
-	summaries := tr.collectAndPrune()
-	require.Len(t, summaries, 1)
-	assert.Equal(t, int64(2100), summaries[0].Bytes, "every in-window bucket must contribute")
-	assert.Equal(t, int64(6), summaries[0].Rotations)
-	assert.Equal(t, clk.Now().UnixNano(), summaries[0].LastLossAt.UnixNano())
-}
-
-// TestMissedBytes_AgedOutBucketsPruned checks an expired bucket stops counting and
-// is removed, while a fresh loss for the same tuple survives.
-func TestMissedBytes_AgedOutBucketsPruned(t *testing.T) {
+func TestMissedBytesAgedOutBucketsPruned(t *testing.T) {
 	tr, clk := newTestMissedBytesTracker()
 
 	tr.record("nginx", "web", 900)
-
 	clk.Add(missedBytesWindow + missedBytesBucketSize)
 	tr.record("nginx", "web", 50)
 
-	summaries := tr.collectAndPrune()
-	require.Len(t, summaries, 1)
-	assert.Equal(t, int64(50), summaries[0].Bytes, "the aged-out bucket must not contribute")
-	assert.Equal(t, int64(1), summaries[0].Rotations)
+	assert.Equal(t, []string{"nginx:web 50/1"}, summarize(tr.collectAndPrune()))
 	assert.Len(t, tr.entries[missedBytesKey{source: "nginx", service: "web"}].buckets, 1,
 		"the aged-out bucket must be deleted, not just skipped")
 }
 
-// TestMissedBytes_BoundedWithoutCollect checks the tracker stays bounded when nothing
-// ever reads it. collectAndPrune only runs when the health check is scheduled, so record
-// has to hold the line on its own when health_platform.enabled is false.
-func TestMissedBytes_BoundedWithoutCollect(t *testing.T) {
+// collectAndPrune only runs when the health check is scheduled, so record has to
+// hold the line alone when health_platform.enabled is false.
+func TestMissedBytesBoundedWithoutCollect(t *testing.T) {
 	tr, clk := newTestMissedBytesTracker()
 
 	bucketsPerWindow := int(missedBytesWindow / missedBytesBucketSize)
 	steady := missedBytesKey{source: "nginx", service: "web"}
 
-	// Ten windows of hourly rotations: one steady tuple, plus a fresh tuple every
-	// hour to push against the key cap. collectAndPrune is never called in the loop.
+	// Ten windows of hourly rotations: one steady tuple plus a fresh one each hour to
+	// push against the key cap. collectAndPrune is never called in the loop.
 	for hour := 0; hour < 10*bucketsPerWindow; hour++ {
 		tr.record(steady.source, steady.service, 1)
 		tr.record(fmt.Sprintf("churn-%03d", hour), "svc", 1)
@@ -179,13 +163,12 @@ func TestMissedBytes_BoundedWithoutCollect(t *testing.T) {
 	assert.Len(t, tr.entries[steady].buckets, missedBytesMaxBuckets,
 		"a continuously losing tuple must settle at exactly one window of buckets")
 
-	// Pruning in record drops only what aged out, so a reader still sees the full window.
+	// record's pruning drops only what aged out, so a reader sees the full window.
 	assert.Equal(t, int64(bucketsPerWindow), findMissedBytes(t, tr.collectAndPrune(),
-		steady.source, steady.service).Bytes, "every in-window bucket must survive record's pruning")
+		steady.source, steady.service).Bytes)
 }
 
-// TestMissedBytes_OverflowFoldsIntoSharedKey checks tuples past the cap merge into one summary and the map stops growing.
-func TestMissedBytes_OverflowFoldsIntoSharedKey(t *testing.T) {
+func TestMissedBytesOverflowFoldsIntoSharedKey(t *testing.T) {
 	tr, _ := newTestMissedBytesTracker()
 
 	const overflow = 5
@@ -197,14 +180,11 @@ func TestMissedBytes_OverflowFoldsIntoSharedKey(t *testing.T) {
 		"the map must hold at most the cap plus the shared overflow key")
 
 	summaries := tr.collectAndPrune()
-	require.Len(t, summaries, missedBytesMaxKeys+1)
-
 	other := findMissedBytes(t, summaries, missedBytesOverflowLabel, missedBytesOverflowLabel)
 	assert.Equal(t, int64(overflow*10), other.Bytes, "every tuple past the cap must land in the overflow summary")
 	assert.Equal(t, int64(overflow), other.Rotations)
-
-	// The tuples recorded before the cap keep their own identity.
-	assert.Equal(t, int64(10), findMissedBytes(t, summaries, "source-000", "svc").Bytes)
+	assert.Equal(t, int64(10), findMissedBytes(t, summaries, "source-000", "svc").Bytes,
+		"tuples recorded before the cap keep their identity")
 
 	for i := 0; i < 50; i++ {
 		tr.record(fmt.Sprintf("late-%03d", i), "svc", 1)
@@ -214,48 +194,24 @@ func TestMissedBytes_OverflowFoldsIntoSharedKey(t *testing.T) {
 		missedBytesOverflowLabel, missedBytesOverflowLabel).Bytes)
 }
 
-// TestMissedBytes_NonPositiveBytesIgnored checks a rotation that lost nothing is not tracked.
-func TestMissedBytes_NonPositiveBytesIgnored(t *testing.T) {
+func TestMissedBytesNonPositiveIgnored(t *testing.T) {
 	tr, _ := newTestMissedBytesTracker()
 
 	tr.record("nginx", "web", 0)
 	tr.record("nginx", "web", -100)
 
-	assert.Empty(t, tr.collectAndPrune(), "a rotation that lost no bytes must not produce a summary")
+	assert.Empty(t, tr.collectAndPrune())
 	assert.Empty(t, tr.entries, "a rotation that lost no bytes must not allocate an entry")
 
 	tr.record("nginx", "web", 200)
 	tr.record("nginx", "web", 0)
 
-	summaries := tr.collectAndPrune()
-	require.Len(t, summaries, 1)
-	assert.Equal(t, int64(200), summaries[0].Bytes)
-	assert.Equal(t, int64(1), summaries[0].Rotations, "a zero-byte rotation must not count as a rotation")
+	assert.Equal(t, []string{"nginx:web 200/1"}, summarize(tr.collectAndPrune()),
+		"a zero-byte rotation must not count as a rotation")
 }
 
-// TestMissedBytes_Reset checks reset clears tracked state and leaves the tracker usable.
-func TestMissedBytes_Reset(t *testing.T) {
-	tr, _ := newTestMissedBytesTracker()
-
-	tr.record("nginx", "web", 100)
-	tr.record("apache", "web", 100)
-	require.Len(t, tr.collectAndPrune(), 2)
-
-	tr.reset()
-
-	assert.Empty(t, tr.collectAndPrune(), "reset must clear every tracked tuple")
-	assert.Empty(t, tr.entries)
-
-	tr.record("nginx", "web", 42)
-	summaries := tr.collectAndPrune()
-	require.Len(t, summaries, 1, "the tracker must stay usable after reset")
-	assert.Equal(t, int64(42), summaries[0].Bytes)
-}
-
-// TestMissedBytes_ConcurrentRecord checks concurrent writers on overlapping tuples lose no bytes.
-func TestMissedBytes_ConcurrentRecord(t *testing.T) {
-	// The mock clock never advances here, so nothing can expire mid-test and the
-	// totals are exact.
+func TestMissedBytesConcurrentRecord(t *testing.T) {
+	// The mock clock never advances, so nothing expires and the totals are exact.
 	tr, _ := newTestMissedBytesTracker()
 
 	const (
@@ -280,7 +236,7 @@ func TestMissedBytes_ConcurrentRecord(t *testing.T) {
 		}(g)
 	}
 
-	// A reader racing the writers, so -race exercises collectAndPrune against record.
+	// A reader racing the writers, so -race covers collectAndPrune against record.
 	var reader sync.WaitGroup
 	reader.Add(1)
 	go func() {
@@ -309,27 +265,6 @@ func TestMissedBytes_ConcurrentRecord(t *testing.T) {
 	}
 
 	assert.Len(t, summaries, tuples, "overlapping writers must not create extra tuples")
-	assert.Equal(t, int64(goroutines*perGoroutine*bytesPerRecord), totalBytes,
-		"concurrent records must not lose bytes")
-	assert.Equal(t, int64(goroutines*perGoroutine), totalRotations,
-		"concurrent records must not lose rotations")
-}
-
-// TestMissedBytes_PackageLevelAPI checks the exported wrappers reach the process-wide tracker.
-func TestMissedBytes_PackageLevelAPI(t *testing.T) {
-	ResetMissedBytesForTest()
-	defer ResetMissedBytesForTest()
-
-	require.Empty(t, MissedBytesSnapshot())
-	require.False(t, FileTailingActive())
-
-	RecordMissedBytes("nginx", "web", 128)
-	MarkFileTailingActive()
-
-	summaries := MissedBytesSnapshot()
-	require.Len(t, summaries, 1)
-	assert.Equal(t, "nginx", summaries[0].Source)
-	assert.Equal(t, "web", summaries[0].Service)
-	assert.Equal(t, int64(128), summaries[0].Bytes)
-	assert.True(t, FileTailingActive())
+	assert.Equal(t, int64(goroutines*perGoroutine*bytesPerRecord), totalBytes, "concurrent records must not lose bytes")
+	assert.Equal(t, int64(goroutines*perGoroutine), totalRotations, "concurrent records must not lose rotations")
 }

@@ -7,10 +7,9 @@
 
 package metrics
 
-// ResetMissedBytesForTest clears the process-wide tracker state. Test-only.
-// It mutates the existing tracker rather than replacing it, so it stays safe to
-// call while tailer goroutines hold a reference.
+// ResetMissedBytesForTest clears process-wide state. It mutates the tracker rather
+// than replacing it, so it stays safe while tailer goroutines hold a reference.
 func ResetMissedBytesForTest() {
 	missedBytes.reset()
-	fileTailingActive.Store(false)
+	logsAgentRunning.Store(false)
 }

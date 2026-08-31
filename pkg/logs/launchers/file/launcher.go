@@ -129,9 +129,6 @@ func NewLauncher(
 
 // Start starts the Launcher
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
-	// One-shot commands (flare, jmx, diagnose, analyze-logs, check) wire the health platform
-	// without the logs agent; the flag keeps their empty tracker from resolving live issues.
-	metrics.MarkFileTailingActive()
 	s.pipelineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType, s.addedSourcesDone, s.removedSourcesDone)
 	s.registry = registry

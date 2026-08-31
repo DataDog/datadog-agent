@@ -20,15 +20,12 @@ import (
 	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
-// errFileTailingInactive means the tracker carries no information in this
-// process, so the check cannot establish state either way.
-var errFileTailingInactive = errors.New("missedbytes: file launcher not running")
+// errLogsAgentNotRunning means the check cannot establish state either way.
+var errLogsAgentNotRunning = errors.New("missedbytes: logs agent not running")
 
-// maxBreakdownSources caps how many tuples the issue enumerates individually.
-// Totals still cover every tuple.
+// maxBreakdownSources caps the tuples listed individually; totals cover them all.
 const maxBreakdownSources = 10
 
-// checker turns the logs agent's missed-bytes tracker into issue reports.
 type checker struct {
 	hostname hostnameinterface.Component
 }
@@ -37,21 +34,14 @@ func newChecker(hostname hostnameinterface.Component) *checker {
 	return &checker{hostname: hostname}
 }
 
-// Run reports a single issue summarising every (source, service) tuple that lost
-// bytes to a rotation inside the tracker's trailing window. One issue rather than
-// one per tuple because the backend keeps a single row per {org, issue_type}.
+// Run summarises every tuple in the tracker's window into one issue: the backend
+// keeps a single row per {org, issue_type}. Always empty on Windows, where the
+// tailer holds no os.File to size a loss with.
 func (c *checker) Run() ([]runnerdef.IssueReport, error) {
-	// One-shot commands (flare, jmx, diagnose, analyze-logs, check) wire the
-	// health platform without the logs agent, and share the running agent's
-	// on-disk issue store. An error says "state unknown", which leaves the
-	// scheduler's active-id set alone; nil would resolve the running agent's
-	// issue from a process that never tailed anything.
-	//
-	// This is reached only when logs_enabled is true — see the module's
-	// BuiltInPeriodicHealthCheck — so it is a one-shot command or the window
-	// before the file launcher has started, never a steady state.
-	if !logsmetrics.FileTailingActive() {
-		return nil, errFileTailingInactive
+	// Error means "state unknown" and leaves the scheduler's active ids alone; nil
+	// would resolve the running agent's issue. See MarkLogsAgentRunning.
+	if !logsmetrics.LogsAgentRunning() {
+		return nil, errLogsAgentNotRunning
 	}
 
 	summaries := logsmetrics.MissedBytesSnapshot()
@@ -91,9 +81,8 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	}}, nil
 }
 
-// rankSources orders tuples by bytes lost, largest first, keeps at most
-// maxBreakdownSources of them and returns how many it dropped. Ties break on
-// source then service so the breakdown is byte-identical between ticks.
+// rankSources keeps the maxBreakdownSources largest tuples and returns how many it
+// dropped. Ties break on source then service so ticks stay byte-identical.
 func rankSources(summaries []logsmetrics.MissedBytesSummary) ([]sourceLoss, int) {
 	ranked := make([]sourceLoss, 0, len(summaries))
 	for _, s := range summaries {
@@ -121,12 +110,10 @@ func rankSources(summaries []logsmetrics.MissedBytesSummary) ([]sourceLoss, int)
 	return ranked[:maxBreakdownSources], len(ranked) - maxBreakdownSources
 }
 
-// hostIssueID scopes IssueID to this host. The backend dedups on id alone and
-// ignores hostname, so without the hostname in the digest the first host whose
-// window goes clean would resolve the issue for every other affected host.
+// hostIssueID scopes IssueID to this host. The backend dedups on id alone, so
+// without the digest one host going clean resolves the issue for every host.
 func hostIssueID(hostname string) string {
 	h := fnv.New64a()
-	// Write never returns an error for hash.Hash.
-	h.Write([]byte(hostname))
+	h.Write([]byte(hostname)) // never returns an error for hash.Hash
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }

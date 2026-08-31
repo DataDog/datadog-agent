@@ -33,9 +33,7 @@ import (
 
 // team: fleet-remediation
 
-// findMissedBytesIssue returns the log-data-lost-after-rotation issue among a
-// health report's issues, if any. The map key is IssueID scoped with a hostname
-// digest, so lookups match by prefix.
+// The map key is IssueID scoped with a hostname digest, so match by prefix.
 func findMissedBytesIssue(issues map[string]*healthplatformpayload.Issue) *healthplatformpayload.Issue {
 	for id, iss := range issues {
 		if strings.HasPrefix(id, missedbytes.IssueID+":") {
@@ -45,18 +43,15 @@ func findMissedBytesIssue(issues map[string]*healthplatformpayload.Issue) *healt
 	return nil
 }
 
-// TestMissedBytesSurvivesFullPipeline exercises what the missedbytes unit tests
-// cannot: module registration, the scheduler running the check, BuildIssue, the
-// store, the forwarder, and the payload as the intake receives it.
-//
-// The loss is seeded before the bundle starts so the assertion lands on the
-// scheduler's first tick rather than waiting out its 15-minute interval.
+// Covers what the unit tests cannot: module registration, the scheduler, BuildIssue,
+// the store, the forwarder, and the payload as the intake receives it. The loss is
+// seeded before the bundle starts so the assertion lands on the first tick.
 func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 	logsmetrics.ResetMissedBytesForTest()
 	t.Cleanup(logsmetrics.ResetMissedBytesForTest)
 
-	// Stands in for the file launcher and two lossy rotations.
-	logsmetrics.MarkFileTailingActive()
+	// Stands in for a running logs agent and two lossy rotations.
+	logsmetrics.MarkLogsAgentRunning()
 	logsmetrics.RecordMissedBytes("nginx", "web", 4096)
 	logsmetrics.RecordMissedBytes("redis", "cache", 1024)
 
@@ -80,8 +75,7 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetInTest("api_key", "test-api-key")
 			cfg.SetInTest("dd_url", fi.URL())
-			// The check is gated on logs_enabled, matching the agent this test
-			// stands in for: one whose file launcher is running.
+			// The check is gated on logs_enabled.
 			cfg.SetInTest("logs_enabled", true)
 			cfg.SetInTest("health_platform.enabled", true)
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
@@ -114,32 +108,14 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 		return false
 	}, waitTimeout, waitInterval, "log-data-lost-after-rotation issue never reached fakeintake")
 
-	assert.Equal(t, missedbytes.IssueName, received.GetIssueName())
+	// Field-level content is issue_test.go's job. Assert only what the trip changes:
+	// both tuples folded into one issue, breakdown arriving as objects not a string.
 	assert.Equal(t, missedbytes.IssueType, received.GetIssueType())
-	assert.Equal(t, "logs_pipeline", received.GetCategory())
-	assert.Equal(t, "logs", received.GetSource())
-	assert.Equal(t, "logs-agent", received.GetLocation())
-	assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH, received.GetSeverity())
-	assert.Contains(t, received.GetTags(), "rotation")
-
-	// One issue for the whole host, so both tuples have to be inside it.
 	assert.Contains(t, received.GetTitle(), "from 2 sources")
-	assert.Contains(t, received.GetDescription(), "nginx/web")
-	assert.Contains(t, received.GetDescription(), "redis/cache")
 
-	fields := received.GetExtra().GetFields()
-	assert.Equal(t, float64(5120), fields["bytes_missed_24h"].GetNumberValue())
-	assert.Equal(t, float64(2), fields["rotation_count_24h"].GetNumberValue())
-	assert.Equal(t, float64(2), fields["source_count"].GetNumberValue())
-	assert.Equal(t, float64(0), fields["sources_omitted"].GetNumberValue())
-
-	// The breakdown has to arrive as a list of objects rather than an opaque
-	// JSON string, ordered largest loss first.
-	sources := fields["sources"].GetListValue().GetValues()
+	sources := received.GetExtra().GetFields()["sources"].GetListValue().GetValues()
 	require.Len(t, sources, 2)
 	largest := sources[0].GetStructValue().GetFields()
 	assert.Equal(t, "nginx", largest["source"].GetStringValue())
-	assert.Equal(t, "web", largest["service"].GetStringValue())
 	assert.Equal(t, float64(4096), largest["bytes"].GetNumberValue())
-	assert.Equal(t, float64(1), largest["rotations"].GetNumberValue())
 }

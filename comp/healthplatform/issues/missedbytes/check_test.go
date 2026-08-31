@@ -19,8 +19,7 @@ import (
 	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
-// newTestChecker returns a checker over a clean process-wide tracker. The
-// tracker is a singleton, so these tests must not run in parallel.
+// The tracker is a singleton, so these tests must not run in parallel.
 func newTestChecker(t *testing.T, hostname string) *checker {
 	t.Helper()
 	logsmetrics.ResetMissedBytesForTest()
@@ -29,7 +28,6 @@ func newTestChecker(t *testing.T, hostname string) *checker {
 	return newChecker(hn)
 }
 
-// reportSources reads the breakdown back out of a report's context.
 func reportSources(t *testing.T, ctx map[string]string) []sourceLoss {
 	t.Helper()
 	var got []sourceLoss
@@ -37,32 +35,30 @@ func reportSources(t *testing.T, ctx map[string]string) []sourceLoss {
 	return got
 }
 
-// Without the file launcher the tracker is empty for reasons unrelated to loss.
-// The check must error rather than report zero issues, which the scheduler would
-// read as "everything resolved".
-func TestCheck_FileTailingInactiveErrors(t *testing.T) {
+// The tracker is empty for reasons unrelated to loss, and the scheduler reads zero
+// issues as "everything resolved".
+func TestCheck_LogsAgentNotRunningErrors(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.RecordMissedBytes("nginx", "web", 1024)
 
 	reports, err := c.Run()
-	require.ErrorIs(t, err, errFileTailingInactive)
+	require.ErrorIs(t, err, errLogsAgentNotRunning)
 	assert.Empty(t, reports, "an unestablished state must not be reported as no-loss")
 }
 
 func TestCheck_NoLossReportsNothing(t *testing.T) {
 	c := newTestChecker(t, "host-a")
-	logsmetrics.MarkFileTailingActive()
+	logsmetrics.MarkLogsAgentRunning()
 
 	reports, err := c.Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
 
-// Every affected tuple on the host folds into one issue: the backend keeps a
-// single row per issue type, so per-tuple reports only fight each other for it.
+// The backend keeps one row per issue type, so per-tuple reports would fight for it.
 func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 	c := newTestChecker(t, "host-a")
-	logsmetrics.MarkFileTailingActive()
+	logsmetrics.MarkLogsAgentRunning()
 	logsmetrics.RecordMissedBytes("nginx", "web", 4000000)
 	logsmetrics.RecordMissedBytes("nginx", "web", 200000)
 	logsmetrics.RecordMissedBytes("redis", "cache", 512)
@@ -93,14 +89,12 @@ func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 	assert.Equal(t, "Lost 4.2 MB of logs from 2 sources in the last 24 hours", issue.GetTitle())
 }
 
-// The breakdown is capped, so it must spend its slots on the worst offenders
-// rather than on whichever tuples the snapshot happened to sort first.
+// The breakdown is capped, so it must spend its slots on the worst offenders.
 func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 	c := newTestChecker(t, "host-a")
-	logsmetrics.MarkFileTailingActive()
+	logsmetrics.MarkLogsAgentRunning()
 
-	// Named so the snapshot's (source, service) ordering is the reverse of the
-	// byte ordering: source-00 is the smallest loss but sorts first.
+	// Named so snapshot order is the reverse of byte order: source-00 loses least.
 	const total = maxBreakdownSources + 2
 	for i := 0; i < total; i++ {
 		logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", int64(i+1)*1000)
@@ -120,7 +114,7 @@ func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 	assert.Equal(t, int64(12000), got[0].Bytes)
 	assert.Equal(t, "source-02", got[len(got)-1].Source, "the two smallest losses are the ones dropped")
 
-	// Totals must still account for the omitted tuples.
+	// Totals still account for the omitted tuples.
 	var want int64
 	for i := 0; i < total; i++ {
 		want += int64(i+1) * 1000
@@ -128,11 +122,10 @@ func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 	assert.Equal(t, strconv.FormatInt(want, 10), ctx[contextKeyBytes])
 }
 
-// The report is re-sent on every egress interval, so equal-loss tuples must not
-// reorder between ticks and churn the payload.
+// The report is re-sent every egress interval, so ties must not churn the payload.
 func TestCheck_BreakdownOrderIsDeterministicOnTies(t *testing.T) {
 	c := newTestChecker(t, "host-a")
-	logsmetrics.MarkFileTailingActive()
+	logsmetrics.MarkLogsAgentRunning()
 	logsmetrics.RecordMissedBytes("beta", "two", 1000)
 	logsmetrics.RecordMissedBytes("alpha", "two", 1000)
 	logsmetrics.RecordMissedBytes("alpha", "one", 1000)
@@ -150,8 +143,7 @@ func TestCheck_BreakdownOrderIsDeterministicOnTies(t *testing.T) {
 	}, "ties break on source then service")
 }
 
-// The host must map to the same id on every run, or each check tick would file a
-// new issue instead of refreshing the existing one.
+// An unstable id would file a new issue each tick instead of refreshing one.
 func TestHostIssueID_StableAndHostScoped(t *testing.T) {
 	base := hostIssueID("host-a")
 

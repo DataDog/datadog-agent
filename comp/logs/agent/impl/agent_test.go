@@ -319,6 +319,27 @@ func (suite *AgentTestSuite) TestGetPipelineProvider() {
 	assert.NotNil(suite.T(), agent.GetPipelineProvider())
 }
 
+// Only the logs agent may set this; see TestStartDoesNotMarkLogsAgentRunning in
+// pkg/logs/launchers/file.
+func (suite *AgentTestSuite) TestStartMarksLogsAgentRunning() {
+	metrics.ResetMissedBytesForTest()
+	defer metrics.ResetMissedBytesForTest()
+
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, _, _ := createAgent(suite, endpoints)
+	assert.False(suite.T(), metrics.LogsAgentRunning())
+
+	agent.Start()
+	defer agent.Stop()
+
+	assert.True(suite.T(), metrics.LogsAgentRunning())
+}
+
 func (suite *AgentTestSuite) TestAgentLiveness() {
 	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
 	defer server.Stop()
