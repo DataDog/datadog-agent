@@ -241,6 +241,46 @@ func TestRemapOnFlush(t *testing.T) {
 	}
 }
 
+func TestNewTelemetry_DisabledForGovCloudSite(t *testing.T) {
+	for _, site := range []string{"ddog-gov.com", "xxxx99.ddog-gov.com"} {
+		telem := newTelemetry(&http.Client{}, "api", site, "test-service")
+		assert.False(t, telem.telemetryClient.siteSupportsTelemetry, "expected telemetry to be disabled for site %q", site)
+	}
+}
+
+func TestNewTelemetry_EnabledForNonGovCloudSite(t *testing.T) {
+	for _, site := range []string{"datadoghq.com", "datadoghq.eu", "datad0g.com", ""} {
+		telem := newTelemetry(&http.Client{}, "api", site, "test-service")
+		assert.True(t, telem.telemetryClient.siteSupportsTelemetry, "expected telemetry to be enabled for site %q", site)
+	}
+}
+
+// recordingHTTPClient is a minimal httpClient stub that records whether Do was called.
+type recordingHTTPClient struct {
+	called bool
+}
+
+func (r *recordingHTTPClient) Do(*http.Request) (*http.Response, error) {
+	r.called = true
+	return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+}
+
+func TestSendPayload_SkipsHTTPCallWhenDisabledForGovCloud(t *testing.T) {
+	rec := &recordingHTTPClient{}
+	e := &endpoint{Host: "https://instrumentation-telemetry-intake.ddog-gov.com", APIKey: "api"}
+	c := newClient(rec, []*endpoint{e}, "test-service", false, false /* siteSupportsTelemetry */)
+	c.sendPayload(requestTypeLogs, LogPayload{})
+	assert.False(t, rec.called, "expected no HTTP call to be made when telemetry is disabled")
+}
+
+func TestSendPayload_MakesHTTPCallWhenEnabled(t *testing.T) {
+	rec := &recordingHTTPClient{}
+	e := &endpoint{Host: "https://instrumentation-telemetry-intake.datadoghq.com", APIKey: "api"}
+	c := newClient(rec, []*endpoint{e}, "test-service", false, true /* siteSupportsTelemetry */)
+	c.sendPayload(requestTypeLogs, LogPayload{})
+	assert.True(t, rec.called, "expected an HTTP call to be made when telemetry is enabled")
+}
+
 func TestSampling(t *testing.T) {
 	const testService = "test-service"
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", testService)
