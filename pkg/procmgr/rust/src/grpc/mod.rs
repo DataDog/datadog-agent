@@ -12,7 +12,7 @@ pub mod proto {
     pub use dd_procmgr_client::proto::*;
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::proto;
     use super::proto::process_manager_client::ProcessManagerClient;
@@ -21,13 +21,40 @@ mod tests {
     use crate::command::Command;
     use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
     use crate::manager::{Lifecycle, ProcessManager};
+    use std::path::PathBuf;
     use std::sync::Arc;
-    use tokio::net::UnixListener;
     use tokio::sync::mpsc;
-    use tokio_stream::wrappers::UnixListenerStream;
     use tonic::transport::Channel;
 
+    #[cfg(unix)]
+    use tokio::net::UnixListener;
+    #[cfg(unix)]
+    use tokio_stream::wrappers::UnixListenerStream;
+
     use crate::test_helpers;
+
+    fn grpc_settle_delay() -> std::time::Duration {
+        #[cfg(windows)]
+        {
+            std::time::Duration::from_millis(1000)
+        }
+        #[cfg(not(windows))]
+        {
+            std::time::Duration::from_millis(500)
+        }
+    }
+
+    #[cfg(windows)]
+    fn test_ipc_path() -> PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static TEST_PIPE_COUNTER: AtomicU64 = AtomicU64::new(0);
+        let id = TEST_PIPE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        PathBuf::from(format!(
+            r"\\.\pipe\dd-procmgr-grpc-test-{}-{}",
+            std::process::id(),
+            id
+        ))
+    }
 
     async fn start_test_server(
         defs: Vec<ProcessDefinition>,
@@ -36,10 +63,6 @@ mod tests {
         tokio::sync::oneshot::Sender<()>,
     ) {
         let (cmd_tx, cmd_rx) = mpsc::channel::<Command>(64);
-        let dir = tempfile::tempdir().unwrap();
-        let sock_path = dir.path().join("test.sock");
-        let uds = UnixListener::bind(&sock_path).unwrap();
-        let uds_stream = UnixListenerStream::new(uds);
 
         let mgr = ProcessManager::new(
             Arc::new(StaticConfigLoader::new(defs)),
@@ -51,35 +74,73 @@ mod tests {
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
-        tokio::spawn(async move {
-            let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
+        #[cfg(unix)]
+        let ipc_path = {
+            let dir = tempfile::tempdir().unwrap();
+            let sock_path = dir.path().join("test.sock");
+            let uds = UnixListener::bind(&sock_path).unwrap();
+            let uds_stream = UnixListenerStream::new(uds);
 
-            #[cfg(not(bazel))]
-            let router = {
-                let reflection = tonic_reflection::server::Builder::configure()
-                    .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
-                    .build_v1()
+            tokio::spawn(async move {
+                let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
+
+                #[cfg(not(bazel))]
+                let router = {
+                    let reflection = tonic_reflection::server::Builder::configure()
+                        .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
+                        .build_v1()
+                        .unwrap();
+                    tonic::transport::Server::builder()
+                        .add_service(reflection)
+                        .add_service(pm_service)
+                };
+
+                #[cfg(bazel)]
+                let router = tonic::transport::Server::builder().add_service(pm_service);
+
+                router
+                    .serve_with_incoming_shutdown(uds_stream, async {
+                        let _ = shutdown_rx.await;
+                    })
+                    .await
                     .unwrap();
-                tonic::transport::Server::builder()
-                    .add_service(reflection)
-                    .add_service(pm_service)
-            };
+                drop(dir);
+            });
+            sock_path
+        };
 
-            #[cfg(bazel)]
-            let router = tonic::transport::Server::builder().add_service(pm_service);
+        #[cfg(windows)]
+        let ipc_path = {
+            let ipc_path_for_server = test_ipc_path();
+            tokio::spawn(async move {
+                let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
-            router
-                .serve_with_incoming_shutdown(uds_stream, async {
+                #[cfg(not(bazel))]
+                let router = {
+                    let reflection = tonic_reflection::server::Builder::configure()
+                        .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
+                        .build_v1()
+                        .unwrap();
+                    tonic::transport::Server::builder()
+                        .add_service(reflection)
+                        .add_service(pm_service)
+                };
+
+                #[cfg(bazel)]
+                let router = tonic::transport::Server::builder().add_service(pm_service);
+
+                crate::transport::named_pipe::serve_at_path(router, &ipc_path_for_server, async {
                     let _ = shutdown_rx.await;
                 })
                 .await
                 .unwrap();
-            drop(dir);
-        });
+            });
+            ipc_path_for_server
+        };
 
         crate::manager::spawn_command_loop_for_tests(mgr.clone(), cmd_tx, cmd_rx);
 
-        let channel = dd_procmgr_client::connect(&sock_path).await.unwrap();
+        let channel = dd_procmgr_client::connect(&ipc_path).await.unwrap();
 
         let client = ProcessManagerClient::new(channel);
         (client, shutdown_tx)
@@ -190,7 +251,6 @@ mod tests {
         assert_eq!(status.message(), "process 'nonexistent' not found");
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_get_status_not_ready_during_startup() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -426,7 +486,6 @@ mod tests {
         assert_eq!(resp.exited_processes, 0);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_get_status_mixed_states() {
         let (sleep_cmd, sleep_args) = test_helpers::sleep_cmd(60);
@@ -477,7 +536,6 @@ mod tests {
         ];
         let (mut client, _shutdown) = start_test_server(defs).await;
 
-        // Running: start a long-lived process
         client
             .start(proto::StartRequest {
                 name_or_uuid: "running-svc".to_string(),
@@ -485,7 +543,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Failed: start a process that exits non-zero (watcher delivers the exit event)
         client
             .start(proto::StartRequest {
                 name_or_uuid: "failed-svc".to_string(),
@@ -493,7 +550,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Stopped: start then stop
         client
             .start(proto::StartRequest {
                 name_or_uuid: "stopped-svc".to_string(),
@@ -507,7 +563,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Exited: start a process that exits cleanly
         client
             .start(proto::StartRequest {
                 name_or_uuid: "exited-svc".to_string(),
@@ -515,8 +570,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Wait for fast processes to exit and events to flow
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        tokio::time::sleep(grpc_settle_delay()).await;
 
         let resp = client
             .get_status(proto::GetStatusRequest {})
@@ -541,7 +595,6 @@ mod tests {
         }
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_list_shows_running_pid() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -579,9 +632,6 @@ mod tests {
         test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
-    // -- Write RPC tests --
-
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_start_rpc_success() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -638,7 +688,6 @@ mod tests {
         assert_eq!(err.code(), tonic::Code::NotFound);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_start_rpc_already_running() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -675,7 +724,6 @@ mod tests {
         test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_stop_rpc_success() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -689,7 +737,6 @@ mod tests {
         }])
         .await;
 
-        // Start via RPC so the watcher is wired
         client
             .start(proto::StartRequest {
                 name_or_uuid: "to-stop".to_string(),
@@ -715,7 +762,7 @@ mod tests {
             "stop response should include uuid"
         );
 
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        tokio::time::sleep(grpc_settle_delay()).await;
 
         let resp = client
             .describe(proto::DescribeRequest {
@@ -763,7 +810,6 @@ mod tests {
         assert_eq!(err.code(), tonic::Code::FailedPrecondition);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_start_then_stop_round_trip() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -798,7 +844,7 @@ mod tests {
             .await
             .unwrap();
 
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        tokio::time::sleep(grpc_settle_delay()).await;
 
         let resp = client
             .get_status(proto::GetStatusRequest {})
@@ -809,9 +855,6 @@ mod tests {
         assert_eq!(resp.stopped_processes, 1);
     }
 
-    // -- Create RPC tests --
-
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_create_then_start() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -854,7 +897,6 @@ mod tests {
         test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_create_auto_start() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -871,7 +913,7 @@ mod tests {
             .await
             .unwrap();
 
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        tokio::time::sleep(grpc_settle_delay()).await;
 
         let resp = client
             .list(proto::ListRequest {})
@@ -923,7 +965,7 @@ mod tests {
         let resp = client
             .create(proto::CreateRequest {
                 name: "bad-cmd".to_string(),
-                command: "/nonexistent/binary".to_string(),
+                command: test_helpers::nonexistent_binary_path().to_string(),
                 auto_start: Some(true),
                 ..Default::default()
             })
@@ -1058,8 +1100,6 @@ mod tests {
         assert!(!detail.auto_start);
     }
 
-    // -- UUID prefix resolution tests --
-
     #[tokio::test]
     async fn test_describe_by_uuid_prefix() {
         let defs = vec![ProcessDefinition {
@@ -1089,7 +1129,6 @@ mod tests {
         assert_eq!(resp.detail.unwrap().name, "svc-a");
     }
 
-    #[cfg(not(windows))]
     #[tokio::test]
     async fn test_start_stop_by_uuid_prefix() {
         let (cmd, args) = test_helpers::sleep_cmd(60);

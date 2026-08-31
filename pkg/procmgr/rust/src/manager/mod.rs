@@ -28,7 +28,7 @@ use tonic::Status;
 pub use process_manager::ProcessManager;
 pub use supervisor::Supervisor;
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 pub(crate) use runtime::spawn_command_loop_for_tests;
 
 pub(crate) type ExitEvent = crate::process::ProcessExit;

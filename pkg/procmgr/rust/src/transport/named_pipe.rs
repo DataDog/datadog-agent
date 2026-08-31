@@ -114,7 +114,17 @@ pub async fn serve<F>(router: tonic::transport::server::Router, shutdown: F) -> 
 where
     F: Future<Output = ()>,
 {
-    let path = ipc_path();
+    serve_at_path(router, &ipc_path(), shutdown).await
+}
+
+pub(crate) async fn serve_at_path<F>(
+    router: tonic::transport::server::Router,
+    path: &Path,
+    shutdown: F,
+) -> Result<()>
+where
+    F: Future<Output = ()>,
+{
     let pipe_name = path.as_os_str().to_os_string();
 
     let mut server_options = ServerOptions::new();

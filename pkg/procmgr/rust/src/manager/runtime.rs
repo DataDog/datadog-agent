@@ -304,7 +304,7 @@ fn log_background_spawn_failed(log_label: &str, error: tokio::task::JoinError) {
     warn!("{log_label} failed: {error}");
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 pub(crate) fn spawn_command_loop_for_tests(
     manager: ProcessManager,
     cmd_tx: mpsc::Sender<Command>,
