@@ -22,6 +22,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/status",
         "//comp/core/sysprobeconfig/def",
+        "//comp/def",
         "//comp/metadata/internal/util",
         "//comp/metadata/inventoryagent/def",
         "//comp/metadata/runner/def",
