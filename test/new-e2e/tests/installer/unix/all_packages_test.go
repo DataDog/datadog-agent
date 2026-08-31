@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -44,7 +45,8 @@ var (
 		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2404,
+		e2eos.Ubuntu2604,
+		// e2eos.Ubuntu2404,  A bug in APT causes some apt update calls to timeout with unstable mirrors: https://bugs.launchpad.net/ubuntu/+source/apt/+bug/2003851
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}

@@ -9,7 +9,7 @@
 
 .new-e2e_ubuntu_a7_arm64:
   variables:
-    E2E_DESCRIPTORS: "ubuntu/arm64/18-04,ubuntu/arm64/20-04,ubuntu/arm64/24-04"
+    E2E_DESCRIPTORS: "ubuntu/arm64/18-04,ubuntu/arm64/20-04,ubuntu/arm64/26-04"
     E2E_CWS_SUPPORTED_DESCRIPTORS: "ubuntu/arm64/18-04,ubuntu/arm64/20-04"
     E2E_BRANCH_DESCRIPTORS: "ubuntu/arm64/20-04"
   needs:

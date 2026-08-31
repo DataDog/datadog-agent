@@ -13,10 +13,11 @@ import (
 	"strings"
 	"time"
 
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
+
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 )
 
 const (
@@ -460,7 +461,7 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 }
 
 func (s *packageApmInjectSuite) TestAppArmor() {
-	if s.os != e2eos.Ubuntu2404 && s.os != e2eos.Debian12 {
+	if s.os != e2eos.Ubuntu2404 && s.os != e2eos.Debian12 && s.os != e2eos.Ubuntu2604 {
 		s.T().Skip("AppArmor not installed by default")
 	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")

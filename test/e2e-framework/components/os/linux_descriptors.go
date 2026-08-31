@@ -10,6 +10,7 @@ package os
 var (
 	UbuntuDefault    = Ubuntu2204E2E
 	Ubuntu2404       = NewDescriptor(Ubuntu, "24-04")
+	Ubuntu2604       = NewDescriptor(Ubuntu, "26-04")
 	Ubuntu2204       = NewDescriptor(Ubuntu, "22-04")
 	Ubuntu2004       = NewDescriptor(Ubuntu, "20-04")
 	Ubuntu2204E2E    = NewDescriptor(Ubuntu, "22-04-e2e")
