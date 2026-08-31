@@ -31,30 +31,21 @@ const (
 // The zero value of every field is a valid "not applicable / unknown" value.
 // Nullable downstream columns map from empty strings here.
 type InventoryData struct {
-	// WorkloadType is the canonical workload type, e.g. cloud_run_service,
-	// cloud_run_job, cloud_function_gen2, azure_container_app,
-	// azure_app_service.
 	WorkloadType string
 
-	// ResourceID is the Canonical Cloud Resource ID (CCRID); the first
-	// component of the downstream composite key.
+	// ResourceID is the Canonical Cloud Resource ID (CCRID), the first component
+	// of the downstream composite key.
 	ResourceID string
 
-	// ResourceName is the platform display name (app / job / revision). It is
+	// ResourceName is the platform display name (app / job / revision); it is
 	// never substituted with dd_service.
 	ResourceName string
 
-	// Region is the GCP or Azure region.
-	Region string
-
-	// GCPProjectID is set for GCP platforms; empty for Azure.
-	GCPProjectID string
-
-	// AzureSubscriptionID is set for Azure platforms; empty for GCP.
+	Region              string
+	GCPProjectID        string
 	AzureSubscriptionID string
-
-	// Runtime is the detected workload runtime; likely empty in sidecar mode.
-	Runtime string
+	AzureResourceGroup  string
+	Runtime             string
 
 	// ParentResourceID is the CCRID of the stable parent for revision-capable
 	// workloads (e.g. the Cloud Run service behind a revision). Empty when the
@@ -62,11 +53,8 @@ type InventoryData struct {
 	ParentResourceID string
 
 	// DeploymentID identifies the deployment/revision instance when the platform
-	// exposes one; empty otherwise.
+	// exposes one.
 	DeploymentID string
-
-	// AzureResourceGroup is the Azure resource group; empty for GCP.
-	AzureResourceGroup string
 }
 
 // GetInventoryData returns the inventory metadata fields for this cloud

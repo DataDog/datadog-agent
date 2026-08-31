@@ -118,10 +118,7 @@ func cloudRunJobCCRID(project, region, job string) string {
 	return fmt.Sprintf("projects/%s/locations/%s/jobs/%s", project, region, job)
 }
 
-// GetInventoryData derives the inventory metadata fields for Cloud Run Jobs. It
-// resolves its own facts from the cached metadata service values plus the
-// workload environment, so it does not depend on GetTags having run first.
-//
+// GetInventoryData derives the inventory metadata fields for Cloud Run Jobs.
 // The job CCRID is the stable top-level resource, so it is the resource_id with
 // no distinct parent. The execution is the runtime instance and is reported as
 // the deployment_id.
