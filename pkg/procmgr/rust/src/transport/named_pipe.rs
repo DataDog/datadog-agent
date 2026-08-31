@@ -117,7 +117,7 @@ where
     serve_at_path(router, &ipc_path(), shutdown).await
 }
 
-pub(crate) async fn serve_at_path<F>(
+pub async fn serve_at_path<F>(
     router: tonic::transport::server::Router,
     path: &Path,
     shutdown: F,

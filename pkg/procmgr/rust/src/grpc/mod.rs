@@ -21,6 +21,7 @@ mod tests {
     use crate::command::Command;
     use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
     use crate::manager::{Lifecycle, ProcessManager};
+    #[cfg(windows)]
     use std::path::PathBuf;
     use std::sync::Arc;
     use tokio::sync::mpsc;
@@ -112,6 +113,7 @@ mod tests {
         #[cfg(windows)]
         let ipc_path = {
             let ipc_path_for_server = test_ipc_path();
+            let ipc_path_for_client = ipc_path_for_server.clone();
             tokio::spawn(async move {
                 let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
@@ -129,13 +131,13 @@ mod tests {
                 #[cfg(bazel)]
                 let router = tonic::transport::Server::builder().add_service(pm_service);
 
-                crate::transport::named_pipe::serve_at_path(router, &ipc_path_for_server, async {
+                crate::transport::serve_at_path(router, &ipc_path_for_server, async {
                     let _ = shutdown_rx.await;
                 })
                 .await
                 .unwrap();
             });
-            ipc_path_for_server
+            ipc_path_for_client
         };
 
         crate::manager::spawn_command_loop_for_tests(mgr.clone(), cmd_tx, cmd_rx);
