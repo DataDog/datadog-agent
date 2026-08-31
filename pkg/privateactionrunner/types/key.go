@@ -51,9 +51,19 @@ type DecodedKey interface {
 // TaskVerificationKey is the public key that successfully authenticated a
 // signed task. It is attached to the in-memory task only after verification.
 type TaskVerificationKey struct {
-	ID      string
-	KeyType KeyType
-	PEM     string
+	ID            string
+	KeyType       KeyType
+	PEM           string
+	DirectorProof *DirectorKeyProof
+}
+
+// DirectorKeyProof contains the signed Remote Config metadata needed by the
+// privileged helper to independently authenticate an AP_RUNNER_KEYS target.
+type DirectorKeyProof struct {
+	Roots      [][]byte `json:"roots,omitempty"`
+	Targets    []byte   `json:"targets"`
+	TargetPath string   `json:"targetPath"`
+	TargetFile []byte   `json:"targetFile"`
 }
 
 func (key X509RSAKey) GetKeyType() KeyType { return key.KeyType }
@@ -75,7 +85,7 @@ func (key ED25519Key) Verify(data, signature []byte) error {
 	return nil
 }
 
-func NewTaskVerificationKey(id string, key DecodedKey) (*TaskVerificationKey, error) {
+func NewTaskVerificationKey(id string, key DecodedKey, proof *DirectorKeyProof) (*TaskVerificationKey, error) {
 	if id == "" {
 		return nil, errors.New("verification key id is required")
 	}
@@ -100,7 +110,7 @@ func NewTaskVerificationKey(id string, key DecodedKey) (*TaskVerificationKey, er
 	if block == nil {
 		return nil, errors.New("encode verification public key PEM")
 	}
-	return &TaskVerificationKey{ID: id, KeyType: key.GetKeyType(), PEM: string(block)}, nil
+	return &TaskVerificationKey{ID: id, KeyType: key.GetKeyType(), PEM: string(block), DirectorProof: proof}, nil
 }
 
 func (k KeyType) ToPbKeyType() privateactionspb.KeyType {

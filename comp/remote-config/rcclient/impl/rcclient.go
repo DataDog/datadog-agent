@@ -365,6 +365,14 @@ func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]st
 	rc.client.Subscribe(string(product), fn)
 }
 
+// GetConfigTUFProof returns the current Director proof for a Remote Config target.
+func (rc *rcClient) GetConfigTUFProof(targetPath string) (state.ConfigTUFProof, bool) {
+	if rc.client == nil {
+		return state.ConfigTUFProof{}, false
+	}
+	return rc.client.GetConfigTUFProof(targetPath)
+}
+
 func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {

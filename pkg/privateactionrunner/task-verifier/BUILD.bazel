@@ -26,13 +26,17 @@ go_library(
 
 go_test(
     name = "task-verifier_test",
-    srcs = ["verifier_test.go"],
+    srcs = [
+        "keys_manager_test.go",
+        "verifier_test.go",
+    ],
     embed = [":task-verifier"],
     gotags = ["test"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/types",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
+        "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",

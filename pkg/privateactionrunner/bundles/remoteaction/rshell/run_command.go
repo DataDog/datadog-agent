@@ -10,6 +10,7 @@ package com_datadoghq_remoteaction_rshell
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +35,7 @@ import (
 const (
 	defaultProcPath         = "/proc"
 	containerizedPathPrefix = "/host"
+	directorProofKeyType    = privilegedhelper.KeyType("TUF_DIRECTOR")
 )
 
 // statFn is the function used to check path existence. It defaults to os.Stat
@@ -252,14 +254,12 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task)
 	if verificationKey == nil {
 		return nil, errors.New("verified public key is required for privileged execution")
 	}
-	var requestKeyType privilegedhelper.KeyType
-	switch verificationKey.KeyType {
-	case types.KeyTypeX509RSA:
-		requestKeyType = privilegedhelper.KeyTypeX509RSA
-	case types.KeyTypeED25519:
-		requestKeyType = privilegedhelper.KeyTypeED25519
-	default:
-		return nil, fmt.Errorf("unsupported verification key type %s", verificationKey.KeyType)
+	if verificationKey.DirectorProof == nil {
+		return nil, errors.New("verified Director proof is required for privileged execution")
+	}
+	proofJSON, err := json.Marshal(verificationKey.DirectorProof)
+	if err != nil {
+		return nil, fmt.Errorf("encode Director proof: %w", err)
 	}
 	signatures := make([]privilegedhelper.Signature, 0, len(envelope.Signatures))
 	for _, signature := range envelope.Signatures {
@@ -280,7 +280,7 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task)
 			Data: envelope.Data, HashType: envelope.HashType.String(), Signatures: signatures,
 		},
 		VerificationKeys: []privilegedhelper.CredentialKey{{
-			ID: verificationKey.ID, Type: requestKeyType, PEM: verificationKey.PEM,
+			ID: verificationKey.DirectorProof.TargetPath, Type: directorProofKeyType, PEM: string(proofJSON),
 		}},
 	}
 	response, err := (privilegedhelper.Client{SocketPath: h.privilegedSocket}).Execute(ctx, request)

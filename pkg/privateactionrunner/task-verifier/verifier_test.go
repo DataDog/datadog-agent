@@ -25,12 +25,13 @@ import (
 )
 
 type staticKeysManager struct {
-	keys map[string]types.DecodedKey
+	keys  map[string]types.DecodedKey
+	proof *types.DirectorKeyProof
 }
 
 func (m *staticKeysManager) Start(context.Context) {}
-func (m *staticKeysManager) GetKey(id string) types.DecodedKey {
-	return m.keys[id]
+func (m *staticKeysManager) GetKey(id string) (types.DecodedKey, *types.DirectorKeyProof) {
+	return m.keys[id], m.proof
 }
 func (m *staticKeysManager) WaitForReady() {}
 
@@ -55,10 +56,11 @@ func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 			Signature: ed25519.Sign(private, digest[:]),
 		}},
 	}}
+	directorProof := &types.DirectorKeyProof{TargetPath: "datadog/42/AP_RUNNER_KEYS/key-id/config"}
 	verifier := &signedEnvelopeTaskVerifier{
 		keysManager: &staticKeysManager{keys: map[string]types.DecodedKey{
 			"key-id": &types.ED25519Key{KeyType: types.KeyTypeED25519, Key: public},
-		}},
+		}, proof: directorProof},
 		config: &config.Config{OrgId: 42, RunnerId: "runner-id"},
 	}
 
@@ -69,6 +71,7 @@ func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 	assert.Equal(t, "key-id", got.Data.Attributes.VerificationKey.ID)
 	assert.Equal(t, types.KeyTypeED25519, got.Data.Attributes.VerificationKey.KeyType)
 	assert.Contains(t, got.Data.Attributes.VerificationKey.PEM, "BEGIN PUBLIC KEY")
+	assert.Equal(t, directorProof, got.Data.Attributes.VerificationKey.DirectorProof)
 }
 
 func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {

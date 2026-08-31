@@ -27,19 +27,26 @@ import (
 type keysManager struct {
 	rcClient               rcclient.Client
 	stopChan               chan bool
-	keys                   map[string]types.DecodedKey
+	keys                   map[string]storedKey
 	mu                     sync.RWMutex
 	ready                  chan struct{}
 	firstCallbackCompleted bool
+}
+
+type storedKey struct {
+	key        types.DecodedKey
+	targetPath string
 }
 
 // noOpKeysManager satisfies KeysManager without requiring Remote Config.
 // WaitForReady returns immediately. Used when DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true.
 type noOpKeysManager struct{}
 
-func (n *noOpKeysManager) Start(_ context.Context)          {}
-func (n *noOpKeysManager) GetKey(_ string) types.DecodedKey { return nil }
-func (n *noOpKeysManager) WaitForReady()                    {}
+func (n *noOpKeysManager) Start(_ context.Context) {}
+func (n *noOpKeysManager) GetKey(_ string) (types.DecodedKey, *types.DirectorKeyProof) {
+	return nil, nil
+}
+func (n *noOpKeysManager) WaitForReady() {}
 
 // NewKeyManager returns a KeysManager appropriate for the current environment.
 // When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, a no-op manager is returned.
@@ -49,7 +56,7 @@ func NewKeyManager(rcClient rcclient.Client) KeysManager {
 	}
 	return &keysManager{
 		stopChan: make(chan bool),
-		keys:     make(map[string]types.DecodedKey),
+		keys:     make(map[string]storedKey),
 		ready:    make(chan struct{}),
 		rcClient: rcClient,
 	}
@@ -60,10 +67,23 @@ func (k *keysManager) Start(ctx context.Context) {
 	k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
 }
 
-func (k *keysManager) GetKey(keyId string) types.DecodedKey {
+func (k *keysManager) GetKey(keyId string) (types.DecodedKey, *types.DirectorKeyProof) {
 	k.mu.RLock()
-	defer k.mu.RUnlock()
-	return k.keys[keyId]
+	entry, ok := k.keys[keyId]
+	k.mu.RUnlock()
+	if !ok {
+		return nil, nil
+	}
+	proof, ok := k.rcClient.GetConfigTUFProof(entry.targetPath)
+	if !ok {
+		return entry.key, nil
+	}
+	return entry.key, &types.DirectorKeyProof{
+		Roots:      proof.Roots,
+		Targets:    proof.Targets,
+		TargetPath: proof.TargetPath,
+		TargetFile: proof.TargetFile,
+	}
 }
 
 func (k *keysManager) WaitForReady() {
@@ -74,19 +94,19 @@ func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfi
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	k.keys = make(map[string]types.DecodedKey) // clear the current keys
-	for configId, rawConfig := range update {
+	k.keys = make(map[string]storedKey) // clear the current keys
+	for configPath, rawConfig := range update {
 		decodedKey, err := decode(rawConfig)
 		if err != nil {
 			log.Error("Failed to decode remote config", log.ErrorField(err))
-			callback(configId, state.ApplyStatus{
+			callback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
 			continue
 		}
-		k.keys[rawConfig.Metadata.ID] = decodedKey
-		callback(configId, state.ApplyStatus{
+		k.keys[rawConfig.Metadata.ID] = storedKey{key: decodedKey, targetPath: configPath}
+		callback(configPath, state.ApplyStatus{
 			State: state.ApplyStateAcknowledged,
 		})
 	}
