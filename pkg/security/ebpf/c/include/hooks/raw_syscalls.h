@@ -3,6 +3,7 @@
 
 #include "structs/security_profile.h"
 #include "helpers/activity_dump.h"
+#include "helpers/process.h"
 #include "helpers/raw_syscalls.h"
 #include "helpers/syscalls.h"
 
@@ -63,17 +64,28 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     }
 
     // are we feeding the user space workload profile manager ?
-    // no container gate here, the profile manager filters on container context in user space
-    if (approve_syscalls_sample(pid) == SAMPLED) {
-        struct syscall_monitor_entry_t *entry = fetch_sycall_monitor_entry(&zero, pid, now, SYSCALL_MONITOR_TYPE_PROFILE);
-        if (entry == NULL) {
-            // should never happen
-            return 0;
+    // dedup is keyed on (exec_cookie, syscall_id); no container gate here, userspace filters
+    // on cgroup context.
+    if (!event.process.is_kworker) {
+        struct pid_cache_t *pid_entry = get_pid_cache(pid);
+        if (pid_entry != NULL) {
+            u32 sample_cookie = 0;
+            u32 refresh_needed = 0;
+            enum SYSCALL_STATE state = approve_syscall_sample(pid_entry->cookie, args->id, &sample_cookie, &refresh_needed);
+            if (state == SAMPLED) {
+                struct syscall_sample_event_t sample_event = {};
+                sample_event.process = event.process;
+                sample_event.cgroup = event.cgroup;
+                fill_span_context(&sample_event.span);
+                sample_event.syscall_id = args->id;
+                sample_event.sample_cookie = sample_cookie;
+                send_event(args, EVENT_SYSCALLS_SAMPLE, sample_event);
+            } else if (refresh_needed) {
+                struct sample_refresh_event_t ev = {};
+                ev.cookie = sample_cookie;
+                send_event(args, EVENT_SAMPLE_REFRESH, ev);
+            }
         }
-        // insert the current syscall in the map
-        syscall_monitor_entry_insert(entry, args->id);
-        event.event.flags = 0;
-        send_or_skip_syscall_monitor_event(args, &event, entry, &zero, SYSCALL_MONITOR_TYPE_PROFILE);
     }
 
     return 0;

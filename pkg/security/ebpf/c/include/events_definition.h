@@ -401,6 +401,18 @@ struct syscall_monitor_event_t {
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
 };
 
+// Emitted the first time a given (exec_cookie, syscall_id) is seen. Later observations
+// only produce sample_refresh_event_t heartbeats keyed by sample_cookie.
+struct syscall_sample_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+
+    u32 syscall_id;
+    u32 sample_cookie;
+};
+
 struct rename_event_t {
     struct kevent_t event;
     struct process_context_t process;

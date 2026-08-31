@@ -214,21 +214,60 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 
     return SAMPLED;
 }
 
-// Runs on every syscall on the host, so it stays free of map accesses. Dedup comes from the syscall
-// monitor bitmask and the rate limit is applied at send time, so that a drop doesn't lose the syscall.
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscalls_sample(u32 pid) {
-    u64 event_sampling_syscalls_enabled = 0;
-    LOAD_CONSTANT("event_sampling_syscalls_enabled", event_sampling_syscalls_enabled);
+// approve_syscall_sample dedups (exec_cookie, syscall_id) tuples through an LRU map so that the
+// first hit per tuple is delivered as a full syscall_sample_event_t and later hits only emit a
+// sample_refresh_event_t heartbeat (bounded by sample_refresh_period_ns). Mirrors approve_bind_sample.
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(u64 exec_cookie, u32 syscall_id, u32 *out_cookie, u32 *out_refresh_needed) {
+    u64 syscall_sample_enabled = 0;
+    LOAD_CONSTANT("syscall_sample_enabled", syscall_sample_enabled);
+    u64 sample_refresh_period_ns = 0;
+    LOAD_CONSTANT("sample_refresh_period_ns", sample_refresh_period_ns);
 
-    if (!event_sampling_syscalls_enabled) {
+    if (!syscall_sample_enabled) {
         return DISCARDED;
     }
 
-    // ignore kworkers
-    if (IS_KERNEL_THREAD(pid)) {
+    // No exec cookie means we cannot correlate the syscall to a workload in userspace.
+    if (exec_cookie == 0) {
         return DISCARDED;
     }
 
+    struct syscall_sample_key_t key = {
+        .exec_cookie = exec_cookie,
+        .syscall_id = syscall_id,
+    };
+
+    u64 now = bpf_ktime_get_ns();
+    struct sample_entry_t new_entry;
+    __builtin_memset(&new_entry, 0, sizeof(new_entry));
+    new_entry.cookie = bpf_get_prandom_u32() | 1;
+    new_entry.last_refresh_ns = now;
+
+    if (bpf_map_update_elem(&syscall_samples, &key, &new_entry, BPF_NOEXIST) < 0) {
+        if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL) {
+            struct sample_entry_t *existing = bpf_map_lookup_elem(&syscall_samples, &key);
+            if (existing != NULL) {
+                if (existing->cookie == 0) {
+                    // Kernel LRU knew the tuple but the previous discovery event was dropped
+                    // (buffer pressure). Re-issue as a discovery so userspace can register it.
+                    existing->cookie = bpf_get_prandom_u32() | 1;
+                    existing->last_refresh_ns = now;
+                    *out_cookie = existing->cookie;
+                    return SAMPLED;
+                }
+                if ((now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
+                    existing->last_refresh_ns = now;
+                    *out_cookie = existing->cookie;
+                    *out_refresh_needed = 1;
+                }
+            }
+        }
+        return DISCARDED;
+    }
+
+    if (out_cookie != NULL) {
+        *out_cookie = new_entry.cookie;
+    }
     return SAMPLED;
 }
 

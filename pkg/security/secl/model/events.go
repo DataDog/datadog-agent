@@ -147,6 +147,8 @@ const (
 	PivotRootEventType
 	// SampleRefreshEventType is sent when a dedup map detects a duplicate and refreshes a cookie timestamp
 	SampleRefreshEventType
+	// SyscallsSampleEventType is sent the first time an exec+syscall tuple is observed
+	SyscallsSampleEventType
 	// SetSidEventType is sent when setsid completes successfully
 	SetSidEventType
 	// NopEventType nop event
@@ -350,6 +352,8 @@ func (t EventType) String() string {
 		return "pivot_root"
 	case SampleRefreshEventType:
 		return "sample_refresh"
+	case SyscallsSampleEventType:
+		return "syscalls_sample"
 	case SetSidEventType:
 		return "setsid"
 	case NopEventType:

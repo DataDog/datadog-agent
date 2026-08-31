@@ -115,6 +115,7 @@ var bpfMapNames = []string{
 	"syscall_ctx",
 	"syscall_ctx_gen",
 	"syscall_monitor",
+	"syscall_samples",
 	"syscall_table",
 	"syscalls",
 	"syscalls_stats",

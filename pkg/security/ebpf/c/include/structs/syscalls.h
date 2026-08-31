@@ -13,6 +13,14 @@ struct syscall_monitor_key_t {
     u32 pid;
 };
 
+// Keyed by exec cookie + syscall id so that the same binary executed under a different
+// parent still shares an entry. Padded to 16 bytes to keep the map aligned across archs.
+struct syscall_sample_key_t {
+    u64 exec_cookie;
+    u32 syscall_id;
+    u32 padding;
+};
+
 struct syscall_monitor_entry_t {
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
     u64 last_sent;

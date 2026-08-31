@@ -1840,6 +1840,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Syscalls, eventType, offset, dataLen, data) {
 			return false
 		}
+	case model.SyscallsSampleEventType:
+		if !p.regularUnmarshalEvent(&event.SyscallsSample, eventType, offset, dataLen, data) {
+			return false
+		}
 	case model.OnDemandEventType:
 		if p.onDemandManager.isDisabled() {
 			seclog.Debugf("on-demand event received but on-demand probes are disabled")
@@ -2306,8 +2310,6 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingBindEnabled
 	case model.DNSEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingDNSEnabled
-	case model.SyscallsEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingSyscallsEnabled
 	}
 	return false
 }
@@ -2408,7 +2410,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 			}
 		}
 		// Workload profiles V2
-		if p.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+		if p.config.RuntimeSecurity.SecurityProfileSyscallsEnabled {
 			activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 		}
 	}
@@ -3089,12 +3091,8 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
 		},
 		manager.ConstantEditor{
-			Name:  "event_sampling_syscalls_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingSyscallsEnabled),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_syscalls_rate",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsRate),
+			Name:  "syscall_sample_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileSyscallsEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
@@ -3178,7 +3176,8 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
 		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
-		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingSyscallsEnabled,
+		SyscallSampleEnabled:          p.config.RuntimeSecurity.SecurityProfileSyscallsEnabled,
+		SyscallSampleMaxEntries:       p.config.RuntimeSecurity.SecurityProfileSyscallsMaxEntries,
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3269,7 +3268,7 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 			p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 		}
 	}
-	if p.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+	if p.config.RuntimeSecurity.SecurityProfileSyscallsEnabled {
 		// Add syscall monitor probes
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 	}

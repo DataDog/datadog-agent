@@ -555,6 +555,9 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return newEntry, node, eventNodeBase, nil
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), node, nil, nil
+	case model.SyscallsSampleEventType:
+		newEntry, eventNodeBase := node.InsertSyscallSample(event, imageTagID, at.SyscallsMask, at.Stats, dryRun)
+		return newEntry, node, eventNodeBase, nil
 	case model.NetworkFlowMonitorEventType:
 		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
 	case model.CapabilitiesEventType:

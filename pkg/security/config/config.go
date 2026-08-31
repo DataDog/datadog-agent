@@ -302,8 +302,6 @@ type RuntimeSecurityConfig struct {
 	EventSamplingDNSEnabled       bool
 	EventSamplingDNSRate          int
 	EventSamplingDNSThreshold     int
-	EventSamplingSyscallsEnabled  bool
-	EventSamplingSyscallsRate     int
 	EventSamplingDynamicEnabled   bool
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
@@ -335,6 +333,10 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileV2ExcludedImages []string
 	// SecurityProfileV2MaxDumpSize returns the V2-only max profile size in bytes.
 	SecurityProfileV2MaxDumpSize func() int
+	// SecurityProfileSyscallsEnabled defines if syscalls should be collected for V2 security profiles
+	SecurityProfileSyscallsEnabled bool
+	// SecurityProfileSyscallsMaxEntries defines the size of the kernel syscall sample LRU
+	SecurityProfileSyscallsMaxEntries int
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -662,8 +664,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingDNSEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
 		EventSamplingDNSRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
 		EventSamplingDNSThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.threshold"),
-		EventSamplingSyscallsEnabled:  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
-		EventSamplingSyscallsRate:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
 		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
@@ -680,6 +680,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
 		SecurityProfileSampleRefreshPeriod: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.sample_refresh_period"),
 		SecurityProfileV2ExcludedImages:    pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.excluded_images"),
+		SecurityProfileSyscallsEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.syscalls.enabled"),
+		SecurityProfileSyscallsMaxEntries:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.syscalls.max_entries"),
 		SecurityProfileV2MaxDumpSize: func() int {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
@@ -754,7 +756,14 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		rsConfig.EventSamplingConnectEnabled = true
 		rsConfig.EventSamplingBindEnabled = true
 		rsConfig.EventSamplingDNSEnabled = true
-		rsConfig.EventSamplingSyscallsEnabled = true
+		rsConfig.SecurityProfileSyscallsEnabled = true
+	}
+
+	// V2 syscalls collection uses the sample-based path (syscalls_sample event), so if the user
+	// opted into "syscalls" for V2 event types, transparently accept the sample flavour too.
+	if slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.SyscallsEventType) &&
+		!slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.SyscallsSampleEventType) {
+		rsConfig.SecurityProfileV2EventTypes = append(rsConfig.SecurityProfileV2EventTypes, model.SyscallsSampleEventType)
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

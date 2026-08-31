@@ -81,20 +81,6 @@ __attribute__((always_inline)) void send_or_skip_syscall_monitor_event(struct _t
     }
 
 shoud_send_event:
-    // A denial keeps the mask and the dirty flag, and only pushes last_sent forward so the next attempt
-    // waits another full period instead of retrying on the very next syscall.
-    if (should_send > 0 && syscall_monitor_type == SYSCALL_MONITOR_TYPE_PROFILE) {
-        u64 event_sampling_syscalls_rate = 0;
-        LOAD_CONSTANT("event_sampling_syscalls_rate", event_sampling_syscalls_rate);
-
-        monitor_event_sample_total(EVENT_SYSCALLS);
-
-        if (event_sampling_syscalls_rate > 0 && !global_limiter_allow(SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, 1)) {
-            entry->last_sent = now;
-            should_send = 0;
-        }
-    }
-
     if (should_send > 0) {
         // send an event now
         event->event_reason = should_send;
@@ -114,10 +100,6 @@ shoud_send_event:
 
         // remove last_sent and dirty from the event size, we don't care about these fields
         send_event_ptr(args, EVENT_SYSCALLS, event);
-
-        if (syscall_monitor_type == SYSCALL_MONITOR_TYPE_PROFILE) {
-            monitor_event_sample_sampled(EVENT_SYSCALLS);
-        }
     }
 
     key.syscall_key = EXECVE_SYSCALL_KEY;
