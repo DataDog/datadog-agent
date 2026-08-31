@@ -490,7 +490,7 @@ func TestMRFUpdateCallbackWithMultipleConfigs(t *testing.T) {
 
 // --- onSemanticCoreUpdate tests ---
 
-const semanticTestJSON = `{"version":"test-1.0","metadata":{"content_hash":"hash-a"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
+const semanticTestJSON = `{"version":"test-1.0","metadata":{"content_hash":"sha256:a055d6c59d7d4d260cb9d0c99a29b5d894f05b8e48cf8f2ccaaa86ed956e7e73"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
 
 // newSemanticTestHandler returns a handler with minimal sampler mocks for
 // exercising onSemanticCoreUpdate. Tests that mutate the global registry must
@@ -577,8 +577,8 @@ func TestOnSemanticCoreUpdate_MultipleValidConfigs_LastWins(t *testing.T) {
 	h := newSemanticTestHandler(t)
 
 	// Two valid configs with different version strings + content. lex-last wins.
-	cfgEarly := `{"version":"early","metadata":{"content_hash":"hash-early"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
-	cfgLate := `{"version":"late","metadata":{"content_hash":"hash-late"},"concepts":{"http.method":{"canonical":"http.method","fallbacks":[{"name":"http.method","provider":"otel","type":"string"}]}}}`
+	cfgEarly := `{"version":"early","metadata":{"content_hash":"sha256:a055d6c59d7d4d260cb9d0c99a29b5d894f05b8e48cf8f2ccaaa86ed956e7e73"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
+	cfgLate := `{"version":"late","metadata":{"content_hash":"sha256:de824759184887dc3a653771c8ff8c7366525dcfe3f62674cdf8747c86030ca2"},"concepts":{"http.method":{"canonical":"http.method","fallbacks":[{"name":"http.method","provider":"otel","type":"string"}]}}}`
 
 	statuses, cb := captureStatuses()
 	h.onSemanticCoreUpdate(map[string]state.RawConfig{
@@ -611,40 +611,31 @@ func TestOnSemanticCoreUpdate_AllErrors(t *testing.T) {
 	assert.Equal(t, state.ApplyStateError, statuses["datadog/2/APM_SEMANTIC_CORE_DD/b/config"].State)
 }
 
-// TestOnSemanticCoreUpdate_SameHashNoOp verifies that a second push with the
-// same metadata.content_hash as the live registry is detected as a no-op
-// (skips the UpdateRegistry call) but is still acknowledged, even when
-// Version() differs — content_hash is content-bound and version is not.
-func TestOnSemanticCoreUpdate_SameHashNoOp(t *testing.T) {
+func TestOnSemanticCoreUpdate_ContentHashMismatch(t *testing.T) {
 	restoreEmbeddedRegistry(t)
 	h := newSemanticTestHandler(t)
 
 	// Use a custom marker as the live registry so we can observe whether the
 	// second push replaced it. UpdateRegistry replaces the live one with this
 	// one carrying a sentinel concept (peer.service mapped to x.sentinel).
-	const liveJSON = `{"version":"sentinel-1.0","metadata":{"content_hash":"hash-sentinel"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.sentinel","provider":"datadog","type":"string"}]}}}`
+	const liveJSON = `{"version":"sentinel-1.0","metadata":{"content_hash":"sha256:597496baaf43d4da37fba27d2bef7723ce971338f70b05e4d0c00a9ed7fa6517"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.sentinel","provider":"datadog","type":"string"}]}}}`
 	liveReg, err := semantics.NewRegistryFromJSON([]byte(liveJSON))
 	require.NoError(t, err)
 	semantics.UpdateRegistry(liveReg)
 
-	// Push a payload with a DIFFERENT version but the SAME content_hash. The
-	// handler must NOT swap the registry — the sentinel concept must still be
-	// reachable after the push, even though the concepts in this payload
-	// differ (the hash is trusted, not recomputed).
-	const sameHashDifferentVersion = `{"version":"sentinel-1.1","metadata":{"content_hash":"hash-sentinel"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
+	// Push different concepts while retaining the live registry's hash.
+	const sameHashDifferentVersion = `{"version":"sentinel-1.1","metadata":{"content_hash":"sha256:597496baaf43d4da37fba27d2bef7723ce971338f70b05e4d0c00a9ed7fa6517"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
 	statuses, cb := captureStatuses()
 	h.onSemanticCoreUpdate(map[string]state.RawConfig{
 		"datadog/2/APM_SEMANTIC_CORE_DD/cfg/config": {Config: []byte(sameHashDifferentVersion)},
 	}, cb)
 
-	// Sentinel concept survived: the swap was skipped.
 	assert.NotNil(t, semantics.DefaultRegistry().GetAttributePrecedence(semantics.ConceptPeerService))
 	assert.Nil(t, semantics.DefaultRegistry().GetAttributePrecedence(semantics.ConceptDBStatement),
-		"db.statement must not be present — the second push was supposed to be a no-op")
+		"db.statement must not be present after a rejected update")
 	assert.Equal(t, "sentinel-1.0", semantics.DefaultRegistry().Version())
-	// Even though we skipped the swap, the cfgPath is still acknowledged: the
-	// payload was valid, we just decided we didn't need to apply it.
-	assert.Equal(t, state.ApplyStateAcknowledged, statuses["datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"].State)
+	assert.Equal(t, state.ApplyStateError, statuses["datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"].State)
+	assert.Contains(t, statuses["datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"].Error, "content hash mismatch")
 }
 
 // TestOnSemanticCoreUpdate_EmptyUpdatesWhileEmbedded verifies that an empty

@@ -6,11 +6,16 @@
 package semantics
 
 import (
+	"bytes"
+	"crypto/sha256"
 	_ "embed" //nolint:revive
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"sync/atomic"
+	"unicode/utf16"
+	"unicode/utf8"
 )
 
 //go:embed mappings.json
@@ -69,7 +74,7 @@ func UpdateRegistry(r Registry) {
 }
 
 // NewRegistryFromJSON constructs a Registry from raw JSON without affecting the live registry.
-// Returns an error if the JSON is malformed, contains no concepts, or is missing metadata.content_hash.
+// Returns an error if the JSON is malformed, contains no concepts, or has an invalid metadata.content_hash.
 func NewRegistryFromJSON(data []byte) (Registry, error) {
 	r := &EmbeddedRegistry{source: SourceRemoteConfig}
 	if err := r.loadFromJSON(data); err != nil {
@@ -98,13 +103,77 @@ func (r *EmbeddedRegistry) loadFromJSON(data []byte) error {
 	if rd.Metadata.ContentHash == "" {
 		return errors.New("registry JSON missing metadata.content_hash")
 	}
+	computedHash, err := computeContentHash(data)
+	if err != nil {
+		return fmt.Errorf("compute registry content hash: %w", err)
+	}
+	if computedHash != rd.Metadata.ContentHash {
+		return fmt.Errorf("registry content hash mismatch: declared %q, computed %q", rd.Metadata.ContentHash, computedHash)
+	}
 	r.version = rd.Version
-	r.hash = rd.Metadata.ContentHash
+	r.hash = computedHash
 	r.mappings = make(map[Concept][]TagInfo, len(rd.Concepts))
 	for conceptName, mapping := range rd.Concepts {
 		r.mappings[Concept(conceptName)] = mapping.Fallbacks
 	}
 	return nil
+}
+
+func computeContentHash(data []byte) (string, error) {
+	var payload struct {
+		Concepts json.RawMessage `json:"concepts"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return "", err
+	}
+
+	var concepts any
+	decoder := json.NewDecoder(bytes.NewReader(payload.Concepts))
+	decoder.UseNumber()
+	if err := decoder.Decode(&concepts); err != nil {
+		return "", err
+	}
+
+	canonical, err := marshalCanonicalJSON(map[string]any{"concepts": concepts})
+	if err != nil {
+		return "", err
+	}
+
+	sum := sha256.Sum256(canonical)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func marshalCanonicalJSON(value any) ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
+	}
+	return escapeForPythonJSON(bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'})), nil
+}
+
+func escapeForPythonJSON(data []byte) []byte {
+	const hexDigits = "0123456789abcdef"
+	appendUnicodeEscape := func(dst []byte, value uint16) []byte {
+		return append(dst, '\\', 'u', hexDigits[value>>12], hexDigits[value>>8&0xf], hexDigits[value>>4&0xf], hexDigits[value&0xf])
+	}
+
+	dst := make([]byte, 0, len(data))
+	for len(data) > 0 {
+		r, size := utf8.DecodeRune(data)
+		data = data[size:]
+		if r <= 0x7e {
+			dst = append(dst, byte(r))
+		} else if r <= 0xffff {
+			dst = appendUnicodeEscape(dst, uint16(r))
+		} else {
+			high, low := utf16.EncodeRune(r)
+			dst = appendUnicodeEscape(dst, uint16(high))
+			dst = appendUnicodeEscape(dst, uint16(low))
+		}
+	}
+	return dst
 }
 
 // GetAttributePrecedence returns the ordered attribute keys for a concept.
