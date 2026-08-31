@@ -115,6 +115,76 @@ fn condition_blocked_fixture_stays_created() {
 }
 
 #[test]
+fn start_process_transitions_created_to_running() {
+    let env = TestEnv::new().with_process("sleeper_idle");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        created: Some(1),
+        running: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+
+    procmgr.assert_start_process("sleeper_idle");
+
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        running: Some(1),
+        created: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_running("sleeper_idle");
+}
+
+#[test]
+fn stop_process_transitions_running_to_stopped() {
+    let env = TestEnv::new().with_process("sleeper");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        running: Some(1),
+        stopped: Some(0),
+        created: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_running("sleeper");
+
+    procmgr.assert_stop_process("sleeper");
+
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        stopped: Some(1),
+        running: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_state("sleeper", ProcessExpect::Stopped);
+}
+
+#[test]
+fn stop_process_kills_child() {
+    let env = TestEnv::new().with_process("sleeper");
+    let procmgr = env.start();
+    procmgr.assert_process_running("sleeper");
+
+    let snapshot = procmgr
+        .process("sleeper")
+        .expect("sleeper should be listed");
+    let pid = snapshot.pid as u32;
+    assert!(pid > 0, "sleeper should have a PID, got {snapshot:?}");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive before stop");
+
+    procmgr.assert_stop_process("sleeper");
+
+    assert!(
+        wait_for_pid_gone(pid, Duration::from_secs(5)),
+        "child PID {pid} should be gone after stop"
+    );
+}
+
+#[test]
 fn test_cli_config_basic() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())
@@ -651,32 +721,6 @@ fn test_cli_describe_json() {
 }
 
 #[test]
-fn test_cli_start_stopped_process() {
-    let env = TestEnv::new()
-        .with_config(
-            "sleeper",
-            &test_helpers::sleep_config_with("auto_start: false\n"),
-        )
-        .start();
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row("sleeper", &[("STATE", "Created")]);
-
-    env.cli(&["start", "sleeper"])
-        .assert_success()
-        .assert_field("State", "Running");
-
-    env.daemon().wait_for_log_default("[sleeper] spawned");
-
-    let out = env.cli(&["describe", "sleeper"]);
-    out.assert_success().assert_field("State", "Running");
-
-    let pid = out.pid_from_field("PID");
-    assert!(pid_is_alive(pid), "PID {pid} should be alive");
-}
-
-#[test]
 fn test_cli_start_by_uuid() {
     let env = TestEnv::new()
         .with_config(
@@ -745,43 +789,6 @@ fn test_cli_start_json() {
 }
 
 #[test]
-fn test_cli_start_then_verify_list() {
-    let env = TestEnv::new()
-        .with_config(
-            "sleeper",
-            &test_helpers::sleep_config_with("auto_start: false\n"),
-        )
-        .start();
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row("sleeper", &[("STATE", "Created"), ("PID", "-")]);
-
-    env.cli(&["start", "sleeper"]).assert_success();
-    env.daemon().wait_for_log_default("[sleeper] spawned");
-
-    let out = env.cli(&["list"]);
-    out.assert_success()
-        .assert_table_row("sleeper", &[("STATE", "Running")]);
-
-    let pid = out.pid_from_table_row("sleeper");
-    assert!(pid_is_alive(pid), "PID {pid} should be alive");
-}
-
-#[test]
-fn test_cli_stop_running_process() {
-    let env = TestEnv::new()
-        .with_config("sleeper", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[sleeper] spawned");
-
-    env.cli(&["stop", "sleeper"])
-        .assert_success()
-        .assert_field("State", "Stopped");
-}
-
-#[test]
 fn test_cli_stop_by_uuid() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())
@@ -839,41 +846,6 @@ fn test_cli_stop_json() {
 
     assert!(!json["uuid"].as_str().unwrap_or("").is_empty());
     assert_eq!(json["state"], "Stopped");
-}
-
-#[test]
-fn test_cli_stop_then_verify_list() {
-    let env = TestEnv::new()
-        .with_config("sleeper", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[sleeper] spawned");
-
-    env.cli(&["stop", "sleeper"]).assert_success();
-    env.daemon().wait_for_log_default("[sleeper] stopped");
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row("sleeper", &[("STATE", "Stopped"), ("PID", "-")]);
-}
-
-#[test]
-fn test_cli_stop_kills_child() {
-    let env = TestEnv::new()
-        .with_config("sleeper", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[sleeper] spawned");
-
-    let pid = env.cli(&["list"]).pid_from_table_row("sleeper");
-    assert!(pid_is_alive(pid), "PID {pid} should be alive before stop");
-
-    env.cli(&["stop", "sleeper"]).assert_success();
-
-    assert!(
-        wait_for_pid_gone(pid, Duration::from_secs(5)),
-        "child PID {pid} should be gone after stop"
-    );
 }
 
 #[test]

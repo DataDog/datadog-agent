@@ -57,14 +57,21 @@ pub struct ProcessSnapshot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessExpect {
     Created,
+    Running,
+    Stopped,
     Failed,
+    #[allow(dead_code)] // reserved for list/describe migration
+    Exited,
 }
 
 impl ProcessExpect {
     fn as_str(self) -> &'static str {
         match self {
             Self::Created => "Created",
+            Self::Running => "Running",
+            Self::Stopped => "Stopped",
             Self::Failed => "Failed",
+            Self::Exited => "Exited",
         }
     }
 }
@@ -773,8 +780,12 @@ impl TestEnv {
         }
     }
 
-    fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
+    pub fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
         ListClient::new(&self.socket_path).list()
+    }
+
+    pub fn process(&self, name: &str) -> Result<ProcessSnapshot, String> {
+        self.find_process(name)
     }
 
     fn find_process(&self, name: &str) -> Result<ProcessSnapshot, String> {
@@ -784,8 +795,108 @@ impl TestEnv {
             .ok_or_else(|| format!("process '{name}' not found"))
     }
 
-    fn wait_for_process_running(&self, name: &str) -> Result<ProcessSnapshot, String> {
-        self.wait_for_process_running_with_timeout(name, default_process_wait_timeout())
+    pub fn wait_for_process_running(
+        &self,
+        name: &str,
+        timeout: Duration,
+    ) -> Result<ProcessSnapshot, String> {
+        self.wait_for_process_running_with_timeout(name, timeout)
+    }
+
+    pub fn wait_for_process_state(
+        &self,
+        name: &str,
+        expected: ProcessExpect,
+        timeout: Duration,
+    ) -> Result<ProcessSnapshot, String> {
+        if expected == ProcessExpect::Running {
+            return self.wait_for_process_running_with_timeout(name, timeout);
+        }
+
+        let client = ListClient::new(&self.socket_path);
+        let deadline = Instant::now() + timeout;
+        let expected_state = expected.as_str();
+        loop {
+            let last_err = match client.list() {
+                Ok(processes) => match processes.iter().find(|p| p.name == name) {
+                    Some(process) if process.state == expected_state => {
+                        if process_matches_expect(process, expected) {
+                            return Ok(process.clone());
+                        }
+                        format!(
+                            "process '{name}' in state {expected_state} but PID expectation not met: {process:?}"
+                        )
+                    }
+                    Some(process) => {
+                        format!("process '{name}' not in {expected_state} yet: {process:?}")
+                    }
+                    None => format!("process '{name}' not in list: {processes:?}"),
+                },
+                Err(e) => e,
+            };
+            if Instant::now() >= deadline {
+                return Err(self.format_wait_failure(last_err));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    #[allow(dead_code)] // convenience wrapper for migrated tests
+    pub fn assert_process_state_within(&self, name: &str, expected: ProcessExpect) {
+        self.wait_for_process_state(name, expected, default_process_wait_timeout())
+            .unwrap_or_else(|e| {
+                panic!(
+                    "expected process '{name}' in state {}: {e}",
+                    expected.as_str()
+                )
+            });
+    }
+
+    pub fn start_process(&self, name: &str) -> Result<(), String> {
+        let out = self.cli(&["start", name]);
+        if !out.status.success() {
+            return Err(format!(
+                "start {name} failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        self.wait_for_process_state(name, ProcessExpect::Running, default_process_wait_timeout())?;
+        Ok(())
+    }
+
+    pub fn stop_process(&self, name: &str) -> Result<(), String> {
+        let out = self.cli(&["stop", name]);
+        if !out.status.success() {
+            return Err(format!(
+                "stop {name} failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        self.wait_for_process_state(name, ProcessExpect::Stopped, default_process_wait_timeout())?;
+        Ok(())
+    }
+
+    pub fn assert_start_process(&self, name: &str) {
+        self.start_process(name)
+            .unwrap_or_else(|e| panic!("expected start of '{name}' to succeed: {e}"));
+    }
+
+    pub fn assert_stop_process(&self, name: &str) {
+        self.stop_process(name)
+            .unwrap_or_else(|e| panic!("expected stop of '{name}' to succeed: {e}"));
+    }
+
+    fn format_wait_failure(&self, last_err: String) -> String {
+        let logs = self
+            .daemon
+            .as_ref()
+            .map(|d| d.captured_logs().join("\n"))
+            .unwrap_or_default();
+        format!("{last_err}\n--- daemon logs ---\n{logs}\n--- end daemon logs ---")
     }
 
     fn wait_for_process_running_with_timeout(
@@ -843,23 +954,16 @@ impl TestEnv {
                 }
             };
             if Instant::now() >= deadline {
-                let logs = self
-                    .daemon
-                    .as_ref()
-                    .map(|d| d.captured_logs().join("\n"))
-                    .unwrap_or_default();
-                return Err(format!(
-                    "{last_err}\n--- daemon logs ---\n{logs}\n--- end daemon logs ---"
-                ));
+                return Err(self.format_wait_failure(last_err));
             }
             std::thread::sleep(Duration::from_millis(50));
         }
     }
 
     pub fn assert_process_running(&self, name: &str) {
-        self.wait_for_process_running(name)
+        self.wait_for_process_running(name, default_process_wait_timeout())
             .unwrap_or_else(|e| panic!("expected process '{name}' running: {e}"));
-        self.check_process_pid_alive(name);
+        self.assert_process_pid_alive(name);
     }
 
     pub fn assert_process_state(&self, name: &str, expected: ProcessExpect) {
@@ -869,12 +973,10 @@ impl TestEnv {
             process.state, expected_state,
             "process '{name}': expected state {expected_state}, got {process:?}"
         );
-        if expected == ProcessExpect::Created || expected == ProcessExpect::Failed {
-            assert_eq!(
-                process.pid, 0,
-                "process '{name}' in {expected_state} should have no PID, got {process:?}"
-            );
-        }
+        assert!(
+            process_matches_expect(&process, expected),
+            "process '{name}' PID expectation not met for {expected_state}: {process:?}"
+        );
     }
 
     pub fn assert_process_absent(&self, name: &str) {
@@ -906,7 +1008,7 @@ impl TestEnv {
         self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
-    fn check_process_pid_alive(&self, name: &str) {
+    pub fn assert_process_pid_alive(&self, name: &str) {
         let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
         let pid = process.pid as u32;
         assert!(
@@ -974,6 +1076,19 @@ fn assert_status_field(field: &str, actual: u32, expected: Option<u32>, status: 
             actual, expected,
             "status {field}: expected {expected}, got {actual}\nfull status: {status:?}"
         );
+    }
+}
+
+fn process_matches_expect(process: &ProcessSnapshot, expected: ProcessExpect) -> bool {
+    match expected {
+        ProcessExpect::Created
+        | ProcessExpect::Stopped
+        | ProcessExpect::Failed
+        | ProcessExpect::Exited => process.pid == 0,
+        ProcessExpect::Running => {
+            let pid = process.pid as u32;
+            pid > 0 && pid_is_alive(pid)
+        }
     }
 }
 
