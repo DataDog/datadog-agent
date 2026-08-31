@@ -11,6 +11,7 @@ go_library(
         "products.go",
         "repository.go",
         "tuf.go",
+        "tuf_proof.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
     visibility = ["//visibility:public"],

@@ -21,6 +21,8 @@ type Component interface {
 	// Subscribe is the generic way to start listening to a specific product update
 	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	// GetConfigTUFProof returns the Director proof for one Remote Config target.
+	GetConfigTUFProof(targetPath string) (state.ConfigTUFProof, bool)
 }
 
 // Params is the input parameter struct for the RC client Component.
