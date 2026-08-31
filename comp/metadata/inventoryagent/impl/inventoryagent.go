@@ -88,12 +88,9 @@ type inventoryagent struct {
 	data         agentMetadata
 	hostname     string
 	client       ipc.HTTPClient
-	// skipCrossProcessEnrichment turns off the refreshMetadata() tier (fetching
-	// config from the other agent processes). Zero value false is full-agent
-	// behavior (enrichment on); an embedder can turn it on via Capabilities.
+	// See iainterface.Capabilities for the meaning of these fields.
 	skipCrossProcessEnrichment bool
-	// payloadUUID overrides the payload uuid. Empty means use the host GUID.
-	payloadUUID string
+	payloadUUID                string
 }
 
 // Requires defines the dependencies for the inventoryagent component
