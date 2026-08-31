@@ -216,6 +216,22 @@ pub fn temp_dir_str() -> String {
 // Misc
 // ---------------------------------------------------------------------------
 
+pub fn python_exe() -> String {
+    if let Ok(python) = std::env::var("PYTHON") {
+        if !python.is_empty() {
+            return python;
+        }
+    }
+    #[cfg(unix)]
+    {
+        "python3".to_string()
+    }
+    #[cfg(windows)]
+    {
+        "python.exe".to_string()
+    }
+}
+
 /// Fixed UUID for deterministic tests.
 pub fn test_uuid() -> String {
     "00000000-0000-0000-0000-000000000000".to_string()

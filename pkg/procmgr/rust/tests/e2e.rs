@@ -6,43 +6,76 @@
 mod helpers;
 
 use dd_procmgrd::test_helpers;
-use helpers::{CliRunner, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone, write_config};
-use std::path::Path;
+use helpers::{StatusProcessesCount, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone, write_config};
 use std::time::Duration;
 
 #[test]
-fn test_cli_daemon_starts_ok() {
-    let env = TestEnv::new().start();
-
-    assert!(
-        pid_is_alive(env.daemon_pid()),
-        "daemon process should be alive"
-    );
-
-    env.cli(&["status"])
-        .assert_success()
-        .assert_field("Ready", "true")
-        .assert_has_field("Version")
-        .assert_has_field("Uptime");
-}
-
-#[test]
-fn test_cli_fails_when_daemon_not_running() {
+fn daemon_starts_ready() {
     let env = TestEnv::new();
-
-    env.cli(&["status"])
-        .assert_failure()
-        .assert_stderr_contains("Error");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_version_not_empty();
+    procmgr.assert_status_processes_count(StatusProcessesCount::zeros());
 }
 
 #[test]
-fn test_cli_fails_with_invalid_socket() {
-    let runner = CliRunner::new(Path::new("/nonexistent/daemon.sock"));
+fn status_fails_without_daemon() {
+    let env = TestEnv::new();
+    env.assert_status_err();
+}
 
-    runner
-        .run(&["status"])
-        .assert_failure()
-        .assert_stderr_contains("Error");
+#[test]
+fn status_ready_without_config_dir() {
+    let env = TestEnv::with_missing_config_dir();
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount::zeros());
+}
+
+#[test]
+fn sleeper_fixture_auto_starts() {
+    let env = TestEnv::new().with_process("sleeper");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        running: Some(1),
+        created: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_running("sleeper");
+}
+
+#[test]
+fn sleeper_fixture_no_auto_start() {
+    let env = TestEnv::new().with_process("sleeper_idle");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        created: Some(1),
+        running: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_state("sleeper_idle", "Created");
+}
+
+#[test]
+fn invalid_syntax_fixture_skipped() {
+    let env = TestEnv::new()
+        .with_process("sleeper")
+        .with_process("invalid_syntax");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_status_processes_count(StatusProcessesCount {
+        total: Some(1),
+        running: Some(1),
+        created: Some(0),
+        ..Default::default()
+    });
+    procmgr.assert_process_running("sleeper");
+    procmgr.assert_process_absent("invalid_syntax");
+    procmgr.assert_daemon_log_line_contains(&["skipping", "invalid_syntax.yaml:"]);
 }
 
 #[test]
@@ -1560,9 +1593,8 @@ fn test_cli_restart_on_failure_ignores_success_exit() {
 
 #[test]
 fn test_cli_daemon_nonexistent_config_dir() {
-    let env = TestEnv::new();
+    let env = TestEnv::with_missing_config_dir();
     let config_dir = env.config_dir().display().to_string();
-    std::fs::remove_dir(env.config_dir()).expect("failed to remove config dir");
     let env = env.start();
 
     env.daemon().wait_for_log_default(&format!(
@@ -1864,21 +1896,6 @@ fn test_cli_optional_environment_file_skipped_when_missing() {
     let json = env.cli(&["list", "--json"]).stdout_json();
     assert_eq!(json[0]["state"], "Exited");
     assert_eq!(json[0]["last_exit_code"], 0);
-}
-
-#[test]
-fn test_cli_invalid_yaml_skipped() {
-    let env = TestEnv::new().with_config("good", test_helpers::sleep_config_yaml());
-
-    std::fs::write(env.config_dir().join("bad.yaml"), "not: valid: yaml: [").unwrap();
-
-    let env = env.start();
-
-    env.daemon().wait_for_log_default("[good] spawned");
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    assert_eq!(json.as_array().unwrap().len(), 1);
-    assert_eq!(json[0]["name"], "good");
 }
 
 #[cfg(unix)]
