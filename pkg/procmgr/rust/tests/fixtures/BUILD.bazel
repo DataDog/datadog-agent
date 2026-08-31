@@ -1,0 +1,14 @@
+exports_files([".marker"])
+
+filegroup(
+    name = "test_fixtures",
+    srcs = [
+        ".marker",
+        "//pkg/procmgr/rust/tests/fixtures/condition_blocked",
+        "//pkg/procmgr/rust/tests/fixtures/invalid_syntax",
+        "//pkg/procmgr/rust/tests/fixtures/missing_binary",
+        "//pkg/procmgr/rust/tests/fixtures/sleeper",
+        "//pkg/procmgr/rust/tests/fixtures/sleeper_idle",
+    ],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
