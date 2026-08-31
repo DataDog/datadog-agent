@@ -9,6 +9,8 @@ package sbom
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"strings"
 	"time"
@@ -35,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	model "github.com/DataDog/agent-payload/v5/sbom"
 
 	gopsutil "github.com/shirou/gopsutil/v4/host"
@@ -62,6 +65,17 @@ type processor struct {
 	hostCache             string
 	hostLastFullSBOM      time.Time
 	hostHeartbeatValidity time.Duration
+
+	// Runtime usage enrichment of the host SBOM ("package in use"). hostBom keeps
+	// the last successful Trivy scan so a usage update can be merged onto it and
+	// re-sent without rescanning, and hostUsage keeps the overlay it was merged
+	// with. hostUsageEnrichment records whether that merge is wanted at all.
+	hostUsageEnrichment bool
+	hostBom             *cyclonedx_v1_4.Bom
+	hostReportID        string
+	hostScanTime        time.Time
+	hostScanDuration    time.Duration
+	hostUsage           *cyclonedx_v1_4.Bom
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workloadfilter.Component, sender sender.Sender, tagger tagger.Component, cfg config.Component, maxNbItem int, maxRetentionTime time.Duration, hostHeartbeatValidity time.Duration) (*processor, error) {
@@ -109,6 +123,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		procfsSBOM:            procfsSBOM,
 		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
+		hostUsageEnrichment:   hostSBOM && cfg.GetBool("sbom.enrichment.usage.enabled"),
 	}, nil
 }
 
@@ -281,25 +296,62 @@ func (p *processor) reportImage(imgID string, running, reported map[string]struc
 	reported[imgID] = struct{}{}
 }
 
-func (p *processor) processHostScanResult(result sbom.ScanResult) {
-	log.Debugf("processing host scanresult: %v", result)
+// hostPayloadContent identifies what the host payload would carry: the packages
+// the last scan found, and the runtime usage last forwarded for them. The Trivy
+// report id covers the packages alone (pkg/util/trivy hashes the scan results),
+// so folding the usage in is what makes a package starting or stopping running
+// count as a change worth sending rather than a heartbeat. It stays inside the
+// agent: the Hash the payload carries keeps naming the package list.
+func (p *processor) hostPayloadContent() string {
+	hasher := sha256.New()
+	hasher.Write([]byte(p.hostReportID))
+	for _, comp := range p.hostUsage.GetComponents() {
+		hasher.Write([]byte(comp.GetName()))
+		hasher.Write([]byte(comp.GetVersion()))
+		for _, prop := range comp.GetProperties() {
+			switch prop.GetName() {
+			case sbomutil.LastAccessProperty, sbomutil.HasSetSuidBitProperty, sbomutil.RunningAsRootProperty:
+				hasher.Write([]byte(prop.GetName()))
+				hasher.Write([]byte(prop.GetValue()))
+			}
+		}
+	}
+	return "sha256:" + base64.StdEncoding.EncodeToString(hasher.Sum(nil))
+}
 
+// newHostSBOMEntity builds the shell of a host SBOM payload, without its body.
+func (p *processor) newHostSBOMEntity(generatedAt time.Time, duration time.Duration) *model.SBOMEntity {
 	info, err := gopsutil.Info()
 	if err != nil {
 		log.Warnf("Failed to get host info: %v", err)
 		info = &gopsutil.InfoStat{}
 	}
 
-	sbom := &model.SBOMEntity{
+	return &model.SBOMEntity{
 		Status:             model.SBOMStatus_SUCCESS,
 		Type:               model.SBOMSourceType_HOST_FILE_SYSTEM,
 		Id:                 p.hostname,
 		InUse:              true,
-		GeneratedAt:        timestamppb.New(result.CreatedAt),
-		GenerationDuration: bomconvert.ConvertDuration(result.Duration),
+		GeneratedAt:        timestamppb.New(generatedAt),
+		GenerationDuration: bomconvert.ConvertDuration(duration),
 		CpuArchitecture:    info.KernelArch,
 		KernelVersion:      info.KernelVersion,
 	}
+}
+
+// hostBomWithUsage returns the host SBOM enriched with the runtime usage
+// properties of the current overlay, or the plain SBOM when there is none.
+func (p *processor) hostBomWithUsage() *cyclonedx_v1_4.Bom {
+	if p.hostUsage == nil || p.hostBom == nil {
+		return p.hostBom
+	}
+	return sbomutil.MergeRuntimeProperties(p.hostBom, p.hostUsage)
+}
+
+func (p *processor) processHostScanResult(result sbom.ScanResult) {
+	log.Debugf("processing host scanresult: %v", result)
+
+	sbom := p.newHostSBOMEntity(result.CreatedAt, result.Duration)
 
 	if result.Error != nil {
 		log.Errorf("Scan error: %v", result.Error)
@@ -310,19 +362,64 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	} else {
 		log.Infof("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
 
-		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
+		p.hostBom = result.Report.ToCycloneDX()
+		p.hostReportID = result.Report.ID()
+		p.hostScanTime = result.CreatedAt
+		p.hostScanDuration = result.Duration
+
+		// A scan that finds the same packages while one of them started or stopped
+		// running has to go out in full: a heartbeat would leave the back end on
+		// the usage of the previous payload.
+		content := p.hostPayloadContent()
+		if p.hostCache != "" && p.hostCache == content && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
 			sbom.Heartbeat = true
 		} else {
-			report := result.Report.ToCycloneDX()
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: report,
+				Cyclonedx: p.hostBomWithUsage(),
 			}
 
-			sbom.Hash = result.Report.ID()
-			p.hostCache = result.Report.ID()
+			sbom.Hash = p.hostReportID
+			p.hostCache = content
 			p.hostLastFullSBOM = result.CreatedAt
 		}
 	}
+
+	p.queue <- sbom
+}
+
+// processHostUsage merges a freshly forwarded runtime usage overlay onto the host
+// SBOM of the last scan and sends the result. Re-merging beats rescanning: the
+// packages are the same, only their usage moved, and a host scan walks the whole
+// filesystem.
+func (p *processor) processHostUsage(bom *cyclonedx_v1_4.Bom) {
+	if !p.hostUsageEnrichment {
+		return
+	}
+
+	p.hostUsage = bom
+
+	if p.hostBom == nil {
+		// The first host scan is still running. Its result carries the overlay.
+		log.Debug("Received host runtime usage before the host SBOM, deferring the merge")
+		return
+	}
+
+	content := p.hostPayloadContent()
+	if content == p.hostCache {
+		return
+	}
+
+	merged := p.hostBomWithUsage()
+	log.Debugf("Sending host SBOM enriched with runtime usage (%d components)", len(merged.GetComponents()))
+
+	// The packages come from the last scan, so the payload is stamped with that
+	// scan's time and duration. The container path does the same: an enrichment
+	// re-send carries the image SBOM's own GenerationTime.
+	sbom := p.newHostSBOMEntity(p.hostScanTime, p.hostScanDuration)
+	sbom.Sbom = &model.SBOMEntity_Cyclonedx{Cyclonedx: merged}
+	sbom.Hash = p.hostReportID
+	p.hostCache = content
+	p.hostLastFullSBOM = time.Now()
 
 	p.queue <- sbom
 }

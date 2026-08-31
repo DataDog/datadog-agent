@@ -60,8 +60,11 @@ func (*SBOMStreamParams) Descriptor() ([]byte, []int) {
 type SBOMMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Data  []byte                 `protobuf:"bytes,1,opt,name=Data,proto3" json:"Data,omitempty"`
-	Kind  string                 `protobuf:"bytes,2,opt,name=Kind,proto3" json:"Kind,omitempty"`
-	// ID is the ID for this entity, in a format specific to the entity Kind.
+	// Kind is the kind of entity this SBOM enriches: a workloadmeta kind, or
+	// "host" for the host itself, which has no workloadmeta entity.
+	Kind string `protobuf:"bytes,2,opt,name=Kind,proto3" json:"Kind,omitempty"`
+	// ID is the ID for this entity, in a format specific to the entity Kind. The
+	// host kind carries none: the core agent names the host itself.
 	ID            string `protobuf:"bytes,3,opt,name=ID,proto3" json:"ID,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
