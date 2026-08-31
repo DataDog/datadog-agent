@@ -28,27 +28,7 @@ type ParsingContext struct {
 
 // NewParsingContext returns a new parsing context
 func NewParsingContext(withRuleCache bool) *ParsingContext {
-	seclLexer := lexer.Must(ebnf.New(`
-Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
-CIDR = IP "/" digit { digit } .
-IP = (ipv4 | ipv6) .
-Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
-FieldReference = "%{" (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } "}" .
-Duration = digit { digit } ("m" | "s" | "m" | "h") { "s" } .
-Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
-String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Int = [ "-" | "+" ] digit { digit } .
-Punct = ( "!" | "=" | "<" | ">" | "+" | "-" | "[" | "]" | "(" | ")" | "," | "&" | "|" | "~" | "^" | "%" ).
-Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
-ipv4 = (digit { digit } "." digit { digit } "." digit { digit } "." digit { digit }) .
-ipv6 = ( [hex { hex }] ":" [hex { hex }] ":" [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }]) .
-hex = "a"…"f" | "A"…"F" | "0"…"9" .
-alpha = "a"…"z" | "A"…"Z" .
-digit = "0"…"9" .
-any = "\u0000"…"\uffff" .
-`))
+	seclLexer := seclLexer()
 
 	var ruleCache map[string]*Rule
 	if withRuleCache {
@@ -75,6 +55,45 @@ func buildParser(obj interface{}, lexer lexer.Definition) *participle.Parser {
 		panic(err)
 	}
 	return parser
+}
+
+// RuleGrammarEBNF returns the Participle EBNF for SECL rules.
+func RuleGrammarEBNF() string {
+	return buildParser(&Rule{}, seclLexer()).String()
+}
+
+// MacroGrammarEBNF returns the Participle EBNF for SECL macros.
+func MacroGrammarEBNF() string {
+	return buildParser(&Macro{}, seclLexer()).String()
+}
+
+// ExpressionGrammarEBNF returns the Participle EBNF for SECL expressions.
+func ExpressionGrammarEBNF() string {
+	return buildParser(&Expression{}, seclLexer()).String()
+}
+
+func seclLexer() lexer.Definition {
+	return lexer.Must(ebnf.New(`
+Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
+CIDR = IP "/" digit { digit } .
+IP = (ipv4 | ipv6) .
+Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
+FieldReference = "%{" (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } "}" .
+Duration = digit { digit } ("m" | "s" | "m" | "h") { "s" } .
+Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
+Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
+String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
+Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
+Int = [ "-" | "+" ] digit { digit } .
+Punct = ( "!" | "=" | "<" | ">" | "+" | "-" | "[" | "]" | "(" | ")" | "," | "&" | "|" | "~" | "^" | "%" ).
+Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
+ipv4 = (digit { digit } "." digit { digit } "." digit { digit } "." digit { digit }) .
+ipv6 = ( [hex { hex }] ":" [hex { hex }] ":" [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }]) .
+hex = "a"…"f" | "A"…"F" | "0"…"9" .
+alpha = "a"…"z" | "A"…"Z" .
+digit = "0"…"9" .
+any = "\u0000"…"\uffff" .
+`))
 }
 
 func unquoteLiteral(t lexer.Token) (lexer.Token, error) {

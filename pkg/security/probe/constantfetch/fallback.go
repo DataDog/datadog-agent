@@ -148,6 +148,8 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
 		OffsetNameMountMntNs:                  getMountMntNsOffset,
+		OffsetNameSkBuffHead:                  getSkBuffHeadOffset,
+		OffsetNameSkBuffTransportHeader:       getSkBuffTransportHeaderOffset,
 		OffsetNameMountMountpoint:             getMountMountpointOffset,
 		OffsetNameTaskStructCred:              getTaskStructCredOffset,
 		OffsetNameTaskStructSignal:            getTaskStructSignalOffset,
@@ -841,6 +843,36 @@ func getFlowi6SAddrOffset(kv *kernel.Version) uint64 {
 
 func getFlowi6ULIOffset(kv *kernel.Version) uint64 {
 	return getFlowi6SAddrOffset(kv) + 20
+}
+
+func getSkBuffHeadOffset(kv *kernel.Version) uint64 {
+	offset := uint64(192)
+
+	switch {
+	case kv.IsRH7Kernel():
+		offset = 176
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_19):
+		offset = 176
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		offset = 184
+	}
+
+	return offset
+}
+
+func getSkBuffTransportHeaderOffset(kv *kernel.Version) uint64 {
+	offset := uint64(120)
+
+	switch {
+	case kv.IsRH7Kernel():
+		offset = 104
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_19):
+		offset = 104
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		offset = 112
+	}
+
+	return offset
 }
 
 func ubuntuAbiVersionCheck(kv *kernel.Version, minAbiPerFlavor map[string]int) bool {

@@ -528,6 +528,122 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 	waitForMetric(ruleID1, totalExpected)
 }
 
+func TestNetworkFilterICMPPingIsolation(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skip test spawning docker containers on docker")
+	}
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("skip test where docker is unavailable")
+	}
+
+	const pingHost = "1.1.1.1"
+
+	// 1) Launch the container
+	cmdWrapper, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cmdWrapper.start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapper.stop()
+	t.Logf("container started: %s (%s)", cmdWrapper.containerName, cmdWrapper.containerID)
+
+	// 2) Launch ping before the agent and stream its output
+	pingCmd := cmdWrapper.Command("/bin/ping", []string{"-c", "5", pingHost}, nil)
+	stdout, err := pingCmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderr, err := pingCmd.StderrPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	linesCh := make(chan string, 32)
+	readLines := func(r io.Reader) {
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			linesCh <- scanner.Text()
+		}
+	}
+
+	if err := pingCmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	pingDone := make(chan error, 1)
+	go func() {
+		pingDone <- pingCmd.Wait()
+	}()
+
+	go readLines(stdout)
+	go readLines(stderr)
+
+	// 3) Launch the agent with an ICMP-specific cgroup drop rule
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_network_filter_icmp_ping",
+			Expression: `exec.comm == "ping"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					NetworkFilter: &rules.NetworkFilterDefinition{
+						BPFFilter: "icmp and dst host " + pingHost,
+						Scope:     "cgroup",
+						Policy:    "drop",
+					},
+				},
+			},
+		},
+	}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// 4) Verify that pings fail by inspecting the ping process output
+	timeout := time.After(10 * time.Second)
+	for {
+		select {
+		case line := <-linesCh:
+			if pingOutputShowsPacketLoss(line) {
+				return
+			}
+		case err := <-pingDone:
+			if err == nil {
+				t.Fatal("ping completed without packet loss")
+			}
+			t.Fatalf("ping exited without packet loss: %v", err)
+		case <-timeout:
+			t.Fatal("timeout waiting for packet loss in ping output")
+		}
+	}
+}
+
+func pingOutputShowsPacketLoss(line string) bool {
+	const suffix = "% packet loss"
+	idx := strings.Index(line, suffix)
+	if idx == -1 {
+		return false
+	}
+
+	start := idx - 1
+	for start >= 0 && line[start] >= '0' && line[start] <= '9' {
+		start--
+	}
+	if start == idx-1 {
+		return false
+	}
+
+	pct, err := strconv.Atoi(line[start+1 : idx])
+	return err == nil && pct > 0
+}
+
 func TestRawPacketActionWithSignature(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup ID test in docker")

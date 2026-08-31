@@ -99,7 +99,6 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
         return TC_ACT_UNSPEC;
     }
     resolve_pid(skb, pkt);
-
     if (pkt->pid) {
         pkt->cgroup_id = get_cgroup_id(pkt->pid);
     }

@@ -4,6 +4,7 @@
 #include <linux/types.h>
 #include <linux/version.h>
 
+#include <linux/skbuff.h>
 #include <net/sock.h>
 #include <net/netfilter/nf_conntrack.h>
 #include <net/netfilter/nf_nat.h>
