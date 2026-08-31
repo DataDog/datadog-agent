@@ -15,18 +15,11 @@ export PATH
 
 # Source the shared AIX build environment (PATH, GOROOT, CC/CXX, CGO flags,
 # GOTOOLCHAIN=local, GOCACHE, TMPDIR, ...). env.sh resolves AGENT_SRC by walking
-# up from $0 to the nearest .git ancestor.
+# up from $0 to the nearest .git ancestor. It pins CC/CXX -> gcc-8, which works
+# on AIX 7.3 (gcc-8's include-fixed headers match the 7.3 system headers).
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../lib/env.sh"
-
-# env.sh pins CC/CXX -> gcc-8 for AIX 7.2 TL2 *shipped-binary* compatibility,
-# but gcc-8's include-fixed headers (built for TL0) conflict with TL5 system
-# headers (sigset_t redefinition in runtime/cgo, fatal under -Werror). Unit
-# tests run ON the host and aren't shipped, so use gcc-13 (matches TL5).
-# Override env.sh's private gcc/g++ symlinks ($BUILD_DIR/bin is first on PATH).
-ln -sf /opt/freeware/bin/gcc-13 "$BUILD_DIR/bin/gcc"
-ln -sf /opt/freeware/bin/g++-13 "$BUILD_DIR/bin/g++"
 
 # AIX's default latin-1 locale crashes invoke's stdout handler on gotestsum's
 # unicode (✖/✓). Force UTF-8.

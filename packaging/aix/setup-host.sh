@@ -12,16 +12,17 @@
 #   1. Grows /opt from rootvg (AIX Toolbox installs into /opt/freeware, which is
 #      tiny on a fresh SiteOX LPAR) and creates the /opt/dd-build build tree.
 #   2. Installs the AIX Toolbox packages required by the agent toolchain
-#      (gcc8/g++8 + gcc-13, git, cmake, protobuf, ...) and the prebuilt
-#      pydantic-core RPM. Installs the official Go aix-ppc64 tarball at /opt/go
-#      (the AIX Toolbox maxes at 1.26.5, but go.work requires >= 1.26.6).
+#      (gcc8/g++8, git, cmake, protobuf, ...) and the prebuilt pydantic-core
+#      RPM. Installs the official Go aix-ppc64 tarball at /opt/go (the AIX
+#      Toolbox maxes at 1.26.5, but go.work requires >= 1.26.6).
 #   3. Bootstraps pip and installs the Python deps needed to load the `tasks`
 #      invoke namespace (so `inv -e test` works).
 #   4. Installs gotestsum (from the AIX-fix fork, gotestyourself/gotestsum#567)
 #      into /opt/dd-build/bin — AIX has no Bazel, so `inv test` runs gotestsum
 #      directly (see the AIX fallback in tasks/gotest.py).
-#   5. Installs the Rust SDK (best-effort, build/packaging only — needs IBM Open
-#      XL C/C++ Runtime filesets not available on all rented hosts).
+#   5. Installs the Rust SDK (needed by the packaging build for pydantic-core,
+#      cryptography, ...). AIX 7.3 ships the IBM Open XL C/C++ Runtime the SDK
+#      requires, so it installs cleanly via dnf.
 #
 # Reuses the toolchain layout/variables from packaging/aix/lib/env.sh: this
 # script does NOT source env.sh (it must run before gcc-8/go exist), but it
@@ -53,10 +54,8 @@ PYDANTIC_VERSION="2.11.7"
 # https://github.com/gotestyourself/gotestsum/pull/567
 GOTESTSUM_VERSION="2222dd98bb9fdf07bd834476d0223401b7964fd0"
 # Rust SDK version — keep in sync with packaging/aix/lib/env.sh (RUST_VERSION).
-# Only needed for the packaging build (pydantic-core, cryptography, ...); unit
-# tests don't need it. Best-effort below: install if the host has the IBM Open
-# XL C/C++ Runtime filesets (libc++.rte/libc++abi.rte/libunwind.rte >= 17.1.3.0,
-# AIX 7.2 TL5 SP7+ or 7.3 TL1+); skip with a warning otherwise.
+# Needed by the packaging build (pydantic-core, cryptography, ...). AIX 7.3 ships
+# the IBM Open XL C/C++ Runtime the SDK requires, so it installs via dnf.
 RUST_VERSION="1.92"
 INVOKE_VERSION="2.2.1"         # deps/py_dev_requirements.txt
 
@@ -115,16 +114,13 @@ log "Refreshing dnf metadata (may take a moment)"
 "$DNF" -y makecache >/dev/null 2>&1 || true
 
 # gcc8/g++8: required by packaging/aix/lib/env.sh (it hard-fails without
-#   /opt/freeware/bin/gcc-8) for AIX 7.2 TL2 *shipped-binary* compatibility.
-# gcc/gcc-c++ (gcc-13): the toolbox default; its include-fixed headers match
-#   AIX 7.2 TL5, where gcc-8's stale fixed headers conflict with the system
-#   headers (sigset_t redefinition in runtime/cgo). Unit tests run ON the host
-#   (not shipped), so run-tests.sh uses gcc-13. See run-tests.sh for details.
-# python3.12-pydantic-core: prebuilt Rust extension (pydantic v2 needs it; building
-#   pydantic-core from source on AIX requires the Rust SDK, which we avoid here).
+#   /opt/freeware/bin/gcc-8) for AIX 7.2 TL2 *shipped-binary* compatibility
+#   (gcc-8's libstdc++ avoids strftime_l). On AIX 7.3 gcc-8's include-fixed
+#   headers match the system headers, so no gcc-13 workaround is needed.
+# python3.12-pydantic-core: prebuilt Rust extension (pydantic v2 needs it).
 dnf_install \
     cyrus-sasl \
-    gcc8 gcc8-c++ gcc gcc-c++ \
+    gcc8 gcc8-c++ \
     git make cmake binutils diffutils \
     protobuf protobuf-compiler \
     zstd xz curl bash \
@@ -144,7 +140,7 @@ if [ "$_go_ok" = "0" ]; then
     log "Installing official Go ${GO_VERSION} (aix-ppc64) into /opt/go"
     _tar="/tmp/go${GO_VERSION}.aix-ppc64.tar.gz"
     [ -f "$_tar" ] || curl -fSL -o "$_tar" "https://go.dev/dl/go${GO_VERSION}.aix-ppc64.tar.gz"
-    # AIX has no sha256sum; use openssl. csum does not support SHA256 on 7.2.
+    # AIX has no sha256sum; use openssl.
     _got_sha=$(openssl dgst -sha256 "$_tar" 2>/dev/null | awk '{print $NF}')
     if [ "$_got_sha" != "$GO_SHA256" ]; then
         echo "ERROR: Go tarball sha256 mismatch: $_got_sha != $GO_SHA256" >&2
@@ -159,7 +155,8 @@ fi
 
 # Private gcc/g++ -> gcc-8 in $BUILD_DIR/bin (env.sh creates these itself on
 # source, but create them here too so the tree is usable before env.sh is
-# sourced). run-tests.sh re-points these at gcc-13 for the TL5 unit-test host.
+# sourced). On AIX 7.3 gcc-8's include-fixed headers match the system headers,
+# so no gcc-13 override is needed (unlike the 7.2 TL5 host).
 ln -sf /opt/freeware/bin/gcc-8 "$BUILD_DIR/bin/gcc"
 ln -sf /opt/freeware/bin/g++-8 "$BUILD_DIR/bin/g++"
 
@@ -224,29 +221,17 @@ if [ "$need_gotestsum" = "1" ]; then
     printf '%s' "$GOTESTSUM_VERSION" > "$BUILD_DIR/.done/gotestsum-version"
 fi
 
-# ── Step 5b: Rust SDK (best-effort, build/packaging only) ───────────────────
-# The Rust SDK needs the IBM Open XL C/C++ Runtime (xlC.aix61.rte >= 16.1.0.10,
-# which provides the shr2_64.o / libc++.so.1 / libc++abi.so.1 members Rust
-# links against). Rented SiteOX LPARs ship the older 16.1.0.7 runtime, which
-# can't be upgraded via dnf (it's an installp fileset needing IBM-entitled
-# media/NIM). Try to install via dnf; if it fails, warn and continue — unit
-# tests don't need Rust. The packaging build needs Rust and a host with the
-# newer runtime (see packaging/aix/RUST_AIX72_PATCHES.md for the manual
-# workaround used on 7.2 TL2 hosts).
+# ── Step 5b: Rust SDK (build/packaging) ────────────────────────────────────
+# AIX 7.3 ships the IBM Open XL C/C++ Runtime (xlC.aix61.rte >= 16.1.0.10)
+# that the Rust SDK links against, so it installs cleanly via dnf. Required by
+# the packaging build (pydantic-core, cryptography, ...).
 if [ -x "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo" ]; then
     log "Rust ${RUST_VERSION} already installed"
 else
-    log "Installing Rust ${RUST_VERSION} (best-effort)"
-    if "$DNF" -y --allowerasing install \
+    log "Installing Rust ${RUST_VERSION}"
+    "$DNF" -y --allowerasing install \
         "rust${RUST_VERSION}" "cargo${RUST_VERSION}" "rust${RUST_VERSION}-std-static" \
-        "rust${RUST_VERSION}-community-license" 2>/dev/null; then
-        log "Rust ${RUST_VERSION} installed"
-    else
-        echo "WARNING: Rust ${RUST_VERSION} install failed — the IBM Open XL C/C++" >&2
-        echo "         Runtime (xlC.aix61.rte >= 16.1.0.10) is likely missing." >&2
-        echo "         Unit tests will proceed; the packaging build needs Rust and a" >&2
-        echo "         host with the newer runtime (see packaging/aix/RUST_AIX72_PATCHES.md)." >&2
-    fi
+        "rust${RUST_VERSION}-community-license"
 fi
 
 # ── Step 6: verify ────────────────────────────────────────────────────────────
@@ -266,8 +251,6 @@ verify() {
 _rc=0
 verify "gcc-8"      "/opt/freeware/bin/gcc-8 --version | head -1" "8\\."            || _rc=1
 verify "g++-8"      "/opt/freeware/bin/g++-8 --version | head -1" "8\\."            || _rc=1
-verify "gcc-13"     "/opt/freeware/bin/gcc-13 --version | head -1" "13\\."          || _rc=1
-verify "g++-13"     "/opt/freeware/bin/g++-13 --version | head -1" "13\\."          || _rc=1
 verify "go"         "/opt/go/bin/go version" "go${GO_VERSION}"                       || _rc=1
 verify "pydantic"   "/opt/freeware/bin/python3.12 -c 'import pydantic;print(pydantic.VERSION)'" "${PYDANTIC_VERSION}" || _rc=1
 verify "git"        "git --version" "git version"                                  || _rc=1
@@ -282,12 +265,8 @@ verify "zstd"       "zstd --version" "Zstandard"                                
 verify "python3.12" "/opt/freeware/bin/python3.12 --version" "3.12"               || _rc=1
 verify "invoke"     "/opt/freeware/bin/python3.12 -m invoke --version" "Invoke"   || _rc=1
 verify "gotestsum"  "$BUILD_DIR/bin/gotestsum --version 2>&1 | head -1" "gotestsum"   || _rc=1
-# Rust is optional (build/packaging only); report but don't fail setup.
-if [ -x "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo" ]; then
-    printf '  OK   %-12s %s\n' "cargo" "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo"
-else
-    printf '  SKIP %-12s (not installed; build/packaging only)\n' "cargo"
-fi
+# Rust is required by the packaging build.
+verify "cargo"      "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo --version" "cargo" || _rc=1
 
 if [ "$_rc" -ne 0 ]; then
     echo "ERROR: one or more tool verifications failed" >&2
