@@ -217,6 +217,49 @@ fn stop_process_kills_child() {
 }
 
 #[test]
+fn list_empty_when_no_processes() {
+    let procmgr = TestEnv::new().start();
+    procmgr.assert_status_ready();
+    procmgr.assert_list_empty();
+}
+
+#[test]
+fn list_shows_running_and_created_mix() {
+    let env = TestEnv::new()
+        .with_process("sleeper")
+        .with_process("sleeper_idle");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_list_len(2);
+    procmgr.assert_process_running("sleeper");
+    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+}
+
+#[test]
+fn list_shows_exited_with_last_exit_code() {
+    let env = TestEnv::new()
+        .with_process("exit_ok")
+        .with_process("exit_fail");
+    let procmgr = env.start();
+    procmgr.assert_status_ready();
+    procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
+    procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
+    procmgr.assert_list_len(2);
+    procmgr.assert_process_state("exit_ok", ProcessExpect::Exited);
+    procmgr.assert_process_state("exit_fail", ProcessExpect::Failed);
+
+    let ok = procmgr.process("exit_ok").expect("exit_ok listed");
+    assert_eq!(ok.last_exit_code, Some(0), "exit_ok last_exit_code: {ok:?}");
+
+    let fail = procmgr.process("exit_fail").expect("exit_fail listed");
+    assert_eq!(
+        fail.last_exit_code,
+        Some(1),
+        "exit_fail last_exit_code: {fail:?}"
+    );
+}
+
+#[test]
 fn test_cli_config_basic() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())
@@ -408,131 +451,6 @@ fn test_cli_config_with_runtime_processes() {
         .assert_success()
         .assert_field("Loaded Processes", "1")
         .assert_field("Runtime Processes", "1");
-}
-
-#[test]
-fn test_cli_list_empty() {
-    let env = TestEnv::new().start();
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_stdout_contains("No processes");
-}
-
-#[test]
-fn test_cli_list_one_running() {
-    let env = TestEnv::new()
-        .with_config("sleeper", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[sleeper] spawned");
-
-    let out = env.cli(&["list"]);
-    out.assert_success()
-        .assert_table_row(
-            "sleeper",
-            &[
-                ("STATE", "Running"),
-                ("COMMAND", test_helpers::sleep_cmd(300).0),
-            ],
-        )
-        .assert_table_row_count(1);
-
-    let pid = out.pid_from_table_row("sleeper");
-    assert!(pid_is_alive(pid), "PID {pid} should be alive");
-}
-
-#[test]
-fn test_cli_list_multiple_processes() {
-    let env = TestEnv::new()
-        .with_config("alpha", test_helpers::sleep_config_yaml())
-        .with_config("beta", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[alpha] spawned");
-    env.daemon().wait_for_log_default("[beta] spawned");
-
-    let out = env.cli(&["list"]);
-    out.assert_success()
-        .assert_table_row("alpha", &[("STATE", "Running")])
-        .assert_table_row("beta", &[("STATE", "Running")])
-        .assert_table_row_count(2);
-
-    let pid_a = out.pid_from_table_row("alpha");
-    let pid_b = out.pid_from_table_row("beta");
-    assert!(pid_is_alive(pid_a), "alpha PID {pid_a} should be alive");
-    assert!(pid_is_alive(pid_b), "beta PID {pid_b} should be alive");
-}
-
-#[test]
-fn test_cli_list_mixed_states() {
-    let env = TestEnv::new()
-        .with_config("runner", test_helpers::sleep_config_yaml())
-        .with_config(
-            "idle",
-            &test_helpers::sleep_config_with("auto_start: false\n"),
-        )
-        .start();
-
-    env.daemon().wait_for_log_default("[runner] spawned");
-
-    let out = env.cli(&["list"]);
-    out.assert_success()
-        .assert_table_row("runner", &[("STATE", "Running")])
-        .assert_table_row("idle", &[("STATE", "Created"), ("PID", "-")])
-        .assert_table_row_count(2);
-
-    let pid = out.pid_from_table_row("runner");
-    assert!(pid_is_alive(pid), "runner PID {pid} should be alive");
-}
-
-#[test]
-fn test_cli_list_spawn_failure() {
-    let env = TestEnv::new()
-        .with_config("bad", "command: /nonexistent/binary\n")
-        .start();
-
-    env.daemon().wait_for_log_default("[bad] failed to spawn");
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row("bad", &[("STATE", "Failed"), ("PID", "-")])
-        .assert_table_row_count(1);
-}
-
-#[test]
-fn test_cli_list_exited_state() {
-    let env = TestEnv::new()
-        .with_config("quick", test_helpers::true_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[quick] exited with");
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row(
-            "quick",
-            &[("STATE", "Exited"), ("PID", "-"), ("LAST EXIT", "exit 0")],
-        )
-        .assert_table_row_count(1);
-}
-
-#[test]
-fn test_cli_list_last_exit_column() {
-    let env = TestEnv::new()
-        .with_config("ok", test_helpers::true_config_yaml())
-        .with_config("fail", test_helpers::false_config_yaml())
-        .with_config("alive", test_helpers::sleep_config_yaml())
-        .start();
-
-    env.daemon().wait_for_log_default("[ok] exited with");
-    env.daemon().wait_for_log_default("[fail] exited with");
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row("ok", &[("LAST EXIT", "exit 0")])
-        .assert_table_row("fail", &[("LAST EXIT", "exit 1")])
-        .assert_table_row("alive", &[("LAST EXIT", "-")]);
 }
 
 #[test]

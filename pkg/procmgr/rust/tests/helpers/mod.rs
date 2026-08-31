@@ -982,6 +982,27 @@ impl TestEnv {
         );
     }
 
+    pub fn assert_list_empty(&self) {
+        let processes = self
+            .list_processes()
+            .unwrap_or_else(|e| panic!("failed to list processes: {e}"));
+        assert!(
+            processes.is_empty(),
+            "expected empty catalog, got {processes:?}"
+        );
+    }
+
+    pub fn assert_list_len(&self, expected: usize) {
+        let processes = self
+            .list_processes()
+            .unwrap_or_else(|e| panic!("failed to list processes: {e}"));
+        assert_eq!(
+            processes.len(),
+            expected,
+            "expected {expected} process(es) in catalog, got {processes:?}"
+        );
+    }
+
     pub fn assert_daemon_log_line_contains(&self, patterns: &[&str]) {
         assert!(
             self.daemon()
