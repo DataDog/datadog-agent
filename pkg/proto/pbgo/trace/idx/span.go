@@ -347,7 +347,8 @@ func unmarshalKeyValueList(bts []byte, strings *StringTable, depth int) (kvl []*
 // maxAnyValueDepth bounds how deeply nested AnyValue arrays / key-value lists may be.
 // Without a bound, a deeply nested payload drives the decoder into unbounded recursion,
 // which overflows the goroutine stack and crashes the process with an unrecoverable fatal error.
-const maxAnyValueDepth = 200
+// This matches the depth limit used by OTEL.
+const maxAnyValueDepth = 64
 
 // UnmarshalAnyValue unmarshals an AnyValue from a byte stream, updating the strings slice with new strings
 func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []byte, err error) {

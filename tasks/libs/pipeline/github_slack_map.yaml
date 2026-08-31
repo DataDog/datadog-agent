@@ -221,8 +221,15 @@
     name: '#dal-ops'
     id: 'C0AQHTYTVAA'
   review:
-    name: '#aaa-auth-identity-help'
-    id: 'C0AA7D5117D'
+    name: '#workload-identity-federation'
+    id: 'C08GB70HTV4'
+'@datadog/delegated-auth-login':
+  notification:
+    name: '#dal-ops'
+    id: 'C0AQHTYTVAA'
+  review:
+    name: '#workload-identity-federation'
+    id: 'C08GB70HTV4'
 '@datadog/data-observability':
   notification:
     name: '#data-observability-ops'
@@ -398,7 +405,7 @@
   review:
     name: '#serverless-agent'
     id: 'C017ES2MY05'
-'@datadog/serverless-azure-gcp':
+'@datadog/serverless-azure-and-gcp':
   notification:
     name: '#serverless-azure-gcp-team'
     id: 'C06P8R33PD3'

@@ -96,6 +96,8 @@ func serverlessSourceCustomToRuntime(metricSource metrics.MetricSource) metrics.
 		metricSource = metrics.MetricSourceAzureContainerAppRuntime
 	case metrics.MetricSourceGoogleCloudRunCustom:
 		metricSource = metrics.MetricSourceGoogleCloudRunRuntime
+	case metrics.MetricSourceAWSMicroVMCustom:
+		metricSource = metrics.MetricSourceAWSMicroVMRuntime
 	}
 	return metricSource
 }
