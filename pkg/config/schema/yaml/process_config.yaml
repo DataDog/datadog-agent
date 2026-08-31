@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/process_config.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/process_config.yaml
 node_type: section
 title: Process Collection Configuration
 type: object
@@ -10,6 +10,7 @@ description: |-
   See https://docs.datadoghq.com/graphing/infrastructure/process/
 tags:
 - template_section:CoreAgent
+- full-agent-only:true
 properties:
   process_collection:
     node_type: section

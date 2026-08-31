@@ -1,0 +1,21 @@
+load("//bazel/rules:windows_resources.bzl", "win_resource")
+
+win_resource(
+    name = "rsrc",
+    src = "procmgr.rc",
+    visibility = ["//pkg/procmgr:__subpackages__"],
+    deps = [
+        "version.h",
+        "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
+    ],
+)
+
+win_resource(
+    name = "rsrcd",
+    src = "procmgrd.rc",
+    visibility = ["//pkg/procmgr:__subpackages__"],
+    deps = [
+        "version.h",
+        "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
+    ],
+)

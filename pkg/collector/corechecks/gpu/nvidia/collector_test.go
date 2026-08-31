@@ -45,6 +45,74 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCollectorTelemetryTags(t *testing.T) {
+	deviceInfo := ddnvml.DeviceInfo{
+		Name:               "NVIDIA A100-SXM4-80GB",
+		Architecture:       nvml.DEVICE_ARCH_AMPERE,
+		VirtualizationMode: nvml.GPU_VIRTUALIZATION_MODE_VGPU,
+		NVLinkLinkCount:    4,
+		NVLinkVersion:      "4",
+	}
+	migParent := &ddnvml.PhysicalDevice{
+		DeviceInfo: deviceInfo,
+		MIGChildren: []*ddnvml.MIGDevice{
+			{},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		device   ddnvml.Device
+		expected []string
+	}{
+		{
+			name:   "physical device",
+			device: &ddnvml.PhysicalDevice{DeviceInfo: deviceInfo},
+			expected: []string{
+				"test",
+				"nvidia_a100-sxm4-80gb",
+				"vgpu",
+				"ampere",
+				"none",
+				"true",
+				"4",
+				driverVersionForTelemetry(),
+			},
+		},
+		{
+			name:   "MIG parent",
+			device: migParent,
+			expected: []string{
+				"test",
+				"nvidia_a100-sxm4-80gb",
+				"vgpu",
+				"ampere",
+				"mig-parent",
+				"true",
+				"4",
+				driverVersionForTelemetry(),
+			},
+		},
+		{
+			name:     "MIG device",
+			device:   &ddnvml.MIGDevice{DeviceInfo: deviceInfo, Parent: migParent},
+			expected: []string{"test", "nvidia_a100-sxm4-80gb", "vgpu", "ampere", "mig", "true", "4", driverVersionForTelemetry()},
+		},
+	}
+
+	require.Len(t, collectorCreationTelemetryTagNames, len(collectorTelemetryTagNames)+1)
+	require.Equal(t, "status", collectorCreationTelemetryTagNames[0])
+	require.Equal(t, collectorTelemetryTagNames, collectorCreationTelemetryTagNames[1:])
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tags := collectorTelemetryTags("test", tt.device)
+			require.Len(t, tags, len(collectorTelemetryTagNames))
+			require.Equal(t, tt.expected, tags)
+		})
+	}
+}
+
 func TestGetDeviceTagsMapping(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -328,6 +396,109 @@ func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 		}
 	}
 	require.True(t, foundEbpf, "ebpf collector should be created when not disabled")
+}
+
+// ebpfOnlyMetricNames lists the metrics that only the ebpf collector can produce. Every
+// other GPU metric has an NVML-based source, so it survives with the eBPF probes off.
+//
+// The probes are deprecated and disabled by default, which makes this list the set of
+// metrics a default install does not get. Adding an entry here is a customer-visible
+// change and belongs in a release note; if a metric gains an NVML source, remove it.
+var ebpfOnlyMetricNames = []string{"process.core.usage"}
+
+// TestMetricNamesWithoutEBPFProbes pins the metric surface of the default configuration.
+//
+// With gpu_monitoring.enable_ebpf_probes disabled (the default) the check leaves
+// SystemProbeCache nil, so BuildCollectors never creates the ebpf collector. That must
+// cost us exactly ebpfOnlyMetricNames and nothing else: any other metric going missing is
+// a silent regression for everyone who did not opt back in.
+func TestMetricNamesWithoutEBPFProbes(t *testing.T) {
+	withProbes := collectMetricNames(t, seededSystemProbeCache())
+	withoutProbes := collectMetricNames(t, nil)
+
+	for _, name := range ebpfOnlyMetricNames {
+		require.Contains(t, withProbes, name,
+			"%s should be emitted when the eBPF probes are enabled", name)
+		require.NotContains(t, withoutProbes, name,
+			"%s has no NVML source, so it cannot be emitted with the eBPF probes disabled", name)
+	}
+
+	for name := range withProbes {
+		if slices.Contains(ebpfOnlyMetricNames, name) {
+			continue
+		}
+		require.Contains(t, withoutProbes, name,
+			"%s disappeared when the eBPF probes were disabled: either give it an NVML source or add it to ebpfOnlyMetricNames", name)
+	}
+}
+
+// collectMetricNames builds the full collector set for the given system-probe cache (nil
+// meaning the eBPF probes are disabled) and returns every metric name it emits.
+func collectMetricNames(t *testing.T, spCache *SystemProbeCache) map[string]struct{} {
+	t.Helper()
+
+	// One device is enough: the assertions are about which metric names exist, not
+	// their values, and every extra mock device costs an event-set wait per Collect.
+	devices := setupMockDevices(t,
+		testutil.WithDeviceCount(1),
+		testutil.WithMIGDisabled(),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
+		testutil.WithMockAllFunctions(),
+		testutil.WithArchitecture("blackwell"),
+	)
+
+	// Stop the gatherer before returning instead of registering a t.Cleanup: its
+	// worker goroutine reads the global NVML mock, and the caller invokes this
+	// helper again, which installs a fresh one. A t.Cleanup would not run until
+	// the whole test ends, leaving the first worker racing the second setup.
+	// Stop() joins the worker, so the two can never overlap.
+	eventsGatherer := NewDeviceEventsGatherer()
+	require.NoError(t, eventsGatherer.Start())
+	defer func() { require.NoError(t, eventsGatherer.Stop()) }()
+
+	deps := &CollectorDependencies{
+		DeviceEventsGatherer: eventsGatherer,
+		PRMCache:             &PRMCache{},
+		SystemProbeCache:     spCache,
+		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+	}
+	seedPRMCacheForDevices(t, deps.PRMCache, devices)
+
+	collectors, err := BuildCollectors(devices, deps, nil)
+	require.NoError(t, err)
+
+	names := make(map[string]struct{})
+	for _, collector := range collectors {
+		metrics, err := collector.Collect()
+		require.NoError(t, err, "collector %s failed to collect", collector.Name())
+		for _, metric := range metrics {
+			names[metric.Name] = struct{}{}
+		}
+	}
+
+	return names
+}
+
+// seededSystemProbeCache returns a cache holding one active process on the default mock
+// device, which is what the ebpf collector needs in order to emit per-process metrics.
+func seededSystemProbeCache() *SystemProbeCache {
+	return &SystemProbeCache{
+		stats: &model.GPUStats{
+			ProcessMetrics: []model.ProcessStatsTuple{
+				{
+					Key: model.ProcessStatsKey{
+						PID:        123,
+						DeviceUUID: testutil.DefaultGpuUUID,
+					},
+					UtilizationMetrics: model.UtilizationMetrics{
+						UsedCores:     50,
+						ActiveTimePct: 25,
+						Memory:        model.MemoryMetrics{CurrentBytes: 1024},
+					},
+				},
+			},
+		},
+	}
 }
 
 func seedPRMCacheForDevices(t *testing.T, cache *PRMCache, devices []ddnvml.Device) {

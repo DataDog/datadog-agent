@@ -305,7 +305,9 @@ func TestSyslogNeverEmitsEmptyFrames(t *testing.T) {
 // split chunks must still reconstruct the body with no data loss.
 func TestSyslogOctetCountedStraddlesLimit(t *testing.T) {
 	limit := 20
-	body := strings.Repeat("x", 20) // msgLen == limit; header pushes total to 23
+	// Octet counting carries RFC 5424 messages, so the body starts with a PRI;
+	// frame detection requires that signature after the MSG-LEN SP.
+	body := "<134>1 " + strings.Repeat("x", 13) // 20 bytes: msgLen == limit; header pushes total to 23
 
 	// "20 " + first 17 body bytes = 20 bytes (== limit) with the body still
 	// incomplete; the remaining 3 body bytes then arrive in a second chunk so a

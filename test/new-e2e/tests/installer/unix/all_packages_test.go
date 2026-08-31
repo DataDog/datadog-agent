@@ -109,7 +109,7 @@ func TestPackages(t *testing.T) {
 				t.Parallel()
 				opts := []awshost.ProvisionerOption{
 					awshost.WithRunOptions(
-						ec2.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
+						ec2.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture), ec2.WithInternetAccess()),
 						ec2.WithoutAgent(),
 					),
 				}
@@ -168,6 +168,8 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.pipelineAgentVersion = PipelineAgentVersion(s.T())
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
+	s.host.ConfigureAptMirrors()
+	s.host.ConfigureYumMirrors()
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
 	s.updatePythonOnSuse()
@@ -273,7 +275,7 @@ func envForceVersion(pkg, version string) string {
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
-	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP} {
+	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP, procmgrUnit, procmgrUnitXP} {
 		s.Env().RemoteHost.Execute("sudo systemctl reset-failed " + service)
 	}
 

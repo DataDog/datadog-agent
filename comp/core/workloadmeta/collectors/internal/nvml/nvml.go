@@ -45,6 +45,7 @@ type collector struct {
 	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
+	gpuMonitoringEnabled               bool
 	lastCollectionTimestamp            time.Time
 }
 
@@ -52,6 +53,12 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 	// build the GPU device info using the pre-computed values
 	// from the device cache
 	devInfo := device.GetDeviceInfo()
+	nvlinkVersion := devInfo.NVLinkVersion
+	if devInfo.NVLinkLinkCount == 0 {
+		nvlinkVersion = "not_nvlink_capable"
+	} else if nvlinkVersion == "" {
+		nvlinkVersion = "unknown"
+	}
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindGPU,
@@ -68,9 +75,10 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 			Major: int(devInfo.SMVersion / 10),
 			Minor: int(devInfo.SMVersion % 10),
 		},
-		TotalCores:   devInfo.CoreCount,
-		TotalMemory:  devInfo.Memory,
-		Architecture: gpuutil.ArchToString(devInfo.Architecture),
+		TotalCores:    devInfo.CoreCount,
+		TotalMemory:   devInfo.Memory,
+		Architecture:  gpuutil.ArchToString(devInfo.Architecture),
+		NVLinkVersion: nvlinkVersion,
 	}
 
 	switch d := device.(type) {
@@ -108,7 +116,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
 		}
 	} else {
-		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
+		gpuDeviceInfo.VirtualizationMode = gpuutil.VirtualizationModeToString(virtMode)
 	}
 
 	memBusWidth, err := device.GetMemoryBusWidth()
@@ -127,6 +135,14 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		}
 	} else {
 		gpuDeviceInfo.PCIBusID = pciBusIDFromNVMLInfo(pciInfo)
+	}
+
+	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
+	if err == nil {
+		if clusterUUID, cliqueID, ok := fabricInfoToTags(fabricInfo); ok {
+			gpuDeviceInfo.FabricClusterUUID = clusterUUID
+			gpuDeviceInfo.FabricCliqueID = cliqueID
+		}
 	}
 
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
@@ -161,6 +177,20 @@ func pciBusIDFromNVMLInfo(pciInfo nvml.PciInfo) string {
 	// function. For NVIDIA GPUs, the GPU function is the .0 function; companion
 	// functions, when present, represent auxiliary devices such as audio.
 	return strings.ToLower(fmt.Sprintf("%04x:%02x:%02x.0", pciInfo.Domain, pciInfo.Bus, pciInfo.Device))
+}
+
+func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
+	return fmt.Sprintf("%x-%x-%x-%x-%x", clusterUUID[0:4], clusterUUID[4:6], clusterUUID[6:8], clusterUUID[8:10], clusterUUID[10:16])
+}
+
+func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
+	if fabricInfo.State != nvml.GPU_FABRIC_STATE_COMPLETED ||
+		nvml.Return(fabricInfo.Status) != nvml.SUCCESS ||
+		fabricInfo.ClusterUuid == [16]uint8{} {
+		return "", 0, false
+	}
+
+	return fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
@@ -210,10 +240,12 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		seenPIDsToGPUs:          make(map[int][]string),
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
+		gpuMonitoringEnabled:    true,
 	}
 
 	if config != nil {
 		collector.integrateWithWorkloadmetaProcesses = config.GetBool("gpu.integrate_with_workloadmeta_processes")
+		collector.gpuMonitoringEnabled = config.GetBool("gpu.enabled")
 	}
 
 	return collector
@@ -235,6 +267,10 @@ func GetFxOptions() fx.Option {
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.NVML) {
 		return dderrors.NewDisabled(componentName, "Agent does not have NVML library available")
+	}
+
+	if !c.gpuMonitoringEnabled {
+		return dderrors.NewDisabled(componentName, "GPU monitoring is disabled")
 	}
 
 	c.store = store
@@ -405,21 +441,4 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {
-	switch nvmlVirtMode {
-	case nvml.GPU_VIRTUALIZATION_MODE_NONE:
-		return "none"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU:
-		return "host_vgpu"
-	case nvml.GPU_VIRTUALIZATION_MODE_PASSTHROUGH:
-		return "passthrough"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VSGA:
-		return "host_vsga"
-	case nvml.GPU_VIRTUALIZATION_MODE_VGPU:
-		return "vgpu"
-	default:
-		return "unknown"
-	}
 }

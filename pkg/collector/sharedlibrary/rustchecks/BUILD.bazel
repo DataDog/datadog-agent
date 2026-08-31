@@ -4,18 +4,20 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 # Rust shared-library checks are Linux-only.
 _LINUX = ["@platforms//os:linux"]
 
-# Rust checks are disabled by default; add a check name -> cdylib target entry
-# here to ship it. Uncomment the datasecurity entry below to ship the check.
+# Map of check name -> cdylib target for each Rust check we ship. Add an entry
+# here to ship a new check.
 ENABLED_CHECKS = {
-    # "datasecurity": "//pkg/collector/sharedlibrary/rustchecks/checks/datasecurity:datasecurity",
+    "datasecurity": "//pkg/collector/sharedlibrary/rustchecks/checks/datasecurity:datasecurity",
 }
 
 # Stage every enabled cdylib into checks.d with the loader naming convention
-# (libdatadog-agent-<check_name>.so) and owner-only perms.
+# (libdatadog-agent-<check_name>.so). Root + root-group read/exec, no "other" —
+# group-readable so init containers can copy them on OpenShift, where
+# containers run with a random UID in the root group.
 pkg_files(
     name = "enabled_checks",
     srcs = ENABLED_CHECKS.values(),
-    attributes = pkg_attributes(mode = "0500"),
+    attributes = pkg_attributes(mode = "0550"),
     prefix = "checks.d",
     renames = {target: "libdatadog-agent-" + check_name + ".so" for check_name, target in ENABLED_CHECKS.items()},
     target_compatible_with = _LINUX,
@@ -23,7 +25,7 @@ pkg_files(
 )
 
 # `bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=<dir>`
-# stages every enabled check into <dir>/checks.d with owner-only (0500) perms.
+# stages every enabled check into <dir>/checks.d with root/root-group-only (0550) perms.
 pkg_install(
     name = "install",
     srcs = [":enabled_checks"],

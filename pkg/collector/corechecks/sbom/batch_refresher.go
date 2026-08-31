@@ -41,7 +41,9 @@ func (br *batchRefresher) tick() <-chan time.Time {
 
 // step performs a single refresh step
 func (br *batchRefresher) step() {
+	running := runningImages(br.wmStore)
+
 	for _, img := range br.wmStore.ListImages() {
-		br.proc.processImageSBOM(img)
+		br.proc.processImageSBOM(img, running)
 	}
 }

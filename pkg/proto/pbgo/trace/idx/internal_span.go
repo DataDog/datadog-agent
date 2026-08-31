@@ -92,6 +92,16 @@ func (s *StringTable) Add(str string) uint32 {
 	return s.addUnchecked(str)
 }
 
+// AddBytes is Add for a byte slice. It avoids materializing a string when the value
+// is already interned, which is the common case when decoding a payload. On a miss
+// the string is copied, so the table never aliases the caller's buffer.
+func (s *StringTable) AddBytes(b []byte) uint32 {
+	if idx, ok := s.lookup[string(b)]; ok {
+		return idx
+	}
+	return s.addUnchecked(string(b))
+}
+
 // Get returns the string at the given index - panics if out of bounds
 func (s *StringTable) Get(idx uint32) string {
 	return s.strings[idx]

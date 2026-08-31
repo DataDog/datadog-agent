@@ -226,6 +226,7 @@ type SetDefinition struct {
 	Value                   interface{}            `yaml:"value,omitempty" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
 	DefaultValue            interface{}            `yaml:"default_value,omitempty" json:"default_value,omitempty" jsonschema:"oneof_type=string;integer;boolean;array"`
 	Field                   string                 `yaml:"field,omitempty" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
+	Capture                 string                 `yaml:"capture,omitempty" json:"capture,omitempty" jsonschema:"description=A regular expression with a single capture group applied to 'field' to extract the value to store"`
 	Expression              string                 `yaml:"expression,omitempty" json:"expression,omitempty" jsonschema:"oneof_required=SetWithExpression"`
 	Append                  bool                   `yaml:"append,omitempty" json:"append,omitempty"`
 	Scope                   Scope                  `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
@@ -257,6 +258,13 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 
 	if s.Expression != "" && s.DefaultValue == nil && s.Value == nil {
 		return fmt.Errorf("failed to infer type for variable '%s', please set 'default_value'", s.Name)
+	}
+
+	// 'capture' extracts a substring out of the value of 'field', so it is meaningless
+	// without it. Combined with the check above, this also makes 'capture' mutually
+	// exclusive with 'value' and 'expression'.
+	if s.Capture != "" && s.Field == "" {
+		return errors.New("'capture' can only be used along with 'field'")
 	}
 
 	if s.Inherited && s.Scope != ScopeProcess {
@@ -391,7 +399,10 @@ func (n *NetworkFilterDefinition) PreCheck(opts PolicyLoaderOpts) error {
 	}
 
 	// default scope to process
-	if n.Scope != "" && n.Scope != "process" && n.Scope != "cgroup" {
+	if n.Scope == "" {
+		n.Scope = "process"
+	}
+	if n.Scope != "process" && n.Scope != "cgroup" {
 		return fmt.Errorf("invalid scope '%s'", n.Scope)
 	}
 

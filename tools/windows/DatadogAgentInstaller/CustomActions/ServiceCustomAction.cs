@@ -164,11 +164,15 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        private void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
+        internal void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
             var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
-            if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
+            // No password to give the services. Only reachable for domain accounts: local accounts
+            // always get a generated password, and IsServiceAccount covers gMSA and the well known
+            // accounts.
+            var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
+            if (passwordNotProvided)
             {
                 _session.Log("Password not provided, will not change service user password");
                 // set to null so we don't modify the service config
@@ -214,6 +218,10 @@ namespace Datadog.CustomActions
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, ddAgentUserName, ddAgentUserPassword);
+            // When procmgr moves back to LocalSystem, replace this with an unconditional enable rather
+            // than deleting it. passwordNotProvided describes the Agent user, and a disabled start type
+            // survives an upgrade, so hosts disabled here would otherwise stay disabled forever.
+            ConfigureProcmgrStartType(passwordNotProvided);
 
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
@@ -222,6 +230,41 @@ namespace Datadog.CustomActions
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
             _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+        }
+
+        /// <summary>
+        /// dd-procmgr-service runs as ddagentuser and is a new service. If we do not have the password
+        /// and it is not in the LSA store, the service cannot log on, and the SCM retries the failing
+        /// logon until the account is locked out. Disable the service in that case so that it is never
+        /// started, and set it back to demand start once a password is available again.
+        /// </summary>
+        private void ConfigureProcmgrStartType(bool passwordNotProvided)
+        {
+            ServiceStartMode startType;
+            if (passwordNotProvided)
+            {
+                startType = ServiceStartMode.Disabled;
+                _session.Log(
+                    $"The Agent user password is not available, setting {Constants.ProcmgrServiceName} start type to " +
+                    "disabled so that it does not repeatedly fail to log on, which can lock out the account. " +
+                    "Reinstall the Agent with the DDAGENTUSER_NAME and DDAGENTUSER_PASSWORD options provided " +
+                    "to enable the Datadog Process Manager service.");
+            }
+            else
+            {
+                startType = ServiceStartMode.Manual;
+                _session.Log($"Setting {Constants.ProcmgrServiceName} start type to {startType}");
+            }
+
+            try
+            {
+                _serviceController.SetStartType(Constants.ProcmgrServiceName, startType);
+            }
+            catch (Exception e) when (IsServiceDoesNotExistError(e))
+            {
+                // If the service does not exist there is nothing that can fail to log on.
+                _session.Log($"Service {Constants.ProcmgrServiceName} not found, not changing its start type");
+            }
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)

@@ -64,6 +64,7 @@ import (
 	resourcesfx "github.com/DataDog/datadog-agent/comp/metadata/resources/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -232,8 +233,8 @@ func makeFlare(flareComp flare.Component,
 	fmt.Fprintln(color.Output, color.BlueString("See https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agentv6v7#send-a-flare-from-the-datadog-site for more info."))
 
 	warnings := config.Warnings()
-	if warnings != nil && warnings.Errors != nil {
-		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Errors))
+	if len(warnings) != 0 {
+		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings))
 	}
 	caseID := ""
 	if len(cliParams.args) > 0 {
@@ -327,7 +328,7 @@ func makeFlare(flareComp flare.Component,
 
 func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
 		return "", err

@@ -85,6 +85,7 @@ type EBPFResolver struct {
 	pidCacheMap         ebpf.Map
 	pathIDMap           ebpf.Map
 	kernelThreadPidsMap ebpf.Map
+	goLabelsMap         ebpf.Map
 	opts                ResolverOpts
 
 	// stats
@@ -309,7 +310,6 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(*model.ProcessCacheEntry, error)) error {
 	p.ApplyBootTime(event.ProcessCacheEntry)
-	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	if event.ProcessCacheEntry.Pid == 0 {
 		return errors.New("no pid")
@@ -328,14 +328,6 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGro
 func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGroupContext) error {
 	p.Lock()
 	defer p.Unlock()
-
-	// Mirror AddForkEntry: if fill_span_context captured a span at
-	// prepare_binprm (e.g. the parent had a legacy or Go tracer active when
-	// it execve'd), persist it on the new PCE so the process serializer can
-	// surface it as process.span_context. This is a no-op for the fork+exec
-	// case where the child's tgid has no correlation entry — event.SpanContext
-	// is zero there and ancestor lineage still carries the parent's span.
-	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	var err error
 	if err := p.resolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
@@ -466,7 +458,10 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// fetch login_uid
 	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+		}
+		entry.Credentials.AUID = sharedconsts.AuditUIDUnset
 	}
 
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(uint32(proc.Pid))
@@ -1196,6 +1191,8 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 }
 
 // AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry.
+// If the metadata is successfully parsed, the tracer is a Go runtime, and span tracking is
+// enabled, it also resolves the pprof label offsets and populates the go_labels_procs BPF map.
 func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	fd := event.TracerMemfdSeal.Fd
 	fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", strconv.Itoa(int(fd)))
@@ -1211,8 +1208,8 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 
 // SnapshotTracer detects whether a pre-existing process (one that started
 // before the agent) is running a Datadog tracer and, if so, populates the
-// user-space tracer metadata the same way the runtime tracer_memfd_seal
-// event handler does.
+// user-space tracer metadata and the kernel-side go_labels_procs offset map
+// the same way the runtime tracer_memfd_seal event handler does.
 //
 // Called from the startup snapshot for every pid; processes without a tracer
 // memfd return cheaply via the GetTracerMetadata error path.
@@ -1236,13 +1233,23 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 	p.applyTracerMetadata(pid, tmeta)
 }
 
-// applyTracerMetadata stores tracer metadata on the process cache entry.
+// applyTracerMetadata stores tracer metadata on the process cache entry and, for Go
+// processes when span tracking is enabled, resolves the pprof label offsets for
+// goroutine-level span context. Must be called WITHOUT the resolver lock held; ELF I/O
+// happens outside the lock.
 func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
 		entry.Tracer.Metadata = tmeta
 	}
 	p.Unlock()
+
+	if p.config.SpanTrackingEnabled && tmeta.TracerLanguage == "go" {
+		// Go: resolve pprof label offsets for goroutine-level span context.
+		if err := p.resolveGoLabels(pid); err != nil {
+			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
+		}
+	}
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
@@ -1309,6 +1316,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	}
 
 	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
+		return err
+	}
+
+	if p.goLabelsMap, err = managerhelper.Map(p.manager, "go_labels_procs"); err != nil {
 		return err
 	}
 
@@ -1602,12 +1613,31 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 
 // UpdateProcessContexts updates the cgroup context and container ID of the process matching the provided PID
 func (p *EBPFResolver) UpdateProcessContexts(pce *model.ProcessCacheEntry, cgroupContext model.CGroupContext, containerContext model.ContainerContext) {
+	p.Lock()
+	defer p.Unlock()
+
 	if !cgroupContext.IsNull() {
 		pce.Process.CGroup = cgroupContext
 	}
 	if !containerContext.IsNull() {
 		pce.Process.ContainerContext = containerContext
 	}
+}
+
+// UpdateSID updates the SID of the given process cache entry
+func (p *EBPFResolver) UpdateSID(pce *model.ProcessCacheEntry, sid uint32) {
+	p.RLock()
+	currSID := pce.SID
+	p.RUnlock()
+
+	if currSID == sid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	pce.SID = sid
 }
 
 const (

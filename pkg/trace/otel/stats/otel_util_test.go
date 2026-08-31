@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -30,6 +31,7 @@ var (
 	testTraceID = [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	testSpanID1 = [8]byte{1, 2, 3, 4, 5, 6, 7, 8}
 	testSpanID2 = [8]byte{2, 2, 3, 4, 5, 6, 7, 8}
+	testSpanID3 = [8]byte{3, 2, 3, 4, 5, 6, 7, 8}
 )
 
 func TestProcessOTLPTraces(t *testing.T) {
@@ -439,9 +441,9 @@ func TestProcessOTLPTraces(t *testing.T) {
 			var inputs []corestats.Input
 			if tt.enableObfuscation {
 				obfuscator = newTestObfuscator(conf)
-				inputs = OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags(), obfuscator)
+				inputs = OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags(), nil, obfuscator)
 			} else {
-				inputs = OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags())
+				inputs = OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags(), nil)
 			}
 			for _, input := range inputs {
 				concentrator.Add(input)
@@ -458,6 +460,83 @@ func TestProcessOTLPTraces(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHasClientComputedStats(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		set  func(pcommon.Map)
+		want bool
+	}{
+		{name: "absent", set: func(pcommon.Map) {}, want: false},
+		{name: "bool_true", set: func(attrs pcommon.Map) { attrs.PutBool(keyStatsComputed, true) }, want: true},
+		{name: "bool_false", set: func(attrs pcommon.Map) { attrs.PutBool(keyStatsComputed, false) }, want: false},
+		{name: "string_true", set: func(attrs pcommon.Map) { attrs.PutStr(keyStatsComputed, "true") }, want: true},
+		{name: "string_false", set: func(attrs pcommon.Map) { attrs.PutStr(keyStatsComputed, "false") }, want: false},
+		{name: "nonempty", set: func(attrs pcommon.Map) { attrs.PutStr(keyStatsComputed, "1") }, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			tc.set(attrs)
+			assert.Equal(t, tc.want, hasClientComputedStats(attrs))
+		})
+	}
+}
+
+func TestOTLPTracesToConcentratorInputsSkipsClientComputedResource(t *testing.T) {
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	assert.NoError(t, err)
+
+	traces := ptrace.NewTraces()
+	rspan := traces.ResourceSpans().AppendEmpty()
+	rspan.Resource().Attributes().PutBool(keyStatsComputed, true)
+	span := rspan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(testTraceID)
+	span.SetSpanID(testSpanID1)
+	span.SetName("client request")
+	span.SetKind(ptrace.SpanKindClient)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-time.Second)))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+
+	conf := config.New()
+	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	assert.Empty(t, OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil))
+}
+
+func newTestClientSpan(spanID pcommon.SpanID, markComputed bool) ptrace.Span {
+	span := ptrace.NewSpan()
+	span.SetTraceID(testTraceID)
+	span.SetSpanID(spanID)
+	span.SetName("client request")
+	span.SetKind(ptrace.SpanKindClient)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-time.Second)))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	if markComputed {
+		span.Attributes().PutBool(keyStatsComputed, true)
+	}
+	return span
+}
+
+func TestOTLPTracesToConcentratorInputsSkipsResourceWhenSpanIsClientComputed(t *testing.T) {
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	require.NoError(t, err)
+
+	traces := ptrace.NewTraces()
+	computedResourceSpans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	newTestClientSpan(testSpanID1, false).CopyTo(computedResourceSpans.AppendEmpty())
+	newTestClientSpan(testSpanID2, true).CopyTo(computedResourceSpans.AppendEmpty())
+	uncomputedResourceSpans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	newTestClientSpan(testSpanID3, false).CopyTo(uncomputedResourceSpans.AppendEmpty())
+
+	conf := config.New()
+	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
+	require.Len(t, inputs, 1)
+	assert.Len(t, inputs[0].Traces[0].TraceChunk.Spans, 1)
 }
 
 func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
@@ -505,7 +584,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 
 	concentrator := newTestConcentratorWithCfg(time.Now(), conf)
-	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
 	for _, input := range inputs {
 		concentrator.Add(input)
 	}
@@ -540,6 +619,107 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 		protocmp.IgnoreFields(&pb.ClientGroupedStats{}, "duration", "okSummary", "errorSummary")); diff != "" {
 		t.Errorf("Diff between APM stats -want +got:\n%v", diff)
 	}
+}
+
+// TestProcessOTLPTraces_SpanDerivedPrimaryTags verifies the end-to-end DDOT path
+// for span-derived primary tags: keys configured on the AgentConfig are copied
+// into span Meta by OTLPTracesToConcentratorInputs and aggregated by the
+// Concentrator into ClientGroupedStats.AdditionalMetricTags, with distinct tag
+// values producing distinct stats buckets.
+func TestProcessOTLPTraces_SpanDerivedPrimaryTags(t *testing.T) {
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	assert.NoError(t, err)
+
+	agentEnv := "agent_env"
+	agentHost := "agent_host"
+
+	newConf := func() *config.AgentConfig {
+		conf := config.New()
+		conf.Hostname = agentHost
+		conf.DefaultEnv = agentEnv
+		conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+		conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+		// Configure "team" as a span-derived primary tag key.
+		conf.SpanDerivedPrimaryTagKeys = []string{"team"}
+		return conf
+	}
+
+	newTraces := func(team string) ptrace.Traces {
+		start := time.Now().Add(-1 * time.Second)
+		end := time.Now()
+		traces := ptrace.NewTraces()
+		rspan := traces.ResourceSpans().AppendEmpty()
+		res := rspan.Resource()
+		res.Attributes().PutStr("service.name", "svc")
+		res.Attributes().PutStr(string(semconv.DeploymentEnvironmentKey), "tracer-env")
+		res.Attributes().PutStr("datadog.host.name", "dd-host")
+
+		span := rspan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(testTraceID)
+		span.SetSpanID(testSpanID1)
+		span.SetName("span")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+		span.SetKind(ptrace.SpanKindClient)
+		span.Attributes().PutStr(string(semconv.HTTPMethodKey), "GET")
+		span.Attributes().PutStr(string(semconv.HTTPRouteKey), "/home")
+		if team != "" {
+			span.Attributes().PutStr("team", team)
+		}
+		return traces
+	}
+
+	flushStats := func(conf *config.AgentConfig, traces ptrace.Traces) *pb.StatsPayload {
+		concentrator := newTestConcentratorWithCfg(time.Now(), conf)
+		inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, conf.ConfiguredSpanDerivedPrimaryTagKeys())
+		for _, input := range inputs {
+			concentrator.Add(input)
+		}
+		return concentrator.Flush(true)
+	}
+
+	t.Run("tag value is aggregated into AdditionalMetricTags", func(t *testing.T) {
+		stats := flushStats(newConf(), newTraces("checkout"))
+		require.Len(t, stats.Stats, 1)
+		require.Len(t, stats.Stats[0].Stats, 1)
+		require.Len(t, stats.Stats[0].Stats[0].Stats, 1)
+		assert.Equal(t, []string{"team:checkout"}, stats.Stats[0].Stats[0].Stats[0].AdditionalMetricTags)
+	})
+
+	t.Run("distinct tag values produce distinct buckets", func(t *testing.T) {
+		conf := newConf()
+		concentrator := newTestConcentratorWithCfg(time.Now(), conf)
+		for _, team := range []string{"checkout", "payments"} {
+			inputs := OTLPTracesToConcentratorInputs(newTraces(team), conf, nil, nil, conf.ConfiguredSpanDerivedPrimaryTagKeys())
+			for _, input := range inputs {
+				concentrator.Add(input)
+			}
+		}
+		stats := concentrator.Flush(true)
+		require.Len(t, stats.Stats, 1)
+		require.Len(t, stats.Stats[0].Stats, 1)
+		var got []string
+		for _, gs := range stats.Stats[0].Stats[0].Stats {
+			require.Len(t, gs.AdditionalMetricTags, 1)
+			got = append(got, gs.AdditionalMetricTags[0])
+		}
+		assert.ElementsMatch(t, []string{"team:checkout", "team:payments"}, got)
+	})
+
+	t.Run("no configured keys yields no AdditionalMetricTags", func(t *testing.T) {
+		conf := config.New()
+		conf.Hostname = agentHost
+		conf.DefaultEnv = agentEnv
+		conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+		conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+		stats := flushStats(conf, newTraces("checkout"))
+		require.Len(t, stats.Stats, 1)
+		require.Len(t, stats.Stats[0].Stats, 1)
+		require.Len(t, stats.Stats[0].Stats[0].Stats, 1)
+		assert.Empty(t, stats.Stats[0].Stats[0].Stats[0].AdditionalMetricTags)
+	})
 }
 
 func createStatsPayload(
@@ -740,7 +920,7 @@ func TestProcessOTLPTraces_HTTPRequestMethodAndEnvName(t *testing.T) {
 			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 			concentrator := newTestConcentratorWithCfg(time.Now(), conf)
-			inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
+			inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
 			for _, input := range inputs {
 				concentrator.Add(input)
 			}
@@ -841,7 +1021,7 @@ func TestProcessOTLPTraces_SemconvVersionMixing(t *testing.T) {
 			}
 
 			concentrator := newTestConcentratorWithCfg(time.Now(), conf)
-			inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
+			inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
 			for _, input := range inputs {
 				concentrator.Add(input)
 			}

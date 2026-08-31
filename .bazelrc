@@ -14,6 +14,8 @@ startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of ina
 
 # Common options -------------------------------------------------------------------------------------------------------
 common --@rules_python//python/config_settings:bootstrap_impl=script # https://github.com/bazel-contrib/rules_python/blob/main/BZLMOD_SUPPORT.md
+#TODO(regis): uncomment once https://github.com/bazel-contrib/rules_python/pull/4079 is released:
+#common --@rules_python//python/config_settings:validate_test_main=enabled # Reject a py_test whose main never runs tests
 common --check_direct_dependencies=error # Escalate any bypassed `bazel_dep` to a resolution failure
 common --credential_helper_cache_duration=55m # Refresh a little earlier than the Vault OIDC token TTL (1h)
 common --credential_helper_timeout=2m # Interactive Vault login might involve a browser and exceed the 10s default
@@ -23,7 +25,6 @@ common --experimental_proto_descriptor_sets_include_source_info # Preserve comme
 common --experimental_strict_repo_env # Do not leak uncontrolled environment variables into repository rules
 common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
-common --incompatible_default_to_explicit_init_py # https://github.com/bazel-contrib/rules_python/issues/2945
 common --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
 common --nobuild_event_json_file_path_conversion # don't fail the build on a transient BEP-upload error (no such host)
 common --remote_instance_name=ci/datadog-agent # entries missing from datadog-agent will be searched in remote-caching
@@ -39,6 +40,7 @@ common --repo_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/ru
 common --repo_env=PACKAGE_VERSION # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=REPIN=1 # Reduce MODULE.bazel.lock churn when --lockfile_mode=[update|refresh] trigger
 common --repo_env=SIGN_MAC # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=BAZEL_TOOLCHAINS_MSVC_ACCEPT_MICROSOFT_VISUAL_STUDIO_BUILDTOOLS_EULA=1 # common so bazel mod tidy resolves the MSVC extension on every host
 common --repo_env=XDG_CACHE_HOME # https://wiki.archlinux.org/title/XDG_Base_Directory
 # Variables to override release.json values
 common --repo_env=INTEGRATIONS_CORE_VERSION
@@ -80,7 +82,6 @@ common:windows --repo_env=PIP_CACHE_DIR # https://pip.pypa.io/en/stable/topics/c
 common:windows --repo_env=SYSTEMDRIVE # needed by vswhere to locate the VS installer instance database
 common:windows --repo_env=SYSTEMROOT # used by COM to load system DLLs, needed by vswhere
 common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, needed by git to fetch repositories
-common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
 common:windows --run_env=__COMPAT_LAYER=RunAsInvoker # install*.exe may otherwise fail claiming unneeded admin elevation
 common:windows --test_env=__COMPAT_LAYER=RunAsInvoker # same, for bazel test
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
@@ -98,14 +99,20 @@ common:cache:frontend --remote_cache=grpcs://buildbarn-frontend-datadog-agent.us
 common:cache --config=cache:frontend
 common:cache --noremote_upload_local_results
 
+# Explicit local-only config: disable the remote cache while keeping the
+# wrapper-injected --disk_cache. Use `--config=no-remote-cache` (or
+# DD_BAZEL_REMOTE_CACHE=off) to opt out of tools/bazel auto-selection.
+common:no-remote-cache --remote_cache=
+
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=adms
 common:ci --config=lint
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 common:ci --remote_download_regex=.*/test\.xml$ # force-download test.xml even under --remote_download_outputs=toplevel, so junit collection can read it locally
+common:ci --remote_download_regex=.*/test\.log$ # force-download test.log for test2json postprocessing
 
 # Project/Language configs --------------------------------------------------------------------------------------
-import %workspace%/bazel/configs/flavors.bazelrc
+import %workspace%/bazel/configs/go_tests.bazelrc
 import %workspace%/bazel/configs/rust.bazelrc
 
 # Global release config ------------------------------------------------------------------------------------------------

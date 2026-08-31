@@ -155,6 +155,14 @@ const (
 	GPUParentGPUUUID = "gpu_parent_uuid"
 	// GPUPCIBusID is the tag for the PCI bus ID of the GPU
 	GPUPCIBusID = "gpu_pci_bus_id"
+	// GPUFabricClusterUUID is the tag for the NVLink fabric cluster UUID of the GPU
+	GPUFabricClusterUUID = "gpu_fabric_cluster_uuid"
+	// GPUFabricCliqueID is the tag for the NVLink fabric clique ID of the GPU
+	GPUFabricCliqueID = "gpu_fabric_clique_id"
+	// GPUNVLinkVersion is the tag for the GPU's NVLink version.
+	GPUNVLinkVersion = "gpu_nvlink_version"
+	// GPUNVLinkCapable is the tag indicating whether the GPU has one or more NVLink links.
+	GPUNVLinkCapable = "gpu_nvlink_capable"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"

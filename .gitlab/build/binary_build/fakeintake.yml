@@ -23,5 +23,7 @@ fakeintake_check_version_bump:
   needs: []
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
+  variables:
+    GIT_DEPTH: 0  # Full history: fakeintake.check-version-bump uses merge-base
   script:
     - dda inv -- fakeintake.check-version-bump

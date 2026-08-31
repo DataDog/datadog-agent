@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "os",
-    srcs = ["process_linux.go"],
+    srcs = [
+        "process_linux.go",
+        "process_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/os",
     visibility = ["//visibility:public"],
     deps = select({
@@ -12,6 +15,9 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/kernel",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_shirou_gopsutil_v4//process",
         ],
         "//conditions:default": [],
     }),

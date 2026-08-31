@@ -30,14 +30,15 @@ func TestWindowsRemoteConfigSuite(t *testing.T) {
 					hostname:         "api.datadoghq.eu",
 					protocol:         "TCP",
 					port:             443,
-					configSubstrings: []string{"hostname: api.datadoghq.eu", "protocol: TCP", "port: 443", "test_config_id: aaa-bbb-ccc"},
+					configSubstrings: []string{"hostname: api.datadoghq.eu", "protocol: TCP", "port: 443", "test_config_id: aaa-bbb-ccc", "test_config_name: E2E network paths"},
+					tags:             []string{"team:netpath", "env:e2e", "service:api"},
 				},
 			},
 		},
 	}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithRunOptions(
 			scenec2.WithAgentOptions(remoteConfigAgentOptions()...),
-			scenec2.WithEC2InstanceOptions(scenec2.WithOS(os.WindowsServerDefault)),
+			scenec2.WithEC2InstanceOptions(scenec2.WithOS(os.WindowsServerDefault), scenec2.WithInternetAccess()),
 		),
 	)))
 }

@@ -272,7 +272,7 @@ func TestParseRemoteDynamicConfigLeavesNonDynamicOwnershipToScheduledListener(t 
 }
 
 func TestParseRemoteDynamicConfigTranslatesFilters(t *testing.T) {
-	filters, documentType, err := parseRemoteDynamicConfig(dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com","match_domain_strategy":"regex","match_ip":"10.0.0.1"}]`))
+	filters, documentType, err := parseRemoteDynamicConfig([]byte(`{"type":"dynamic","test_config_id":"dynamic-a","test_config_name":"Production paths","tags":["team:payments","env:prod"],"config":{"filters":[{"type":"include","match_domain":"api.example.com","match_domain_strategy":"regex","match_ip":"10.0.0.1"}]}}`))
 	require.NoError(t, err)
 	assert.Equal(t, remoteConfigDocumentDynamic, documentType)
 	require.Len(t, filters, 1)
@@ -282,7 +282,17 @@ func TestParseRemoteDynamicConfigTranslatesFilters(t *testing.T) {
 		MatchDomainStrategy: connfilter.MatchDomainStrategyRegex,
 		MatchIP:             "10.0.0.1",
 		TestConfigID:        "dynamic-a",
+		TestConfigName:      "Production paths",
+		Tags:                []string{"team:payments", "env:prod"},
 	}, filters[0])
+}
+
+func TestParseRemoteDynamicConfigAcceptsLegacyConfigWithoutTestConfigName(t *testing.T) {
+	filters, documentType, err := parseRemoteDynamicConfig(dynamicConfig("dynamic", `[{"type":"include","match_domain":"api.example.com"}]`))
+	require.NoError(t, err)
+	assert.Equal(t, remoteConfigDocumentDynamic, documentType)
+	require.Len(t, filters, 1)
+	assert.Empty(t, filters[0].TestConfigName)
 }
 
 func TestParseRemoteDynamicConfigFilterLimit(t *testing.T) {

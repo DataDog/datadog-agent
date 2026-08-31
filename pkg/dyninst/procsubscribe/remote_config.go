@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package procsubscribe hosts ProcessSubscriber implementations that source
 // configuration from Remote Config.
@@ -12,9 +12,9 @@ package procsubscribe
 import (
 	"context"
 	"encoding/json"
-	"math/rand/v2"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -34,38 +34,42 @@ const (
 	rcInitialReconnectDelay = 200 * time.Millisecond
 	rcMaxReconnectDelay     = 30 * time.Second
 
-	defaultScanInterval = 3 * time.Second
-)
+	// defaultScanInterval is the delay between the end of one process scan and
+	// the start of the next. It is also the delay before the first retry of a
+	// process whose tracer metadata could not be read, so that retry lands on
+	// the next scan.
+	//
+	// Every process on the host costs a stat read on every scan, which is
+	// around 1% of a core at two thousand processes if we scan every three
+	// seconds. Five buys most of that back for two extra seconds of discovery
+	// latency.
+	defaultScanInterval = 5 * time.Second
 
-// defaultProcessDelays defines the default delays for process discovery.
-//
-// The 3s delay will capture most processes relatively quickly, but should
-// avoid scanning short-lived processes.
-//
-// The 100s delay will catch processes that start their tracer after 100s which
-// will catch processes that start their tracer after 1 minute.
-//
-// The 1000s will catch extreme outliers that start their tracer really quite
-// late.
-var defaultProcessDelays = []time.Duration{
-	3 * time.Second,
-	100 * time.Second,  // a bit more than 1 minute
-	1000 * time.Second, // quite a while after the process started
-}
+	// minScanRestMultiple floors the delay after a scan at this multiple of how
+	// long that scan took, bounding the loop at roughly one twentieth of a core
+	// however slow a scan becomes. Nothing else bounds it: a scan reads every
+	// process' start time and searches the open descriptors of those due for a
+	// retry, and neither the number of processes on a host nor the number of
+	// descriptors any one of them holds is under the scanner's control.
+	//
+	// This is a safety valve, not a schedule. A scan at two thousand processes
+	// takes tens of milliseconds, so twenty times that is well inside
+	// defaultScanInterval and the delay is exactly that constant. The floor
+	// engages only once a scan is slow enough that resting the interval would
+	// cost more than the budget.
+	minScanRestMultiple = 20
+)
 
 type config struct {
 	scanInterval   time.Duration
-	processDelays  []time.Duration
 	processScanner processScanner
 	clk            clock.Clock
-	jitterFactor   float64
 	wait           func(ctx context.Context, duration time.Duration) error
 }
 
 var defaultConfig = config{
-	scanInterval:  defaultScanInterval,
-	processDelays: defaultProcessDelays,
-	clk:           clock.New(),
+	scanInterval: defaultScanInterval,
+	clk:          clock.New(),
 	wait: func(ctx context.Context, duration time.Duration) error {
 		select {
 		case <-ctx.Done():
@@ -101,14 +105,21 @@ type Subscriber struct {
 	}
 
 	scanInterval time.Duration
-	jitterFactor float64
 	wait         func(ctx context.Context, duration time.Duration) error
+
+	stats scannerStats
 
 	start sync.Once
 	stop  sync.Once
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+}
+
+// scannerStats describes the cadence of the scan loop.
+type scannerStats struct {
+	scans              atomic.Uint64
+	scanDurationMillis atomic.Int64
 }
 
 // processScanner is an interface that allows for the discovery of processes.
@@ -120,6 +131,8 @@ type processScanner interface {
 		removed []procscan.ProcessID,
 		_ error,
 	)
+	// LiveProcesses returns the processes alive as of the last Scan.
+	LiveProcesses() []procscan.ProcessID
 }
 
 // Option configures a RemoteConfigProcessSubscriber.
@@ -143,14 +156,17 @@ func NewSubscriber(
 	}
 	scanner := cfg.processScanner
 	if scanner == nil {
-		scanner = procscan.NewScanner(kernel.ProcFSRoot(), cfg.processDelays...)
+		scanner = procscan.NewScanner(
+			kernel.ProcFSRoot(),
+			// The first retry lands on the next scan, and doubles from there.
+			cfg.scanInterval, procscan.DefaultRetryBackoffCap,
+		)
 	}
 	s := &Subscriber{
 		client:         client,
 		notifyRequests: make(chan struct{}, 1),
 		scanner:        scanner,
 		clk:            cfg.clk,
-		jitterFactor:   cfg.jitterFactor,
 		scanInterval:   cfg.scanInterval,
 		wait:           cfg.wait,
 	}
@@ -230,17 +246,18 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 		} else if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("process subscriber: onScanUpdate: no changes")
 		}
-		// Add a factor of 100 from how long the scan took to ensure that if
-		// scanning is slow, that we don't scan too frequently. This should
-		// mean we are never scanning for more than 1% of any core time.
-		//
-		// Generally speaking, scanning should be very fast relative to the
-		// interval, so we expect this factor to be small.
 		took := s.clk.Since(start)
-		interval := s.scanInterval
-		interval = interval + 100*took
-		jittered := jitter(interval, s.jitterFactor)
-		next = jittered
+		s.stats.scans.Add(1)
+		s.stats.scanDurationMillis.Store(took.Milliseconds())
+		next = max(s.scanInterval, minScanRestMultiple*took)
+	}
+}
+
+// Stats returns a snapshot of the process discovery counters.
+func (s *Subscriber) Stats() map[string]any {
+	return map[string]any{
+		"scans":                s.stats.scans.Load(),
+		"scan_duration_millis": s.stats.scanDurationMillis.Load(),
 	}
 }
 
@@ -450,11 +467,8 @@ func (s *Subscriber) GetReport() Report {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	liveProcs := map[int32]struct{}{}
-	if scanner, ok := s.scanner.(*procscan.Scanner); ok {
-		procs := scanner.LiveProcesses()
-		for _, proc := range procs {
-			liveProcs[int32(proc)] = struct{}{}
-		}
+	for _, proc := range s.scanner.LiveProcesses() {
+		liveProcs[int32(proc)] = struct{}{}
 	}
 
 	var ret Report
@@ -619,9 +633,4 @@ func nextReconnectDelay(current time.Duration) time.Duration {
 		return rcInitialReconnectDelay
 	}
 	return next
-}
-
-func jitter(duration time.Duration, fraction float64) time.Duration {
-	multiplier := 1 + ((rand.Float64()*2 - 1) * fraction)
-	return time.Duration(float64(duration) * multiplier)
 }

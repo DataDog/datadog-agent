@@ -10,8 +10,8 @@ package providers
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 // NewKubeEndpointSlicesFileConfigProvider returns a new KubeEndpointSlicesFileConfigProvider
-var NewKubeEndpointSlicesFileConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error)
+var NewKubeEndpointSlicesFileConfigProvider func(providerConfig *constants.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error)

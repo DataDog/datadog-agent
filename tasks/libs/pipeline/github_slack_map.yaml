@@ -81,8 +81,8 @@
     name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
   review:
-    name: '#fleet-remediation'
-    id: 'C08U2C0GCMV'
+    name: '#fleet-remediation-reviews'
+    id: 'C0BEJRSH57Z'
 '@datadog/agent-integrations':
   notification:
     name: '#agent-integrations'
@@ -216,13 +216,20 @@
   review:
     name: '#container-platform'
     id: 'C0702JHC7G8'
-'@datadog/core-authn':
+'@datadog/credential-management':
   notification:
-    name: '#aaa-authn'
-    id: 'C02S3STU39N'
+    name: '#dal-ops'
+    id: 'C0AQHTYTVAA'
   review:
-    name: '#aaa-authn'
-    id: 'C02S3STU39N'
+    name: '#workload-identity-federation'
+    id: 'C08GB70HTV4'
+'@datadog/delegated-auth-login':
+  notification:
+    name: '#dal-ops'
+    id: 'C0AQHTYTVAA'
+  review:
+    name: '#workload-identity-federation'
+    id: 'C08GB70HTV4'
 '@datadog/data-observability':
   notification:
     name: '#data-observability-ops'
@@ -288,15 +295,15 @@
     id: 'C09FX078WH2'
 '@datadog/fleet':
   notification:
-    name: '#fleet-automation-monitoring'
-    id: 'C06TZ0APY6Q'
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
 '@datadog/fleet-automation':
   notification:
-    name: '#fleet-automation-monitoring'
-    id: 'C06TZ0APY6Q'
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
@@ -386,11 +393,11 @@
     id: 'C027P1CK07N'
 '@datadog/sensitive-data-scanner':
   notification:
-    name: '#sensitive-data-scanner'
-    id: 'C035A167T0S'
+    name: '#data-security-dev'
+    id: 'C0B1T21VBM1'
   review:
-    name: '#sensitive-data-scanner'
-    id: 'C035A167T0S'
+    name: '#data-security-dev'
+    id: 'C0B1T21VBM1'
 '@datadog/serverless':
   notification:
     name: '#serverless-agent'
@@ -398,7 +405,7 @@
   review:
     name: '#serverless-agent'
     id: 'C017ES2MY05'
-'@datadog/serverless-azure-gcp':
+'@datadog/serverless-azure-and-gcp':
   notification:
     name: '#serverless-azure-gcp-team'
     id: 'C06P8R33PD3'
@@ -435,11 +442,18 @@
     id: 'C01R6Q0HQDD'
 '@datadog/q-branch':
   notification:
-    name: '#agent-q-branch'
-    id: 'C09UDTU0H18'
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
   review:
-    name: '#agent-q-branch'
-    id: 'C09UDTU0H18'
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
+'@datadog/agent-anomaly-detection':
+  notification:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
+  review:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
 '@datadog/windows-products':
   notification:
     name: '#windows-products-ops'

@@ -235,6 +235,82 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 	return statsByPID, nil
 }
 
+// ProcessFromPID returns process info for the provided PID
+func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
+	return p.processFromPID(pid, false, time.Now())
+}
+
+func (p *probe) processFromPID(pid int32, collectStats bool, now time.Time) (*Process, error) {
+	pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
+	if !filesystem.FileExists(pathForPID) {
+		log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
+		return nil, nil
+	}
+
+	cmdline := p.getCmdline(pathForPID)
+	comm := p.getCommandName(pathForPID)
+	statusInfo := p.parseStatus(pathForPID)
+	statInfo := p.parseStat(pathForPID, pid, now)
+
+	if len(cmdline) == 0 {
+		if isKernelThread(statInfo.flags) {
+			log.Tracef("Skipping kernel process pid:%d", pid)
+			// NOTE: The agent's process check currently skips all processes that are kernel threads which have
+			//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
+			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
+			return nil, nil
+		} else if p.ignoreZombieProcesses {
+			return nil, nil
+		}
+		log.Debugf("process with empty cmdline not skipped pid:%d", pid)
+	}
+
+	// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
+	// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
+	// createTime to make a bytekey
+	var memInfoEx *MemoryInfoExStat
+	if collectStats {
+		memInfoEx = p.parseStatm(pathForPID)
+	} else {
+		memInfoEx = &MemoryInfoExStat{}
+	}
+
+	proc := &Process{
+		Pid:     pid,                                       // /proc/[pid]
+		Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
+		Cmdline: cmdline,                                   // /proc/[pid]/cmdline
+		Comm:    comm,                                      // /proc/[pid]/comm
+		Name:    string(statusInfo.name),                   // /proc/[pid]/status
+		Uids:    statusInfo.uids,                           // /proc/[pid]/status
+		Gids:    statusInfo.gids,                           // /proc/[pid]/status
+		Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/[pid]/cwd, requires permission checks
+		Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
+		NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
+		Stats: &Stats{
+			CreateTime:  statInfo.createTime,       // /proc/[pid]/stat
+			Status:      string(statusInfo.status), // /proc/[pid]/status
+			Nice:        statInfo.nice,             // /proc/[pid]/stat
+			CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
+			MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
+			MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
+			CtxSwitches: statusInfo.ctxSwitches,    // /proc/[pid]/status
+			NumThreads:  statusInfo.numThreads,     // /proc/[pid]/status
+		},
+	}
+	if p.elevatedPermissions {
+		proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+		proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
+	} else {
+		proc.Stats.IOStat = &IOCountersStat{
+			ReadCount:  -1,
+			WriteCount: -1,
+			ReadBytes:  -1,
+			WriteBytes: -1,
+		} // use -1 values to represent "no permission"
+	}
+	return proc, nil
+}
+
 // ProcessesByPID returns a map of process info indexed by PID
 func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
@@ -244,72 +320,9 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 
 	procsByPID := make(map[int32]*Process, len(pids))
 	for _, pid := range pids {
-		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !filesystem.FileExists(pathForPID) {
-			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
+		proc, err := p.processFromPID(pid, collectStats, now)
+		if proc == nil || err != nil {
 			continue
-		}
-
-		cmdline := p.getCmdline(pathForPID)
-		comm := p.getCommandName(pathForPID)
-		statusInfo := p.parseStatus(pathForPID)
-		statInfo := p.parseStat(pathForPID, pid, now)
-
-		if len(cmdline) == 0 {
-			if isKernelThread(statInfo.flags) {
-				log.Tracef("Skipping kernel process pid:%d", pid)
-				// NOTE: The agent's process check currently skips all processes that are kernel threads which have
-				//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
-				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-				continue
-			} else if p.ignoreZombieProcesses {
-				continue
-			}
-			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
-		}
-
-		// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
-		// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
-		// createTime to make a bytekey
-		var memInfoEx *MemoryInfoExStat
-		if collectStats {
-			memInfoEx = p.parseStatm(pathForPID)
-		} else {
-			memInfoEx = &MemoryInfoExStat{}
-		}
-
-		proc := &Process{
-			Pid:     pid,                                       // /proc/[pid]
-			Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
-			Cmdline: cmdline,                                   // /proc/[pid]/cmdline
-			Comm:    comm,                                      // /proc/[pid]/comm
-			Name:    string(statusInfo.name),                   // /proc/[pid]/status
-			Uids:    statusInfo.uids,                           // /proc/[pid]/status
-			Gids:    statusInfo.gids,                           // /proc/[pid]/status
-			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/[pid]/cwd, requires permission checks
-			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
-			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
-			Stats: &Stats{
-				CreateTime:  statInfo.createTime,       // /proc/[pid]/stat
-				Status:      string(statusInfo.status), // /proc/[pid]/status
-				Nice:        statInfo.nice,             // /proc/[pid]/stat
-				CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
-				MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
-				MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
-				CtxSwitches: statusInfo.ctxSwitches,    // /proc/[pid]/status
-				NumThreads:  statusInfo.numThreads,     // /proc/[pid]/status
-			},
-		}
-		if p.elevatedPermissions {
-			proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-			proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
-		} else {
-			proc.Stats.IOStat = &IOCountersStat{
-				ReadCount:  -1,
-				WriteCount: -1,
-				ReadBytes:  -1,
-				WriteBytes: -1,
-			} // use -1 values to represent "no permission"
 		}
 		procsByPID[pid] = proc
 	}

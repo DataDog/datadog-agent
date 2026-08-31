@@ -366,3 +366,11 @@ func WithInstallOnly(installOnly string) InstallAgentOption {
 		return nil
 	}
 }
+
+// WithLogLevel specifies the DD_LOG_LEVEL parameter.
+func WithLogLevel(logLevel string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.InstallAgentParams.LogLevel = logLevel
+		return nil
+	}
+}

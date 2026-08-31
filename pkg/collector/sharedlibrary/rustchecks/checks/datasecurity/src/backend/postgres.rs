@@ -5,7 +5,7 @@ use postgres::types::Type;
 use postgres::{Client, Config, NoTls, Row};
 use serde_json::{Map, Value};
 
-use crate::backend::ScanEngine;
+use crate::backend::{ScanData, ScanEngine, ScannedColumn};
 use crate::config::SubTask;
 
 pub struct PostgresEngine;
@@ -16,16 +16,24 @@ impl ScanEngine for PostgresEngine {
         "postgres"
     }
 
-    fn fetch_data(&self, sub_task: &SubTask) -> Result<Value> {
-        // TODO(dsec-161): prevent reinitializing the connection for each sub task;
-        // reuse a pooled/cached connection across sub tasks sharing the same target.
+    fn fetch_data(&self, sub_task: &SubTask) -> Result<ScanData> {
+        // WARNING: do not modify the `client.query` call nor share the connection
+        // unless you know what you are doing.
+        //
+        // We get a "free" security layer from two properties held together:
+        //   - a single connection per query, forced read-only via
+        //     `default_transaction_read_only=on` (a shared connection could have
+        //     that flipped off before a write query runs);
+        //   - a single statement via `query`, which rejects multi-statement input
+        //     and so blocks piggy-backed writes.
+        // Weakening either one removes the guarantee that scanning stays read-only.
         let mut client = connect(sub_task)?;
 
         let rows = client
             .query(sub_task.query.as_str(), &[])
             .context("running postgres query")?;
 
-        Ok(rows_to_columns(&rows))
+        Ok(rows_to_scan_data(&rows))
     }
 }
 
@@ -36,14 +44,6 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         bail!("postgres connection host is required");
     }
     let timeout = sub_task.timeout;
-    println!(
-        "datasecurity: connecting to postgres host={} port={} dbname={} user={} timeout={}s",
-        conn.host,
-        conn.port,
-        conn.dbname,
-        conn.username,
-        timeout.as_secs()
-    );
 
     let mut config = Config::new();
     config
@@ -53,7 +53,10 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         .password(&conn.password)
         .application_name(&conn.application_name)
         .connect_timeout(timeout)
-        .options(&format!("-c statement_timeout={}", timeout.as_millis()));
+        .options(&format!(
+            "-c statement_timeout={} -c default_transaction_read_only=on",
+            timeout.as_millis()
+        ));
     // A host starting with `/` is a Unix socket directory, otherwise a TCP host.
     if conn.host.starts_with('/') {
         config.host_path(&conn.host);
@@ -65,27 +68,39 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
     config.connect(NoTls).context("connecting to postgres")
 }
 
-/// Turns query rows into a column-oriented map, e.g.
-/// `{ "email": ["a@b.com", "c@d.com"], "name": ["alice", "bob"] }`.
-fn rows_to_columns(rows: &[Row]) -> Value {
+/// Turns query rows into the scanner input plus scan metadata. The values are a
+/// column-oriented map, e.g.
+/// `{ "email": ["a@b.com", "c@d.com"], "name": ["alice", "bob"] }`, and the
+/// metadata reports the scanned columns (name + Postgres type) and row count.
+fn rows_to_scan_data(rows: &[Row]) -> ScanData {
+    let scanned_row_count = rows.len() as i64;
+
+    // TODO(dsec-229): add column metadata when the query returns no rows.
     let Some(first) = rows.first() else {
-        return Value::Object(Map::new());
+        return ScanData::default();
     };
 
-    // Keep only supported columns (the scanner reads strings) and collect
-    // each one's values across all rows.
-    let columns: Map<String, Value> = first
-        .columns()
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| is_supported_type(c.type_()))
-        .map(|(i, c)| {
-            let values: Vec<Value> = rows.iter().map(|row| cell_to_value(row, i)).collect();
-            (c.name().to_string(), Value::Array(values))
-        })
-        .collect();
+    // Keep only supported columns (the scanner reads strings) and collect each
+    // one's values across all rows alongside its name and Postgres type.
+    let mut columns = Map::new();
+    let mut scanned_columns = Vec::new();
+    for (i, column) in first.columns().iter().enumerate() {
+        if !is_supported_type(column.type_()) {
+            continue;
+        }
+        let values: Vec<Value> = rows.iter().map(|row| cell_to_value(row, i)).collect();
+        columns.insert(column.name().to_string(), Value::Array(values));
+        scanned_columns.push(ScannedColumn {
+            name: column.name().to_string(),
+            data_type: column.type_().name().to_string(),
+        });
+    }
 
-    Value::Object(columns)
+    ScanData {
+        columns: Value::Object(columns),
+        scanned_columns,
+        scanned_row_count,
+    }
 }
 
 /// Postgres string/text types the scanner can read directly.
@@ -103,4 +118,4 @@ fn cell_to_value(row: &Row, index: usize) -> Value {
     }
 }
 
-// TODO(dsec-161): add tests for the postgres engine.
+// TODO(dsec-266): add tests for the postgres engine.

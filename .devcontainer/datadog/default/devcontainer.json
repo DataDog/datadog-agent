@@ -1,5 +1,24 @@
 // This devcontainer directs workspaces to use a pre-built image. To make
 // configuration changes, edit prebuild-devcontainer.json in this folder instead
 {
-    "image": "registry.ddbuild.io/workspaces/prebuilt/datadog/datadog-agent@sha256:23a853a5e181b86b01bb82f55c2b1fd35f3b614a52e2b1d5db27e2f057ec7948"
+  "image": "registry.ddbuild.io/workspaces/prebuilt/datadog/datadog-agent@sha256:6973731209ced05461a209f4c9121d6111888d1c361611f4071e7c9a9697f1b4",
+  "runArgs": [
+    "--pid=host",
+    "--cgroupns=host",
+    //"-v",
+    //"/etc/passwd:/etc/passwd",
+    //"-v",
+    //"/etc/group:/etc/group",
+    // WARNING: This mounts the entire host filesystem (read-only) into the container.
+    // When an AI coding agent runs inside, it can
+    // autonomously read any host file — SSH keys, cloud credentials, shell history,
+    // browser secrets — without explicit user action, and may include them in context
+    // sent to a remote model. Only use on machines that do not hold high-value secrets.
+    // Justified because system-probe and eBPF development require host filesystem
+    // visibility to mirror what the Datadog Agent does in production.
+    "-v",
+    "/:/host/root:ro",
+    "-v",
+    "/sys/kernel/debug:/sys/kernel/debug"
+  ]
 }

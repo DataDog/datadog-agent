@@ -27,6 +27,8 @@ import (
 	"github.com/google/gopacket/layers"
 
 	lib "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
@@ -37,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
-	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -204,6 +205,12 @@ type EBPFProbe struct {
 	relatedEvents  []*model.Event
 	onNewPCE       func(*model.ProcessCacheEntry, error)
 	onCgroupUpdate func(*model.ProcessCacheEntry)
+
+	// kernelTracksCGroupID mirrors get_current_cgroup_id() in ebpf/c/include/helpers/cgroup.h:
+	// the kernel only refreshes proc_cache's cgroup inode when bpf_get_current_cgroup_id() is
+	// usable, which requires kernel >= 4.18 and a pure cgroup v2 hierarchy. Cached because it
+	// is read on the event hot path.
+	kernelTracksCGroupID bool
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -924,10 +931,19 @@ func (p *EBPFProbe) ReplayEvents() {
 	}
 }
 
+// replayEntry is a process event to replay, along with the memory-mapped files
+// to replay right after it. The open events are built during the dispatch loop
+// rather than upfront: materializing them all would hold one pooled event per
+// (process, mmaped file) pair, which the pool never gets to recycle.
+type replayEntry struct {
+	event       *model.Event
+	mmapedFiles []procfs.MmapedFile
+}
+
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
 
-	var events []*model.Event
+	var entries []replayEntry
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
 		event := p.newEBPFPooledEventFromPCE(entry)
@@ -939,38 +955,30 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		event.AddToFlags(model.EventFlagsFromReplay)
 
-		events = append(events, event)
+		var mmapedFiles []procfs.MmapedFile
 
 		// Replay mmaped files (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
-			proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
-			if err != nil {
-				return
-			}
-
-			mmapedFiles, err := procfs.GetMmapedFiles(proc)
-			if err != nil {
+			var err error
+			if mmapedFiles, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
-				return
-			}
-
-			for _, f := range mmapedFiles {
-				openEvent := p.newOpenEventFromReplay(entry, f)
-				openEvent.Source = model.EventSourceReplay
-				events = append(events, openEvent)
 			}
 		}
+
+		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles})
 	}
 
 	p.Walk(entryToEvent)
 
 	// replay synthetic load_module events for every entry in /proc/modules.
-	events = append(events, p.snapshotLoadedModules()...)
+	for _, event := range p.snapshotLoadedModules() {
+		entries = append(entries, replayEntry{event: event})
+	}
 
 	// order events so that they're dispatched in creation time order
-	sort.Slice(events, func(i, j int) bool {
-		eventA := events[i]
-		eventB := events[j]
+	sort.Slice(entries, func(i, j int) bool {
+		eventA := entries[i].event
+		eventB := entries[j].event
 
 		tsA := eventA.ProcessContext.ExecTime
 		tsB := eventB.ProcessContext.ExecTime
@@ -981,9 +989,17 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		return tsA.Before(tsB)
 	})
 
-	for _, event := range events {
-		p.DispatchEvent(event, notifyConsumers)
-		p.putBackPoolEvent(event)
+	for _, re := range entries {
+		p.DispatchEvent(re.event, notifyConsumers)
+
+		for _, file := range re.mmapedFiles {
+			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, file)
+			openEvent.Source = model.EventSourceReplay
+			p.DispatchEvent(openEvent, notifyConsumers)
+			p.putBackPoolEvent(openEvent)
+		}
+
+		p.putBackPoolEvent(re.event)
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
@@ -1165,7 +1181,7 @@ func (p *EBPFProbe) EventMarshallerCtorWithRule(event *model.Event, rule *rules.
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupContext *model.CGroupContext) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, cgroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.GoLabels, cgroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -1289,7 +1305,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
-				entry.SID = event.PIDContext.SID
+				p.Resolvers.ProcessResolver.UpdateSID(entry, event.PIDContext.SID)
 			}
 
 			if _, err := entry.HasValidLineage(); err != nil {
@@ -1301,7 +1317,13 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// cache_syscall); a divergence here means the process migrated cgroups
 			// since the cache entry was created, so refresh both resolvers from the
 			// authoritative event-time cgroupContext.
-			if entry.CGroup.CGroupPathKey.Inode != cgroupContext.CGroupPathKey.Inode && event.PIDContext.Pid != p.pid {
+			//
+			// Only when the kernel actually maintains that inode: without
+			// bpf_get_current_cgroup_id() (cgroup v1, or kernel < 4.18) the kernel side is
+			// stale by design while the cached side comes from procfs, so the two never
+			// match and every process would look like it just migrated. Nothing is lost on
+			// those hosts: this backstops CLONE_INTO_CGROUP, which is cgroup v2 only.
+			if p.kernelTracksCGroupID && entry.CGroup.CGroupPathKey.Inode != cgroupContext.CGroupPathKey.Inode && event.PIDContext.Pid != p.pid {
 				if cacheEntry := p.Resolvers.CGroupResolver.AddPID(entry.Pid, cgroupContext); cacheEntry == nil {
 					seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", entry.Pid, cgroupContext.CGroupPathKey)
 				} else {
@@ -1424,6 +1446,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// resolve process context
 	if !p.setProcessContext(eventType, event, cgroupContext) {
 		return
+	}
+
+	// fork and exec persist their span context on the process cache entry they
+	// created.
+	if eventType == model.ForkEventType || eventType == model.ExecEventType {
+		p.fieldHandlers.ResolveSpanContext(event)
 	}
 
 	// handle regular events
@@ -1935,6 +1963,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, offset int, dataLen uint64, cgroupContext model.CGroupContext) bool {
 	var err error
 	eventType := event.GetEventType()
+
 	switch eventType {
 	case model.ForkEventType:
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -2050,7 +2079,10 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 	if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
 		pce = newPlaceholderProcessCacheEntryPTraceMe()
 	} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
-		seclog.Errorf("ptrace event without any PID to resolve")
+		seclog.Errorf("ptrace event without any PID to resolve for process %s: request=%d retval=%d",
+			event.ProcessContext.Process.FileEvent.PathnameStr,
+			event.PTrace.Request,
+			event.PTrace.Retval)
 		return false
 	} else {
 		pidToResolve := event.PTrace.PID
@@ -2344,7 +2376,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	// network filter actions as these are used to track resources that are needed if we later
 	// dynamically load network rules or network filter actions.
 	if p.config.Probe.NetworkEnabled {
-		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket())...)
+		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(), p.kernelVersion.HaveIOURing())...)
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
@@ -2577,6 +2609,11 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 		case <-ticker.C:
 			// create the sysctl snapshot
 			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, p.config.RuntimeSecurity.SysCtlSnapshotKernelCompilationFlags)
+			if errors.Is(err, sysctl.ErrRequiredSysctlSnapshotFileNotFound) {
+				p.config.RuntimeSecurity.SysCtlSnapshotEnabled = false
+				seclog.Infof("disabling sysctl snapshots: %v", err)
+				return
+			}
 			if err != nil {
 				seclog.Warnf("sysctl snapshot failed: %v", err)
 				continue
@@ -2955,6 +2992,14 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.Probe.NetworkFlowMonitorEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "is_span_tracking_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.SpanTrackingEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "has_task_pt_regs_helper",
+			Value: utils.BoolTouint64(hasTaskPtRegsHelper()),
+		},
+		manager.ConstantEditor{
 			Name:  "send_signal",
 			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
 		},
@@ -3031,6 +3076,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_open_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_connect_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
 		},
@@ -3039,12 +3088,20 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_connect_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_bind_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingBindEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
 		},
 		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
@@ -3057,6 +3114,23 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "event_sampling_dns_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
+		},
+		manager.ConstantEditor{
+			Name:  "dynamic_sampling_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
+		},
+		manager.ConstantEditor{
+			Name: "ring_buffer_size",
+			Value: func() uint64 {
+				if p.config.Probe.EventStreamBufferSize != 0 {
+					return uint64(p.config.Probe.EventStreamBufferSize)
+				}
+				return uint64(probes.ComputeDefaultEventsRingBufferSize())
+			}(),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
@@ -3093,6 +3167,18 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(1),
 		})
 	}
+}
+
+// hasTaskPtRegsHelper reports whether the running kernel can resolve a task's
+// entry pt_regs from eBPF.
+func hasTaskPtRegsHelper() bool {
+	for _, fn := range []asm.BuiltinFunc{asm.FnGetCurrentTaskBtf, asm.FnTaskPtRegs} {
+		if err := features.HaveProgramHelper(lib.Kprobe, fn); err != nil {
+			seclog.Debugf("%s unavailable, Go pprof labels will not use the g register: %v", fn, err)
+			return false
+		}
+	}
+	return true
 }
 
 func (p *EBPFProbe) isSKStorageSupported() bool {
@@ -3290,6 +3376,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	}
 
 	p.initCgroup2MountPath()
+	p.kernelTracksCGroupID = utils.IsPureCGroupV2Available() && p.kernelVersion.HasBpfGetCurrentCgroupID()
 
 	if err := p.sanityChecks(); err != nil {
 		return nil, err
@@ -3348,7 +3435,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 			}
 		}
 		return nil
-	}, p.Resolvers.CGroupResolver)
+	}, p.Resolvers.CGroupResolver, config.RuntimeSecurity.EnforcementCgroupKillEnabled)
 	processKiller, err := NewProcessKiller(config, pkos)
 	if err != nil {
 		return nil, err
@@ -3685,6 +3772,18 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
 
+	if kv.Code >= kernel.Kernel4_7 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructThread, "struct task_struct", "thread")
+		// The field holding the TLS thread pointer is arch-exclusive, so only one
+		// of these resolves on any given kernel: fsbase on x86_64, uw.tp_value on
+		// arm64 (tp_value is the first member of uw, so uw's offset is tp_value's).
+		constantFetcher.AppendOffsetofRequestWithFallbacks(constantfetch.OffsetNameThreadStructTp,
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "fsbase"},
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "uw"},
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "tp_value"},
+		)
+	}
+
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs")
@@ -3888,6 +3987,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					dropActionFilter.CGroupPathKey = ev.ProcessContext.Process.CGroup.CGroupPathKey
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
+					if action.Def.NetworkFilter.Scope != "process" {
+						seclog.Warnf("unsupported scope '%s' for rule '%s'", action.Def.NetworkFilter.Scope, rule.ID)
+					}
 				}
 				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
@@ -3902,6 +4004,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				Policy: policy.String(),
 				rule:   rule,
 				Status: reportStatus,
+				Scope:  action.Def.NetworkFilter.Scope,
 			}
 
 			ev.ActionReports = append(ev.ActionReports, report)
@@ -3972,7 +4075,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 	event.LoadModule.File.SetPathnameStr(modulePath)
 	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
 
-	// Best-effort file metadata (mirrors newOpenEventFromReplay).
+	// Best-effort file metadata.
 	var fileStats unix.Statx_t
 	if err := unix.Statx(unix.AT_FDCWD, modulePath, 0, unix.STATX_ALL, &fileStats); err == nil {
 		event.LoadModule.File.FileFields.Mode = uint16(fileStats.Mode)
@@ -3992,7 +4095,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 }
 
 // newOpenEventFromReplay returns a new open event for a memory-mapped file with a process context
-func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile model.SnapshottedMmapedFile) *model.Event {
+func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile procfs.MmapedFile) *model.Event {
 	event := p.getPoolEvent()
 	event.Timestamp = time.Now()
 	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
@@ -4006,24 +4109,7 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 	event.Open.File.IsPathnameStrResolved = true
 	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
 	event.Open.File.IsBasenameStrResolved = true
-
-	// Try to stat the file to get basic metadata (best effort)
-	// This helps with file resolution and enrichment
-	var fileStats unix.Statx_t
-	fullPath := utils.ProcRootFilePath(entry.Pid, snapshottedFile.Path)
-	if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err == nil {
-		event.Open.File.FileFields.Mode = uint16(fileStats.Mode)
-		event.Open.File.FileFields.Inode = fileStats.Ino
-		event.Open.File.FileFields.UID = fileStats.Uid
-		event.Open.File.FileFields.GID = fileStats.Gid
-		event.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		event.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
-		event.Open.File.Mode = fileStats.Mode
-		event.Open.File.Inode = fileStats.Ino
-		event.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
-		event.Open.File.NLink = fileStats.Nlink
-		event.Open.File.MountID = uint32(fileStats.Mnt_id)
-	}
+	event.Open.File.FileFields = snapshottedFile.FileFields
 
 	return event
 }

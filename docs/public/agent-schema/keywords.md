@@ -488,31 +488,63 @@ tags:
 
 ### `renamed_from`
 
-> **Note:** [WIP] Not yet implemented. The migration behaviour described below is planned.
-
-Lists previous names this setting was known by.
+Maps every previous name this setting was known by to the Agent version that deprecated that name. Each key is a former
+**fully qualified** name (dotted full path from the root of the config).
 
 - **Available on:** setting nodes only.
 - **Mandatory:** no.
-- **Validation:** must be a list of strings.
+- **Validation:** must be a non-empty mapping. Keys are non-empty strings; values are quoted, full semantic Agent
+  versions (for example `"7.71.0"`). Two former names of the same setting cannot share a version.
 
-When a setting has `renamed_from`, the config system looks for any of the
-previous names and migrates the value automatically. Previous names take
-priority over the canonical name when both are present. A deprecation warning
-is emitted at runtime whenever a previous name is used.
+When a setting has `renamed_from`, the config system looks for any of the previous names in YAML and env vars and
+migrates the value to the new name automatically. Previous names take priority over the canonical name when both are
+present. A deprecation warning is emitted at runtime whenever a previous name is used. Previous names are sorted by
+Agent version in which they were deprecated (oldest to newest).
 
-This provides a single, consistent mechanism for setting renames across all
-teams, replacing ad-hoc solutions that previously produced inconsistent
-behaviour.
+The code base **MUST** use the new name only. The old name is no longer accessible through the config but can still be
+used by customer in their configuration or env vars.
+
+This provides a single, consistent mechanism for setting renames across all teams, replacing ad-hoc solutions that
+previously produced inconsistent behaviour.
 
 ```yaml
-target_traces_per_second:
-  node_type: setting
-  type: number
-  default: 10
-  renamed_from:
-    - max_traces_per_second
+apm_config:
+  node_type: section
+  type: object
+  properties:
+
+    target_traces_per_second:
+      node_type: setting
+      type: number
+      default: 10
+      renamed_from:
+        apm_config.max_traces_per_second: "7.71.0"
 ```
+
+A setting renamed more than once lists every former name with the version that deprecated it:
+
+```yaml
+    target_traces_per_second:
+      node_type: setting
+      type: number
+      default: 10
+      renamed_from:
+
+        # Settings can be moved from one section into another
+        # Here the setting was moved from 'experimental.apm_config' into 'apm_config'
+        experimental.apm_config.max_traces_per_second: "7.60.0"
+
+        # Even if the settting stays in the same section the full
+        # dotted name must be used
+        apm_config.max_tps: "7.71.0"
+```
+
+> **Note:** if no `env_vars` are specified the agent will generate the correct ones from
+> the name and all the deprecated ones. A warning will be emited if any deprecated env vars are used.
+>
+> But, similar to BindEnvAndSetDefault, if `env_vars` is set for a setting, no extra env vars are generated and no warning will be
+> emited. When renaming a setting with `env_vars` you **MUST** properly maintain the `env_vars` list. Remember that
+> `env_vars` are sorted from highest to lowest priority.
 
 ---
 
@@ -540,17 +572,17 @@ Existing tags:
 - `golang_type`: flag that this setting should use a different type when generating go code. Usage of `golang_type` tag
   is often a sign of an issue. The agent code should be easily configurable from YAML types.
   - `golang_type:duration`: will use a `time.duration`.
-  - `golang_type:float64`: will use a `float64`.
+  - `golang_type:int64`: will use a `int64` (only available for `type: integer`).
   - `golang_type:map[string]float64`: will used a `map[string]float64{}`.
   - `golang_type:map[string]interface{}`: will used a `golang_type:map[string]interface{}{}`.
-  - `golang_type:nil`: will use `nil` from Go (should not be used for any new setting).
 - `no-env`: mark the settings as not configurable through en vars (should not be used by new settings).
 - `generate_const:<name>`: generate a Go constant from this setting's default value.
 
   Adding `generate_const:<name>` to a setting tells the code generator to emit a Go constant named
-  `<name>` in the `pkg/config/setup` package whose value is this setting's default. Reference that
-  constant from your Go code instead of hardcoding the value, so the constant and the setting default
-  can never drift apart — the schema stays the single source of truth.
+  `<name>` in the `pkg/config/setup/constants` package (in `constants/generated.go`) whose value is
+  this setting's default. Reference that constant from your Go code instead of hardcoding the value,
+  so the constant and the setting default can never drift apart — the schema stays the single source
+  of truth.
 
   Use it when a Go constant in the Agent must always equal a setting's default (for example, a default
   port, timeout, or path that other code needs to read directly).

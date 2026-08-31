@@ -44,6 +44,7 @@ type syntheticsTestScheduler struct {
 	hostNameService              hostname.Component
 	statsdClient                 ddgostatsd.ClientInterface
 	testPoller                   *testPoller
+	namespace                    string
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
@@ -63,6 +64,7 @@ func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatfo
 		generateTestResultID:         generateRandomStringUInt63,
 		statsdClient:                 statsd,
 		testPoller:                   poller,
+		namespace:                    configs.namespace,
 	}
 
 	// by default, sendResult delegates to the real forwarder-backed implementation

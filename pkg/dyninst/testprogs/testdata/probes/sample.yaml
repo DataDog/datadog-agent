@@ -262,6 +262,48 @@ probes:
     captureSnapshot: true
     capture:
       maxLength: 11
+  - id: testInvalidUtf8Strings
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testInvalidUtf8Strings
+    template: "{a}, {b}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
+    captureSnapshot: true
+  - id: testMultibyteUtf8String
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMultibyteUtf8String
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testMultibyteUtf8StringWithSizeLimit
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMultibyteUtf8String
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+    capture:
+      maxLength: 11
   - id: testEmptyString
     type: LOG_PROBE
     tags:
@@ -888,6 +930,30 @@ probes:
       - json:
           ref: "cs"
         dsl: "cs"
+    captureSnapshot: true
+  - id: testByteSliceInvalidUtf8
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testByteSliceInvalidUtf8
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testByteSliceMultibyteUtf8
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testByteSliceMultibyteUtf8
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testStruct
     type: LOG_PROBE
@@ -2078,7 +2144,7 @@ probes:
       methodName: main.testInlinedPrint
       sourceFile: inlined.go
       lines:
-        - "14"
+        - "17"
     template: "{x}"
     segments:
       - json:
@@ -2093,7 +2159,7 @@ probes:
       methodName: main.testInlinedBCA
       sourceFile: inlined.go
       lines:
-        - "63"
+        - "66"
     template: "testInlinedBCA"
     segments:
       - str: "testInlinedBCA"
@@ -2106,7 +2172,7 @@ probes:
       methodName: main.testInlinedBCB
       sourceFile: inlined.go
       lines:
-        - "67"
+        - "70"
     template: "testInlinedBCB"
     segments:
       - str: "testInlinedBCB"
@@ -2119,7 +2185,7 @@ probes:
       methodName: main.testInlinedSq
       sourceFile: inlined.go
       lines:
-        - "75"
+        - "78"
     template: "{x}"
     segments:
       - json:
@@ -2134,7 +2200,7 @@ probes:
       methodName: main.testFramelessArray
       sourceFile: inlined.go
       lines:
-        - "93"
+        - "96"
     template: "{a}"
     segments:
       - json:
@@ -2149,7 +2215,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "230"
+        - "233"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -2164,7 +2230,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "237"
+        - "240"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -2179,7 +2245,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "242"
+        - "245"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -2614,7 +2680,7 @@ probes:
       methodName: main.testInlinedPrint
       sourceFile: inlined.go
       lines:
-        - "14"
+        - "17"
     captureSnapshot: false
     captureExpressions:
       - name: "x_val"
@@ -2630,7 +2696,7 @@ probes:
       methodName: main.testInlinedPrint
       sourceFile: inlined.go
       lines:
-        - "14"
+        - "17"
     template: "x={x}"
     segments:
       - str: "x="
@@ -2652,7 +2718,7 @@ probes:
       methodName: main.testInlinedPrint
       sourceFile: inlined.go
       lines:
-        - "14"
+        - "17"
     captureSnapshot: false
     captureExpressions:
       - name: "x_val"
@@ -2691,7 +2757,7 @@ probes:
       methodName: main.testErrorAtLine
       sourceFile: complex.go
       lines:
-        - "108"
+        - "111"
     template: "x={x}, err={err}"
     segments:
       - str: "x="
@@ -2991,3 +3057,15 @@ probes:
           ref: "c"
         dsl: "c"
     captureSnapshot: true
+  - id: testHandleOrder
+    type: LOG_PROBE
+    where:
+      methodName: "main.(*Server).handleOrder"
+    template: "{req}"
+    segments:
+      - json:
+          ref: "req"
+        dsl: "req"
+    captureSnapshot: true
+    sampling:
+      snapshotsPerSecond: 10

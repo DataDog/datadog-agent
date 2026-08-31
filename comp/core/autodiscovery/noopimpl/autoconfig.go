@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -41,6 +42,10 @@ func (n *noopAutoConfig) GetUnresolvedConfigs() []integration.Config {
 	return []integration.Config{}
 }
 
+func (n *noopAutoConfig) GetAllConfigs() []integration.Config {
+	return []integration.Config{}
+}
+
 func (n *noopAutoConfig) AddListeners([]pkgconfigsetup.Listeners) {}
 
 func (n *noopAutoConfig) AddScheduler(string, scheduler.Scheduler, bool) {}
@@ -55,7 +60,7 @@ func (n *noopAutoConfig) GetAutodiscoveryErrors() map[string]map[string]types.Er
 	return map[string]map[string]types.ErrorMsgSet{}
 }
 
-func (n *noopAutoConfig) AddConfigProviderFromCatalog(pkgconfigsetup.ConfigurationProviders) error {
+func (n *noopAutoConfig) AddConfigProviderFromCatalog(constants.ConfigurationProviders) error {
 	return nil
 }
 

@@ -23,7 +23,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,7 +41,7 @@ type ContainerConfigProvider struct {
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewContainerConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
@@ -233,6 +233,8 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 				containerEntity,
 				entity.Annotations,
 				adIdentifier,
+				// Pod annotations do not support the hybrid ignore_autodiscovery_tags overlay.
+				false,
 			)
 
 			// container_collect_all configs must be added after

@@ -25,7 +25,7 @@ build do
     block do
         # Push all the pieces built with Bazel.
 
-        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install",
+        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install --destdir=#{install_dir}",
             :live_stream => Omnibus.logger.live_stream(:info)
 
         if linux_target?
@@ -93,12 +93,14 @@ build do
             mkdir "/var/log/datadog"
 
             # Move the built-in shared-library checks into the package's checks.d,
-            # strip them to reduce size, then re-assert owner-only (0500) perms.
+            # strip them to reduce size, then re-assert root/root-group-only (0550)
+            # perms. Group-readable so init containers can copy them on OpenShift,
+            # where containers run with a random UID in the root group.
             Dir.glob("#{install_dir}/etc/datadog-agent/checks.d/libdatadog-agent-*.so").each do |lib|
               dest = "#{output_config_dir}/etc/datadog-agent/checks.d/#{File.basename(lib)}"
               move lib, dest, :force => true
               command "strip --strip-unneeded #{dest}"
-              command "chmod 0500 #{dest}"
+              command "chmod 0550 #{dest}"
             end
 
             # Process manager config directory (read-only, under install dir)
@@ -209,8 +211,10 @@ build do
             # remove docker configuration
             delete "#{install_dir}/etc/conf.d/docker.d"
 
-            # Edit rpath from a true path to relative path for each binary
-            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
+            # Edit rpath from a true path to relative path for the non-Bazel-built binaries
+            # that still carry an absolute rpath to the embedded lib directory.
+            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos --search-root #{install_dir}/bin/agent", cwd: Dir.pwd, :live_stream => Omnibus.logger.live_stream(:info)
+            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos --search-root #{install_dir}/embedded/bin", cwd: Dir.pwd, :live_stream => Omnibus.logger.live_stream(:info)
 
             if code_signing_identity
                 # Re-unlock the keychain right before signing.  The keychain
@@ -267,7 +271,6 @@ build do
             # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
             allow_list = [
               "libddwaf\\.dylib",
-              "secret-generic-connector",
             ]
             command_on_repo_root "./omnibus/scripts/check_macos_version.sh",
                                  live_stream: Omnibus.logger.live_stream(:info),

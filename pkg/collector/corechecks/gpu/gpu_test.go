@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -372,7 +373,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 		actualUUIDs := map[string]int{}
 		for _, c := range collectors {
-			actualUUIDs[c.DeviceUUID()]++
+			actualUUIDs[c.Device().GetDeviceInfo().UUID]++
 		}
 
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
@@ -408,7 +409,9 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// PLR is not supported by this mock, so it is filtered out during collector creation.
-	numSupportedCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr, which is not supported by MIG
+	parentCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr
+	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
+	migCollectorTypes := parentCollectorTypes - 3
 
 	// Track the number of MIG children dynamically
 	migChildrenUUIDs := make(map[int]map[int]string)
@@ -430,23 +433,23 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// Assert function to check collectors match current device state
 	assertCollectors := func(collectors []nvidia.Collector) {
 		migCount := len(migChildren)
-		expectedCollectorCount := numSupportedCollectorTypes + (migCount * numSupportedCollectorTypes)
+		expectedCollectorCount := parentCollectorTypes + (migCount * migCollectorTypes)
 		assert.Len(t, collectors, expectedCollectorCount,
 			"Expected %d collectors (1 parent*%d + %d mig*%d), got %d",
-			expectedCollectorCount, numSupportedCollectorTypes, migCount, numSupportedCollectorTypes, len(collectors))
+			expectedCollectorCount, parentCollectorTypes, migCount, migCollectorTypes, len(collectors))
 
 		// Count collectors by UUID
 		actualUUIDs := map[string]int{}
 		for _, c := range collectors {
-			actualUUIDs[c.DeviceUUID()]++
+			actualUUIDs[c.Device().GetDeviceInfo().UUID]++
 		}
 
 		// Build expected UUIDs
 		expectedUUIDs := map[string]int{
-			parentUUID: numSupportedCollectorTypes,
+			parentUUID: parentCollectorTypes,
 		}
 		for _, migUUID := range migChildren {
-			expectedUUIDs[migUUID] = numSupportedCollectorTypes
+			expectedUUIDs[migUUID] = migCollectorTypes
 		}
 
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
@@ -501,6 +504,8 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 		mocksender.CreateDefaultDemultiplexer(t),
 		nil,
 	)
+	check.parallelCollectors = true
+
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),
@@ -667,8 +672,10 @@ func (m *mockCollector) Name() nvidia.CollectorName {
 	return m.name
 }
 
-func (m *mockCollector) DeviceUUID() string {
-	return m.deviceUUID
+func (m *mockCollector) Device() ddnvml.Device {
+	return &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{UUID: m.deviceUUID},
+	}
 }
 
 func mockMatchesTags(expectedTags []string) interface{} {
@@ -1086,6 +1093,42 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 				"disabled collectors mismatch")
 		})
 	}
+}
+
+func TestExcludedDevicesConfiguration(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+
+	WithGPUConfigEnabled(t)
+	excludedDeviceUUID := testutil.GPUUUIDs[0]
+	includedDeviceUUID := testutil.GPUUUIDs[1]
+	pkgconfigsetup.Datadog().SetInTest("gpu.excluded_devices", []string{strings.ToLower(excludedDeviceUUID)})
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetInTest("gpu.excluded_devices", []string{})
+	})
+
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(2),
+		testutil.WithMIGDisabled(),
+	)
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	var createdCollectorUUIDs []string
+	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.CollectorBuilder{
+		"mock": func(device ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
+			deviceUUID := device.GetDeviceInfo().UUID
+			createdCollectorUUIDs = append(createdCollectorUUIDs, deviceUUID)
+			return &mockCollector{name: "mock", deviceUUID: deviceUUID}, nil
+		},
+	})
+
+	require.NoError(t, check.ensureInitCollectors())
+
+	assert.Equal(t, []string{includedDeviceUUID}, createdCollectorUUIDs)
+	require.Len(t, check.collectors, 1)
+	assert.Equal(t, includedDeviceUUID, check.collectors[0].Device().GetDeviceInfo().UUID)
 }
 
 func TestMetricsFollowSpec(t *testing.T) {

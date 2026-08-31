@@ -7,7 +7,8 @@
 
 package inventorychecksimpl
 
-func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]metadata) {
+func (ic *inventorychecksImpl) getJMXChecksMetadata(_ bool) (jmxMetadata map[string][]metadata) {
 	// This function is a no-op when JMX is not enabled.
+	// The unused parameter matches the signature of the JMX build.
 	return map[string][]metadata{}
 }

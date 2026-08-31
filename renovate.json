@@ -154,7 +154,7 @@
       },
       {
         "matchManagers": ["bazelisk"],
-        "matchUpdateTypes": ["major"],
+        "matchDepNames": ["*"],
         "enabled": false
       },
       {
@@ -173,12 +173,7 @@
       },
       {
         "matchManagers": ["bazel-module"],
-        "matchDepTypes": ["archive_override"],
-        "enabled": false
-      },
-      {
-        "matchManagers": ["bazel-module"],
-        "matchDepTypes": ["git_override"],
+        "matchDepTypes": ["archive_override", "git_override", "git_repository", "local_path_override"],
         "enabled": false
       },
       {
@@ -253,6 +248,15 @@
           "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
         ],
         "depNameTemplate": "DataDog/datadog-agent-dev",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["test/regression/config.yaml"],
+        "matchStrings": [
+          "  version: (?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/lading",
         "datasourceTemplate": "github-releases"
       },
       {

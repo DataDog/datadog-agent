@@ -18,6 +18,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/autoscaling/datadogclient/def",
+        "//comp/core/telemetry/def",
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/autoscaling/custommetrics",
         "//pkg/clusteragent/instrumentation",
@@ -64,10 +65,14 @@ dd_agent_go_test(
         "wpa_controller_test.go",
     ],
     embed = [":controllers"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/autoscaling/datadogclient/mock",
         "//comp/core/config",

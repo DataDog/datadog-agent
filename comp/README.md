@@ -44,6 +44,10 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
 
+### [comp/aggregator/dogstatsdclienttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry)
+
+Package dogstatsdclienttelemetry defines the DogStatsD client telemetry component.
+
 ## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
 
 *Datadog Team*: agent-runtimes
@@ -139,6 +143,14 @@ Package configstreamconsumer implements a component that consumes config streams
 *Datadog Team*: fleet-automation
 
 Package configsync implements synchronizing the configuration using the core agent config API
+
+### [comp/core/delegatedauth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/delegatedauth)
+
+*Datadog Team*: credential-management delegated-auth-login
+
+Package delegatedauth manages cloud-based delegated authentication for the agent.
+It fetches and refreshes Datadog API keys from cloud providers and writes them
+to the agent's configuration.
 
 ### [comp/core/diagnose](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/diagnose)
 
@@ -383,6 +395,24 @@ Package hostprofiler implements the "host-profiler" bundle,
 
 Package collector defines the host profiler collector component.
 
+## [comp/kubeactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions) (Component Bundle)
+
+*Datadog Team*: container-integrations
+
+Package kubeactions implements the "kubeactions" bundle, providing components
+for executing Kubernetes and Helm actions on behalf of the cluster agent.
+
+### [comp/kubeactions/helmactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions/helmactions)
+
+Package helmactions provides a component for executing Helm actions.
+
+### [comp/kubeactions/kubeactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions)
+
+Package kubeactions provides a component for executing Kubernetes actions
+(delete pod, restart/patch/rollback deployment, get resource) on behalf of
+the cluster agent, and for reporting their progress and results to the
+backend via the Event Platform.
+
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-log-pipelines
@@ -414,7 +444,7 @@ Package kubehealth provides a dependency-injectible health object for kubernetes
 
 ### [comp/logs/severityprovider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/severityprovider)
 
-*Datadog Team*: agent-log-pipelines q-branch
+*Datadog Team*: agent-log-pipelines agent-anomaly-detection
 
 Package severityprovider defines the severity provider component.
 
@@ -816,26 +846,26 @@ Package updater is the updater component.
 
 ### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package logssource provides a component that feeds container and kubelet
 journald logs into the observer without requiring the logs agent to be enabled.
 
 ### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package observer provides a component for observing data flowing through the agent.
 
 ### [comp/anomalydetection/recorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/recorder)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package recorder provides a middleware component for recording and replaying observer data.
 
 ### [comp/anomalydetection/reporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/reporter)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package reporter defines the reporter component contracts.
 Concrete reporters are provided through the `anomalydetection_reporters` Fx group.
@@ -857,6 +887,12 @@ Package connectivitychecker is responsible for running connectivity checks that 
 *Datadog Team*: data-observability
 
 Package queryactions provides the Data Observability query actions component
+
+### [comp/dataplane/preflightmode](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataplane/preflightmode)
+
+*Datadog Team*: agent-data-plane
+
+Package preflightmode pre-flights the Agent Data Plane (ADP).
 
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
@@ -908,6 +944,12 @@ Package metriclookback defines the metric lookback component.
 *Datadog Team*: ndm-integrations
 
 Package networkconfigmanagement provides the component for retrieving network device configurations.
+
+### [comp/networkdevices](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdevices)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package networkdevices provides the Agent-side component for NDM.
 
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 

@@ -56,7 +56,6 @@ ENV_PASSHTROUGH = {
     'CI_JOB_ID': 'CI Job ID',
     'CI_PROJECT_NAME': 'CI Project Name',
     'CI_JOB_NAME_SLUG': 'CI Job Name Slug',
-    'AGENT_DATA_PLANE_SOURCE_URL_BASE': 'Override URL base for Agent Data Plane tarball downloads',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
@@ -101,6 +100,7 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'RPM_SIGNING_PASSPHRASE': 'Used to sign packages',
     },
     'darwin': {
+        'AWS_SHARED_CREDENTIALS_FILE': 'Path to the CI Identities-populated AWS credentials file, read by Omnibus for S3 cache access',
         'APPLE_ACCOUNT': 'Apple developer account used for notarization',
         'NOTARIZATION_ATTEMPTS': 'Number of retries for notarization steps',
         'NOTARIZATION_PWD': 'App-specific password for notarization',
@@ -119,6 +119,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
     """
     excluded_variables = {
         'APPDATA',
+        'AWS_SHARED_CREDENTIALS_FILE',
         'BUILDBARN_ID_TOKEN',
         'BAZELISK_HOME',
         'CI_JOB_ID',
@@ -202,7 +203,7 @@ def get_dd_api_key(ctx):
     if sys.platform == 'win32':
         cmd = f'C:\\devtools\\ci-identities-gitlab-job-client.exe secrets read {os.environ["AGENT_API_KEY_ORG2"]} token'
     elif sys.platform == 'darwin':
-        cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+        cmd = f'ci-identities-gitlab-job-client secrets read {os.environ["AGENT_API_KEY_ORG2"]} token'
     else:
         cmd = f'vault kv get -field=token kv/k8s/{os.environ["POD_NAMESPACE"]}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     return ctx.run(cmd, hide=True).stdout.strip()

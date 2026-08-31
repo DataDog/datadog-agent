@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package jsonprune trims oversized Dynamic Instrumentation snapshot JSON
 // documents to fit within a fixed byte budget before they are shipped to the

@@ -24,10 +24,11 @@
       # - fix: https://github.com/microsoft/go/pull/1998
       key:
         prefix: bazel-$CI_JOB_NAME
-        files: [ .go-version, .python-version ]
+        files: [ MODULE.bazel.lock ]
       paths:
         - .cache/bazel/*/cache
         - .cache/go
+        - .cache/golangci-lint
         - .cache/ms-go
         - .cache/pip
       policy: pull$BAZEL_CACHE_POLICY_SUFFIX

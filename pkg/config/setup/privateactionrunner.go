@@ -22,6 +22,7 @@ const (
 	// General config
 	PARTaskConcurrency       = "private_action_runner.task_concurrency"
 	PARTaskTimeoutSeconds    = "private_action_runner.task_timeout_seconds"
+	PARIdleTimeoutSeconds    = "private_action_runner.idle_timeout_seconds"
 	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
 	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 
@@ -31,11 +32,13 @@ const (
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
 	// Restricted Shell
-	PARRestrictedShellAllowedPaths     = "private_action_runner.restricted_shell.allowed_paths"
-	PARRestrictedShellAllowedCommands  = "private_action_runner.restricted_shell.allowed_commands"
-	RShellPathAllowAll                 = "/"
-	RShellPathAllowMapContainerizedKey = "containerized"
-	RShellPathAllowMapDefaultKey       = "default"
+	PARRestrictedShellAllowedPaths             = "private_action_runner.restricted_shell.allowed_paths"
+	PARRestrictedShellAllowedCommands          = "private_action_runner.restricted_shell.allowed_commands"
+	PARRestrictedShellAllowedSystemServices    = "private_action_runner.restricted_shell.allowed_system_services"
+	PARRestrictedShellDisableDetailedTelemetry = "private_action_runner.restricted_shell.disable_detailed_telemetry"
+	RShellPathAllowAll                         = "/"
+	RShellPathAllowMapContainerizedKey         = "containerized"
+	RShellPathAllowMapDefaultKey               = "default"
 
 	// Meant for internal usage
 	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"

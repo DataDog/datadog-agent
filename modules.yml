@@ -127,6 +127,8 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/components/connector/datadogconnector:
     used_by_otel: true
+  comp/otelcol/otlp/components/datadogconfig:
+    used_by_otel: true
   comp/otelcol/otlp/components/exporter/datadogexporter:
     used_by_otel: true
   comp/otelcol/otlp/components/exporter/logsagentexporter:
@@ -191,8 +193,6 @@ modules:
     used_by_otel: true
   pkg/config/basic:
     used_by_otel: true
-  pkg/config/buildschema:
-    used_by_otel: true
   pkg/config/create:
     used_by_otel: true
   pkg/config/env:
@@ -206,11 +206,10 @@ modules:
   pkg/config/nodetreemodel:
     used_by_otel: true
   pkg/config/remote: default
-  pkg/config/render_config:
-    should_tag: false
-    should_test_condition: never
   pkg/config/schema: default
   pkg/config/setup:
+    used_by_otel: true
+  pkg/config/setup/constants:
     used_by_otel: true
   pkg/config/structure:
     used_by_otel: true

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	criutil "github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,7 +37,7 @@ type kubernetesConfigClient interface {
 	close()
 }
 
-var newKubernetesConfigClient = func() (kubernetesConfigClient, error) {
+func newKubernetesConfigClient() (kubernetesConfigClient, error) {
 	cri, err := criutil.GetUtil()
 	if err != nil {
 		return nil, err
@@ -57,9 +58,10 @@ var newKubernetesConfigClient = func() (kubernetesConfigClient, error) {
 type kubernetesConfigReader struct {
 	containerID string
 	client      kubernetesConfigClient
+	store       workloadmeta.Component
 }
 
-func newKubernetesConfigReader(t target) (ConfigReader, error) {
+func newKubernetesConfigReader(t target, store workloadmeta.Component) (ConfigReader, error) {
 	if t.runtime != RuntimeKubernetes {
 		return nil, fmt.Errorf("unsupported runtime %q", t.runtime)
 	}
@@ -72,14 +74,11 @@ func newKubernetesConfigReader(t target) (ConfigReader, error) {
 		return nil, err
 	}
 
-	return newKubernetesConfigReaderWithClient(t.entityID, client), nil
-}
-
-func newKubernetesConfigReaderWithClient(containerID string, client kubernetesConfigClient) ConfigReader {
 	return &kubernetesConfigReader{
-		containerID: containerID,
+		containerID: t.entityID,
 		client:      client,
-	}
+		store:       store,
+	}, nil
 }
 
 func (r *kubernetesConfigReader) Runtime() RuntimeType {
@@ -120,8 +119,8 @@ func kubernetesReadFileCommand(cleanPath string) []string {
 	return []string{"head", "-c", strconv.Itoa(kubernetesReadFileOutputLimit), cleanPath}
 }
 
-func (r *kubernetesConfigReader) ReadEnvVars(ctx context.Context, names []string) (map[string]string, error) {
-	if len(names) == 0 {
+func (r *kubernetesConfigReader) ReadEnvVars(ctx context.Context, predicate ConfigEnvVarPredicate) (map[string]string, error) {
+	if predicate == nil {
 		return map[string]string{}, nil
 	}
 
@@ -133,29 +132,30 @@ func (r *kubernetesConfigReader) ReadEnvVars(ctx context.Context, names []string
 		return map[string]string{}, nil
 	}
 
-	return filterEnvVars(spec.Process.Env, names), nil
+	return filterEnvVars(spec.Process.Env, predicate), nil
 }
 
-func (r *kubernetesConfigReader) ReadCommandline(ctx context.Context) (TargetCommandline, error) {
+func (r *kubernetesConfigReader) ReadRuntimeCommandline(ctx context.Context) (TargetCommandline, error) {
 	spec, err := r.client.containerSpec(ctx, r.containerID)
 	if err != nil {
 		return TargetCommandline{}, fmt.Errorf("get kubernetes container OCI spec: %w", err)
 	}
 
+	commandline := TargetCommandline{WorkingDir: "/"}
 	if spec == nil || spec.Process == nil {
-		return TargetCommandline{WorkingDir: "/"}, nil
+		return commandline, nil
 	}
 
-	args := append([]string(nil), spec.Process.Args...)
-	workingDir := spec.Process.Cwd
-	if workingDir == "" {
-		workingDir = "/"
+	commandline.Args = append([]string(nil), spec.Process.Args...)
+	if spec.Process.Cwd != "" {
+		commandline.WorkingDir = spec.Process.Cwd
 	}
 
-	return TargetCommandline{
-		Args:       args,
-		WorkingDir: workingDir,
-	}, nil
+	return commandline, nil
+}
+
+func (r *kubernetesConfigReader) ReadLiveProcessCommandlines(context.Context) []TargetCommandline {
+	return readContainerProcessCommandlines(r.store, r.containerID)
 }
 
 func kubernetesExecExitError(exitCode int32, stderr []byte) error {

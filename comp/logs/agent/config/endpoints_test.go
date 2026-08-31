@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -240,7 +240,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 		suite.config.SetInTest("logs_config.batch_wait", batchWait)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
-		suite.Equal(endpoints.BatchWait, time.Duration(pkgconfigsetup.DefaultBatchWait)*time.Second)
+		suite.Equal(endpoints.BatchWait, time.Duration(constants.DefaultBatchWait)*time.Second)
 	}
 }
 
@@ -256,17 +256,17 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToA
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConnectivity() {
 
 	resetHTTPConfigValuesToFalse := func() {
-		suite.config.SetInTest("logs_config.use_tcp", "false")
-		suite.config.SetInTest("logs_config.force_use_tcp", "false")
-		suite.config.SetInTest("logs_config.use_http", "false")
-		suite.config.SetInTest("logs_config.force_use_http", "false")
+		suite.config.SetInTest("logs_config.use_tcp", false)
+		suite.config.SetInTest("logs_config.force_use_tcp", false)
+		suite.config.SetInTest("logs_config.use_http", false)
+		suite.config.SetInTest("logs_config.force_use_http", false)
 		suite.config.SetInTest("logs_config.socks5_proxy_address", "")
 		suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{})
 	}
 
 	suite.Run("When use_http is true always create HTTP endpoints", func() {
 		defer resetHTTPConfigValuesToFalse()
-		suite.config.SetInTest("logs_config.use_http", "true")
+		suite.config.SetInTest("logs_config.use_http", true)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
 		suite.True(endpoints.UseHTTP)
@@ -277,7 +277,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 
 	suite.Run("When force_use_http is true always create HTTP endpoints", func() {
 		defer resetHTTPConfigValuesToFalse()
-		suite.config.SetInTest("logs_config.force_use_http", "true")
+		suite.config.SetInTest("logs_config.force_use_http", true)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
 		suite.True(endpoints.UseHTTP)
@@ -288,7 +288,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 
 	suite.Run("When use_tcp is true always create TCP endpoints", func() {
 		defer resetHTTPConfigValuesToFalse()
-		suite.config.SetInTest("logs_config.use_tcp", "true")
+		suite.config.SetInTest("logs_config.use_tcp", true)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
@@ -299,7 +299,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 
 	suite.Run("When force_use_tcp is true always create TCP endpoints", func() {
 		defer resetHTTPConfigValuesToFalse()
-		suite.config.SetInTest("logs_config.force_use_tcp", "true")
+		suite.config.SetInTest("logs_config.force_use_tcp", true)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
@@ -458,7 +458,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLTCPMainEndpointTru
 		err       error
 	)
 
-	suite.config.SetInTest("logs_config.logs_no_ssl", "true")
+	suite.config.SetInTest("logs_config.logs_no_ssl", true)
 	suite.config.SetInTest("logs_config.logs_dd_url", "rand_url.com:1")
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1"}, {"host": "b", "api_key": "2", "use_ssl": true}, {"host": "c", "api_key": "3", "use_ssl": false}})
@@ -477,7 +477,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLTCPMainEndpointFal
 		err       error
 	)
 
-	suite.config.SetInTest("logs_config.logs_no_ssl", "false")
+	suite.config.SetInTest("logs_config.logs_no_ssl", false)
 	suite.config.SetInTest("logs_config.logs_dd_url", "rand_url.com:1")
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1"}, {"host": "b", "api_key": "2", "use_ssl": true}, {"host": "c", "api_key": "3", "use_ssl": false}})
@@ -496,8 +496,8 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLHTTPMainEndpointTr
 		err       error
 	)
 
-	suite.config.SetInTest("logs_config.logs_no_ssl", "true")
-	suite.config.SetInTest("logs_config.use_http", "true")
+	suite.config.SetInTest("logs_config.logs_no_ssl", true)
+	suite.config.SetInTest("logs_config.use_http", true)
 	suite.config.SetInTest("logs_config.logs_dd_url", "http://rand_url.com:1")
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1"}, {"host": "b", "api_key": "2", "use_ssl": true}, {"host": "c", "api_key": "3", "use_ssl": false}})
@@ -516,8 +516,8 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLHTTPMainEndpointFa
 		err       error
 	)
 
-	suite.config.SetInTest("logs_config.logs_no_ssl", "false")
-	suite.config.SetInTest("logs_config.use_http", "true")
+	suite.config.SetInTest("logs_config.logs_no_ssl", false)
+	suite.config.SetInTest("logs_config.use_http", true)
 	suite.config.SetInTest("logs_config.logs_dd_url", "http://rand_url.com:1")
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1"}, {"host": "b", "api_key": "2", "use_ssl": true}, {"host": "c", "api_key": "3", "use_ssl": false}})
@@ -555,11 +555,11 @@ func (suite *EndpointsTestSuite) TestLogCompressionKind() {
 	suite.Equal(logsConfig.compressionKind(), "zstd")
 
 	suite.config.SetInTest("logs_config.compression_kind", "")
-	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
+	suite.Equal(logsConfig.compressionKind(), constants.DefaultLogCompressionKind)
 
 	// Invalid compression should fall back to the default log agent compression kind
 	suite.config.SetInTest("logs_config.compression_kind", "notgzip")
-	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
+	suite.Equal(logsConfig.compressionKind(), constants.DefaultLogCompressionKind)
 }
 
 func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {

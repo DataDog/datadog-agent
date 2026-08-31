@@ -23,7 +23,7 @@ class TestGenerateConfigExamples(unittest.TestCase):
             windows_sysprobe=False,
         )
 
-        gen.assert_any_call(CORE_SCHEMA_FILE, "./cmd/agent/dist/datadog.yaml", "agent-py3", "linux")
+        gen.assert_any_call(CORE_SCHEMA_FILE, "./cmd/agent/dist/datadog.yaml", "datadog-agent", "linux")
         gen.assert_any_call(SYSPROBE_SCHEMA_FILE, "./cmd/agent/dist/system-probe.yaml", "system-probe", "linux")
         self.assertEqual(gen.call_count, 2)
         refresh.assert_not_called()
@@ -62,7 +62,7 @@ class TestGenerateConfigExamples(unittest.TestCase):
             windows_sysprobe=False,
         )
 
-        gen.assert_called_once_with(CORE_SCHEMA_FILE, "./cmd/agent/dist/datadog.yaml", "agent-py3", "windows")
+        gen.assert_called_once_with(CORE_SCHEMA_FILE, "./cmd/agent/dist/datadog.yaml", "datadog-agent", "windows")
 
     @patch("tasks.agent.refresh_assets")
     @patch("tasks.agent.generate_template")

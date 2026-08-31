@@ -17,6 +17,20 @@ const (
 	NumSeverityLevels
 )
 
+// String returns the canonical, low-cardinality name for a severity level.
+func (l SeverityLevel) String() string {
+	switch l {
+	case SeverityLow:
+		return "low"
+	case SeverityMedium:
+		return "medium"
+	case SeverityHigh:
+		return "high"
+	default:
+		return "unknown"
+	}
+}
+
 // SeverityEventDirection describes whether a severity transition is an
 // escalation or de-escalation.
 type SeverityEventDirection int

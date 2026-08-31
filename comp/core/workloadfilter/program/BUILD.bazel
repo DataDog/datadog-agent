@@ -35,6 +35,15 @@ dd_agent_go_test(
         "cel_program_test.go",
     ],
     embed = [":program"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "containerd",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/mock",

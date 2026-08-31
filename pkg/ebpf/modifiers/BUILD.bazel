@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "modifiers",
@@ -7,26 +8,44 @@ go_library(
         "sleepable_modifier.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/modifiers",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/ebpf",
-        "//pkg/ebpf/names",
-        "//pkg/ebpf/telemetry",
-        "//pkg/util/kernel",
-        "//pkg/util/log",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_cilium_ebpf//asm",
-        "@com_github_cilium_ebpf//link",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@org_golang_x_sys//unix",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/names",
+            "//pkg/ebpf/telemetry",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/names",
+            "//pkg/ebpf/telemetry",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "modifiers_test",
     srcs = ["sleepable_modifier_test.go"],
     embed = [":modifiers"],
-    gotags = ["test"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
@@ -41,4 +60,44 @@ go_test(
         "@com_github_stretchr_testify//require",
         "@org_golang_x_sys//unix",
     ],
+)
+
+dd_agent_go_test(
+    name = "sleepable_modifier_test",
+    srcs = ["sleepable_modifier_test.go"],
+    embed = [":modifiers"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/names",
+            "//pkg/ebpf/telemetry",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_prometheus_client_golang//prometheus",
+            "@com_github_prometheus_client_model//go",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/names",
+            "//pkg/ebpf/telemetry",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_prometheus_client_golang//prometheus",
+            "@com_github_prometheus_client_model//go",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
 )

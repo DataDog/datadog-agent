@@ -14,7 +14,7 @@ import (
 
 func initConfig() {
 	ddcfg := GlobalConfigBuilder()
-	initCommonConfigComponents(ddcfg)
+	initCommonBase(ddcfg)
 }
 
 func fixupInitConfig() {

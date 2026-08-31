@@ -14,6 +14,6 @@ import (
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
 }
 
-func initEverything(config pkgconfigmodel.Setup) {
+func initCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("my_setting", "abc")
 }

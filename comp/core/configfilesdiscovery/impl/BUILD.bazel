@@ -7,9 +7,13 @@ go_library(
         "configfilesdiscovery.go",
         "docker_reader.go",
         "docker_reader_nodocker.go",
+        "env_vars.go",
         "evp_reporter.go",
         "kubernetes_reader.go",
         "kubernetes_reader_noop.go",
+        "process_commandline.go",
+        "process_retry.go",
+        "process_retry_noop.go",
         "reader_helpers.go",
         "scheduler.go",
         "types.go",
@@ -20,6 +24,7 @@ go_library(
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/scheduler",
+        "//comp/core/config",
         "//comp/core/configfilesdiscovery/def",
         "//comp/core/hostname",
         "//comp/core/workloadmeta/def",
@@ -30,6 +35,7 @@ go_library(
         "//pkg/util/containers/cri",
         "//pkg/util/docker",
         "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
         "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_datadog_agent_payload_v5//agentdiscovery",
         "@org_golang_google_protobuf//proto",
@@ -39,7 +45,10 @@ go_library(
 
 go_test(
     name = "docker_reader_test",
-    srcs = ["docker_reader_test.go"],
+    srcs = [
+        "docker_reader_test.go",
+        "reader_helpers_test.go",
+    ],
     embed = [":impl"],
     gotags = [
         "docker",
@@ -56,9 +65,26 @@ dd_agent_go_test(
     srcs = [
         "configfilesdiscovery_test.go",
         "docker_reader_test.go",
+        "env_vars_test.go",
         "kubernetes_reader_test.go",
+        "process_commandline_test.go",
+        "reader_helpers_test.go",
     ],
     embed = [":impl"],
+    gotags_sets = [
+        [
+            "cel",
+            "containerd",
+            "cri",
+            "docker",
+            "kubelet",
+        ],
+        [
+            "cel",
+            "docker",
+            "kubelet",
+        ],
+    ],
     deps = [
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
@@ -73,6 +99,7 @@ dd_agent_go_test(
         "//comp/def",
         "//comp/forwarder/eventplatform/def",
         "//pkg/logs/message",
+        "@com_github_benbjohnson_clock//:clock",
         "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_datadog_agent_payload_v5//agentdiscovery",
         "@com_github_opencontainers_runtime_spec//specs-go",
@@ -85,7 +112,10 @@ dd_agent_go_test(
 
 go_test(
     name = "kubernetes_reader_test",
-    srcs = ["kubernetes_reader_test.go"],
+    srcs = [
+        "kubernetes_reader_test.go",
+        "reader_helpers_test.go",
+    ],
     embed = [":impl"],
     gotags = [
         "containerd",
@@ -97,7 +127,5 @@ go_test(
         "@com_github_opencontainers_runtime_spec//specs-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_golang_google_protobuf//proto",
-        "@org_golang_google_protobuf//types/known/timestamppb",
     ],
 )

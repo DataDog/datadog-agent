@@ -1,10 +1,34 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# Produced by :token_tables_gen and materialized into token_tables_gen.go via
+# :token_tables. This copy lives only in bazel-bin; the in-tree
+# token_tables_gen.go is the actual source. Exclude it so Gazelle doesn't list
+# it in srcs.
+# gazelle:exclude token_tables_generated.go
+
+run_binary(
+    name = "token_tables_gen",
+    outs = ["token_tables_generated.go"],
+    args = ["-output=$(execpath token_tables_generated.go)"],
+    tool = "//pkg/logs/internal/decoder/preprocessor/gentokentables",
+)
+
+# bazel run //pkg/logs/internal/decoder/preprocessor:token_tables
+# The companion :token_tables_test fails when the committed file is stale.
+write_source_file(
+    name = "token_tables",
+    in_file = ":token_tables_gen",
+    out_file = "token_tables_gen.go",
+)
 
 go_library(
     name = "preprocessor",
     srcs = [
         "aggregator.go",
+        "borrowed_tokens.go",
         "combining_aggregator.go",
         "detecting_aggregator.go",
         "go_stack_trace_parser.go",
@@ -20,6 +44,8 @@ go_library(
         "stack_trace_aggregator.go",
         "timestamp_detector.go",
         "token_graph.go",
+        "token_tables.go",
+        "token_tables_gen.go",
         "tokenizer.go",
         "tokens.go",
         "user_samples.go",
@@ -36,6 +62,7 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
     deps = [
+        "//comp/anomalydetection/severityevents/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/logs-library/metrics",
@@ -52,19 +79,38 @@ go_library(
 dd_agent_go_test(
     name = "preprocessor_test",
     srcs = [
+        "adaptive_sampler_proptest_test.go",
+        "adaptive_sampler_test.go",
         "aggregator_test.go",
+        "auto_multiline_combining_pipeline_proptest_test.go",
+        "auto_multiline_combining_pipeline_test.go",
+        "auto_multiline_labeler_proptest_test.go",
+        "auto_multiline_labeler_test.go",
+        "combining_aggregator_proptest_test.go",
+        "combining_aggregator_test.go",
+        "detecting_aggregator_proptest_test.go",
+        "detecting_aggregator_test.go",
         "go_stack_trace_parser_test.go",
+        "incremental_json_validator_proptest_test.go",
         "incremental_json_validator_test.go",
         "json_aggregator_benchmark_test.go",
+        "json_aggregator_contract_test.go",
+        "json_aggregator_proptest_test.go",
         "json_aggregator_test.go",
+        "json_detector_proptest_test.go",
         "json_detector_test.go",
-        "labeler_test.go",
         "labeler_token_reuse_test.go",
+        "pass_through_aggregator_proptest_test.go",
+        "pass_through_aggregator_test.go",
         "pattern_table_test.go",
         "preprocessor_test.go",
+        "regex_aggregator_proptest_test.go",
+        "regex_aggregator_test.go",
         "sampler_benchmark_test.go",
+        "sampler_smart_severity_profile_test.go",
         "sampler_test.go",
         "stack_trace_aggregator_test.go",
+        "timestamp_detector_proptest_test.go",
         "timestamp_detector_test.go",
         "token_graph_test.go",
         "tokenizer_benchmark_test.go",
@@ -73,6 +119,7 @@ dd_agent_go_test(
     ],
     embed = [":preprocessor"],
     deps = [
+        "//comp/anomalydetection/severityevents/def",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
@@ -80,5 +127,6 @@ dd_agent_go_test(
         "//pkg/logs/status/utils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@net_pgregory_rapid//:rapid",
     ],
 )

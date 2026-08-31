@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
 write_pb_go(
@@ -30,18 +31,19 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "idx_test",
     srcs = [
         "internal_span_test.go",
         "span_marshal_test.go",
         "span_test.go",
         "span_v05_test.go",
+        "string_intern_bench_test.go",
+        "string_intern_test.go",
         "string_table_guard_test.go",
         "tracer_payload_test.go",
     ],
     embed = [":idx"],
-    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

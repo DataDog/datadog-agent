@@ -121,6 +121,9 @@
 
   # E2E framework
   - test/e2e-framework/components/activedirectory/**/*
+  - test/e2e-framework/components/os/scripts/setup-ssh.ps1
+  - test/e2e-framework/components/os/windows*
+  - test/e2e-framework/scenarios/aws/ec2/os_win.go
 
 # Process manager
 .windows_path_4: &windows_path_4
@@ -170,6 +173,11 @@ default:
   retry:
     max: 1 # Retry everything once on failure
     when: always
+
+# Full git history. Override the default shallow clone.
+.needs_full_git_history:
+  variables:
+    GIT_DEPTH: 0
 
 stages:
   - .pre
@@ -266,7 +274,6 @@ variables:
   # Symbols for release builds are handled by agent-release-management.
   WINDOWS_SYMBOLS_S3_BUCKET: pipelines/windows-symbols
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
@@ -291,25 +298,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v125663755-498a6dee
+  CI_IMAGE_BTF_GEN: v132333024-4b82e653
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v125663755-498a6dee
+  CI_IMAGE_DOCKER_X64: v132333024-4b82e653
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v125663755-498a6dee
+  CI_IMAGE_DOCKER_ARM64: v132333024-4b82e653
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v125663755-498a6dee
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v132333024-4b82e653
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v125663755-498a6dee
+  CI_IMAGE_LINUX: v132333024-4b82e653
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v125663755-498a6dee
+  CI_IMAGE_RPM_X64: v132333024-4b82e653
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v125663755-498a6dee
+  CI_IMAGE_RPM_ARM64: v132333024-4b82e653
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v125663755-498a6dee
+  CI_IMAGE_RPM_ARMHF: v132333024-4b82e653
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v125663755-498a6dee
+  CI_IMAGE_WIN_LTSC2022_X64: v130938967-3a9f81bc
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v125663755-498a6dee
+  CI_IMAGE_WIN_LTSC2025_X64: v130938967-3a9f81bc
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -372,8 +379,9 @@ variables:
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
-  # Job cloning strategy
+  # Shallow clone by default.
   GIT_STRATEGY: "fetch"
+  GIT_DEPTH: 1
   DISABLE_GIT_CACHE: true
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
@@ -474,12 +482,15 @@ variables:
 
 # fakeintake changes that rebuild the published image (server binary only).
 # Client/CLI/docs changes don't. Keep in sync with _is_server_file() in tasks/fakeintake.py.
+# Only `.go` files under the server paths matter: the image is built from the Go sources
+# via test/fakeintake/Dockerfile, so BUILD.bazel and test fixtures don't affect it
+# (rules:changes has no exclusion syntax, hence the extension in the glob).
 .fakeintake_server_paths: &fakeintake_server_paths
   paths:
-    - test/fakeintake/cmd/server/**/*
-    - test/fakeintake/server/**/*
-    - test/fakeintake/aggregator/**/*
-    - test/fakeintake/api/**/*
+    - test/fakeintake/cmd/server/**/*.go
+    - test/fakeintake/server/**/*.go
+    - test/fakeintake/aggregator/**/*.go
+    - test/fakeintake/api/**/*.go
     - test/fakeintake/go.mod
     - test/fakeintake/go.sum
     - test/fakeintake/Dockerfile
@@ -519,8 +530,6 @@ variables:
   changes:
     paths:
       - omnibus/**/*
-      - pkg/config/config_template.yaml
-      - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
 #
@@ -545,6 +554,19 @@ workflow:
     - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
     - <<: *if_mergequeue
+    # ADP is shipped in every Agent package and exercised across several test suites.
+    # Treat an ADP version bump like a full pipeline so platform-specific regressions
+    # (notably in new-e2e-agent-runtimes-windows) are caught before merge.
+    - changes:
+        paths:
+          - deps/agent_data_plane/agent_data_plane.MODULE.bazel
+        compare_to: $COMPARE_TO_BRANCH
+      variables:
+        RUN_ALL_BUILDS: "true"
+        RUN_E2E_TESTS: "on"
+        RUN_KMT_TESTS: "on"
+        RUN_UNIT_TESTS: "on"
+        SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path
         compare_to: main
@@ -771,6 +793,12 @@ workflow:
     when: never
   - <<: *if_installer_tests
   - <<: *on_build_changes
+  - changes:
+      paths:
+        - pkg/fleet/installer/packages/**/*
+        - omnibus/package-scripts/agent-*/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
 
 # Specific rules for each e2e test type
 .on_install_script_tests:
@@ -962,34 +990,14 @@ workflow:
     when: on_success
   - changes:
       paths:
-        - .gitlab/test/e2e/e2e.yml
+        - .gitlab/test/e2e/*.yml
+        - bazel/rules/go_shim/**/* # Runs bazelified Go tools
+        - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)
         - test/e2e-framework/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
-
-.except_e2e_main_release_or_rc: # This rule is to not trigger dynamic test evaluation when we force all e2e tests to run
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_run_all_e2e_tests
-    when: never
-  - <<: *if_main_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: never
-  - changes:
-      paths:
-        - .gitlab/test/e2e/e2e.yml
-        - test/e2e-framework/testing/**/*
-        - test/new-e2e/go.mod
-        - flakes.yaml
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
-    when: never
 
 .dynamic_tests:
   - changes:
@@ -1010,62 +1018,19 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/tests/agent-devx/pre-test/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
     allow_failure: true
 
-.on_container_or_e2e_changes:
+.on_npm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - comp/core/tagger/**/*
-        - comp/core/workloadmeta/**/*
-        - comp/core/autodiscovery/listeners/**/*
-        - comp/core/autodiscovery/providers/**/*
-        - comp/forwarder/defaultforwarder/**/*
-        - comp/serializer/**/*
-        - pkg/aggregator/*/**
-        - comp/languagedetection/**/*
-        - pkg/clusteragent/admission/mutate/**/*
-        - pkg/clusteragent/languagedetection/**/*
-        - pkg/collector/corechecks/cluster/**/*
-        - pkg/collector/corechecks/containers/**/*
-        - pkg/collector/corechecks/containerimage/**/*
-        - pkg/collector/corechecks/containerlifecycle/**/*
-        - pkg/collector/corechecks/sbom/**/*
-        - pkg/sbom/**/*
-        - pkg/util/clusteragent/**/*
-        - pkg/util/containerd/**/*
-        - pkg/util/containers/**/*
-        - pkg/util/docker/**/*
-        - pkg/util/ecs/**/*
-        - pkg/util/kubernetes/**/*
-        - pkg/util/cgroups/**/*
-        - pkg/util/trivy/**/*
-        - test/new-e2e/tests/containers/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_rc_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/config/remote/**/*
-        - comp/remote-config/**/*
-        - test/new-e2e/tests/remote-config/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_arun_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/**/*
-        - pkg/**/*
-        - comp/**/*
-        - test/new-e2e/tests/agent-runtimes/**/*
+        # TODO: Add paths that should trigger tests for npm
+        - pkg/network/**/*
+        - test/new-e2e/tests/npm/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_acfg_or_e2e_changes:
@@ -1078,70 +1043,15 @@ workflow:
         - test/new-e2e/tests/agent-configuration//**/*
       compare_to: $COMPARE_TO_BRANCH
 
-.on_subcommands_or_e2e_changes:
+.on_process_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/**/*
-        - pkg/**/*
-        - comp/**/*
-        - test/new-e2e/tests/agent-subcommands/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_language-detection_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/language-detection/**/*
+        - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
         - comp/process/**/*
         - pkg/process/**/*
-        - comp/core/workloadmeta/collectors/internal/process/**/*
-        - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_npm_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        # TODO: Add paths that should trigger tests for npm
-        - pkg/network/**/*
-        - test/new-e2e/tests/npm/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_discovery_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/agent/dist/conf.d/discovery.d/*
-        - comp/core/autodiscovery/providers/process_log.go
-        - test/new-e2e/tests/discovery/**/*
-        - pkg/collector/corechecks/discovery/**/*
-        - pkg/discovery/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_amp_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/agent-metric-pipelines/**/*
-        - cmd/agent/subcommands/dogstatsd*/*
-        - cmd/dogstatsd/**/*
-        - comp/agent/jmxlogger/**/*
-        - comp/aggregator/**/*
-        - comp/collector/**/*
-        - comp/core/agenttelemetry/**/*
-        - comp/dogstatsd/**/*
-        - comp/forwarder/**/*
-        - comp/serializer/**/*
-        - pkg/aggregator/**/*
-        - pkg/collector/**/*
-        - pkg/commonchecks/**/*
-        - pkg/jmxfetch/**/*
-        - pkg/metrics/**/*
-        - pkg/persistentcache/**/*
-        - pkg/serializer/**/*
-        - rtloader/**/*
+        - pkg/config/setup/process.go
       compare_to: $COMPARE_TO_BRANCH
 
 .on_alp_or_e2e_changes:
@@ -1163,46 +1073,14 @@ workflow:
       paths: *security_agent_change_paths
       compare_to: $COMPARE_TO_BRANCH
 
-.on_process_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/process/**/*
-        - cmd/process-agent/**/*
-        - comp/process/**/*
-        - pkg/process/**/*
-        - pkg/config/setup/process.go
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_orchestrator_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/forwarder/defaultforwarder/**/*
-        - pkg/collector/corechecks/cluster/orchestrator/**/*
-        - pkg/collector/corechecks/orchestrator/**/*
-        - test/new-e2e/tests/orchestrator/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_apm_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/trace/**/*
-        - cmd/trace-agent/**/*
-        - comp/trace/**/*
-        - test/new-e2e/tests/apm/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
 .on_installer_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - .gitlab/deploy/**/*
         - .gitlab/test/e2e_install_packages/**/*
-        - .gitlab/test/e2e/e2e.yml
+        - .gitlab/test/e2e/e2e_templates.yml
+        - .gitlab/test/e2e/e2e_fleet.yml
         - omnibus/config/**/*
         - pkg/fleet/**/*
         - cmd/installer/**/*
@@ -1213,49 +1091,6 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
-.on_ndm_netflow_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/netflow/**/*
-        - test/new-e2e/tests/ndm/netflow/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_ndm_snmp_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/collector/corechecks/snmp/**/*
-        - test/new-e2e/tests/ndm/snmp/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-  - when: manual
-    allow_failure: true
-
-.on_anomalydetection_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/anomalydetection/**/*
-        - test/new-e2e/tests/anomalydetection/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_ha_agent_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/haagent/**/*
-        - pkg/aggregator/**/*
-        - test/new-e2e/tests/ha-agent/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
 .on_netpath_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1263,6 +1098,8 @@ workflow:
         - cmd/system-probe/modules/traceroute.go
         - pkg/collector/corechecks/networkpath/**/*
         - pkg/networkpath/**/*
+        - pkg/network/sender/sender_linux.go
+        - pkg/process/checks/net.go
         - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
@@ -1294,22 +1131,6 @@ workflow:
         - comp/otelcol/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-
-.on_ssi_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/clusteragent/admission/mutate/autoinstrumentation/**/*
-        - pkg/clusteragent/admission/mutate/common/**/*
-        - pkg/clusteragent/admission/mutate/config/**/*
-        - pkg/clusteragent/admission/mutate/tagsfromlabels/**/*
-        - pkg/clusteragent/admission/common/**/*
-        - pkg/clusteragent/admission/controllers/webhook/**/*
-        - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
-        - comp/languagedetection/**/*
-        - pkg/ssi/**/*
-        - test/new-e2e/tests/ssi/**/*
-      compare_to: $COMPARE_TO_BRANCH
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -1358,30 +1179,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_cspm_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/security/**/*
-        - pkg/compliance/**/*
-        - test/new-e2e/tests/cspm/**/*
-        # The host-benchmark suite validates the bundled benchmark content, whose
-        # version is pinned by SECURITY_AGENT_POLICIES_VERSION in release.json, so a
-        # policy bump must run the suite before it can break the main pipeline.
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_sbom_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/sbom/**/*
-        - pkg/security/resolvers/sbom/**/*
-        - test/new-e2e/tests/sbom/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
 .on_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1403,41 +1200,6 @@ workflow:
         - pkg/security/**/*
         - pkg/eventmonitor/**/*
         - test/new-e2e/tests/security-agent-functional/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_healthplatform_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/healthplatform/**/*
-        - test/new-e2e/tests/agent-health/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_agenttelemetry_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/agent/subcommands/run/**/*
-        - comp/core/agenttelemetry/**/*
-        - pkg/util/log/setup/**/*
-        - pkg/util/log/errortracking/**/*
-        - test/new-e2e/tests/agent-telemetry/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_privateactionrunner_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/privateactionrunner/**/*
-        - comp/privateactionrunner/**/*
-        - pkg/privateactionrunner/**/*
-        - pkg/config/setup/privateactionrunner.go
-        - pkg/proto/datadog/privateactionrunner/**/*
-        - pkg/proto/pbgo/privateactionrunner/**/*
-        - test/new-e2e/tests/privateactionrunner/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1575,27 +1337,6 @@ workflow:
       paths:
         - tasks/**/*
         - .gitlab-ci.yml # A buildimage bump can also affect the invoke tasks
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_gpu_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/gpu/**/*
-        - pkg/ebpf/**/*
-        - pkg/util/kernel/**/*
-        - test/new-e2e/tests/gpu/**/*
-        - pkg/collector/corechecks/gpu/**/*
-        - comp/core/workloadmeta/collectors/internal/nvml/**/*
-        - comp/core/autodiscovery/listeners/staticconfig.go
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_autoscaling_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/autoscaling/**/*
-        - pkg/clusteragent/autoscaling/cluster/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:

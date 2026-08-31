@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+import codecs
 import os
-import shlex
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import IO, NamedTuple
 
-from invoke import Exit
-from invoke.context import Context
-
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import get_repo_root
+from tasks.libs.common.utils import get_repo_root, join_command
 
 
 class Label(NamedTuple):
@@ -93,48 +91,153 @@ def bazel_not_found_message(color: str) -> str:
     return color_message("Please run `inv install-tools` for `bazel` support!", color)
 
 
+def _run_command(
+    cmd: tuple[str, ...],
+    *,
+    capture_stdout: bool,
+    capture_for_result: bool,
+    env: dict[str, str] | None,
+    input: str | None,
+) -> subprocess.CompletedProcess[str]:
+    # Merge the provided `env` with the current outside environment.
+    subprocess_env = {**os.environ, **env} if env else None
+
+    if capture_for_result:
+        return _run_command_with_tee(
+            cmd,
+            input=input,
+            env=subprocess_env,
+            tee_stdout=not capture_stdout,
+            tee_stderr=True,
+        )
+
+    return subprocess.run(
+        cmd,
+        env=subprocess_env,
+        input=input,
+        stdin=subprocess.DEVNULL if input is None else None,
+        stdout=subprocess.PIPE if capture_stdout else None,
+        stderr=None,
+        encoding="utf-8",
+        errors="backslashreplace",
+    )
+
+
+async def _collect_output(
+    stream: asyncio.StreamReader,
+    sink: IO[str] | None,
+) -> str:
+    decoder = codecs.getincrementaldecoder("utf-8")("backslashreplace")
+    chunks: list[str] = []
+    while data := await stream.read(8192):
+        chunk = decoder.decode(data)
+        chunks.append(chunk)
+        if sink is not None:
+            sink.write(chunk)
+            sink.flush()
+
+    tail = decoder.decode(b"", final=True)
+    if tail:
+        chunks.append(tail)
+        if sink is not None:
+            sink.write(tail)
+            sink.flush()
+
+    return "".join(chunks)
+
+
+async def _run_command_with_tee_async(
+    cmd: tuple[str, ...],
+    *,
+    input: str | None,
+    env: dict[str, str] | None,
+    tee_stdout: bool,
+    tee_stderr: bool,
+) -> subprocess.CompletedProcess[str]:
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        env=env,
+        stdin=asyncio.subprocess.PIPE if input is not None else subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    # Manage stdout and stderr in separate async tasks that tee output while collecting it.
+    output_tasks = [
+        asyncio.create_task(_collect_output(proc.stdout, sys.stdout if tee_stdout else None)),
+        asyncio.create_task(_collect_output(proc.stderr, sys.stderr if tee_stderr else None)),
+    ]
+
+    # Feed input to the process stdin
+    if input is not None and proc.stdin is not None:
+        try:
+            proc.stdin.write(input.encode("utf-8"))
+            await proc.stdin.drain()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            proc.stdin.close()
+            await proc.stdin.wait_closed()
+
+    returncode = await proc.wait()
+    stdout, stderr = await asyncio.gather(*output_tasks)
+
+    return subprocess.CompletedProcess(cmd, returncode, stdout, stderr)
+
+
+def _run_command_with_tee(
+    cmd: tuple[str, ...],
+    *,
+    input: str | None,
+    env: dict[str, str] | None,
+    tee_stdout: bool,
+    tee_stderr: bool,
+) -> subprocess.CompletedProcess[str]:
+    return asyncio.run(
+        _run_command_with_tee_async(
+            cmd,
+            input=input,
+            env=env,
+            tee_stdout=tee_stdout,
+            tee_stderr=tee_stderr,
+        )
+    )
+
+
 def bazel(
-    ctx: Context,
     *args: str,
     capture_output: bool = False,
-    capture_stderr: bool = False,
+    env: dict[str, str] | None = None,
     ignore_errors: bool = False,
-    input_stream: IO[str] | bool = False,
+    input: str | None = None,
     sudo: bool = False,
-) -> str:
+) -> str | subprocess.CompletedProcess[str]:
     """Execute a bazel command.
 
-    capture_output: capture stdout.
-    capture_stderr: also capture stderr and append it to the returned string.
-        Use this when Bazel writes important output (e.g.  test results) to stderr
-        and the caller needs to process it.
+    env: environment variables when passing them through the corresponding Bazel `--*_env=` flags is not suitable.
+    input: text to pass to the Bazel subprocess stdin.
+    ignore_errors: do not fail fast, but instead return the raw `CompletedProcess`, whether the Bazel command
+        succeeded or not.
     """
 
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
-        raise Exit(bazel_not_found_message("red"))
+        raise SystemExit(bazel_not_found_message("red"))
     cmd = (("sudo",) if sudo else ()) + (bazelisk, *_insert_omnibazel_flags(args))
-    cmdline = (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd)
+    cmdline = join_command(cmd)
     print(color_message(cmdline.replace(bazelisk, "bazel", 1), "bold"), file=sys.stderr)  # brevity: abspath -> bazel
-    kwargs = {}
-    # Invoke terminolgy is subtle. "hide" means hide from the user.
-    # In every other libray, that would be called capture, and the
-    # act of capturing it would hide it from the user.
-    # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
-    if capture_output and capture_stderr:
-        kwargs["hide"] = "both"
-    elif capture_output:
-        kwargs["hide"] = "out"
-    elif capture_stderr:
-        kwargs["hide"] = "err"
-    elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
-        kwargs["pty"] = True
-    result = ctx.run(cmdline, echo=False, in_stream=input_stream, warn=ignore_errors, **kwargs)
-    captured = []
-    if capture_output and result.ok:
-        captured.append(result.stdout)
-    if capture_stderr:
-        captured.append(result.stderr)
-    return "".join(captured)
+
+    completed = _run_command(
+        cmd,
+        capture_stdout=capture_output,
+        capture_for_result=ignore_errors,
+        env=env,
+        input=input,
+    )
+    if ignore_errors:
+        return completed
+    if completed.returncode != 0:
+        raise SystemExit(completed.returncode)
+    return completed.stdout if capture_output else ""
 
 
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
@@ -146,7 +249,11 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     if agent_flavor := os.environ.get("AGENT_FLAVOR"):
         flags.append(f"--//packages/agent:flavor={agent_flavor}")
     if install_dir := os.environ.get("INSTALL_DIR"):
-        flags.append(f"--//:install_dir={install_dir}")
+        # In macos, omnibus install_dir is the build location, which is different from the expected install location
+        if sys.platform == "darwin":
+            flags.append("--//:install_dir=/opt/datadog-agent")
+        else:
+            flags.append(f"--//:install_dir={install_dir}")
         flags.append(f"--//:output_config_dir={os.environ.get("OUTPUT_CONFIG_DIR", "")}")
     if not flags:
         return args

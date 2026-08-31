@@ -9,11 +9,25 @@ import (
 	"encoding/json"
 	"math"
 	"testing"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	"github.com/stretchr/testify/assert"
 )
+
+type scorerConfigReader struct {
+	ints map[string]int
+}
+
+func (r scorerConfigReader) GetBool(string) bool              { return false }
+func (r scorerConfigReader) GetInt(key string) int            { return r.ints[key] }
+func (r scorerConfigReader) GetFloat64(string) float64        { return 0 }
+func (r scorerConfigReader) GetString(string) string          { return "" }
+func (r scorerConfigReader) GetDuration(string) time.Duration { return 0 }
+func (r scorerConfigReader) IsConfigured(string) bool         { return false }
 
 // makeAnomaly is a test helper that creates an anomaly with the given detector,
 // timestamp, and optional score.
@@ -32,6 +46,29 @@ func makeAnomaly(detector string, ts int64, score *float64) observer.Anomaly {
 }
 
 func scorePtr(v float64) *float64 { return &v }
+
+func TestReadAnomalyScorerConfigMaxReportedItems(t *testing.T) {
+	const prefix = "anomaly_detection.anomaly_scorer."
+
+	cfg := readAnomalyScorerConfig(scorerConfigReader{
+		ints: map[string]int{prefix + "output.max_reported_items": minMaxReportedItems},
+	}, prefix)
+	if cfg.MaxReportedItems != minMaxReportedItems {
+		t.Errorf("MaxReportedItems = %d, want minimum %d", cfg.MaxReportedItems, minMaxReportedItems)
+	}
+
+	cfg = readAnomalyScorerConfig(scorerConfigReader{}, prefix)
+	if cfg.MaxReportedItems != minMaxReportedItems {
+		t.Errorf("invalid MaxReportedItems = %d, want minimum %d", cfg.MaxReportedItems, minMaxReportedItems)
+	}
+
+	cfg = readAnomalyScorerConfig(scorerConfigReader{
+		ints: map[string]int{prefix + "output.max_reported_items": maxMaxReportedItems + 1},
+	}, prefix)
+	if cfg.MaxReportedItems != maxMaxReportedItems {
+		t.Errorf("MaxReportedItems = %d, want maximum %d", cfg.MaxReportedItems, maxMaxReportedItems)
+	}
+}
 
 func TestNormalizeCorrelationEventThreshold(t *testing.T) {
 	cases := []struct {
@@ -120,6 +157,145 @@ func TestAnomalyLevel(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("anomalyLevel(%s, score=%v): got %d, want %d", tc.detector, tc.score, got, tc.want)
 		}
+	}
+}
+
+func TestAnomalySeverityLabel(t *testing.T) {
+	assert.Equal(t, "xlow", anomalySeverityLabel(0))
+	assert.Equal(t, "low", anomalySeverityLabel(1))
+	assert.Equal(t, "medium", anomalySeverityLabel(2))
+	assert.Equal(t, "high", anomalySeverityLabel(3))
+	assert.Equal(t, "xhigh", anomalySeverityLabel(4))
+}
+
+func TestContributorWeight_IsContinuousAndBounded(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+
+	below := makeAnomaly("holt_residual", 1000, scorePtr(-1))
+	if got := contributorWeight(below, cfg); got != 0.2 {
+		t.Fatalf("weight below range = %g, want 0.2", got)
+	}
+	belowFirstThreshold := makeAnomaly("holt_residual", 1000, scorePtr(1))
+	if got := contributorWeight(belowFirstThreshold, cfg); got != levelWeights[0] {
+		t.Fatalf("weight below first threshold = %g, want %g", got, levelWeights[0])
+	}
+
+	// 16 is halfway between holt_residual's medium (12) and high (20)
+	// thresholds, so interpolate between their calibrated weights (1 and 2).
+	middle := makeAnomaly("holt_residual", 1000, scorePtr(16))
+	if got := contributorWeight(middle, cfg); math.Abs(got-1.5) > 1e-9 {
+		t.Fatalf("weight halfway between Medium and High = %g, want 1.5", got)
+	}
+
+	above := makeAnomaly("holt_residual", 1000, scorePtr(100))
+	if got := contributorWeight(above, cfg); got != 3.0 {
+		t.Fatalf("weight above range = %g, want 3.0", got)
+	}
+}
+
+func TestTopAnomalyBuffer_ExpiresAtFiveMinutes(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	buffer := newTopAnomalyBuffer(10)
+	handle := &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
+	buffer.update(1000, []observer.Anomaly{{SourceRef: handle, DetectorName: "holt_residual", Score: scorePtr(40)}}, cfg)
+
+	buffer.update(1300, nil, cfg) // one catch-up advance reaches the five-minute boundary
+	if len(buffer.entries) != 0 {
+		t.Fatalf("expected contributor to expire after five minutes, got %+v", buffer.entries)
+	}
+}
+
+func TestTopAnomalyBuffer_UsesScorerWeights(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	buffer := newTopAnomalyBuffer(10)
+	buffer.update(1000, []observer.Anomaly{
+		{SourceRef: &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}, DetectorName: "holt_residual", Score: scorePtr(20)},
+		{SourceRef: &observer.QueryHandle{Ref: 7, Aggregate: observer.AggregateAverage}, DetectorName: "holt_residual", Score: scorePtr(40)},
+		{SourceRef: &observer.QueryHandle{Ref: 3, Aggregate: observer.AggregateAverage}, DetectorName: "holt_residual", Score: scorePtr(40)},
+	}, cfg)
+
+	if len(buffer.entries) != 3 {
+		t.Fatalf("expected three entries, got %+v", buffer.entries)
+	}
+	weights := make(map[observer.SeriesRef]float64, len(buffer.entries))
+	for _, entry := range buffer.entries {
+		weights[entry.handle.Ref] = entry.weight
+	}
+	if weights[3] != levelWeights[4] || weights[7] != levelWeights[4] || weights[42] != contributorWeight(
+		observer.Anomaly{DetectorName: "holt_residual", Score: scorePtr(20)}, cfg,
+	) {
+		t.Fatalf("unexpected admitted anomalies: %+v", buffer.entries)
+	}
+}
+
+func TestTopAnomalyBuffer_RejectsWeakCandidatesAndReplacesWeakest(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	buffer := newTopAnomalyBuffer(2)
+	for i := 1; i <= buffer.capacity; i++ {
+		handle := &observer.QueryHandle{Ref: observer.SeriesRef(i), Aggregate: observer.AggregateAverage}
+		buffer.update(1000, []observer.Anomaly{{SourceRef: handle, DetectorName: "holt_residual", Score: scorePtr(8)}}, cfg)
+	}
+	weakHandle := &observer.QueryHandle{Ref: 99, Aggregate: observer.AggregateAverage}
+	buffer.update(1000, []observer.Anomaly{{SourceRef: weakHandle, DetectorName: "holt_residual", Score: scorePtr(8)}}, cfg)
+	strongHandle := &observer.QueryHandle{Ref: 100, Aggregate: observer.AggregateAverage}
+	buffer.update(1001, []observer.Anomaly{{SourceRef: strongHandle, DetectorName: "holt_residual", Score: scorePtr(40)}}, cfg)
+
+	if len(buffer.entries) != buffer.capacity {
+		t.Fatalf("expected capacity %d, got %d", buffer.capacity, len(buffer.entries))
+	}
+	for _, entry := range buffer.entries {
+		if entry.handle == *weakHandle {
+			t.Fatal("expected equal-weight tail candidate to be rejected")
+		}
+	}
+	for _, entry := range buffer.entries {
+		if entry.handle == *strongHandle && entry.weight == levelWeights[4] {
+			return
+		}
+	}
+	t.Fatalf("expected stronger anomaly to be retained, got %+v", buffer.entries)
+}
+
+func TestTopAnomalyBuffer_CapacityTracksDisplayCount(t *testing.T) {
+	buffer := newTopAnomalyBuffer(7)
+	if buffer.capacity != 70 || cap(buffer.entries) != 70 {
+		t.Fatalf("expected capacity 70 for seven displayed contributors, got capacity=%d slice-capacity=%d", buffer.capacity, cap(buffer.entries))
+	}
+}
+
+func TestTopAnomalyBuffer_ContributorsAggregateSharesAndLimitResults(t *testing.T) {
+	buffer := newTopAnomalyBuffer(10)
+	average := observer.QueryHandle{Ref: 10, Aggregate: observer.AggregateAverage}
+	count := observer.QueryHandle{Ref: 20, Aggregate: observer.AggregateCount}
+	total := observer.QueryHandle{Ref: 30, Aggregate: observer.AggregateSum}
+	buffer.entries = []topAnomaly{
+		{handle: average, weight: 3},
+		{handle: average, weight: 2},
+		{handle: count, weight: 3},
+		{handle: total, weight: 2},
+	}
+
+	contributors := buffer.contributors(2)
+	if len(contributors) != 2 {
+		t.Fatalf("expected two contributors, got %+v", contributors)
+	}
+	if contributors[0].Handle != average || contributors[0].Weight != 5 || math.Abs(contributors[0].Share-0.625) > 1e-9 {
+		t.Errorf("first contributor = %+v, want average with weight 5 and 62.5%% share", contributors[0])
+	}
+	if contributors[1].Handle != count || contributors[1].Weight != 3 || math.Abs(contributors[1].Share-0.375) > 1e-9 {
+		t.Errorf("second contributor = %+v, want count with weight 3 and 37.5%% share", contributors[1])
+	}
+}
+
+func TestTopAnomalyBuffer_EnabledOnlyForCorrelationEvents(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	if scorer := newAnomalyScorerBase(cfg); scorer.topAnomalies != nil {
+		t.Fatal("expected contributor buffer to remain disabled")
+	}
+
+	cfg.CorrelationEvents = true
+	if scorer := newAnomalyScorerBase(cfg); scorer.topAnomalies == nil {
+		t.Fatal("expected contributor buffer when correlation events are enabled")
 	}
 }
 
@@ -775,9 +951,9 @@ func TestSubscribeSeverityEventsCreatesIndependentDispatchers(t *testing.T) {
 // telemetry gauges so that the internal watcher is active.
 func newScorerWithTelemetry(cfg AnomalyScorerConfig) *anomalyScorer {
 	tel := noopsimpl.GetCompatComponent()
-	stateGauge := tel.NewGauge("test", "scorer_state", nil, "")
+	severityGauge := tel.NewGauge("test", "scorer_severity", nil, "")
 	ewmaGauge := tel.NewGauge("test", "scorer_ewma", nil, "")
-	return newAnomalyScorerWithTelemetry(cfg, stateGauge, ewmaGauge)
+	return newAnomalyScorerWithTelemetry(cfg, severityGauge, ewmaGauge)
 }
 
 // episodeTestCfg returns a scorer config tuned for fast episode tests:
@@ -1007,17 +1183,26 @@ func TestMaxEpisodeAnomalies(t *testing.T) {
 }
 
 // TestScorerWithTelemetry_GaugesAndLogs verifies that newAnomalyScorerWithTelemetry
-// wires the internal watcher self-subscription and does not panic on transitions.
-func TestScorerWithTelemetry_GaugesAndLogs(_ *testing.T) {
+// wires the internal watcher self-subscription, updates the current severity
+// gauge, and does not panic on transitions.
+func TestScorerWithTelemetry_GaugesAndLogs(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+	tel := newObserverTelemetry(telComp)
+
 	cfg := episodeTestCfg()
 	cfg.Logs = true
 	cfg.CorrelationEvents = false
-	s := newScorerWithTelemetry(cfg)
+	s := newAnomalyScorerWithTelemetry(cfg, tel.scorerSeverity, tel.scorerEwma)
 
-	// Drive EWMA past High threshold — must not panic even with Logs=true.
+	// Drive EWMA past High threshold — must not panic even with Logs=true,
+	// and must expose the current level instead of a transition direction.
 	spikeSec := seedAndCrossHighThreshold(s, 1000)
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
 	// De-escalate — must not panic.
 	triggerDeescalation(s, spikeSec)
+	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
 }
 
 // TestActiveCorrelationsEngineAccumulationOrdering verifies the engine's
@@ -1164,6 +1349,35 @@ func TestPendingEvents_EpisodeStarted(t *testing.T) {
 	// Drain is idempotent — second call returns nil.
 	if got := s.PendingEvents(); got != nil {
 		t.Fatalf("expected nil on second PendingEvents call (already drained), got %v", got)
+	}
+}
+
+func TestPendingEvents_EpisodeStartedIncludesContributors(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.MaxReportedItems = 1
+	s := newScorerWithTelemetry(cfg)
+
+	s.Advance(1000) // seed at Low
+	handle := observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
+	s.ProcessAnomaly(observer.Anomaly{
+		SourceRef:    &handle,
+		DetectorName: "holt_residual",
+		Timestamp:    1001,
+		Score:        scorePtr(40),
+	})
+	s.Advance(1001)
+
+	events := s.PendingEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected one episode-start event, got %+v", events)
+	}
+	contributors := events[0].Contributors
+	if len(contributors) != 1 {
+		t.Fatalf("expected one contributor, got %+v", contributors)
+	}
+	if contributors[0].Handle != handle || contributors[0].Weight != 3 || contributors[0].Share != 1 {
+		t.Errorf("unexpected contributor: %+v", contributors[0])
 	}
 }
 

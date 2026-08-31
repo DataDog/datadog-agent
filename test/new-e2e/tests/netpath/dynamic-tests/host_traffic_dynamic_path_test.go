@@ -69,6 +69,8 @@ services:
 var hostTrafficDynamicRCConfig = []byte(`{
   "type": "dynamic",
   "test_config_id": "dynamic-host-traffic",
+  "test_config_name": "Host traffic dynamic paths",
+  "tags": ["team:netpath", "env:e2e"],
   "config": {
     "filters": [
       {
@@ -92,11 +94,11 @@ type hostTrafficDynamicPathSuite struct {
 
 // TestHostTrafficDynamicPathSuite runs Network Path Dynamic Tests backed by host NPM traffic.
 func TestHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner()))
+	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("hostTrafficDynamicPath", hostTrafficDynamicPathAgentConfig)))
 }
 
-func hostTrafficDynamicPathProvisioner() provisioners.Provisioner {
-	return provisioners.NewTypedPulumiProvisioner[hostTrafficDynamicPathEnv]("hostTrafficDynamicPath", func(ctx *pulumi.Context, env *hostTrafficDynamicPathEnv) error {
+func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Provisioner {
+	return provisioners.NewTypedPulumiProvisioner[hostTrafficDynamicPathEnv](name, func(ctx *pulumi.Context, env *hostTrafficDynamicPathEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
@@ -105,7 +107,7 @@ func hostTrafficDynamicPathProvisioner() provisioners.Provisioner {
 		params := ec2.GetParams(
 			ec2.WithName("hosttrafficdynamicpathvm"),
 			ec2.WithAgentOptions(
-				agentparams.WithAgentConfig(hostTrafficDynamicPathAgentConfig),
+				agentparams.WithAgentConfig(agentConfig),
 				agentparams.WithSystemProbeConfig(hostTrafficSystemProbeConfig),
 			),
 		)
@@ -157,26 +159,17 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
+	// Add the config before the rest of setup. Fakeintake returns 404 when the
+	// Agent polls an empty RC repository, and those responses increase the
+	// Agent's retry backoff while the host dependencies are being prepared.
+	fakeintake := s.Env().FakeIntake.Client()
+	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
+	s.remoteConfigAdded = true
+
 	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
-
-	fakeintake := s.Env().FakeIntake.Client()
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		stats, err := fakeintake.RCStats()
-		assert.NoError(c, err)
-		assert.NotZero(c, stats.Polls, "agent did not poll fakeintake Remote Config")
-	}, 2*time.Minute, 5*time.Second)
-	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
-	s.remoteConfigAdded = true
-	statsAfterAdd, err := fakeintake.RCStats()
-	require.NoError(s.T(), err)
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		stats, err := fakeintake.RCStats()
-		assert.NoError(c, err)
-		assert.Greater(c, stats.Polls, statsAfterAdd.Polls, "agent did not poll Remote Config after the dynamic config was added")
-	}, 2*time.Minute, 5*time.Second)
 
 	require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
 }
@@ -199,7 +192,9 @@ func (s *hostTrafficDynamicPathSuite) AfterTest(suiteName, testName string) {
 
 func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 	fakeintake := s.Env().FakeIntake.Client()
-	s.startHostTrafficGenerator(4 * time.Minute)
+	// Keep producing matching connections for longer than the assertion window
+	// so a delayed RC application still has traffic to admit.
+	s.startHostTrafficGenerator(6 * time.Minute)
 
 	var remoteConfigMatch *aggregator.Netpath
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -223,7 +218,9 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
 		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
 		assert.Equal(c, "dynamic-host-traffic", match.TestConfigID)
+		assert.Equal(c, "Host traffic dynamic paths", match.TestConfigName)
 		assert.Equal(c, payload.TestConfigSourceRemote, match.TestConfigSource)
+		assert.Equal(c, []string{"team:netpath", "env:e2e"}, match.Tags)
 		remoteConfigMatch = match
 	}, 5*time.Minute, 10*time.Second)
 

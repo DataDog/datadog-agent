@@ -497,7 +497,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 	batchMaxConcurrentSend := logsConfig.batchMaxConcurrentSend()
 	batchMaxSize := logsConfig.batchMaxSize()
 	batchMaxContentSize := logsConfig.batchMaxContentSize()
-	inputChanSize := logsConfig.inputChanSize()
+	inputChanSize := logsConfig.InputChanSize()
 
 	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
 }

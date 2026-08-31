@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -392,4 +393,69 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	defer shortCancel()
 	_, err = anon.Health(shortCtx, &pb.HealthRequest{})
 	require.Error(t, err, "client without a valid cert must be rejected")
+}
+
+func TestServeExitsWhenIdle(t *testing.T) {
+	mockClock := clock.NewMock()
+	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv.clock = mockClock
+	srv.touch()
+	srv.SetReady(true)
+
+	socketPath := testListenAddr(t)
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	idleTimedOut := false
+	const idleTimeout = time.Minute
+	go func() {
+		served <- Serve(context.Background(), lis, srv, ServeOptions{
+			DrainTimeout: 2 * time.Second,
+			IdleTimeout:  idleTimeout,
+			OnIdleTimeout: func() {
+				idleTimedOut = true
+			},
+		})
+	}()
+
+	for range 2 * idleCheckDivisor {
+		mockClock.Add(idleTimeout / idleCheckDivisor)
+		select {
+		case err := <-served:
+			require.NoError(t, err, "an idle exit is a clean exit, so procmgr leaves it down")
+			require.True(t, idleTimedOut)
+			return
+		default:
+		}
+	}
+	t.Fatal("idle executor did not exit")
+}
+
+func TestIdleTracking(t *testing.T) {
+	mockClock := clock.NewMock()
+	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv.clock = mockClock
+	srv.touch()
+
+	const timeout = time.Minute
+	mockClock.Add(timeout - time.Second)
+	assert.Equal(t, timeout-time.Second, srv.idleFor())
+
+	srv.touch()
+	assert.Zero(t, srv.idleFor(), "dispatch activity should reset the idle clock")
+
+	_, err := srv.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	mockClock.Add(time.Second)
+	assert.Equal(t, time.Second, srv.idleFor(), "health checks should not count as activity")
+
+	srv.active.Add(1)
+	mockClock.Add(2 * timeout)
+	assert.Zero(t, srv.idleFor(), "an active action should suppress the idle state")
+	srv.active.Add(-1)
+	srv.touch()
+
+	mockClock.Add(timeout)
+	assert.Equal(t, timeout, srv.idleFor())
 }
