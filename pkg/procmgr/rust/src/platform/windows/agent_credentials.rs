@@ -324,15 +324,11 @@ fn is_well_known_sid(
     unsafe { IsWellKnownSid(sid.as_ptr() as *mut _, well_known) != 0 }
 }
 
-/// Pick the first non-empty Agent password from installer LSA storage or SCM service credentials.
-fn agent_password_from_sources(
-    installer_lsa_password: Option<&str>,
+/// Return the SCM-stored agent password when datadogagent runs as that user.
+fn scm_agent_password(
     scm_service_password: Option<&str>,
     scm_service_matches_agent: bool,
 ) -> Option<String> {
-    if let Some(password) = installer_lsa_password.filter(|password| !password.is_empty()) {
-        return Some(password.to_string());
-    }
     if scm_service_matches_agent {
         scm_service_password
             .filter(|password| !password.is_empty())
@@ -360,8 +356,7 @@ fn read_agent_password(domain: &str, user: &str) -> Result<Option<String>> {
             .as_ref()
             .is_some_and(|password| !password.is_empty())
     );
-    Ok(agent_password_from_sources(
-        None,
+    Ok(scm_agent_password(
         scm_password.as_deref(),
         scm_service_matches_agent,
     ))
@@ -407,28 +402,17 @@ mod tests {
     }
 
     #[test]
-    fn agent_password_prefers_installer_lsa_secret() {
+    fn scm_agent_password_uses_scm_when_service_account_matches() {
         assert_eq!(
-            agent_password_from_sources(Some("installer"), Some("scm"), true),
-            Some("installer".to_string())
+            scm_agent_password(Some("scm"), true),
+            Some("scm".to_string())
         );
+        assert_eq!(scm_agent_password(Some(""), true), None);
     }
 
     #[test]
-    fn agent_password_falls_back_to_scm_when_installer_lsa_missing() {
-        assert_eq!(
-            agent_password_from_sources(None, Some("scm"), true),
-            Some("scm".to_string())
-        );
-        assert_eq!(
-            agent_password_from_sources(Some(""), Some("scm"), true),
-            Some("scm".to_string())
-        );
-    }
-
-    #[test]
-    fn agent_password_ignores_scm_when_service_account_mismatch() {
-        assert_eq!(agent_password_from_sources(None, Some("scm"), false), None);
+    fn scm_agent_password_ignores_scm_when_service_account_mismatch() {
+        assert_eq!(scm_agent_password(Some("scm"), false), None);
     }
 
     #[test]
