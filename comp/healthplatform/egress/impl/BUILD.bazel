@@ -26,6 +26,7 @@ dd_agent_go_test(
     srcs = ["egress_test.go"],
     embed = [":impl"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/mock",
         "//comp/healthplatform/forwarder/def",
         "//comp/healthplatform/forwarder/mock",
