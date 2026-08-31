@@ -153,6 +153,12 @@ func (c *testWBCheck) WorkloadBalancingGroupID() string {
 	return c.wbGroup
 }
 
+// IsHASupported is true so the HA fallback path in Run can be exercised when workload
+// balancing is disabled for a grouped check.
+func (c *testWBCheck) IsHASupported() bool {
+	return true
+}
+
 func newWBCheck(t *testing.T, id string, wbGroup string) *testWBCheck {
 	return &testWBCheck{
 		testCheck: testCheck{
@@ -844,6 +850,7 @@ func TestWorker_WorkloadBalancingGating(t *testing.T) {
 	tests := []struct {
 		name                    string
 		wbGroup                 string
+		wbEnabled               bool
 		groupActive             bool
 		haAgentEnabled          bool
 		expectedWBCheckRunCount int
@@ -852,6 +859,7 @@ func TestWorker_WorkloadBalancingGating(t *testing.T) {
 		{
 			name:                    "group is active",
 			wbGroup:                 "group-1",
+			wbEnabled:               true,
 			groupActive:             true,
 			expectedWBCheckRunCount: 1,
 			expectedNoGroupRunCount: 1,
@@ -859,6 +867,7 @@ func TestWorker_WorkloadBalancingGating(t *testing.T) {
 		{
 			name:                    "group is not active",
 			wbGroup:                 "group-1",
+			wbEnabled:               true,
 			groupActive:             false,
 			expectedWBCheckRunCount: 0,
 			expectedNoGroupRunCount: 1,
@@ -866,6 +875,7 @@ func TestWorker_WorkloadBalancingGating(t *testing.T) {
 		{
 			name:                    "no group assigned is unaffected by workload balancing state",
 			wbGroup:                 "",
+			wbEnabled:               true,
 			groupActive:             false,
 			haAgentEnabled:          false,
 			expectedWBCheckRunCount: 1,
@@ -892,6 +902,7 @@ func TestWorker_WorkloadBalancingGating(t *testing.T) {
 			close(pendingChecksChan)
 
 			wbMock := workloadbalancingmock.NewMockWorkloadBalancing().(workloadbalancingmock.Component)
+			wbMock.SetEnabled(tt.wbEnabled)
 			if tt.wbGroup != "" {
 				wbMock.SetGroupActive(tt.wbGroup, tt.groupActive)
 			}
@@ -917,6 +928,58 @@ func TestWorker_WorkloadBalancingGating(t *testing.T) {
 			assert.Equal(t, 0, len(checksTracker.RunningChecks()))
 		})
 	}
+}
+
+// TestWorker_WorkloadBalancingDisabledFallsBackToHAGating covers a case the mock HA agent can't
+// exercise (its IsActive always returns true), so it uses the real haagent component: when
+// agent_workload_balancing is disabled, a grouped check must still be gated by HA leadership
+// instead of running unconditionally, or a standby Agent double-collects alongside the leader.
+func TestWorker_WorkloadBalancingDisabledFallsBackToHAGating(t *testing.T) {
+	expvars.Reset()
+
+	testHostname := "myhost"
+	var wg sync.WaitGroup
+
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 10)
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+	wbCheck := newWBCheck(t, "wbcheck:123", "group-1")
+	pendingChecksChan <- wbCheck
+	close(pendingChecksChan)
+
+	agentConfigs := map[string]interface{}{
+		"hostname":         testHostname,
+		"ha_agent.enabled": true,
+		"config_id":        "my-config-01",
+	}
+	logComponent := logmock.New(t)
+	agentConfigComponent := config.NewMockWithOverrides(t, agentConfigs)
+	requires := haagentimpl.Requires{
+		Logger:      logComponent,
+		AgentConfig: agentConfigComponent,
+		Hostname:    hostnameimpl.NewHostnameService(),
+	}
+	haagentcomp, _ := haagentimpl.NewComponent(requires)
+	haagentcomp.Comp.SetLeader("leader-is-another-agent")
+
+	wbMock := workloadbalancingmock.NewMockWorkloadBalancing().(workloadbalancingmock.Component)
+	wbMock.SetEnabled(false)
+	wbMock.SetGroupActive("group-1", true)
+
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentcomp.Comp, wbMock, 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	require.Nil(t, err)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(context.Background())
+	}()
+
+	wg.Wait()
+
+	assert.Equal(t, 0, wbCheck.RunCount())
+	assert.Equal(t, 0, len(checksTracker.RunningChecks()))
 }
 
 // getWorkerUtilizationExpvar returns the utilization as presented by expvars

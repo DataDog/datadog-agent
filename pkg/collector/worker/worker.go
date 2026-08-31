@@ -187,7 +187,7 @@ func (w *Worker) Run(ctx context.Context) {
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
 
-		if wbGroup := check.WorkloadBalancingGroupID(); wbGroup != "" {
+		if wbGroup := check.WorkloadBalancingGroupID(); wbGroup != "" && w.workloadBalancing.Enabled() {
 			if !w.workloadBalancing.IsGroupActive(wbGroup) {
 				checkLogger.Debug("Check's workload balancing group is not active on this agent, skipping execution...")
 				continue

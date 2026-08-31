@@ -16,6 +16,7 @@ import (
 )
 
 type mockWorkloadBalancing struct {
+	enabled     bool
 	groupActive map[string]bool
 }
 
@@ -26,20 +27,30 @@ func (m *mockWorkloadBalancing) IsGroupActive(groupID string) bool {
 	return true
 }
 
+func (m *mockWorkloadBalancing) Enabled() bool {
+	return m.enabled
+}
+
 // Component is the component type.
 type Component interface {
 	workloadbalancing.Component
 
 	SetGroupActive(groupID string, active bool)
+	SetEnabled(enabled bool)
 }
 
 func (m *mockWorkloadBalancing) SetGroupActive(groupID string, active bool) {
 	m.groupActive[groupID] = active
 }
 
+func (m *mockWorkloadBalancing) SetEnabled(enabled bool) {
+	m.enabled = enabled
+}
+
 // NewMockWorkloadBalancing returns a new Mock
 func NewMockWorkloadBalancing() workloadbalancing.Component {
 	return &mockWorkloadBalancing{
+		enabled:     true,
 		groupActive: make(map[string]bool),
 	}
 }

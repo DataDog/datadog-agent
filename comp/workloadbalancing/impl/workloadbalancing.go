@@ -56,6 +56,10 @@ func (w *workloadBalancingImpl) IsGroupActive(groupID string) bool {
 	return w.groups[groupID] != groupStateStandby
 }
 
+func (w *workloadBalancingImpl) Enabled() bool {
+	return w.configs.enabled
+}
+
 func stateForActiveAgent(agentHostname, activeAgent string) groupState {
 	if agentHostname == activeAgent {
 		return groupStateActive

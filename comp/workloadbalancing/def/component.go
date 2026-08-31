@@ -15,4 +15,10 @@ type Component interface {
 	// only a group explicitly assigned to another Agent is not -- and only when
 	// agent_workload_balancing.enabled is true, which always returns true otherwise.
 	IsGroupActive(groupID string) bool
+
+	// Enabled returns whether agent_workload_balancing.enabled is set to true. Callers that
+	// gate on IsGroupActive for HA purposes must also check this: IsGroupActive alone can't
+	// distinguish "this Agent should run the check" from "the feature is off", since it
+	// returns true in both cases.
+	Enabled() bool
 }
