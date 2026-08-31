@@ -10,6 +10,10 @@ benchmark:
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   variables:
     GIT_DEPTH: 0  # Full history: run-benchmarks.sh / analyze-results.sh check out BASE_BRANCH
+    # `go test -tags=test` sends pkg/util/log output to stdout at debug level, which corrupts
+    # the GoBench output the analyzer parses. Set here rather than only in tasks/trace_agent.py
+    # so it also applies to the baseline run, which is executed from a BASE_BRANCH checkout.
+    DD_LOG_LEVEL: "off"
   script:
     - export ARTIFACTS_DIR="$(pwd)/artifacts" && mkdir -p $ARTIFACTS_DIR
     - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
@@ -22,10 +26,29 @@ benchmark:
     - ./test/benchmarks/apm_scripts/run-benchmarks.sh
     - ./test/benchmarks/apm_scripts/analyze-results.sh
     - "./test/benchmarks/apm_scripts/upload-results-to-s3.sh || :"
-    - "./test/benchmarks/apm_scripts/post-pr-comment.sh || :"
   artifacts:
     name: "artifacts"
     when: always
     paths:
       - artifacts/
     expire_in: 3 months
+
+# Same pattern as golang_deps_commenter: post on the standard linux image, not the bench runner.
+benchmark_commenter:
+  stage: benchmarks
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  extends: .dd_octo_sts
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  interruptible: true
+  needs: ["benchmark"]
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    - if [ ! -s artifacts/report.md ]; then
+        dda inv -- -e github.pr-commenter --title="Benchmarks" --force-delete ;
+      else
+        dda inv -- -e github.pr-commenter --title="Benchmarks" --body-file=artifacts/report.md ;
+      fi

@@ -23,7 +23,8 @@ WORKDIR /workspace
 # docker_image_build_otel job). Instead we rewrite the deb822 URIs: fields to an
 # ordered multi-URI list so apt fails over to the next mirror on error, and set a
 # short timeout + Retries 1 so a slow mirror becomes a fast error (triggering that
-# failover). us-east-1 is dropped as the chronically-slow mirror. Related:
+# failover). us-east-1 is kept first (our infra's region) with global mirrors as
+# fallbacks. Related:
 # test/new-e2e/tests/installer/host/host.go (ConfigureAptMirrors).
 ARG CI
 RUN if [ "$CI" = "true" ]; then \
@@ -31,9 +32,9 @@ RUN if [ "$CI" = "true" ]; then \
   for f in /etc/apt/sources.list.d/ubuntu.sources; do \
     if [ -f "$f" ]; then \
       sed -i -E \
-        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-        -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-west-2.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-west-2.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports#' \
+        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+        -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports http://mirror.leaseweb.net/ubuntu-ports#' \
         "$f"; \
     fi; \
   done; \
@@ -87,7 +88,7 @@ ENV GOPATH=/go
 RUN go version && \
     curl --version
 
-ARG DDA_VERSION=v0.33.1
+ARG DDA_VERSION=v0.38.0
 ENV DDA_INTERACTIVE=false
 # Install prebuilt dda and sync tasks
 RUN ARCH=$(dpkg --print-architecture) && \

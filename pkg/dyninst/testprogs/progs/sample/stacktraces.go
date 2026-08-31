@@ -5,7 +5,12 @@
 
 package main
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
 
 //nolint:all
 //go:noinline
@@ -26,6 +31,9 @@ func stackC() string {
 }
 
 //nolint:all
-func executeStack() {
+func executeStack(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.stack")
+	defer span.Finish()
+
 	stackA()
 }
