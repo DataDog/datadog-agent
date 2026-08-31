@@ -61,48 +61,84 @@ func firstAlpha(name string) (int, bool) {
 	return 0, false
 }
 
-// isNormalized reports whether name is a name the intake would store unchanged,
-// i.e. whether normalizing it would be the identity.
+// survivesUnchanged reports whether byte c is emitted as itself, given that prev
+// is the byte immediately before it in the region that has survived so far, and
+// therefore also the last byte emitted.
 //
-// It performs a single pass and never allocates, which is what lets filter list
-// matching skip the rewrite entirely for the overwhelmingly common case of an
-// already-normalized name. See Matcher.Test.
+// This is the rewrite rules read as a predicate; appendNormalizedFrom applies the
+// same rules as a transformation. Keeping them adjacent is the point of merging
+// the old separate isNormalized into this file: previously the rules were spelled
+// out twice in full and a fuzz target had to prove the two agreed.
+func survivesUnchanged(c, prev byte) bool {
+	switch {
+	case isAlphaNum(c):
+		return true
+	case c == '.':
+		// A period overwrites a preceding underscore rather than being appended.
+		return prev != '_'
+	case c == '_':
+		// An underscore after a period or another underscore is dropped.
+		return prev != '.' && prev != '_'
+	default:
+		// Anything else becomes an underscore.
+		return false
+	}
+}
+
+// normalizedPrefix scans name once and reports how normalisation would treat it,
+// without needing a buffer.
 //
-// The predicate is exact: isNormalized(s) is true if and only if normalizing s
-// yields s unchanged. TestIsNormalizedMatchesNormalize and the fuzz target
-// beside it assert that equivalence.
-func isNormalized(name string) bool {
+// keep is the number of leading bytes that normalisation emits verbatim, so a
+// caller can copy them in bulk and resume from there rather than rebuilding the
+// whole name a byte at a time. identical is true when that covers the whole name,
+// i.e. the intake would store it unchanged and no rewrite is needed at all. ok is
+// false when the intake would reject the name outright.
+//
+// Deviation is detected from the preceding byte alone, never by looking ahead,
+// because in the surviving region the last emitted byte is always name[i-1].
+//
+// The subtlety, and the thing worth reviewing closely: an emitted underscore is
+// not final. A later period overwrites it and a trailing one is stripped, and
+// neither is visible at the point the underscore is scanned. `a___..b` normalises
+// to `a..b`, so even the underscore at index 1 -- which survives its own
+// inspection, because it sits between two alphanumerics -- is ultimately
+// overwritten by the period at index 4. keep therefore never ends in an
+// underscore. Asserted by TestNormalizedPrefixIsCopyable and by the prefix check
+// inside TestNormalizationMatchesReferenceExhaustive.
+func normalizedPrefix(name string) (keep int, identical bool, ok bool) {
 	if len(name) == 0 || len(name) > maxLength {
-		return false
+		return 0, false, false
 	}
 
-	// A normalized name always starts with an ASCII letter, because everything
-	// before the first one is stripped.
+	// A normalized name starts with an ASCII letter, because everything before
+	// the first one is stripped. Anything else deviates at the very first byte,
+	// and only then do we need to know whether a letter exists at all.
 	if !isAlpha(name[0]) {
-		return false
+		if _, hasAlpha := firstAlpha(name); !hasAlpha {
+			return 0, false, false
+		}
+		return 0, false, true
 	}
 
-	for i := 1; i < len(name); i++ {
-		switch c := name[i]; {
-		case isAlphaNum(c) || c == '.':
-			// Kept verbatim. Note that runs of periods and a trailing period
-			// are both legal in a normalized name.
-		case c == '_':
-			// An underscore is only ever emitted between two alphanumerics: it
-			// is not emitted after a period or another underscore, a following
-			// period overwrites it, and a trailing one is stripped.
-			if !isAlphaNum(name[i-1]) {
-				return false
-			}
-			if i == len(name)-1 || !isAlphaNum(name[i+1]) {
-				return false
-			}
-		default:
-			return false
+	i := 1
+	for ; i < len(name); i++ {
+		if !survivesUnchanged(name[i], name[i-1]) {
+			break
 		}
 	}
 
-	return true
+	if i == len(name) && name[i-1] != '_' {
+		return len(name), true, true
+	}
+
+	// Back off any trailing underscore, which a later period would overwrite or
+	// the end of the name would strip. name[0] is a letter so this cannot reach
+	// zero, and the surviving region holds no run of underscores so it removes
+	// at most one.
+	for i > 0 && name[i-1] == '_' {
+		i--
+	}
+	return i, false, true
 }
 
 // normalizeAppend appends the metric name as the Datadog intake will store it to
@@ -128,20 +164,29 @@ func isNormalized(name string) bool {
 //
 // Normalizing is idempotent: the output always satisfies isNormalized.
 //
-// A normalized name is never longer than its input, and firstAlpha rejects
+// A normalized name is never longer than its input, and normalizedPrefix rejects
 // anything longer than maxLength, so a dst with maxLength spare capacity is
-// enough for append never to reallocate. That is what lets Matcher.Test
-// normalize into a stack buffer, and is why this appends rather than returning a
-// string: there is no production caller that wants the allocation.
-func normalizeAppend(dst []byte, name string) ([]byte, bool) {
-	start, ok := firstAlpha(name)
-	if !ok {
-		return dst, false
+// enough for append never to reallocate. That is what lets Matcher.Test normalize
+// into a stack buffer, and is why this appends rather than returning a string:
+// there is no production caller that wants the allocation.
+//
+// keep must come from normalizedPrefix for this same name. Those bytes are copied
+// in bulk instead of being re-examined, which is the point of scanning once.
+// keep == 0 means nothing survived, so the run before the first letter is skipped
+// here instead.
+func appendNormalizedFrom(dst []byte, name string, keep int) []byte {
+	i := keep
+	if keep == 0 {
+		// firstAlpha cannot fail: normalizedPrefix already established that a
+		// letter exists.
+		i, _ = firstAlpha(name)
+	} else {
+		dst = append(dst, name[:keep]...)
 	}
 
-	// The first iteration always appends, because name[start] is a letter, so
-	// the lookbacks below never read past the end of what this call wrote.
-	for i := start; i < len(name); i++ {
+	// dst is now non-empty, or i points at a letter that the first iteration
+	// appends, so the lookbacks below never read past the start.
+	for ; i < len(name); i++ {
 		switch c := name[i]; {
 		case isAlphaNum(c):
 			dst = append(dst, c)
@@ -168,5 +213,5 @@ func normalizeAppend(dst []byte, name string) ([]byte, bool) {
 		dst = dst[:len(dst)-1]
 	}
 
-	return dst, true
+	return dst
 }

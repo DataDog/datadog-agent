@@ -16,6 +16,7 @@ dd_agent_go_test(
     srcs = [
         "matcher_scaling_test.go",
         "matcher_test.go",
+        "normalize_ab_test.go",
         "normalize_test.go",
     ],
     embed = [":metricname"],

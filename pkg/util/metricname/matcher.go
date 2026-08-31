@@ -79,16 +79,20 @@ func (m *Matcher) Test(name string) bool {
 		return false
 	}
 
-	// Fast path: already normalized, so compare the name as given.
-	if isNormalized(name) {
+	// One pass answers both questions: whether a rewrite is needed at all, and
+	// if so how much of the name survives verbatim.
+	keep, identical, ok := normalizedPrefix(name)
+	if !ok {
+		return false
+	}
+	if identical {
+		// Nothing to build, so compare the name as given. The stack buffer is
+		// declared after this return so the common case never pays to zero it.
 		return m.search(name)
 	}
 
 	var buf [maxLength]byte
-	key, ok := normalizeAppend(buf[:0], name)
-	if !ok {
-		return false
-	}
+	key := appendNormalizedFrom(buf[:0], name, keep)
 
 	// Safe: the string aliases buf, search only reads it for comparison and
 	// never retains it, and buf is not written again while it is alive.

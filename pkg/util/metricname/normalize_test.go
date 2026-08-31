@@ -13,16 +13,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// normalize is the string-returning form of normalizeAppend, for tests that
-// assert on the normalized name. Production code normalizes into a stack buffer
-// via normalizeAppend instead, so this deliberately exists only in tests -- see
-// Matcher.Test.
+// normalize is the string-returning form of the single-pass normaliser, for
+// tests that assert on the normalized name. Production code goes through
+// normalizedPrefix + appendNormalizedFrom with a stack buffer instead, so this
+// deliberately exists only in tests -- see Matcher.Test.
 func normalize(name string) (string, bool) {
-	got, ok := normalizeAppend(make([]byte, 0, maxLength), name)
+	keep, identical, ok := normalizedPrefix(name)
 	if !ok {
 		return name, false
 	}
-	return string(got), true
+	if identical {
+		return name, true
+	}
+	return string(appendNormalizedFrom(make([]byte, 0, maxLength), name, keep)), true
+}
+
+// isNormalized is the predicate the production code no longer needs as separate
+// code: a name is normalized exactly when the single pass reports it unchanged.
+func isNormalized(name string) bool {
+	_, identical, ok := normalizedPrefix(name)
+	return ok && identical
 }
 
 // normalizedNames mirrors the `testMetricNames` table in dd-go
@@ -308,6 +318,16 @@ func TestNormalizationMatchesReferenceExhaustive(t *testing.T) {
 				t.Fatalf("normalising %q produced %q, which is not normalized",
 					name, gotStr)
 			}
+			// The bytes appendNormalizedFrom copies in bulk must be genuinely
+			// shared with the result. This is the invariant that made `a_.b` and
+			// `a___..b` fail while the output was still correct, because the
+			// builder repaired the over-long prefix on the fly.
+			if keep, identical, _ := normalizedPrefix(name); !identical {
+				if keep > len(wantStr) || wantStr[:keep] != name[:keep] {
+					t.Fatalf("keep=%d is not a shared prefix of %q and %q",
+						keep, name, wantStr)
+				}
+			}
 		}
 
 		if depth == 0 {
@@ -321,4 +341,35 @@ func TestNormalizationMatchesReferenceExhaustive(t *testing.T) {
 	}
 	rec(6)
 	t.Logf("checked %d strings against the dd-go transcription", checked)
+}
+
+// TestNormalizedPrefixIsCopyable pins the contract appendNormalizedFrom relies
+// on: the first keep bytes really are what normalisation emits, so copying them
+// without re-examining them is sound.
+//
+// The last two cases are the ones that caught bugs while this was being written.
+// In both, the output was still correct because the builder repaired an over-long
+// prefix, so only an explicit check on keep finds them.
+func TestNormalizedPrefixIsCopyable(t *testing.T) {
+	for _, name := range []string{
+		"a-b", "a__b", "foo.bar-baz", "..foo", "7foo.bar",
+		"normprobe.histo_.latency",
+		"sportsdata.marketsettingsetl_.latency",
+		"a_.b",    // the period overwrites the underscore keep would have included
+		"a___..b", // the underscore at index 1 is overwritten four bytes later
+	} {
+		t.Run(name, func(t *testing.T) {
+			keep, identical, ok := normalizedPrefix(name)
+			require.True(t, ok, "expected %q to be storable", name)
+			require.False(t, identical, "fixture must need a rewrite")
+
+			full, _ := referenceNormalize(name)
+			require.LessOrEqual(t, keep, len(full),
+				"keep must not exceed the normalized length")
+			assert.Equal(t, full[:keep], name[:keep],
+				"the first %d bytes must survive verbatim", keep)
+			assert.NotEqual(t, byte('_'), name[max(keep-1, 0)],
+				"keep must not end in an underscore, which is never final")
+		})
+	}
 }
