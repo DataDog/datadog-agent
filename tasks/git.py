@@ -56,13 +56,8 @@ def push_signed_commits(ctx: Context, branch: str, commit_message: str, source_b
 def get_ancestor(ctx, branch: str) -> str:
     base_branch = get_ancestor_base_branch(branch)
     ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
-    current_commit = get_commit_sha(ctx)
-    # Detect if we're on main branch (ancestor == current commit means merge-base is HEAD itself)
-    # This is used to determine if bypass tolerance should apply (only for PRs, not main)
-    is_on_main_branch = ancestor == current_commit
-    # When on main/release branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/<branch>
-    # is the current commit. In this case, use the parent commit as the ancestor instead.
-    if is_on_main_branch:
+    # When HEAD is the tip of its own base branch, the merge-base is HEAD itself: use the parent commit instead
+    if ancestor == get_commit_sha(ctx):
         ancestor = get_commit_sha(ctx, commit="HEAD~1")
-        print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
+        print(color_message(f"On {base_branch}, using parent commit {ancestor} as ancestor", "cyan"))
     return ancestor
