@@ -160,7 +160,7 @@ func TestDDOTSeriesV3RespectsExplicitOptOut(t *testing.T) {
 func TestDDOTSketchesV3BetaShadowDisabled(t *testing.T) {
 	configmock.New(t)
 	t.Setenv("DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SKETCHES_SHADOW_SAMPLE_RATE", "1")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"}, nil)
 	require.NoError(t, err)
 
 	assert.Zero(t, c.GetFloat64("serializer_experimental_use_v3_api.sketches.shadow_sample_rate"))
