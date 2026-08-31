@@ -156,10 +156,12 @@ spec:
     privileged: false
     readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
-    # AppArmor is optional. The default is unconfined so this example works on
-    # clusters that do not support or manage AppArmor profiles.
+    # Keep AppArmor unconfined so it does not block cross-process access.
     appArmorProfile:
       type: Unconfined
+    # Use spc_t, or an equivalent type, here and in the init container.
+    seLinuxOptions:
+      type: spc_t
     capabilities:
       add:
         - BPF
@@ -190,6 +192,8 @@ spec:
         readOnlyRootFilesystem: true
         appArmorProfile:
           type: Unconfined
+        seLinuxOptions:
+          type: spc_t
         capabilities:
           drop:
             - ALL

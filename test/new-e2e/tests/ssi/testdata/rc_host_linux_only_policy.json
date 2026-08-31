@@ -1,0 +1,32 @@
+{
+  "policies": [
+    {
+      "description": "host-only: Linux OS (does not match K8s admission context)",
+      "id": {"hi": 10, "lo": 1},
+      "version": 1,
+      "rules": {
+        "node_type": "EvaluatorNode",
+        "node": {
+          "description": "host OS linux",
+          "eval_type": "StrEvaluator",
+          "eval": {
+            "id": "HOST_OS",
+            "cmp": "CMP_EXACT",
+            "value": "linux"
+          }
+        }
+      },
+      "actions": [
+        {"action": "INJECT_ALLOW"},
+        {
+          "action": "ENABLE_SDK",
+          "values": ["python=default"]
+        },
+        {
+          "action": "SET_ENVAR",
+          "values": ["DD_SERVICE=from-host-rc"]
+        }
+      ]
+    }
+  ]
+}

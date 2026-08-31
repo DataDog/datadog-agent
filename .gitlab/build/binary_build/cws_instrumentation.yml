@@ -1,5 +1,6 @@
 ---
 .cws_instrumentation-build_common:
+  extends: .bazel:defs:cache:progressive
   stage: binary_build
   timeout: 20m
   needs: []
@@ -41,6 +42,7 @@ cws_instrumentation-build_arm64:
   extends: [.cws_instrumentation-build_common, .cws_instrumentation_arm64]
 
 .cws_instrumentation-build_injector_common:
+  extends: .bazel:defs:cache:progressive
   stage: binary_build
   timeout: 20m
   needs: []
