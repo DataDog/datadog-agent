@@ -66,7 +66,7 @@ mod tests {
         loop {
             match dd_procmgr_client::connect(path).await {
                 Ok(channel) => return channel,
-                Err(err) if Instant::now() < deadline => {
+                Err(_err) if Instant::now() < deadline => {
                     tokio::time::sleep(backoff).await;
                     backoff = std::cmp::min(backoff * 2, Duration::from_millis(500));
                 }
