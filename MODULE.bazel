@@ -76,8 +76,8 @@ bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "rules_python", version = "2.3.2")
 bazel_dep(name = "rules_rs", version = "0.0.27")
-bazel_dep(name = "rules_rust", version = "0.73.0")
-bazel_dep(name = "rules_rust_prost", version = "0.73.0")
+bazel_dep(name = "rules_rust", version = "0.74.0")
+bazel_dep(name = "rules_rust_prost", version = "0.74.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "toml.bzl", version = "0.4.1")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
@@ -113,15 +113,6 @@ archive_override(
     sha256 = "9923c6c8855b153f837a953760159908507f571b4b77cb24ed862dda1de20f90",
     strip_prefix = "rules_pkg-401969d4367c42dcbb45d33a637eae87788d025e",
     urls = ["https://github.com/bazelbuild/rules_pkg/archive/401969d4367c42dcbb45d33a637eae87788d025e.tar.gz"],  # main as of April 22, 2026
-)
-
-single_version_override(
-    module_name = "rules_rust",
-    patch_strip = 1,
-    patches = [
-        # Derives `-Cdlltool=<linker-dir>/dlltool.exe` automatically
-        "//bazel/patches:rules_rust-derive-dlltool-from-linker.patch",
-    ],
 )
 
 # Temporary until https://github.com/bazel-contrib/toolchains_llvm/pull/790 lands in a release
