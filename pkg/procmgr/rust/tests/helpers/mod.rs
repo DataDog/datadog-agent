@@ -190,6 +190,7 @@ pub struct DescribeExpect {
     pub restart_policy: Option<String>,
     pub auto_start: Option<bool>,
     pub restart_count: Option<u64>,
+    pub restart_count_at_least: Option<u64>,
     pub last_exit_code: Option<Option<i32>>,
     pub env_contains: Option<BTreeMap<String, String>>,
     pub after: Option<Vec<String>>,
@@ -232,6 +233,13 @@ impl DescribeSnapshot {
             &expected.restart_count,
             self,
         );
+        if let Some(min) = expected.restart_count_at_least {
+            assert!(
+                self.restart_count >= min,
+                "describe restart_count: expected >={min}, got {}\nfull: {self:?}",
+                self.restart_count
+            );
+        }
         assert_describe_field(
             "last_exit_code",
             &self.last_exit_code,

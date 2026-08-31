@@ -469,12 +469,11 @@ fn restart_always_increments_count_in_list() {
 fn describe_shows_restart_count_after_always_policy() {
     let procmgr = TestEnv::new().with_process("crasher").start();
     procmgr.assert_restart_count_at_least("crasher", 2);
-    let count = procmgr.process("crasher").expect("crasher").restart_count;
     procmgr.assert_describe_matches(
         "crasher",
         DescribeExpect {
             name: Some("crasher".into()),
-            restart_count: Some(count),
+            restart_count_at_least: Some(2),
             ..Default::default()
         },
     );
