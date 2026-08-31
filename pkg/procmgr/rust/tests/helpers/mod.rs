@@ -973,7 +973,7 @@ impl TestEnv {
     }
 
     pub fn assert_process_last_exit_code(&self, name: &str, code: i32) {
-        let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
+        let process = self.find_process(name).unwrap();
         assert_eq!(
             process.last_exit_code,
             Some(code),
@@ -992,9 +992,7 @@ impl TestEnv {
     }
 
     pub fn assert_list_empty(&self) {
-        let processes = self
-            .list_processes()
-            .unwrap_or_else(|e| panic!("failed to list processes: {e}"));
+        let processes = self.list_processes().expect("failed to list processes");
         assert!(
             processes.is_empty(),
             "expected empty catalog, got {processes:?}"
@@ -1002,9 +1000,7 @@ impl TestEnv {
     }
 
     pub fn assert_list_len(&self, expected: usize) {
-        let processes = self
-            .list_processes()
-            .unwrap_or_else(|e| panic!("failed to list processes: {e}"));
+        let processes = self.list_processes().expect("failed to list processes");
         assert_eq!(
             processes.len(),
             expected,
