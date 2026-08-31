@@ -7,9 +7,11 @@ package metrics
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +28,6 @@ func newTestMissedBytesTracker() (*missedBytesTracker, *clock.Mock) {
 	return newMissedBytesTracker(clk), clk
 }
 
-// summarize renders a snapshot as "source:service bytes/rotations", in order.
 func summarize(summaries []MissedBytesSummary) []string {
 	out := make([]string, 0, len(summaries))
 	for _, s := range summaries {
@@ -192,6 +193,27 @@ func TestMissedBytesOverflowFoldsIntoSharedKey(t *testing.T) {
 	assert.Len(t, tr.entries, missedBytesMaxKeys+1, "the map must not grow once the cap is reached")
 	assert.Equal(t, int64(overflow*10+50), findMissedBytes(t, tr.collectAndPrune(),
 		missedBytesOverflowLabel, missedBytesOverflowLabel).Bytes)
+}
+
+// Names are raw config strings, so the entry cap alone does not bound memory.
+func TestMissedBytesBoundsKeyLength(t *testing.T) {
+	tr, _ := newTestMissedBytesTracker()
+
+	long := strings.Repeat("a", 4096)
+	tr.record(long, strings.Repeat("é", 4096), 10)
+
+	require.Len(t, tr.entries, 1)
+	for key := range tr.entries {
+		assert.Equal(t, missedBytesMaxNameLen, utf8.RuneCountInString(key.source))
+		assert.Equal(t, missedBytesMaxNameLen, utf8.RuneCountInString(key.service))
+		assert.True(t, utf8.ValidString(key.service), "a multi-byte name must not be cut mid-rune")
+	}
+
+	// Names sharing a bounded prefix fold together rather than growing the map.
+	tr.record(long+"-different-suffix", strings.Repeat("é", 4096), 5)
+	require.Len(t, tr.entries, 1)
+	assert.Equal(t, []string{fmt.Sprintf("%s:%s 15/2", strings.Repeat("a", missedBytesMaxNameLen),
+		strings.Repeat("é", missedBytesMaxNameLen))}, summarize(tr.collectAndPrune()))
 }
 
 func TestMissedBytesNonPositiveIgnored(t *testing.T) {

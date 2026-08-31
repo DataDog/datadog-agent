@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/benbjohnson/clock"
 )
@@ -28,6 +29,11 @@ const (
 
 	// Source and service every tuple past missedBytesMaxKeys folds into.
 	missedBytesOverflowLabel = "other"
+
+	// Caps the length of a key. Names are raw config strings (YAML, pod
+	// annotations), so bounding the entry count alone does not bound memory.
+	// Two names sharing a prefix this long fold into one tuple.
+	missedBytesMaxNameLen = 64
 )
 
 // MissedBytesSummary is one (source, service) tuple's loss over the trailing window.
@@ -94,7 +100,7 @@ func (t *missedBytesTracker) record(source, service string, bytes int64) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	key := missedBytesKey{source: source, service: service}
+	key := missedBytesKey{source: boundName(source), service: boundName(service)}
 	entry, ok := t.entries[key]
 	if !ok {
 		if len(t.entries) >= missedBytesMaxKeys {
@@ -165,6 +171,15 @@ func (t *missedBytesTracker) reset() {
 
 func alignMissedBytesBucket(tsNano int64) int64 {
 	return (tsNano / int64(missedBytesBucketSize)) * int64(missedBytesBucketSize)
+}
+
+// boundName caps a key's length, cutting on a rune boundary. Rendering the cut for
+// a reader is the issue template's job.
+func boundName(name string) string {
+	if utf8.RuneCountInString(name) <= missedBytesMaxNameLen {
+		return name
+	}
+	return string([]rune(name)[:missedBytesMaxNameLen])
 }
 
 // Process-wide because runner.HealthCheckFunc takes no arguments. Like BytesMissed.
