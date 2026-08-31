@@ -145,7 +145,7 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 
 #### Fetching CI job logs locally
 
-Use `ddgl` for this: it can be found either in a `dda` dev env (`dda env dev ...`) or installed from [the repo](https://github.com/ddgl-cli) using uv:
+Use `ddgl` for this: it can be found either in a `dda` dev env (`dda env dev ...`) or installed from [the repo](https://github.com/DataDog/ddgl-cli) using uv:
 ```bash
 uv tool install git+https://github.com/DataDog/ddgl-cli
 ```
