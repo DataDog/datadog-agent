@@ -39,7 +39,10 @@ func newTelemetryStore(telemetrycomp telemetry.Component) *telemetryStore {
 // pre-bound, so that the request path does no interior hashmap lookups.
 type endpointTelemetry struct {
 	requestOK           telemetry.SimpleCounter
+	requestOverloaded   telemetry.SimpleCounter
 	requestOriginError  telemetry.SimpleCounter
+	requestTooLarge     telemetry.SimpleCounter
+	requestTimeout      telemetry.SimpleCounter
 	requestReadError    telemetry.SimpleCounter
 	requestParseError   telemetry.SimpleCounter
 	requestProcessError telemetry.SimpleCounter
@@ -56,7 +59,10 @@ type endpointTelemetry struct {
 func (s *telemetryStore) forEndpoint(endpoint string) endpointTelemetry {
 	return endpointTelemetry{
 		requestOK:           s.requests.WithValues(endpoint, "ok"),
+		requestOverloaded:   s.requests.WithValues(endpoint, "overloaded"),
 		requestOriginError:  s.requests.WithValues(endpoint, "origin_error"),
+		requestTooLarge:     s.requests.WithValues(endpoint, "too_large"),
+		requestTimeout:      s.requests.WithValues(endpoint, "timeout"),
 		requestReadError:    s.requests.WithValues(endpoint, "read_error"),
 		requestParseError:   s.requests.WithValues(endpoint, "parse_error"),
 		requestProcessError: s.requests.WithValues(endpoint, "process_error"),
