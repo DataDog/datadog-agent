@@ -562,7 +562,7 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	assert.Equal(t, "config-exp-1", pkg.ExperimentConfigVersion)
 	assert.Equal(t, version.AgentPackageVersion, pkg.RunningVersion, "RunningVersion should be set to AgentPackageVersion")
 	assert.Equal(t, "test-config-id-123", pkg.RunningConfigVersion, "RunningConfigVersion should be set to env.ConfigID")
-	assert.Equal(t, coat.ProcessStateUnknown, pkg.DdotProcessState, "DdotProcessState should report unknown without a procmgr collector")
+	assert.Equal(t, coat.ProcessStateUnknown, pkg.ProcessStates[coat.ServiceIDDDOT], "ddot process state should report unknown without a procmgr collector")
 	assert.Equal(t, state.SecretsPubKey, base64.StdEncoding.EncodeToString(secretsPubKey[:]))
 
 	pm.AssertExpectations(t)

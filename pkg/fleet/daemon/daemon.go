@@ -833,7 +833,9 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 		}
 		if pkg == "datadog-agent" {
-			p.DdotProcessState = ddotProcessState
+			p.ProcessStates = map[string]string{
+				coat.ServiceIDDDOT: ddotProcessState,
+			}
 		}
 
 		requestState, ok := tasksState[pkg]

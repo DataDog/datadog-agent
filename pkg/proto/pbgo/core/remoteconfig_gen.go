@@ -3913,9 +3913,13 @@ func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "Completion"
 	o = append(o, 0xaa, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendFloat32(o, z.Completion)
-	// string "DdotProcessState"
-	o = append(o, 0xb0, 0x44, 0x64, 0x6f, 0x74, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x53, 0x74, 0x61, 0x74, 0x65)
-	o = msgp.AppendString(o, z.DdotProcessState)
+	// string "ProcessStates"
+	o = append(o, 0xad, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x53, 0x74, 0x61, 0x74, 0x65, 0x73)
+	o = msgp.AppendMapHeader(o, uint32(len(z.ProcessStates)))
+	for za0001, za0002 := range z.ProcessStates {
+		o = msgp.AppendString(o, za0001)
+		o = msgp.AppendString(o, za0002)
+	}
 	return
 }
 
@@ -4008,11 +4012,33 @@ func (z *PackageState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Completion")
 				return
 			}
-		case "DdotProcessState":
-			z.DdotProcessState, bts, err = msgp.ReadStringBytes(bts)
+		case "ProcessStates":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "DdotProcessState")
+				err = msgp.WrapError(err, "ProcessStates")
 				return
+			}
+			if z.ProcessStates == nil {
+				z.ProcessStates = make(map[string]string, zb0002)
+			} else if len(z.ProcessStates) > 0 {
+				clear(z.ProcessStates)
+			}
+			for zb0002 > 0 {
+				var za0002 string
+				zb0002--
+				var za0001 string
+				za0001, bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ProcessStates")
+					return
+				}
+				za0002, bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ProcessStates", za0001)
+					return
+				}
+				z.ProcessStates[za0001] = za0002
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -4034,7 +4060,13 @@ func (z *PackageState) Msgsize() (s int) {
 	} else {
 		s += z.Task.Msgsize()
 	}
-	s += 20 + msgp.StringPrefixSize + len(z.StableConfigVersion) + 24 + msgp.StringPrefixSize + len(z.ExperimentConfigVersion) + 15 + msgp.StringPrefixSize + len(z.RunningVersion) + 21 + msgp.StringPrefixSize + len(z.RunningConfigVersion) + 19 + msgp.Uint64Size + 11 + msgp.Float32Size + 17 + msgp.StringPrefixSize + len(z.DdotProcessState)
+	s += 20 + msgp.StringPrefixSize + len(z.StableConfigVersion) + 24 + msgp.StringPrefixSize + len(z.ExperimentConfigVersion) + 15 + msgp.StringPrefixSize + len(z.RunningVersion) + 21 + msgp.StringPrefixSize + len(z.RunningConfigVersion) + 19 + msgp.Uint64Size + 11 + msgp.Float32Size + 14 + msgp.MapHeaderSize
+	if z.ProcessStates != nil {
+		for za0001, za0002 := range z.ProcessStates {
+			_ = za0002
+			s += msgp.StringPrefixSize + len(za0001) + msgp.StringPrefixSize + len(za0002)
+		}
+	}
 	return
 }
 

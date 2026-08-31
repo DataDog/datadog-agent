@@ -680,7 +680,7 @@ func (s *configSuite) assertReportedDDOTProcessState(want string) {
 		if !assert.NoError(c, err) {
 			return
 		}
-		assert.Equal(c, want, state.DdotProcessState)
+		assert.Equal(c, want, state.ProcessStates["ddot"])
 	}, 3*time.Minute, 10*time.Second)
 }
 

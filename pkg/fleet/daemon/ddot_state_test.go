@@ -122,10 +122,10 @@ func TestRefreshStateReportsDDOTProcessState(t *testing.T) {
 	require.Len(t, state.Packages, 2)
 	for _, pkg := range state.Packages {
 		if pkg.Package == "datadog-agent" {
-			assert.Equal(t, coat.ProcessStateRunning, pkg.DdotProcessState)
+			assert.Equal(t, coat.ProcessStateRunning, pkg.ProcessStates[coat.ServiceIDDDOT])
 			continue
 		}
-		assert.Empty(t, pkg.DdotProcessState, "DDOT state must only be reported on the agent package")
+		assert.Empty(t, pkg.ProcessStates, "DDOT state must only be reported on the agent package")
 	}
 
 	pm.AssertExpectations(t)
