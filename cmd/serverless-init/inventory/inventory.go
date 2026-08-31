@@ -130,6 +130,8 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 }
 
 // deploymentModel maps the run mode to the downstream deployment_model value.
+// Like workload_type, these strings are an allowlist enforced by the dd-go
+// event-platform-resource-writer decoder; a value outside it is rejected there.
 func deploymentModel(modeConf mode.Conf) string {
 	if modeConf.SidecarMode {
 		return "sidecar"
