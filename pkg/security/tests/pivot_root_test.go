@@ -132,14 +132,12 @@ func TestPivotRootRootfsWriteRule(t *testing.T) {
 		t.Skip("pivot_root test cannot run in Docker environment")
 	}
 
-	keepFirstPivotRoot := `${process.rootfs_mount_id} == 0`
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "capture_rootfs_mount_id",
 			Expression: `mount.origin == MOUNT_ORIGIN_PIVOT_ROOT`,
 			Silent:     true,
 			Actions: []*rules.ActionDefinition{{
-				Filter: &keepFirstPivotRoot,
 				Set: &rules.SetDefinition{
 					Name:  "rootfs_mount_id",
 					Field: "mount.mount_id",
