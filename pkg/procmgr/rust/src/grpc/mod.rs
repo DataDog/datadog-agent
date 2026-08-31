@@ -57,6 +57,27 @@ mod tests {
         ))
     }
 
+    #[cfg(windows)]
+    async fn connect_test_client(path: &std::path::Path) -> Channel {
+        use std::time::{Duration, Instant};
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut backoff = Duration::from_millis(25);
+        loop {
+            match dd_procmgr_client::connect(path).await {
+                Ok(channel) => return channel,
+                Err(err) if Instant::now() < deadline => {
+                    tokio::time::sleep(backoff).await;
+                    backoff = std::cmp::min(backoff * 2, Duration::from_millis(500));
+                }
+                Err(err) => panic!(
+                    "failed to connect gRPC test server at {}: {err}",
+                    path.display()
+                ),
+            }
+        }
+    }
+
     async fn start_test_server(
         defs: Vec<ProcessDefinition>,
     ) -> (
@@ -142,7 +163,10 @@ mod tests {
 
         crate::manager::spawn_command_loop_for_tests(mgr.clone(), cmd_tx, cmd_rx);
 
+        #[cfg(unix)]
         let channel = dd_procmgr_client::connect(&ipc_path).await.unwrap();
+        #[cfg(windows)]
+        let channel = connect_test_client(&ipc_path).await;
 
         let client = ProcessManagerClient::new(channel);
         (client, shutdown_tx)
