@@ -69,6 +69,18 @@ type FingerprintConfig struct {
 	Source FingerprintConfigSource `json:"source" mapstructure:"source" yaml:"source"`
 }
 
+// SameChecksumParameters reports whether two configurations hash the same bytes of a file.
+// OpenFlags and Source do not affect the resulting value and are ignored.
+func (c *FingerprintConfig) SameChecksumParameters(other *FingerprintConfig) bool {
+	if c == nil || other == nil {
+		return c == other
+	}
+	return c.FingerprintStrategy == other.FingerprintStrategy &&
+		c.Count == other.Count &&
+		c.CountToSkip == other.CountToSkip &&
+		c.MaxBytes == other.MaxBytes
+}
+
 // FileOpenFlag is a reviewed, read-only flag that may be used when opening a
 // log file. Raw operating-system flag values are intentionally not accepted.
 type FileOpenFlag string

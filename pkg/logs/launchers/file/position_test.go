@@ -6,9 +6,11 @@
 package file
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -21,6 +23,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
+
+type positionFingerprinter struct {
+	file.Fingerprinter
+	config *types.FingerprintConfig
+	reads  int
+	err    error
+}
+
+func (f *positionFingerprinter) ComputeFingerprintFromConfig(path string, config *types.FingerprintConfig) (*types.Fingerprint, error) {
+	f.reads++
+	if config != nil {
+		captured := *config
+		captured.OpenFlags = append([]types.FileOpenFlag(nil), config.OpenFlags...)
+		f.config = &captured
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.Fingerprinter.ComputeFingerprintFromConfig(path, config)
+}
 
 func TestPosition(t *testing.T) {
 	registry := auditorMock.NewMockRegistry()
@@ -94,6 +116,141 @@ func TestPosition(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
+}
+
+func TestPositionUsesCurrentOpenFlagsWithStoredFingerprintConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.log")
+	require.NoError(t, os.WriteFile(path, make([]byte, 512), 0o600))
+	identifier := "file:" + path
+
+	storedConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               7,
+		CountToSkip:         3,
+		MaxBytes:            99,
+		Source:              types.FingerprintConfigSourceGlobal,
+	}
+	storedFingerprint := &types.Fingerprint{Value: 12345, Config: storedConfig}
+	currentFingerprint := &types.Fingerprint{
+		Value: 12345,
+		Config: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+			Count:               2048,
+			OpenFlags:           []types.FileOpenFlag{types.FileOpenFlagDirect},
+			Source:              types.FingerprintConfigSourcePerSource,
+		},
+	}
+
+	registry := auditorMock.NewMockRegistry()
+	registry.SetOffset(identifier, "128")
+	registry.SetFingerprint(storedFingerprint)
+	mockFingerprinter := file.NewFingerprinterMock()
+	mockFingerprinter.SetFingerprint(path, &types.Fingerprint{Value: storedFingerprint.Value, Config: storedConfig})
+	fingerprinter := &positionFingerprinter{Fingerprinter: mockFingerprinter}
+
+	offset, whence, err := Position(registry, identifier, config.Beginning, fingerprinter, opener.NewFileOpener(), currentFingerprint)
+	require.NoError(t, err)
+	require.EqualValues(t, 128, offset)
+	require.Equal(t, io.SeekStart, whence)
+
+	usedConfig := fingerprinter.config
+	require.NotNil(t, usedConfig)
+	require.Equal(t, storedConfig.FingerprintStrategy, usedConfig.FingerprintStrategy)
+	require.Equal(t, storedConfig.Count, usedConfig.Count)
+	require.Equal(t, storedConfig.CountToSkip, usedConfig.CountToSkip)
+	require.Equal(t, storedConfig.MaxBytes, usedConfig.MaxBytes)
+	require.Equal(t, storedConfig.Source, usedConfig.Source)
+	require.Equal(t, []types.FileOpenFlag{types.FileOpenFlagDirect}, usedConfig.OpenFlags)
+	require.Empty(t, registry.GetFingerprint(identifier).Config.OpenFlags, "the persisted config must not be mutated")
+
+	if runtime.GOOS != "linux" {
+		t.Skip("open_flags fingerprint failures use the dedicated error path on Linux only")
+	}
+
+	fingerprintErr := errors.New("direct I/O rejected")
+	fingerprinter.err = fingerprintErr
+	_, _, err = Position(registry, identifier, config.Beginning, fingerprinter, opener.NewFileOpener(), currentFingerprint)
+	require.ErrorIs(t, err, fingerprintErr)
+}
+
+// TestPositionReusesLauncherFingerprint covers the read the launcher has already
+// paid for before it asks where to start. Repeating it costs more than a syscall:
+// it is a second chance to catch the file mid-rotation, and under O_DIRECT a
+// second uncached read of the head of every file on every restart.
+func TestPositionReusesLauncherFingerprint(t *testing.T) {
+	storedConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               7,
+		CountToSkip:         3,
+		MaxBytes:            99,
+		Source:              types.FingerprintConfigSourceGlobal,
+	}
+
+	// activeConfig hashes exactly the same bytes as storedConfig; only the fields
+	// that cannot change the value differ. That is the steady state on every
+	// restart once open_flags is configured, so it is the case that has to avoid
+	// the second read.
+	activeConfig := *storedConfig
+	activeConfig.OpenFlags = []types.FileOpenFlag{types.FileOpenFlagDirect}
+	activeConfig.Source = types.FingerprintConfigSourcePerSource
+
+	differentConfig := activeConfig
+	differentConfig.Count = 9
+
+	tests := []struct {
+		name      string
+		current   *types.Fingerprint
+		wantReads int
+	}{
+		{
+			name:      "same checksum parameters reuse the launcher value",
+			current:   &types.Fingerprint{Value: 12345, Config: &activeConfig},
+			wantReads: 0,
+		},
+		{
+			// Value 0 means no read happened and only the configuration was
+			// filled in for the status page. Reusing it would compare zero
+			// against the stored value and report a rotation.
+			name:      "invalid launcher value is read again",
+			current:   &types.Fingerprint{Value: types.InvalidFingerprintValue, Config: &activeConfig},
+			wantReads: 1,
+		},
+		{
+			name:      "different checksum parameters are read again",
+			current:   &types.Fingerprint{Value: 12345, Config: &differentConfig},
+			wantReads: 1,
+		},
+		{
+			name:      "no launcher fingerprint is read again",
+			current:   nil,
+			wantReads: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "app.log")
+			require.NoError(t, os.WriteFile(path, make([]byte, 512), 0o600))
+			identifier := "file:" + path
+
+			registry := auditorMock.NewMockRegistry()
+			registry.SetOffset(identifier, "128")
+			registry.SetFingerprint(&types.Fingerprint{Value: 12345, Config: storedConfig})
+
+			mockFingerprinter := file.NewFingerprinterMock()
+			mockFingerprinter.SetFingerprint(path, &types.Fingerprint{Value: 12345, Config: storedConfig})
+			fingerprinter := &positionFingerprinter{Fingerprinter: mockFingerprinter}
+
+			offset, whence, err := Position(registry, identifier, config.Beginning, fingerprinter, opener.NewFileOpener(), tt.current)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantReads, fingerprinter.reads)
+
+			// Every case above describes the same unrotated file, so the stored
+			// offset has to survive whichever path was taken to confirm it.
+			require.EqualValues(t, 128, offset)
+			require.Equal(t, io.SeekStart, whence)
+		})
+	}
 }
 
 // TestPositionOffsetBeyondFileSize covers recovery from a stored offset that points past the end of
