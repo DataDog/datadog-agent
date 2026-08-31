@@ -7,6 +7,8 @@
 package trace
 
 import (
+	"go.uber.org/atomic"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -17,7 +19,7 @@ const (
 )
 
 type spanModifier struct {
-	tags     map[string]string
+	tags     atomic.Pointer[map[string]string]
 	ddOrigin string
 }
 
@@ -33,6 +35,14 @@ func (s *spanModifier) ModifySpan(chunk *pb.TraceChunk, span *pb.Span) {
 	// set. Guarded so a tracer-provided origin is never overwritten.
 	if chunk != nil && chunk.Origin == "" {
 		chunk.Origin = s.ddOrigin
+	}
+	if tags := s.tags.Load(); tags != nil {
+		for k, v := range *tags {
+			if k == ddOriginTagName {
+				continue
+			}
+			traceutil.SetMeta(span, k, v)
+		}
 	}
 }
 
@@ -50,9 +60,17 @@ func (s *spanModifier) ModifySpanV1(chunk *idx.InternalTraceChunk, span *idx.Int
 	if chunk != nil && chunk.Origin() == "" {
 		chunk.SetOrigin(s.ddOrigin)
 	}
+	if tags := s.tags.Load(); tags != nil {
+		for k, v := range *tags {
+			if k == ddOriginTagName {
+				continue
+			}
+			span.SetStringAttribute(k, v)
+		}
+	}
 }
 
 // SetTags sets the tags to be used by the span modifier.
 func (s *spanModifier) SetTags(tags map[string]string) {
-	s.tags = tags
+	s.tags.Store(&tags)
 }

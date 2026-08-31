@@ -44,6 +44,7 @@ type ServerlessTraceAgent interface {
 	Flush()
 	Process(p *api.Payload)
 	SetTags(map[string]string)
+	UpdateRuntimeTags(map[string]string)
 	SetTargetTPS(float64)
 	SetSpanModifier(agent.SpanModifierWithV1)
 	GetSpanModifier() agent.SpanModifier
@@ -210,6 +211,15 @@ func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 	}
 }
 
+// UpdateRuntimeTags updates the tags applied by the span modifier only. Unlike
+// SetTags, it does not touch the trace agent's GlobalTags, so it is safe to
+// call concurrently with span processing.
+func (t *serverlessTraceAgent) UpdateRuntimeTags(tags map[string]string) {
+	if tagger, ok := t.ta.SpanModifier.(taggable); ok {
+		tagger.SetTags(tags)
+	}
+}
+
 // Stop cancels the trace agent's context and waits for its Run loop to finish.
 // The Run loop handles the full shutdown sequence: draining in-flight traces,
 // flushing stats producers, sending buffered data to the network, and stopping
@@ -353,6 +363,7 @@ func (t noopTraceAgent) Stop()                                    {}
 func (t noopTraceAgent) Flush()                                   {}
 func (t noopTraceAgent) Process(*api.Payload)                     {}
 func (t noopTraceAgent) SetTags(map[string]string)                {}
+func (t noopTraceAgent) UpdateRuntimeTags(map[string]string)      {}
 func (t noopTraceAgent) SetTargetTPS(float64)                     {}
 func (t noopTraceAgent) SetSpanModifier(agent.SpanModifierWithV1) {}
 func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier      { return nil }

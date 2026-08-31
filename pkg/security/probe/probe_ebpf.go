@@ -205,6 +205,12 @@ type EBPFProbe struct {
 	relatedEvents  []*model.Event
 	onNewPCE       func(*model.ProcessCacheEntry, error)
 	onCgroupUpdate func(*model.ProcessCacheEntry)
+
+	// kernelTracksCGroupID mirrors get_current_cgroup_id() in ebpf/c/include/helpers/cgroup.h:
+	// the kernel only refreshes proc_cache's cgroup inode when bpf_get_current_cgroup_id() is
+	// usable, which requires kernel >= 4.18 and a pure cgroup v2 hierarchy. Cached because it
+	// is read on the event hot path.
+	kernelTracksCGroupID bool
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -1311,7 +1317,13 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// cache_syscall); a divergence here means the process migrated cgroups
 			// since the cache entry was created, so refresh both resolvers from the
 			// authoritative event-time cgroupContext.
-			if entry.CGroup.CGroupPathKey.Inode != cgroupContext.CGroupPathKey.Inode && event.PIDContext.Pid != p.pid {
+			//
+			// Only when the kernel actually maintains that inode: without
+			// bpf_get_current_cgroup_id() (cgroup v1, or kernel < 4.18) the kernel side is
+			// stale by design while the cached side comes from procfs, so the two never
+			// match and every process would look like it just migrated. Nothing is lost on
+			// those hosts: this backstops CLONE_INTO_CGROUP, which is cgroup v2 only.
+			if p.kernelTracksCGroupID && entry.CGroup.CGroupPathKey.Inode != cgroupContext.CGroupPathKey.Inode && event.PIDContext.Pid != p.pid {
 				if cacheEntry := p.Resolvers.CGroupResolver.AddPID(entry.Pid, cgroupContext); cacheEntry == nil {
 					seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", entry.Pid, cgroupContext.CGroupPathKey)
 				} else {
@@ -3364,6 +3376,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	}
 
 	p.initCgroup2MountPath()
+	p.kernelTracksCGroupID = utils.IsPureCGroupV2Available() && p.kernelVersion.HasBpfGetCurrentCgroupID()
 
 	if err := p.sanityChecks(); err != nil {
 		return nil, err

@@ -71,6 +71,7 @@ dd_agent_go_test(
         "//pkg/trace/traceutil",
         "//pkg/trace/traceutil/normalize",
         "//pkg/trace/writer",
+        "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_datadog_datadog_go_v5//statsd/mocks",
         "@com_github_go_viper_mapstructure_v2//:mapstructure",
