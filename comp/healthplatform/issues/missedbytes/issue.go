@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -24,34 +25,26 @@ const (
 	contextKeySourcesOmitted = "sources_omitted"
 	contextKeyLastLossAt     = "last_loss_at"
 
-	// contextKeySources carries the breakdown as a JSON array of sourceLoss;
-	// IssueReport.Context is map[string]string, so a list travels encoded.
+	// Context is map[string]string, so the breakdown travels as encoded sourceLoss.
 	contextKeySources = "sources"
 
-	// issueSource is the reporting component: the logs agent, not the
-	// scheduler's checkSource label.
+	// The reporting component, not the scheduler's checkSource label.
 	issueSource = "logs"
 
-	// issueCategory describes the failing subsystem. The loss happens in the log
-	// pipeline; configuration is only where the fix lands.
+	// The failing subsystem, not where the fix lands.
 	issueCategory = "logs_pipeline"
 
-	// maxNameLen bounds a single source or service name. Both are free-form —
-	// they come from user YAML and pod annotations — and each one ships twice
-	// per payload, once rendered into Description and once structured in
-	// Extra. Nothing else in comp/healthplatform bounds them.
+	// Bounds one free-form name, which ships in both Description and Extra.
 	maxNameLen = 64
 
-	// nameEllipsis marks a truncated name. Deliberately ASCII: Description is
-	// printed verbatim by `agent diagnose`, including on Windows consoles that
-	// may not be running a UTF-8 code page.
+	// ASCII on purpose: `agent diagnose` prints Description on non-UTF-8 consoles.
 	nameEllipsis = "..."
 
 	unknownValue = "unknown"
 )
 
-// sourceLoss is one (source, service) tuple's contribution to the host total.
-// Its JSON tags are the wire contract between the check and this template.
+// sourceLoss is one tuple's share of the host total. Its JSON tags are the wire
+// contract with the check.
 type sourceLoss struct {
 	Source    string `json:"source"`
 	Service   string `json:"service"`
@@ -64,8 +57,7 @@ type MissedBytesIssue struct{}
 
 // BuildIssue decodes the IssueReport.Context and builds the proto Issue.
 func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) {
-	// Read, not summed from the breakdown, which is truncated to the largest
-	// maxBreakdownSources tuples.
+	// Read, not summed: the breakdown holds only the largest maxBreakdownSources.
 	bytesLost, _ := strconv.ParseInt(ctx[contextKeyBytes], 10, 64)
 	rotations, _ := strconv.ParseInt(ctx[contextKeyRotations], 10, 64)
 	sourceCount, _ := strconv.ParseInt(ctx[contextKeySourceCount], 10, 64)
@@ -78,12 +70,9 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 
 	sources := decodeSources(ctx[contextKeySources])
 
-	// A named source is more actionable than a count of one, and needs no
-	// breakdown repeating it.
 	named := sourceCount == 1 && len(sources) == 1
 
 	// scope is the Title's "from ..." clause; subject opens the Description.
-	// file distinguishes the one known file from an unidentified one.
 	scope := fmt.Sprintf("%d %s", sourceCount, pluralize(sourceCount, "source"))
 	subject := "Logs from " + scope
 	file := "a file"
@@ -95,12 +84,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		breakdown = ""
 	}
 
-	// Each aggregate lands in exactly one place: the byte total in the Title,
-	// the rotation count in the Description, the per-source split in the
-	// breakdown. Repeating all three in both fields is what made the old
-	// wording read as a wall of text. The time of the last loss is deliberately
-	// absent: the Agent Health Platform already tracks last-seen per issue, and
-	// last_loss_at remains in Extra for anything that needs the exact value.
+	// Each aggregate lands in one place: bytes in the Title, rotations here.
 	sentences := []string{
 		fmt.Sprintf("%s never reached Datadog: %d log %s closed %s before the Agent finished reading it.",
 			subject, rotations, pluralize(rotations, "rotation"), file),
@@ -126,33 +110,25 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		IssueType: IssueType,
 		Title: fmt.Sprintf("Lost %s of logs from %s in the last 24 hours",
 			humanizeBytes(bytesLost), scope),
-		// Single block of sentences, no newlines and no markdown: this string
-		// is rendered verbatim by `agent diagnose` behind a fixed "  Diagnosis: "
-		// prefix (comp/core/diagnose/format/format.go), so a line break would
-		// break that indentation and a bullet would print as a literal "*".
-		// It repeats the breakdown that Extra already carries structurally
-		// because Description is the only field confirmed to render to a
-		// customer.
+		// One block, no newlines or markdown: `agent diagnose` prints this verbatim
+		// behind a fixed prefix (comp/core/diagnose/format/format.go).
 		Description: strings.Join(sentences, " "),
 		Category:    issueCategory,
 		Location:    "logs-agent",
-		// HIGH puts this in the Fleet UI's "Agent Health: Broken" bucket.
+		// HIGH lands in the Fleet UI's "Agent Health: Broken" bucket.
 		Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH,
 		Source:   issueSource,
 		Extra:    extra,
 		Tags:     []string{"logs", "file-tailing", "rotation", "data-loss"},
 		Remediation: &healthplatform.Remediation{
-			// Deliberately generic for now: detailed remediation is authored
-			// backend-side. The "Logs Agent Backpressure" section of `agent
-			// status` is the closest first stop, since a pipeline that cannot
-			// keep up is a common reason a tailer falls behind a rotation.
+			// Generic for now; detailed remediation is authored backend-side.
 			Summary: "Run `agent status` and review the Logs Agent Backpressure section",
 		},
 	}, nil
 }
 
-// decodeSources parses the breakdown, tolerating a malformed or absent value:
-// totals stay usable, so a decode failure only degrades the wording.
+// decodeSources tolerates a malformed value: totals stay usable, so a failure only
+// degrades the wording. Every consumer reads names through here, so it sanitizes.
 func decodeSources(encoded string) []sourceLoss {
 	if encoded == "" {
 		return nil
@@ -161,29 +137,34 @@ func decodeSources(encoded string) []sourceLoss {
 	if err := json.Unmarshal([]byte(encoded), &sources); err != nil {
 		return nil
 	}
-	// Bound the free-form names here, the one point every consumer reads
-	// through: the Title's named case, the Description breakdown, and Extra
-	// all take their strings from this slice.
 	for i := range sources {
-		sources[i].Source = truncateName(sources[i].Source)
-		sources[i].Service = truncateName(sources[i].Service)
+		sources[i].Source = sanitizeName(sources[i].Source)
+		sources[i].Service = sanitizeName(sources[i].Service)
 	}
 	return sources
 }
 
-// truncateName bounds one free-form name, cutting on a rune boundary so a
-// multi-byte name is never split into invalid UTF-8.
-func truncateName(name string) string {
-	if utf8.RuneCountInString(name) <= maxNameLen {
+// sanitizeName bounds a name and drops control characters: names come from user
+// YAML and reach Title and Description unescaped. Cuts on a rune boundary.
+func sanitizeName(name string) string {
+	name = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, name)
+
+	switch {
+	case name == "":
+		return unknownValue
+	case utf8.RuneCountInString(name) <= maxNameLen:
 		return name
 	}
 	return string([]rune(name)[:maxNameLen-utf8.RuneCountInString(nameEllipsis)]) + nameEllipsis
 }
 
-// describeSources renders the breakdown as a sentence, including a count of the
-// tuples the cap left out. Per-source rotation counts are deliberately left to
-// Extra: the list is ranked by bytes, and repeating a second number for every
-// entry is what made the ten-source case unreadable.
+// describeSources renders the breakdown ranked by bytes, plus a count of what the
+// cap left out. Rotation counts are left to Extra.
 func describeSources(sources []sourceLoss, omitted int64) string {
 	if len(sources) == 0 {
 		return ""
@@ -198,8 +179,7 @@ func describeSources(sources []sourceLoss, omitted int64) string {
 	return "Most affected: " + strings.Join(parts, ", ") + "."
 }
 
-// sourcesAsExtra converts the breakdown into the shape structpb accepts, so it
-// reaches the backend as a list of objects rather than a JSON string.
+// sourcesAsExtra reshapes the breakdown so the backend receives objects, not a string.
 func sourcesAsExtra(sources []sourceLoss) []any {
 	values := make([]any, 0, len(sources))
 	for _, s := range sources {
@@ -213,8 +193,6 @@ func sourcesAsExtra(sources []sourceLoss) []any {
 	return values
 }
 
-// humanizeBytes renders a byte count for a customer-facing string, tolerating
-// the negative value a malformed context could parse to.
 func humanizeBytes(n int64) string {
 	if n < 0 {
 		n = 0

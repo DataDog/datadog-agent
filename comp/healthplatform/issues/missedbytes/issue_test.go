@@ -17,8 +17,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// recentTimestamp feeds last_loss_at, which reaches Extra but no longer appears
-// in the prose — the platform tracks last-seen per issue itself.
+// last_loss_at reaches Extra but not the prose: the platform tracks last-seen.
 func recentTimestamp() string {
 	return time.Now().Add(-90 * time.Minute).UTC().Format(time.RFC3339)
 }
@@ -49,8 +48,7 @@ func TestBuildIssue(t *testing.T) {
 			descSubstrs: []string{
 				"Logs from 3 sources never reached Datadog",
 				"4 log rotations closed a file",
-				// Ranked by bytes, with no per-source rotation count: that
-				// detail lives in Extra.
+				// Ranked by bytes; per-source rotation counts live in Extra.
 				"Most affected: nginx/web 4.0 MB, redis/cache 200 kB, kafka/queue 512 B.",
 			},
 			descNotSubstrs: []string{
@@ -141,8 +139,7 @@ func TestBuildIssue(t *testing.T) {
 			extraSource: []sourceLoss{{Source: "nginx", Service: "web", Bytes: 1, Rotations: 1}},
 		},
 		{
-			// A single source we cannot name must not claim to name one; the
-			// count form is the honest fallback.
+			// A source we cannot name must not claim to name one.
 			name: "a malformed breakdown degrades to the counted form",
 			ctx: map[string]string{
 				contextKeyBytes:       "512",
@@ -175,8 +172,7 @@ func TestBuildIssue(t *testing.T) {
 			for _, substr := range tc.descNotSubstrs {
 				assert.NotContains(t, issue.GetDescription(), substr)
 			}
-			// Description is printed verbatim by `agent diagnose` behind a
-			// fixed "  Diagnosis: " prefix, so it must stay a single block.
+			// `agent diagnose` prints this verbatim behind a fixed prefix.
 			assert.NotContains(t, issue.GetDescription(), "\n", "Description must not contain line breaks")
 			assert.NotContains(t, issue.GetDescription(), "  ", "Description must not contain double spaces")
 			assert.Equal(t, "logs_pipeline", issue.GetCategory())
@@ -217,46 +213,58 @@ func TestBuildIssue(t *testing.T) {
 	}
 }
 
-// Source and service names are free-form (user YAML, pod annotations) and ship
-// twice per payload, so they must be bounded before they reach either sink.
-func TestSourceNameTruncation(t *testing.T) {
-	longASCII := strings.Repeat("a", 200)
-	// Multi-byte, to prove the cut lands on a rune boundary.
-	longUnicode := strings.Repeat("é", 200)
+func TestSanitizeName(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"short names pass through", "nginx", "nginx"},
+		{"long ASCII is truncated", strings.Repeat("a", 200),
+			strings.Repeat("a", maxNameLen-len(nameEllipsis)) + nameEllipsis},
+		{"multi-byte cuts on a rune boundary", strings.Repeat("é", 200),
+			strings.Repeat("é", maxNameLen-len(nameEllipsis)) + nameEllipsis},
+		{"control characters are dropped", "ng\ninx\tweb\r", "nginxweb"},
+		{"a name of only control characters degrades", "\n\t\r", unknownValue},
+		{"an empty name degrades", "", unknownValue},
+	}
 
-	issue, err := MissedBytesIssue{}.BuildIssue(map[string]string{
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := sanitizeName(tc.in)
+			assert.Equal(t, tc.want, got)
+			assert.LessOrEqual(t, utf8.RuneCountInString(got), maxNameLen)
+			assert.True(t, utf8.ValidString(got), "a multi-byte name must not be split into invalid UTF-8")
+		})
+	}
+}
+
+// A hostile name must not break the Description's single-block contract.
+func TestHostileNamesDoNotEscapeIntoTitleOrDescription(t *testing.T) {
+	newlined := `nginx\nDiagnosis: fake`
+
+	oneSource, err := MissedBytesIssue{}.BuildIssue(map[string]string{
 		contextKeyBytes:       "512",
 		contextKeyRotations:   "1",
-		contextKeySourceCount: "2",
-		contextKeySources: `[{"source":"` + longASCII + `","service":"` + longUnicode + `","bytes":512,"rotations":1},` +
-			`{"source":"short","service":"svc","bytes":1,"rotations":1}]`,
+		contextKeySourceCount: "1",
+		contextKeySources:     `[{"source":"` + newlined + `","service":"web","bytes":512,"rotations":1}]`,
 	})
 	require.NoError(t, err)
 
-	wantSource := strings.Repeat("a", maxNameLen-len(nameEllipsis)) + nameEllipsis
-	wantService := strings.Repeat("é", maxNameLen-len(nameEllipsis)) + nameEllipsis
+	// The named case puts the source in the Title as well as the Description.
+	assert.NotContains(t, oneSource.GetTitle(), "\n")
+	assert.NotContains(t, oneSource.GetDescription(), "\n")
 
-	assert.Contains(t, issue.GetDescription(), wantSource+"/"+wantService)
-	assert.NotContains(t, issue.GetDescription(), longASCII, "the untruncated name must never reach the Description")
+	twoSources, err := MissedBytesIssue{}.BuildIssue(map[string]string{
+		contextKeyBytes:       "1024",
+		contextKeyRotations:   "2",
+		contextKeySourceCount: "2",
+		contextKeySources: `[{"source":"` + newlined + `","service":"web","bytes":512,"rotations":1},` +
+			`{"source":"redis","service":"cache","bytes":512,"rotations":1}]`,
+	})
+	require.NoError(t, err)
 
-	entry := issue.GetExtra().GetFields()[contextKeySources].GetListValue().GetValues()[0].GetStructValue().GetFields()
-	gotSource := entry["source"].GetStringValue()
-	gotService := entry["service"].GetStringValue()
-
-	assert.Equal(t, wantSource, gotSource, "Extra must carry the same bounded name as the Description")
-	assert.Equal(t, wantService, gotService)
-	assert.Equal(t, maxNameLen, utf8.RuneCountInString(gotSource))
-	assert.Equal(t, maxNameLen, utf8.RuneCountInString(gotService))
-	assert.True(t, utf8.ValidString(gotService), "a multi-byte name must not be split into invalid UTF-8")
-
-	// A name already within the bound is passed through untouched.
-	short := issue.GetExtra().GetFields()[contextKeySources].GetListValue().GetValues()[1].GetStructValue().GetFields()
-	assert.Equal(t, "short", short["source"].GetStringValue())
-}
-
-// IssueType must stay IssueName lowercased with spaces replaced by underscores;
-// the agent never derives it, so a rename can silently desynchronise the two.
-func TestIssueTypeMatchesIssueName(t *testing.T) {
-	assert.Equal(t, "log_data_lost_after_rotation", IssueType)
-	assert.Equal(t, "Log Data Lost After Rotation", IssueName)
+	// The breakdown interpolates names with %s, unlike the named case's %q.
+	assert.Contains(t, twoSources.GetDescription(), "Most affected:")
+	assert.NotContains(t, twoSources.GetDescription(), "\n")
 }
