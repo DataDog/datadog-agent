@@ -218,6 +218,7 @@ generate-fips-e2e-pipeline:
     - job: qa_agent
       optional: true
     - qa_agent_full
+    - qa_agent_full_fips
     - job: qa_agent_fips
       optional: true
     - job: qa_agent_fips_jmx
