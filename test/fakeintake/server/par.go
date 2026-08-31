@@ -149,8 +149,8 @@ func parRemoteActionFromInputs(inputs map[string]interface{}) (*privateactionspb
 	// rshell policy fields are delivered in the signed task fields in production
 	// (resolved from execution policies by the backend). The runner reads them
 	// from system_inputs.remote_action, not inputs. Surface any flat test inputs
-	// in the serialized task payload so skip-verification e2e flows behave like a
-	// real backend-signed task.
+	// in the serialized task payload so fakeintake behaves like a real
+	// backend-signed task.
 	remoteAction := &privateactionspb.RemoteAction{}
 	hasRemoteAction := false
 	if v, ok := inputs["allowedCommands"]; ok {
