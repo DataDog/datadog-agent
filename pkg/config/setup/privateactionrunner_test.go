@@ -11,18 +11,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultFalse(t *testing.T) {
-	cfg := newTestConf(t)
-
-	assert.False(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
-}
-
-func TestPrivateActionRunnerApiKeyOnlyEnrollmentFromEnv(t *testing.T) {
-	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT", "true")
-
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultTrue(t *testing.T) {
 	cfg := newTestConf(t)
 
 	assert.True(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
+}
+
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT", "false")
+
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
 }
 
 func TestPrivateActionRunnerActionsAllowlistFromEnv(t *testing.T) {
