@@ -64,8 +64,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitInventory "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx-none"
@@ -506,14 +506,31 @@ func setup(
 		log.Debugf("Error loading config: %v\n", err)
 	}
 
-	// Inject the serverless-specific inventory fields and enqueue the first
-	// payload synchronously (see serverlessInitInventory.Inject). Done here,
-	// right after the config is loaded, so the enablement gate and DD_*
-	// passthrough fields are readable and the payload is enqueued as early as
-	// possible; a no-op while the feature is gated off.
-	serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
-
 	origin := cloudService.GetOrigin()
+
+	// Set the serverless-specific inventory fields and enqueue the first payload
+	// synchronously. Done here, right after the config is loaded, so the
+	// enablement gate and DD_* passthrough fields are readable and the payload is
+	// enqueued as early as possible; both calls are no-ops while the feature is
+	// gated off. MicroVM is excluded: its setup() runs at image-build time and
+	// its per-instance id is only known at /run, so it submits from the lifecycle
+	// server (LifecycleContext.InventorySubmitter) rather than here.
+	if origin != cloudservice.MicroVMOrigin {
+		serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+		serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
+	}
+
+	// MicroVM submits from the lifecycle server instead of at setup: the
+	// lifecycle server hands over the per-instance id (from the /run body, or the
+	// stored id on /resume), which rides in the deployment_id field, then a fresh
+	// payload is injected and submitted. Wired into LifecycleContext below; only
+	// invoked for MicroVM.
+	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
+		serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+		serverlessInitInventory.SetDeploymentID(inventoryAgent, pkgconfigsetup.Datadog(), microVMID)
+		serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
+	})
+
 	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
 	// Snapshot the startup log tags so the lifecycle server can append lambda_microvm_id
@@ -556,6 +573,7 @@ func setup(
 					metricAgent.SetEnhancedUsageMetricTags(tags)
 				}),
 				BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+				InventorySubmitter:  inventorySubmitter,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -597,6 +615,7 @@ func setup(
 				metricAgent.SetEnhancedUsageMetricTags(tags)
 			}),
 			BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+			InventorySubmitter:  inventorySubmitter,
 		},
 	}
 

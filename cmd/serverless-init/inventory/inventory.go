@@ -53,36 +53,42 @@ func NewCapabilities() *inventoryagent.Capabilities {
 	return inventoryagent.NewServerlessCapabilities(uuid.New().String())
 }
 
-// Inject populates the serverless-specific fields on the shared inventoryagent
-// component and enqueues the first payload.
-//
-// The ordering is deliberate (see INVENTORY_METADATA_PLAN.md, "Scheduling"):
-// enable -> Set core+serverless fields -> synchronous submit. The component's
-// initData() has already populated the core fields at construction and Set
-// overwrites the flavor to serverless-init; the serverless_* fields are layered
-// on; then Submit enqueues the payload synchronously so a very short-lived
-// container delivers it before exiting rather than racing the runner goroutine.
-//
-// serverless.inventory_enabled (DD_SERVERLESS_INIT_INVENTORY_ENABLED) is the
-// serverless-only ramp gate, disabled by default while the feature ramps. It is
-// only the serverless-scoped half of the gate: the shared parity gate
-// (util.InventoryEnabled = enable_metadata_collection && inventories_enabled) is
-// enforced inside the inventoryagent component, whose Enabled flag is
-// util.InventoryEnabled(conf), cached at construction, so both Set and Submit
-// are no-ops when it is false — inventories_enabled: false silences serverless
-// inventory just as it does the full agent. The component never consults
-// serverless.inventory_enabled, so we evaluate that ramp gate here.
+// Inject layers the serverless-specific fields and the serverless-init flavor
+// onto the shared inventoryagent component via its public Set API. The
+// component's initData() has already populated the core fields at construction.
+// It is a no-op while the serverless.inventory_enabled ramp gate is off.
 func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return
 	}
-
 	for key, value := range buildFields(cs, modeConf, conf, tags) {
 		ia.Set(serverlessFieldPrefix+key, value)
 	}
 	ia.Set("flavor", serverlessInitFlavor)
+}
 
+// Submit enqueues an inventory payload now, synchronously, so a short-lived
+// container delivers it before exiting rather than racing the runner goroutine.
+// It is a no-op while the serverless.inventory_enabled ramp gate is off, so a
+// gated-off run emits no serverless payload at all (rather than one carrying
+// only the component's core fields).
+func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
+	if !conf.GetBool("serverless.inventory_enabled") {
+		return
+	}
 	ia.Submit()
+}
+
+// SetDeploymentID sets the deployment_id serverless field, for platforms that
+// only learn their deployment/instance identifier after the initial Inject
+// (e.g. delivered by a lifecycle hook rather than the environment). It is a
+// no-op while the serverless.inventory_enabled ramp gate is off, preserving the
+// invariant that no serverless field reaches a payload while the ramp is off.
+func SetDeploymentID(ia inventoryagent.Component, conf configmodel.Reader, id string) {
+	if !conf.GetBool("serverless.inventory_enabled") {
+		return
+	}
+	ia.Set(serverlessFieldPrefix+"deployment_id", id)
 }
 
 // buildFields flattens the per-platform inventory data and process-level
