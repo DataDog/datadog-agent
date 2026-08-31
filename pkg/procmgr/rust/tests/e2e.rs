@@ -11,7 +11,7 @@ use helpers::{
     pid_is_alive, wait_for_pid_gone, write_config,
 };
 use std::collections::BTreeMap;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[test]
 fn daemon_starts_ready() {
@@ -459,6 +459,94 @@ fn describe_after_exit_shows_last_exit() {
 }
 
 #[test]
+fn restart_always_increments_count_in_list() {
+    let procmgr = TestEnv::new().with_process("crasher").start();
+    procmgr.assert_restart_count_at_least("crasher", 2);
+    procmgr.assert_list_len(1);
+}
+
+#[test]
+fn describe_shows_restart_count_after_always_policy() {
+    let procmgr = TestEnv::new().with_process("crasher").start();
+    procmgr.assert_restart_count_at_least("crasher", 2);
+    let count = procmgr.process("crasher").expect("crasher").restart_count;
+    procmgr.assert_describe_matches(
+        "crasher",
+        DescribeExpect {
+            name: Some("crasher".into()),
+            restart_count: Some(count),
+            ..Default::default()
+        },
+    );
+}
+
+#[test]
+fn restart_on_failure_leaves_clean_exit_terminal() {
+    let procmgr = TestEnv::new().with_process("exit_ok_on_failure").start();
+    procmgr.assert_process_state_within("exit_ok_on_failure", ProcessExpect::Exited);
+    assert_eq!(
+        procmgr
+            .process("exit_ok_on_failure")
+            .expect("snap")
+            .restart_count,
+        0
+    );
+}
+
+#[test]
+fn restart_on_success_respawns_clean_exit() {
+    let procmgr = TestEnv::new().with_process("exit_ok_on_success").start();
+    procmgr.assert_restart_count_at_least("exit_ok_on_success", 2);
+}
+
+#[test]
+fn restart_on_success_leaves_failed_exit_terminal() {
+    let procmgr = TestEnv::new().with_process("exit_fail_on_success").start();
+    procmgr.assert_process_state_within("exit_fail_on_success", ProcessExpect::Failed);
+    assert_eq!(
+        procmgr
+            .process("exit_fail_on_success")
+            .expect("snap")
+            .restart_count,
+        0
+    );
+}
+
+#[test]
+fn restart_on_failure_respawns_failed_exit() {
+    let procmgr = TestEnv::new().with_process("exit_fail_on_failure").start();
+    procmgr.assert_restart_count_at_least("exit_fail_on_failure", 2);
+}
+
+#[test]
+fn burst_limit_stops_with_failed_state() {
+    let procmgr = TestEnv::new().with_process("burst_limited").start();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let last_err = match procmgr.process("burst_limited") {
+            Ok(snap) if snap.state == "Failed" && snap.restart_count == 4 => return,
+            Ok(snap) => format!(
+                "burst_limited state={} restart_count={} (want Failed + 4)",
+                snap.state, snap.restart_count
+            ),
+            Err(e) => e,
+        };
+        if Instant::now() >= deadline {
+            panic!("expected burst_limited to reach Failed with restart_count 4: {last_err}");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[test]
+fn burst_interval_allows_continued_restarts() {
+    let procmgr = TestEnv::new().with_process("burst_spaced").start();
+    procmgr
+        .wait_for_restart_count_at_least("burst_spaced", 5, Duration::from_secs(10))
+        .unwrap_or_else(|e| panic!("expected spaced restarts to continue: {e}"));
+}
+
+#[test]
 fn test_cli_config_basic() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())
@@ -727,34 +815,6 @@ fn test_cli_list_json_empty() {
 }
 
 #[test]
-fn test_cli_list_shows_restart_count() {
-    let env = TestEnv::new()
-        .with_config(
-            "crasher",
-            &test_helpers::false_config_with("restart: always\n"),
-        )
-        .start();
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[crasher] spawned", 3, Duration::from_secs(10)),
-        "crasher should have restarted at least twice"
-    );
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row_count(1);
-
-    let out = env.cli(&["list", "--json"]);
-    out.assert_success();
-    let json = out.stdout_json();
-    let count = json[0]["restart_count"]
-        .as_u64()
-        .expect("restart_count should be a number");
-    assert!(count >= 2, "expected restart_count >= 2, got {count}");
-}
-
-#[test]
 fn test_cli_describe_last_exit_text() {
     let env = TestEnv::new().with_process("exit_fail").start();
     env.assert_process_state_within("exit_fail", ProcessExpect::Failed);
@@ -762,28 +822,6 @@ fn test_cli_describe_last_exit_text() {
     env.cli(&["describe", "exit_fail"])
         .assert_success()
         .assert_field("Last Exit", "exit 1");
-}
-
-#[test]
-fn test_cli_describe_after_restart() {
-    let env = TestEnv::new()
-        .with_config(
-            "crasher",
-            &test_helpers::false_config_with("restart: always\n"),
-        )
-        .start();
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[crasher] spawned", 3, Duration::from_secs(10)),
-        "crasher should have restarted at least twice"
-    );
-
-    let out = env.cli(&["describe", "crasher"]);
-    out.assert_success().assert_field("Name", "crasher");
-
-    let restarts: u32 = out.field_value("Restarts").parse().unwrap();
-    assert!(restarts >= 2, "expected Restarts >= 2, got {restarts}");
 }
 
 #[test]
@@ -1488,24 +1526,6 @@ fn test_cli_exit_codes() {
 }
 
 #[test]
-fn test_cli_restart_on_failure_ignores_success_exit() {
-    let env = TestEnv::new()
-        .with_config(
-            "ok",
-            &test_helpers::true_config_with("restart: on-failure\n"),
-        )
-        .start();
-
-    env.daemon().wait_for_log_default("[ok] exited with");
-
-    let out = env.cli(&["list", "--json"]);
-    out.assert_success();
-    let json = out.stdout_json();
-    assert_eq!(json[0]["state"], "Exited");
-    assert_eq!(json[0]["restart_count"], 0);
-}
-
-#[test]
 fn test_cli_daemon_nonexistent_config_dir() {
     let env = TestEnv::with_missing_config_dir();
     let config_dir = env.config_dir().display().to_string();
@@ -1570,117 +1590,6 @@ fn test_cli_daemon_shutdown_via_sigint() {
         !pid_is_alive(child_pid),
         "child PID {child_pid} should be gone after SIGINT shutdown"
     );
-}
-
-#[test]
-fn test_cli_restart_on_success_restarts_on_exit_zero() {
-    let env = TestEnv::new()
-        .with_config(
-            "ok-loop",
-            &test_helpers::true_config_with("restart: on-success\n"),
-        )
-        .start();
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[ok-loop] spawned", 3, Duration::from_secs(10)),
-        "on-success should restart on exit 0"
-    );
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    let count = json[0]["restart_count"].as_u64().unwrap();
-    assert!(count >= 2, "expected restart_count >= 2, got {count}");
-}
-
-#[test]
-fn test_cli_restart_on_failure_restarts_on_exit_nonzero() {
-    let env = TestEnv::new()
-        .with_config(
-            "crasher",
-            &test_helpers::false_config_with("restart: on-failure\n"),
-        )
-        .start();
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[crasher] spawned", 3, Duration::from_secs(10)),
-        "on-failure should restart on exit 1"
-    );
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    let count = json[0]["restart_count"].as_u64().unwrap();
-    assert!(count >= 2, "expected restart_count >= 2, got {count}");
-}
-
-#[test]
-fn test_cli_restart_on_success_ignores_failure_exit() {
-    let env = TestEnv::new()
-        .with_config(
-            "fail-once",
-            &test_helpers::false_config_with("restart: on-success\n"),
-        )
-        .start();
-
-    env.daemon().wait_for_log_default("[fail-once] exited with");
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    assert_eq!(json[0]["state"], "Failed");
-    assert_eq!(json[0]["restart_count"], 0);
-}
-
-#[test]
-fn test_cli_burst_limiting_stops_restarts() {
-    let env = TestEnv::new()
-        .with_config(
-            "burst",
-            &test_helpers::false_config_with(concat!(
-                "restart: always\n",
-                "restart_sec: 2\n",
-                "restart_max_delay_sec: 2\n",
-                "start_limit_burst: 4\n",
-                "start_limit_interval_sec: 60\n",
-            )),
-        )
-        .start();
-
-    env.daemon()
-        .wait_for_log("[burst] start limit reached", Duration::from_secs(30));
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    assert_eq!(json[0]["state"], "Failed");
-    assert_eq!(json[0]["restart_count"], 4);
-}
-
-#[test]
-fn test_cli_burst_interval_allows_spaced_restarts() {
-    let env = TestEnv::new()
-        .with_config(
-            "spaced",
-            &test_helpers::false_config_with(concat!(
-                "restart: always\n",
-                "restart_sec: 0.6\n",
-                "restart_max_delay_sec: 0.6\n",
-                "start_limit_burst: 2\n",
-                "start_limit_interval_sec: 1\n",
-            )),
-        )
-        .start();
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[spaced] spawned", 5, Duration::from_secs(10)),
-        "interval window should allow restarts to continue past burst limit"
-    );
-
-    assert_eq!(
-        env.daemon().count_log_matches("start limit reached"),
-        0,
-        "burst limiting should never trigger when restarts are spaced"
-    );
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    let count = json[0]["restart_count"].as_u64().unwrap();
-    assert!(count >= 4, "expected restart_count >= 4, got {count}");
 }
 
 #[test]

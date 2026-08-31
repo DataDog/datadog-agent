@@ -1346,6 +1346,34 @@ impl TestEnv {
         );
     }
 
+    pub fn wait_for_restart_count_at_least(
+        &self,
+        name: &str,
+        min: u64,
+        timeout: Duration,
+    ) -> Result<ProcessSnapshot, String> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            let last_err = match self.process(name) {
+                Ok(snap) if snap.restart_count >= min => return Ok(snap),
+                Ok(snap) => format!(
+                    "process '{name}' restart_count={} (want >={min})",
+                    snap.restart_count
+                ),
+                Err(e) => e,
+            };
+            if Instant::now() >= deadline {
+                return Err(self.format_wait_failure(last_err));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    pub fn assert_restart_count_at_least(&self, name: &str, min: u64) {
+        self.wait_for_restart_count_at_least(name, min, default_process_wait_timeout())
+            .unwrap_or_else(|e| panic!("expected restart_count >={min} for '{name}': {e}"));
+    }
+
     pub fn assert_daemon_log_line_contains(&self, patterns: &[&str]) {
         assert!(
             self.daemon()
