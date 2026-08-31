@@ -255,6 +255,18 @@ func TestNewTelemetry_EnabledForNonGovCloudSite(t *testing.T) {
 	}
 }
 
+// TestNewTelemetry_EnabledForSitesResemblingGovCloud guards against a regex that
+// matches "ddog-gov.com" as a substring instead of the full site name: a custom
+// site that merely contains that string (as a suffix of a longer domain, or a
+// prefix glued onto it) is not actually GovCloud and must not be silently
+// disabled.
+func TestNewTelemetry_EnabledForSitesResemblingGovCloud(t *testing.T) {
+	for _, site := range []string{"ddog-gov.com.example.com", "prefixddog-gov.com", "ddog-gov.com.evil.com", "notddog-gov.com"} {
+		telem := newTelemetry(&http.Client{}, "api", site, "test-service")
+		assert.True(t, telem.telemetryClient.siteSupportsTelemetry, "expected telemetry to be enabled for site %q", site)
+	}
+}
+
 // recordingHTTPClient is a minimal httpClient stub that records whether Do was called.
 type recordingHTTPClient struct {
 	called bool

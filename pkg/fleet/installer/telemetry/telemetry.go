@@ -33,7 +33,7 @@ const (
 // disabled outright for these sites rather than attempting (and failing) to send.
 // This mirrors the equivalent exclusion for the resident agent's own telemetry in
 // pkg/config/utils/telemetry.go's IsAgentTelemetryEnabled.
-var reGovCloudSite = regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
+var reGovCloudSite = regexp.MustCompile(`^(?:.+\.)?ddog-gov\.com$`)
 
 // Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
