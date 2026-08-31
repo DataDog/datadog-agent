@@ -52,6 +52,13 @@ COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
+# Target used to extract nosys.so as a standalone build artifact (via
+# `docker buildx build --target nosys-artifact --output type=local,...`),
+# so other images (e.g. cluster-agent) can consume it without rebuilding
+# their own gcc/libseccomp-dev toolchain stage.
+FROM scratch AS nosys-artifact
+COPY --from=nosys-seccomp /tmp/nosys.so /nosys.so
+
 FROM baseimage AS extract-base
 RUN apt update && apt install --no-install-recommends -y curl ca-certificates maven xz-utils
 
