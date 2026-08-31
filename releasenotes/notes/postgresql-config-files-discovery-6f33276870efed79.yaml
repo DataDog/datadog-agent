@@ -1,4 +1,5 @@
 ---
 features:
   - |
-    Add PostgreSQL configuration-file collection to Config Files Discovery for containerized deployments.
+    Add PostgreSQL configuration-file collection to Config Files Discovery for
+    containerized deployments.
