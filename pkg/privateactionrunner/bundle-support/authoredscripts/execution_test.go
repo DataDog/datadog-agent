@@ -91,7 +91,6 @@ func TestExecuteCommand_OutputLimitExceeded(t *testing.T) {
 
 func TestExecuteCommand_ReapsProcessGroup(t *testing.T) {
 	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "sleep 30 </dev/null >/dev/null 2>&1 & echo $!")
-	configureCommand(cmd)
 
 	result, err := ExecuteCommand(context.Background(), cmd)
 
@@ -112,7 +111,6 @@ func TestExecuteCommand_OutputLimitTerminatesProcessIgnoringSIGPIPE(t *testing.T
 	defer cancel()
 	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestExecuteCommand_SIGPIPEHelperProcess")
 	cmd.Env = append(os.Environ(), "GO_WANT_SIGPIPE_HELPER_PROCESS=1")
-	configureCommand(cmd)
 
 	result, err := executeCommand(ctx, cmd, 100)
 
@@ -155,7 +153,6 @@ func TestExecuteCommand_ConcurrentExecutionsAreIndependent(t *testing.T) {
 			} else {
 				cmd = exec.CommandContext(ctx, "/bin/echo", "ok")
 			}
-			configureCommand(cmd)
 
 			<-start
 			result, err := executeCommand(ctx, cmd, 100)

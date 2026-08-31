@@ -53,7 +53,6 @@ func NewCommand(ctx context.Context, pkg *Package, session *Session, parameters 
 	cmd := exec.CommandContext(ctx, pkg.Command[0], pkg.Command[1:]...)
 	cmd.Dir = session.WorkDirectory
 	cmd.Env = environment
-	configureCommand(cmd)
 	return cmd, nil
 }
 

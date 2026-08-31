@@ -54,6 +54,8 @@ func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Resu
 		return Result{}, errors.New("authored-script output limit must be positive")
 	}
 
+	configureCommand(cmd)
+
 	stdout, stderr := util.NewLimitedStdoutStderrWritersPair(outputLimit)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
