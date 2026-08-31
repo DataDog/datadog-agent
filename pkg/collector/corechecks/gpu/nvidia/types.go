@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build linux && nvml
+
 // Package nvidia holds the logic to collect metrics from the NVIDIA Management Library (NVML).
 package nvidia
 
 import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -56,6 +59,6 @@ type Collector interface {
 	// Name returns the name of the subsystem
 	Name() CollectorName
 
-	// DeviceUUID returns the UUID of the device this collector is collecting metrics from. Returns an empty string if there's no UUID
-	DeviceUUID() string
+	// Device returns the device this collector is collecting metrics from.
+	Device() ddnvml.Device
 }
