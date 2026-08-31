@@ -87,5 +87,4 @@ if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   set -- "${args[@]}"
 fi
 
-echo "$BAZEL_REAL" "$@"
 exec "$BAZEL_REAL" "$@"
