@@ -101,6 +101,7 @@ fn exit_ok_fixture_exits_cleanly() {
     let env = TestEnv::new().with_process("exit_ok");
     let procmgr = env.start();
     procmgr.assert_status_ready();
+    procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
     procmgr.assert_status_processes_count(StatusProcessesCount {
         total: Some(1),
         exited: Some(1),
@@ -116,6 +117,7 @@ fn exit_fail_fixture_exits_with_failure() {
     let env = TestEnv::new().with_process("exit_fail");
     let procmgr = env.start();
     procmgr.assert_status_ready();
+    procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
     procmgr.assert_status_processes_count(StatusProcessesCount {
         total: Some(1),
         failed: Some(1),

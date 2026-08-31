@@ -840,6 +840,11 @@ impl TestEnv {
         }
     }
 
+    pub fn assert_process_state_within(&self, name: &str, expected: ProcessExpect) {
+        self.wait_for_process_state(name, expected, default_process_wait_timeout())
+            .unwrap_or_else(|e| panic!("expected process '{name}' in state {expected:?}: {e}"));
+    }
+
     pub fn start_process(&self, name: &str) -> Result<(), String> {
         let out = self.cli(&["start", name]);
         if !out.status.success() {
