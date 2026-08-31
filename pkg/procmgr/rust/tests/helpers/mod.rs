@@ -718,13 +718,33 @@ impl TestEnv {
         let status = self.require_status();
         let fields = [
             ("total_processes", status.total_processes, expected.total),
-            ("running_processes", status.running_processes, expected.running),
-            ("created_processes", status.created_processes, expected.created),
-            ("stopped_processes", status.stopped_processes, expected.stopped),
+            (
+                "running_processes",
+                status.running_processes,
+                expected.running,
+            ),
+            (
+                "created_processes",
+                status.created_processes,
+                expected.created,
+            ),
+            (
+                "stopped_processes",
+                status.stopped_processes,
+                expected.stopped,
+            ),
             ("failed_processes", status.failed_processes, expected.failed),
             ("exited_processes", status.exited_processes, expected.exited),
-            ("starting_processes", status.starting_processes, expected.starting),
-            ("stopping_processes", status.stopping_processes, expected.stopping),
+            (
+                "starting_processes",
+                status.starting_processes,
+                expected.starting,
+            ),
+            (
+                "stopping_processes",
+                status.stopping_processes,
+                expected.stopping,
+            ),
         ];
         for (field, actual, exp) in fields {
             assert_status_field(field, actual, exp, &status);
@@ -736,9 +756,10 @@ impl TestEnv {
     }
 
     fn find_process(&self, name: &str) -> Result<ProcessSnapshot, String> {
-        self.list_processes()?.into_iter().find(|p| p.name == name).ok_or_else(|| {
-            format!("process '{name}' not found")
-        })
+        self.list_processes()?
+            .into_iter()
+            .find(|p| p.name == name)
+            .ok_or_else(|| format!("process '{name}' not found"))
     }
 
     fn wait_for_process_running(&self, name: &str) -> Result<ProcessSnapshot, String> {
@@ -820,9 +841,7 @@ impl TestEnv {
     }
 
     pub fn assert_process_state(&self, name: &str, expected: ProcessExpect) {
-        let process = self
-            .find_process(name)
-            .unwrap_or_else(|e| panic!("{e}"));
+        let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
         let expected_state = expected.as_str();
         assert_eq!(
             process.state, expected_state,
@@ -862,9 +881,7 @@ impl TestEnv {
     }
 
     fn check_process_pid_alive(&self, name: &str) {
-        let process = self
-            .find_process(name)
-            .unwrap_or_else(|e| panic!("{e}"));
+        let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
         let pid = process.pid as u32;
         assert!(
             pid > 0,
