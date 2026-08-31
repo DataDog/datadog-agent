@@ -42,8 +42,6 @@ pub struct Params {
     pub drain_timeout: Duration,
 }
 
-
-
 /// Exponential dequeue backoff: `min_backoff * 2^(attempt-1)`, capped at `max_backoff`.
 fn backoff_delay(attempt: u32, min: Duration, max: Duration) -> Duration {
     let factor = 2u32
@@ -105,8 +103,7 @@ where
             };
         }
 
-        // The executor remains stopped until work arrives. The first cold task
-        // populates the signing-key cache, which seeds later cold starts.
+        // The executor remains stopped until work arrives.
         loop {
             // Acquire capacity before leasing work from OPMS.
             let permit = tokio::select! {
@@ -155,18 +152,8 @@ where
                     let ready = tokio::select! {
                         _ = &mut shutdown => {
                             info!("shutdown requested before task {} could be dispatched", task.task_id);
-                            let outcome = dispatch_failure("runner stopped before dispatch");
-                            if let Err(e) = publish_with_retry(
-                                Arc::clone(&self.opms),
-                                &task,
-                                &outcome,
-                                self.params.publish_max_attempts,
-                                self.params.publish_min_backoff,
-                                self.params.publish_max_backoff,
-                            ).await {
-                                error!("failed to publish shutdown failure for task {}: {e:#}", task.task_id);
-                            }
-                            stop_heartbeats(stop_hb, hb_done).await;
+                            self.report_dispatch_failure(&task, "runner stopped before dispatch").await;
+                            stop_background_task(stop_hb, hb_done).await;
                             drop(permit);
                             break;
                         }
@@ -174,20 +161,9 @@ where
                     };
                     if let Err(e) = ready {
                         error!("executor did not become ready: {e:#}");
-                        let outcome = dispatch_failure(&format!("executor unavailable: {e}"));
-                        if let Err(pe) = publish_with_retry(
-                            Arc::clone(&self.opms),
-                            &task,
-                            &outcome,
-                            self.params.publish_max_attempts,
-                            self.params.publish_min_backoff,
-                            self.params.publish_max_backoff,
-                        )
-                        .await
-                        {
-                            error!("failed to publish executor-unavailable failure: {pe:#}");
-                        }
-                        stop_heartbeats(stop_hb, hb_done).await;
+                        self.report_dispatch_failure(&task, &format!("executor unavailable: {e}"))
+                            .await;
+                        stop_background_task(stop_hb, hb_done).await;
                         drop(permit);
                         continue;
                     }
@@ -197,9 +173,7 @@ where
                     let dispatcher = Arc::clone(&self.dispatcher);
                     let lifecycle = Arc::clone(&self.lifecycle);
                     let inflight = Arc::clone(&self.inflight);
-                    let publish_max_attempts = self.params.publish_max_attempts;
-                    let publish_min_backoff = self.params.publish_min_backoff;
-                    let publish_max_backoff = self.params.publish_max_backoff;
+                    let params = self.params.clone();
                     tokio::spawn(async move {
                         let outcome = match dispatcher.run_action(task.raw.clone()).await {
                             Ok(o) => {
@@ -232,20 +206,13 @@ where
                             }
                         };
 
-                        if let Err(e) = publish_with_retry(
-                            Arc::clone(&opms),
-                            &task,
-                            &outcome,
-                            publish_max_attempts,
-                            publish_min_backoff,
-                            publish_max_backoff,
-                        )
-                        .await
+                        if let Err(e) =
+                            publish_with_retry(Arc::clone(&opms), &task, &outcome, &params).await
                         {
                             error!("failed to publish result for task {}: {e:#}", task.task_id);
                         }
 
-                        stop_heartbeats(stop_hb, hb_done).await;
+                        stop_background_task(stop_hb, hb_done).await;
                         inflight.fetch_sub(1, Ordering::SeqCst);
                         drop(permit);
                     });
@@ -294,20 +261,16 @@ where
             ),
         }
 
-        stop_health_checks(stop_health, health_done).await;
+        stop_background_task(stop_health, health_done).await;
     }
 
     /// Ensure the executor is started and reports ready, bounded by `ready_timeout`.
     async fn ensure_ready(&self) -> anyhow::Result<()> {
         self.lifecycle.ensure_started().await?;
-        self.wait_for_health(true).await
-    }
-
-    async fn wait_for_health(&self, require_ready: bool) -> anyhow::Result<()> {
         let deadline = Instant::now() + self.params.ready_timeout;
         loop {
             match self.dispatcher.health().await {
-                Ok(health) if !require_ready || health.ready => return Ok(()),
+                Ok(health) if health.ready => return Ok(()),
                 Ok(health) => debug!(
                     "executor is up but not ready yet ({} active actions)",
                     health.active_actions
@@ -318,13 +281,24 @@ where
                 Err(e) => debug!("executor health check failed: {e:#}"),
             }
             if Instant::now() >= deadline {
-                let state = if require_ready { "ready" } else { "live" };
-                anyhow::bail!(
-                    "executor not {state} within {:?}",
-                    self.params.ready_timeout
-                );
+                anyhow::bail!("executor not ready within {:?}", self.params.ready_timeout);
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+
+    /// Build and publish a dispatch failure for a task that never reached
+    /// `run_action`. Errors are logged, not propagated: this is already the
+    /// failure path, so there is nothing left to escalate to.
+    async fn report_dispatch_failure(&self, task: &Task, detail: &str) {
+        let outcome = dispatch_failure(detail);
+        if let Err(e) =
+            publish_with_retry(Arc::clone(&self.opms), task, &outcome, &self.params).await
+        {
+            error!(
+                "failed to publish dispatch failure for task {}: {e:#}",
+                task.task_id
+            );
         }
     }
 }
@@ -353,11 +327,9 @@ async fn publish_with_retry<O: Opms + 'static>(
     opms: Arc<O>,
     task: &Task,
     outcome: &Outcome,
-    max_attempts: u32,
-    min_backoff: Duration,
-    max_backoff: Duration,
+    params: &Params,
 ) -> anyhow::Result<PublishResult> {
-    let max_attempts = max_attempts.max(1);
+    let max_attempts = params.publish_max_attempts.max(1);
     let mut attempt = 1;
     loop {
         match opms.publish(task, outcome).await {
@@ -370,7 +342,11 @@ async fn publish_with_retry<O: Opms + 'static>(
                 return Ok(PublishResult::Rejected { status, detail });
             }
             Err(error) if attempt < max_attempts => {
-                let delay = backoff_delay(attempt, min_backoff, max_backoff);
+                let delay = backoff_delay(
+                    attempt,
+                    params.publish_min_backoff,
+                    params.publish_max_backoff,
+                );
                 warn!(
                     "publishing task {} failed (attempt {attempt}/{max_attempts}); retrying in {delay:?}: {error:#}",
                     task.task_id
@@ -429,16 +405,6 @@ fn spawn_health_checks<O: Opms + 'static>(
     (stop_tx, handle)
 }
 
-/// Stop the health-check loop and wait for it, so a shutting-down control plane
-/// does not leave a request in flight past the drain deadline.
-async fn stop_health_checks(
-    stop: tokio::sync::oneshot::Sender<()>,
-    done: tokio::task::JoinHandle<()>,
-) {
-    let _ = stop.send(());
-    let _ = done.await;
-}
-
 fn log_health_check(check: &HealthCheck, last_info: &mut Option<Instant>) {
     let server_time = check.server_time.as_deref().unwrap_or("unknown");
     if !check.ok() {
@@ -491,7 +457,10 @@ fn spawn_heartbeats<O: Opms + 'static>(
     (stop_tx, handle)
 }
 
-async fn stop_heartbeats(
+/// Stop a spawned health-check or heartbeat loop and wait for it, so a
+/// shutting-down control plane does not leave a request in flight past the
+/// drain deadline.
+async fn stop_background_task(
     stop: tokio::sync::oneshot::Sender<()>,
     done: tokio::task::JoinHandle<()>,
 ) {
@@ -802,16 +771,13 @@ mod tests {
             output_json: b"{}".to_vec(),
         };
 
-        let result = publish_with_retry(
-            Arc::clone(&fakes),
-            &task,
-            &outcome,
-            3,
-            Duration::from_millis(1),
-            Duration::from_millis(2),
-        )
-        .await
-        .unwrap();
+        let mut params = test_params(1, Duration::from_secs(3600));
+        params.publish_max_attempts = 3;
+        params.publish_min_backoff = Duration::from_millis(1);
+        params.publish_max_backoff = Duration::from_millis(2);
+        let result = publish_with_retry(Arc::clone(&fakes), &task, &outcome, &params)
+            .await
+            .unwrap();
 
         assert_eq!(result, PublishResult::Published);
         let state = fakes.state.lock().unwrap();
@@ -1384,7 +1350,7 @@ mod tests {
         })
         .await
         .expect("a rejected health check must be retried on the next tick");
-        stop_health_checks(stop, done).await;
+        stop_background_task(stop, done).await;
 
         let mut last_info = None;
         // A 200 logs at info the first time, then throttles; a rejection always
