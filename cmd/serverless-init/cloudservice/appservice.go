@@ -60,16 +60,13 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
-// GetInventoryData derives the inventory metadata fields for Azure App
-// Service. It reuses traceutil.GetAppServicesTags as the single source of truth
-// for the CCRID, subscription id, resource group, and runtime, so it does not
-// depend on GetTags having run first. All facts are env-derived (no metadata
-// fetch), so no caching is needed.
+// GetInventoryData derives the inventory metadata fields for Azure App Service,
+// reusing traceutil.GetAppServicesTags as the single source of truth for the
+// CCRID, subscription id, resource group, and runtime.
 //
 // Function apps (FUNCTIONS_WORKER_RUNTIME set) report azure_function; plain web
 // apps report azure_app_service. App Service has no revision-style parent or
-// deployment id, so those fields stay empty. The CCRID is empty when the
-// subscription id, resource group, or site name is missing, matching GetTags.
+// deployment id, so those fields stay empty.
 func (a *AppService) GetInventoryData() InventoryData {
 	aasTags := traceutil.GetAppServicesTags()
 

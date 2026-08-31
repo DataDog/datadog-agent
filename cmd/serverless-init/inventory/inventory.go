@@ -34,29 +34,26 @@ const reportReasonStartup = "startup"
 // in agent_metadata.
 const serverlessFieldPrefix = "serverless_"
 
-// serverlessInitFlavor is the payload flavor emitted by serverless-init. It
-// carries the dash intentionally and is injected only into the payload (via
-// Set below). serverless-init does not change the process-global flavor
-// (flavor.SetFlavor), which stays "agent": the aggregator captures the flavor
-// once at construction for the datadog.<flavor>.running / .up heartbeat metric
-// and service check, so renaming it process-wide would break agent-host
-// identification and existing monitors.
+// serverlessInitFlavor is the payload flavor emitted by serverless-init. It is
+// injected only into the payload (via Set below), not the process-global flavor
+// (flavor.SetFlavor): the aggregator captures that once for the
+// datadog.<flavor>.running/.up heartbeat metric and service check, so renaming
+// it process-wide would break agent-host identification and existing monitors.
 const serverlessInitFlavor = "serverless-init"
 
-// NewCapabilities builds the inventoryagent Capabilities for serverless-init.
-// It is supplied to the shared inventoryagent component via fx so the component
-// adapts to a hostless, single-process environment (no cross-process
-// enrichment, immediate on-start submission, a per-process uuid).
+// NewCapabilities builds the inventoryagent Capabilities for serverless-init,
+// with a per-process uuid since serverless containers do not share a host GUID.
 func NewCapabilities() *inventoryagent.Capabilities {
-	// A per-process uuid: serverless containers do not share the host machine
-	// GUID that uuid.GetUUID() returns.
 	return inventoryagent.NewServerlessCapabilities(uuid.New().String())
 }
 
 // Inject layers the serverless-specific fields and the serverless-init flavor
 // onto the shared inventoryagent component via its public Set API. The
 // component's initData() has already populated the core fields at construction.
-// It is a no-op while the serverless.inventory_enabled ramp gate is off.
+//
+// Inject, Submit, and SetDeploymentID are all no-ops while the
+// serverless.inventory_enabled ramp gate is off, so a gated-off run emits no
+// serverless payload at all rather than one carrying only core fields.
 func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return
@@ -69,9 +66,6 @@ func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf 
 
 // Submit enqueues an inventory payload now, synchronously, so a short-lived
 // container delivers it before exiting rather than racing the runner goroutine.
-// It is a no-op while the serverless.inventory_enabled ramp gate is off, so a
-// gated-off run emits no serverless payload at all (rather than one carrying
-// only the component's core fields).
 func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return
@@ -81,9 +75,7 @@ func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
 
 // SetDeploymentID sets the deployment_id serverless field, for platforms that
 // only learn their deployment/instance identifier after the initial Inject
-// (e.g. delivered by a lifecycle hook rather than the environment). It is a
-// no-op while the serverless.inventory_enabled ramp gate is off, preserving the
-// invariant that no serverless field reaches a payload while the ramp is off.
+// (e.g. delivered by a lifecycle hook rather than the environment).
 func SetDeploymentID(ia inventoryagent.Component, conf configmodel.Reader, id string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return

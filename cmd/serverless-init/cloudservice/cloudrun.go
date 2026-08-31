@@ -199,9 +199,7 @@ func cloudRunFunctionCCRID(project, region, service, functionTarget string) stri
 }
 
 // GetInventoryData derives the inventory metadata fields for Cloud Run services
-// and functions. It resolves its own facts from the cached metadata service
-// values plus the workload environment, so it does not depend on GetTags having
-// run first.
+// and functions.
 //
 // The service-level CCRID is the stable parent. For a service the resource_id
 // is the revision under it; parent_resource_id is the service CCRID. For a
