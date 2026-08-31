@@ -442,6 +442,29 @@ fn test_cli_config_with_runtime_processes() {
 }
 
 #[test]
+fn test_cli_list_terminal_table_fields() {
+    let procmgr = TestEnv::new()
+        .with_process("exit_ok")
+        .with_process("exit_fail")
+        .start();
+    procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
+    procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
+
+    procmgr
+        .cli(&["list"])
+        .assert_success()
+        .assert_table_row(
+            "exit_ok",
+            &[("STATE", "Exited"), ("PID", "-"), ("LAST EXIT", "exit 0")],
+        )
+        .assert_table_row(
+            "exit_fail",
+            &[("STATE", "Failed"), ("PID", "-"), ("LAST EXIT", "exit 1")],
+        )
+        .assert_table_row_count(2);
+}
+
+#[test]
 fn test_cli_list_json() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())
