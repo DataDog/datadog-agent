@@ -72,7 +72,6 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 
 	named := sourceCount == 1 && len(sources) == 1
 
-	// scope is the Title's "from ..." clause; subject opens the Description.
 	scope := fmt.Sprintf("%d %s", sourceCount, pluralize(sourceCount, "source"))
 	subject := "Logs from " + scope
 	file := "a file"
@@ -84,7 +83,6 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		breakdown = ""
 	}
 
-	// Each aggregate lands in one place: bytes in the Title, rotations here.
 	sentences := []string{
 		fmt.Sprintf("%s never reached Datadog: %d log %s closed %s before the Agent finished reading it.",
 			subject, rotations, pluralize(rotations, "rotation"), file),
@@ -121,8 +119,12 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		Extra:    extra,
 		Tags:     []string{"logs", "file-tailing", "rotation", "data-loss"},
 		Remediation: &healthplatform.Remediation{
-			// Generic for now; detailed remediation is authored backend-side.
 			Summary: "Run `agent status` and review the Logs Agent Backpressure section",
+			Steps: []*healthplatform.RemediationStep{
+				{Order: 1, Text: "Run `agent status` and review the Logs Agent Backpressure section for a saturated pipeline"},
+				{Order: 2, Text: "Raise `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) to give the tailer longer to finish a rotated file"},
+				{Order: 3, Text: "If the file rotates faster than the Agent can read it, lower the log volume or rotate less often"},
+			},
 		},
 	}, nil
 }

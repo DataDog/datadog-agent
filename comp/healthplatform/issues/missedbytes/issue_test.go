@@ -48,18 +48,14 @@ func TestBuildIssue(t *testing.T) {
 			descSubstrs: []string{
 				"Logs from 3 sources never reached Datadog",
 				"4 log rotations closed a file",
-				// Ranked by bytes; per-source rotation counts live in Extra.
 				"Most affected: nginx/web 4.0 MB, redis/cache 200 kB, kafka/queue 512 B.",
 			},
-			descNotSubstrs: []string{
-				// The byte total belongs to the Title only.
-				"4.2 MB",
-				// Recency belongs to the platform's own last-seen, not the prose.
-				"Last loss",
-			},
-			extraBytes:  4200512,
-			extraRotate: 4,
-			extraCount:  3,
+			// Each aggregate lands in one place: bytes in the Title, rotations in
+			// the Description. Recency is the platform's own last-seen.
+			descNotSubstrs: []string{"4.2 MB", "Last loss"},
+			extraBytes:     4200512,
+			extraRotate:    4,
+			extraCount:     3,
 			extraSource: []sourceLoss{
 				{Source: "nginx", Service: "web", Bytes: 4000000, Rotations: 2},
 				{Source: "redis", Service: "cache", Bytes: 200000, Rotations: 1},
@@ -79,17 +75,13 @@ func TestBuildIssue(t *testing.T) {
 			title: "Lost 512 B of logs from source app in the last 24 hours",
 			descSubstrs: []string{
 				`Logs from source "app" (service "billing") never reached Datadog`,
-				// The one known file is "the file", not "a file".
 				"1 log rotation closed the file",
 			},
-			descNotSubstrs: []string{
-				// A named source needs no breakdown repeating it.
-				"Most affected",
-			},
-			extraBytes:  512,
-			extraRotate: 1,
-			extraCount:  1,
-			extraSource: []sourceLoss{{Source: "app", Service: "billing", Bytes: 512, Rotations: 1}},
+			descNotSubstrs: []string{"Most affected"},
+			extraBytes:     512,
+			extraRotate:    1,
+			extraCount:     1,
+			extraSource:    []sourceLoss{{Source: "app", Service: "billing", Bytes: 512, Rotations: 1}},
 		},
 		{
 			name: "omitted sources are counted in the description",
@@ -183,8 +175,14 @@ func TestBuildIssue(t *testing.T) {
 
 			require.NotNil(t, issue.GetRemediation())
 			assert.Contains(t, issue.GetRemediation().GetSummary(), "Logs Agent Backpressure")
-			assert.Empty(t, issue.GetRemediation().GetSteps(), "remediation content for this issue is served backend-side")
 			assert.Nil(t, issue.GetRemediation().GetScript())
+
+			steps := issue.GetRemediation().GetSteps()
+			require.NotEmpty(t, steps)
+			assert.Contains(t, steps[0].GetText(), "agent status", "step 1 is the fastest diagnostic command")
+			for i, step := range steps {
+				assert.Equal(t, int32(i+1), step.GetOrder(), "Order must be contiguous and 1-indexed")
+			}
 
 			require.NotNil(t, issue.GetExtra())
 			fields := issue.GetExtra().GetFields()
