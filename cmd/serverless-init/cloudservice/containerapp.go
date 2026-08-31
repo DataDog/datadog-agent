@@ -133,13 +133,10 @@ func (c *ContainerApp) GetTags() map[string]string {
 }
 
 // GetInventoryData derives the inventory metadata fields for Azure Container
-// Apps. It resolves its own facts from the workload environment, so it does not
-// depend on GetTags having run first.
-//
-// The app-level CCRID is the stable parent; the resource_id is the revision
-// under it and the revision is also reported as the deployment_id. The CCRIDs
-// require both subscription id and resource group and are left empty otherwise,
-// matching GetTags.
+// Apps. The app-level CCRID is the stable parent; the resource_id is the
+// revision under it and the revision is also reported as the deployment_id. The
+// CCRIDs require both subscription id and resource group and are left empty
+// otherwise, matching GetTags.
 func (c *ContainerApp) GetInventoryData() InventoryData {
 	subscriptionID := os.Getenv(AzureSubscriptionIdEnvVar)
 	resourceGroup := os.Getenv(AzureResourceGroupEnvVar)
