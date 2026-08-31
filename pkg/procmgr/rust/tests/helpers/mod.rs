@@ -237,6 +237,26 @@ impl DaemonHandle {
         self.child.id()
     }
 
+    /// Wait until a captured log line contains all `patterns`, or timeout.
+    pub fn wait_for_log_line_contains(&self, patterns: &[&str], timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        loop {
+            {
+                let lines = self.log_lines.lock().unwrap();
+                if lines
+                    .iter()
+                    .any(|line| patterns.iter().all(|pattern| line.contains(pattern)))
+                {
+                    return true;
+                }
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     /// Wait until a log line containing `pattern` appears, or timeout.
     pub fn wait_for_log(&self, pattern: &str, timeout: Duration) -> bool {
         let deadline = Instant::now() + timeout;
@@ -868,12 +888,11 @@ impl TestEnv {
     }
 
     pub fn assert_daemon_log_line_contains(&self, patterns: &[&str]) {
-        let logs = self.daemon().captured_logs();
         assert!(
-            logs.iter()
-                .any(|line| patterns.iter().all(|pattern| line.contains(pattern))),
+            self.daemon()
+                .wait_for_log_line_contains(patterns, DEFAULT_TIMEOUT),
             "expected a daemon log line containing all of {patterns:?}, got:\n{}",
-            logs.join("\n")
+            self.daemon().captured_logs().join("\n")
         );
     }
 
