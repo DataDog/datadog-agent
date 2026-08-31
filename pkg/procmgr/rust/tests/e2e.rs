@@ -109,7 +109,6 @@ fn exit_ok_fixture_exits_cleanly() {
         failed: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("exit_ok", ProcessExpect::Exited);
 }
 
 #[test]
@@ -125,7 +124,6 @@ fn exit_fail_fixture_exits_with_failure() {
         exited: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("exit_fail", ProcessExpect::Failed);
 }
 
 #[test]
@@ -245,18 +243,8 @@ fn list_shows_exited_with_last_exit_code() {
     procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
     procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
     procmgr.assert_list_len(2);
-    procmgr.assert_process_state("exit_ok", ProcessExpect::Exited);
-    procmgr.assert_process_state("exit_fail", ProcessExpect::Failed);
-
-    let ok = procmgr.process("exit_ok").expect("exit_ok listed");
-    assert_eq!(ok.last_exit_code, Some(0), "exit_ok last_exit_code: {ok:?}");
-
-    let fail = procmgr.process("exit_fail").expect("exit_fail listed");
-    assert_eq!(
-        fail.last_exit_code,
-        Some(1),
-        "exit_fail last_exit_code: {fail:?}"
-    );
+    procmgr.assert_process_last_exit_code("exit_ok", 0);
+    procmgr.assert_process_last_exit_code("exit_fail", 1);
 }
 
 #[test]

@@ -972,6 +972,15 @@ impl TestEnv {
         );
     }
 
+    pub fn assert_process_last_exit_code(&self, name: &str, code: i32) {
+        let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(
+            process.last_exit_code,
+            Some(code),
+            "process '{name}' last_exit_code: expected {code}, got {process:?}"
+        );
+    }
+
     pub fn assert_process_absent(&self, name: &str) {
         let processes = self
             .list_processes()
