@@ -56,6 +56,7 @@ dd_agent_go_test(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
+        "persistence_remote_test.go",
         "store_kubeapiserver_test.go",
         "store_test.go",
     ],
@@ -79,7 +80,9 @@ dd_agent_go_test(
         "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/store/def",
         "//pkg/config/env",
+        "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
