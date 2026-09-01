@@ -6,10 +6,17 @@
 package semantics
 
 import (
+	"crypto/sha256"
 	_ "embed" //nolint:revive
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
+	"io"
+	"sort"
+	"strconv"
 	"sync/atomic"
 )
 
@@ -35,10 +42,11 @@ type registryData struct {
 
 // EmbeddedRegistry loads semantic mappings from embedded JSON.
 type EmbeddedRegistry struct {
-	version  string
-	hash     string
-	source   string
-	mappings map[Concept][]TagInfo
+	version     string
+	hash        string
+	fingerprint string
+	source      string
+	mappings    map[Concept][]TagInfo
 }
 
 var globalRegistry atomic.Pointer[Registry]
@@ -102,9 +110,65 @@ func (r *EmbeddedRegistry) loadFromJSON(data []byte) error {
 	r.hash = rd.Metadata.ContentHash
 	r.mappings = make(map[Concept][]TagInfo, len(rd.Concepts))
 	for conceptName, mapping := range rd.Concepts {
+		// Canonical is deliberately dropped and excluded from the fingerprint
+		// because it does not currently affect registry behaviour.
 		r.mappings[Concept(conceptName)] = mapping.Fallbacks
 	}
+	r.fingerprint = fingerprint(r.mappings)
 	return nil
+}
+
+func writeField(h hash.Hash, s string) {
+	var n [8]byte
+	binary.LittleEndian.PutUint64(n[:], uint64(len(s)))
+	_, _ = h.Write(n[:])
+	_, _ = io.WriteString(h, s)
+}
+
+// fingerprint returns a content-derived identity for the parsed mappings.
+// It is compared only against other fingerprints computed by this binary, so
+// the encoding needs to be deterministic within a process and nothing more:
+// it is deliberately not a stable wire format and must never be published,
+// persisted, or compared against a producer-supplied hash. It covers only the
+// agent's current behavioural input and must be extended if a currently-dropped
+// field starts affecting behaviour.
+func fingerprint(m map[Concept][]TagInfo) string {
+	concepts := make([]string, 0, len(m))
+	for concept := range m {
+		concepts = append(concepts, string(concept))
+	}
+	sort.Strings(concepts)
+
+	h := sha256.New()
+	writeField(h, strconv.Itoa(len(concepts)))
+	for _, concept := range concepts {
+		writeField(h, concept)
+		tags := m[Concept(concept)]
+		writeField(h, strconv.Itoa(len(tags)))
+		for _, tag := range tags {
+			writeField(h, tag.Name)
+			writeField(h, string(tag.Provider))
+			writeField(h, tag.Version)
+			writeField(h, string(tag.Type))
+			writeField(h, strconv.Itoa(len(tag.When)))
+			for _, condition := range tag.When {
+				writeField(h, condition.Attribute)
+				if condition.Present == nil {
+					writeField(h, "nil")
+				} else {
+					writeField(h, "set")
+					writeField(h, strconv.FormatBool(*condition.Present))
+				}
+				if condition.Eq == nil {
+					writeField(h, "nil")
+				} else {
+					writeField(h, "set")
+					writeField(h, *condition.Eq)
+				}
+			}
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // GetAttributePrecedence returns the ordered attribute keys for a concept.
@@ -127,9 +191,15 @@ func (r *EmbeddedRegistry) Version() string {
 	return r.version
 }
 
-// ContentHash returns the content-bound hash of the registry's concept mappings.
+// ContentHash returns the producer-declared registry version label verbatim.
+// It is not an integrity check or a key for invalidating derived state.
 func (r *EmbeddedRegistry) ContentHash() string {
 	return r.hash
+}
+
+// Fingerprint returns the locally-computed identity of the parsed concept mappings.
+func (r *EmbeddedRegistry) Fingerprint() string {
+	return r.fingerprint
 }
 
 // Source reports where the registry came from (SourceEmbedded or SourceRemoteConfig).
@@ -137,11 +207,10 @@ func (r *EmbeddedRegistry) Source() string {
 	return r.source
 }
 
-// RegistryEqual reports whether two registries carry the same concept
-// mappings, by comparing their content_hash.
+// RegistryEqual reports whether two registries have the same parsed concept mappings.
 func RegistryEqual(a, b Registry) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
 	}
-	return a.ContentHash() == b.ContentHash()
+	return a.Fingerprint() == b.Fingerprint()
 }

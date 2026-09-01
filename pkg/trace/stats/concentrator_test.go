@@ -136,6 +136,30 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 	})
 }
 
+func TestConcentratorRefreshesPeerTagsForChangedMappingsWithSameContentHash(t *testing.T) {
+	original := semantics.DefaultRegistry()
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	const oldJSON = `{"version":"old","metadata":{"content_hash":"same-hash"},"concepts":{"peer.service":{"fallbacks":[{"name":"peer.old","provider":"datadog","type":"string"}]}}}`
+	oldRegistry, err := semantics.NewRegistryFromJSON([]byte(oldJSON))
+	require.NoError(t, err)
+	semantics.UpdateRegistry(oldRegistry)
+
+	cfg := config.AgentConfig{
+		BucketInterval:      time.Duration(testBucketInterval),
+		PeerTagsAggregation: true,
+	}
+	c := NewTestConcentratorWithCfg(time.Now(), &cfg)
+	require.Contains(t, c.getPeerTagKeys(), "peer.old")
+
+	const newJSON = `{"version":"new","metadata":{"content_hash":"same-hash"},"concepts":{"peer.service":{"fallbacks":[{"name":"peer.new","provider":"datadog","type":"string"}]}}}`
+	newRegistry, err := semantics.NewRegistryFromJSON([]byte(newJSON))
+	require.NoError(t, err)
+	semantics.UpdateRegistry(newRegistry)
+
+	assert.Equal(t, []string{"peer.new"}, c.getPeerTagKeys())
+}
+
 func TestNewConcentratorAdditionalMetricTagsValueLengthCapUsesAgentSentinel(t *testing.T) {
 	cfg := config.AgentConfig{
 		BucketInterval: time.Duration(testBucketInterval),
@@ -890,9 +914,9 @@ func TestPeerTags(t *testing.T) {
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
 		// Inject a peer-tag key set directly, keyed by the live registry's
-		// content hash so getPeerTagKeys returns it without rebuilding from conf.
+		// fingerprint so getPeerTagKeys returns it without rebuilding from conf.
 		c.peerTagsCache.Store(&config.PeerTagsCache{
-			ContentHash: semantics.DefaultRegistry().ContentHash(),
+			Fingerprint: semantics.DefaultRegistry().Fingerprint(),
 			Keys:        []string{"db.instance", "db.system", "peer.service"},
 		})
 		c.addNow(testTrace, infraTags{})

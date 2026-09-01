@@ -163,8 +163,14 @@ type Registry interface {
 	// Version returns the semantic registry version string.
 	Version() string
 
-	// ContentHash returns the content-bound hash of the registry's concept mappings.
+	// ContentHash returns the producer-declared registry version label verbatim.
+	// It is not an integrity check or a key for invalidating derived state.
 	ContentHash() string
+
+	// Fingerprint returns a locally-computed identity for the registry's parsed
+	// concept mappings. Unlike ContentHash, it carries no cross-version or
+	// cross-process meaning and is the correct key for invalidating derived state.
+	Fingerprint() string
 
 	// Source reports where the registry came from (SourceEmbedded or SourceRemoteConfig).
 	Source() string

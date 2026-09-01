@@ -611,11 +611,9 @@ func TestOnSemanticCoreUpdate_AllErrors(t *testing.T) {
 	assert.Equal(t, state.ApplyStateError, statuses["datadog/2/APM_SEMANTIC_CORE_DD/b/config"].State)
 }
 
-// TestOnSemanticCoreUpdate_SameHashNoOp verifies that a second push with the
-// same metadata.content_hash as the live registry is detected as a no-op
-// (skips the UpdateRegistry call) but is still acknowledged, even when
-// Version() differs — content_hash is content-bound and version is not.
-func TestOnSemanticCoreUpdate_SameHashNoOp(t *testing.T) {
+// TestOnSemanticCoreUpdate_SameHashChangedMappingsApplied verifies that a
+// producer-declared hash cannot hide changed parsed mappings.
+func TestOnSemanticCoreUpdate_SameHashChangedMappingsApplied(t *testing.T) {
 	restoreEmbeddedRegistry(t)
 	h := newSemanticTestHandler(t)
 
@@ -627,24 +625,40 @@ func TestOnSemanticCoreUpdate_SameHashNoOp(t *testing.T) {
 	require.NoError(t, err)
 	semantics.UpdateRegistry(liveReg)
 
-	// Push a payload with a DIFFERENT version but the SAME content_hash. The
-	// handler must NOT swap the registry — the sentinel concept must still be
-	// reachable after the push, even though the concepts in this payload
-	// differ (the hash is trusted, not recomputed).
+	// Push a payload with different mappings but the same declared content hash.
 	const sameHashDifferentVersion = `{"version":"sentinel-1.1","metadata":{"content_hash":"hash-sentinel"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
 	statuses, cb := captureStatuses()
 	h.onSemanticCoreUpdate(map[string]state.RawConfig{
 		"datadog/2/APM_SEMANTIC_CORE_DD/cfg/config": {Config: []byte(sameHashDifferentVersion)},
 	}, cb)
 
-	// Sentinel concept survived: the swap was skipped.
-	assert.NotNil(t, semantics.DefaultRegistry().GetAttributePrecedence(semantics.ConceptPeerService))
-	assert.Nil(t, semantics.DefaultRegistry().GetAttributePrecedence(semantics.ConceptDBStatement),
-		"db.statement must not be present — the second push was supposed to be a no-op")
-	assert.Equal(t, "sentinel-1.0", semantics.DefaultRegistry().Version())
-	// Even though we skipped the swap, the cfgPath is still acknowledged: the
-	// payload was valid, we just decided we didn't need to apply it.
+	assert.Nil(t, semantics.DefaultRegistry().GetAttributePrecedence(semantics.ConceptPeerService))
+	assert.NotNil(t, semantics.DefaultRegistry().GetAttributePrecedence(semantics.ConceptDBStatement))
+	assert.Equal(t, "sentinel-1.1", semantics.DefaultRegistry().Version())
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"].State)
+}
+
+// TestOnSemanticCoreUpdate_DifferentMetadataSameMappingsNoOp verifies the
+// converse of TestOnSemanticCoreUpdate_SameHashChangedMappingsApplied: changed
+// producer metadata cannot force a swap when the parsed mappings are identical.
+func TestOnSemanticCoreUpdate_DifferentMetadataSameMappingsNoOp(t *testing.T) {
+	restoreEmbeddedRegistry(t)
+	h := newSemanticTestHandler(t)
+
+	const liveJSON = `{"version":"sentinel-1.0","metadata":{"content_hash":"hash-old"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.sentinel","provider":"datadog","type":"string"}]}}}`
+	liveRegistry, err := semantics.NewRegistryFromJSON([]byte(liveJSON))
+	require.NoError(t, err)
+	semantics.UpdateRegistry(liveRegistry)
+
+	const differentMetadataSameMappings = `{"version":"sentinel-2.0","metadata":{"content_hash":"hash-new"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.sentinel","provider":"datadog","type":"string"}]}}}`
+	statuses, cb := captureStatuses()
+	const cfgPath = "datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"
+	h.onSemanticCoreUpdate(map[string]state.RawConfig{
+		cfgPath: {Config: []byte(differentMetadataSameMappings)},
+	}, cb)
+
+	assert.Same(t, liveRegistry, semantics.DefaultRegistry(), "identical parsed mappings must not replace the live registry")
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses[cfgPath].State)
 }
 
 // TestOnSemanticCoreUpdate_EmptyUpdatesWhileEmbedded verifies that an empty
@@ -656,12 +670,14 @@ func TestOnSemanticCoreUpdate_EmptyUpdatesWhileEmbedded(t *testing.T) {
 	embedded, err := semantics.NewEmbeddedRegistry()
 	require.NoError(t, err)
 	semantics.UpdateRegistry(embedded)
+	before := semantics.DefaultRegistry()
 	beforeVersion := semantics.DefaultRegistry().Version()
 
 	called := 0
 	h.onSemanticCoreUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) { called++ })
 
 	assert.Equal(t, beforeVersion, semantics.DefaultRegistry().Version(), "registry must remain on the embedded version")
+	assert.Same(t, before, semantics.DefaultRegistry(), "equal embedded mappings must not replace the live registry")
 	assert.Equal(t, 0, called, "no applyStateCallback invocations on empty updates")
 }
 

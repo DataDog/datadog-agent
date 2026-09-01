@@ -356,11 +356,11 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 
 	if chosen != nil {
 		if semantics.RegistryEqual(chosen, semantics.DefaultRegistry()) {
-			// Same registry content_hash as the one already live: skip the swap.
+			// Same registry fingerprint as the one already live: skip the swap.
 			// Downstream consumers detect registry replacement themselves by
-			// comparing the live registry's content_hash against their own cached
+			// comparing the live registry's fingerprint against their own cached
 			// state, so we don't need to notify them explicitly.
-			pkglog.Debugf("semantic-core RC payload %s matches the live registry content_hash; no-op", chosenPath)
+			pkglog.Debugf("semantic-core RC payload %s matches the live registry mappings; no-op", chosenPath)
 		} else {
 			semantics.UpdateRegistry(chosen)
 			pkglog.Infof("semantic-core registry updated via RC: content_hash=%s, cfgPath=%s", chosen.ContentHash(), chosenPath)
