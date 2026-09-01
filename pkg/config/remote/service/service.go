@@ -71,12 +71,62 @@ const (
 )
 
 var (
-	exportedMapStatus = expvar.NewMap("remoteConfigStatus")
-	// Status expvar exported
-	exportedStatusOrgEnabled    = expvar.String{}
-	exportedStatusKeyAuthorized = expvar.String{}
-	exportedLastUpdateErr       = expvar.String{}
+	exportedMapStatus       = expvar.NewMap("remoteConfigStatus")
+	exportedStatusInstances = expvar.Map{}
+	statusExpvarsLock       sync.Mutex
+	statusExpvars           = make(map[string]*remoteConfigStatus)
 )
+
+// DefaultDatabaseFileName is the uptane cache database a service uses unless
+// WithDatabaseFileName overrides it. Callers that need to keep caches distinct
+// compare against this rather than repeating the literal.
+const DefaultDatabaseFileName = "remote-config.db"
+
+// DefaultStatusInstance names the status entry for the process default RC
+// client. Additional clients report under their own name, so this one is
+// reserved; the status renderer uses it to avoid listing the default client
+// twice.
+const DefaultStatusInstance = "Remote Config"
+
+type remoteConfigStatus struct {
+	orgEnabled    expvar.String
+	keyAuthorized expvar.String
+	lastUpdateErr expvar.String
+	endpoint      expvar.String
+}
+
+func getRemoteConfigStatus(instance string) *remoteConfigStatus {
+	if instance == "" {
+		instance = DefaultStatusInstance
+	}
+
+	statusExpvarsLock.Lock()
+	defer statusExpvarsLock.Unlock()
+
+	if status, found := statusExpvars[instance]; found {
+		return status
+	}
+
+	status := &remoteConfigStatus{}
+	statusExpvars[instance] = status
+
+	instanceMap := &expvar.Map{}
+	instanceMap.Init()
+	instanceMap.Set("orgEnabled", &status.orgEnabled)
+	instanceMap.Set("apiKeyScoped", &status.keyAuthorized)
+	instanceMap.Set("lastError", &status.lastUpdateErr)
+	instanceMap.Set("endpoint", &status.endpoint)
+	exportedStatusInstances.Set(instance, instanceMap)
+
+	if instance == DefaultStatusInstance {
+		exportedMapStatus.Set("orgEnabled", &status.orgEnabled)
+		exportedMapStatus.Set("apiKeyScoped", &status.keyAuthorized)
+		exportedMapStatus.Set("lastError", &status.lastUpdateErr)
+		exportedMapStatus.Set("endpoint", &status.endpoint)
+	}
+
+	return status
+}
 
 func getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
 	var roots [][]byte
@@ -147,10 +197,13 @@ type CoreAgentService struct {
 
 	clients         *clients
 	orgStatusPoller *orgStatusPoller
+	status          *remoteConfigStatus
 
 	// Channels to stop the services main goroutines
 	stopConfigPoller chan struct{}
 	stopOnce         sync.Once
+
+	disableAPIKeyUpdates bool
 
 	// The set of products to which calls to CreateConfigSubscription can
 	// subscribe. At the time of writing, this is a single-entry map in
@@ -242,6 +295,7 @@ type RcTelemetryReporter interface {
 type orgStatusPoller struct {
 	refreshInterval time.Duration
 	stopChan        chan struct{}
+	status          *remoteConfigStatus
 
 	mu struct {
 		sync.Mutex
@@ -252,10 +306,11 @@ type orgStatusPoller struct {
 	}
 }
 
-func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
+func newOrgStatusPoller(refreshInterval time.Duration, status *remoteConfigStatus) *orgStatusPoller {
 	p := &orgStatusPoller{
 		refreshInterval: refreshInterval,
 		stopChan:        make(chan struct{}),
+		status:          status,
 	}
 	return p
 }
@@ -339,16 +394,16 @@ func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
 		Enabled:    response.Enabled,
 		Authorized: response.Authorized,
 	}
-	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
-	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
+	p.status.orgEnabled.Set(strconv.FormatBool(response.Enabled))
+	p.status.keyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
 func init() {
 	// Exported variable to get the state of remote-config
 	exportedMapStatus.Init()
-	exportedMapStatus.Set("orgEnabled", &exportedStatusOrgEnabled)
-	exportedMapStatus.Set("apiKeyScoped", &exportedStatusKeyAuthorized)
-	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
+	exportedStatusInstances.Init()
+	exportedMapStatus.Set("instances", &exportedStatusInstances)
+	getRemoteConfigStatus(DefaultStatusInstance)
 }
 
 type options struct {
@@ -357,10 +412,12 @@ type options struct {
 	apiKey                         string
 	parJWT                         string
 	traceAgentEnv                  string
+	statusInstance                 string
 	databaseFileName               string
 	databaseFilePath               string
 	configRootOverride             string
 	directorRootOverride           string
+	disableAPIKeyUpdates           bool
 	clientCacheBypassLimit         int
 	refresh                        time.Duration
 	refreshIntervalOverrideAllowed bool
@@ -393,10 +450,12 @@ var defaultOptions = options{
 	apiKey:                              "",
 	parJWT:                              "",
 	traceAgentEnv:                       "",
-	databaseFileName:                    "remote-config.db",
+	statusInstance:                      DefaultStatusInstance,
+	databaseFileName:                    DefaultDatabaseFileName,
 	databaseFilePath:                    "",
 	configRootOverride:                  "",
 	directorRootOverride:                "",
+	disableAPIKeyUpdates:                false,
 	clientCacheBypassLimit:              defaultCacheBypassLimit,
 	refresh:                             defaultRefreshInterval,
 	refreshIntervalOverrideAllowed:      true,
@@ -501,6 +560,18 @@ func WithRcKey(rcKey string) func(s *options) {
 // WithAPIKey sets the service API key
 func WithAPIKey(apiKey string) func(s *options) {
 	return func(s *options) { s.apiKey = apiKey }
+}
+
+// WithoutAPIKeyUpdates stops the service from following runtime updates to the
+// "api_key" setting. Services given their own static key need this, otherwise a
+// process-wide api_key update would replace it.
+func WithoutAPIKeyUpdates() func(s *options) {
+	return func(s *options) { s.disableAPIKeyUpdates = true }
+}
+
+// WithStatusInstance sets the status instance name used for exported RC state.
+func WithStatusInstance(instance string) func(s *options) {
+	return func(s *options) { s.statusInstance = instance }
 }
 
 // WithPARJWT sets the JWT for the private action runner
@@ -627,6 +698,13 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	clock := clock.New()
 
 	now := clock.Now().UTC()
+	status := getRemoteConfigStatus(options.statusInstance)
+	// Record the endpoint so `status` can show where each instance points.
+	// rc_dd_url is user-supplied and could embed credentials, so strip any
+	// userinfo before it reaches the status output.
+	displayURL := *baseURL
+	displayURL.User = nil
+	status.endpoint.Set(displayURL.String())
 	cas := &CoreAgentService{
 		api:                   http,
 		rcType:                rcType,
@@ -657,7 +735,9 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		subscriptionProductMappings:         options.subscriptionProductMappings,
 		maxConcurrentSubscriptions:          options.maxConcurrentSubscriptions,
 		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
-		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
+		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval, status),
+		status:                              status,
+		disableAPIKeyUpdates:                options.disableAPIKeyUpdates,
 	}
 	cas.mu.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
@@ -671,7 +751,9 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	cas.mu.newProducts = make(map[rdata.Product]struct{})
 	cas.mu.uptane = uptaneClient
 
-	cfg.OnUpdate(cas.apiKeyUpdateCallback())
+	if !cas.disableAPIKeyUpdates {
+		cfg.OnUpdate(cas.apiKeyUpdateCallback())
+	}
 
 	return cas, nil
 }
@@ -764,7 +846,7 @@ func (s *CoreAgentService) logRefreshError(err error) {
 			defer s.mu.Unlock()
 			return s.mu.fetchConfigs503And504ErrCount
 		}()
-		exportedLastUpdateErr.Set(err.Error())
+		s.status.lastUpdateErr.Set(err.Error())
 		if fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
 			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		} else {
@@ -904,7 +986,7 @@ func (s *CoreAgentService) refresh() error {
 
 	s.mu.backoffErrorCount = s.backoffPolicy.DecError(s.mu.backoffErrorCount)
 
-	exportedLastUpdateErr.Set("")
+	s.status.lastUpdateErr.Set("")
 
 	return nil
 }

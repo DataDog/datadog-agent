@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -96,6 +97,21 @@ func (rc statusProvider) populateStatus(stats map[string]interface{}) {
 			status["disabledReason"] = "it is explicitly disabled in the agent configuration. (`remote_configuration.enabled: false`)"
 		}
 
+	}
+
+	// Split the extra clients out of the instances map so the template can render
+	// them as a list, and so the heading only appears when there is one.
+	if instances, ok := status["instances"].(map[string]interface{}); ok {
+		additional := make(map[string]interface{}, len(instances))
+		for name, instance := range instances {
+			if name == remoteconfig.DefaultStatusInstance {
+				continue
+			}
+			additional[name] = instance
+		}
+		if len(additional) > 0 {
+			status["additionalInstances"] = additional
+		}
 	}
 
 	stats["remoteConfiguration"] = status
