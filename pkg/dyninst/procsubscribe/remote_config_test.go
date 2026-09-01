@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package procsubscribe_test
 
@@ -172,7 +172,6 @@ func TestRemoteConfigProcessSubscriberTracksUpdatesAndRemovals(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 		procsubscribe.WithWaitFunc(waitRequests.Wait),
 	)
 	t.Cleanup(subscriber.Close)
@@ -189,7 +188,7 @@ func TestRemoteConfigProcessSubscriberTracksUpdatesAndRemovals(t *testing.T) {
 	w2.Close()
 	s := <-streams
 	// Now only the scanner should come and wait.
-	scanWait := waitRequests.expect(t, 3*time.Second)
+	scanWait := waitRequests.expect(t, procsubscribe.DefaultScanInterval)
 
 	mockClock.Add(time.Millisecond)
 
@@ -323,7 +322,6 @@ func TestRetrackAfterNewStream(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 
@@ -398,7 +396,6 @@ func TestRemoteConfigSymDBUpdates(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -516,7 +513,6 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 
@@ -574,6 +570,77 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 	subscriber.Close()
 }
 
+// Scans happen on a fixed interval. How long a scan took does not feed back
+// into when the next one starts, so an ordinary scan cannot delay discovery for
+// everything else on the host. TestSlowScansAreThrottled covers the one case
+// where the duration does feed back.
+func TestScanIntervalIsFixed(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	// Slow enough that a penalty proportional to the scan would be obvious, and
+	// far enough inside the rest budget that the floor does not engage.
+	scanDuration := procsubscribe.DefaultScanInterval / procsubscribe.MinScanRestMultiple / 10
+	scanner := procsubscribe.ProcessScannerFunc(
+		func() ([]procscan.DiscoveredProcess, []procscan.ProcessID, error) {
+			mockClock.Add(scanDuration)
+			return nil, nil, nil
+		},
+	)
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	waitRequests := make(waitRequestChan)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithWaitFunc(waitRequests.Wait),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Start()
+
+	w1, w2 := waitRequests.expect(t, 0), waitRequests.expect(t, 0)
+	w1.Close()
+	w2.Close()
+	<-streams
+	// Two intervals, to show the delay does not creep as scans accumulate.
+	waitRequests.expect(t, procsubscribe.DefaultScanInterval).Close()
+	waitRequests.expect(t, procsubscribe.DefaultScanInterval)
+}
+
+// A scan slow enough that resting the fixed interval would spend more than the
+// loop's share of a core rests a multiple of its own duration instead, so
+// scanning stays bounded however slow a scan gets.
+func TestSlowScansAreThrottled(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	scanDuration := procsubscribe.DefaultScanInterval
+	scanner := procsubscribe.ProcessScannerFunc(
+		func() ([]procscan.DiscoveredProcess, []procscan.ProcessID, error) {
+			mockClock.Add(scanDuration)
+			return nil, nil, nil
+		},
+	)
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	waitRequests := make(waitRequestChan)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithWaitFunc(waitRequests.Wait),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Start()
+
+	w1, w2 := waitRequests.expect(t, 0), waitRequests.expect(t, 0)
+	w1.Close()
+	w2.Close()
+	<-streams
+	rest := procsubscribe.MinScanRestMultiple * scanDuration
+	waitRequests.expect(t, rest).Close()
+	waitRequests.expect(t, rest)
+}
+
 func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 	goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
@@ -585,7 +652,6 @@ func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 		procsubscribe.WithWaitFunc(waitRequests.Wait),
 	)
 	t.Cleanup(subscriber.Close)
@@ -596,7 +662,7 @@ func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 	w2.Close()
 	t.Logf("waiting for scanner to start")
 	s := <-streams
-	scanWait := waitRequests.expect(t, 3*time.Second)
+	scanWait := waitRequests.expect(t, procsubscribe.DefaultScanInterval)
 	defer scanWait.Close()
 
 	var durations []time.Duration
@@ -644,7 +710,6 @@ func TestSymDBStatePreservedWhenNotInMatchedConfigs(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -765,6 +830,8 @@ func (s *stubScanner) Scan() ([]procscan.DiscoveredProcess, []procscan.ProcessID
 	removed := append([]procscan.ProcessID(nil), res.removed...)
 	return added, removed, res.err
 }
+
+func (s *stubScanner) LiveProcesses() []procscan.ProcessID { return nil }
 
 type fakeAgentSecureServer struct {
 	pbgo.UnimplementedAgentSecureServer

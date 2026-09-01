@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -275,16 +276,14 @@ func TestCheck_Run_Success(t *testing.T) {
 		},
 		Inventories: []report.InventoryEntry{
 			{
-				Namespace:  "default",
-				ConfigID:   "87b2343a-56d9-43bc-a35a-4d842dec9586",
-				DeviceID:   "default:10.0.0.1",
-				ReportedAt: 1754043600,
+				Namespace: "default",
+				ConfigID:  "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				DeviceID:  "default:10.0.0.1",
 			},
 			{
-				Namespace:  "default",
-				ConfigID:   "d348e53f-db31-47ed-8d50-11462d7a15e5",
-				DeviceID:   "default:10.0.0.1",
-				ReportedAt: 1754043600,
+				Namespace: "default",
+				ConfigID:  "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				DeviceID:  "default:10.0.0.1",
 			},
 		},
 		CollectTimestamp: 1754043600,
@@ -364,10 +363,17 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
 
+	reqs.sender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	reqs.sender.On("Commit").Return()
+
 	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
+	reqs.sender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
+		return assert.Contains(t, tags, "error:device_unreachable")
+	}))
+	reqs.sender.AssertCalled(t, "Commit")
 }
 
 func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
@@ -381,10 +387,71 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, dc.profile)
 
+	reqs.sender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	reqs.sender.On("Commit").Return()
+
 	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
 	assert.Nil(t, dc.profile)
 	assert.True(t, reqs.connFactory.conn.Closed, "Remote client should be closed even on failure")
+	reqs.sender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
+		return assert.Contains(t, tags, "error:no_profile")
+	}))
+	reqs.sender.AssertCalled(t, "Commit")
+}
+
+func TestCheck_Run_CachedNoProfileFailure_ReportsFailure(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+
+	device := createTestDevice()
+	device.Profile = ""
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
+	dc, err := comp.devices.Get(device.DeviceID())
+	assert.NoError(t, err)
+
+	dc.noMatchingProfile = true
+
+	reqs.sender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	reqs.sender.On("Commit").Return()
+
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
+	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
+	assert.False(t, reqs.connFactory.conn.Opened, "no connection should be attempted once no profile has matched")
+	reqs.sender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
+		return assert.Contains(t, tags, "error:no_profile")
+	}))
+	reqs.sender.AssertCalled(t, "Commit")
+}
+
+func TestCheck_Run_MultipleNonBlockingErrors_CountsOnce(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	reqs.connFactory.conn.OutputMap["show running-config"] = fail("running config command failed")
+	reqs.connFactory.conn.OutputMap["show startup-config"] = fail("startup config command failed")
+
+	device := createTestDevice()
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
+
+	mockSender := reqs.sender
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
+	assert.Error(t, err)
+
+	mockSender.AssertNumberOfCalls(t, "Count", 1)
+	mockSender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
+		errorTags := 0
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "error:") {
+				errorTags++
+			}
+		}
+		return assert.Contains(t, tags, "error:config_retrieval_failed") && assert.Equal(t, 1, errorTags)
+	}))
 }
 
 func TestCheck_Run_ConfigRetrievalFailure_BadProfile(t *testing.T) {

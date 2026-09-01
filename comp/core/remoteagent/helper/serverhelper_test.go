@@ -138,7 +138,7 @@ func TestBuildRemoteAgentListener(t *testing.T) {
 	})
 
 	t.Run("vsock", func(t *testing.T) {
-		ral, err := buildRemoteAgentListener("vsock://0")
+		ral, err := buildRemoteAgentListener("vsock://3:0")
 		if err != nil {
 			t.Skipf("AF_VSOCK not available in this environment: %v", err)
 		}
@@ -146,11 +146,22 @@ func TestBuildRemoteAgentListener(t *testing.T) {
 
 		assert.Empty(t, ral.cleanupSocketPath)
 		assert.True(t, strings.HasPrefix(ral.apiEndpointURI, "vsock://"), "got %q", ral.apiEndpointURI)
-		assert.NotEqual(t, "vsock://0", ral.apiEndpointURI, "random port should be resolved")
+		assert.NotEqual(t, "vsock://3:0", ral.apiEndpointURI, "random port should be resolved")
+	})
+
+	t.Run("vsock_missing_cid", func(t *testing.T) {
+		_, err := buildRemoteAgentListener("vsock://0")
+		require.Error(t, err)
+	})
+
+	t.Run("vsock_invalid_cid", func(t *testing.T) {
+		_, err := buildRemoteAgentListener("vsock://not-a-cid:0")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid context ID")
 	})
 
 	t.Run("vsock_invalid_port", func(t *testing.T) {
-		_, err := buildRemoteAgentListener("vsock://not-a-port")
+		_, err := buildRemoteAgentListener("vsock://3:not-a-port")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid port")
 	})

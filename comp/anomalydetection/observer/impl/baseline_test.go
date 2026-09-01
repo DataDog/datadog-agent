@@ -282,7 +282,7 @@ func TestBaseline_FastCompletionRemovesSeriesFromSlowerDetector(t *testing.T) {
 	e.Advance(100) // both detectors are analysing and nominate cpu for muting
 	e.Advance(200) // fast completes, immediately reclaiming cpu everywhere
 
-	assert.Zero(t, storage.TotalSeriesCount(""))
+	assert.Zero(t, storage.TotalSeriesCount())
 	assert.Equal(t, []observerdef.SeriesRef{ref}, fast.removed)
 	assert.Equal(t, []observerdef.SeriesRef{ref}, slow.removed)
 	assert.True(t, e.baseline.detectors["fast"].completed)
@@ -452,14 +452,14 @@ func TestBaseline_VirtualMetricDroppedAfterFreeze(t *testing.T) {
 	e.Advance(100)
 
 	// During the window: subsequent ingests must still reach storage.
-	countBefore := storage.TotalSeriesCount("")
+	countBefore := storage.TotalSeriesCount()
 	e.IngestLog("src", &logObs{timestampMs: 200_000})
-	assert.Equal(t, countBefore, storage.TotalSeriesCount(""))
+	assert.Equal(t, countBefore, storage.TotalSeriesCount())
 
 	e.Advance(700) // freeze: series removed from storage
-	assert.Equal(t, 0, storage.TotalSeriesCount(""))
+	assert.Equal(t, 0, storage.TotalSeriesCount())
 
 	// After freeze: virtual metric is dropped at ingest and not re-created.
 	e.IngestLog("src", &logObs{timestampMs: 800_000})
-	assert.Equal(t, 0, storage.TotalSeriesCount(""))
+	assert.Equal(t, 0, storage.TotalSeriesCount())
 }

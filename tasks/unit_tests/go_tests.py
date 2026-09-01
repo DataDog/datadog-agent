@@ -1,9 +1,14 @@
+import subprocess
 import unittest
 from unittest.mock import MagicMock, patch
 
+from invoke.exceptions import Exit
+
 from tasks.gotest import (
+    _bazel_test_jobs,
     _minimize_bazel_patterns,
     _parse_bazel_test_line,
+    _run_bazel_tests,
     _target_to_bazel_pattern,
     find_impacted_packages,
     should_run_all_tests,
@@ -192,3 +197,45 @@ class TestParseBazelTestLine(unittest.TestCase):
 
     def test_non_label_line_returns_none(self):
         self.assertIsNone(_parse_bazel_test_line('Computing main repo mapping:'))
+
+
+class TestBazelTestJobs(unittest.TestCase):
+    def test_bazel_test_jobs_from_env(self):
+        with patch.dict("os.environ", {"DD_BAZEL_TEST_JOBS": "3"}, clear=True):
+            self.assertEqual(_bazel_test_jobs(), "3")
+
+    def test_bazel_test_jobs_default_for_windows_ci(self):
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("tasks.gotest.sys.platform", "win32"),
+            patch("tasks.gotest.running_in_ci", return_value=True),
+        ):
+            self.assertEqual(_bazel_test_jobs(), "4")
+
+    def test_bazel_test_jobs_no_default_outside_windows_ci(self):
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("tasks.gotest.sys.platform", "linux"),
+            patch("tasks.gotest.running_in_ci", return_value=True),
+        ):
+            self.assertIsNone(_bazel_test_jobs())
+
+    def test_bazel_test_jobs_rejects_invalid_value(self):
+        with patch.dict("os.environ", {"DD_BAZEL_TEST_JOBS": "0"}, clear=True):
+            with self.assertRaises(Exit):
+                _bazel_test_jobs()
+
+    @patch("tasks.gotest._run_bazel")
+    def test_run_bazel_tests_passes_jobs_cap(self, run_bazel):
+        run_bazel.return_value = subprocess.CompletedProcess(
+            [],
+            0,
+            "//pkg/foo:foo_test PASSED in 0.1s\n",
+            "",
+        )
+
+        with patch.dict("os.environ", {"DD_BAZEL_TEST_JOBS": "3"}, clear=True):
+            stats = _run_bazel_tests(None, None, ["//pkg/foo:foo_test"])
+
+        self.assertEqual(stats.passed, 1)
+        self.assertIn("--jobs=3", run_bazel.call_args.args)

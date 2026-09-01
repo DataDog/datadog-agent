@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The DDOT configuration converter now reuses a user-defined
+    ``pprof``, ``zpages``, ``health_check`` or ``ddflare`` extension that was
+    declared under ``extensions`` but not wired into ``service.extensions``,
+    instead of adding a default ``<name>/dd-autoconfigured`` copy. This matches
+    the behavior already in place for the ``datadog`` and ``dogtel`` extensions,
+    so a user's custom extension configuration is honored even when they forget
+    to add it to the service's extension list.

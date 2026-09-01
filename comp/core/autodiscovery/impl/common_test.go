@@ -21,6 +21,7 @@ type dummyService struct {
 	Ports           []workloadmeta.ContainerPort
 	Pid             int
 	Hostname        string
+	Tags            []string
 	filterTemplates func(map[string]integration.Config)
 }
 
@@ -51,7 +52,7 @@ func (s *dummyService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 
 // GetTags returns the tags for this service
 func (s *dummyService) GetTags() ([]string, error) {
-	return nil, nil
+	return s.Tags, nil
 }
 
 // GetTagsWithCardinality returns the tags for this service

@@ -2,6 +2,95 @@
 Release Notes
 =============
 
+.. _Release Notes_7.82.2:
+
+7.82.2
+======
+
+.. _Release Notes_7.82.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-08-19
+
+- Please refer to the `7.82.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7822>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.82.2_New Features:
+
+New Features
+------------
+
+- When ``infrastructure_mode: end_user_device`` is set, the ``logon_duration``
+  feature is now enabled automatically, so operators no longer need to set
+  ``logon_duration.enabled: true`` separately. This setting can still be
+  overridden explicitly in the configuration file if needed.
+
+
+.. _Release Notes_7.82.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Agent's embedded Python has been upgraded from 3.13.14 to 3.13.15
+
+- Agents are now built with Go ``1.26.6``.
+
+
+.. _Release Notes_7.82.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Raise the messagepack decoder allocation limit for the span ``meta_struct``
+  field to 10MiB, so large ``meta_struct`` entries (as written by LLM Observability)
+  are no longer rejected by the package-wide 500,000 element limit. Other span
+  fields keep the lower limit.
+
+- Disable GPU parallel collection by default to avoid triggering NVML concurrency bugs.
+
+- gpu: fix concurrent calls to NVML GetFieldValues API, that could cause missing NVLink metrics.
+
+
+.. _Release Notes_7.82.2_Other Notes:
+
+Other Notes
+-----------
+
+- gpu: GPU inventory payload and GPU tags are only emitted when GPU monitoring is enabled
+
+
+.. _Release Notes_7.82.1:
+
+7.82.1
+======
+
+.. _Release Notes_7.82.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-08-11
+
+- Please refer to the `7.82.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7821>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.82.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Windows: Fixed an issue where an explicit ``DDAGENTUSER_KEEP_RIGHTS`` or
+  ``DDAGENTUSER_NAME`` value passed as an install argument to a Fleet
+  Automation-triggered Windows Agent install/upgrade could be silently
+  overridden by a stale fallback value (respectively from the registry
+  and from the running service account).
+
+- Fix an issue where GPU monitoring could trigger a kernel panic on multi-GPU
+  nodes with Hopper/Blackwell GPUs.
+
+
 .. _Release Notes_7.82.0:
 
 7.82.0

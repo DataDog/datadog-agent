@@ -104,6 +104,7 @@ from tasks.e2e_framework import localpodman as e2e_localpodman
 from tasks.e2e_framework import test as e2e_test
 from tasks.e2e_framework.deploy import check_s3_image_exists
 from tasks.e2e_framework.setup import setup as e2e_setup
+from tasks.e2e_framework.vm import get_vm_password as e2e_get_vm_password
 from tasks.fuzz import fuzz
 from tasks.fuzz_infra import build_and_upload_fuzz
 from tasks.go import (
@@ -132,6 +133,7 @@ from tasks.gotest import (
     lint_go,
     send_unit_tests_stats,
     test,
+    test_new,
 )
 from tasks.install_tasks import (
     download_tools,
@@ -155,6 +157,7 @@ ns = Collection()
 
 # add single tasks to the root
 ns.add_task(test)
+ns.add_task(test_new)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
@@ -291,6 +294,7 @@ e2e_ns = Collection("e2e")
 e2e_ns.add_collection(e2e_setup)
 e2e_ns.add_collection(e2e_test)
 e2e_ns.add_task(check_s3_image_exists)
+e2e_ns.add_task(e2e_get_vm_password, name="get-vm-password")
 
 ns.add_collection(e2e_ns)
 ns.configure(

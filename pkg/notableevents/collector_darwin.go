@@ -37,17 +37,18 @@ const (
 	// Pending delivery is deliberately bounded so the 4 MiB bookmark remains
 	// durable under sustained intake: at most 128 events of at most 16 KiB each.
 	// Pending exposes 100 at a time to bound each poll payload.
-	maxDarwinPendingEvents     = 128
-	maxDarwinPendingBatch      = 100
-	maxDarwinEventWireSize     = notableeventtypes.MaxEventWireSize
-	maxDarwinDirectories       = 256
-	maxDarwinFilesPerDirectory = 128
-	maxDarwinTotalFiles        = 2048
-	maxDarwinDirectoryEntries  = 1024
-	maxDarwinFingerprintBytes  = 128
-	diagnosticReportsDirName   = "Library/Logs/DiagnosticReports"
-	systemDiagnosticReportsDir = "/Library/Logs/DiagnosticReports"
-	usersDir                   = "/Users"
+	maxDarwinPendingEvents         = 128
+	maxDarwinPendingBatch          = 100
+	maxDarwinEventWireSize         = notableeventtypes.MaxEventWireSize
+	maxDarwinDirectories           = 256
+	maxDarwinFilesPerDirectory     = 128
+	maxDarwinTotalFiles            = 2048
+	maxDarwinDirectoryEntries      = 1024
+	maxDarwinFingerprintBytes      = 128
+	maxDarwinShutdownBootUUIDBytes = 64
+	diagnosticReportsDirName       = "Library/Logs/DiagnosticReports"
+	systemDiagnosticReportsDir     = "/Library/Logs/DiagnosticReports"
+	usersDir                       = "/Users"
 )
 
 var errDarwinBookmarkCorrupt = errors.New("corrupt Darwin notable events bookmark")
@@ -71,10 +72,17 @@ type directoryBookmarkState struct {
 }
 
 type darwinBookmarkState struct {
-	Version      int                                `json:"version,omitempty"`
-	Directories  map[string]*directoryBookmarkState `json:"directories"`
-	Acknowledged map[string]int64                   `json:"acknowledged,omitempty"`
-	Pending      map[string]Event                   `json:"pending,omitempty"`
+	Version       int                                `json:"version,omitempty"`
+	Directories   map[string]*directoryBookmarkState `json:"directories"`
+	Acknowledged  map[string]int64                   `json:"acknowledged,omitempty"`
+	Pending       map[string]Event                   `json:"pending,omitempty"`
+	ShutdownCause *shutdownCauseBookmark             `json:"shutdown_cause,omitempty"`
+}
+
+type shutdownCauseBookmark struct {
+	BootUUID string `json:"boot_uuid"`
+	EventID  string `json:"event_id,omitempty"`
+	Checked  int64  `json:"checked"`
 }
 
 type darwinBookmarkStore interface {
@@ -117,14 +125,20 @@ type Collector struct {
 
 	discoverDirs      func() []reportDirectory
 	scanDirectory     func(context.Context, reportDirectory, *darwinBookmarkState) (directoryScanResult, error)
+	readShutdownCause func() (pmuBootFaultInfo, error)
+	readBootUUID      func() (string, error)
+	readBootTime      func() (time.Time, error)
 	reconcileInterval time.Duration
 	retryInterval     time.Duration
 	store             darwinBookmarkStore
 	createWatcher     darwinReportWatcherFactory
 	watcher           darwinReportWatcher
-	knownDirs         map[string]reportDirectory
-	retryDirs         map[string]reportDirectory
-	stagedRuntime     *stagedDarwinScanRuntime
+	// watcherEverAttached distinguishes the initial attach from later ones so
+	// only the latter count as restarts.
+	watcherEverAttached bool
+	knownDirs           map[string]reportDirectory
+	retryDirs           map[string]reportDirectory
+	stagedRuntime       *stagedDarwinScanRuntime
 
 	state             *darwinBookmarkState
 	stagedScan        *stagedDarwinScan
@@ -132,10 +146,21 @@ type Collector struct {
 	generation        uint64
 	commitReservation *darwinCommitReservation
 	nextCommitID      uint64
+	// shutdownCauseDeferred records that the check has not committed yet: the
+	// bookmark was owned by another commit, or its Save failed. Guarded by stateMu.
+	shutdownCauseDeferred bool
+	// shutdownCauseSaveWarned latches the save-failure warning so a persistent
+	// failure warns once, not on every reconcile tick. Guarded by stateMu.
+	shutdownCauseSaveWarned bool
+	// shutdownCauseSaturationWarned latches the saturation warning, kept
+	// separate so neither condition can silence the other. Guarded by stateMu.
+	shutdownCauseSaturationWarned bool
 
 	now               func() time.Time
 	identityRetention time.Duration
 	maxAcknowledged   int
+
+	counters collectorCounters
 
 	started   bool
 	closed    bool
@@ -209,6 +234,9 @@ func newDarwinCollectorWithDeps(
 		closeDone:         make(chan struct{}),
 	}
 	collector.scanDirectory = collector.scanDirectoryInternal
+	collector.readShutdownCause = readPMUBootFaultInfo
+	collector.readBootUUID = readBootSessionUUID
+	collector.readBootTime = readBootTime
 	return collector, nil
 }
 
@@ -286,6 +314,45 @@ func (c *Collector) Pending() []Event {
 	return events
 }
 
+// Stats returns an aggregate snapshot of collector health. It never acquires
+// scanMu, which a scan holds across report I/O, so it stays responsive while
+// scanning. Gauges owned by scanMu are read from their atomic mirrors.
+func (c *Collector) Stats() CollectorStats {
+	stats := CollectorStats{
+		PendingEventsMax:                  maxDarwinPendingEvents,
+		TrackedFilesMax:                   maxDarwinTotalFiles,
+		TrackedDirectoriesMax:             maxDarwinDirectories,
+		AcknowledgedIdentitiesMax:         c.maxAcknowledged,
+		RetryDirectories:                  int(c.counters.retryDirectories.Load()),
+		WatcherActive:                     c.counters.watcherActive.Load(),
+		PersistenceErrors:                 c.counters.persistenceErrors.Load(),
+		CapacityDeferrals:                 c.counters.capacityDeferrals.Load(),
+		BaselineSuppressedFirstRun:        c.counters.baselineSuppressedFirstRun.Load(),
+		BaselineSuppressedAfterSaturation: c.counters.baselineSuppressedAfterSaturation.Load(),
+		FSEventsDrops:                     c.counters.fseventsDrops.Load(),
+		WatcherErrors:                     c.counters.watcherErrors.Load(),
+		WatcherRestarts:                   c.counters.watcherRestarts.Load(),
+	}
+
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	stats.PendingEvents = len(c.state.Pending)
+	stats.AcknowledgedIdentities = len(c.state.Acknowledged)
+	stats.TrackedDirectories = len(c.state.Directories)
+	stats.BookmarkUnsaved = c.unsaved
+	stats.BookmarkStagePending = c.stagedScan != nil
+	for _, dirState := range c.state.Directories {
+		if dirState == nil {
+			continue
+		}
+		stats.TrackedFiles += len(dirState.Files)
+		if dirState.Saturated {
+			stats.SaturatedDirectories++
+		}
+	}
+	return stats
+}
+
 // Ack atomically moves pending IDs to retained acknowledgement state. Unknown
 // and already acknowledged IDs are no-ops. If persistence fails, no in-memory
 // event is removed and callers can safely retry.
@@ -337,6 +404,7 @@ func (c *Collector) Ack(ids []string) error {
 	c.stateMu.Unlock()
 
 	if err := c.store.Save(next); err != nil {
+		c.counters.persistenceErrors.Add(1)
 		c.stateMu.Lock()
 		c.releaseCommitLocked(reservation)
 		c.stateMu.Unlock()
@@ -377,6 +445,7 @@ func (c *Collector) releaseCommitLocked(reservation *darwinCommitReservation) {
 func (c *Collector) run(ctx context.Context) {
 	defer c.wg.Done()
 
+	c.checkShutdownCauseOnce()
 	c.scanOnce(ctx)
 	reconcileTicker := time.NewTicker(c.reconcileInterval)
 	defer reconcileTicker.Stop()
@@ -392,6 +461,7 @@ func (c *Collector) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-reconcileTicker.C:
+			c.retryShutdownCauseIfDeferred()
 			c.scanOnce(ctx)
 		case <-retryTicker.C:
 			c.retryMaintenance(ctx)
@@ -412,9 +482,182 @@ func (c *Collector) run(ctx context.Context) {
 				c.scanMu.Unlock()
 				continue
 			}
+			c.recordWatcherError(err)
 			log.Warnf("macOS DiagnosticReports watcher error: %v", err)
 		}
 	}
+}
+
+// checkShutdownCauseOnce reads and classifies the previous boot's PMU fault
+// payload once per collector lifetime.
+func (c *Collector) checkShutdownCauseOnce() {
+	bootUUID, err := c.readBootUUID()
+	if err != nil || bootUUID == "" {
+		if err != nil {
+			c.stateMu.Lock()
+			c.shutdownCauseDeferred = true
+			c.stateMu.Unlock()
+		}
+		log.Debugf("Skipping macOS shutdown-cause check: no boot session UUID: %v", err)
+		return
+	}
+
+	c.stateMu.Lock()
+	skip := c.closed || shutdownCauseAlreadyChecked(c.state, bootUUID)
+	c.stateMu.Unlock()
+	if skip {
+		return
+	}
+
+	info, err := c.readShutdownCause()
+	if err != nil {
+		if !errors.Is(err, errShutdownCauseUnsupported) {
+			c.stateMu.Lock()
+			c.shutdownCauseDeferred = true
+			c.stateMu.Unlock()
+		}
+		log.Debugf("Skipping macOS shutdown-cause check: %v", err)
+		return
+	}
+	if err := validatePMUBootFaultInfo(info); err != nil {
+		// Recorded as examined, not as an event: the property won't change
+		// before the next boot, so skip re-reading and re-warning on it.
+		log.Warnf("Ignoring untrusted macOS shutdown-cause payload: %v", err)
+		c.publishShutdownCause(bootUUID, nil)
+		return
+	}
+
+	result, emit := classifyShutdownTokens(info)
+	if !emit {
+		// No fault tokens; record the boot so later restarts skip the read.
+		log.Debugf("No macOS shutdown fault reported for boot %s", bootUUID)
+		c.publishShutdownCause(bootUUID, nil)
+		return
+	}
+
+	timestamp := c.currentTime()
+	bootTime, err := c.readBootTime()
+	if err != nil {
+		log.Debugf("Reporting macOS shutdown fault without a boot time: %v", err)
+		bootTime = time.Time{}
+	} else {
+		timestamp = bootTime
+	}
+
+	event := result.event(shutdownCauseIdentity(bootUUID, result.FaultTokens), bootUUID, bootTime, timestamp)
+	if !eventFitsWireLimit(event) {
+		// Truncating a fault payload would publish something misleading, so the
+		// whole event is abandoned instead.
+		log.Warnf("Dropping oversized macOS shutdown fault event for boot %s", bootUUID)
+		c.publishShutdownCause(bootUUID, nil)
+		return
+	}
+	c.publishShutdownCause(bootUUID, &event)
+}
+
+func (c *Collector) retryShutdownCauseIfDeferred() {
+	c.stateMu.Lock()
+	deferred := c.shutdownCauseDeferred && !c.closed
+	c.shutdownCauseDeferred = false
+	c.stateMu.Unlock()
+	if !deferred {
+		return
+	}
+	c.checkShutdownCauseOnce()
+}
+
+// shutdownCauseAlreadyChecked reports whether this boot's payload was already
+// examined, emitted or not.
+func shutdownCauseAlreadyChecked(state *darwinBookmarkState, bootUUID string) bool {
+	return state != nil && state.ShutdownCause != nil && state.ShutdownCause.BootUUID == bootUUID
+}
+
+// publishShutdownCause durably records the examined boot, together with its
+// event when there is one. It follows the package's commit discipline: clone,
+// reserve, Save without stateMu held, then publish or roll back.
+func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
+	c.stateMu.Lock()
+	if c.closed || shutdownCauseAlreadyChecked(c.state, bootUUID) {
+		c.stateMu.Unlock()
+		return
+	}
+	if c.stagedScan != nil || c.commitReservation != nil {
+		// Another commit owns the bookmark, which run() collides with on the
+		// core Agent's opening Ack poll. Defer rather than strand the fault
+		// until the next Agent start.
+		c.shutdownCauseDeferred = true
+		c.stateMu.Unlock()
+		log.Debug("Deferring macOS shutdown-cause bookmark: another bookmark commit is in flight")
+		return
+	}
+	if event != nil && eventIsAccountedFor(c.state, event.ID) {
+		event = nil
+	}
+	if event != nil && len(c.state.Pending) >= maxDarwinPendingEvents {
+		// Deferred, not dropped: recording the boot now would be final, since
+		// the bookmark keys on boot UUID alone and the fault can't be
+		// reproduced by a later boot. A queue that never drains just costs one
+		// IORegistry read per reconcile tick, same as the contended-commit case
+		// above.
+		firstWarning := !c.shutdownCauseSaturationWarned
+		c.shutdownCauseSaturationWarned = true
+		c.shutdownCauseDeferred = true
+		c.counters.capacityDeferrals.Add(1)
+		c.stateMu.Unlock()
+		if firstWarning {
+			// Warned once per saturation episode; the retry re-enters every
+			// tick until delivery recovers.
+			log.Warnf("Deferring macOS shutdown fault event %s: pending delivery is saturated", event.ID)
+		}
+		return
+	}
+
+	candidate := cloneDarwinBookmarkState(c.state)
+	candidate.ShutdownCause = &shutdownCauseBookmark{
+		BootUUID: bootUUID,
+		Checked:  c.currentTime().Unix(),
+	}
+	if event != nil {
+		candidate.Pending[event.ID] = cloneEvent(*event)
+		candidate.ShutdownCause.EventID = event.ID
+	}
+	baseGeneration := c.generation
+	reservation := c.reserveCommitLocked(darwinCommitScan, baseGeneration)
+	c.stateMu.Unlock()
+
+	if err := c.store.Save(cloneDarwinBookmarkState(candidate)); err != nil {
+		c.stateMu.Lock()
+		c.shutdownCauseDeferred = true
+		firstWarning := !c.shutdownCauseSaveWarned
+		c.shutdownCauseSaveWarned = true
+		c.counters.persistenceErrors.Add(1)
+		c.releaseCommitLocked(reservation)
+		c.stateMu.Unlock()
+		if firstWarning {
+			log.Warnf("Failed to save macOS shutdown-cause bookmark: %v", err)
+		} else {
+			log.Debugf("Failed to save macOS shutdown-cause bookmark again: %v", err)
+		}
+		return
+	}
+
+	c.stateMu.Lock()
+	c.state = candidate
+	c.unsaved = false
+	c.generation++
+	c.releaseCommitLocked(reservation)
+	c.stateMu.Unlock()
+}
+
+// recordWatcherError separates dropped-event notifications, which imply lost
+// change notifications, from other asynchronous watcher failures.
+func (c *Collector) recordWatcherError(err error) {
+	var dropped *fseventsDroppedError
+	if errors.As(err, &dropped) {
+		c.counters.fseventsDrops.Add(1)
+		return
+	}
+	c.counters.watcherErrors.Add(1)
 }
 
 // watcherChannelsLocked returns nil-safe watcher channels while scanMu is held.
@@ -429,6 +672,7 @@ func (c *Collector) watcherChannelsLocked() (<-chan string, <-chan error) {
 func (c *Collector) closeWatcherLocked() error {
 	watcher := c.watcher
 	c.watcher = nil
+	c.counters.watcherActive.Store(false)
 	if watcher == nil {
 		return nil
 	}
@@ -447,6 +691,11 @@ type directoryScanResult struct {
 	BaselineIncidentIDs map[string]struct{}
 	BaselineCompletions []darwinBaselineReportCompletion
 	Deliverables        map[string]darwinScanDeliverable
+	// BaselineSuppressedFirstRun and BaselineSuppressedAfterSaturation count
+	// reports recorded without delivery, split by why the directory was being
+	// baselined.
+	BaselineSuppressedFirstRun        int
+	BaselineSuppressedAfterSaturation int
 }
 
 type darwinBaselineReportCompletion struct {
@@ -469,6 +718,9 @@ type darwinReportSource struct {
 type darwinScanIncidents struct {
 	baselineIDs  map[string]struct{}
 	deliverables map[string]darwinScanDeliverable
+	// capacityDeferrals counts events reconcile could not queue because
+	// pending delivery was full.
+	capacityDeferrals int
 }
 
 // scanOnce refreshes report directories and reconciles their current contents.
@@ -503,6 +755,11 @@ func (c *Collector) ensureWatcherLocked() {
 		return
 	}
 	c.watcher = watcher
+	c.counters.watcherActive.Store(true)
+	if c.watcherEverAttached {
+		c.counters.watcherRestarts.Add(1)
+	}
+	c.watcherEverAttached = true
 }
 
 // processWatcherEvent coalesces queued changes and scans only affected known directories.
@@ -588,9 +845,10 @@ func (c *Collector) retryDirectoriesLocked() []reportDirectory {
 // restoreWatcherLocked recreates watcher coverage after an asynchronous watcher failure.
 func (c *Collector) restoreWatcherLocked() {
 	c.ensureWatcherLocked()
-	if c.watcher != nil {
-		c.refreshWatchedDirectoriesLocked(c.knownDirectoriesLocked())
+	if c.watcher == nil {
+		return
 	}
+	c.refreshWatchedDirectoriesLocked(c.knownDirectoriesLocked())
 }
 
 // knownDirectoriesLocked returns a stable snapshot of currently discovered report directories.
@@ -637,6 +895,8 @@ func (c *Collector) scanDirectoriesLocked(ctx context.Context, dirs []reportDire
 
 		result, err := c.scanDirectory(ctx, dir, candidate)
 		dirty = dirty || result.StateChanged
+		addUint64(&c.counters.baselineSuppressedFirstRun, result.BaselineSuppressedFirstRun)
+		addUint64(&c.counters.baselineSuppressedAfterSaturation, result.BaselineSuppressedAfterSaturation)
 		retryResults[directoryRuntimeKey(dir.path)] = result.ShouldRetry
 		results = append(results, result)
 		incidents.addDirectoryResult(result)
@@ -652,6 +912,7 @@ func (c *Collector) scanDirectoriesLocked(ctx context.Context, dirs []reportDire
 	if incidents.reconcile(candidate, retryResults, c.currentTime()) {
 		dirty = true
 	}
+	addUint64(&c.counters.capacityDeferrals, incidents.capacityDeferrals)
 	for index := range results {
 		result := &results[index]
 		dirState := candidate.Directories[result.DirectoryKey]
@@ -737,6 +998,7 @@ func (i *darwinScanIncidents) reconcile(state *darwinBookmarkState, retryResults
 			continue
 		}
 		if len(state.Pending) >= maxDarwinPendingEvents {
+			i.capacityDeferrals++
 			for key := range deliverable.ContributingDirKeys {
 				retryResults[key] = true
 			}
@@ -814,6 +1076,7 @@ func (c *Collector) persistCandidateLocked(
 	c.stateMu.Unlock()
 
 	if err := c.store.Save(cloneDarwinBookmarkState(staged.candidate)); err != nil {
+		c.counters.persistenceErrors.Add(1)
 		c.stagedRuntime = runtime
 		c.stateMu.Lock()
 		c.stagedScan = staged
@@ -851,6 +1114,7 @@ func (c *Collector) persistStagedScanLocked() ([]reportDirectory, bool) {
 	c.stateMu.Unlock()
 
 	if err := c.store.Save(cloneDarwinBookmarkState(staged.candidate)); err != nil {
+		c.counters.persistenceErrors.Add(1)
 		c.stateMu.Lock()
 		c.releaseCommitLocked(reservation)
 		c.stateMu.Unlock()
@@ -966,6 +1230,7 @@ func (c *Collector) refreshKnownDirectoriesLocked(dirs []reportDirectory) {
 			delete(c.retryDirs, key)
 		}
 	}
+	c.counters.retryDirectories.Store(int64(len(c.retryDirs)))
 }
 
 // refreshWatchedDirectoriesLocked synchronizes FSEvents coverage with watchable directories.
@@ -994,6 +1259,7 @@ func (c *Collector) setDirectoryRetryLocked(dir reportDirectory, shouldRetry boo
 	} else {
 		delete(c.retryDirs, key)
 	}
+	c.counters.retryDirectories.Store(int64(len(c.retryDirs)))
 }
 
 // scanDirectoryInternal securely reads reports and updates only the private
@@ -1060,6 +1326,10 @@ func (c *Collector) scanDirectoryInternal(ctx context.Context, dir reportDirecto
 	}
 
 	baselineScan := !dirState.Initialized || dirState.Saturated
+	// A directory that never completed a baseline has never delivered anything,
+	// so attribute its suppressions to first run even when it is also
+	// saturated. Saturation only costs real events once delivery was working.
+	saturationBaseline := dirState.Initialized && dirState.Saturated
 	presentFiles := make(map[string]struct{})
 
 	for _, entry := range entries {
@@ -1126,6 +1396,15 @@ func (c *Collector) scanDirectoryInternal(ctx context.Context, dir reportDirecto
 		}
 
 		if baselineScan || suppressOnSuccess {
+			// Only a baseline scan counts. The suppressOnSuccess-only path
+			// completes a report that an earlier baseline already counted.
+			if baselineScan {
+				if saturationBaseline {
+					result.BaselineSuppressedAfterSaturation++
+				} else {
+					result.BaselineSuppressedFirstRun++
+				}
+			}
 			if suppressOnSuccess && !baselineScan {
 				result.BaselineCompletions = append(result.BaselineCompletions, darwinBaselineReportCompletion{
 					Name:  name,
@@ -1236,6 +1515,14 @@ func eventID(identity string) string {
 	return "macos-crash-v1:" + hashString(identity)
 }
 
+func shutdownCauseIdentity(bootUUID string, sortedFaultTokens []string) string {
+	return "shutdown:" + bootUUID + ":" + strings.Join(sortedFaultTokens, ",")
+}
+
+func shutdownEventID(identity string) string {
+	return "macos-shutdown-v1:" + hashString(identity)
+}
+
 // newDarwinBookmarkState creates empty state at the current schema version.
 func newDarwinBookmarkState() *darwinBookmarkState {
 	return &darwinBookmarkState{
@@ -1282,6 +1569,16 @@ func normalizeDarwinBookmarkState(state *darwinBookmarkState, now time.Time) boo
 			changed = true
 		}
 	}
+	if state.ShutdownCause != nil {
+		switch {
+		case state.ShutdownCause.BootUUID == "":
+			state.ShutdownCause = nil
+			changed = true
+		case state.ShutdownCause.Checked <= 0:
+			state.ShutdownCause.Checked = nowUnix
+			changed = true
+		}
+	}
 	for _, dirState := range state.Directories {
 		if dirState == nil {
 			continue
@@ -1301,10 +1598,11 @@ func normalizeDarwinBookmarkState(state *darwinBookmarkState, now time.Time) boo
 // cloneDarwinBookmarkState explicitly deep-copies mutable reconciliation state.
 func cloneDarwinBookmarkState(state *darwinBookmarkState) *darwinBookmarkState {
 	cloned := &darwinBookmarkState{
-		Version:      state.Version,
-		Directories:  make(map[string]*directoryBookmarkState, len(state.Directories)),
-		Acknowledged: cloneAcknowledgedMap(state.Acknowledged),
-		Pending:      clonePendingMapDeep(state.Pending),
+		Version:       state.Version,
+		Directories:   make(map[string]*directoryBookmarkState, len(state.Directories)),
+		Acknowledged:  cloneAcknowledgedMap(state.Acknowledged),
+		Pending:       clonePendingMapDeep(state.Pending),
+		ShutdownCause: cloneShutdownCauseBookmark(state.ShutdownCause),
 	}
 	for key, directory := range state.Directories {
 		if directory == nil {
@@ -1329,11 +1627,20 @@ func cloneDarwinBookmarkState(state *darwinBookmarkState) *darwinBookmarkState {
 // is safely shared because acknowledgement never changes it.
 func cloneDarwinBookmarkStateForAck(state *darwinBookmarkState) *darwinBookmarkState {
 	return &darwinBookmarkState{
-		Version:      state.Version,
-		Directories:  state.Directories,
-		Acknowledged: cloneAcknowledgedMap(state.Acknowledged),
-		Pending:      clonePendingMap(state.Pending),
+		Version:       state.Version,
+		Directories:   state.Directories,
+		Acknowledged:  cloneAcknowledgedMap(state.Acknowledged),
+		Pending:       clonePendingMap(state.Pending),
+		ShutdownCause: cloneShutdownCauseBookmark(state.ShutdownCause),
 	}
+}
+
+func cloneShutdownCauseBookmark(source *shutdownCauseBookmark) *shutdownCauseBookmark {
+	if source == nil {
+		return nil
+	}
+	cloned := *source
+	return &cloned
 }
 
 func cloneAcknowledgedMap(source map[string]int64) map[string]int64 {

@@ -45,6 +45,12 @@ var sources = []model.Source{
 	model.SourceCLI,
 }
 
+type deprecation struct {
+	oldNames   []string
+	oldEnvVars []string
+	newEnvVar  string
+}
+
 var splitKeyFunc = splitKey
 
 // ntmConfig implements Config
@@ -101,9 +107,8 @@ type ntmConfig struct {
 	// root contains the final configuration, it's the result of merging all other tree by ordre of priority
 	root *nodeImpl
 
-	envPrefix      string
-	envKeyReplacer *strings.Replacer
-	envTransform   map[string]func(string) interface{}
+	envPrefix    string
+	envTransform map[string]func(string) interface{}
 
 	notificationReceivers []model.NotificationReceiver
 	sequenceID            uint64
@@ -138,13 +143,22 @@ type ntmConfig struct {
 	// message. This map is used to keep track of already emitted errors
 	setWarnings map[string]bool
 
+	// Tracks whether the int64<->int Set() conversion has already warned once; later keys hitting it
+	// log at DEBUG instead. Scoped to int64<->int since that's the conversion dominating fleet-wide
+	// noise; other conversions still warn every time.
+	setTypeWarnings map[string]bool
+
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
 
-	// yamlWarnings contains a list of warnings about loaded YAML file.
-	// TODO: remove 'findUnknownKeys' function from pkg/config/setup in favor of those warnings. We should return
-	// them from ReadConfig and ReadInConfig.
-	warnings []error
+	// warnings contains a list of warnings about the config.
+	warnings []string
+
+	// deprecation maps setting to their deprecated names
+	deprecations map[string]deprecation
+
+	// deprecatedNames map all deprecated setting to their new name
+	deprecatedNames map[string]string
 
 	startTime time.Time
 }
@@ -216,16 +230,15 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
-
 	c.maybeRebuild()
 
 	c.Lock()
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
-			log.Errorf("set value for unknown key '%s'", key)
+			_ = log.ErrorfStackDepth(2, "set value for unknown key '%s'", key)
 		} else {
-			log.Errorf("could not set '%s' unknown key", key)
+			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
 			c.Unlock()
 			return
 		}
@@ -240,11 +253,18 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the value to the type of the default
 	if declaredNode.IsLeafNode() {
 		if converted, err := basic.ConvertToDefaultType(newValue, declaredNode.Get(), false); err == nil {
-			if ok := c.setWarnings[key]; !ok {
-				if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
-					log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
-					c.setWarnings[key] = true
+			if ok := c.setWarnings[key]; !ok && reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
+				typePair := fmt.Sprintf("%T->%T", newValue, converted)
+				isIntWidthConversion := typePair == "int64->int" || typePair == "int->int64"
+				if isIntWidthConversion && c.setTypeWarnings[typePair] {
+					log.DebugfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+				} else {
+					log.WarnfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					if isIntWidthConversion {
+						c.setTypeWarnings[typePair] = true
+					}
 				}
+				c.setWarnings[key] = true
 			}
 			newValue = converted
 		}
@@ -257,7 +277,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
-		log.Errorf("could not insert value: %s", err)
+		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
 		c.Unlock()
 		return
 	} else if newTree != nil {
@@ -291,9 +311,49 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 		return nil, log.Errorf("Set invalid source: %s", source)
 	}
 
-	parts := splitKey(key)
-	err = tree.setAt(parts, value, source, copyOnWrite) // config may already be in use
+	err = tree.setAt(key, value, source, copyOnWrite)
 	return tree, err
+}
+
+// DirectBulkSet implements model.Writer. Keys are assumed already lowercased, which holds for
+// anything enumerated from another config.
+func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
+	c.Lock()
+	defer c.Unlock()
+
+	for _, setting := range settings {
+		key := setting.Key
+		// Stored anyway, as the YAML loader does, so the client mirrors the sender. Reconnects
+		// resend the whole snapshot, hence warn once.
+		if !c.isKnownKey(key) {
+			if _, alreadySeen := c.unknownKeys.LoadOrStore(key, struct{}{}); !alreadySeen {
+				log.Warnf("unknown key from config stream: %s", key)
+			}
+		}
+
+		declaredNode := c.nodeAtPathFromNode(key, c.defaults)
+		if declaredNode.IsInnerNode() {
+			log.Errorf("could not set '%s': partial path of a setting", key)
+			continue
+		}
+
+		// structpb collapses every number to float64, so a value still needs coercing back to the
+		// declared type. Unknown keys have no default, for which this is a no-op.
+		value := setting.Value
+		if converted, err := basic.ConvertToDefaultType(value, declaredNode.Get(), false); err == nil {
+			value = converted
+		}
+
+		if _, err := c.insertValueIntoTree(key, value, setting.Source); err != nil {
+			log.Errorf("could not insert value for '%s': %s", key, err)
+		}
+	}
+
+	// Set merges per write; rebuilding the root once at the end is equivalent because Merge
+	// ranks conflicting leaves by source, not by merge order.
+	if err := c.mergeAllLayers(); err != nil {
+		log.Errorf("could not merge config layers: %s", err)
+	}
 }
 
 // SetInTest assigns the value to the given key using source Unknown, may only be called from tests
@@ -329,7 +389,7 @@ func (c *ntmConfig) setDefault(key string, value interface{}) {
 	if !c.isReady() {
 		mode = mutateInPlace // still being initialized
 	}
-	_ = c.defaults.setAt(splitKey(key), value, model.SourceDefault, mode)
+	_ = c.defaults.setAt(key, value, model.SourceDefault, mode)
 }
 
 func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*nodeImpl, error) {
@@ -612,7 +672,7 @@ func (c *ntmConfig) buildSchema() {
 	c.buildEnvVars()
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
-		c.warnings = append(c.warnings, err)
+		c.warnings = append(c.warnings, err.Error())
 	}
 }
 
@@ -639,15 +699,20 @@ func (c *ntmConfig) buildEnvVars() {
 	}
 
 	root := newInnerNode(nil)
-	envWarnings := []error{}
+	envWarnings := []string{}
 
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
 			if value, ok := os.LookupEnv(envVar); ok && value != "" {
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
-					envWarnings = append(envWarnings, err)
+					envWarnings = append(envWarnings, err.Error())
 				} else {
 					// Stop looping since we set the config key with the value of the highest precedence env var
+					if slices.Contains(c.deprecations[configKey].oldEnvVars, envVar) {
+						c.warnings = append(c.warnings,
+							fmt.Sprintf("env var '%s' is deprecated, use '%s' instead", envVar, c.deprecations[configKey].newEnvVar),
+						)
+					}
 					break
 				}
 			}
@@ -666,22 +731,21 @@ func (c *ntmConfig) ClearEnvVars() {
 	c.envs = newInnerNode(nil)
 	if c.isReady() {
 		if err := c.mergeAllLayers(); err != nil {
-			c.warnings = append(c.warnings, err)
+			c.warnings = append(c.warnings, err.Error())
 		}
 	}
 }
 
-func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval string) error {
-	var actualValue interface{} = envval
+func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envvar string) error {
+	var actualValue interface{} = envvar
 	if transformer, found := c.envTransform[key]; found {
-		actualValue = transformer(envval)
+		actualValue = transformer(envvar)
 	} else if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
 		if converted, err := basic.ConvertToDefaultType(actualValue, defaultNode.Get(), false); err == nil {
 			actualValue = converted
 		}
 	}
-	parts := splitKeyFunc(key)
-	return curr.setAt(parts, actualValue, model.SourceEnvVar, mutateInPlace) // still being initialized
+	return curr.setAt(key, actualValue, model.SourceEnvVar, mutateInPlace) // still being initialized
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
@@ -885,19 +949,13 @@ func (c *ntmConfig) nodeAtPathFromNode(key string, curr *nodeImpl) *nodeImpl {
 
 // GetNode returns a *nodeImpl for the given key
 func (c *ntmConfig) GetNode(key string) (Node, error) {
+	c.RLock()
+	defer c.RUnlock()
+
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
 	}
-	pathParts := splitKey(key)
-	curr := c.root
-	for _, part := range pathParts {
-		next, err := curr.GetChild(part)
-		if err != nil {
-			return nil, err
-		}
-		curr = next
-	}
-	return curr, nil
+	return getNodeFromtree(key, c.root)
 }
 
 // SetEnvPrefix sets the environment variable prefix to use
@@ -910,7 +968,7 @@ func (c *ntmConfig) SetEnvPrefix(in string) {
 
 // mergeWithEnvPrefix derives the environment variable to use for a given key.
 func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
-	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
+	return strings.ReplaceAll(strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_"), ".", "_")
 }
 
 func (c *ntmConfig) bindEnv(key string, envvars []string) {
@@ -919,23 +977,7 @@ func (c *ntmConfig) bindEnv(key string, envvars []string) {
 	if len(envvars) == 0 {
 		envvars = []string{c.mergeWithEnvPrefix(key)}
 	}
-
-	for _, envvar := range envvars {
-		if c.envKeyReplacer != nil {
-			envvar = c.envKeyReplacer.Replace(envvar)
-		}
-		c.configEnvVars[key] = append(c.configEnvVars[key], envvar)
-	}
-}
-
-// SetEnvKeyReplacer binds a replacer function for keys
-func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
-	c.Lock()
-	defer c.Unlock()
-	if c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("cannot SetEnvKeyReplacer() once the config has been marked as ready for use")
-	}
-	c.envKeyReplacer = r
+	c.configEnvVars[key] = append(c.configEnvVars[key], envvars...)
 }
 
 // MergeConfig merges in another config
@@ -1182,7 +1224,6 @@ func (c *ntmConfig) ConfigFileUsed() string {
 
 // BindEnvAndSetDefault fully declares a setting with a default value and optional env var overrides
 // If no env vars are declared, one will be derived from the key name
-// This is the preferred method to declare a setting
 func (c *ntmConfig) BindEnvAndSetDefault(key string, defaultVal interface{}, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
@@ -1196,9 +1237,44 @@ func (c *ntmConfig) BindEnvAndSetDefault(key string, defaultVal interface{}, env
 	c.addToKnownKeys(key)
 }
 
+// BindEnvAndSetDefaultWithDeprecation fully declares a setting with a default value, a list of deprecated names and
+// optional env var overrides.
+// If no env vars are declared, one will be derived from the key name.
+// Settings in the deprecated names list take precedence over the official and will automatically generate a warning.
+// Name in the list must be sorted by priority (oldest name first).
+func (c *ntmConfig) BindEnvAndSetDefaultWithDeprecation(key string, defaultVal interface{}, deprecatedNames []string, envvars ...string) {
+	d := deprecation{
+		oldNames: deprecatedNames,
+	}
+
+	// compute all the known envvars if none are provided
+	if len(envvars) == 0 {
+		envvars = make([]string, 0, len(deprecatedNames)+1)
+		for _, name := range deprecatedNames {
+			envvars = append(envvars, c.mergeWithEnvPrefix(name))
+		}
+		// We'll use this slice to emit a warning when any old env vars are used.
+		d.oldEnvVars = slices.Clone(envvars)
+		d.newEnvVar = c.mergeWithEnvPrefix(key)
+
+		// We add the new name at the end of the list since it has the lowest priority.
+		envvars = append(envvars, d.newEnvVar)
+	}
+	c.BindEnvAndSetDefault(key, defaultVal, envvars...)
+
+	c.Lock()
+	defer c.Unlock()
+	c.deprecations[key] = d
+
+	// We mark the deprecated setting and it's entire path as "known" to avoid "unknown setting warnings
+	for _, name := range deprecatedNames {
+		c.deprecatedNames[name] = key
+	}
+}
+
 // Warnings just returns nil
-func (c *ntmConfig) Warnings() *model.Warnings {
-	return &model.Warnings{Errors: c.warnings}
+func (c *ntmConfig) Warnings() []string {
+	return slices.Clone(c.warnings)
 }
 
 func (c *ntmConfig) StartTime() time.Time {
@@ -1211,7 +1287,7 @@ func (c *ntmConfig) Object() model.Reader {
 }
 
 // NewNodeTreeConfig returns a new Config object.
-func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
+func NewNodeTreeConfig(name string, envPrefix string, _ *strings.Replacer) model.BuildableConfig {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
 		allowDynamicSchema: atomic.NewBool(false),
@@ -1219,6 +1295,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
 		setWarnings:        map[string]bool{},
+		setTypeWarnings:    map[string]bool{},
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
@@ -1232,6 +1309,8 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		fleetPolicies:      newInnerNode(nil),
 		cli:                newInnerNode(nil),
 		root:               newInnerNode(nil),
+		deprecations:       map[string]deprecation{},
+		deprecatedNames:    map[string]string{},
 		envTransform:       make(map[string]func(string) interface{}),
 		configName:         "datadog",
 		startTime:          time.Now(),
@@ -1239,7 +1318,6 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 
 	config.SetConfigName(name)
 	config.SetEnvPrefix(envPrefix)
-	config.SetEnvKeyReplacer(envKeyReplacer)
 
 	return &config
 }

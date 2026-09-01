@@ -10,6 +10,7 @@ package env
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,21 @@ func Test_merge(t *testing.T) {
 			assert.EqualValues(t, tt.want, merge(tt.s1, tt.s2))
 		})
 	}
+}
+
+func TestGetDefaultNvmlPathsIncludesSupportedLinuxArchitectures(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("NVML default paths are only defined on Linux")
+	}
+
+	t.Setenv("HOST_ROOT", "/host")
+
+	assert.Equal(t, []string{
+		"/host/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+		"/host/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+		"/host/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",
+		"/host/run/nvidia/driver/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",
+	}, getDefaultNvmlPaths())
 }
 
 func TestDetectPodmanInHomeDir(t *testing.T) {

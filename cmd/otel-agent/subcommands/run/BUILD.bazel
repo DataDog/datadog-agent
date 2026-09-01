@@ -67,10 +67,10 @@ go_library(
         "//comp/otelcol/otlp/components/metricsclient",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/def",
-        "//comp/serializer/metricscompression/fx-otel",
+        "//comp/serializer/metricscompression/fx",
         "//comp/trace/agent/fx",
         "//comp/trace/agent/impl",
-        "//comp/trace/compression/fx-gzip",
+        "//comp/trace/compression/fx-zstd",
         "//comp/trace/config/def",
         "//comp/trace/config/impl",
         "//comp/trace/payload-modifier/fx",
@@ -145,6 +145,7 @@ go_library(
 dd_agent_go_test(
     name = "run_test",
     srcs = [
+        "command_nix_test.go",
         "command_test.go",
         "fleet_policies_dir_nix_test.go",
         "fleet_policies_dir_test.go",

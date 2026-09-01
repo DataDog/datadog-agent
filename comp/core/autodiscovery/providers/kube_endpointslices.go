@@ -151,6 +151,8 @@ func (k *kubeEndpointSlicesConfigProvider) Collect(context.Context) ([]integrati
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
 func (k *kubeEndpointSlicesConfigProvider) IsUpToDate(context.Context) (bool, error) {
+	k.RLock()
+	defer k.RUnlock()
 	return k.upToDate, nil
 }
 
@@ -301,7 +303,8 @@ func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSli
 		serviceKey := fmt.Sprintf("%s/%s", svc.Namespace, svc.Name)
 		setServiceKeys[serviceKey] = struct{}{}
 
-		endptConf, errors := utils.ExtractTemplatesFromAnnotations(serviceKey, svc.GetAnnotations(), kubeEndpointID)
+		hybridIgnoreADTags := pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags")
+		endptConf, errors := utils.ExtractTemplatesFromAnnotations(serviceKey, svc.GetAnnotations(), kubeEndpointID, hybridIgnoreADTags)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s: %s", serviceKey, err)
 		}

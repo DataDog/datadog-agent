@@ -6,7 +6,10 @@
 package decoder
 
 import (
+	"fmt"
+	"math"
 	"regexp"
+	"sync"
 	"time"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
@@ -240,6 +243,140 @@ func resolveSmartSeverityProfiles(low preprocessor.SamplerProfile) [severityeven
 	return profiles
 }
 
+// smartSeverityProfileWarningRegistry separates global validation from
+// source-specific validation. Global configuration is reported once at logs-agent
+// startup, while each distinct source override discrepancy is reported once.
+type smartSeverityProfileWarningRegistry struct {
+	globalOnce sync.Once
+	mu         sync.Mutex
+	sources    map[smartSeveritySourceProfileKey]struct{}
+}
+
+type smartSeveritySourceProfileKey struct {
+	rateLimit float64
+	burstSize float64
+}
+
+func newSmartSeverityProfileWarningRegistry() *smartSeverityProfileWarningRegistry {
+	return &smartSeverityProfileWarningRegistry{sources: make(map[smartSeveritySourceProfileKey]struct{})}
+}
+
+func (r *smartSeverityProfileWarningRegistry) markSourceProfile(profile preprocessor.SamplerProfile) bool {
+	key := smartSeveritySourceProfileKey{
+		rateLimit: effectiveProfileLimit(profile.RateLimit, profile.PassThrough),
+		burstSize: effectiveProfileLimit(profile.BurstSize, profile.PassThrough),
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, found := r.sources[key]; found {
+		return false
+	}
+	r.sources[key] = struct{}{}
+	return true
+}
+
+var smartSeverityProfileWarnings = newSmartSeverityProfileWarningRegistry()
+
+// WarnGlobalSmartSeverityProfileDiscrepancies validates the global adaptive
+// sampling profile before log sources are started. It is safe to call repeatedly.
+func WarnGlobalSmartSeverityProfileDiscrepancies() {
+	if !pkgconfigsetup.Datadog().GetBool(smartSeverityProfilesEnabledConfigKey) {
+		return
+	}
+
+	low := preprocessor.SamplerProfile{
+		RateLimit: pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
+		BurstSize: pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
+	}
+	profiles := resolveSmartSeverityProfiles(low)
+	smartSeverityProfileWarnings.warnGlobal(profiles, func(discrepancy string) {
+		log.Warnf("config adaptive sampler smart severity profiles: %s", discrepancy)
+	})
+}
+
+func (r *smartSeverityProfileWarningRegistry) warnGlobal(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile, warn func(string)) {
+	r.globalOnce.Do(func() {
+		for _, discrepancy := range smartSeverityProfileDiscrepancies(profiles) {
+			warn(discrepancy)
+		}
+		if len(sourceSmartSeverityProfileDiscrepancies(profiles)) > 0 {
+			r.markSourceProfile(profiles[severityeventsdef.SeverityLow])
+		}
+	})
+}
+
+func warnSourceSmartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile, sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, sourceDetails string) {
+	if sourceAdaptiveSampling == nil || (sourceAdaptiveSampling.RateLimit == nil && sourceAdaptiveSampling.BurstSize == nil) {
+		return
+	}
+
+	discrepancies := sourceSmartSeverityProfileDiscrepancies(profiles)
+	if len(discrepancies) == 0 || !smartSeverityProfileWarnings.markSourceProfile(profiles[severityeventsdef.SeverityLow]) {
+		return
+	}
+	for _, discrepancy := range discrepancies {
+		log.Warnf("config adaptive sampler smart severity profiles for source-specific experimental_adaptive_sampling (%s): %s", sourceDetails, discrepancy)
+	}
+}
+
+func adaptiveSamplingSourceDetails(source *sources.LogSource) string {
+	if source.Config.IntegrationSource != "" {
+		return fmt.Sprintf("log source %q, integration config %q (index %d)", source.Name, source.Config.IntegrationSource, source.Config.IntegrationSourceIndex)
+	}
+	return fmt.Sprintf("log source %q, type %q", source.Name, source.Config.Type)
+}
+
+func smartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile) []string {
+	low := profiles[severityeventsdef.SeverityLow]
+	medium := profiles[severityeventsdef.SeverityMedium]
+	high := profiles[severityeventsdef.SeverityHigh]
+
+	var discrepancies []string
+	lowRateLimit := effectiveProfileLimit(low.RateLimit, low.PassThrough)
+	mediumRateLimit := effectiveProfileLimit(medium.RateLimit, medium.PassThrough)
+	highRateLimit := effectiveProfileLimit(high.RateLimit, high.PassThrough)
+	if lowRateLimit > mediumRateLimit || mediumRateLimit > highRateLimit {
+		discrepancies = append(discrepancies, fmt.Sprintf("rate limits within logs_config.experimental_adaptive_sampling should be non-decreasing (low=%g, medium=%g, high=%g)", lowRateLimit, mediumRateLimit, highRateLimit))
+	}
+	lowBurstSize := effectiveProfileLimit(low.BurstSize, low.PassThrough)
+	mediumBurstSize := effectiveProfileLimit(medium.BurstSize, medium.PassThrough)
+	highBurstSize := effectiveProfileLimit(high.BurstSize, high.PassThrough)
+	if lowBurstSize > mediumBurstSize || mediumBurstSize > highBurstSize {
+		discrepancies = append(discrepancies, fmt.Sprintf("burst sizes within logs_config.experimental_adaptive_sampling should be non-decreasing (low=%g, medium=%g, high=%g)", lowBurstSize, mediumBurstSize, highBurstSize))
+	}
+	if medium.PassThrough && !high.PassThrough {
+		discrepancies = append(discrepancies, fmt.Sprintf("%s enabled but not %s", smartSeverityProfilesMediumPassThroughConfigKey, smartSeverityProfilesHighPassThroughConfigKey))
+	}
+	return discrepancies
+}
+
+// sourceSmartSeverityProfileDiscrepancies only checks the low-to-medium boundary:
+// medium and high are global settings and are checked during startup validation.
+func sourceSmartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile) []string {
+	low := profiles[severityeventsdef.SeverityLow]
+	medium := profiles[severityeventsdef.SeverityMedium]
+
+	var discrepancies []string
+	lowRateLimit := effectiveProfileLimit(low.RateLimit, low.PassThrough)
+	mediumRateLimit := effectiveProfileLimit(medium.RateLimit, medium.PassThrough)
+	if lowRateLimit > mediumRateLimit {
+		discrepancies = append(discrepancies, fmt.Sprintf("rate limits should be non-decreasing (low=%g, medium=%g)", lowRateLimit, mediumRateLimit))
+	}
+	lowBurstSize := effectiveProfileLimit(low.BurstSize, low.PassThrough)
+	mediumBurstSize := effectiveProfileLimit(medium.BurstSize, medium.PassThrough)
+	if lowBurstSize > mediumBurstSize {
+		discrepancies = append(discrepancies, fmt.Sprintf("burst sizes should be non-decreasing (low=%g, medium=%g)", lowBurstSize, mediumBurstSize))
+	}
+	return discrepancies
+}
+
+func effectiveProfileLimit(value float64, passThrough bool) float64 {
+	if passThrough {
+		return math.Inf(1)
+	}
+	return value
+}
+
 func newDisabledSet() map[string]struct{} {
 	entries := pkgconfigsetup.Datadog().GetStringSlice(disabledSourcesConfigKey)
 	m := make(map[string]struct{}, len(entries))
@@ -265,6 +402,29 @@ func buildIsSourceDisabled(source *sources.ReplaceableSource) func() bool {
 	}
 }
 
+// buildSourceTag builds a closure resolving the low-cardinality `log_source`
+// telemetry tag for the adaptive sampler.
+//
+// This deliberately reads Config.Source rather than LogSource.Name: Name is a
+// per-tailer identifier (e.g. "<namespace>/<pod>/<container>" for Kubernetes pod
+// files) whose cardinality is unbounded, while Config.Source is the same value the
+// agent ships as ddsource — see message.Origin.Source().
+//
+// Origin.Source() resolves three tiers; only Config.Source is reachable here:
+//   - mappedSource (remap_source rule) is applied in the processor, downstream of
+//     the tailer, so logs remapped by that rule are attributed to their pre-remap
+//     source in sampler telemetry.
+//   - the parser-derived source is only ever set by the journald tailer, which runs
+//     a noop decoder and therefore never has a sampler.
+//
+// The value is read per-message through ReplaceableSource so a source swap (e.g. on
+// file rotation) is picked up.
+func buildSourceTag(source *sources.ReplaceableSource) func() string {
+	return func() string {
+		return source.Config().Source
+	}
+}
+
 type samplerMode int
 
 const (
@@ -283,7 +443,7 @@ func resolveSamplerMode(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOpt
 	return samplerDisabled
 }
 
-func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
+func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer, sourceDetails ...string) preprocessor.AdaptiveSamplerConfig {
 	includeFilters, includeConfigured := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.include", tok)
 	excludeFilters, _ := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.exclude", tok)
 
@@ -331,7 +491,13 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 
 	c.SmartSeverityProfilesEnabled = pkgconfigsetup.Datadog().GetBool(smartSeverityProfilesEnabledConfigKey)
 	if c.SmartSeverityProfilesEnabled {
+		WarnGlobalSmartSeverityProfileDiscrepancies()
 		c.Profiles = resolveSmartSeverityProfiles(preprocessor.SamplerProfile{RateLimit: c.RateLimit, BurstSize: c.BurstSize})
+		details := "unknown source"
+		if len(sourceDetails) > 0 {
+			details = sourceDetails[0]
+		}
+		warnSourceSmartSeverityProfileDiscrepancies(c.Profiles, sourceAdaptiveSampling, details)
 		c.SeverityProvider = severityprovider.Current
 	}
 
@@ -403,13 +569,13 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	sourceConfig := source.Config()
 	switch resolveSamplerMode(sourceConfig.ExperimentalAdaptiveSampling, sourceConfig.ExperimentalNoisyLogDetection) {
 	case samplerAdaptiveSampling:
-		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
+		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok, adaptiveSamplingSourceDetails(source.UnderlyingSource()))
 		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
-		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
+		sampler = preprocessor.NewAdaptiveSampler(cfg, buildSourceTag(source), baseBytesEstimate)
 	case samplerNoisyLogDetection:
 		cfg := resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
 		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
-		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
+		sampler = preprocessor.NewAdaptiveSampler(cfg, buildSourceTag(source), baseBytesEstimate)
 	default:
 		sampler = preprocessor.NewNoopSampler()
 	}

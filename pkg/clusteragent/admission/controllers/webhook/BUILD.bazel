@@ -34,6 +34,7 @@ go_library(
         "//pkg/clusteragent/autoscaling/cluster/spot",
         "//pkg/clusteragent/autoscaling/workload",
         "//pkg/clusteragent/instrumentation",
+        "//pkg/config/remote/client",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/common/namespace",

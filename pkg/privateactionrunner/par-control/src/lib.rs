@@ -4,3 +4,12 @@
 // Copyright 2026-present Datadog, Inc.
 
 pub mod config;
+pub mod executor;
+pub mod platform;
+pub mod procmgr;
+pub mod proto;
+pub mod tls;
+pub mod transport;
+
+#[cfg(all(test, unix))]
+pub mod test_support;

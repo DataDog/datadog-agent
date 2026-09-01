@@ -7,9 +7,8 @@
 package agentruntimes
 
 import (
-	_ "embed"
+	"embed"
 	"fmt"
-	"os"
 	"path"
 
 	"github.com/stretchr/testify/assert"
@@ -32,6 +31,12 @@ import (
 
 //go:embed checks/shared-library/files/minimal_conf.yaml
 var checkMinimalConfig string
+
+//go:embed checks/shared-library/files/libdatadog-agent-example.so
+//go:embed checks/shared-library/files/libdatadog-agent-example.dll
+//go:embed checks/shared-library/files/libdatadog-agent-no-run-symbol.so
+//go:embed checks/shared-library/files/libdatadog-agent-no-run-symbol.dll
+var sharedLibraryFiles embed.FS
 
 const libraryPrefix = "libdatadog-agent-"
 
@@ -87,7 +92,7 @@ func (v *sharedLibrarySuite) updateEnvWithCheckConfigAndSharedLibrary(name strin
 	libraryName, err := v.resolveSharedLibraryFileName(name)
 	require.NoError(v.T(), err)
 
-	libraryContent, err := os.ReadFile(path.Join("checks/shared-library/files", libraryName))
+	libraryContent, err := sharedLibraryFiles.ReadFile(path.Join("checks/shared-library/files", libraryName))
 	require.NoError(v.T(), err)
 
 	// option to copy the shared library to the remote host

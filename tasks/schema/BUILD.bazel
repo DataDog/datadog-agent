@@ -26,9 +26,10 @@ py_binary(
     deps = ["@py_dev_requirements//pyyaml"],
 )
 
-# Used by //pkg/config/setup:codegen_settings to generate *_settings.go source
-# files from the merged schema.  Mirrors what `dda inv schema.codegen
-# --keep-orig-order --fix` does but writes to a caller-supplied output
+# Used by //pkg/config/setup:codegen_settings and
+# //pkg/config/setup/constants:codegen_constants to generate *_settings.go /
+# constants source files from the merged schema.  Mirrors what
+# `dda inv schema.codegen` does but writes to a caller-supplied output
 # directory instead of the source tree, so it can run as a Bazel action.
 py_binary(
     name = "codegen_settings_main",
@@ -36,11 +37,13 @@ py_binary(
         "codegen_init_settings.py",
         "codegen_settings_main.py",
         "merge_schema.py",
-        "settings_source_analyzer.py",
     ],
     main = "codegen_settings_main.py",
-    visibility = ["//pkg/config/setup:__pkg__"],
-    deps = ["@py_dev_requirements//pyyaml"],
+    visibility = ["//pkg/config/setup:__subpackages__"],
+    deps = [
+        "//tasks/libs/types:version",
+        "@py_dev_requirements//pyyaml",
+    ],
 )
 
 # Used by //pkg/config/schema:template.bzl (schema_template_config) to

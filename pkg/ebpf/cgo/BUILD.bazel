@@ -20,3 +20,10 @@ dd_agent_go_test(
     embed = [":cgo_lib"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
+
+dd_agent_go_test(
+    name = "genpost_test",
+    srcs = ["genpost_test.go"],
+    embed = [":cgo_lib"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

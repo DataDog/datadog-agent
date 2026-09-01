@@ -23,6 +23,7 @@ profiles:
       - name: health_platform.issues_detected
         preserve_tags:
           - issue_type
+          - severity
   schedule:
     start_after: 30
     iterations: 0
@@ -440,6 +441,11 @@ profiles:
         preserve_tags:
           - owner_kind
           - status
+      - name: instrumentation_controller.resources
+      - name: instrumentation_controller.reconciliations
+        preserve_tags:
+          - section
+          - status
       - name: workloadmeta.stored_entities
         preserve_tags:
           - kind
@@ -551,4 +557,31 @@ profiles:
   schedule:
     start_after: 300 # 5 minutes
     iterations: 1
+    period: 900
+- name: data-plane-preflight-mode
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: data_plane.preflight_mode_result
+        preserve_tags:
+          - result
+      # See `TestFindingsAreAllowlisted` in `comp/dataplane/preflightmode/impl/capture.go` for the fixed set
+      # of values that we except to have for the `finding` tag.
+      - name: data_plane.preflight_mode_finding
+        preserve_tags:
+          - finding
+      - name: data_plane.preflight_mode_duration_seconds
+  schedule:
+    # Preflight mode runs once at startup, for at least minPreflightModeDuration (90s, see
+    # comp/dataplane/preflightmode/impl), so the first flush is delayed past that window;
+    # otherwise it would report an empty run.
+    #
+    # The schedule stays recurring (iterations: 0) so that a window extended past this via
+    # data_plane.preflight_mode_duration cannot strand the outcome: a flush landing mid-run finds
+    # nothing, and with iterations: 1 there would be no later collection. Recurring costs
+    # nothing — the counters are delta-converted, so the increment ships on whichever flush first
+    # observes it and later flushes send zero, which zero_metric drops.
+    start_after: 120 # 2 minutes
+    iterations: 0
     period: 900

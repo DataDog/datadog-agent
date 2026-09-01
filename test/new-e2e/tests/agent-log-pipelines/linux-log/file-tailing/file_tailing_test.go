@@ -37,7 +37,22 @@ var logConfig string
 const (
 	logFileName = "hello-world.log"
 	logFilePath = utils.LinuxLogsFolderPath + "/" + logFileName
+
+	iisLogFileName = "iis-w3c.log"
+	iisLogFilePath = utils.LinuxLogsFolderPath + "/" + iisLogFileName
+	iisService     = "iis-w3c"
+	// Distinctive substrings from consecutive IIS W3C records. A concatenated
+	// intake message contains both.
+	iisGetToken  = "GET /ZenIT/Service/v13/core/Consent"
+	iisPostToken = "POST /ZenIT/Service/v13/core/Logger"
 )
+
+// iisW3CRecords is a timestamped #Date header plus two 10.1.48.10 records.
+// CombiningAggregator only concatenates aggregate lines onto an open
+// startGroup, so the header is required to reproduce the regression.
+const iisW3CRecords = `#Date: 2026-08-11 10:34:49
+2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET /ZenIT/Service/v13/core/Consent land=DE 443 ndl\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 19571 1051
+2026-08-11 10:34:50 W3SVC1 10.1.48.10 POST /ZenIT/Service/v13/core/Logger - 443 ndl\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 204 0 0 504 6`
 
 // TestLinuxVMFileTailingSuite runs the E2E test suite for the log agent with a Linux VM and fake intake.
 func TestLinuxVMFileTailingSuite(t *testing.T) {
@@ -61,12 +76,13 @@ func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
 
 	// Ensure no logs are present in fakeintake before testing starts
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs("hello")
-		require.NoError(c, err, "Unable to filter logs by the service 'hello'.")
-		// If logs are found, print their content for debugging
-		if !assert.Empty(c, logs, "Logs were found when none were expected.") {
-			cat, _ := s.Env().RemoteHost.Execute(fmt.Sprintf("cat %s && cat %s/hello-world-2.log", logFilePath, utils.LinuxLogsFolderPath))
-			s.T().Logf("Logs detected when none were expected: %v", cat)
+		for _, service := range []string{"hello", iisService} {
+			logs, err := s.Env().FakeIntake.Client().FilterLogs(service)
+			require.NoError(c, err, "Unable to filter logs by the service '%s'.", service)
+			if !assert.Empty(c, logs, "Logs were found for service '%s' when none were expected.", service) {
+				cat, _ := s.Env().RemoteHost.Execute(fmt.Sprintf("cat %s %s %s/hello-world-2.log 2>/dev/null || true", logFilePath, iisLogFilePath, utils.LinuxLogsFolderPath))
+				s.T().Logf("Logs detected when none were expected: %v", cat)
+			}
 		}
 	}, 2*time.Minute, 10*time.Second)
 
@@ -225,4 +241,43 @@ func (s *LinuxFakeintakeSuite) testLogRecreateRotation() {
 
 	// Check intake for new logs
 	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world-new-content", []string{})
+}
+
+// TestIISW3CRecordsStaySeparate writes consecutive IIS W3C records through
+// file tailing with auto multiline enabled and asserts fakeintake receives
+// them as separate messages. The unit pipeline test constructs the
+// preprocessor directly and cannot catch a wiring or config regression.
+func (s *LinuxFakeintakeSuite) TestIISW3CRecordsStaySeparate() {
+	t := s.T()
+
+	s.Env().RemoteHost.MustExecute("sudo touch " + iisLogFilePath)
+	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", iisLogFilePath))
+	require.NoError(t, err, "Unable to adjust permissions for the log file '%s'.", iisLogFilePath)
+	require.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", iisLogFilePath)
+
+	utils.AssertAgentTailerOK(s, iisLogFileName)
+	utils.AppendLog(s, iisLogFileName, iisW3CRecords, 1)
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(iisService)
+		require.NoError(c, err, "Unable to filter logs by the service '%s'.", iisService)
+
+		var getOnly, postOnly, combined int
+		for _, log := range logs {
+			hasGet := strings.Contains(log.Message, iisGetToken)
+			hasPost := strings.Contains(log.Message, iisPostToken)
+			switch {
+			case hasGet && hasPost:
+				combined++
+			case hasGet:
+				getOnly++
+			case hasPost:
+				postOnly++
+			}
+		}
+
+		require.GreaterOrEqual(c, getOnly, 1, "GET IIS record was not received as its own message; got %d logs for service %s", len(logs), iisService)
+		require.GreaterOrEqual(c, postOnly, 1, "POST IIS record was not received as its own message; got %d logs for service %s", len(logs), iisService)
+		assert.Zero(c, combined, "GET and POST IIS records were concatenated into one intake message")
+	}, 2*time.Minute, 10*time.Second)
 }

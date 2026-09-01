@@ -20,14 +20,14 @@ Probes:
           events:
             - Kind: Entry
               Type: 1042 EventRootType Probe[main.HandleHTTP]
-              InjectionPoints: [{PC: "0xd42e93", Frameless: false}]
+              InjectionPoints: [{PC: "0xd42e53", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 1043 EventRootType Probe[main.HandleHTTP]Return
               InjectionPoints:
-                - PC: "0xd430c2"
+                - PC: "0xd43082"
                   Frameless: false
-                - PC: "0xd430d6"
+                - PC: "0xd43096"
                   Frameless: false
               Condition: null
     - id: look_at_the_request
@@ -43,34 +43,34 @@ Probes:
           events:
             - Kind: Entry
               Type: 1044 EventRootType Probe[main.LookAtTheRequest]
-              InjectionPoints: [{PC: "0xd431ce", Frameless: false}]
+              InjectionPoints: [{PC: "0xd4318e", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 1045 EventRootType Probe[main.LookAtTheRequest]Return
-              InjectionPoints: [{PC: "0xd4324b", Frameless: false}]
+              InjectionPoints: [{PC: "0xd4320b", Frameless: false}]
               Condition: null
 Subprograms:
     - ID: 1
       Name: main.HandleHTTP
-      OutOfLinePCRanges: [0xd42e80..0xd43107]
+      OutOfLinePCRanges: [0xd42e40..0xd430c7]
       InlinePCRanges: []
       Variables:
         - Name: w
           Type: 118 GoInterfaceType net/http.ResponseWriter
           Locations:
-            - Range: 0xd42e80..0xd42eec
+            - Range: 0xd42e40..0xd42eac
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-            - Range: 0xd42eec..0xd42eef
+            - Range: 0xd42eac..0xd42eaf
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 0}
                 - Size: 8
                   Op: {CfaOffset: 8}
-            - Range: 0xd42eef..0xd43107
+            - Range: 0xd42eaf..0xd430c7
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 0}
@@ -82,9 +82,9 @@ Subprograms:
         - Name: r
           Type: 119 PointerType *net/http.Request
           Locations:
-            - Range: 0xd42e80..0xd42ef6
+            - Range: 0xd42e40..0xd42eb6
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
-            - Range: 0xd42ef6..0xd43107
+            - Range: 0xd42eb6..0xd430c7
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
           Role: Parameter
           DictIndex: -1
@@ -92,7 +92,7 @@ Subprograms:
         - Name: span
           Type: 121 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
           Locations:
-            - Range: 0xd42f08..0xd42f41
+            - Range: 0xd42ec8..0xd42f01
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
@@ -100,9 +100,9 @@ Subprograms:
         - Name: '&buf'
           Type: 123 PointerType *bytes.Buffer
           Locations:
-            - Range: 0xd43009..0xd43024
+            - Range: 0xd42fc9..0xd42fe4
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0xd43024..0xd43107
+            - Range: 0xd42fe4..0xd430c7
               Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
           Role: Local
           DictIndex: -1
@@ -110,13 +110,13 @@ Subprograms:
       DictRegister: null
     - ID: 2
       Name: main.LookAtTheRequest
-      OutOfLinePCRanges: [0xd431c0..0xd43274]
+      OutOfLinePCRanges: [0xd43180..0xd43234]
       InlinePCRanges: []
       Variables:
         - Name: path
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xd431c0..0xd431e5
+            - Range: 0xd43180..0xd431a5
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}

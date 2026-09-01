@@ -198,6 +198,7 @@ core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants,Apache-2.
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/envconfig,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/clientip,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/config,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/config/configtelemetry,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/config/provider,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
@@ -317,6 +318,7 @@ core,github.com/DataDog/rshell/builtins/internal/winnet,Apache-2.0,"Copyright 20
 core,github.com/DataDog/rshell/builtins/internal/winpoll,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ip,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/journalctl,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/jq,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/logrotate,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ls,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/lsof,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -356,7 +358,6 @@ core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Copyright 2021 Dat
 core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/zstd,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
-core,github.com/DataDog/zstd_0,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
 core,github.com/DisposaBoy/JsonConfigReader,MIT,* Andreas Jaekle `https://github.com/ekle` | * DisposaBoy `https://github.com/DisposaBoy` | * Steven Osborn `https://github.com/steve918` | Copyright (c) 2012 The JsonConfigReader Authors | This is the official list of JsonConfigReader authors for copyright purposes.
 core,github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp,Apache-2.0,Copyright 2020 Google LLC
 core,github.com/Masterminds/goutils,Apache-2.0,Copyright 2014 Alexander Okoli
@@ -849,6 +850,9 @@ core,github.com/awslabs/operatorpkg/unstructured,Apache-2.0,"Copyright Amazon.co
 core,github.com/aymerick/raymond/lexer,MIT,Copyright (c) 2015 Aymerick JEHANNE
 core,github.com/bahlo/generic-list-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/bazelbuild/rules_go/go/runfiles,Apache-2.0,Benjamin Staffin <benley@gmail.com> | Brian Silverman <bsilver16384@gmail.com> | Damien Martin-Guillerez <dmarting@google.com> | David Chen <dzc@google.com> | David Santiago <david.santiago@gmail.com> | David Zbarsky <dzbarsky@gmail.com> | Fabian Meumertzheim <fabian@meumertzhe.im> | Google Inc. | Han-Wen Nienhuys <hanwen@google.com> | Ian Cottrell <iancottrell@google.com> | Jake Voytko <jake@reviewninja.com> | Jay Conrod <jayconrod@google.com> | Josh Powell <powelljo@us.ibm.com> | Justine Alexandra Roberts Tunney <jart@google.com> | Kristina Chodorow <kchodorow@google.com> | Lukacs Berki <lberki@google.com> | Tyler French <french.tyler.d@gmail.com> | Yuki Yugui Sonoda <yugui@yugui.jp>
+core,github.com/bazelbuild/rules_go/go/tools/bzltestutil,Apache-2.0,Benjamin Staffin <benley@gmail.com> | Brian Silverman <bsilver16384@gmail.com> | Damien Martin-Guillerez <dmarting@google.com> | David Chen <dzc@google.com> | David Santiago <david.santiago@gmail.com> | David Zbarsky <dzbarsky@gmail.com> | Fabian Meumertzheim <fabian@meumertzhe.im> | Google Inc. | Han-Wen Nienhuys <hanwen@google.com> | Ian Cottrell <iancottrell@google.com> | Jake Voytko <jake@reviewninja.com> | Jay Conrod <jayconrod@google.com> | Josh Powell <powelljo@us.ibm.com> | Justine Alexandra Roberts Tunney <jart@google.com> | Kristina Chodorow <kchodorow@google.com> | Lukacs Berki <lberki@google.com> | Tyler French <french.tyler.d@gmail.com> | Yuki Yugui Sonoda <yugui@yugui.jp>
+core,github.com/bazelbuild/rules_go/go/tools/bzltestutil/chdir,Apache-2.0,Benjamin Staffin <benley@gmail.com> | Brian Silverman <bsilver16384@gmail.com> | Damien Martin-Guillerez <dmarting@google.com> | David Chen <dzc@google.com> | David Santiago <david.santiago@gmail.com> | David Zbarsky <dzbarsky@gmail.com> | Fabian Meumertzheim <fabian@meumertzhe.im> | Google Inc. | Han-Wen Nienhuys <hanwen@google.com> | Ian Cottrell <iancottrell@google.com> | Jake Voytko <jake@reviewninja.com> | Jay Conrod <jayconrod@google.com> | Josh Powell <powelljo@us.ibm.com> | Justine Alexandra Roberts Tunney <jart@google.com> | Kristina Chodorow <kchodorow@google.com> | Lukacs Berki <lberki@google.com> | Tyler French <french.tyler.d@gmail.com> | Yuki Yugui Sonoda <yugui@yugui.jp>
+core,github.com/bazelbuild/rules_go/go/tools/coverdata,Apache-2.0,Benjamin Staffin <benley@gmail.com> | Brian Silverman <bsilver16384@gmail.com> | Damien Martin-Guillerez <dmarting@google.com> | David Chen <dzc@google.com> | David Santiago <david.santiago@gmail.com> | David Zbarsky <dzbarsky@gmail.com> | Fabian Meumertzheim <fabian@meumertzhe.im> | Google Inc. | Han-Wen Nienhuys <hanwen@google.com> | Ian Cottrell <iancottrell@google.com> | Jake Voytko <jake@reviewninja.com> | Jay Conrod <jayconrod@google.com> | Josh Powell <powelljo@us.ibm.com> | Justine Alexandra Roberts Tunney <jart@google.com> | Kristina Chodorow <kchodorow@google.com> | Lukacs Berki <lberki@google.com> | Tyler French <french.tyler.d@gmail.com> | Yuki Yugui Sonoda <yugui@yugui.jp>
 core,github.com/bboreham/go-loser,Apache-2.0,bboreham <bjboreham@gmail.com>
 core,github.com/beevik/ntp,BSD-2-Clause,Al Cutter (AlCutter) | Andrey Smirnov (smira) | Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christian Cedercrantz (chrisceder) | Christopher Batey (chbatey) | Copyright © 2015-2023 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB) | Silves-Xiang (silves-xiang)
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
@@ -1142,7 +1146,6 @@ core,github.com/freddierice/go-losetup,MIT,Copyright (c) 2017 Freddie Rice
 core,github.com/fsnotify/fsnotify,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved. | Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
 core,github.com/fsnotify/fsnotify/internal,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved. | Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
 core,github.com/fxamacker/cbor/v2,MIT,Copyright (c) 2019-present Faye Amacker | Copyright © 2019-2024 [Faye Amacker](https://github.com/fxamacker)
-core,github.com/ghodss/yaml,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2014 Sam Ghods
 core,github.com/glaslos/ssdeep,MIT,"Copyright (c) 2015, Arbo von Monkiewitsch All rights reserved | Copyright (c) 2017 Lukas Rist"
 core,github.com/go-delve/delve/pkg/dwarf,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/godwarf,MIT,Copyright (c) 2014 Derek Parker
@@ -1289,6 +1292,7 @@ core,github.com/golang/protobuf/ptypes/wrappers,BSD-3-Clause,Copyright (c) 2009 
 core,github.com/golang/snappy,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
 core,github.com/google/btree,Apache-2.0,Copyright 2014-2022 Google Inc.
 core,github.com/google/cel-go/cel,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/cel/async,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/checker,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/checker/decls,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/common,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -2400,7 +2404,6 @@ core,github.com/samber/lo/internal/xtime,MIT,Copyright (c) 2022-2025 Samuel Bert
 core,github.com/samber/lo/it,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samber/lo/mutable,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samber/oops,MIT,Copyright (c) 2023 Samuel Berthe | Copyright © 2023 [Samuel Berthe](https://github.com/samber)
-core,github.com/santhosh-tekuri/jsonschema/v5,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/santhosh-tekuri/jsonschema/v6,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/santhosh-tekuri/jsonschema/v6/kind,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/saracen/walker,MIT,Copyright (c) 2019 Arran Walker
@@ -2473,6 +2476,8 @@ core,github.com/stackitcloud/stackit-sdk-go/core/utils,Apache-2.0,Copyright 2024
 core,github.com/stretchr/objx,MIT,"Copyright (c) 2014 Stretchr, Inc | Copyright (c) 2017-2018 objx contributors"
 core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/assert/yaml,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
+core,github.com/stretchr/testify/internal/difflib,BSD-3-Clause,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors | Copyright (c) 2013, Patrick Mezard"
+core,github.com/stretchr/testify/internal/spew,ISC,"Copyright (c) 2012-2016 Dave Collins <dave@davec.name> | Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/mock,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/require,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/suite,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
@@ -3022,6 +3027,7 @@ core,go.opentelemetry.io/otel/semconv/v1.41.0/otelconv,Apache-2.0,Copyright The 
 core,go.opentelemetry.io/otel/semconv/v1.41.0/rpcconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.42.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.42.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.43.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.5.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3072,6 +3078,7 @@ core,go.temporal.io/api/schedule/v1,MIT,Copyright (c) 2025 Temporal Technologies
 core,go.temporal.io/api/sdk/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/serviceerror,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/taskqueue/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/temporalnexus,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/temporalproto,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/update/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/version/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved

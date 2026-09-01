@@ -18,6 +18,7 @@
     - !reference [.fast_on_dev_branch_only]
   variables:
     FLAVORS: '--flavor base'
+    GIT_DEPTH: 0  # Full history: --only-impacted-packages and coverage cache use merge-base
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi
@@ -55,39 +56,34 @@ tests_linux-x64-py3:
     - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
+    - !reference [.upload_coverage_datadog]
+  variables:
+    CONDA_ENV: ddpy3
+
+.linux_flavor_tests:
+  extends:
+    - .linux_tests
+    - .linux_x64
+  after_script:
+    - !reference [.upload_junit_source]
     - !reference [.upload_coverage_datadog]
   variables:
     CONDA_ENV: ddpy3
 
 tests_flavor_iot_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
+  extends: .linux_flavor_tests
   variables:
-    CONDA_ENV: ddpy3
     FLAVORS: '--flavor iot'
 
 tests_flavor_dogstatsd_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
+  extends: .linux_flavor_tests
   variables:
-    CONDA_ENV: ddpy3
     FLAVORS: '--flavor dogstatsd'
 
 tests_flavor_heroku_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
+  extends: .linux_flavor_tests
   variables:
-    CONDA_ENV: ddpy3
     FLAVORS: '--flavor heroku'
 
 tests_linux-arm64-py3:
@@ -99,7 +95,7 @@ tests_linux-arm64-py3:
     - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
@@ -134,7 +130,7 @@ tests_serverless-init:
   script:
     - !reference [.retrieve_linux_go_deps]
     # TODO: remove once Bazel is used to test the Agent
-    - dda inv -- -e schema.codegen --fix
+    - dda inv -- -e schema.codegen
     - go test -tags "serverless,otlp,test" ./cmd/serverless-init/.
 
 tests_serverless-init-logs:
@@ -148,7 +144,7 @@ tests_serverless-init-logs:
   script:
     - !reference [.retrieve_linux_go_deps]
     # TODO: remove once Bazel is used to test the Agent
-    - dda inv -- -e schema.codegen --fix
+    - dda inv -- -e schema.codegen
     - go test -tags "serverless,otlp,test" ./comp/logs/agent/impl/.
 
 # Check consistency of go.mod file with project imports
@@ -196,6 +192,7 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
+    GIT_DEPTH: 1  # Overrides .linux_tests: this job does not use --only-impacted-packages or coverage cache
   timeout: 20m  # Not less than 20m because job startup can take time.
 
 tests_gpu:
@@ -212,11 +209,9 @@ tests_gpu:
     - !reference [.retrieve_linux_go_tools_deps]
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   variables:
     FLAVORS: ''
     EXTRA_OPTS: '--targets=./pkg/gpu/integrationtests,./pkg/collector/corechecks/gpu/integrationtests'
     KUBERNETES_CPU_REQUEST: 4
-    KUBERNETES_MEMORY_REQUEST: 8Gi
-    KUBERNETES_MEMORY_LIMIT: 8Gi

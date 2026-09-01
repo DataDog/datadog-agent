@@ -34,6 +34,7 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 	metricsstore "k8s.io/kube-state-metrics/v2/pkg/metrics_store"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
+	ksmutil "k8s.io/kube-state-metrics/v2/pkg/util"
 	"k8s.io/kube-state-metrics/v2/pkg/watch"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -305,8 +306,26 @@ func (b *Builder) GenerateStores(
 	return GenerateStores(b, metricFamilies, expectedType, b.kubeClient, listWatchFunc, useAPIServerCache)
 }
 
-func (b *Builder) getCustomResourceClient(resourceName string) interface{} {
-	if client, ok := b.customResourceClients[resourceName]; ok {
+// CustomResourceClientKey computes the key under which a custom resource client
+// is registered in the customResourceClients map. It is the fully-qualified GVR
+// string, which is group-aware. Keying by resourceName alone (the plural,
+// group-less name) is not sufficient because two CRDs can share the same
+// Kind/plural across different API groups, in which case they would collide
+// onto a single client and the reflectors would receive objects of an
+// unexpected GVK. Both the populate side (the ksm check's discoverCustomResources)
+// and the lookup side (getCustomResourceClient) must use this function so their
+// keys agree. Falls back to resourceName when the GVR cannot be derived,
+// matching upstream kube-state-metrics behavior.
+func CustomResourceClientKey(resourceName string, expectedType interface{}) string {
+	gvr, err := ksmutil.GVRFromType(resourceName, expectedType)
+	if err != nil || gvr == nil {
+		return resourceName
+	}
+	return gvr.String()
+}
+
+func (b *Builder) getCustomResourceClient(resourceName string, expectedType interface{}) interface{} {
+	if client, ok := b.customResourceClients[CustomResourceClientKey(resourceName, expectedType)]; ok {
 		return client
 	}
 
@@ -324,7 +343,7 @@ func (b *Builder) GenerateCustomResourceStoresFunc(
 ) []cache.Store {
 	return GenerateStores(b, metricFamilies,
 		expectedType,
-		b.getCustomResourceClient(resourceName),
+		b.getCustomResourceClient(resourceName, expectedType),
 		listWatchFunc,
 		useAPIServerCache,
 	)
@@ -478,6 +497,8 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 						Namespace:       item.GetNamespace(),
 						UID:             item.GetUID(),
 						ResourceVersion: item.GetResourceVersion(),
+						Labels:          item.GetLabels(),
+						Annotations:     item.GetAnnotations(),
 					},
 				})
 			}
@@ -506,6 +527,8 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 						Namespace:       partialObject.GetNamespace(),
 						UID:             partialObject.GetUID(),
 						ResourceVersion: partialObject.GetResourceVersion(),
+						Labels:          partialObject.GetLabels(),
+						Annotations:     partialObject.GetAnnotations(),
 					},
 				}
 

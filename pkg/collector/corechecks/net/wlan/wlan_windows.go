@@ -38,6 +38,10 @@ var (
 	// getWiFiInfo is a package-level function variable for testability
 	// Tests can reassign this to mock WiFi data retrieval
 	getWiFiInfo func() (wifiInfo, error)
+
+	// loadWlanAPI is a package-level function variable for testability
+	// Tests can reassign this to simulate a host without wlanapi.dll
+	loadWlanAPI = wlanAPI.Load
 )
 
 // https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ne-wlanapi-wlan_interface_state-r1
@@ -511,6 +515,17 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 	// Check for test override
 	if getWiFiInfo != nil {
 		return getWiFiInfo()
+	}
+
+	// wlanapi.dll ships with the Wireless-Networking feature, which is not
+	// installed by default on Windows Server, and windows.LazyProc.Call panics
+	// instead of returning an error when it cannot resolve the library, so load
+	// it before calling into it. A host with no WLAN stack has no Wi-Fi
+	// interface to report on, which is the normal state of a Windows Server
+	// rather than a collection failure.
+	if err := loadWlanAPI(); err != nil {
+		log.Debugf("Skipping Wi-Fi collection, wlanapi.dll is unavailable: %v", err)
+		return wifiInfo{phyMode: "None"}, nil
 	}
 
 	wi, err := getFirstConnectedWlanInfo()

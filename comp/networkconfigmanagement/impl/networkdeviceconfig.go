@@ -109,33 +109,37 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	startTime := n.clock.Now()
 	log := LoggerFromContext(ctx)
 	deviceID := dc.device.DeviceID()
-	if dc.noMatchingProfile {
-		log.Debugf("All profiles tested on past runs with no matches.")
-		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
-	}
 	device := dc.device
 	sender := ncmsender.NewNCMSender(baseSender, device.Namespace, n.clock, n.hostname)
+	sender.SetDeviceTags(dc.GetTags())
+	defer sender.Commit()
 
-	var err error
-	conn, err := n.connectAndEnsureProfile(ctx, dc)
-	if err != nil {
-		return err
+	if dc.noMatchingProfile {
+		log.Debugf("All profiles tested on past runs with no matches.")
+		sender.SendNCMCheckFailure(types.ErrNoProfile)
+		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
+	}
+
+	conn, connErr := n.connectAndEnsureProfile(ctx, dc)
+	if connErr != nil {
+		sender.SendNCMCheckFailure(connErr.Type())
+		return connErr
 	}
 	defer conn.Close()
 
 	// Update the remote client's device profile to access the correct commands
 	conn.SetProfile(dc.profile)
 
+	// dc.profile is now resolved, so refresh the device tags to include it.
 	sender.SetDeviceTags(dc.GetTags())
 	var nonBlockingErrors []error
 
 	if err := sender.SendDeviceMetadata(deviceID, device.IPAddress); err != nil {
 		log.Warnf("failed to send device metadata: %s", err)
-		nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to send device metadata: %w", err))
+		nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrMetadataSendFailed, "failed to send device metadata: %w", err))
 	}
-	defer sender.Commit()
 
-	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store)
+	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store, sender)
 	nonBlockingErrors = append(nonBlockingErrors, confErrs...)
 
 	var inventoryEntries []ncmreport.InventoryEntry
@@ -151,6 +155,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		log.Debugf("local config store unchanged since last report %v ago (< %v).", timeSinceInventory, n.inventoryMaxInterval)
 	}
 	if hasStore && (localStoreChanged || timeSinceInventory > n.inventoryMaxInterval) {
+		var err error
 		inventoryEntries, err = n.buildInventoryReport()
 		if err != nil {
 			log.Errorf("skipping inventory report due to error: %v", err)
@@ -161,7 +166,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		err := sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, n.clock.Now().Unix()))
 		if err != nil {
 			log.Warnf("Failed to send payload to backend: %v", err)
-			nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to send payload to backend: %w", err))
+			nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrPayloadSendFailed, "failed to send payload to backend: %w", err))
 		} else if len(inventoryEntries) > 0 {
 			n.setLastInventoryTime(n.clock.Now())
 		}
@@ -173,6 +178,11 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		dc.lastReportTime = startTime
 		return nil
 	}
+	errTypes := make([]types.ErrorType, 0, len(nonBlockingErrors))
+	for _, nbErr := range nonBlockingErrors {
+		errTypes = append(errTypes, types.AsRollbackError(nbErr).Type())
+	}
+	sender.SendNCMCheckFailure(errTypes...)
 	sender.SendNCMCheckMetrics(startTime, dc.lastReportTime, false)
 	return fmt.Errorf("check completed but with errors: %v", errors.Join(nonBlockingErrors...))
 }
@@ -188,10 +198,9 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
 	for _, m := range configMeta {
 		entries = append(entries, ncmreport.InventoryEntry{
-			Namespace:  m.GetNamespace(),
-			ConfigID:   m.ConfigUUID,
-			DeviceID:   m.DeviceID,
-			ReportedAt: m.CapturedAt,
+			Namespace: m.GetNamespace(),
+			ConfigID:  m.ConfigUUID,
+			DeviceID:  m.DeviceID,
 		})
 	}
 	return entries, nil

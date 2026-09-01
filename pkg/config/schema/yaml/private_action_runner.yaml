@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/private_action_runner.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/private_action_runner.yaml
 node_type: section
 title: Private Action Runner Configuration
 type: object
@@ -94,7 +94,7 @@ properties:
   api_key_only_enrollment:
     node_type: setting
     type: boolean
-    default: false
+    default: true
   executor:
     node_type: section
     type: object
@@ -117,6 +117,14 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  idle_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 60
+    description: |-
+      Sets the split-mode executor's idle timeout in seconds. The executor
+      self-terminates after this much time without activity; values of zero or
+      less disable the watchdog.
   log_file:
     node_type: setting
     type: string
@@ -179,10 +187,29 @@ properties:
           unset, backend grants pass through; an explicit empty map denies all.
           The "*" action admits every backend-granted action for an exact service.
           The environment variable accepts a JSON object only.
+      disable_detailed_telemetry:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          When true, suppresses the raw command text and effective sandbox
+          configuration (allowed paths, commands, system services, mode, and
+          related settings) that rshell would otherwise attach to its "run"
+          telemetry span for each runCommand/runRemediationCommand
+          invocation. Other rshell telemetry (exit code, timing, command
+          counts) is unaffected. Set this to true if the commands executed
+          through the Private Action Runner's restricted shell are too
+          sensitive to forward to Datadog telemetry.
   skip_connection_creation:
     node_type: setting
     type: boolean
     default: false
+  split_enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Enables split runner mode.
   urn:
     node_type: setting
     type: string

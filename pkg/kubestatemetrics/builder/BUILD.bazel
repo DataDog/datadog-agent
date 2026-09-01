@@ -39,6 +39,7 @@ go_library(
         "@io_k8s_kube_state_metrics_v2//pkg/metric_generator",
         "@io_k8s_kube_state_metrics_v2//pkg/metrics_store",
         "@io_k8s_kube_state_metrics_v2//pkg/options",
+        "@io_k8s_kube_state_metrics_v2//pkg/util",
         "@io_k8s_kube_state_metrics_v2//pkg/watch",
     ],
 )
@@ -46,6 +47,7 @@ go_library(
 dd_agent_go_test(
     name = "builder_test",
     srcs = [
+        "gvk_collision_test.go",
         "workloadmeta_conversion_test.go",
         "workloadmeta_pods_test.go",
     ],
@@ -70,6 +72,8 @@ dd_agent_go_test(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/types",
         "@io_k8s_utils//ptr",
         "@org_uber_go_fx//:fx",

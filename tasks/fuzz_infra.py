@@ -20,7 +20,7 @@ DEFAULT_FUZZING_SLACK_CHANNEL = "agent-fuzz-findings"
 
 def get_fuzz_build_tags() -> list[str]:
     """Return the Linux unit-test tags used to build native fuzz targets."""
-    return sorted(set(get_default_build_tags(build="unit-tests", platform="linux")) | {"amd64", "linux_bpf"})
+    return sorted(set(get_default_build_tags(build="unit-tests", platform="linux")) | {"amd64", "bpf"})
 
 
 def get_fuzz_build_command(func: str, build_file: str = "fuzz.test") -> str:
@@ -88,7 +88,7 @@ def build_and_upload_fuzz(
     ).stdout.strip()
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     max_pkg_name_length = 50
     for directory, func in search_fuzz_tests(os.getcwd()):

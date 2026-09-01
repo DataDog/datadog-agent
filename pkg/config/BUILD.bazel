@@ -20,7 +20,7 @@ schema_template_config(
     name = "agent_config",
     srcs = ["//pkg/config/schema:core_schema_subfiles"],
     out = "datadog.yaml",
-    build_type = "agent-py3",
+    build_type = "datadog-agent",
     os_target = _OS_TARGET,
     top_schema = "//pkg/config/schema:yaml/core_schema.yaml",
 )

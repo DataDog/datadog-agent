@@ -81,7 +81,7 @@ END;`
 			c.config.ConnectionConfig.QueryTimeout = tt.queryTimeout
 			defer c.Teardown()
 			if tt.queryTimeout <= 0 {
-				require.Equal(t, 20000*time.Second, c.config.QueryTimeoutDuration())
+				require.Equal(t, 20*time.Second, c.config.QueryTimeoutDuration())
 				return
 			}
 			require.Equal(t, time.Duration(tt.queryTimeout)*time.Second, c.config.QueryTimeoutDuration())

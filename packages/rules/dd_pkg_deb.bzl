@@ -4,8 +4,8 @@
 # can't put a macro on a legacy macro.
 # buildifier: disable=bzl-visibility
 load("@rules_pkg//pkg/private/deb:deb.bzl", "pkg_deb_impl")
+load("//bazel/tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
-load("//tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 
 # kwargs is mandatory for macros, even if you don't use it.
 # buildifier: disable=unused-variable

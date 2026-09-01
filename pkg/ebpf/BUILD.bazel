@@ -1,21 +1,9 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
-load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 # gazelle:exclude include_headers_gen.go
-# gazelle:exclude types_linux_test.go
+# gazelle:go_test file
 
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-
-exports_files([
-    "types_linux.go",
-    "types_linux_test.go",
-])
-
-cgo_godefs(
-    name = "types_godefs",
-    src = "types.go",
-    visibility = ["//visibility:public"],
-)
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
 genrule(
@@ -39,8 +27,8 @@ test_suite(
     name = "verify_generated_files",
     tests = [
         # ── Linux cgo_godefs ───────────────────────────────────────────
-        ":types_godefs_test",
-        ":types_godefs_test_file_test",
+        "//pkg/ebpf/lockcontention:types_godefs_test",
+        "//pkg/ebpf/lockcontention:types_godefs_test_file_test",
         "//pkg/ebpf/telemetry:types_godefs_test",
         "//pkg/ebpf/telemetry:types_godefs_test_file_test",
         "//pkg/network/ebpf:conntrack_types_godefs_test",
@@ -186,8 +174,6 @@ go_library(
         "ebpf.go",
         "ksyms.go",
         "ksyms_bpf.go",
-        "lockcontention.go",
-        "lockcontention_noop.go",
         "manager.go",
         "map_cleaner.go",
         "mappings.go",
@@ -200,47 +186,65 @@ go_library(
         "rc_btf.go",
         "status_codes.go",
         "time.go",
-        "types_linux.go",
     ],
-    cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf",
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/telemetry/def",
-        "//comp/core/telemetry/impl",
-        "//comp/core/telemetry/impl/noops",
-        "//comp/remote-config/rcclient/def",
         "//pkg/config/setup",
         "//pkg/config/utils",
-        "//pkg/ebpf/btf",
         "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/maps",
-        "//pkg/ebpf/names",
         "//pkg/process/util",
-        "//pkg/remoteconfig/state",
         "//pkg/system-probe/config",
-        "//pkg/util/archive",
-        "//pkg/util/funcs",
         "//pkg/util/kernel",
-        "//pkg/util/log",
-        "//pkg/util/sync",
-        "//pkg/version",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_cilium_ebpf//asm",
-        "@com_github_cilium_ebpf//btf",
-        "@com_github_cilium_ebpf//link",
-        "@com_github_cilium_ebpf//perf",
-        "@com_github_cilium_ebpf//ringbuf",
-        "@com_github_cilium_ebpf//rlimit",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@com_github_datadog_ebpf_manager//tracefs",
-        "@com_github_prometheus_client_golang//prometheus",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl",
+            "//comp/core/telemetry/impl/noops",
+            "//comp/remote-config/rcclient/def",
+            "//pkg/ebpf/btf",
+            "//pkg/ebpf/maps",
+            "//pkg/ebpf/names",
+            "//pkg/remoteconfig/state",
+            "//pkg/util/archive",
+            "//pkg/util/funcs",
+            "//pkg/util/log",
+            "//pkg/util/sync",
+            "//pkg/version",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_cilium_ebpf//perf",
+            "@com_github_cilium_ebpf//ringbuf",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_datadog_ebpf_manager//tracefs",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl",
+            "//comp/core/telemetry/impl/noops",
+            "//comp/remote-config/rcclient/def",
+            "//pkg/ebpf/btf",
+            "//pkg/ebpf/maps",
+            "//pkg/ebpf/names",
+            "//pkg/remoteconfig/state",
+            "//pkg/util/archive",
+            "//pkg/util/funcs",
+            "//pkg/util/log",
+            "//pkg/util/sync",
+            "//pkg/version",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_cilium_ebpf//perf",
+            "@com_github_cilium_ebpf//ringbuf",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_datadog_ebpf_manager//tracefs",
             "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
@@ -249,56 +253,187 @@ go_library(
 
 # keep
 dd_agent_go_test(
-    name = "types_linux_test",
-    srcs = ["types_linux_test.go"],
+    name = "btf_test",
+    srcs = ["btf_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
-    # keep
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
-        "//pkg/ebpf/ebpftest:cgo_align",
+        "//comp/core/telemetry/impl/noops",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
 
+# keep
 dd_agent_go_test(
-    name = "ebpf_test",
-    srcs = [
-        "btf_test.go",
-        "co_re_telemetry_test.go",
-        "feature_test.go",
-        "ksyms_bpf_test.go",
-        "ksyms_test.go",
-        "lockcontention_test.go",
-        "manager_test.go",
-        "map_cleaner_test.go",
-        "preprocess_test.go",
-        "printk_patcher_test.go",
-        "probes_test.go",
-        "rc_btf_test.go",
-        "time_test.go",
-    ],
-    data = glob(["testdata/**"]),
+    name = "co_re_telemetry_test",
+    srcs = ["co_re_telemetry_test.go"],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    deps = ["@com_github_stretchr_testify//assert"],
+)
+
+# keep
+dd_agent_go_test(
+    name = "feature_test",
+    srcs = ["feature_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
-        "//comp/core/telemetry/impl/noops",
-        "//pkg/config/remote/data",
-        "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/ebpftest",
-        "//pkg/ebpf/maps",
-        "//pkg/ebpf/names",
-        "//pkg/remoteconfig/state",
-        "//pkg/security/ebpf/kernel",
-        "//pkg/util/kernel",
-        "//pkg/util/log",
-        "//pkg/util/testutil/flake",
         "@com_github_cilium_ebpf//:ebpf",
         "@com_github_cilium_ebpf//asm",
         "@com_github_cilium_ebpf//features",
         "@com_github_cilium_ebpf//rlimit",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+# keep
+dd_agent_go_test(
+    name = "ksyms_bpf_test",
+    srcs = ["ksyms_bpf_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/util/kernel",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+# keep
+dd_agent_go_test(
+    name = "ksyms_test",
+    srcs = ["ksyms_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    tags = ["requires_ebpf"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
+
+# keep
+dd_agent_go_test(
+    name = "manager_test",
+    srcs = ["manager_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/names",
         "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@com_github_datadog_ebpf_manager//tracefs",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+# keep
+dd_agent_go_test(
+    name = "map_cleaner_test",
+    srcs = ["map_cleaner_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/ebpf/maps",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//rlimit",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+# keep
+dd_agent_go_test(
+    name = "preprocess_test",
+    srcs = ["preprocess_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    deps = ["@com_github_stretchr_testify//assert"],
+)
+
+# keep
+dd_agent_go_test(
+    name = "printk_patcher_test",
+    srcs = ["printk_patcher_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/ebpftest",
+        "//pkg/security/ebpf/kernel",
+        "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_datadog_ebpf_manager//tracefs",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+# keep
+dd_agent_go_test(
+    name = "probes_test",
+    srcs = ["probes_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+# keep
+dd_agent_go_test(
+    name = "rc_btf_test",
+    srcs = ["rc_btf_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//comp/core/telemetry/impl/noops",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/kernel",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+# keep
+dd_agent_go_test(
+    name = "time_test",
+    srcs = ["time_test.go"],
+    embed = [":ebpf"],
+    gotags_sets = [["bpf"]],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

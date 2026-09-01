@@ -136,6 +136,8 @@ func (s *installerScriptBaseSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
+	s.host.ConfigureAptMirrors()
+	s.host.ConfigureYumMirrors()
 }
 
 type installerScriptBaseSuite struct {
