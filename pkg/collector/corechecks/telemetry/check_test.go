@@ -7,7 +7,6 @@ package telemetry
 
 import (
 	"maps"
-	"reflect"
 	"slices"
 	"testing"
 
@@ -16,12 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
-const domainLabel = "domain"
+const (
+	domainLabel  = "domain"
+	emitterLabel = "emitter"
+
+	pointSentMetric = "point__sent"
+)
 
 func stringPtr(value string) *string {
 	return &value
@@ -49,15 +53,26 @@ func gaugeMetricFamily(name string, metrics ...*dto.Metric) *dto.MetricFamily {
 	}
 }
 
-func counterMetricFamily(name string, value float64) *dto.MetricFamily {
+func counterMetric(labels map[string]string, value float64) *dto.Metric {
+	metric := &dto.Metric{Counter: &dto.Counter{Value: float64Ptr(value)}}
+	// Sorted, like the label pairs a real Gather returns, so the resulting tag order is stable.
+	for _, name := range slices.Sorted(maps.Keys(labels)) {
+		metric.Label = append(metric.Label, &dto.LabelPair{Name: stringPtr(name), Value: stringPtr(labels[name])})
+	}
+	return metric
+}
+
+func counterMetricFamilyWith(name string, metrics ...*dto.Metric) *dto.MetricFamily {
 	metricType := dto.MetricType_COUNTER
 	return &dto.MetricFamily{
-		Name: stringPtr(name),
-		Type: &metricType,
-		Metric: []*dto.Metric{{
-			Counter: &dto.Counter{Value: float64Ptr(value)},
-		}},
+		Name:   stringPtr(name),
+		Type:   &metricType,
+		Metric: metrics,
 	}
+}
+
+func counterMetricFamily(name string, value float64) *dto.MetricFamily {
+	return counterMetricFamilyWith(name, counterMetric(nil, value))
 }
 
 func histogramMetricFamily(name string, count uint64, sum float64) *dto.MetricFamily {
@@ -120,138 +135,9 @@ func newTestCheck(t *testing.T, instance string, defaultMfs, regularMfs []*dto.M
 
 // expectRunScaffolding registers the calls every Run() makes regardless of what it reports.
 func expectRunScaffolding(s *mocksender.MockSender) {
-	s.On("SetNoIndex", mock.AnythingOfType("bool")).Return()
 	s.On("Commit").Return().Times(1)
 }
 
-// callIndex returns the position in the recorded call order of the first call to method whose
-// leading arguments match argPrefix, or -1 if there is none.
-func callIndex(s *mocksender.MockSender, method string, argPrefix ...interface{}) int {
-	for i, call := range s.Calls {
-		if call.Method != method || len(call.Arguments) < len(argPrefix) {
-			continue
-		}
-
-		match := true
-		for j, want := range argPrefix {
-			if !reflect.DeepEqual(call.Arguments[j], want) {
-				match = false
-				break
-			}
-		}
-		if match {
-			return i
-		}
-	}
-	return -1
-}
-
-func TestCollectAndMergeRegularRegistryMetrics(t *testing.T) {
-	defaultMfs := []*dto.MetricFamily{
-		gaugeMetricFamily(
-			"point__sent",
-			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 10),
-			gaugeMetric(map[string]string{}, 1),
-		),
-		gaugeMetricFamily(
-			"point__dropped",
-			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 2),
-		),
-	}
-	remoteMfs := []*dto.MetricFamily{
-		gaugeMetricFamily(
-			"point__sent",
-			gaugeMetric(map[string]string{
-				domainLabel:  "https://api.datadoghq.com",
-				emitterLabel: "agent-data-plane",
-			}, 12),
-			gaugeMetric(map[string]string{
-				domainLabel:  "https://api.datadoghq.eu",
-				emitterLabel: "other-remote-agent",
-			}, 5),
-			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 100),
-		),
-		gaugeMetricFamily(
-			"point__dropped",
-			gaugeMetric(map[string]string{
-				domainLabel:  "https://api.datadoghq.com",
-				emitterLabel: "agent-data-plane",
-			}, 3),
-		),
-	}
-
-	labelsByMetric := discoverMergeLabels(defaultMfs, remoteMfs)
-	values := collectMergeMetrics(defaultMfs, false, labelsByMetric)
-	values.merge(collectMergeMetrics(remoteMfs, true, labelsByMetric))
-
-	require.Equal(t, []string{domainLabel}, labelsByMetric[pointSentMetric])
-	require.Equal(t, []string{domainLabel}, labelsByMetric[pointDroppedMetric])
-
-	sentDefaultDomain := values[pointSentMetric][mergeKey([]string{"domain:https://api.datadoghq.com"})]
-	require.Equal(t, mergeMetricSample{tags: []string{"domain:https://api.datadoghq.com"}, value: 22}, sentDefaultDomain)
-
-	sentEmptyDomain := values[pointSentMetric][mergeKey([]string{"domain:"})]
-	require.Equal(t, mergeMetricSample{tags: []string{"domain:"}, value: 1}, sentEmptyDomain)
-
-	sentRemoteOnlyDomain := values[pointSentMetric][mergeKey([]string{"domain:https://api.datadoghq.eu"})]
-	require.Equal(t, mergeMetricSample{tags: []string{"domain:https://api.datadoghq.eu"}, value: 5}, sentRemoteOnlyDomain)
-
-	droppedDefaultDomain := values[pointDroppedMetric][mergeKey([]string{"domain:https://api.datadoghq.com"})]
-	require.Equal(t, mergeMetricSample{tags: []string{"domain:https://api.datadoghq.com"}, value: 5}, droppedDefaultDomain)
-}
-
-func TestCollectMergeMetricsSkipsNonGaugeMetrics(t *testing.T) {
-	mfs := []*dto.MetricFamily{counterMetricFamily(pointSentMetric, 12)}
-
-	values := collectMergeMetrics(mfs, false, map[string][]string{pointSentMetric: {}})
-
-	require.Empty(t, values)
-}
-
-func TestDiscoverMergeLabelsFallsBackToRegularRegistry(t *testing.T) {
-	defaultMfs := []*dto.MetricFamily{}
-	regularMfs := []*dto.MetricFamily{
-		gaugeMetricFamily(
-			pointSentMetric,
-			gaugeMetric(map[string]string{
-				domainLabel:  "https://api.datadoghq.com",
-				emitterLabel: "agent-data-plane",
-			}, 12),
-		),
-	}
-
-	labelsByMetric := discoverMergeLabels(defaultMfs, regularMfs)
-	values := collectMergeMetrics(regularMfs, true, labelsByMetric)
-
-	require.Equal(t, []string{domainLabel}, labelsByMetric[pointSentMetric])
-	require.Equal(t, mergeMetricSample{
-		tags:  []string{"domain:https://api.datadoghq.com"},
-		value: 12,
-	}, values[pointSentMetric][mergeKey([]string{"domain:https://api.datadoghq.com"})])
-}
-
-func TestSendMergedMetrics(t *testing.T) {
-	sm := mocksender.CreateDefaultDemultiplexer(t)
-	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
-	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider")
-
-	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
-	s.On("Gauge", "datadog.agent.point.sent", 22.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
-	s.On("Gauge", "datadog.agent.point.sent", 1.0, "", []string{"domain:"}).Return().Times(1)
-	s.On("Gauge", "datadog.agent.point.dropped", 5.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
-
-	values := newMergeMetricValues()
-	values.add(pointSentMetric, []string{"domain:"}, 1)
-	values.add(pointSentMetric, []string{"domain:https://api.datadoghq.com"}, 22)
-	values.add(pointDroppedMetric, []string{"domain:https://api.datadoghq.com"}, 5)
-
-	c.sendMergedMetrics(values, s)
-
-	s.AssertExpectations(t)
-}
-
-// defaultRegistryFixture is a stand-in for what the default registry holds: a couple of plain
-// families plus the merge metrics that are folded together with the regular registry.
 func defaultRegistryFixture() []*dto.MetricFamily {
 	return []*dto.MetricFamily{
 		gaugeMetricFamily(
@@ -267,8 +153,8 @@ func defaultRegistryFixture() []*dto.MetricFamily {
 	}
 }
 
-// regularRegistryFixture mixes an allowlisted family, a family that is only reported in advanced
-// mode, and a remote-agent merge metric.
+// regularRegistryFixture mixes two allowlisted families, a family only reported in advanced
+// mode, and a remote agent copy of a metric the default registry also reports.
 func regularRegistryFixture() []*dto.MetricFamily {
 	return []*dto.MetricFamily{
 		counterMetricFamily("logs__decoded", 7),
@@ -287,21 +173,29 @@ func regularRegistryFixture() []*dto.MetricFamily {
 	}
 }
 
+// expectDefaultRegistry registers the calls made for defaultRegistryFixture plus the overlapping
+// remote agent copy of point.sent, which is always reported alongside it.
+func expectDefaultRegistry(s *mocksender.MockSender) {
+	s.On("Gauge", "datadog.agent.test.gauge", 1.0, "", []string{"foo:bar"}).Return().Times(1)
+	s.On("Gauge", "datadog.agent.test.gauge", 2.0, "", []string{"foo:baz"}).Return().Times(1)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.counter", 4.0, "", []string{}, true).Return().Times(1)
+	// The Core Agent's own series and the remote agent's are distinct series, reported unchanged
+	// so the backend can sum them at query time and callers can still break them down by emitter.
+	s.On("Gauge", "datadog.agent.point.sent", 10.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	s.On("Gauge", "datadog.agent.point.sent", 12.0, "", []string{"domain:https://api.datadoghq.com", "emitter:agent-data-plane"}).Return().Times(1)
+}
+
 func TestRunWithoutInternalTelemetry(t *testing.T) {
 	c, s := newTestCheck(t, "", defaultRegistryFixture(), regularRegistryFixture())
 
 	expectRunScaffolding(s)
-
-	// Only the default registry is reported, plus the merged point.sent covering both registries.
-	s.On("Gauge", "datadog.agent.test.gauge", 1.0, "", []string{"foo:bar"}).Return().Times(1)
-	s.On("Gauge", "datadog.agent.test.gauge", 2.0, "", []string{"foo:baz"}).Return().Times(1)
-	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.counter", 4.0, "", []string{}, true).Return().Times(1)
-	s.On("Gauge", "datadog.agent.point.sent", 22.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	expectDefaultRegistry(s)
 
 	require.NoError(t, c.Run())
 
-	// Any regular-registry metric would be an unexpected call, which the mock fails on, but assert
-	// the intent explicitly so a future SetupAcceptAll cannot silently weaken this.
+	// Regular-registry families that do not overlap the default registry stay internal. An
+	// unexpected call already fails the mock, but assert the intent so a future SetupAcceptAll
+	// cannot silently weaken this.
 	s.AssertNotCalled(t, "MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	s.AssertExpectations(t)
 }
@@ -310,11 +204,7 @@ func TestRunWithInternalTelemetryEnabled(t *testing.T) {
 	c, s := newTestCheck(t, "internal_telemetry:\n  enabled: true\n", defaultRegistryFixture(), regularRegistryFixture())
 
 	expectRunScaffolding(s)
-
-	s.On("Gauge", "datadog.agent.test.gauge", 1.0, "", []string{"foo:bar"}).Return().Times(1)
-	s.On("Gauge", "datadog.agent.test.gauge", 2.0, "", []string{"foo:baz"}).Return().Times(1)
-	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.counter", 4.0, "", []string{}, true).Return().Times(1)
-	s.On("Gauge", "datadog.agent.point.sent", 22.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	expectDefaultRegistry(s)
 	// Allowlisted regular-registry families.
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded", 7.0, "", []string{}, true).Return().Times(1)
 	s.On("Gauge", "datadog.agent.scheduler.queue_size", 3.0, "", []string{"interval:15", "shadow:false"}).Return().Times(1)
@@ -323,6 +213,9 @@ func TestRunWithInternalTelemetryEnabled(t *testing.T) {
 
 	// Not on the allowlist, so it stays internal until advanced mode is turned on.
 	s.AssertNotCalled(t, "MonotonicCountWithFlushFirstValue", "datadog.agent.some.internal_only_metric", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	// point.sent overlaps the default registry, so it is reported there and must not be reported
+	// a second time by the internal telemetry pass.
+	s.AssertNumberOfCalls(t, "Gauge", 5)
 	s.AssertExpectations(t)
 }
 
@@ -330,11 +223,7 @@ func TestRunWithInternalTelemetryAdvanced(t *testing.T) {
 	c, s := newTestCheck(t, "internal_telemetry:\n  advanced: true\n", defaultRegistryFixture(), regularRegistryFixture())
 
 	expectRunScaffolding(s)
-
-	s.On("Gauge", "datadog.agent.test.gauge", 1.0, "", []string{"foo:bar"}).Return().Times(1)
-	s.On("Gauge", "datadog.agent.test.gauge", 2.0, "", []string{"foo:baz"}).Return().Times(1)
-	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.counter", 4.0, "", []string{}, true).Return().Times(1)
-	s.On("Gauge", "datadog.agent.point.sent", 22.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	expectDefaultRegistry(s)
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded", 7.0, "", []string{}, true).Return().Times(1)
 	s.On("Gauge", "datadog.agent.scheduler.queue_size", 3.0, "", []string{"interval:15", "shadow:false"}).Return().Times(1)
 	// Advanced mode reports everything, including families that are not on the allowlist.
@@ -342,59 +231,114 @@ func TestRunWithInternalTelemetryAdvanced(t *testing.T) {
 
 	require.NoError(t, c.Run())
 
-	// point.sent lives in both registries; the merge path owns it, so advanced mode must not
-	// report the regular-registry copy a second time.
-	s.AssertNumberOfCalls(t, "Gauge", 4)
+	s.AssertNumberOfCalls(t, "Gauge", 5)
 	s.AssertExpectations(t)
 }
 
-func TestRunReportsInternalTelemetryAsIndexed(t *testing.T) {
-	c, s := newTestCheck(t, "internal_telemetry:\n  enabled: true\n", defaultRegistryFixture(), regularRegistryFixture())
+func TestRunReportsOverlappingCounterSeries(t *testing.T) {
+	// Counters overlap just like gauges: there is no summing, so no type restriction either.
+	defaultMfs := []*dto.MetricFamily{counterMetricFamilyWith("shared__counter", counterMetric(nil, 5))}
+	regularMfs := []*dto.MetricFamily{
+		counterMetricFamilyWith("shared__counter", counterMetric(map[string]string{emitterLabel: "agent-data-plane"}, 7)),
+	}
+
+	c, s := newTestCheck(t, "", defaultMfs, regularMfs)
 
 	expectRunScaffolding(s)
-
-	s.On("Gauge", mock.AnythingOfType("string"), mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string")).Return()
-	s.On("MonotonicCountWithFlushFirstValue", mock.AnythingOfType("string"), mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"), true).Return()
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.shared.counter", 5.0, "", []string{}, true).Return().Times(1)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.shared.counter", 7.0, "", []string{"emitter:agent-data-plane"}, true).Return().Times(1)
 
 	require.NoError(t, c.Run())
 
-	// Default-registry metrics stay no-index; internal telemetry is reported after the sender is
-	// switched back to indexing, matching what the go_expvar instance produced.
-	noIndexOn := callIndex(s, "SetNoIndex", true)
-	noIndexOff := callIndex(s, "SetNoIndex", false)
-	defaultMetric := callIndex(s, "Gauge", "datadog.agent.test.gauge")
-	internalMetric := callIndex(s, "MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded")
-
-	require.NotEqual(t, -1, noIndexOn)
-	require.NotEqual(t, -1, noIndexOff)
-	require.NotEqual(t, -1, defaultMetric)
-	require.NotEqual(t, -1, internalMetric)
-	require.Less(t, noIndexOn, defaultMetric, "default registry metrics must be reported while no-index is on")
-	require.Less(t, defaultMetric, noIndexOff, "no-index must only be turned off after the default registry is reported")
-	require.Less(t, noIndexOff, internalMetric, "internal telemetry must be reported as indexed")
+	s.AssertExpectations(t)
 }
 
-func TestSendMetricFamilyHistogramDropsBuckets(t *testing.T) {
+func TestRunSkipsRegularSeriesIdenticalToADefaultSeries(t *testing.T) {
+	// Same name and the exact same tags is the same series; reporting it twice would put two
+	// points on it in one flush.
+	defaultMfs := []*dto.MetricFamily{
+		gaugeMetricFamily(pointSentMetric, gaugeMetric(map[string]string{domainLabel: "api"}, 10)),
+	}
+	regularMfs := []*dto.MetricFamily{
+		gaugeMetricFamily(
+			pointSentMetric,
+			gaugeMetric(map[string]string{domainLabel: "api"}, 99),
+			gaugeMetric(map[string]string{domainLabel: "api", emitterLabel: "agent-data-plane"}, 12),
+		),
+	}
+
+	c, s := newTestCheck(t, "", defaultMfs, regularMfs)
+
+	expectRunScaffolding(s)
+	s.On("Gauge", "datadog.agent.point.sent", 10.0, "", []string{"domain:api"}).Return().Times(1)
+	s.On("Gauge", "datadog.agent.point.sent", 12.0, "", []string{"domain:api", "emitter:agent-data-plane"}).Return().Times(1)
+
+	require.NoError(t, c.Run())
+
+	// The duplicate is dropped; only the two distinct series are reported.
+	s.AssertNumberOfCalls(t, "Gauge", 2)
+	s.AssertExpectations(t)
+}
+
+func TestRunReportsRemoteOnlyMetricsThroughInternalTelemetry(t *testing.T) {
+	// A remote agent family with no Core Agent counterpart is not part of the default batch, so
+	// it is only reported once internal telemetry is enabled.
+	regularMfs := []*dto.MetricFamily{
+		counterMetricFamilyWith("logs__decoded", counterMetric(map[string]string{emitterLabel: "agent-data-plane"}, 3)),
+	}
+
+	c, s := newTestCheck(t, "", nil, regularMfs)
+	expectRunScaffolding(s)
+	require.NoError(t, c.Run())
+	s.AssertNumberOfCalls(t, "MonotonicCountWithFlushFirstValue", 0)
+
+	c, s = newTestCheck(t, "internal_telemetry:\n  enabled: true\n", nil, regularMfs)
+	expectRunScaffolding(s)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded", 3.0, "", []string{"emitter:agent-data-plane"}, true).Return().Times(1)
+	require.NoError(t, c.Run())
+	s.AssertExpectations(t)
+}
+
+func TestSendMetricFamiliesHistogramDropsBuckets(t *testing.T) {
 	c, s := newTestCheck(t, "", nil, nil)
 
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.histogram.sum", 12.5, "", []string{}, true).Return().Times(1)
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.histogram.count", 3.0, "", []string{}, true).Return().Times(1)
 
-	c.sendMetricFamily(histogramMetricFamily("test__histogram", 3, 12.5), s)
+	c.sendMetricFamilies([]*dto.MetricFamily{histogramMetricFamily("test__histogram", 3, 12.5)}, nil, nil, s)
 
 	s.AssertNumberOfCalls(t, "MonotonicCountWithFlushFirstValue", 2)
 	s.AssertExpectations(t)
 }
 
-func TestSendMetricFamilySkipsUnsupportedTypes(t *testing.T) {
+func TestSendMetricFamiliesSkipsUnsupportedTypes(t *testing.T) {
 	c, s := newTestCheck(t, "", nil, nil)
 
 	for _, metricType := range []dto.MetricType{dto.MetricType_SUMMARY, dto.MetricType_UNTYPED} {
-		c.sendMetricFamily(typedMetricFamily("test__unsupported", metricType), s)
+		c.sendMetricFamilies([]*dto.MetricFamily{typedMetricFamily("test__unsupported", metricType)}, nil, nil, s)
 	}
 
 	s.AssertNumberOfCalls(t, "Gauge", 0)
 	s.AssertNumberOfCalls(t, "MonotonicCountWithFlushFirstValue", 0)
+}
+
+func TestSendMetricFamiliesContinuesPastFilteredAndUnsupportedFamilies(t *testing.T) {
+	// A family that a filter rejects, or that has an unsupported type, must not stop the families
+	// after it from being reported.
+	mfs := []*dto.MetricFamily{
+		counterMetricFamily("test__filtered", 1),
+		typedMetricFamily("test__unsupported", dto.MetricType_SUMMARY),
+		counterMetricFamily("test__reported", 2),
+	}
+
+	c, s := newTestCheck(t, "", nil, nil)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.reported", 2.0, "", []string{}, true).Return().Times(1)
+
+	c.sendMetricFamilies(mfs, func(mf *dto.MetricFamily) bool {
+		return mf.GetName() != "test__filtered"
+	}, nil, s)
+
+	s.AssertExpectations(t)
 }
 
 func TestParseInstanceConfig(t *testing.T) {

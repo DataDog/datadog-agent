@@ -29,3 +29,12 @@ other:
     nothing. The ``aggregator/HostnameUpdate`` expvar and the status-page fields that
     rendered these values have been removed. Per-destination sender idle and in-use time is
     available from the ``telemetry`` core check with a proper ``sender`` tag.
+upgrade:
+  - |
+    When a remote agent (such as ADP) reports a metric that the Core Agent also reports as
+    default telemetry, the ``telemetry`` core check no longer sums the two into a single
+    series with the ``emitter`` tag stripped. Both series are now reported unchanged, so the
+    total is obtained by aggregating across them at query time (for example
+    ``sum:datadog.agent.point.sent{*}``) and the per-emitter breakdown is preserved. Queries
+    that already aggregate are unaffected; queries that assumed a single pre-summed series
+    per metric may need to be updated.

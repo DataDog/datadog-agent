@@ -39,11 +39,9 @@ instances:
   # The following instance pulls the go_expvar metrics of the running datadog-agent
   # Feel free to comment out the instance if you're not interested in these metrics
   #
-  # Prefer the built-in `telemetry` core check instead: setting `internal_telemetry.enabled`
-  # in `conf.d/telemetry.d/conf.yaml` reports the same signals straight from the Agent's
-  # in-process telemetry registry, with no HTTP scrape and no Python check. It also covers
-  # per-destination sender idle/in-use time, which this instance no longer can: the expvar
-  # keys for those are named after an internal worker ID that changes shape between versions.
+  # Prefer the built-in `telemetry` core check instead: setting `internal_telemetry.enabled` in
+  # `conf.d/telemetry.d/conf.yaml` reports the same default set of signals straight from the Agent's
+  # in-process telemetry registry, with lower overhead.
   - expvar_url: http://localhost:5000/debug/vars  # if you've defined `expvar_port` in datadog.yaml, change the port here to that value
     namespace: datadog.agent
     metrics:

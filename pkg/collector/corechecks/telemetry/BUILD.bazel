@@ -7,7 +7,6 @@ go_library(
         "check.go",
         "config.go",
         "internal_metrics.go",
-        "merge.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry",
     visibility = ["//visibility:public"],
