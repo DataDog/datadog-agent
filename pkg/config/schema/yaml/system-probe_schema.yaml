@@ -1732,6 +1732,14 @@ properties:
             node_type: setting
             type: boolean
             default: false
+  packet_capture:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
   privileged_logs:
     node_type: section
     type: object
