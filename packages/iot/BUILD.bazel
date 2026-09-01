@@ -55,7 +55,7 @@ pkg_tar(
     name = "whole_distro_deb_tar",
     srcs = [
         ":whole_distro",
-        "//cmd/agent/dist/conf.d:all_files",
+        "//cmd/agent/dist/conf.d:iot_files",
         "//packages/agent/iot:example_config",
         "//packages/agent/iot:system_dirs",
         "//packages/agent/iot/debian:all_files",
@@ -110,7 +110,7 @@ pkg_rpm(
     package_name = "datadog-iot-agent",
     srcs = [
         ":whole_distro",
-        "//cmd/agent/dist/conf.d:all_files",
+        "//cmd/agent/dist/conf.d:iot_files",
         "//packages/agent/iot:example_config",
         "//packages/agent/iot:system_dirs",
     ] + select({
