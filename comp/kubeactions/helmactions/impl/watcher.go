@@ -33,12 +33,17 @@ const watchReconnectBackoff = 5 * time.Second
 // apiserver. It runs as a single goroutine started in helmactions.start() and
 // terminates when its context is cancelled.
 type jobWatcher struct {
-	client kubernetes.Interface
-	store  *ActionStore
+	client    kubernetes.Interface
+	store     *ActionStore
+	startTime time.Time // todo use it
 }
 
 func newJobWatcher(client kubernetes.Interface, store *ActionStore) *jobWatcher {
-	return &jobWatcher{client: client, store: store}
+	return &jobWatcher{
+		client:    client,
+		store:     store,
+		startTime: time.Now(),
+	}
 }
 
 // run blocks until ctx is done, restarting the underlying Watch as needed.

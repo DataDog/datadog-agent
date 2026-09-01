@@ -32,18 +32,21 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 	case watch.Added, watch.Modified:
 		job, ok := ev.Object.(*batchv1.Job)
 		if !ok {
-			log.Debugf("[HelmActions] Job %s/%s add/mod, unexpected object type: %T, ignoring", ev.Object)
+			log.Debugf("[HelmActions] Job unexpected object type: %T, ignoring", ev.Object)
 			return
 		}
 		rec, terminal := w.store.UpdateJob(job)
 
-		if !terminal {
-			log.Infof("[HelmActions] Job %s/%s reached phase=%s (succeeded=%d failed=%d): %sm conds:%v",
-				rec.Namespace, rec.Name, rec.Phase, rec.Succeeded, rec.Failed, rec.Message, job.Status.Conditions)
-		} else {
+		if terminal {
 			log.Infof("[HelmActions] Job %s/%s reached terminal phase=%s (succeeded=%d failed=%d): %s",
 				rec.Namespace, rec.Name, rec.Phase, rec.Succeeded, rec.Failed, rec.Message)
+			// job is done, report it
+
+			return
 		}
+
+		log.Infof("[HelmActions] Job %s/%s reached phase=%s (succeeded=%d failed=%d): %sm conds:%v",
+			rec.Namespace, rec.Name, rec.Phase, rec.Succeeded, rec.Failed, rec.Message, job.Status.Conditions)
 
 		if !isStuck(job, jobStuckLimitDurationTest) {
 			return
