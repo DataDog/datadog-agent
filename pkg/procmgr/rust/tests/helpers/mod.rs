@@ -55,6 +55,10 @@ pub struct ProcessSnapshot {
     pub last_signal: Option<i32>,
 }
 
+/// Parsed output from `list --json`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProcessList(pub Vec<ProcessSnapshot>);
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 struct ReloadSnapshot {
     added: Vec<String>,
@@ -341,6 +345,66 @@ impl ProcessExpect {
     }
 }
 
+impl ProcessList {
+    pub fn require_process(&self, name: &str) -> &ProcessSnapshot {
+        self.0
+            .iter()
+            .find(|p| p.name == name)
+            .unwrap_or_else(|| panic!("process '{name}' not found in catalog: {:?}", self.0))
+    }
+
+    pub fn assert_empty(&self) {
+        assert!(
+            self.0.is_empty(),
+            "expected empty catalog, got {:?}",
+            self.0
+        );
+    }
+
+    pub fn assert_len(&self, expected: usize) {
+        assert_eq!(
+            self.0.len(),
+            expected,
+            "expected {expected} process(es) in catalog, got {:?}",
+            self.0
+        );
+    }
+
+    pub fn assert_absent(&self, name: &str) {
+        assert!(
+            !self.0.iter().any(|p| p.name == name),
+            "process '{name}' should not be in catalog, got {:?}",
+            self.0
+        );
+    }
+
+    pub fn assert_process_state(&self, name: &str, expected: ProcessExpect) {
+        let process = self.require_process(name);
+        let expected_state = expected.as_str();
+        assert_eq!(
+            process.state, expected_state,
+            "process '{name}': expected state {expected_state}, got {process:?}"
+        );
+        assert!(
+            process_matches_expect(process, expected),
+            "process '{name}' PID expectation not met for {expected_state}: {process:?}"
+        );
+    }
+
+    pub fn assert_last_exit_code(&self, name: &str, code: i32) {
+        let process = self.require_process(name);
+        assert_eq!(
+            process.last_exit_code,
+            Some(code),
+            "process '{name}' last_exit_code: expected {code}, got {process:?}"
+        );
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
 /// Unset fields are not checked.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StatusProcessesCount {
@@ -365,6 +429,55 @@ impl StatusProcessesCount {
             exited: Some(0),
             starting: Some(0),
             stopping: Some(0),
+        }
+    }
+}
+
+impl DaemonStatus {
+    pub fn assert_ready(&self) {
+        assert!(self.ready, "expected daemon ready, got {self:?}");
+    }
+
+    pub fn assert_version_not_empty(&self) {
+        assert!(
+            !self.version.is_empty(),
+            "expected non-empty status version, got {self:?}"
+        );
+    }
+
+    pub fn assert_processes_count(&self, expected: StatusProcessesCount) {
+        let fields = [
+            ("total_processes", self.total_processes, expected.total),
+            (
+                "running_processes",
+                self.running_processes,
+                expected.running,
+            ),
+            (
+                "created_processes",
+                self.created_processes,
+                expected.created,
+            ),
+            (
+                "stopped_processes",
+                self.stopped_processes,
+                expected.stopped,
+            ),
+            ("failed_processes", self.failed_processes, expected.failed),
+            ("exited_processes", self.exited_processes, expected.exited),
+            (
+                "starting_processes",
+                self.starting_processes,
+                expected.starting,
+            ),
+            (
+                "stopping_processes",
+                self.stopping_processes,
+                expected.stopping,
+            ),
+        ];
+        for (field, actual, exp) in fields {
+            assert_status_field(field, actual, exp, self);
         }
     }
 }
@@ -1044,63 +1157,16 @@ impl TestEnv {
         StatusClient::new(&self.socket_path).status()
     }
 
-    fn require_status(&self) -> DaemonStatus {
+    pub fn require_status(&self) -> DaemonStatus {
         self.status()
             .unwrap_or_else(|e| panic!("failed to get daemon status: {e}"))
     }
 
-    pub fn assert_status_err(&self) -> String {
-        self.status().expect_err("expected status to fail")
-    }
-
-    pub fn assert_status_ready(&self) {
-        let status = self.require_status();
-        assert!(status.ready, "expected daemon ready, got {status:?}");
-    }
-
-    pub fn assert_status_version_not_empty(&self) {
-        let status = self.require_status();
-        assert!(
-            !status.version.is_empty(),
-            "expected non-empty status version, got {status:?}"
-        );
-    }
-
-    pub fn assert_status_processes_count(&self, expected: StatusProcessesCount) {
-        let status = self.require_status();
-        let fields = [
-            ("total_processes", status.total_processes, expected.total),
-            (
-                "running_processes",
-                status.running_processes,
-                expected.running,
-            ),
-            (
-                "created_processes",
-                status.created_processes,
-                expected.created,
-            ),
-            (
-                "stopped_processes",
-                status.stopped_processes,
-                expected.stopped,
-            ),
-            ("failed_processes", status.failed_processes, expected.failed),
-            ("exited_processes", status.exited_processes, expected.exited),
-            (
-                "starting_processes",
-                status.starting_processes,
-                expected.starting,
-            ),
-            (
-                "stopping_processes",
-                status.stopping_processes,
-                expected.stopping,
-            ),
-        ];
-        for (field, actual, exp) in fields {
-            assert_status_field(field, actual, exp, &status);
-        }
+    pub fn require_list(&self) -> ProcessList {
+        ProcessList(
+            self.list_processes()
+                .unwrap_or_else(|e| panic!("failed to list processes: {e}")),
+        )
     }
 
     pub fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
@@ -1118,12 +1184,23 @@ impl TestEnv {
             .ok_or_else(|| format!("process '{name}' not found"))
     }
 
-    pub fn wait_for_process_running(
+    /// Poll until `name` is Running with a live PID (default timeout, no stability wait).
+    pub fn wait_for_process_running(&self, name: &str) -> Result<ProcessSnapshot, String> {
+        self.wait_for_process_running_with_stable(
+            name,
+            default_process_wait_timeout(),
+            Duration::ZERO,
+        )
+    }
+
+    /// Like [`wait_for_process_running`](Self::wait_for_process_running), but requires the
+    /// process to stay Running for `stable_for` before returning.
+    pub fn wait_for_process_running_stable(
         &self,
         name: &str,
-        timeout: Duration,
+        stable_for: Duration,
     ) -> Result<ProcessSnapshot, String> {
-        self.wait_for_process_running_with_timeout(name, timeout)
+        self.wait_for_process_running_with_stable(name, default_process_wait_timeout(), stable_for)
     }
 
     pub fn wait_for_process_state(
@@ -1133,7 +1210,7 @@ impl TestEnv {
         timeout: Duration,
     ) -> Result<ProcessSnapshot, String> {
         if expected == ProcessExpect::Running {
-            return self.wait_for_process_running_with_timeout(name, timeout);
+            return self.wait_for_process_running_stable(name, stable_running_duration());
         }
 
         let client = ListClient::new(&self.socket_path);
@@ -1234,7 +1311,8 @@ impl TestEnv {
             .collect();
         self.assert_reload().assert_matches(&expected);
         for (name, pid_before) in pids_before {
-            self.assert_process_running(name);
+            self.wait_for_process_running(name)
+                .unwrap_or_else(|e| panic!("expected process '{name}' running after reload: {e}"));
             assert_eq!(
                 self.require_process_pid(name),
                 pid_before,
@@ -1271,14 +1349,6 @@ impl TestEnv {
         format!("{last_err}\n--- daemon logs ---\n{logs}\n--- end daemon logs ---")
     }
 
-    fn wait_for_process_running_with_timeout(
-        &self,
-        name: &str,
-        timeout: Duration,
-    ) -> Result<ProcessSnapshot, String> {
-        self.wait_for_process_running_with_stable(name, timeout, stable_running_duration())
-    }
-
     fn wait_for_process_running_with_stable(
         &self,
         name: &str,
@@ -1293,20 +1363,31 @@ impl TestEnv {
             let last_err = match client.list() {
                 Ok(processes) => match processes.iter().find(|p| p.name == name) {
                     Some(process) if process.state == "Running" && process.pid > 0 => {
-                        let reset = stable_pid != Some(process.pid);
-                        if reset || running_since.is_none() {
-                            running_since = Some(Instant::now());
-                            stable_pid = Some(process.pid);
-                        }
-                        let since = running_since.expect("running_since set above");
-                        if since.elapsed() >= stable_for {
+                        if !process_matches_expect(process, ProcessExpect::Running) {
+                            running_since = None;
+                            stable_pid = None;
+                            format!(
+                                "process '{name}' in Running but PID {} is not alive: {process:?}",
+                                process.pid
+                            )
+                        } else if stable_for.is_zero() {
                             return Ok(process.clone());
+                        } else {
+                            let reset = stable_pid != Some(process.pid);
+                            if reset || running_since.is_none() {
+                                running_since = Some(Instant::now());
+                                stable_pid = Some(process.pid);
+                            }
+                            let since = running_since.expect("running_since set above");
+                            if since.elapsed() >= stable_for {
+                                return Ok(process.clone());
+                            }
+                            format!(
+                                "process '{name}' running (pid {}) but not stable for {stable_for:?} yet ({:?} elapsed)",
+                                process.pid,
+                                since.elapsed()
+                            )
                         }
-                        format!(
-                            "process '{name}' running (pid {}) but not stable for {stable_for:?} yet ({:?} elapsed)",
-                            process.pid,
-                            since.elapsed()
-                        )
                     }
                     Some(process) => {
                         running_since = None;
@@ -1332,59 +1413,12 @@ impl TestEnv {
         }
     }
 
-    pub fn assert_process_running(&self, name: &str) {
-        self.wait_for_process_running(name, default_process_wait_timeout())
-            .unwrap_or_else(|e| panic!("expected process '{name}' running: {e}"));
-        self.assert_process_pid_alive(name);
-    }
-
     pub fn assert_process_state(&self, name: &str, expected: ProcessExpect) {
-        let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
-        let expected_state = expected.as_str();
-        assert_eq!(
-            process.state, expected_state,
-            "process '{name}': expected state {expected_state}, got {process:?}"
-        );
-        assert!(
-            process_matches_expect(&process, expected),
-            "process '{name}' PID expectation not met for {expected_state}: {process:?}"
-        );
+        self.require_list().assert_process_state(name, expected);
     }
 
     pub fn assert_process_last_exit_code(&self, name: &str, code: i32) {
-        let process = self.find_process(name).unwrap();
-        assert_eq!(
-            process.last_exit_code,
-            Some(code),
-            "process '{name}' last_exit_code: expected {code}, got {process:?}"
-        );
-    }
-
-    pub fn assert_process_absent(&self, name: &str) {
-        let processes = self
-            .list_processes()
-            .unwrap_or_else(|e| panic!("failed to list processes: {e}"));
-        assert!(
-            !processes.iter().any(|p| p.name == name),
-            "process '{name}' should not be in catalog, got {processes:?}"
-        );
-    }
-
-    pub fn assert_list_empty(&self) {
-        let processes = self.list_processes().expect("failed to list processes");
-        assert!(
-            processes.is_empty(),
-            "expected empty catalog, got {processes:?}"
-        );
-    }
-
-    pub fn assert_list_len(&self, expected: usize) {
-        let processes = self.list_processes().expect("failed to list processes");
-        assert_eq!(
-            processes.len(),
-            expected,
-            "expected {expected} process(es) in catalog, got {processes:?}"
-        );
+        self.require_list().assert_last_exit_code(name, code);
     }
 
     pub fn wait_for_restart_count_at_least(
@@ -1477,19 +1511,6 @@ impl TestEnv {
         self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
-    fn assert_process_pid_alive(&self, name: &str) {
-        let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
-        let pid = process.pid as u32;
-        assert!(
-            pid > 0,
-            "process '{name}' should have a PID, got {process:?}"
-        );
-        assert!(
-            pid_is_alive(pid),
-            "PID {pid} for process '{name}' should be alive"
-        );
-    }
-
     pub fn assert_pid_gone(&self, pid: u64) {
         assert!(
             wait_for_pid_gone(pid as u32, DEFAULT_TIMEOUT),
@@ -1499,7 +1520,8 @@ impl TestEnv {
 
     pub fn assert_process_pid_changed(&self, name: &str, old_pid: u64) {
         self.assert_pid_gone(old_pid);
-        self.assert_process_running(name);
+        self.wait_for_process_running(name)
+            .unwrap_or_else(|e| panic!("expected process '{name}' running with new pid: {e}"));
         let new_pid = self.require_process_pid(name);
         assert_ne!(old_pid, new_pid, "PID should change for {name}");
     }

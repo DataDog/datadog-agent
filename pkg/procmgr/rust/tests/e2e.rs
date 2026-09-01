@@ -17,45 +17,52 @@ use std::time::Duration;
 fn daemon_starts_ready() {
     let env = TestEnv::new();
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_version_not_empty();
-    procmgr.assert_status_processes_count(StatusProcessesCount::zeros());
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_version_not_empty();
+    status.assert_processes_count(StatusProcessesCount::zeros());
 }
 
 #[test]
 fn status_fails_without_daemon() {
     let env = TestEnv::new();
-    env.assert_status_err();
+    env.status()
+        .expect_err("expected status to fail without daemon");
 }
 
 #[test]
 fn status_ready_without_config_dir() {
     let env = TestEnv::with_missing_config_dir();
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount::zeros());
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount::zeros());
 }
 
 #[test]
 fn sleeper_fixture_auto_starts() {
     let env = TestEnv::new().with_process("sleeper");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         running: Some(1),
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
 }
 
 #[test]
 fn sleeper_fixture_no_auto_start() {
     let env = TestEnv::new().with_process("sleeper_idle");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         created: Some(1),
         running: Some(0),
@@ -70,15 +77,18 @@ fn invalid_syntax_fixture_skipped() {
         .with_process("sleeper")
         .with_process("invalid_syntax");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         running: Some(1),
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_running("sleeper");
-    procmgr.assert_process_absent("invalid_syntax");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    procmgr.require_list().assert_absent("invalid_syntax");
     procmgr.assert_config_skip_logged("invalid_syntax");
 }
 
@@ -86,8 +96,9 @@ fn invalid_syntax_fixture_skipped() {
 fn missing_binary_fixture_fails_to_spawn() {
     let env = TestEnv::new().with_process("missing_binary");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         failed: Some(1),
         running: Some(0),
@@ -101,9 +112,9 @@ fn missing_binary_fixture_fails_to_spawn() {
 fn exit_ok_fixture_exits_cleanly() {
     let env = TestEnv::new().with_process("exit_ok");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
     procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         exited: Some(1),
         running: Some(0),
@@ -116,9 +127,9 @@ fn exit_ok_fixture_exits_cleanly() {
 fn exit_fail_fixture_exits_with_failure() {
     let env = TestEnv::new().with_process("exit_fail");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
     procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         failed: Some(1),
         running: Some(0),
@@ -131,8 +142,9 @@ fn exit_fail_fixture_exits_with_failure() {
 fn condition_blocked_fixture_stays_created() {
     let env = TestEnv::new().with_process("condition_blocked");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         created: Some(1),
         running: Some(0),
@@ -149,8 +161,9 @@ fn condition_blocked_fixture_stays_created() {
 fn start_process_transitions_created_to_running() {
     let env = TestEnv::new().with_process("sleeper_idle");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         created: Some(1),
         running: Some(0),
@@ -160,7 +173,8 @@ fn start_process_transitions_created_to_running() {
 
     procmgr.assert_start_process("sleeper_idle");
 
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         running: Some(1),
         created: Some(0),
@@ -173,19 +187,23 @@ fn start_process_transitions_created_to_running() {
 fn stop_process_transitions_running_to_stopped() {
     let env = TestEnv::new().with_process("sleeper");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         running: Some(1),
         stopped: Some(0),
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
 
     procmgr.assert_stop_process("sleeper");
 
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         stopped: Some(1),
         running: Some(0),
@@ -198,7 +216,9 @@ fn stop_process_transitions_running_to_stopped() {
 fn stop_process_kills_child() {
     let env = TestEnv::new().with_process("sleeper");
     let procmgr = env.start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
 
     let snapshot = procmgr
         .process("sleeper")
@@ -218,8 +238,8 @@ fn stop_process_kills_child() {
 #[test]
 fn list_empty_when_no_processes() {
     let procmgr = TestEnv::new().start();
-    procmgr.assert_status_ready();
-    procmgr.assert_list_empty();
+    procmgr.require_status().assert_ready();
+    procmgr.require_list().assert_empty();
 }
 
 #[test]
@@ -228,10 +248,11 @@ fn list_shows_running_and_created_mix() {
         .with_process("sleeper")
         .with_process("sleeper_idle");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_list_len(2);
-    procmgr.assert_process_running("sleeper");
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    procmgr.require_status().assert_ready();
+    let list = procmgr.require_list();
+    list.assert_len(2);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 }
 
 #[test]
@@ -240,18 +261,20 @@ fn list_shows_exited_with_last_exit_code() {
         .with_process("exit_ok")
         .with_process("exit_fail");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
     procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
     procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
-    procmgr.assert_list_len(2);
-    procmgr.assert_process_last_exit_code("exit_ok", 0);
-    procmgr.assert_process_last_exit_code("exit_fail", 1);
+    let list = procmgr.require_list();
+    list.assert_len(2);
+    list.assert_last_exit_code("exit_ok", 0);
+    list.assert_last_exit_code("exit_fail", 1);
 }
 
 #[test]
 fn reload_unchanged_leaves_running_process() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
     procmgr.assert_reload_matches(ReloadExpect {
         unchanged: Some(vec!["sleeper".into()]),
         added: Some(vec![]),
@@ -264,15 +287,16 @@ fn reload_unchanged_leaves_running_process() {
 #[test]
 fn reload_adds_fixture_to_catalog() {
     let procmgr = TestEnv::new().start();
-    procmgr.assert_list_empty();
+    procmgr.require_list().assert_empty();
 
     procmgr.install_fixture("sleeper");
     procmgr.assert_reload_matches(ReloadExpect {
         added: Some(vec!["sleeper".into()]),
         ..Default::default()
     });
-    procmgr.assert_list_len(1);
-    procmgr.assert_process_running("sleeper");
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
 }
 
 #[test]
@@ -281,9 +305,10 @@ fn reload_removes_deleted_yaml_from_catalog() {
         .with_process("sleeper")
         .with_process("sleeper_idle")
         .start();
-    procmgr.assert_list_len(2);
-    procmgr.assert_process_running("sleeper");
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(2);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 
     procmgr.remove_process_yaml("sleeper_idle");
     procmgr.assert_reload_matches(ReloadExpect {
@@ -293,15 +318,19 @@ fn reload_removes_deleted_yaml_from_catalog() {
         modified: Some(vec![]),
         preserve_running_pids: vec!["sleeper".into()],
     });
-    procmgr.assert_list_len(1);
-    procmgr.assert_process_absent("sleeper_idle");
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_absent("sleeper_idle");
 }
 
 #[test]
 fn reload_remove_only_empties_catalog() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
-    procmgr.assert_list_len(1);
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let list = procmgr.require_list();
+    list.assert_len(1);
     let old_pid = procmgr.process("sleeper").expect("sleeper").pid;
 
     procmgr.remove_process_yaml("sleeper");
@@ -314,28 +343,31 @@ fn reload_remove_only_empties_catalog() {
     });
 
     procmgr.assert_pid_gone(old_pid);
-    procmgr.assert_list_empty();
+    procmgr.require_list().assert_empty();
 }
 
 #[test]
 fn reload_adds_no_auto_start_stays_created() {
     let procmgr = TestEnv::new().start();
-    procmgr.assert_list_empty();
+    procmgr.require_list().assert_empty();
 
     procmgr.install_fixture("sleeper_idle");
     procmgr.assert_reload_matches(ReloadExpect {
         added: Some(vec!["sleeper_idle".into()]),
         ..Default::default()
     });
-    procmgr.assert_list_len(1);
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 }
 
 #[test]
 fn reload_modify_respawns_with_new_pid() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
-    let count_before = procmgr.list_processes().expect("list before reload").len();
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let count_before = procmgr.require_list().len();
     let old_pid = procmgr.process("sleeper").expect("sleeper").pid;
 
     procmgr.overwrite_with_fixture("sleeper", "sleeper_long");
@@ -348,7 +380,7 @@ fn reload_modify_respawns_with_new_pid() {
         ..Default::default()
     });
 
-    let count_after = procmgr.list_processes().expect("list after reload").len();
+    let count_after = procmgr.require_list().len();
     assert_eq!(
         count_before, count_after,
         "modify reload should not change catalog size"
@@ -359,7 +391,9 @@ fn reload_modify_respawns_with_new_pid() {
 #[test]
 fn reload_remove_and_add_swaps_catalog() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
     let old_pid = procmgr.process("sleeper").expect("sleeper").pid;
 
     procmgr.remove_process_yaml("sleeper");
@@ -380,7 +414,9 @@ fn reload_remove_and_add_swaps_catalog() {
 #[test]
 fn describe_running_process_matches_fixture() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
 
     let list_snap = procmgr.process("sleeper").expect("sleeper");
     procmgr.assert_describe_matches(
@@ -400,7 +436,9 @@ fn describe_running_process_matches_fixture() {
 #[test]
 fn describe_resolves_uuid_prefix() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
 
     let uuid = procmgr.process("sleeper").expect("sleeper").uuid.clone();
     let prefix = uuid[..8].to_string();
@@ -420,7 +458,9 @@ fn describe_resolves_uuid_prefix() {
 #[test]
 fn describe_shows_static_config_fields() {
     let procmgr = TestEnv::new().with_process("full").start();
-    procmgr.assert_process_running("full");
+    procmgr
+        .wait_for_process_running("full")
+        .expect("expected full running");
 
     let root = procmgr.env_root().display().to_string();
     procmgr.assert_describe_matches(
@@ -462,7 +502,7 @@ fn describe_after_exit_shows_last_exit() {
 fn restart_always_increments_count_in_list() {
     let procmgr = TestEnv::new().with_process("crasher").start();
     procmgr.assert_restart_count_at_least("crasher", 2);
-    procmgr.assert_list_len(1);
+    procmgr.require_list().assert_len(1);
 }
 
 #[test]
