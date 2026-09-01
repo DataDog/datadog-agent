@@ -854,8 +854,8 @@ func TestOTelSpan(t *testing.T) {
 	// open-telemetry/opentelemetry-ebpf-profiler#1229): one tester per TLS access
 	// model the resolver has to handle. See otel_tls.bzl in the syscall tester's
 	// c directory for how each is built. musl is not covered here: the only thing
-	// it changes is the DTV layout its libc reports, which is resolved in user
-	// space, so TestResolveOTelTLSMuslDTV covers it without eBPF or a VM.
+	// it changes is the DTV layout its libc reports, which is resolved entirely
+	// in user space, not eBPF.
 	type otelTesterSpec struct {
 		name string
 		// binary and fixture name artifacts of the syscall tester build; fixture
