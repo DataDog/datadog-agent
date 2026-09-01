@@ -9,11 +9,24 @@ package authoredscripts
 
 import (
 	"context"
+	"os/exec"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestConfigureCommand_PreservesProcessAttributes(t *testing.T) {
+	cmd := exec.Command("/bin/echo", "hello")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Chroot: "/sandbox"}
+
+	configureCommand(cmd)
+
+	assert.Equal(t, "/sandbox", cmd.SysProcAttr.Chroot)
+	assert.True(t, cmd.SysProcAttr.Setpgid)
+	assert.Zero(t, cmd.SysProcAttr.Pgid)
+}
 
 func TestNewCommand_InjectsParameters(t *testing.T) {
 	session := newTestSession(t)
