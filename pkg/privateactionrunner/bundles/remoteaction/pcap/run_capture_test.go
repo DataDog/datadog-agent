@@ -60,15 +60,105 @@ func validInputs() map[string]interface{} {
 	}
 }
 
-func TestRunCaptureValidation_MissingBPFFilter(t *testing.T) {
-	handler := newTestHandler()
+// recordingCaptureTrigger captures the inputs Run() resolved, so tests can
+// assert on defaulting rather than only on the returned result.
+type recordingCaptureTrigger struct {
+	got RunCaptureInputs
+}
+
+func (r *recordingCaptureTrigger) Capture(_ context.Context, in RunCaptureInputs) (int, int64, time.Duration, string, error) {
+	r.got = in
+	return 0, 0, 0, "", nil
+}
+
+func newRecordingHandler() (*RunCaptureHandler, *recordingCaptureTrigger) {
+	handler := NewRunCaptureHandler(testConfig())
+	rec := &recordingCaptureTrigger{}
+	handler.capture = rec
+	return handler, rec
+}
+
+// An omitted bpfFilter means "capture everything", not an error. The capture UI
+// does not require the user to supply a filter, so the Capture API dispatches
+// without one; compileBPFFilter treats "" as match-all.
+func TestRunCapture_OmittedBPFFilterIsAccepted(t *testing.T) {
+	handler, rec := newRecordingHandler()
 	task := newTask(map[string]interface{}{
+		"captureId":    "cap-1",
 		"durationSecs": 10,
 	})
 
 	_, err := handler.Run(context.Background(), task, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "bpfFilter")
+	require.NoError(t, err)
+	assert.Empty(t, rec.got.BPFFilter)
+}
+
+// The caller's captureId must reach the capture untouched — it is the only key
+// that correlates the dispatch with the uploaded pcap once the action result
+// has expired.
+func TestRunCapture_CaptureIDIsHonoured(t *testing.T) {
+	handler, _ := newRecordingHandler()
+	task := newTask(map[string]interface{}{
+		"captureId":    "cap-abc-123",
+		"bpfFilter":    "icmp",
+		"durationSecs": 5,
+	})
+
+	res, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+	require.IsType(t, &RunCaptureResult{}, res)
+	assert.Equal(t, "cap-abc-123", res.(*RunCaptureResult).CaptureID)
+}
+
+func TestRunCapture_CaptureIDGeneratedWhenAbsent(t *testing.T) {
+	handler, _ := newRecordingHandler()
+	task := newTask(map[string]interface{}{
+		"bpfFilter":    "icmp",
+		"durationSecs": 5,
+	})
+
+	res, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+	assert.NotEmpty(t, res.(*RunCaptureResult).CaptureID)
+}
+
+// Neither cap may be left unbounded. Omitted, zero and negative all resolve to
+// the defaults — negative especially, since these are converted to uint64
+// downstream where a negative would wrap to an effectively infinite limit.
+func TestRunCapture_CapsAlwaysBounded(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		inputs map[string]interface{}
+	}{
+		{"omitted", map[string]interface{}{"durationSecs": 5}},
+		{"zero", map[string]interface{}{"durationSecs": 5, "maxPackets": 0, "maxBytes": 0}},
+		{"negative", map[string]interface{}{"durationSecs": 5, "maxPackets": -1, "maxBytes": -1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler, rec := newRecordingHandler()
+			tc.inputs["captureId"] = "cap-1"
+
+			_, err := handler.Run(context.Background(), newTask(tc.inputs), nil)
+			require.NoError(t, err)
+			assert.Equal(t, defaultMaxPackets, rec.got.MaxPackets)
+			assert.Equal(t, int64(defaultMaxBytes), rec.got.MaxBytes)
+		})
+	}
+}
+
+func TestRunCapture_ExplicitCapsArePreserved(t *testing.T) {
+	handler, rec := newRecordingHandler()
+	task := newTask(map[string]interface{}{
+		"captureId":    "cap-1",
+		"durationSecs": 5,
+		"maxPackets":   1234,
+		"maxBytes":     567890,
+	})
+
+	_, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1234, rec.got.MaxPackets)
+	assert.Equal(t, int64(567890), rec.got.MaxBytes)
 }
 
 func TestRunCaptureValidation_DurationTooLow(t *testing.T) {
@@ -107,33 +197,34 @@ func TestRunCaptureValidation_ValidInputs(t *testing.T) {
 	assert.NotEmpty(t, result.CaptureID, "CaptureID should be a non-empty UUID")
 }
 
+// TestRunCaptureDefaults asserts the values Run() actually hands to the
+// capturer when the optional bounds are omitted.
+//
+// This previously checked the constants against hardcoded literals and then
+// only that the call did not error, because there was no way to observe the
+// resolved inputs. recordingCaptureTrigger removes that limitation, so assert
+// on the real thing — duplicating the literals here just meant every change to
+// a default had to be made in two places.
 func TestRunCaptureDefaults(t *testing.T) {
-	// Patch handler to expose the parsed inputs so we can inspect defaults.
-	// Since Run() applies defaults in-place before the stub return path,
-	// we verify the effect indirectly: the only observable difference today
-	// is that the call succeeds and returns a valid result.  We also confirm
-	// the constants match the expected defaults so callers rely on them.
-	assert.Equal(t, defaultSnapLen, 256)
-	assert.Equal(t, defaultMaxPackets, 50000)
+	handler, rec := newRecordingHandler()
 
-	handler := newTestHandler()
-
-	// SnapLen=0 and MaxPackets=0 are omitted; handler must apply defaults.
 	task := newTask(map[string]interface{}{
+		"captureId":    "cap-defaults",
 		"bpfFilter":    "udp port 53",
 		"durationSecs": 5,
-		// snapLen and maxPackets intentionally absent (zero-value)
+		// snapLen, maxPackets and maxBytes intentionally absent
 	})
 
 	output, err := handler.Run(context.Background(), task, nil)
 	require.NoError(t, err)
 
+	assert.Equal(t, defaultSnapLen, rec.got.SnapLen)
+	assert.Equal(t, defaultMaxPackets, rec.got.MaxPackets)
+	assert.Equal(t, int64(defaultMaxBytes), rec.got.MaxBytes)
+
 	result, ok := output.(*RunCaptureResult)
 	require.True(t, ok)
-	// The stub result is returned after defaults are applied; the call
-	// succeeding with SnapLen/MaxPackets omitted proves the defaults path
-	// does not panic or error out.
-	assert.NotEmpty(t, result.CaptureID)
+	assert.Equal(t, "cap-defaults", result.CaptureID)
 }
 
 func TestGetAction_RunCapture(t *testing.T) {

@@ -320,7 +320,7 @@ func (c *capturer) Stats() CaptureStats {
 
 // drainLoop is the background goroutine that reads ring buffer records and
 // writes PCAP packets. Terminates on: stop signal, context cancellation,
-// reader close, MaxPackets limit, or Duration expiry.
+// reader close, MaxPackets limit, MaxBytes limit, or Duration expiry.
 func (c *capturer) drainLoop(ctx context.Context) {
 	defer close(c.doneCh)
 
@@ -330,6 +330,10 @@ func (c *capturer) drainLoop(ctx context.Context) {
 		defer t.Stop()
 		deadline = t.C
 	}
+
+	// Tracks the true on-disk file size for the MaxBytes cap. Start()
+	// has already written the global header by the time we get here.
+	fileBytes := pcapFileHeaderSize
 
 	for {
 		// Non-blocking check for stop conditions before blocking on Read.
@@ -369,6 +373,16 @@ func (c *capturer) drainLoop(ctx context.Context) {
 			continue
 		}
 
+		// MaxBytes is checked before the write, not after, so the cap is never
+		// exceeded and the file never ends on a half-written record. Dropping
+		// this packet ends the capture — a later, smaller packet must not be
+		// allowed to slip in under the cap, because that would reorder the
+		// capture relative to the wire and silently misrepresent what happened.
+		recordSize := pcapPacketHeaderSize + uint64(len(pkt.Data))
+		if c.cfg.MaxBytes > 0 && fileBytes+recordSize > c.cfg.MaxBytes {
+			return
+		}
+
 		c.writeMu.Lock()
 		writeErr := writePCAPPacket(c.cfg.Output, pkt)
 		c.writeMu.Unlock()
@@ -377,6 +391,7 @@ func (c *capturer) drainLoop(ctx context.Context) {
 			continue
 		}
 
+		fileBytes += recordSize
 		c.packetsCaptured.Add(1)
 		c.bytesCaptured.Add(uint64(len(pkt.Data)))
 

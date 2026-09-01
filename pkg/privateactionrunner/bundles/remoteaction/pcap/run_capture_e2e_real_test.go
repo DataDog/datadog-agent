@@ -13,10 +13,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 // TestRunCapture_RealEndToEnd exercises the *full* runCapture pipeline: a
@@ -105,4 +107,90 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 	require.NoError(t, err, "expected the real networkpcap intake to accept the upload (202); a failure here means the agent-side upload path is broken against a real, reachable intake, independent of any S3/Husky-landing question")
 
 	t.Logf("uploaded capture_id=%s (%d bytes) to https://%s/api/v2/networkpcap and got 202 — this confirms edge-accept only, NOT confirmed storage landing in S3/Husky", captureID, len(pcapBytes), intakeHost)
+}
+
+// TestRunCapture_RealEndToEndViaRun is TestRunCapture_RealEndToEnd's stricter
+// sibling: it drives the action through Run() with a real *types.Task instead
+// of calling Capture() and Upload() directly.
+//
+// That distinction is the whole point. Everything Run() owns — input
+// extraction, validation, defaulting, and honouring the caller's captureId —
+// is invisible to the other test, which constructs the handler's collaborators
+// itself and never builds a task. This test covers the contract the Capture
+// API actually dispatches against:
+//
+//   - captureId supplied by the caller must reach the upload unchanged, so the
+//     capture is findable in the networkpcap track afterwards. A self-minted ID
+//     would only be returned in the action result, which expires.
+//   - bpfFilter omitted entirely must be accepted and mean "capture
+//     everything", because the capture UI does not ask the user for a filter.
+//   - maxPackets must actually bound the capture, not just be accepted.
+//
+// Enable with the same variables as TestRunCapture_RealEndToEnd. No traffic
+// generator is needed: with no filter, ambient host traffic is enough.
+func TestRunCapture_RealEndToEndViaRun(t *testing.T) {
+	if os.Getenv("PCAP_REAL_E2E_TEST") != "1" {
+		t.Skip("set PCAP_REAL_E2E_TEST=1 to run against a live system-probe and a real networkpcap intake")
+	}
+
+	apiKey := os.Getenv("PCAP_REAL_E2E_API_KEY")
+	require.NotEmpty(t, apiKey, "PCAP_REAL_E2E_API_KEY must be set to a real DD_API_KEY")
+
+	site := os.Getenv("PCAP_REAL_E2E_SITE")
+	if site == "" {
+		site = "datad0g.com"
+	}
+
+	intakeHost := os.Getenv("PCAP_REAL_E2E_INTAKE_HOST")
+	require.NotEmpty(t, intakeHost, "PCAP_REAL_E2E_INTAKE_HOST must be set to a currently-routed host:port override")
+
+	socketPath := os.Getenv("PCAP_REAL_SYSPROBE_SOCKET")
+	if socketPath == "" {
+		socketPath = "/opt/datadog-agent/run/sysprobe.sock"
+	}
+	iface := os.Getenv("PCAP_REAL_SYSPROBE_IFACE")
+	if iface == "" {
+		iface = "eth0"
+	}
+
+	systemProbeConfig := configmock.NewSystemProbe(t)
+	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", socketPath)
+
+	handler := NewRunCaptureHandler(&config.Config{
+		APIKey:               apiKey,
+		DatadogSite:          site,
+		NetworkPcapLogsDDURL: intakeHost,
+	})
+
+	// Deliberately low so the cap, not the duration, is what ends the capture —
+	// otherwise a quiet host would pass without the bound ever being exercised.
+	const maxPackets = 100
+	captureID := "e2e-run-" + uuid.New().String()
+
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]interface{}{
+			"captureId":    captureID,
+			"durationSecs": 10,
+			"interface":    iface,
+			"maxPackets":   maxPackets,
+			// bpfFilter deliberately absent.
+		},
+	}
+
+	out, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err, "Run() must accept a task with no bpfFilter")
+
+	res, ok := out.(*RunCaptureResult)
+	require.True(t, ok, "expected *RunCaptureResult")
+
+	assert.Equal(t, captureID, res.CaptureID,
+		"the caller's captureId must be echoed back, not replaced by a generated one")
+	assert.Greater(t, res.PacketCount, 0,
+		"expected ambient traffic to be captured with no filter applied")
+	assert.LessOrEqual(t, res.PacketCount, maxPackets,
+		"maxPackets must bound the capture")
+
+	t.Logf("captured %d packets (%d bytes) in %ds, uploaded capture_id=%s to https://%s/api/v2/networkpcap",
+		res.PacketCount, res.FileSizeBytes, res.DurationSecs, res.CaptureID, intakeHost)
 }

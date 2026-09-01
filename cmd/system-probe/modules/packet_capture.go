@@ -31,12 +31,13 @@ type captureRequest struct {
 	BPFFilter    string `json:"bpfFilter,omitempty"`
 	DurationSecs int    `json:"durationSecs"`
 	MaxPackets   uint64 `json:"maxPackets,omitempty"`
+	MaxBytes     uint64 `json:"maxBytes,omitempty"`
 	SnapLen      uint32 `json:"snapLen,omitempty"`
 	HeaderOnly   bool   `json:"headerOnly,omitempty"`
 }
 
 // pollInterval is how often the handler polls Stats() while waiting for the
-// capture's own Duration/MaxPackets bound to be reached, so Stop() can be
+// capture's own Duration/MaxPackets/MaxBytes bound to be reached, so Stop() can be
 // invoked promptly rather than only after the full grace period.
 const pollInterval = 200 * time.Millisecond
 
@@ -101,6 +102,7 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 		Output:     w,
 		Duration:   duration,
 		MaxPackets: reqBody.MaxPackets,
+		MaxBytes:   reqBody.MaxBytes,
 		SnapLen:    reqBody.SnapLen,
 		HeaderOnly: reqBody.HeaderOnly,
 	}

@@ -59,6 +59,7 @@ type captureRequest struct {
 	BPFFilter    string `json:"bpfFilter,omitempty"`
 	DurationSecs int    `json:"durationSecs"`
 	MaxPackets   uint64 `json:"maxPackets,omitempty"`
+	MaxBytes     uint64 `json:"maxBytes,omitempty"`
 	SnapLen      uint32 `json:"snapLen,omitempty"`
 	HeaderOnly   bool   `json:"headerOnly,omitempty"`
 }
@@ -87,6 +88,7 @@ func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInput
 		BPFFilter:    inputs.BPFFilter,
 		DurationSecs: inputs.DurationSecs,
 		MaxPackets:   uint64(inputs.MaxPackets),
+		MaxBytes:     uint64(inputs.MaxBytes),
 		SnapLen:      uint32(inputs.SnapLen),
 		HeaderOnly:   true,
 	})

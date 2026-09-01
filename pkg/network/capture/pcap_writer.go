@@ -19,6 +19,14 @@ const (
 	pcapVersionMajor uint16 = 2
 	pcapVersionMinor uint16 = 4
 	pcapLinkTypeEth  uint32 = 1 // LINKTYPE_ETHERNET
+
+	// pcapFileHeaderSize is the size of the global file header written once by
+	// writePCAPHeader. pcapPacketHeaderSize is the per-record header written by
+	// writePCAPPacket ahead of each packet's bytes. Both are named so that
+	// CaptureConfig.MaxBytes can be enforced against the true on-disk file size
+	// rather than against packet payload alone.
+	pcapFileHeaderSize   uint64 = 24
+	pcapPacketHeaderSize uint64 = 16
 )
 
 // writePCAPHeader writes the 24-byte PCAP global file header to w.
