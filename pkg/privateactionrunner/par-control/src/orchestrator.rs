@@ -128,9 +128,8 @@ where
                         "dequeued task {} ({}) for job {}",
                         task.task_id, task.action_fqn, task.job_id
                     );
-                    // Start protecting the OPMS lease before cold-starting the
-                    // executor or synchronizing keys. Keep it protected until
-                    // terminal publication finishes.
+                    // Start protecting the OPMS lease before starting the executor.
+                    // Keep it protected until terminal publication finishes.
                     let (stop_hb, hb_done) = spawn_heartbeats(
                         Arc::clone(&self.opms),
                         task.clone(),
