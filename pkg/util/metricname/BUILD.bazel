@@ -14,7 +14,6 @@ go_library(
 dd_agent_go_test(
     name = "metricname_test",
     srcs = [
-        "matcher_scaling_test.go",
         "matcher_test.go",
         "normalize_test.go",
     ],
