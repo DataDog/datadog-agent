@@ -288,6 +288,9 @@ func (l *CheckRunner) Run() error {
 	return nil
 }
 
+// statusNamesProvider lets a check override the names published in Agent status.
+// The runner continues to use Check.Name as the check's operational identity for
+// execution, intervals, and payload submission.
 type statusNamesProvider interface {
 	StatusNames() []string
 }
