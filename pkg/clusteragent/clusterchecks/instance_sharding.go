@@ -65,24 +65,8 @@ func (m *instanceShardingManager) createShardedInstanceConfigs(baseConfig integr
 }
 
 func createInstanceShardConfig(baseConfig integration.Config, instance integration.Data, index int) integration.Config {
-	return integration.Config{
-		Name:                    baseConfig.Name,
-		InitConfig:              baseConfig.InitConfig,
-		MetricConfig:            baseConfig.MetricConfig,
-		ADIdentifiers:           baseConfig.ADIdentifiers,
-		AdvancedADIdentifiers:   baseConfig.AdvancedADIdentifiers,
-		Provider:                baseConfig.Provider,
-		TaggerEntity:            baseConfig.TaggerEntity,
-		ClusterCheck:            baseConfig.ClusterCheck,
-		NodeName:                baseConfig.NodeName,
-		Source:                  baseConfig.Source,
-		IgnoreAutodiscoveryTags: baseConfig.IgnoreAutodiscoveryTags,
-		CheckTagCardinality:     baseConfig.CheckTagCardinality,
-		MetricsExcluded:         baseConfig.MetricsExcluded,
-		LogsExcluded:            baseConfig.LogsExcluded,
-		PodNamespace:            baseConfig.PodNamespace,
-		ImageName:               baseConfig.ImageName,
-		Instances:               []integration.Data{instance},
-		ServiceID:               fmt.Sprintf("%s#instance-shard-%d", baseConfig.ServiceID, index),
-	}
+	shard := baseConfig
+	shard.Instances = []integration.Data{instance}
+	shard.ServiceID = fmt.Sprintf("%s#instance-shard-%d", baseConfig.ServiceID, index)
+	return shard
 }
