@@ -1,12 +1,11 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
 using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
 using YamlDotNet.Serialization;
@@ -427,45 +426,8 @@ namespace Datadog.CustomActions
             {
                 var path = session.Property("APPLICATIONDATADIRECTORY");
 
-                // This section is copied from RollbackDataStore.cs
-                // Create DACL for only SYSTEM and Administrators, disable inheritance
-                FileSystemSecurity security = new DirectorySecurity();
-                security.SetAccessRuleProtection(true, false);
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-                security.SetOwner(new SecurityIdentifier(
-                    WellKnownSidType.LocalSystemSid, null));
-                security.SetGroup(new SecurityIdentifier(
-                    WellKnownSidType.LocalSystemSid, null));
-
-                if (Directory.Exists(path))
-                {
-                    var _oldACL = Directory.GetAccessControl(path, AccessControlSections.All);
-                    session.Log($"{path} current ACL: {_oldACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-                }
-                else
-                {
-                    session.Log($"Creating {path}");
-                }
-
-                // Create the directory with the above DACL
-                Directory.CreateDirectory(path, (DirectorySecurity)security); // Create directory with ACL if needed
-                session.Log($"Updating ACL on {path}");
-                Directory.SetAccessControl(path, (DirectorySecurity)security); // otherwise update ACL in case directory already existed
-
-                // Log final permissions and owner
-                var _newACL = Directory.GetAccessControl(path, AccessControlSections.All);
-                session.Log($"{path} final ACL: {_newACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                // Create/update the directory so only SYSTEM and Administrators have access
+                SecureDirectory.CreateAndSecure(session, path);
 
                 // Create the logonduration subdirectory; it inherits the DACL above.
                 var logonDurationDir = Path.Combine(path, "logonduration");
@@ -475,7 +437,11 @@ namespace Datadog.CustomActions
                     Directory.CreateDirectory(logonDurationDir);
                 }
             }
-
+            catch (SecureDirectoryException e)
+            {
+                session.LogAndDisplayError(e.Message);
+                return ActionResult.Failure;
+            }
             catch (Exception e)
             {
                 session.Log($"Application directory could not be created/configured: {e}");
