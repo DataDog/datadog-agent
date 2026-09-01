@@ -131,8 +131,11 @@ installer_deb-arm64:
   script:
     - export PACKAGE_VERSION=$(dda inv agent.version --url-safe)
     - bazel build --config=cache ${BAZEL_EXTRA_FLAGS} //packages/iot:debian
+    - export IOT_DEB_PATH="$(bazel info execution_root)/$(bazel cquery --config=cache ${BAZEL_EXTRA_FLAGS} //packages/iot:debian --output=files)"
+    - echo "Bazel-built package at $IOT_DEB_PATH:"; sha256sum "$IOT_DEB_PATH"; dpkg-deb -c "$IOT_DEB_PATH" | grep systemd/system || echo "systemd unit NOT found in bazel-built package"
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - cp "$(bazel info execution_root)/$(bazel cquery --config=cache ${BAZEL_EXTRA_FLAGS} //packages/iot:debian --output=files)" $OMNIBUS_PACKAGE_DIR/
+    - cp "$IOT_DEB_PATH" $OMNIBUS_PACKAGE_DIR/
+    - echo "Copied package(s) in $OMNIBUS_PACKAGE_DIR:"; sha256sum $OMNIBUS_PACKAGE_DIR/*.deb; dpkg-deb -c $OMNIBUS_PACKAGE_DIR/*.deb | grep systemd/system || echo "systemd unit NOT found in copied package"
     - !reference [.create_signature_and_lint_linux_packages]
   after_script:
     - !reference [.static_quality_gate_package]

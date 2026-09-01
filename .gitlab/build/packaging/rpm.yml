@@ -221,8 +221,11 @@ installer_suse_rpm-arm64:
   script:
     - export PACKAGE_VERSION=$(dda inv agent.version --url-safe)
     - bazel build --config=cache ${BAZEL_EXTRA_FLAGS} //packages/iot:rpm
+    - export IOT_RPM_PATH="$(bazel info execution_root)/$(bazel cquery --config=cache ${BAZEL_EXTRA_FLAGS} //packages/iot:rpm --output=files)"
+    - echo "Bazel-built package at $IOT_RPM_PATH:"; sha256sum "$IOT_RPM_PATH"; rpm -qlp "$IOT_RPM_PATH" | grep systemd/system || echo "systemd unit NOT found in bazel-built package"
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - cp "$(bazel info execution_root)/$(bazel cquery --config=cache ${BAZEL_EXTRA_FLAGS} //packages/iot:rpm --output=files)" $OMNIBUS_PACKAGE_DIR/
+    - cp "$IOT_RPM_PATH" $OMNIBUS_PACKAGE_DIR/
+    - echo "Copied package(s) in $OMNIBUS_PACKAGE_DIR:"; sha256sum $OMNIBUS_PACKAGE_DIR/*.rpm; rpm -qlp $OMNIBUS_PACKAGE_DIR/*.rpm | grep systemd/system || echo "systemd unit NOT found in copied package"
     - !reference [.create_signature_and_lint_linux_packages]
   after_script:
     - !reference [.static_quality_gate_package]
